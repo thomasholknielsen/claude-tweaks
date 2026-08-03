@@ -91,16 +91,23 @@ Read the body content directly — don't just trust the risk/effort labels as gr
 - Does the Deliverables/Acceptance Criteria text describe touching authentication, session
   handling, claim/locking logic, or other structurally sensitive behavior, regardless of what the
   risk/effort labels say? That's a reason to recommend more cautiously than the labels alone imply.
-- Does the record describe creating or substantially editing a file under `skills/**/*.md` or
-  `agents/**/*.md` (a new or changed skill, or a new or changed subagent definition)? This includes
-  `harness-health:new-skill` findings — their body reads "**New skill candidate**" with a "Proposed
-  new skill" deliverable (see `bin/lib/harness-health/issue-payload.js`). Recognize this from body
-  content, not from a label — `new-skill` findings currently carry no `risk:*`/`effort:*` labels at
-  all, by design, so labels alone tell you nothing here. A well-specified new-skill proposal can
-  still reasonably recommend `RECOMMEND_BUILD: true` (drafting the content autonomously is fine — a
-  human still confirms the grant, and reviews again before any merge), but recommend
-  `RECOMMEND_MERGE: false` — new skill and agent-definition files encode instructions future agents
-  follow, which is high-leverage independent of how small or clean the proposal looks.
+- Does the record describe creating or editing an agent-instruction file (see `merge-check`'s Step
+  2 for the class — a skill, a subagent definition, `CLAUDE.md`/`AGENTS.md`, or a rules file)? This
+  includes `harness-health:new-skill` findings — their body reads "**New skill candidate**" with a
+  "Proposed new skill" deliverable (see `bin/lib/harness-health/issue-payload.js`). Recognize this
+  from body content, not from a label — `new-skill` findings currently carry no `risk:*`/`effort:*`
+  labels at all, by design, so labels alone tell you nothing here. A well-specified new-skill
+  proposal can still reasonably recommend `RECOMMEND_BUILD: true` — drafting content autonomously
+  is fine, since a human confirms the grant and reviews again before any merge.
+
+  For `RECOMMEND_MERGE`, judge what the record's own body describes. A record proposing content
+  that adds or changes instructions agents follow is `false`; a **new** skill or subagent
+  definition is always `false`, since a new instruction file is new instructions by definition. A
+  record describing only repair to what the file points at — a moved path, a renamed anchor, a
+  stale cross-reference — can be `true`. Whatever you recommend, state in the `RATIONALE` that
+  `merge-check` re-judges the real diff at merge time and may still route to a human: the grant
+  authorizes an attempt, it does not promise a merge. Recommending `true` on a body that reads
+  clean is safe precisely because the diff is judged again against this class's floor.
 - Is the described change actually lower-risk than its labels suggest (e.g. a `risk:medium` record
   that turns out to be a pure documentation correction with no behavioral surface)? Judge accuracy,
   not blanket caution — recommend generously when the content genuinely supports it.
@@ -428,7 +435,8 @@ and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when 
 | Weighing test-file line count toward risk in `merge-check` | The entire reason this skill exists is that test-line bulk isn't implementation risk — `testLines`/`testFiles` are informational only. |
 | Skipping the sensitive-path hard floor because the content judgment "looks fine" | Sensitive paths are a floor precisely because they're the cases where content judgment alone isn't sufficient signal — never overridden. |
 | Classifying an unclear failure as `transient` "to be less conservative" | Ambiguity always resolves to `correctness`'s conservative handling — the point of this skill is accuracy, not blanket permissiveness. |
-| Recommending `RECOMMEND_MERGE: true` for a new-or-changed `skills/**/*.md` or `agents/**/*.md` file | Skill and agent-definition files shape future agent behavior — this is a hard `needs-human`/`false` case regardless of how clean or small the change looks. |
+| Rendering `auto-merge` on an agent-instruction change without attempting to refute it | The escape from that floor is a refutation attempt, not a classification: name a behavior an agent could take differently, and pass only when the attempt genuinely comes up empty. Reading a diff as "looks small and tidy" and skipping the attempt is the failure this row exists to catch. |
+| Treating a correction as safe because it is factually true and verifiable | Truth is not the test — behavior delta is. A claim corrected from wrong to right still changes what agents reason from, which is exactly the case a verifiable-therefore-safe heuristic waves through. |
 | Dispatching this as a fresh Task agent instead of an inline Skill invocation | The calling agent already has the diff/review-findings/failure-output in its own context — a subagent restart only pays to re-derive what's already known. |
 | Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check` and fall back to a human-reviewed PR (this is exactly what happened to #18 before `merge-check` existed, for an unrelated reason). Never let ceremony depth influence merge eligibility or vice versa. |
 | Writing to `decisions.md` from inside this skill | This skill doesn't know about run-dir resolution — logging is the caller's job (`/claude-tweaks:backlog refine` or `/claude-tweaks:dispatch`), matching every other auto-decision log entry in this codebase. |
