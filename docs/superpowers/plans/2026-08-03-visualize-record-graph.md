@@ -19,15 +19,18 @@
 
 ---
 
-### Task 1: Stage bucketing + shared test fixtures
+### Task 1: Stage bucketing + shared palette + shared test fixtures
 
 **Files:**
 - Create: `bin/lib/record-graph/columns.js`
+- Create: `bin/lib/record-graph/palette.js`
 - Create: `bin/lib/record-graph/tests/fixtures.js`
 - Test: `bin/lib/record-graph/tests/columns.test.js`
+- Test: `bin/lib/record-graph/tests/palette.test.js`
 
 **Interfaces:**
 - Produces: `bucketByStage(records: Array<{number, facets: {stage: 'backlog'|'parked'|'ready', ...}}>) -> {backlog: Array, parked: Array, ready: Array}` — the record objects themselves are passed through unchanged, just partitioned by `facets.stage`.
+- Produces (palette.js): `COLUMN_ORDER` (`['backlog','parked','ready']`), `COLUMN_LABELS` (`{backlog:'Backlog', parked:'Parked', ready:'Ready'}`), `ORIGIN_COLORS`, `BORDER_COLORS` — the record-graph diagram's one fixed visual vocabulary. Both `render-d2.js` (Task 5) and `render-svg.js` (Task 6) import from here rather than each declaring their own copy of the same column/color data — the two renderers' palettes must never be able to drift apart.
 - Produces (fixtures.js): `FIXTURE_RECORDS` — three faceted records covering all three stages, all seven axes' interesting combinations (used by every later task's tests).
 
 - [ ] **Step 1: Write the shared test fixtures**
@@ -155,11 +158,89 @@ module.exports = { bucketByStage };
 Run: `node --test bin/lib/record-graph/tests/columns.test.js`
 Expected: PASS (3 tests)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Write the failing test for palette.js**
+
+```javascript
+// bin/lib/record-graph/tests/palette.test.js
+const { test } = require('node:test');
+const assert = require('node:assert');
+const {
+  COLUMN_ORDER, COLUMN_LABELS, ORIGIN_COLORS, BORDER_COLORS,
+} = require('../palette');
+
+test('palette exports all three column keys in a fixed left-to-right order', () => {
+  assert.deepStrictEqual(COLUMN_ORDER, ['backlog', 'parked', 'ready']);
+});
+
+test('palette has a string label for every column key', () => {
+  for (const key of COLUMN_ORDER) {
+    assert.strictEqual(typeof COLUMN_LABELS[key], 'string');
+  }
+});
+
+test('palette has a hex origin color for every recognized origin plus the human fallback', () => {
+  for (const key of ['code-health', 'harness-health', 'journey-health', 'docs-health', 'capture', 'dispatch', 'human']) {
+    assert.match(ORIGIN_COLORS[key], /^#[0-9a-f]{6}$/);
+  }
+});
+
+test('palette has a hex border color for every bot-state value', () => {
+  for (const key of ['blocked', 'in-progress', 'default']) {
+    assert.match(BORDER_COLORS[key], /^#[0-9a-f]{6}$/);
+  }
+});
+```
+
+- [ ] **Step 7: Run the test to verify it fails**
+
+Run: `node --test bin/lib/record-graph/tests/palette.test.js`
+Expected: FAIL — `Cannot find module '../palette'`
+
+- [ ] **Step 8: Implement palette.js**
+
+```javascript
+// bin/lib/record-graph/palette.js
+// Single source of truth for the record-graph diagram's fixed visual
+// vocabulary — stage-column order/labels and the six-axis literal color
+// palette. Both render-d2.js (D2 source, literal hex) and render-svg.js
+// (SVG core fragment, CSS custom properties built from these same hex
+// values) import from here rather than each declaring their own copy.
+'use strict';
+
+const COLUMN_ORDER = ['backlog', 'parked', 'ready'];
+const COLUMN_LABELS = { backlog: 'Backlog', parked: 'Parked', ready: 'Ready' };
+
+const ORIGIN_COLORS = {
+  'code-health': '#5b8def',
+  'harness-health': '#9b59b6',
+  'journey-health': '#16a085',
+  'docs-health': '#e67e22',
+  capture: '#34495e',
+  dispatch: '#c0392b',
+  human: '#7f8c8d',
+};
+
+const BORDER_COLORS = {
+  blocked: '#c0392b',
+  'in-progress': '#2980b9',
+  default: '#95a5a6',
+};
+
+module.exports = {
+  COLUMN_ORDER, COLUMN_LABELS, ORIGIN_COLORS, BORDER_COLORS,
+};
+```
+
+- [ ] **Step 9: Run the tests to verify they pass**
+
+Run: `node --test bin/lib/record-graph/tests/palette.test.js`
+Expected: PASS (4 tests)
+
+- [ ] **Step 10: Commit**
 
 ```bash
-git add bin/lib/record-graph/columns.js bin/lib/record-graph/tests/fixtures.js bin/lib/record-graph/tests/columns.test.js
-git commit -m "Add record-graph stage bucketing + shared test fixtures"
+git add bin/lib/record-graph/columns.js bin/lib/record-graph/palette.js bin/lib/record-graph/tests/fixtures.js bin/lib/record-graph/tests/columns.test.js bin/lib/record-graph/tests/palette.test.js
+git commit -m "Add record-graph stage bucketing, shared palette, shared test fixtures"
 ```
 
 ---
@@ -531,7 +612,7 @@ git commit -m "Add record-graph shared graph-assembly IR"
 - Test: `bin/lib/record-graph/tests/render-d2.test.js`
 
 **Interfaces:**
-- Consumes: `buildGraph`'s output shape (Task 4) — `{columns, encoded, edges, edgesOmitted, truncated}`.
+- Consumes: `buildGraph`'s output shape (Task 4) — `{columns, encoded, edges, edgesOmitted, truncated}`. Consumes `palette.js`'s `COLUMN_ORDER`, `COLUMN_LABELS`, `ORIGIN_COLORS`, `BORDER_COLORS` (Task 1) — this file declares none of these itself.
 - Produces: `renderD2(graph, {generatedAt}) -> string` — valid `.d2` source: one container per stage column, one node per record (multi-line label: title + badges), cross-container edges, a header comment block. Consumed by `/visualize`'s enhanced path (`d2-enhanced-path.md`), which hands this string to the `d2` binary unmodified — this function never invokes `d2` itself.
 
 - [ ] **Step 1: Write the failing tests**
@@ -540,7 +621,8 @@ git commit -m "Add record-graph shared graph-assembly IR"
 // bin/lib/record-graph/tests/render-d2.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { renderD2, ORIGIN_COLORS, BORDER_COLORS } = require('../render-d2');
+const { renderD2 } = require('../render-d2');
+const { ORIGIN_COLORS, BORDER_COLORS } = require('../palette');
 const { buildGraph } = require('../layout');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
@@ -610,29 +692,14 @@ Expected: FAIL — `Cannot find module '../render-d2'`
 // bin/lib/record-graph/render-d2.js
 // Emits .d2 source text for the enhanced /visualize path. D2's own theme
 // system doesn't bind live CSS variables (d2-enhanced-path.md Step 3), so
-// this uses a small fixed literal-hex palette; the existing generic
+// this uses palette.js's fixed literal-hex palette; the existing generic
 // re-theming step maps each distinct hex to the nearest project token after
 // the d2 binary renders this to SVG. This function never shells out to d2.
 'use strict';
 
-const ORIGIN_COLORS = {
-  'code-health': '#5b8def',
-  'harness-health': '#9b59b6',
-  'journey-health': '#16a085',
-  'docs-health': '#e67e22',
-  capture: '#34495e',
-  dispatch: '#c0392b',
-  human: '#7f8c8d',
-};
-
-const BORDER_COLORS = {
-  blocked: '#c0392b',
-  'in-progress': '#2980b9',
-  default: '#95a5a6',
-};
-
-const COLUMN_LABELS = { backlog: 'Backlog', parked: 'Parked', ready: 'Ready' };
-const COLUMN_ORDER = ['backlog', 'parked', 'ready'];
+const {
+  COLUMN_ORDER, COLUMN_LABELS, ORIGIN_COLORS, BORDER_COLORS,
+} = require('./palette');
 
 function d2Escape(text) {
   return String(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -689,7 +756,7 @@ function renderD2(graph, { generatedAt }) {
   return `${[header, columns, edges].filter(Boolean).join('\n\n')}\n`;
 }
 
-module.exports = { renderD2, ORIGIN_COLORS, BORDER_COLORS };
+module.exports = { renderD2 };
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -713,7 +780,7 @@ git commit -m "Add record-graph D2 source renderer"
 - Test: `bin/lib/record-graph/tests/render-svg.test.js`
 
 **Interfaces:**
-- Consumes: `buildGraph`'s output shape (Task 4).
+- Consumes: `buildGraph`'s output shape (Task 4). Consumes `palette.js`'s `COLUMN_ORDER`, `COLUMN_LABELS`, `ORIGIN_COLORS`, `BORDER_COLORS` (Task 1) — the CSS custom-property declarations below are generated from these same hex values, not hardcoded independently, so this renderer's palette can never drift from `render-d2.js`'s (Task 5).
 - Produces: `renderSvg(graph, {generatedAt}) -> string` — a `visual-html-output.md`-Step-3-shaped core fragment (`<svg class="vz-record-graph">` + a scoped `<style>` block defining this diagram's own light/dark custom properties, following that file's `:root` / `:root[data-theme="dark"]` / `@media (prefers-color-scheme: dark)` shape). Used only when the `d2` binary is unavailable.
 
 - [ ] **Step 1: Write the failing tests**
@@ -795,28 +862,33 @@ Expected: FAIL — `Cannot find module '../render-svg'`
 // Emits the baseline (no d2 binary) core SVG fragment, following
 // visual-html-output.md Step 3's scoped-class + light/dark-:root shape.
 // Fixed-width lane layout, not a graph-layout algorithm — mechanical, not
-// freehand, per the design doc's baseline-path decision.
+// freehand, per the design doc's baseline-path decision. CSS custom
+// properties are generated from palette.js's ORIGIN_COLORS/BORDER_COLORS —
+// the same hex values render-d2.js uses — so the two paths' palettes can
+// never drift apart.
 'use strict';
 
-const COLUMN_ORDER = ['backlog', 'parked', 'ready'];
-const COLUMN_LABELS = { backlog: 'Backlog', parked: 'Parked', ready: 'Ready' };
+const {
+  COLUMN_ORDER, COLUMN_LABELS, ORIGIN_COLORS, BORDER_COLORS,
+} = require('./palette');
+
 const COLUMN_X = { backlog: 20, parked: 300, ready: 580 };
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 90;
 const GAP = 16;
 const WIDTH = 900;
 
-const STYLE_BLOCK = `.vz-record-graph {
-  --vz-rg-origin-code-health: #5b8def;
-  --vz-rg-origin-harness-health: #9b59b6;
-  --vz-rg-origin-journey-health: #16a085;
-  --vz-rg-origin-docs-health: #e67e22;
-  --vz-rg-origin-capture: #34495e;
-  --vz-rg-origin-dispatch: #c0392b;
-  --vz-rg-origin-human: #7f8c8d;
-  --vz-rg-border-blocked: #c0392b;
-  --vz-rg-border-in-progress: #2980b9;
-  --vz-rg-border-default: #95a5a6;
+function paletteDeclarations() {
+  const origin = Object.entries(ORIGIN_COLORS)
+    .map(([key, hex]) => `  --vz-rg-origin-${key}: ${hex};`).join('\n');
+  const border = Object.entries(BORDER_COLORS)
+    .map(([key, hex]) => `  --vz-rg-border-${key}: ${hex};`).join('\n');
+  return `${origin}\n${border}`;
+}
+
+function styleBlock() {
+  return `.vz-record-graph {
+${paletteDeclarations()}
   --vz-rg-column-bg: #f3f4f6;
   --vz-rg-text: #1a1d23;
 }
@@ -830,6 +902,7 @@ const STYLE_BLOCK = `.vz-record-graph {
     --vz-rg-text: #e7e9ed;
   }
 }`;
+}
 
 function escapeXml(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -893,7 +966,7 @@ function renderSvg(graph, { generatedAt }) {
 
   return `<svg class="vz-record-graph" viewBox="0 0 ${WIDTH} ${maxY}" xmlns="http://www.w3.org/2000/svg">
 <style>
-${STYLE_BLOCK}
+${styleBlock()}
 </style>
 <text class="vz-record-graph-note" x="20" y="${maxY - 10}" fill="var(--vz-rg-text)">${escapeXml(notes)}</text>
 ${renderEdges(graph.edges, positions)}
