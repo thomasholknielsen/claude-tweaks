@@ -73,7 +73,12 @@ no new registry logic is needed here.
   `backlog-fetch-limit` (or its default 1000); when the fetched count equals it,
   `bin/record-graph.js` renders the on-diagram truncation note itself (Task 7) —
   no separate handling needed here beyond passing the flag through.
-- **`work-backend: local-files`** — Step A's fetch already branches on
-  `work-backend` per `record-queue-fetch.md`; both drivers land in the same
-  faceted-record shape, so no change is needed here. Not separately verified
-  against real local-files data.
+- **`work-backend: local-files`** — NOT currently supported. `bin/lib/record-graph/`'s
+  modules (`layout.js`, `encode.js`, `edges.js`, `render-d2.js`, `render-svg.js`) key
+  exclusively on a GitHub issue's `.number` field; `bin/lib/issues/local-store.js`'s
+  records carry `id`/`slug`/`path` instead, never `number`. Under `local-files`, every
+  record would collapse onto a single node — a real defect, not a hedge. This repo's
+  own config is `work-backend: github-issues`, and issue #28 never asked for
+  `local-files` support, so this is an accepted, explicit scope boundary rather than an
+  oversight to fix here. Proper `local-files` support (a driver-agnostic node identifier)
+  is out of scope for this plan and would need its own follow-up.
