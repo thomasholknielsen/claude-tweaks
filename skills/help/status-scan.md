@@ -2,11 +2,15 @@
 
 Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, or `status` argument). Lazy-loaded from `SKILL.md` Section 2.
 
-> **Parallel execution:** Dispatch Stages 1-7 including sub-stages 4.5, 4.6, and 4.7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
+## Execution model
+
+Stages split by cost. Stages 1, 4.5, 4.6, and 4.7 each do real `gh` work over an independent data source and carry substantial inlined `_shared/` fragments, so each earns a Task agent. Stages 2, 5, 6, and 7 are a glob or a grep apiece — dispatching those as agents would pay the full inherited `CLAUDE.md` cost to execute what amounts to a single `Glob`, so they run directly in the main thread instead.
+
+> **Parallel execution:** Dispatch Stages 1, 4.5, 4.6, and 4.7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A.
 >
-> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep or `gh`/facet-parse over a single data source (the open work-record queue, design docs, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
+> **Model tier:** Fast (Haiku) — each stage scan is a mechanical `gh`/facet-parse over a single data source (the open work-record queue, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -22,6 +26,12 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 > If no findings: return literal text "No findings."
 > Do not add narration, headers, or summaries before or after the table.
 > ```
+
+> **Parallel execution:** Use parallel tool calls aggressively — all `Glob`/`Grep` operations in Stages 2, 5, and 6 are independent and should run concurrently.
+
+Issue those Stage 2/5/6 tool calls in the same message that dispatches the agent batch above — they depend on neither it nor each other, so the whole batch overlaps. Being in the main thread, they need no status line and no agent envelope; they contribute findings to the dashboard using the same column mapping as the agents.
+
+**Stage 7 runs last, in the main thread**, only once the agent batch and the Stage 2/5/6 calls have all returned. Several of its signals are derived from their output (Stage 1's backlog count, Stage 2's unspecified-design-doc count, Stage 4.5's stale-PR count); the rest are cheap local checks of its own. It must never be made concurrent with its own inputs.
 
 **Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`#{n}` / the local record path under `work-backend: local-files`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals.
 
@@ -117,6 +127,8 @@ There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (t
 
 ## Stage 2: Design Docs (`docs/superpowers/specs/*-design.md`)
 
+*(Main thread — one `Glob` plus a heading check per hit. Runs concurrently with the agent batch.)*
+
 - Find design docs that still exist (full decomposition deletes the doc, so any surviving doc is either un-decomposed or partially decomposed)
 - For each surviving doc, check whether it has `## Phase N:` headings:
   - No phase headings → never decomposed, waiting for `/claude-tweaks:specify`
@@ -154,14 +166,20 @@ agent's prompt — subagents cannot read sibling files.
 
 ## Stage 5: Specs Awaiting Review
 
+*(Main thread — runs concurrently with the agent batch.)*
+
 - Find specs that appear fully implemented but haven't been reviewed yet
 - These need `/claude-tweaks:review` before `/claude-tweaks:wrap-up`
 
 ## Stage 6: Specs Awaiting Wrap-Up
 
+*(Main thread — runs concurrently with the agent batch.)*
+
 - Find specs that have been reviewed (review commits/artifacts exist) but not wrapped up
 
 ## Stage 7: Maintenance Signals
+
+*(Main thread, and last — this stage reads other stages' output, so it runs only after the agent batch and Stages 2/5/6 have all returned. See the Execution model above.)*
 
 - Backlog has 10+ records → suggest `/claude-tweaks:tidy`
 - Stage 4.5 reports stale open PRs (>4 weeks without updates) → suggest `/claude-tweaks:tidy` (Step 4.8 audits the PR backlog)
