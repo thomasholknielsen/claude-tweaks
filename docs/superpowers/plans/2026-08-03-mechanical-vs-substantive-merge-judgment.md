@@ -28,7 +28,7 @@
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
-- Produces: the phrase **`agent-instruction file`** as this skill's name for the protected class, and a `#### Calibration` heading anchor under `merge-check`'s Step 2. Task 2 and Task 3 both reference the class by that exact phrase.
+- Produces: the phrase **`agent-instruction file`** as this skill's name for the protected class. Task 2 and Task 3 both reference the class by that exact phrase. (The `#### Calibration` subsection is Task 3's deliverable, not this one's.)
 
 - [ ] **Step 1: Confirm the pre-state**
 
@@ -112,7 +112,7 @@ grep -c "behavior-carrying" skills/assess-agent-autonomy/SKILL.md
 grep -c "high-leverage independent" skills/assess-agent-autonomy/SKILL.md
 ```
 
-Expected in order: `0`, `3` or more, `2`, `2`.
+Expected in order: `0`, `2`, `2`, `2`.
 
 The last one stays `2`: this task rewords `merge-check`'s copy but keeps the phrase, and `grant-check`'s copy is Task 2's job. If it drops to `1` here, Task 1 deleted something Task 2 needs to find.
 
