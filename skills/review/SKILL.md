@@ -198,12 +198,23 @@ git diff {base}...{branch} --name-only                                          
 
 Not to be confused with "Reusing a Prior Whole-Branch Review" below — that handles a *later spec's* review citing an *earlier spec's already-completed* whole-branch review in a multi-spec batch; this check handles what's *in the diff at all* for a single review, independent of whether any prior review exists.
 
-Analyze `git diff` (or `git diff` against the base branch) — scoped to the own-work file set above when merge commits were detected — to understand the scope:
+Analyze the diff's **shape** — scoped to the own-work file set above when merge commits were detected — to understand the scope. Read `--stat` and `--name-only`, **not** the full diff:
+
+```bash
+git diff {base}...{branch} --stat        # files changed, per-file line counts, and totals
+git diff {base}...{branch} --name-only   # bare path list, for path-pattern matching
+```
 
 - Which files changed and in which packages/apps
 - Lines added/removed
 - Whether schema, API surface, or infrastructure changed
 - Whether new dependencies were introduced
+
+**Do not read the full diff in the main thread.** Measured on a 20-commit branch: `git diff` is ~89.5 KB against ~0.9 KB for `--stat` — a ~100x difference, and 30-commit branches are routine in this repo. Everything this step classifies, and everything Step 2.5's diff heuristic consumes, comes from the two commands above.
+
+The one exception is the dependency question, which needs manifest *content* rather than just a filename: when `--name-only` shows a dependency manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, or equivalent), read a **targeted** diff of just that file (`git diff {base}...{branch} -- package.json`). That is bounded by construction — it is not a licence to widen back to the full diff.
+
+Full diff *content* belongs to Step 3's dispatched lens agents, which have their own context windows. See Step 3's dispatch note.
 
 If infrastructure or deployment changes are detected (Terraform, CDK, Docker, CI/CD, database migrations, new environment variables) that aren't already in the ledger as `ops` items, append them with phase `ops` and status `open`. This catches ops requirements introduced during review fixes that weren't present in the original build.
 
@@ -255,8 +266,8 @@ Resolution order — stop at the first that applies:
 
 3. **Diff heuristic (fallback).** No record, the record carries no `risk:*`/`effort:*` labels, or the label read failed. Derive proxies from Step 2's change analysis and feed the same table above:
    - Risk proxy = **high** if the diff touches a path matching the `merge-sensitive-paths` config key (the same key `assess-agent-autonomy`'s `merge-check` mode already reads for the identical "elevated risk from touched paths" purpose), a schema/migration file, infra/CI-CD config, or introduces a new dependency (Step 2 already flags all of these for its ops-ledger check); **medium** if it touches public API surface or a cross-package interface; **low** otherwise.
-   - Record-effort proxy (size — not the `review-effort` tier being derived here): read `review-diff-heuristic-thresholds` from `.claude-tweaks/policy.yml` — shape `{high: {files, lines}, medium: {files, lines}}`, default `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` (matches this skill's pre-existing hardcoded behavior when the key is unset). **high** at `high.files`+ files or `high.lines`+ lines changed; **medium** at `medium.files`-`(high.files - 1)` files or `medium.lines`-`(high.lines - 1)` lines; **low** otherwise.
-   - If `git diff` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
+   - Record-effort proxy (size — not the `review-effort` tier being derived here): read `review-diff-heuristic-thresholds` from `.claude-tweaks/policy.yml` — shape `{high: {files, lines}, medium: {files, lines}}`, default `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` (matches this skill's pre-existing hardcoded behavior when the key is unset). **high** at `high.files`+ files or `high.lines`+ lines changed; **medium** at `medium.files`-`(high.files - 1)` files or `medium.lines`-`(high.lines - 1)` lines; **low** otherwise. Both counts come from Step 2's `git diff --stat` totals — this proxy never needs the full diff.
+   - If `git diff --stat` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
 
 4. **Project-level floor (non-explicit resolutions only).** After step 2 or 3 above resolves a tier, read `review-effort-floor` from `.claude-tweaks/policy.yml`, mirroring `review-severity-floor`'s existing lookup precedent (`step3-routing.md`). If set, raise the resolved tier to at least the floor — never lower it (e.g. `review-effort-floor: high` turns a diff-heuristic `low` into `high`, but leaves an already-`xhigh` record-label resolution untouched). This step never applies when step 1 (explicit argument) already set the tier — an explicit token always wins, per step 1's rule above. Unset by default — no floor, current behavior unchanged.
 
@@ -302,7 +313,24 @@ At `xhigh` and `max`, append this sentence to each dispatched lens's prompt, aft
 
 > **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
-> **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
+> **Full diff content is read here, in the lens agents — not in the main thread.** Step 2 deliberately holds only `--stat`/`--name-only`, so this dispatch is the first point at which actual diff content is read. Give each lens agent the shared context bundle's path (built below) plus the diff *scope* — the base/branch refs, or the own-work file set when the Merge-Provenance Check found merge commits. Do not inline diff text into the prompts from the main thread: every dispatched agent has its own context window, and re-inlining the diff N times reintroduces the cost Step 2 exists to avoid.
+
+> **Parallel execution — assemble the shared context on disk, never in main-thread context.** Every lens needs the same files, so build the bundle once using shell redirection, whose content never enters this thread, and hand every dispatched agent the same path:
+>
+> ```bash
+> CTX="/tmp/review-context-$(git rev-parse --short HEAD).md"
+> { git diff {base}...{branch}
+>   git diff {base}...{branch} --name-only | while read -r f; do
+>     printf '\n===== %s =====\n' "$f"
+>     cat -- "$f" 2>/dev/null
+>   done
+> } > "$CTX"
+> wc -c "$CTX"    # only the byte count enters this thread
+> ```
+>
+> A section can legitimately come out empty — a deleted file, or a path git quoted for non-ASCII characters that `cat` then couldn't open. That degrades safely rather than silently: the full diff sits at the top of the same bundle, so the agent still sees that file's change either way.
+>
+> Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
 
 > **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
 >
@@ -437,7 +465,7 @@ Like other Lens 3i findings, these are informational and don't block review — 
 
 ### Step 3.5 & 3.6: Cross-Lens Debate, Per-Candidate Refutation, and Gap-Sweep
 
-Three effort-gated findings-quality mechanisms run after Step 3's per-lens reproduction completes: Cross-Lens Debate (resolves contradictions between different lenses reviewing the same region), the Per-Candidate Refutation Pass (re-examines every `confirmed` finding for correlated error reproduction-pair agreement alone can't catch), and Gap-Sweep / Completeness Critic (a single fresh-eyes agent asking what every angle-scoped lens, collectively, missed).
+Three effort-gated findings-quality mechanisms run after Step 3's per-lens reproduction completes: Cross-Lens Debate (resolves contradictions between different lenses reviewing the same region), the Per-Candidate Refutation Pass (re-examines `confirmed` findings at or above a `medium` severity floor, capped at 10 per review, for correlated error reproduction-pair agreement alone can't catch), and Gap-Sweep / Completeness Critic (a single fresh-eyes agent asking what every angle-scoped lens, collectively, missed).
 
 **Skip all three entirely when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — proceed directly to Step 3 Routing below, matching Step 3's own narrower lens scope at those tiers.
 
