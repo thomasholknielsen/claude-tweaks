@@ -71,7 +71,7 @@ One question, asked in two contexts:
 | Agent-instruction files | Does this change what agents are *told* to do? | `needs-human` |
 | Everything else | Does this change what the program *does*? | weigh normally |
 
-For code, "mechanical" means **behavior-preserving**: a rename, a corrected constant, a call site
+For code, "mechanical" means **behavior-preserving**: a rename, a call site
 updated uniformly, dead code removed. Judgeable from the diff without a taxonomy — *is every hunk
 an instance of the same behavior-preserving transformation?* A single non-conforming hunk drops the
 whole diff to substantive.

@@ -261,7 +261,7 @@ caller, since this skill reads its own config rather than depending on one.)
   to weigh, which is why the judgment below is deliberately a binary on the whole diff rather than
   an attempt to size some behavior-carrying fraction of it. Size proxies review burden, not risk:
   a large diff in which every hunk is the same
-  behavior-preserving transformation (a rename, a corrected constant, a call site updated
+  behavior-preserving transformation (a rename, a call site updated
   uniformly, dead code removed) is safer than a small one that changes a branch condition. So ask
   first whether the diff is behavior-preserving as a whole — a single hunk that is not an instance
   of the same transformation makes the whole diff behavior-carrying. When it is behavior-preserving
