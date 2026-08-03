@@ -304,6 +304,11 @@ fixed, and calibration anchored to one then describes a state that no longer exi
 | A dead pointer deleted, nothing replacing it | `auto-merge` eligible | Removes an instruction that could not be followed. Confirm nothing else cited the removed target. |
 | A behavior-preserving rename spanning many files, review clean | `auto-merge` eligible | Uniformly one transformation. Exceeding `automerge-max-lines` is review burden, not risk. |
 | A rename spanning many files where one hunk also changes a default | `needs-human` | One non-conforming hunk makes the whole diff behavior-carrying — the guideline binds again. |
+
+`auto-merge` eligible means the refutation attempt came up empty for the agent-instruction floor
+alone — necessary, never sufficient. Both floors stated above still apply on their own terms: a
+sensitive-path hit renders `needs-human` with nothing else weighed, and so does any review finding
+at Medium or above. Match a row here and you have cleared one gate, not the step.
 ```
 
 - [ ] **Step 3: Verify placement and content**
