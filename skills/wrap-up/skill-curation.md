@@ -22,9 +22,15 @@ Regardless of seeds, look at the work itself:
 
 1. **List changed files** — `git diff --name-only` against the work's base ref.
 2. **List skills** — enumerate skill files in `.claude/skills/`. If the directory doesn't exist, still run step 4 (gap detection) — a project with no skills is the strongest case for a first one.
-3. **Rank by domain overlap** — score each skill by how much its domain (the directories, file-types, and patterns it documents) intersects the changed files. Read the **top ~5 most relevant** skills in full — or **top ~2** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh; see `wrap-up/SKILL.md` Step 3.5) — the narrower cap under fast-lane trims read cost without skipping the scan outright, preserving the seed-independent principle above. If `--skill-budget <n>` was passed to this invocation (see `wrap-up/SKILL.md` Step 1's Flags), it overrides both the default-5 and fast-lane-2 caps for this run only. The cap bounds token cost; the ranking ensures the highest-value skills are covered. If more skills than the applicable cap are relevant, **note the overflow explicitly** — `/claude-tweaks:tidy` and future wrap-ups pick up the remainder (never silently truncate).
+3. **Rank by domain overlap** — score each skill by how much its domain (the directories, file-types, and patterns it documents) intersects the changed files. Read the **top ~5 most relevant** skills in full, **or 60 KB of skill content total, whichever comes first** — or **top ~2** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh; see `wrap-up/SKILL.md` Step 3.5) — the narrower cap under fast-lane trims read cost without skipping the scan outright, preserving the seed-independent principle above. If `--skill-budget <n>` was passed to this invocation (see `wrap-up/SKILL.md` Step 1's Flags), it overrides the default-5 and fast-lane-2 **file** caps for this run only; it does **not** raise the 60 KB byte budget.
+
+   **Why a byte budget and not just a file cap.** A file count bounds nothing by itself: the largest single `SKILL.md` in this plugin already exceeds this whole budget on its own, so "top 5 in full" can mean a quarter-megabyte read. The byte budget is the real bound; the file cap only keeps the read set small when the files happen to be small.
+
+   **On reaching the byte budget**, do not stop and do not silently drop the rest. Switch to a **bounded read** for every still-unread skill in the ranked set — its frontmatter plus its section headings (`grep -n '^#\+ ' <file>` gives the outline cheaply) — and then full-read only those whose outline actually touches the changed files. This is the same bounded-read discipline `_shared/harness-health-analysis.md` already applies to sub-files. Anything still unread after that is **overflow**, reported per the rule below.
+
+   The caps bound token cost; the ranking ensures the highest-value skills are covered. If more skills than the applicable cap are relevant, or the byte budget cut the read set short, **note the overflow explicitly** — `/claude-tweaks:tidy` and future wrap-ups pick up the remainder (never silently truncate).
 4. **Gap detection** — identify any *cohesive* set of changed files implementing one reusable pattern in a domain that **no** skill covers. "Cohesive" means multiple files implementing a single pattern, not scattered one-off edits. Each cohesive uncovered domain becomes a new-skill gap candidate, evaluated via the shared procedure in 7.3-7.5.
-5. **Union with seeds** — add any seeded skills from 7.1 not already in 7.2's ranked read set (top-5, or top-2 under fast-lane) to the read set. Seeds are always analyzed.
+5. **Union with seeds** — add any seeded skills from 7.1 not already in 7.2's ranked read set (top-5, or top-2 under fast-lane) to the read set. Seeds are always analyzed: the byte budget can downgrade a seeded skill to the bounded read described in step 3, but never drops it from the read set.
 
 ## 7.3-7.5: Judge Each Relevant Skill and New-Skill Candidates
 
@@ -63,11 +69,11 @@ For each proposed change:
 5. **Mandatory summary (always, regardless of outcome)** — emit exactly one summary line every Step 7 run, auto mode or interactive:
    ```
    SCANNED {time} — Step 7 skill curation summary: {S} seeds, {R} skills read
-   (top-{cap}: {names}), gap detection: {what was examined, found/not found}.
-   Result: {N} applied, {M} staged, {K} new-skill candidates ({proposed}/{declined}).
-   Reversibility: N/A.
+   ({F} in full, {B} bounded; top-{cap}: {names}), gap detection: {what was
+   examined, found/not found}. Result: {N} applied, {M} staged, {K} new-skill
+   candidates ({proposed}/{declined}). Reversibility: N/A.
    ```
-   `{S}` is 7.1's seed count. `{R}` counts the skills actually read in 7.2's independent scan — the union of the ranked top-`{cap}` set and any seeded skills from 7.1 (the same "read set" 7.2 step 5 defines). `{cap}` is 7.2's own existing default-5/fast-lane-2/`--skill-budget`-override value. When `{S}` is 0, render `{names}` as the literal text `none (no seeds)`. Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
+   `{S}` is 7.1's seed count. `{R}` counts the skills actually read in 7.2's independent scan — the union of the ranked top-`{cap}` set and any seeded skills from 7.1 (the same "read set" 7.2 step 5 defines). `{F}` and `{B}` split `{R}` into full reads and byte-budget-bounded reads (step 3), so a run that hit the budget says so rather than looking identical to one that did not; when the budget was never reached, `{B}` is 0. `{cap}` is 7.2's own existing default-5/fast-lane-2/`--skill-budget`-override **file** cap. When `{S}` is 0, render `{names}` as the literal text `none (no seeds)`. Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
 
 Staged items surface at the Wrap-Up Review Console (SKILL.md Step 8.6) as rows in the "Skill updates" section. New-skill candidates appear as ordinary rows covered by "Approve all." Do not present a separate batch decision here.
 
