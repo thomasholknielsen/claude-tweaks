@@ -1,0 +1,132 @@
+# Specify — Shaping Mode (single record)
+
+Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference)
+or case 5 (a backlog reference with no matching design doc). The record already exists and IS the
+target — there is nothing to decompose, and none of decomposition mode's Steps 1-9
+(`decomposition-mode.md` in this skill's directory) ever run here.
+
+This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
+block. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
+the primary input) and it has no use for decomposition mode's much larger body.
+
+---
+
+### Edit the body into spec shape
+
+Rewrite the record's body into five sections: `## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, and `## Gotchas`. These are the core of the record body template `spec-template.md` documents — Current State, Deliverables, and Acceptance Criteria are the structural minimum (`_shared/work-record.md`'s spec-shaped-body check re-verifies exactly these three are present and non-empty before the authorization gate will grant anything); Technical Approach and Gotchas can stay brief for a small record. The template's fuller section list (Overview, Non-Goals, Prerequisites, and so on) is decomposition-mode scaffolding for multi-record output — a single shaped record doesn't need it.
+
+Absorb the record's existing content into whichever section it belongs in — a human-filed or captured record's raw text usually becomes Current State plus Deliverables context, with Acceptance Criteria freshly written since raw captures rarely state them explicitly. A record already filed in this shape — every `by:code-health`/`by:harness-health`/`by:journey-health`/`by:docs-health` record is spec-shaped and agent-sized by construction, per `_shared/work-record.md`'s born-ready rule — needs near-zero translation: verify the sections are present and non-empty and move on rather than rewriting content that's already correct.
+
+### Preserve the original request
+
+Before editing, keep the record's fetched title and body exactly as they were. Append them to the composed body as their own section, using this exact heading — this is a rule, not a suggestion, and the section name is literal:
+
+```
+## Original request
+
+{original title}
+
+{original body, verbatim}
+```
+
+The shaped sections above are `/specify`'s editorial interpretation; `## Original request` is the record's ground truth if that interpretation ever needs to be checked or redone.
+
+### Metadata block
+
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:`. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+
+```
+Surface: web
+Design-intent: {value}
+```
+
+Backend/infra records omit the `Design-intent:` line entirely — it only applies when Step 2.5a detected a frontend surface:
+
+```
+Surface: backend
+```
+
+These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header; the canonical field and value reference lives in `spec-template.md`.
+
+### Stamp scoring and stage labels
+
+Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets` for GitHub, the record's own `facets` for local), update independently per family — never touch a family that's already stamped:
+
+- **`risk:*` absent** — judge low/medium/high from the now-shaped Deliverables and Acceptance Criteria (blast radius, reversibility), per `_shared/work-record.md`'s Scoring axis, then stamp it.
+- **`effort:*` absent** — judge low/medium/high the same way (estimated size), then stamp it.
+- **`ceremony:*` absent** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`) against the now-shaped body — the same input a fresh fetch would use, but already in memory here. Stamp the verdict as an explicit label, `ceremony:fast-lane` or `ceremony:standard` — never omit it, unlike `risk:*`/`effort:*`'s omit-when-unscored convention (this axis has no unscored state; every record gets a verdict the first time it's shaped). Bootstrap both label values per `_shared/label-bootstrap.md` before the first write, same as any new label pair.
+- **Type absent** — judge `bug | feature | task` from the now-shaped content (defect vs. new capability vs. maintenance/refactor/docs/chore), per `_shared/work-record.md`'s Type axis, then stamp it: `work-backend: github-issues` — `work-types: native` applies the native Issue Type (`--type {t}` on the edit call below); `work-types: labels` adds the matching label instead (`--add-label "type:{t}"`, pair lives in `record.js`'s `TYPE_LABELS` — bootstrap it first per `_shared/label-bootstrap.md`, as decomposition mode does). `work-backend: local-files` — set `facets.type` in the `writeRecord` call below.
+- **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.
+- **`ready`** — add it (idempotent when already present, e.g. a born-ready record).
+
+### Compose-then-write-once
+
+Assemble the full new body locally before making any write call — never edit the body incrementally against a live record. Final assembly order (`Design-intent:` omitted for non-frontend records):
+
+```
+Surface: {value}
+Design-intent: {value}
+
+## Current State
+...
+
+## Deliverables
+...
+
+## Acceptance Criteria
+...
+
+## Technical Approach
+...
+
+## Gotchas
+...
+
+## Original request
+
+{original title}
+
+{original body, verbatim}
+```
+
+**`work-backend: github-issues`:** write the composed body to a temp file, then a single call carries both the body and every label change (`--type {t}` under `work-types: native`; swap to `--add-label "type:{t}"` under `work-types: labels`):
+
+```bash
+gh issue edit {n} \
+  --body-file /tmp/specify-shaped-body.md \
+  --add-label ready \
+  --add-label "risk:{tier}" \
+  --add-label "effort:{tier}" \
+  --add-label "ceremony:{tier}" \
+  --type {t} \
+  --remove-label parked
+```
+
+Omit `--add-label "risk:{tier}"` / `--add-label "effort:{tier}"` / `--add-label "ceremony:{tier}"` for whichever family was already stamped; omit `--type {t}` (or the `--add-label "type:{t}"` swap) when Type was already present; omit `--remove-label parked` when the record never carried it.
+
+**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.effort`/`facets.ceremony`/`facets.type` when they were `null` (`facets.ceremony` always gets a value the first time a record is shaped — no null/unscored state for this axis, unlike `risk`/`effort`):
+
+```bash
+node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  writeRecord(process.argv[1], { title: process.argv[2], body: process.argv[3], facets: JSON.parse(process.argv[4]) });
+" "$RECORD_PATH" "$TITLE" "$SHAPED_BODY" "$FACETS_JSON"
+```
+
+then commit — a local record is a tracked file, unlike a GitHub issue edit:
+
+```bash
+git add "$RECORD_PATH"
+git commit -m "Shape record {id} into spec shape — ready"
+```
+
+Nothing to commit on the `github-issues` driver — the edit above already landed via the API.
+
+### Actions Performed
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Operational | Shaped record {ref} into spec shape — stamped `risk:{tier}`/`effort:{tier}`/`ceremony:{tier}` and Type where each was absent, added `ready`, removed `parked` if present | `{hash}` (local-files) / `—` (github-issues — edit already landed via API, no commit) |
+
+Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block (the "Shaping mode — one record shaped in place" row of its Situation table).
+
+`/specify` adds `ready`, `risk:*`/`effort:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.

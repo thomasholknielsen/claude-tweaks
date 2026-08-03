@@ -112,14 +112,16 @@ There is no Step 2 — it merged into Step 1 (see Scope Selection above). The re
 
 Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., deleting a backlog record without creating the destination artifact).
 
+**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table; `/tidy` also accepts the legacy `backlog-backend` alias), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
+
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
-| **Delete** | Item is no longer needed — stale, already implemented, or out of scope | `local-files`: remove the record file (`specs/{id}-{slug}.md`). `github-issues`: (1) comment explaining why (audit trail — never close silently), (2) `gh issue close {n} --reason "not planned"` — close-not-planned-with-comment. | Yes (file) / issue closes (GitHub) |
-| **Defer** | Valid but not timely — park with a trigger condition | `local-files`: `writeRecord` (`bin/lib/issues/local-store.js`) with `facets.stage: 'parked'` (supersedes any other stage value — the two are mutually exclusive) and the trigger appended to the body as a `**Trigger:** {condition}` line (plus `**Watched paths:** {paths}` when the trigger names files) — same file, updated in place, compose-then-write-once. `github-issues`: (1) build the base payload via `recordPayload({..., parked: true})` (`bin/lib/issues/record.js`), first appending a `**Watched paths:** {paths}` line to the body when the trigger names files — plain body text; `recordPayload` doesn't take a watched-paths field, the same way `/specify`'s metadata block is composed manually rather than passed through it — write to a temp file, (2) `gh issue edit {n} --body-file <temp file>`, (3) bootstrap the `parked` label if missing (per `_shared/label-bootstrap.md`'s canonical `LABELS_JSON` pair), then `gh issue edit {n} --add-label parked`, (4) if the trigger names a moment in time, attach a GitHub Milestone: `gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence, `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create if absent, `gh issue edit {n} --milestone "{name}"` to attach. | No (file, same file updated in place) / issue stays open, relabeled (GitHub) |
-| **Absorb** | Scope belongs in an existing record | Both backends: (1) integrate scope into the target record's Deliverables, Acceptance Criteria, and Technical Approach — not as an appendix, as first-class content. `local-files`: (2) update the target record's file in place, (3) delete the absorbed record's file. `github-issues`: (2) comment naming the target (`Absorbed into #{M}.`), (3) `gh issue close {n} --reason "not planned"`. | Yes (file) / issue closes (GitHub) |
+| **Delete** | Item is no longer needed — stale, already implemented, or out of scope | Per `work-backend` — see the resolved Action Execution file's `## Delete` | Yes (file) / issue closes (GitHub) |
+| **Defer** | Valid but not timely — park with a trigger condition | Per `work-backend` — see the resolved Action Execution file's `## Defer` | No (file, same file updated in place) / issue stays open, relabeled (GitHub) |
+| **Absorb** | Scope belongs in an existing record | Both backends: (1) integrate scope into the target record's Deliverables, Acceptance Criteria, and Technical Approach — not as an appendix, as first-class content. Steps (2)-(3) are per `work-backend` — see the resolved Action Execution file's `## Absorb` | Yes (file) / issue closes (GitHub) |
 | **Promote** | Ready for `/claude-tweaks:specify` | No mutation on either backend — the record already exists and is the durable pointer; recommend `/claude-tweaks:specify {ref}` directly (`#{n}` under `github-issues`, the bare id under `local-files`). `/specify`'s Shaping mode removes `parked` (if present) and stamps `ready` on the record in place — see `_shared/work-record.md` and `specify/SKILL.md`'s Shaping mode; there is no separate entry to delete. If a record is re-parked after promotion (a later `/tidy` Defer) and still gets dispatched, `/flow`'s materialization step stamps `parked-at-shaping: true` on the build-time header (`flow/materialize.md`), and `/wrap-up`'s Section E restores `parked` on an abandoned outcome — Step 4.7's backstop (`scan-procedures.md`) catches a restoration that silently failed. | No — record unchanged, mutation deferred to `/specify` |
 | **Keep** | No action needed | None | No |
-| **Sync to GitHub** | A local record carries `unsynced: true` while `work-backend: github-issues` — mirror it to an issue now | Build the payload via `recordPayload` (`bin/lib/issues/record.js`) from the local record's own facets — `type` (guessed the same way `/capture`'s Guessing-the-Type heuristic does, when `facets.type` was never stamped), `origin` when present (`facets.origin`; omitted for a human-shaped record, e.g. a `/specify` decomposition leaf, which carries no `by:*` label by design), `risk`/`effort` when present, `ready: facets.stage === 'ready'`, `parked: facets.stage === 'parked'`. For a parked record, judge the trigger the same way Defer's `github-issues` branch does — file-shaped trigger → append `**Watched paths:**`; moment-in-time → attach/create a milestone after creation. Bootstrap the labels the payload assembled (per `_shared/label-bootstrap.md`), then `gh issue create --title ... --body-file ... --label ...` (repeat `--label` per entry in `recordPayload`'s returned array; add `--type {t}` under `work-types: native`, or the matching `type:{t}` label under `work-types: labels`). Delete the local record file only after `gh issue create` confirms success. | Yes — moves to GitHub, local file deleted |
+| **Sync to GitHub** | A local record carries `unsynced: true` while `work-backend: github-issues` — mirror it to an issue now | `work-backend: github-issues` only — see `actions-github-issues.md`'s `## Sync to GitHub`. Has no `local-files` counterpart | Yes — moves to GitHub, local file deleted |
 | **Close (GitHub)** | Open PR or issue is stale or superseded — close it upstream | (1) Comment on the PR/issue explaining why (the comment is the audit trail — never close silently), (2) `gh pr close {n}` / `gh issue close {n}` | N/A — GitHub state |
 | **Resolve thread** | Review-thread concern was addressed by a later commit | GraphQL `resolveReviewThread` mutation — only with commit evidence (a commit touching the flagged lines) | N/A — GitHub state |
 | **Capture** | PR feedback or GitHub issue needs local follow-up | Files a new backlog record (no stage label / no `stage:` facet) via `/claude-tweaks:capture`'s own write path, referencing the PR/thread/issue URL | No — creates a backlog record |
@@ -138,119 +140,17 @@ When absorbing a backlog record (backlog- or parked-stage) into an existing reco
 
 ## Step 6: Present Tidy Report and Approve
 
-**`--dry-run`:** when passed, every finding routes to Stage regardless of mode or aggressiveness tier — Step 7 never executes, whether the run is Auto mode (embedded-pipeline or Standalone) or Interactive. The Auto-mode routing table below is bypassed entirely. Interactive mode still renders the full report and its `AskUserQuestion` approval, but choosing "Apply all" writes would-be log entries instead of executing Step 7. Write each finding's would-be action as `DRY-RUN {time} — {finding} — would: {action}. Reversibility: {tier}.` to `{run-dir}/decisions.md` — same file and format the Auto-mode Log entries use below, prefixed `DRY-RUN` instead of `AUTO`/`STAGED`. If no pipeline run dir exists yet (an interactive or ad hoc `--dry-run` invocation), create a Standalone-auto run dir per `_shared/pipeline-run-dir.md`'s fallback first, so the preview has somewhere durable to land. This mirrors `/routine create --dry-run`'s "inspect before anything is created" pattern one level up (see "Routine Configuration" below), but for a live tidy firing's actual mutations instead of the routine's own setup.
+**`--dry-run`:** when passed, every finding routes to Stage regardless of mode or aggressiveness tier — Step 7 never executes, whether the run is Auto mode (embedded-pipeline or Standalone) or Interactive. The Auto-mode routing table (in `step-6-auto.md`) is bypassed entirely. Interactive mode still renders the full report and its `AskUserQuestion` approval, but choosing "Apply all" writes would-be log entries instead of executing Step 7. Write each finding's would-be action as `DRY-RUN {time} — {finding} — would: {action}. Reversibility: {tier}.` to `{run-dir}/decisions.md` — same file and format the Auto-mode Log entries use, prefixed `DRY-RUN` instead of `AUTO`/`STAGED`. If no pipeline run dir exists yet (an interactive or ad hoc `--dry-run` invocation), create a Standalone-auto run dir per `_shared/pipeline-run-dir.md`'s fallback first, so the preview has somewhere durable to land. This mirrors `/routine create --dry-run`'s "inspect before anything is created" pattern one level up (see "Routine Configuration" below), but for a live tidy firing's actual mutations instead of the routine's own setup.
+
+These two branches are mutually exclusive — read exactly one file from this skill's directory.
 
 ### Auto mode (aggressiveness-based routing)
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `tidy-aggressiveness` from `config.yml` (default `conservative`).
-
-For each finding, route by recommendation type:
-
-| Recommendation | `conservative` (default) | `moderate` | `aggressive` |
-|---|---|---|---|
-| **Keep** | Auto (no-op) | Auto (no-op) | Auto (no-op) |
-| **Legacy taxonomy present** (Shape 7 — read-only flag; `/tidy` never relabels it) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
-| **Needs scoring** (Shape 4 — `ready` record missing risk/effort; no mutation, recommends `/claude-tweaks:specify`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
-| **Re-triage** (Shape 5 — `bot:blocked`; no mutation, recommends `/claude-tweaks:backlog refine`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
-| **Awaiting review** (a fresh/clean, non-stale open PR surfaced by `github-pr-scan.md`'s `repo-wide` scope; no mutation, informational only) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
-| **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
-| **Delete** (any case requiring judgment, excluding backlog records — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-record Delete rows below for `local-files`- and `github-issues`-backend findings) | Stage | Auto-apply | Auto-apply |
-| **Delete** (stale backlog record, `local-files` backend — Shape 1's "Stale" recommendation; deletes a git-tracked file, same reversibility tier as the row above) | Stage | Auto-apply | Auto-apply |
-| **Absorb** (backlog record overlaps an existing record, `local-files` backend — see the dedicated backlog-record Absorb row below for `github-issues`) | Stage | Auto-apply | Auto-apply |
-| **Promote** (ready for brainstorm/`/specify` pipeline) | Stage | Stage | Auto-apply |
-| **Defer** (`local-files` — pure file update) | Stage | Auto-apply | Auto-apply |
-| **Defer** (`github-issues` — label + possible milestone creation, outward-facing) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
-| **Sync to GitHub** (local record exists under `work-backend: github-issues`) | Stage | Stage | Stage — creates GitHub-visible state; never auto-applied per the auto-mode contract's reversibility floor |
-| **Delete** (backlog record, `github-issues` backend — closes a GitHub issue) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
-| **Absorb** (backlog record, `github-issues` backend — closes a GitHub issue) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
-| **Fix now** (registry entries pointing to non-existent files) | Stage | Stage | Stage — fixing requires judgment about which side to keep |
-| **Add rule to CLAUDE.md** (cross-spec patterns) | Stage | Stage | Stage — CLAUDE.md never edited autonomously |
-| **Close (GitHub) / Resolve thread** (outward-facing GitHub mutations) | Stage | Stage | Stage — visible to collaborators and may trigger notifications; never auto-applied per the auto-mode contract's reversibility floor |
-| **Capture** (PR/issue → backlog record) | Stage | Stage | Stage — new backlog-record writes are on the auto-mode contract's never-silenced list (`_shared/auto-mode-contract.md`: "Work-record creation") |
-
-**Log entries:** Write each auto-resolution to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md`. Example entries:
-```
-AUTO 11:14:32 — Step 6: deleted stale backlog record "{title}" (5 weeks old). Reversibility: med (commit {hash}).
-STAGED 11:14:35 — Step 6: absorb proposal for backlog record "{title}" into #42. Stage path: staged/tidy-absorb-1.md.
-```
-
-Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline.
-
-**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from `.claude-tweaks/policy.yml` (see `_shared/policy-schema.md`) as the routing key, falling back to CLAUDE.md's `## Auto-mode policy` block only if `policy.yml` has no such line (legacy fallback for projects that set it there before the policy-schema consolidation). Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
-
-#### Archival compaction (every Standalone-auto firing, any scope)
-
-This runs on every Standalone-auto firing regardless of scope — it's about aging out prior standalone runs, not about this run's own findings.
-
-Before writing this run's own report, scan `.claude-tweaks/pipelines/` for two kinds of aged-out run directories:
-
-- **Standalone runs** (name matches `*-standalone`) whose ISO-timestamp prefix is more than 30 days old — compacted on age alone, same as always.
-- **Abandoned non-standalone runs** — a `/flow`-orchestrated run directory (no `-standalone` suffix) whose ISO-timestamp prefix is more than 30 days old AND whose `run-state.json` status is not `active` (`interrupted`, or the file is missing/unreadable). This covers a run that stopped at an interactive HARD-GATE and was never resumed or wrapped up — it never reaches `/wrap-up`'s successful-closure archival, so without this rule it would sit on disk indefinitely with no cleanup path. The `status` check (absent from the standalone rule, which compacts on age alone) exists so a genuinely long-running, still-`active` pipeline is never swept purely for being old.
-
-For each matched directory:
-
-1. Read its `decisions.md`.
-2. Append its content to `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (the month derived from the run's own timestamp, not today's date — a run compacted late still files under the month it actually ran), creating the file if absent. Prefix the appended block with the run's own directory name as a header so entries stay attributable.
-3. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` (same target `/wrap-up` uses for completed pipeline runs — see `wrap-up/cleanup-procedures.md` Section B).
-4. Log one `AUTO` line to *this* firing's own `decisions.md`: `AUTO {time} — Archival: compacted {run-id} (age: {N} days) into index-{YYYY-MM}.md. Reversibility: high (archive is additive, nothing deleted).`
-
-Skipped staged items inside a compacted run are preserved verbatim in the archive (not silently dropped) — same rule `/wrap-up`'s own archival already follows.
+Applies when a pipeline run directory exists (embedded pipeline), or when `/tidy` runs standalone in `auto` mode. Read `step-6-auto.md` — aggressiveness routing, `decisions.md` log entries, Standalone-auto fallback, archival compaction.
 
 ### Interactive mode (batch approval)
 
-Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
-
-```markdown
-## Tidy Report — {date}
-
-### Actions
-
-| # | Type | Item | Recommendation |
-|---|------|------|---------------|
-| 1 | Backlog | "{title}" (4+ weeks) | Delete — stale |
-| 2 | Backlog | "{title}" (2 weeks) | Keep — still fresh |
-| 3 | Backlog | "{title}" (clean, ready) | Promote — /claude-tweaks:specify #{n} |
-| 4 | Backlog | "{title}" (overlaps #{m}) | Absorb → #{m} |
-| 5 | Parked | "{title}" (valid, not timely) | Defer — trigger: {condition} |
-| 6 | Parked | "{title}" (trigger met) | Promote — trigger fired |
-| 7 | Scoring | "{title}" (ready, unscored) | Flag for scoring — /claude-tweaks:specify #{n} |
-| 8 | Blocked | "{title}" (bot:blocked) | Re-triage — /claude-tweaks:backlog refine |
-| 9 | Legacy | "{title}" (carries tier:approved) | Retired vocabulary — needs migration/re-triage |
-| 10 | Sizing | "{title}" (ready, 12 tasks implied) | Split into two records |
-| 11 | Design doc | "{filename}" (specified) | Delete |
-| 12 | Plan | "{filename}" (orphaned) | Delete |
-| 13 | Worktree | "{path}" (merged) | Remove |
-| 14 | Branch | "build/{name}" (merged) | Delete |
-| 15 | Backlog (unsynced) | "{title}" — local-only under `work-backend: github-issues` | Sync to GitHub |
-
-### Cross-Spec Patterns (if any)
-
-| # | Pattern | Seen In | Recommended |
-|---|---------|---------|-------------|
-| 16 | {description} | Specs {list} | Add rule to CLAUDE.md |
-| 17 | {description} | Specs {list} | Promote to spec |
-
-*Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
-
-### Summary
-- Backlog: {X} records ({Y} stale, {Z} ready to promote)
-- Parked: {X} records ({Y} trigger-met, {Z} still waiting)
-- Ready, unscored: {N} — needs `/claude-tweaks:specify`
-- `bot:blocked`: {N} — needs `/claude-tweaks:backlog refine`
-- Legacy taxonomy: {N} records — needs migration
-- Plans to clean: {D} design docs, {E} execution plans
-- Git cleanup: {F} worktrees, {G} build branches
-```
-
-Immediately after presenting the report above, call `AskUserQuestion`:
-
-- `question`: `"How do you want to handle these tidy actions?"`, `header`: `"Tidy actions"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations shown above"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
-
-If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's built-in `Other` field.
-
-Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy taxonomy are included for visibility but require no mutation. Only items with an active recommendation (delete, defer, absorb, promote, sync, fix) are executed.
+Applies otherwise. Read `step-6-interactive.md` — the batch Tidy Report template, its `AskUserQuestion` approval call, and the override follow-up rule.
 
 ---
 
@@ -258,7 +158,7 @@ Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy
 
 Skipped entirely when `--dry-run` was passed (see Step 6's `--dry-run` override above) — no mutation happens, and Step 7.5's verification checklist and commit are skipped too, since there is nothing to verify or commit.
 
-Execute each approved action per the Action Vocabulary table — that table is the canonical reference for per-action execution rules (delete the record / set `stage: parked` in place or add the `parked` label / integrate into the target record / recommend `/claude-tweaks:specify`). Every action must be atomic: complete all its execution steps or none.
+Execute each approved action per the Action Vocabulary table above, plus the Action Execution file its backend probe resolved (`actions-github-issues.md` or `actions-local-files.md` in this skill's directory) — together those are the canonical reference for per-action execution rules (delete the record / set `stage: parked` in place or add the `parked` label / integrate into the target record / recommend `/claude-tweaks:specify`). Every action must be atomic: complete all its execution steps or none.
 
 Cross-action housekeeping (apply once per run after all actions execute):
 

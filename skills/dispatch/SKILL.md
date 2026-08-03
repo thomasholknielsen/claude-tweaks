@@ -70,83 +70,26 @@ grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:
 
 `GENUINE_LOCAL_FILES` (neither key present, or `work-backend` present) proceeds through the normal branch above unchanged.
 
-**Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). A Preflight failure here needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), search for an existing open report first, to avoid re-filing on every firing — never via `gh issue list --search`, which rides GitHub's eventually-consistent search index (the same anti-pattern documented in `_shared/github-write-transport.md`); use the same plain-list + marker-match idiom instead:
+**Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), a `next`-form firing files a durable GitHub trace instead: read `headless-self-report.md` in this skill's directory and follow it, then stop. It never softens the stop — it only leaves a record of it, deduplicated against any existing open report so repeated firings don't re-file.
 
-```bash
-gh issue list --label by:dispatch --state open --json number,title,body,createdAt --limit 500 > /tmp/dispatch-selfreport-issues.json
-
-rm -f /tmp/dispatch-selfreport-lookup.json
-node -e "
-  const { findByMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/dedup-lookup.js');
-  const issues = require('/tmp/dispatch-selfreport-issues.json');
-  const marker = '<!-- dispatch-preflight-marker: ' + process.argv[1] + ' -->';
-  const result = findByMarker(issues, marker);
-  require('fs').writeFileSync('/tmp/dispatch-selfreport-lookup.json', JSON.stringify(result));
-" "{failing-check-name}"
-```
-
-Read `/tmp/dispatch-selfreport-lookup.json`:
-- `null`: read the project's `work-types` config key (per `_shared/work-record.md`'s Config keys table) and branch —
-same pattern `/capture`'s Backend Selection already uses, Type is always `bug` here (a Preflight
-failure is definitionally a defect). The body now carries the marker so future firings can find it reliably:
-
-```bash
-# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [['by:dispatch', 'Origin: self-filed by /claude-tweaks:dispatch on a headless Preflight failure']]
-# — bootstrap the matching type:bug pair too under work-types: labels, same as /capture does.
-
-# work-types: native
-gh issue create \
-  --title "Dispatch Preflight failure: {failing-check-name}" \
-  --body "{the exact diagnostic message this check would otherwise report to a human}
-
-<!-- dispatch-preflight-marker: {failing-check-name} -->" \
-  --type bug \
-  --label by:dispatch
-
-# work-types: labels
-gh issue create \
-  --title "Dispatch Preflight failure: {failing-check-name}" \
-  --body "{the exact diagnostic message this check would otherwise report to a human}
-
-<!-- dispatch-preflight-marker: {failing-check-name} -->" \
-  --label by:dispatch \
-  --label type:bug
-```
-- Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path), resolve this firing's run dir first — via `_shared/pipeline-run-dir.md`'s standalone-auto fallback (dispatch is on the allowlist; this block runs in Preflight, before Workflow Step 1 would otherwise resolve `$RUN_ID`, so it cannot be assumed already resolved here) — then close every duplicate entry: `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `dispatch-preflight-marker` match, closing to keep one open self-report per failing check." `` — then log one line per closed duplicate to that run dir's `decisions.md`: `AUTO {time} — dispatch headless self-report: closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` Then, whether or not any duplicates were found, reference `#{canonical.number}` in the stop output and file nothing new.
-
-No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
-
-**MCP path** (`gh` unavailable; CRUD mapping per `_shared/github-write-transport.md`): this block's `gh` calls also have a documented MCP path — the list-then-filter lookup (`gh issue list --label by:dispatch ...`) uses the confirmed "list issues by label" mapping (`list_issues`, filtered by label/state — never `search_issues`, same eventually-consistent-index caveat as elsewhere in this file), issue creation (`gh issue create`, both the `work-types: native` and `work-types: labels` variants) uses `issue_write` (create mode), and the duplicate-closing `gh issue close` uses `issue_write` (update mode, state change) — same as every other create/close call site in this file.
+Skip this entirely for the bare / `#N` / `#N,#M,...` forms — those always run with a human present (per the Input table above), so they just report the failing check and stop; self-filing is `next`-only.
 
 Before any `gh`/MCP command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3:
 GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Check 1 (GitHub
 remote exists) and check 3 (authenticated + reachable, evaluated against whichever transport
 check 2 selects) stay hard gates — there is no meaningful degraded mode for a skill whose entire
 purpose is writing GitHub state. Check 2 (`gh` CLI installed) no longer gates on its own: `gh`
-present → proceed exactly as always; `gh` absent → proceed via the GitHub MCP path documented at
-every call site in this file and in `settle-and-merge.md` (verified end-to-end against a live
-cloud Routine run, see `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`). Report the
-specific failing check and stop for any real failure (headless self-report above still applies
-for the `next` form).
+present → proceed exactly as always; `gh` absent → proceed via the GitHub MCP path documented in
+`mcp-transport.md` in this skill's directory (and, for Settle and the Auto-merge gate, in
+`settle-and-merge.md`) — verified end-to-end against a live cloud Routine run, see
+`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`. Report the specific failing check and
+stop for any real failure (headless self-report above still applies for the `next` form).
 
-**Check 3 on the MCP transport.** When `gh` is absent, check 3 (authenticated + repo reachable) is
-satisfied via a bounded `list_issues` call (e.g. `list_issues {owner, repo, state: "open", perPage:
-1}`) — a lightweight, confirmed-working read (per `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`'s
-Task 2 live verification) that fails identically to `gh repo view --json owner,name` when auth or
-repo access is broken. This is dispatch-specific documentation: only dispatch treats check 3 as a
-hard gate that needs an MCP equivalent — `_shared/github-pr-scan.md` itself defines check 3 purely
-as `gh repo view`, unchanged, since its other consumers (`/help`, `/tidy`) fail-open on this ladder
-and don't need one.
-
-Check 2 no longer gates on its own as of this plan's Task 10 — every call site that used to be
-`gh`-only end to end (Step 2's queue pull and dependency checks, the contested-claim comment
-fetch, all of `settle-and-merge.md`) now has a confirmed, live-verified MCP path
-(`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, Tasks 1-2's diagnostic Routine). A
-prior attempt at this same bridge (`274e30e`, reverted the next day as `d4bdfb9`) shipped this
-exact gate change without finishing the read-path bridge first, producing an unstructured
-`gh: command not found` crash instead of a clean stop — this version does not repeat that
-mistake, since every call site was bridged and verified before this line changed.
+**MCP transport details.** When `gh` is absent, read `mcp-transport.md` in this skill's directory
+before any GitHub call: it carries check 3's own MCP equivalent (a bounded `list_issues` probe, since
+check 3 stays a hard gate on either transport) and the MCP form of every `gh` call site in this
+file. It also records why check 2 no longer gates on its own, including the reverted first attempt
+at this bridge that shipped the gate change before the read path was finished.
 
 ## Workflow
 
@@ -233,7 +176,7 @@ node -e "
 " > /tmp/dispatch-groups.json
 ```
 
-**MCP path** (`gh` unavailable — live as of Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`; CRUD mapping per `_shared/github-write-transport.md`): the queue pull uses the confirmed "list issues by label" mapping; the per-dependency open-state check (the `gh issue view "$DEP" --json state` loop) uses the confirmed "get single issue by number" mapping, checking the returned state field for `OPEN`. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
+**MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
 
 Two bulk calls plus a small, bounded fallback — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue), but `--limit 200` can silently truncate that pull on a repo with more open issues than that. Rather than raise the cap and still have the same failure mode at a higher threshold, any referenced dependency number the capped pull didn't confirm as open gets one targeted `gh issue view --json state` check of its own — bounded by how many distinct blockers this firing's `auto:build`-eligible records actually reference (typically a handful), not by the repo's total open-issue count. Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
 
@@ -312,27 +255,10 @@ for ISSUE in "${GROUP_MEMBERS[@]}"; do
 done
 ```
 
-**MCP path** (`gh` unavailable): fully documented below and wired into every other read-path
-call site in this file (Step 2, Settle, the Auto-merge gate) — live as of Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, which verified the whole chain against a live cloud run and flipped Preflight's check 2 from a hard gate to a branch.
-
-For each member of the selected group, generate the claim payload and follow
-`_shared/issue-claims.md`'s "The lock" section's MCP claim procedure — read the claim file
-first, then branch on missing / tombstone-or-stale / live, rather than a bare create-only
-write:
-
-```bash
-for ISSUE in "${GROUP_MEMBERS[@]}"; do
-  node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-    console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
-    sha:process.argv[2],runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$SHA" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
-  # Then run _shared/issue-claims.md's "The lock" MCP claim procedure against this payload's
-  # claimPath on CLAIMS_BRANCH: read the file first; missing -> create_or_update_file omitting
-  # sha; tombstone or TTL-stale -> the same call WITH sha = the file's current blob sha;
-  # live and non-stale -> contested. Branch on that outcome below, per member, exactly as the
-  # gh path branches on 201 vs 422.
-done
-```
+**MCP path** (`gh` unavailable): read `mcp-transport.md` in this skill's directory — it carries the
+per-member claim-payload generation and the read-then-branch claim procedure (missing /
+tombstone-or-stale / live) that replaces the atomic ref creation above. Branch on its outcome below,
+per member, exactly as the `gh` path branches on 201 vs 422.
 
 **On success (claimed, either path):** bootstrap-then-add `bot:in-progress` (still a plain
 label edit — `gh issue edit` or `issue_write` per the CRUD mapping in
@@ -348,8 +274,8 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-${ISSUE}.md
 gh issue edit "$ISSUE" --add-label bot:in-progress
 gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
-# The MCP-path claim block above (Step 4) is documented, wired, and live as of Task 10 — this
-# gh-CLI block runs only when gh is present; see Step 4's MCP path above for the gh-absent case.
+# This gh-CLI block runs only when gh is present; the gh-absent claim path lives in
+# mcp-transport.md in this skill's directory.
 ```
 
 **On 422 (contested):** fetch comments and fold through `claimStatus` exactly as `_shared/issue-claims.md`'s "Reading claim state" section describes, then branch on the full returned shape — do not collapse to a two-way live/stale fold:
@@ -360,7 +286,7 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" "/tmp/dispatch-claim-${ISSUE}.json"
 ```
 
-**MCP path** (`gh` unavailable, same live-as-of-Task-10 status as above): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md`, then fold the result through `claimStatus` exactly as the `gh` path does — `claimStatus` accepts either raw `gh` comment objects or the MCP tool's comment objects, since it only reads a `.body` string field off each.
+**MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory — the confirmed "list issue comments" mapping, folded through `claimStatus` exactly as the `gh` path does.
 
 Resolve the returned `{claimed, stale, everReleased}` shape per `_shared/issue-claims.md`'s own "Failure posture" table (not restated here — that file's header explicitly asks consumers not to duplicate it inline) — its four rows cover live claim (skip), stale claim (break: delete ref, recreate, takeover comment), unreadable/never-claimed (treat as live), and released-but-undeleted (treat as stale).
 
@@ -370,11 +296,8 @@ Any other `gh` failure during claim: skip, log, continue.
 
 **`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
 
-(shown here as the `gh` form only — see Step 4's MCP path above for the gh-absent claim
-equivalent; the MCP-path release follows `_shared/issue-claims.md`'s Release procedure directly —
-resolve the claim file's current sha, then `create_or_update_file` with the payload's
-`tombstoneContent` and that sha; this is tool calls, not shell commands, so no bash block is shown
-here):
+(the `gh` form; for the gh-absent claim and release equivalents see `mcp-transport.md` in this
+skill's directory):
 
 ```bash
 gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
