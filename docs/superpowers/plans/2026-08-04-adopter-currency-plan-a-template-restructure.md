@@ -679,14 +679,14 @@ If `origin/main` already carries a version at or above the one you intended, ren
 
 - [ ] **Step 2: Bump the minor version**
 
-This is a feature addition. Set `version` in `.claude-plugin/plugin.json` to the next free minor above whatever Step 1 found (`6.33.0` if `origin/main` is still at `6.32.0`).
+This is a feature addition. Set `version` in `.claude-plugin/plugin.json` to the next free minor above whatever Step 1 found (`6.34.0` if `origin/main` is still at `6.33.0`).
 
 - [ ] **Step 3: Add the CHANGELOG entry**
 
 Prepend below the `# Changelog` heading, substituting the real measured numbers from Task 4 Step 6:
 
 ```markdown
-## v6.33.0 — Adopter CLAUDE.md carries only what always-loaded context needs
+## v6.34.0 — Adopter CLAUDE.md carries only what always-loaded context needs
 
 `/claude-tweaks:init` wrote 6,834 bytes of byte-identical boilerplate into every
 adopting project's CLAUDE.md — inherited by every dispatched subagent, competing
@@ -751,7 +751,7 @@ cd "$(git rev-parse --show-toplevel)"
 git add .claude-plugin/plugin.json CHANGELOG.md
 git diff --cached --name-only
 git commit -F - <<'EOF'
-Bump to 6.33.0, add CHANGELOG entry for the template restructure
+Bump the plugin version, add the CHANGELOG entry for the template restructure
 
 Claude-Session: https://claude.ai/code/session_01YTkaGS58t7rDkPwkFPjPyY
 EOF
