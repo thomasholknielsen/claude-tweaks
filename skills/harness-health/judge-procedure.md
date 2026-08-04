@@ -2,7 +2,7 @@
 
 The agent-facing distillation of `_shared/harness-health-analysis.md`, used by one caller:
 
-- **The parallel dispatch** in `SKILL.md` Step 1 — when `--budget > 1` returns two or more targets, inline the body below **verbatim** into each Task agent's prompt. Agents only see what's in their own prompt; a pointer to this file, to `SKILL.md`, or to `_shared/harness-health-analysis.md` does not reach them, and every agent handed a path pays to read a 34,314 B fragment independently.
+- **The parallel dispatch** in `SKILL.md` Step 1 — when `--budget > 1` returns two or more targets, inline the body below **verbatim** into each Task agent's prompt. Agents only see what's in their own prompt; a pointer to this file, to `SKILL.md`, or to `_shared/harness-health-analysis.md` does not reach them, and every agent handed a path pays to read that whole fragment independently.
 
 The sequential path (`--budget 1`) still reads `_shared/harness-health-analysis.md` directly and is unaffected by this file — that fragment remains the canonical procedure, shared unchanged with `/claude-tweaks:wrap-up` Step 7 and `/claude-tweaks:init` Phase 6. **This file is a distillation of it, not a replacement.** When that fragment changes, update this file in the same edit.
 

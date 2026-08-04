@@ -142,7 +142,7 @@ test('documents the wontfix suppression and the dual fingerprint marker (legacy 
 // The parallel dispatch inlines this file's body verbatim into each Task agent's
 // prompt rather than handing over a path. A path reaches nothing (agents see only
 // their own prompt) and makes every agent in a --budget batch independently read
-// the 34 KB _shared/harness-health-analysis.md. Mirrors the same pair of tests in
+// the much larger _shared/harness-health-analysis.md. Mirrors the same pair of tests in
 // bin/lib/docs-health/tests/skill-md.test.js.
 
 const JUDGE = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'harness-health', 'judge-procedure.md');
