@@ -2,6 +2,12 @@
 
 Loaded by `/init` Phase 1 when existing config is detected. Covers the Update Mode inventory (Phase 1u), contract-drift detection (Phase 1u.5), the early-exit fast path (Phase 1u.6), and the Phase 4 scoring approach for gaps.
 
+## Sub-phases at a glance
+
+- **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
+- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections
+- **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
+
 ## Phase 1u: Audit Existing Configuration
 
 Build an inventory of what's currently configured before scanning the codebase:

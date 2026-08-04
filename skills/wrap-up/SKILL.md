@@ -126,8 +126,6 @@ On any pipeline run, items 4 and 8 hold by construction, so this gate is open th
 
 > **Batch collection.** Step 6 collects potential CLAUDE.md/rules and decision-record updates in a single pass across two sub-scans (CLAUDE.md and Rules, Decision Records). No decisions are made here — everything is presented together in Step 9 for batch approval. Skill updates are handled separately in Step 7; documentation updates are handled separately in Step 7.7.
 
-> **Parallel execution:** Run both sub-scans (CLAUDE.md/rules, decision records) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
-
 ### Fast-lane pre-check (skip condition)
 
 When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip both sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
@@ -138,38 +136,7 @@ When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3
 
 If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs both sub-scans as before.
 
-### 6.1: CLAUDE.md and Rules
-
-CLAUDE.md describes **how to work in this codebase** — patterns to follow, commands to run, conventions to respect, mistakes to avoid. Every update must describe something that exists and is actively used, not aspirational improvements.
-
-Check if the work introduced project-wide conventions:
-1. New commands or scripts (verify they exist and work)
-2. New naming conventions or patterns (observed, not aspirational)
-3. New don'ts — anti-patterns discovered during this build that are guardrails for existing patterns, not wishes for missing infrastructure
-4. Stack changes (new dependencies actually added)
-5. Path-scoped rules for `.claude/rules/`
-
-Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to a new backlog record (no stage label — the unified taxonomy's equivalent of the pre-migration "inbox" destination; per `_shared/work-record.md`), not CLAUDE.md — subject to the same per-item work-record-creation approval as any other new record (`_shared/auto-mode-contract.md`).
-
-**For a new Don't, write the incident account before the rule.** Put the specifics — which build, how it was caught, what it cost — wherever this project keeps that evidence (an incident log if it has one, otherwise the work record or the commit message), then compress to what lands in CLAUDE.md: one sentence of rule, one clause of why. The order is the whole point. Write the rule first and the vivid detail leaks into it clause by clause, and CLAUDE.md is paid for by every session *and* every dispatched subagent, so that leak is charged per agent. Length here is not a style preference.
-
-→ Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
-
-### 6.2: Decision Records (ADRs)
-
-Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **ADR gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
-
-1. **Gather decision candidates** from this work's surfaces:
-   - `[ADR-candidate]`-tagged constraints in the brainstorming brief (flagged by `/claude-tweaks:challenge`)
-   - Architectural deviations classified in `/build` Common Step 4.5
-   - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
-   - Tradeoffs accepted during `/review` and reflection insights about approach
-2. **Run the ADR gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
-3. For each decision that passes, propose creating `docs/decisions/NNNN-{slug}.md` using the template in `_shared/decision-records.md` (find the highest existing `NNNN` and increment).
-
-→ Collect each as: `[adr] docs/decisions/NNNN-{slug}.md — {decision title}`
-
-ADR proposals are routed through the Step 9 batch table / Review Console alongside other configuration updates — never written silently. Most wrap-ups produce **zero** ADRs; that is correct. ADRs are valuable because they are rare.
+**Gate the read.** When the pre-check above did not fire, read `config-updates.md` in this skill's directory for both sub-scans in full — 6.1 CLAUDE.md and Rules (which conventions qualify, the size budget, and the write-the-incident-account-before-the-rule discipline for a new Don't) and 6.2 Decision Records (candidate gathering, the three-factor ADR gate from `_shared/decision-records.md`, and the `docs/decisions/NNNN-{slug}.md` proposal). Neither sub-scan writes anything; both only collect rows, which surface at the Step 8.6 Review Console or Step 9's batch table. When the pre-check fired, skip the read entirely.
 
 ---
 
@@ -284,45 +251,7 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 
 **Gate the read.** Read `ledger/resolve-gate.md` when the ledger exists **and holds at least one item** — of any status, not just `open`. If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), or exists but is empty, report "No ledger items to resolve" and skip this gate entirely without reading the file.
 
-The gate is item-*existence*, not open-item-existence: the bulk-resolve fast path below still stages proposals for `acknowledged` items via that file's Phase 3 `Acknowledge` disposition, and the Ops acknowledgment sub-step below applies the same disposition — both operate on items that are already terminal. Gating on `open` items alone would skip the read while those two paths still need it.
-
-**Hard requirements:**
-
-- Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
-- Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (e.g., ops items the user has read — each one stages a work record proposal, resolved via the Review Console's own mandatory per-item approval) may be bulk-*staged* via a single explicit "I've read every item" choice, since the actual record creation still gets its own per-item gate downstream. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
-- `auto` mode does NOT silence this gate.
-- Both `parked` and `backlog` are valid stage destinations for a new work record, but every individual item requires an explicit per-item user choice — no record is ever staged autonomously.
-
-### Bulk-resolve fast path (terminal-status only)
-
-The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. Before reporting completion, check every `acknowledged` item for a staged proposal (a producer can create an item pre-set to `acknowledged`, bypassing Phase 3 entirely — e.g. `build/worktree-setup.md`'s auto-mode divergence entry): stage one now, per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, for any that lack one. Then report: "All {N} ledger items resolved. No open items." and proceed to Step 9.
-
-Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is never skipped, regardless of `auto` state, when any `open` item exists.
-
-### Ops acknowledgment (when ops items exist)
-
-Ops items represent infrastructure changes the user needs to action post-merge — bulk-acknowledging them risks the user not reading them. Present each item, and require explicit confirmation rather than a shortcut that defaults to bulk action:
-
-```
-The following ops items need acknowledgment. These represent infrastructure changes you need to action post-merge — read each one before choosing:
-
-| # | What | Where |
-|---|------|-------|
-| 1 | {description} | {source} |
-```
-
-**Unattended-tier auto-acknowledge:** if `unattended-tier: on` (see `_shared/unattended-tier.md`),
-skip the `AskUserQuestion` below entirely — for every item, stage a record proposal and update
-status to `acknowledged` per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, log
-`AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged, staged for filing. Reversibility: high.` to
-`decisions.md`, and continue to Step 8.6. Otherwise, present the block below.
-
-Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
-
-- Option 1 — `label`: `"Acknowledge all"`, `description`: `"I've read every item"`
-- Option 2 — `label`: `"Show details"`, `description`: `"I have questions about specific items"`
-
-After option 1, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition to every item — stage a record proposal per item and update status to `acknowledged`. The actual record creation is a separate, mandatory per-item approval at the Review Console's Queue writes section (bulk-acknowledging here only stages the proposal; it does not silently create N records). After option 2, surface each item with full detail and apply the same per-item `Acknowledge` disposition on confirmation.
+The same condition gates `nothing-left-behind.md` in this skill's directory — wrap-up's own wrapper around that gate: the item-existence rationale, the hard requirements (Phase 1 fix-exhaust before any user-facing output, Phase 2's mandatory per-item input, and what `auto` never silences), the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step with its `unattended-tier` branch. When the gate is closed, read neither file.
 
 ---
 
@@ -347,138 +276,17 @@ In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outri
 
 ## Step 9: Present Consolidated Summary
 
-**Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
+Render one consolidated summary of this run — reflection insights, implementation status, the filtered cleanup checklist, configuration updates, manual steps, skill updates, and the Actions Performed table — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision. Close with the archival line.
 
-```
-## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
-{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
-
-### Reflection Insights
-1. {insight} → {destination}
-(or: No significant insights.)
-
-### Implementation Status
-- {section}: {status}
-Overall: {X}% complete
-
-### Cleanup Actions (planned in Step 5; executed in Step 10)
-See `cleanup-procedures.md` for the canonical cleanup list. Render only rows whose Condition holds (e.g., no worktree, no design caches). Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred in `cleanup-procedures.md` are skipped here too.
-- [ ] Leftover work: {recommendation}
-
-### Configuration Updates (from Step 6)
-| # | Type | Target | Change |
-|---|------|--------|--------|
-| 1 | {doc/claude.md/rule/adr/docs-health-issue} | {target} | {what to add/change} |
-| 2 | ... | ... | ... |
-(or: No configuration updates needed.)
-
-### Manual Steps Required
-| # | What | Where | Status |
-|---|------|-------|--------|
-| 1 | {description} | {source} | Filed as #{n} |
-(or: No manual steps — nothing to do outside the codebase.)
-
-> Complete these after merging. Each row is a real, trackable record (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in this transcript.
-
-### Skill Updates
-Resolved in Step 7 — {N} updates applied, {M} staged, {K} new-skill candidates ({proposed}/{declined}); {R} skills read, gap detection: {found/not found}. See `decisions.md` for the full `SCANNED` summary line.
-
-### Actions Performed
-
-| Action | Detail | Ref |
-|--------|--------|-----|
-| Operational | Closed record #{n} via merge (`Fixes #{n}`) — no local file to delete | `{hash}` |
-| Operational | Deleted spec `specs/{N}.md`, updated `specs/INDEX.md` (legacy spec-file-mode alias only) | `{hash}` |
-| Operational | Deleted plans `docs/plans/{files}` | — |
-| Operational | Deleted ledger | — |
-| Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
-| Operational | Removed worktree `{path}`, deleted branch `{branch}` | — |
-| Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
-
-Generate from: cleanup actions in Step 10, config/skill updates applied, ledger items resolved in Step 8.5, and, when present, the run dir's `events.jsonl` (hook-recorded commit breadcrumbs — hash reflects HEAD at hook time, not verified against commit success — and contract violations).
-
-(Next Actions are rendered as a top-level section after Step 10 — see `## Next Actions` below. Do NOT render them here in the per-spec summary template.)
-```
-
-**Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
-
-- **Step 8.6 ran** (`auto` or `hybrid` mode with a pipeline run directory) → cleanup + config items were already approved at the Review Console. Skip this batch table and proceed to Step 10 execution. Rendering a second batch table here duplicates the Review Console and violates the "one decision per message" + bookend ("at most two stops in auto") promises.
-- **Step 8.6 was skipped** — interactive mode, standalone wrap-up, or empty-console fast path → present the batch decision below. **Except** `MULTISPEC_REVIEW_DEFER=1` (Step 8.6's multi-spec defer branch): that case also skips the per-spec console, but do NOT present the batch decision here — `staged/` and `decisions.md` were deliberately left untouched for the parent `/flow`'s single consolidated end-of-run console to approve later across every spec in the run. Proceed straight to Step 10 the same as the "Step 8.6 ran" branch above; presenting this batch table here would reintroduce the duplicate, premature approval prompt the defer protocol exists to prevent.
-
-Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered by Condition), followed by configuration update rows from Step 6 and Step 7.9's staged CLAUDE.md findings:
-
-```
-| # | Type | Action | Details |
-|---|------|--------|---------|
-| 1 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
-| ... | cleanup | ... | ... |
-| N | config | {doc/claude.md/rule/adr/docs-health-issue} | {what to add/change} |
-```
-
-The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
-
-- `question`: `"How do you want to apply these changes?"`, `header`: `"Apply changes"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all cleanup and configuration items"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
-
-If the user chooses to override, let them pick which items to skip or change.
-
-After presenting the summary, output an explicit closure line — record mode (materialized header present):
-
-```
-Work archived. Record #{n} closes via this merge (or the wrap-up commit, in current-branch mode); its plans and ledger have been deleted. The code and learnings remain.
-```
-
-Legacy spec-file-mode alias (no materialized header):
-
-```
-Work archived. Spec {N}, its plans, and ledger have been deleted. The code and learnings remain.
-```
-
-This signals clearly that the lifecycle is complete — there's nothing left to do for this spec.
+**Read the template.** Read `summary-template.md` in this skill's directory for the standalone multi-record batch variant, the full render template, the conditional batch-decision branch with its `AskUserQuestion` shape, and both closure lines (record mode and the legacy spec-file alias). Step 9 always runs, so this read is unconditional.
 
 Next Actions are rendered as a top-level `## Next Actions` section after Step 10's verification — see the section near the end of this file. They replace the old single-line handoff with a context-signal-driven table.
 
 ## Step 10: Execute Approved Actions
 
-**Dry-run mode.** When `--dry-run` was passed (Step 1's Flags), skip actual execution entirely — print each planned cleanup / configuration / skill / acceptance-labeling action as a preview line instead of running it, skip the final commit and the closing line, and stop after Step 9's summary. This applies whether Step 8.6 rendered (which already previewed instead of applied — see `review-console.md`'s "Dry-run mode") or was skipped (interactive mode, standalone wrap-up).
+Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`, filtered by Condition) plus the configuration, documentation, skill, and acceptance-labeling actions approved at the Review Console (Step 8.6) or the Step 9 batch decision — then verify each one landed before the closure line is emitted.
 
-Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`) plus the configuration / skill updates approved at the Review Console (Step 8.6) or batch decision (Step 9). The 8 cleanup items, in execution order, are defined in `cleanup-procedures.md`'s canonical list — do not re-enumerate here. Filter rows by Condition.
-
-**MULTISPEC_REVIEW_DEFER branch:** When `$MULTISPEC_REVIEW_DEFER=1` is set, Step 10 SKIPS the state-changing cleanups marked deferred in `cleanup-procedures.md` (items 3 Design caches, 4 Git worktree, 6 Ephemeral dev server, 7 Issue claim release, 8 Pipeline run dir archival). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run, which has authority to apply or override them across all specs in the run. Step 10 still executes the idempotent cleanups (items 1 Execution plans, 2 Open items ledger, 5 Record/spec lifecycle) — those do not interact with parent-orchestrated cleanup.
-
-After the cleanup, also apply:
-
-- **Documentation** — apply the registry / doc edits collected in Step 7.7 and approved at the Console or batch
-- **CLAUDE.md, rules** — apply the edits collected in Step 6 and Step 7.9 and approved at the Console or batch
-- **New docs from missing-doc detection** — for a `[doc] {file} — Create: …` row (wrap-up's own D2 gap-detection, `docs-health-integration.md`), scaffold the new file from the matching section of `skills/_shared/diataxis-genre-templates.md` and fill in real content from this work's session context, then register it in `docs/REGISTRY.md` if a registry exists
-- **Docs-health restructural filings** — for restructural docs-health findings (`docs-health-integration.md`'s D1) approved at the Console or batch, re-run `validate-findings` without `--dry-run` and file each surviving payload via `gh issue create`, per that file's filing procedure
-- **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.2) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
-- **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
-- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief. **Gate the read:** only when this run is record mode *and* the record is testable, read `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure. Conversation-based work and the legacy spec-file alias have no work record to label — skip this bullet and do not read the file (that file's own header states the same restriction)
-
-Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
-and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
-field is the issue number), include one `Fixes #{issue}` line per resolved issue in this commit
-message — it is the closing-keyword carrier for current-branch runs (see
-`cleanup-procedures.md` Section C); GitHub closes the issues when the commit reaches the
-default branch. A legacy spec-file-mode run (no materialized header) carries no closing
-keyword — there was never an issue to close.
-
-### Verify execution
-
-Before emitting the closure line, confirm every approved action actually ran:
-
-- Spec file deleted or status updated (legacy spec-file-mode alias only — record mode has no spec file) — `ls specs/{N}*.md` returns nothing (or `git status` shows the status edit committed)
-- INDEX.md updated (legacy spec-file-mode alias only — record mode never touches it) — `git log -1 --stat specs/INDEX.md` shows this run's commit
-- Plans + ledger removed — `ls docs/superpowers/plans/*{spec-slug}* docs/plans/*-ledger.md` returns nothing
-- Design caches deleted (when applicable) — no `*-audit.json` / `*-recommendations.json` / `*-declined.json` for this spec remain in `docs/plans/`
-- Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists, with the `work/` subdirectory (when present) still git-tracked at its new path (skipped when `MULTISPEC_REVIEW_DEFER=1`)
-- Worktree removed (worktree strategy) — `git worktree list` no longer shows the feature worktree path
-- Closing-keyword carrier commit landed (worktree strategy + a materialized header was present for this spec) — `git log {default-branch} --grep="Fixes #{issue}"` shows the carrier commit for each resolved issue once merged (or `git log {feature-branch} --grep=...` if the branch is still open under "keep as-is" or a pending PR)
-- Acceptance labeling landed (record mode only) — `work-backend: github-issues`: `gh issue view {issue} --json labels -q '.labels[].name'` includes `demo:pending` and the issue's last comment contains `## Verification Brief` with a `### Confirmed` section; `work-backend: local-files`: the record's body contains `## Verification Brief` with a `### Confirmed` section and its frontmatter has `acceptance: pending`. For a testable record, confirm the safety-net gate actually resolved (no high/critical visual-review finding left unfixed) before this line was reached.
-
-If any approved action did not land, do NOT emit the closure line. Surface the gap (`BLOCKED — cleanup step {N} did not complete: {reason}`) and stop.
+**Gate the read.** Read `execution-and-verification.md` in this skill's directory — the `--dry-run` preview branch, the `MULTISPEC_REVIEW_DEFER` skip list, the full apply list (documentation, CLAUDE.md/rules, D2 new docs, docs-health restructural filings, ADRs, skill updates, and acceptance labeling with its own gated read of `verification-brief.md`), the closing-keyword carrier commit, and the Verify-execution checklist — when at least one approved action exists: a cleanup row surviving Step 5's Condition filter, an approved configuration / documentation / skill update, or record-mode acceptance labeling. When Step 5 reported "No cleanup actions apply" and nothing else was approved, report "No actions to execute" and skip the read — there is nothing to commit or verify.
 
 ## Important Notes
 

@@ -1,0 +1,20 @@
+# Flow — Polish + Re-Verify Execution
+
+Loaded by `/claude-tweaks:flow` Step 4 only when the polish phase actually dispatches — `polish` survived Step 1's step-list resolution (`no-polish` unset) and `steps-and-gates.md`'s polish-phase decision tree selects at least one command. A skipped polish phase (non-frontend spec, `no-polish`, Impeccable not installed, nothing to fit) never needs this file, and neither does a run that never reaches the polish step.
+
+Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specific to /flow:
+
+- Invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. Wrapper errors stop the pipeline with a "Polish wrapper error" failure card — do not assume partial-and-recoverable.
+- Append a ledger entry per command invoked (phase: `design`, status: `fixed` for auto-fit successes, `observation` for reported issues). Ledger entries flow through to wrap-up's skill update analysis.
+- When `/design-wrapper polish` returns a non-empty `commands_invoked` (and therefore a `decision_summary` field — see `skills/design-wrapper/modes/polish.md` Step 7), append one entry to the auto-decision log at `{run-dir}/decisions.md`, under a `## /flow` heading (create the heading if absent, per the append-only protocol in `_shared/auto-decision-log.md`):
+  ```
+  - AUTO {HH:MM:SS} — Polish phase: {decision_summary} Files: {files_modified, comma-joined}. Reversibility: high (worktree file edits, revertible via git).
+  ```
+  This is one entry per polish-phase dispatch, not one per command — `decision_summary` already summarizes every command that ran. Skip this entirely when `commands_invoked` is empty (no `decision_summary` was returned, so there is nothing to log). No commit ref is included — polish's changes are uncommitted at this point (Impeccable edits the working tree directly; see `impeccable-cli.md`).
+- When `/design-wrapper polish` returns a non-empty `staged_suggestions` (manual-only commands an audit anti-pattern finding named but the wrapper declined to auto-dispatch — see `skills/design-wrapper/modes/polish.md` Step 5), write one file per entry to `{run-dir}/staged/polish-suggestion-{n}.md` (`{command} {files} — flagged by audit anti-pattern finding, manual-only, not auto-dispatched`) and append one `STAGED` entry per entry to `decisions.md` under the same `## /flow` heading:
+  ```
+  - STAGED {HH:MM:SS} — Polish phase: audit suggested {command} on {files} (manual-only, not auto-dispatched). Staged at staged/polish-suggestion-{n}.md. Surface at Review Console.
+  ```
+  This fulfills the "so the caller can surface it" promise `design-wrapper/modes/polish.md` Step 5 makes — the Wrap-Up Review Console (`wrap-up/review-console.md`) reads every file under `staged/` generically, so this is the same pattern already used for other staged proposals (e.g. review findings' `.patch` files).
+- When polish modified code, set the in-memory `re_verify_ran: true` marker and invoke `/claude-tweaks:test skip-qa`. The wrapper runs types + lint + tests, skips QA story validation (irrelevant after stylistic-only polish), but still runs the Design CLI gate (CLI is not QA).
+- One-cycle cap: if the marker is already set, surface "re-verify cycle cap exceeded" and stop — defensive against the decision tree re-entering re-verify.

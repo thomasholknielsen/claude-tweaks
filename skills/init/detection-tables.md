@@ -2,6 +2,18 @@
 
 Reference tables for codebase reconnaissance. Each detection step runs in parallel using glob/grep operations.
 
+## 2a: Project Identity
+
+```
+Detect:
+- README.md, CONTRIBUTING.md, docs/ — project purpose and domain
+- LICENSE — open source vs proprietary
+- .github/, .gitlab-ci.yml, Jenkinsfile, .circleci/ — CI/CD platform
+- Monorepo vs single app (workspaces config, multiple package.json, apps/, packages/)
+- Age — earliest commit date (`git log --reverse --format="%ai" -1`)
+- Activity — commits in last 90 days, number of contributors
+```
+
 ## 2b: Stack Detection
 
 Analyze package manifests, lock files, and config files to build a stack profile.

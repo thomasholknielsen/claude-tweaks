@@ -179,19 +179,14 @@ gate anywhere).
 
 ### Merge-Provenance Check
 
-Before analyzing the diff, check whether the base branch was merged into this branch mid-history — content that arrived via such a merge should not be misattributed as work this branch introduced. This was caught concretely during the #45 native-review prototype: a CHANGELOG entry that actually rode into the branch via a merge from `main` was flagged as if it were part of this branch's own work, and was only correctly attributed by manually tracing merge-commit parentage.
+Before analyzing the diff, detect whether the base branch was merged into this branch mid-history — content that arrived that way is not work this branch introduced and must not be reviewed as such. `{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses.
 
 ```bash
 git log --merges {base}..{branch} --oneline                                      # detect
-git log --first-parent --no-merges {base}..{branch} --name-only --pretty=format:  # own-work files
-git diff {base}...{branch} --name-only                                           # full diff files
 ```
 
-`{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses (the base branch, or the recent-commits fallback from Input resolution rule 7) — no new base-resolution logic needed.
-
 - **No merge commits detected** (the common case) — this check is a no-op: no further computation, no new output section. The rest of Step 2 proceeds exactly as before, against the full diff.
-- **Merge commits detected** — diff the "own-work files" list above against the full diff's file list. `--first-parent --no-merges` walks only the branch's own sequential commit chain, skipping content that entered solely through a merge commit's second parent — so files present in the full diff but absent from this list arrived via merge from `{base}`, not this branch's own work. Report them separately ("arrived via merge from {base}, not this branch's own work"), stating the count of files/lines excluded and why, feeding Step 7's summary. Do not fold them silently into "what changed."
-- The **own-work scope** (not the raw `git diff` scope) is what feeds the change analysis below, and what Step 3's lens dispatch and Step 3.5's debate dispatch review — merged-in-only content is excluded from review scope by default.
+- **Merge commits detected** — read `merge-provenance-check.md` in this skill's directory: the own-work file-set computation, how to report the excluded files, and the own-work scope that replaces the raw `git diff` scope for Steps 3, 3.5, and 5.
 
 Not to be confused with "Reusing a Prior Whole-Branch Review" below — that handles a *later spec's* review citing an *earlier spec's already-completed* whole-branch review in a multi-spec batch; this check handles what's *in the diff at all* for a single review, independent of whether any prior review exists.
 
@@ -211,7 +206,7 @@ git diff {base}...{branch} --name-only   # bare path list, for path-pattern matc
 
 The one exception is the dependency question, which needs manifest *content* rather than just a filename: when `--name-only` shows a dependency manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, or equivalent), read a **targeted** diff of just that file (`git diff {base}...{branch} -- package.json`). That is bounded by construction — it is not a licence to widen back to the full diff.
 
-Full diff *content* belongs to Step 3's dispatched lens agents, which have their own context windows. See Step 3's dispatch note.
+Full diff *content* belongs to Step 3's dispatched lens agents, which have their own context windows. See Step 3's dispatch note. It lives in `step3-lens-dispatch.md`.
 
 If infrastructure or deployment changes are detected (Terraform, CDK, Docker, CI/CD, database migrations, new environment variables) that aren't already in the ledger as `ops` items, append them with phase `ops` and status `open`. This catches ops requirements introduced during review fixes that weren't present in the original build.
 
@@ -229,44 +224,7 @@ When it's unclear which case applies, default to overlapping superset (the conse
 
 Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max` — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate and the per-candidate refutation pass run (Step 3.5), whether the gap-sweep pass runs (Step 3.6), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
 
-Resolution order — stop at the first that applies:
-
-1. **Explicit argument.** If `$ARGUMENTS` contained an effort token (Input resolution rule 8), use it. Always wins — including over a high-risk record's own labels. A user who explicitly asks for `low` on a scary change, or `max` on a trivial one, gets what they asked for.
-
-2. **Record risk/effort labels.** Applies only when Input resolution resolved a spec/record number (rules 1-2) — file-path and no-argument reviews (rules 3, 7) have no record to read and go straight to step 3 below. Fetch the record's `risk:*`/`effort:*` labels with a fresh, minimal read — independent of whether Step 1 ran (Step 1 is skipped under `ceremony-profile: fast-lane`, so this cannot assume a Step 1 fetch happened), per `work-backend`:
-
-   **`github-issues`:**
-   ```bash
-   gh issue view {n} --json labels > /tmp/review-record-{n}.json
-   node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
-     const d=JSON.parse(require('fs').readFileSync('/tmp/review-record-{n}.json'));
-     const {risk, effort}=parseRecordFacets(d.labels);
-     console.log(JSON.stringify({risk, effort}))"
-   ```
-
-   **`local-files`:**
-   ```bash
-   node -e "const {readRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-     const {risk, effort}=readRecord(process.argv[1]).facets;
-     console.log(JSON.stringify({risk, effort}))" "{record-file-path}"
-   ```
-
-   Both resolve to the same `{risk, effort}` shape. If either is `null`/`undefined` (record never scored) or the read fails (malformed labels, backend error), fall through to step 3 below — never default straight to `low`. Otherwise combine via this table:
-
-   | risk ↓ / record effort → | low | medium | high |
-   |---|---|---|---|
-   | **low** | low | low | medium |
-   | **medium** | medium | medium | high |
-   | **high** | high | xhigh | max |
-
-   Risk (blast radius/safety) is the primary driver — `risk:high` always yields at least `high`. `risk:low` floors at `low` unless the record's own size (`effort:*`) compounds it to `medium`.
-
-3. **Diff heuristic (fallback).** No record, the record carries no `risk:*`/`effort:*` labels, or the label read failed. Derive proxies from Step 2's change analysis and feed the same table above:
-   - Risk proxy = **high** if the diff touches a path matching the `merge-sensitive-paths` config key (the same key `assess-agent-autonomy`'s `merge-check` mode already reads for the identical "elevated risk from touched paths" purpose), a schema/migration file, infra/CI-CD config, or introduces a new dependency (Step 2 already flags all of these for its ops-ledger check); **medium** if it touches public API surface or a cross-package interface; **low** otherwise.
-   - Record-effort proxy (size — not the `review-effort` tier being derived here): read `review-diff-heuristic-thresholds` from `.claude-tweaks/policy.yml` — shape `{high: {files, lines}, medium: {files, lines}}`, default `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` (matches this skill's pre-existing hardcoded behavior when the key is unset). **high** at `high.files`+ files or `high.lines`+ lines changed; **medium** at `medium.files`-`(high.files - 1)` files or `medium.lines`-`(high.lines - 1)` lines; **low** otherwise. Both counts come from Step 2's `git diff --stat` totals — this proxy never needs the full diff.
-   - If `git diff --stat` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
-
-4. **Project-level floor (non-explicit resolutions only).** After step 2 or 3 above resolves a tier, read `review-effort-floor` from `.claude-tweaks/policy.yml`, mirroring `review-severity-floor`'s existing lookup precedent (`step3-routing.md`). If set, raise the resolved tier to at least the floor — never lower it (e.g. `review-effort-floor: high` turns a diff-heuristic `low` into `high`, but leaves an already-`xhigh` record-label resolution untouched). This step never applies when step 1 (explicit argument) already set the tier — an explicit token always wins, per step 1's rule above. Unset by default — no floor, current behavior unchanged.
+Resolution order — read `review-effort-derivation.md` in this skill's directory for the procedure: the explicit-argument rule, the record `risk:*`/`effort:*` label read (per-backend commands plus the risk × record-effort combination table), the diff heuristic fallback, and the `review-effort-floor` project floor. Skip that read when `$ARGUMENTS` carried an effort token — an explicit token always wins, so the tier is already resolved.
 
 **Ambiguity never resolves toward less scrutiny.** If reading record labels fails, fall through to the diff heuristic rather than defaulting to `low`. If the diff heuristic itself can't render a clear signal, default to `high` — the tier that reproduces this skill's pre-existing default behavior — never `low`.
 
@@ -292,107 +250,7 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 | 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
 | 3i Doc freshness | low / informational | Never blocks the review. |
 
-**Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output; higher tiers trade speed for broader coverage.
-
-| Tier | Agent-dispatched lenses in scope |
-|------|------|
-| `low` | 3b, 3c |
-| `medium` | 3b, 3c, 3a, 3f |
-| `high` | 3b, 3c, 3a, 3f, 3d, 3e, 3h — every applicable lens. **Reproduces this skill's pre-existing default behavior.** |
-| `xhigh` | Same lens set as `high` |
-| `max` | Same lens set as `high` |
-
-A lens outside the resolved tier's scope is never dispatched — it does not run and produces no findings. The pre-existing "skip a lens if it doesn't apply to this change type" rule (above) still applies on top of whichever set the tier allows — e.g. at `high`, Performance is still skipped for a docs-only diff. Lens 3h additionally requires QA data to be available at all (its own existing, effort-independent gate) — when QA data isn't available, 3h doesn't run even at `high`+. Lenses 3g-cov, 3i, and 3i-diagram are **not** gated by effort at all — they're main-thread/deterministic, not agent-dispatched, and stay gated only by their own existing data-availability conditions.
-
-Reproduction pairs (the 2-agent verification dispatch below) always run for every lens that already uses the reproduction-pair mechanism (3a-3f) and is in scope at the resolved tier — verification is never skipped, only the initial lens set that gets a chance to flag something. (3h is never reproduction-paired, at any tier — see the "not dispatched as reproduction pairs" note below.)
-
-At `xhigh` and `max`, append this sentence to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per `step3-routing.md`'s dispatch contract): "Apply careful, thorough reasoning to this pass — consider subtle edge cases and second-order effects a faster read might miss." This is a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism.
-
-> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
-
-> **Full diff content is read here, in the lens agents — not in the main thread.** Step 2 deliberately holds only `--stat`/`--name-only`, so this dispatch is the first point at which actual diff content is read. Give each lens agent the shared context bundle's path (built below) plus the diff *scope* — the base/branch refs, or the own-work file set when the Merge-Provenance Check found merge commits. Do not inline diff text into the prompts from the main thread: every dispatched agent has its own context window, and re-inlining the diff N times reintroduces the cost Step 2 exists to avoid.
-
-> **Parallel execution — assemble the shared context on disk, never in main-thread context.** Every lens needs the same files, so build the bundle once using shell redirection, whose content never enters this thread, and hand every dispatched agent the same path:
->
-> ```bash
-> CTX="/tmp/review-context-$(git rev-parse --short HEAD).md"
-> { git diff {base}...{branch}
->   git diff {base}...{branch} --name-only | while read -r f; do
->     printf '\n===== %s =====\n' "$f"
->     cat -- "$f" 2>/dev/null
->   done
-> } > "$CTX"
-> wc -c "$CTX"    # only the byte count enters this thread
-> ```
->
-> A section can legitimately come out empty — a deleted file, or a path git quoted for non-ASCII characters that `cat` then couldn't open. That degrades safely rather than silently: the full diff sits at the top of the same bundle, so the agent still sees that file's change either way.
->
-> Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
-
-> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
->
-> **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model tier). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to a temp file and call `categoriseReproduction`:
-> ```bash
-> node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
->   console.log(JSON.stringify(c.categoriseReproduction(require(process.argv[1]), require(process.argv[2]))))" \
->   /tmp/lens-${LENS}-agentA.json /tmp/lens-${LENS}-agentB.json
-> ```
-> - Findings present in both agents' outputs (path exact, line ±2, matching severity bucket) → emit as `confirmed`. Write to `decisions.md`: `AUTO {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. Reversibility: high.`
-> - Findings present in only one agent's output → emit as `unconfirmed`. Write: `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.` Unconfirmed findings do **not** enter Step 3 Routing — they route directly to the Wrap-Up Console's Low-confidence subsection.
->
-> **Model tier (per lens):** 3a (Convention) and 3f (Test Quality) → Fast (Haiku) — mechanical convention checks on isolated files. 3b-3e (Security, Errors, Performance, Architecture) → Standard (Sonnet) — multi-file analysis and cross-cutting findings. 3h (UX Analysis) → Capable (Opus) — judgment-heavy synthesis.
->
-> **Output template (each agent must follow exactly):** The Calibration block + OUTPUT FORMAT must be reproduced byte-identical in each dispatched agent's prompt — do NOT paraphrase. Read `step3-routing.md` in this skill's directory for the canonical dispatch template; inline it verbatim into every `Task()` call.
-
-### 3a: Convention Compliance
-
-- Does the code follow naming conventions documented in CLAUDE.md?
-- Are project patterns followed (error handling, validation, logging)?
-- Are shared utilities used instead of reinventing (check existing packages)?
-- Are imports from the right packages (not duplicating types inline)?
-- Does the code follow patterns documented in `.claude/skills/*.md`? Append a `review/skill` ledger entry when the code **diverges** from a skill (flag it in the findings table too — the code may be correct and the skill stale), **extends** a documented pattern with a new wrinkle worth capturing (enrichment), or establishes a reusable pattern in a domain **no skill covers** (tag the entry `[skill: NEW - {name}]` — hyphen, not em-dash, for tooling friendliness). Keep it to a one-line entry — `/claude-tweaks:wrap-up` Step 7 does the deep analysis.
-
-### 3b: Security
-
-- Input validation at system boundaries?
-- No raw SQL or command injection risks?
-- Authentication/authorization checks present where needed?
-- No secrets or sensitive data in code?
-- OWASP top 10 considerations?
-
-### 3c: Error Handling
-
-- Appropriate error types used (project's error class, not raw Error)?
-- Edge cases handled (null, empty, malformed input)?
-- Errors logged with sufficient context for debugging?
-- User-facing errors safe (no internal details leaked)?
-
-### 3d: Performance
-
-- No N+1 query patterns?
-- Appropriate use of caching where applicable?
-- No unnecessary re-renders (React)?
-- Database queries have proper indexes?
-- Pagination used for unbounded lists?
-
-### 3e: Architecture
-
-- Right level of abstraction (not over/under-engineered)?
-- Proper separation of concerns?
-- Dependencies flow in the right direction?
-- No circular dependencies introduced?
-- Changes consistent with existing architecture?
-- **Shallow modules?** Does any new module have an interface nearly as complex as its implementation (a pass-through wrapper, a module whose interface mirrors its single dependency)? Flag at most the 1-2 most leverage-worthy at medium severity — and when shallow abstractions or wrong boundaries are the theme, recommend `/claude-tweaks:deepen` for a dedicated depth pass rather than trying to resolve module-level restructuring inline here. (module-level depth criteria: `_shared/criteria-architecture-depth.md`)
-
-### 3f: Test Quality
-
-- Tests verify behavior through the public interface, not implementation details? (No asserting on private methods, spying on internal collaborators, or checking intermediate data shapes that exist only because of the current implementation.)
-- **Refactor-coupling diagnostic:** would this test break if you renamed an internal function or restructured the implementation *without changing behavior*? If yes, it's testing implementation, not behavior — flag it. The point of a test is to survive refactors and fail only when behavior breaks.
-- **Test names read as specifications?** A good name states a capability ("user can checkout with a valid cart"), not an implementation path ("returns 200 when cart items quantity > 0 and user authed"). Flag names that describe internals.
-- Edge cases and error paths tested?
-- Test data is realistic and follows schemas?
-- No test pollution (shared mutable state)?
-- Mocks are minimal and at the right level? (Mocking internal collaborators is a smell — prefer real objects or interface-level stand-ins.)
+**Lens scope, the dispatch contract, and the 3a-3f lens definitions live in `step3-lens-dispatch.md`** in this skill's directory — read it before dispatching. It holds: which lenses each `review-effort` tier puts in scope (fewer at `low` and `medium`, every applicable lens at `high` and above) and the `xhigh`/`max` reasoning nudge; the Working Directory Discipline rule for every `Task()` dispatch in Steps 3, 3.5, and 3.6; the on-disk shared context bundle that keeps full diff content out of this thread; the reproduction-pair dispatch and its `categoriseReproduction` call; per-lens model tiers; and the question list each of lenses 3a-3f reviews against. The canonical agent prompt it tells you to inline (Calibration block + OUTPUT FORMAT) lives in `step3-routing.md`.
 
 ### 3g-cov: Journey-Story Coverage (when journeys and stories exist)
 
@@ -423,42 +281,7 @@ Run the UX analysis procedure from `ux-analysis.md` in this skill's directory. O
 
 **Skip when** `docs/REGISTRY.md` doesn't exist, or the diff is docs-only.
 
-1. Read `docs/REGISTRY.md`
-2. Match changed files against Auto-detect patterns
-3. For each matched registry entry, check if the doc was updated in this work's commits (look for doc update commits in `git log`)
-4. Flag unupdated docs as informational findings:
-
-   ```
-   | {N} | Doc `{file}` covers changed areas (`{pattern}`) but wasn't updated | Low | Docs | {file} | Review in wrap-up |
-   ```
-
-These findings are informational — they don't block the review. They ensure wrap-up doesn't miss doc updates that build skipped.
-
-#### 3i-diagram: Visual documentation gap (informational)
-
-Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 12). **Skip silently when** `diagram-suggestions` is `disabled` or missing.
-
-When `enabled`, scan the diff for **structural complexity** signals:
-
-| Diff added | Signal |
-|------------|--------|
-| New / changed enum or `status:` field with 3+ states + a transition function (e.g., `switch (status)`, `transitionTo`, state-pattern files) | `state-machine` |
-| New migration or ORM model with `references` / `foreignKey` / `belongsTo` between 2+ entities | `data-model` |
-| New API routes / message handlers in 3+ service directories, OR a workflow file orchestrating 3+ services | `multi-actor` |
-| 3+ new top-level directories under `src/` or new module boundaries | `architecture` |
-
-If a signal matches **and** the co-located diagram location for this change (`docs/journeys/`, `docs/plans/`, or `docs/diagrams/` — see `/claude-tweaks:visualize`'s placement table) is missing OR contains no file whose name matches the changed area, emit ONE informational finding per matched signal (max 2 total to avoid noise). **Tie-break when more than 2 signals match:** take the first 2 in the table's own row order above (`state-machine` > `data-model` > `multi-actor` > `architecture`) — deterministic and reproducible across runs.
-
-```
-| {N} | Visual documentation gap: change added a {signal-description}; no matching diagram found. Consider `/claude-tweaks:visualize {type} {topic}`. | Low | Docs | {representative-file} | Suggest to user in wrap-up |
-```
-
-Like other Lens 3i findings, these are informational and don't block review — they're a documentation gap, not a code defect. The user (or Claude) can act on the recommendation in wrap-up by invoking `/claude-tweaks:visualize`.
-
-**Skip conditions:**
-- `diagram-suggestions` is `disabled` or missing → emit nothing
-- Signal detection produced no matches → emit nothing (most reviews trigger zero diagram findings; this is correct)
-- A matching diagram already exists → emit nothing (we're not gating on freshness for diagrams since they're hand-drawn)
+Read `step3-doc-freshness-lens.md` in this skill's directory for the procedure: the `docs/REGISTRY.md` Auto-detect match and its informational finding row, plus sub-lens **3i-diagram** (structural-complexity signal table, co-located-diagram check, deterministic tie-break, and its own finding row). Skip `3i-diagram` additionally when CLAUDE.md's `diagram-suggestions` flag is `disabled` or missing.
 
 ### Step 3.5 & 3.6: Cross-Lens Debate, Per-Candidate Refutation, and Gap-Sweep
 

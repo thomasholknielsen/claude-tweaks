@@ -46,36 +46,17 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 - `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
 - `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
-**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-17) get offered. With none present, Phase 0 offers every step in the table below (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
-
-| Token | Runs |
-|---|---|
-| `github-remote` | Step 9 — Establish GitHub remote, alone |
-| `issue-form` | Step 10 — GitHub issue form template. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `issue-form` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
-| `design-integration` | Step 11 — Impeccable design integration |
-| `diagram-suggestions` | Step 12 — Diagram suggestions |
-| `shadcn-integration` | Step 13 — shadcn bootstrap |
-| `cloud-parity` | Step 14 — Cloud/Routine parity setup, alone. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `cloud-parity` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
-| `routines` | Step 15 — Routine installation. Hard-depends on Step 14 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 14 first anyway, matching the unfiltered flow's existing 14-before-15 ordering |
-| `branch-tracking` | Step 16 — Non-default-branch issue tracking. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `branch-tracking` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
-| `work-backend` | Step 17 — Work-record backend. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `work-backend` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
-
-Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 14+15, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 14+15, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 13 and 16, then stops.
+**Enhancement filter tokens** — `github-remote`, `issue-form`, `design-integration`, `diagram-suggestions`, `shadcn-integration`, `cloud-parity`, `routines`, `branch-tracking`, `work-backend`. Each narrows Phase 0's Optional Enhancements (Steps 9-17) to *only* the named step(s), whether or not a Phase scope is also present; with none given, Phase 0 offers every one of them (or none, under `--core-only`). Several hard-depend on Step 9 (or Step 14) and silently run it first. For the token → step table with those dependency notes, and for worked examples, read `input-grammar.md` in this skill's directory.
 
 A description of the project context (e.g., "Ruby on Rails monolith, team of 5") is still accepted as free text — see "Unrecognized and conflicting tokens" for how this is distinguished from an attempted-but-unmatched keyword.
 
-Every Phase scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap` (which stops the invocation after Phase 0) — this includes the goal-based Phase scopes (`config`, `skills`, `journeys`, `docs`) even though none of them list Phase 9 explicitly in their phase subset above. An invocation with one or more Enhancement filter tokens and no Phase scope also stops after Phase 0, same as `bootstrap` — Enhancement filter tokens narrow *what Phase 0 does*, they don't add phases after it. The interactive Scope Selection Gate's own early-stop choices (Option 4 "Done," and Option 2 Interactive's per-phase "Done") are the other paths that stop before Phase 9; see "Finalizing the worktree.always Decision" for why this distinction matters.
+Every Phase scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap`; an invocation carrying only Enhancement filter tokens also stops after Phase 0. For the full terminality rules — including the goal-based scopes that don't list Phase 9 in their own subset, and the Scope Selection Gate choices that stop early — read `input-grammar.md` in this skill's directory. Which paths stop before Phase 9 matters for the deferred policy write; see "Finalizing the worktree.always Decision" below.
 
 If no arguments, analyze the current working directory. Phase 0 runs first, then a scope selection gate determines which remaining phases to run (see "Scope Selection Gate" below).
 
 ### Unrecognized and conflicting tokens
 
-If every token classifies into one of the categories above (or the whole string is a path/URL), proceed as described. If a token matches none of them:
-
-- If the overall string reads as prose (contains a comma, or multiple natural-language words forming a sentence, e.g. "Ruby on Rails monolith, team of 5") — treat the whole string as a project-context description, no interruption. Unchanged from before.
-- Otherwise (a single unmatched token, or a short sequence of tokens that looks like an attempted scope rather than prose) — stop before running anything. Call `AskUserQuestion`: name the unrecognized token(s), list the valid tokens grouped by category (modifier flags / Phase scopes / Enhancement filter tokens), and include an explicit "No — treat this literally as a project-context description" option, so a genuine single-word description (e.g. "monorepo") still works, at the cost of one confirmation. Do not silently guess either interpretation — this matches `/claude-tweaks:tidy`'s "Unknown scope name" handling, `/claude-tweaks:capture`'s "Unknown or invalid `N`" handling, and `/claude-tweaks:version`'s "not silently treated as any of the documented modes" rule.
-
-An explicit Enhancement filter token given together with `--core-only` is a contradiction (one asks for exactly that step, the other asks for none) — report it the same way: state plainly that the two conflict and ask which was meant, rather than silently letting one win.
+A token matching none of the categories above stops the invocation before anything runs, for one `AskUserQuestion` naming it — **unless** the whole string reads as prose (a comma, or a natural-language sentence), which is treated as a project-context description with no interruption. An Enhancement filter token given together with `--core-only` is a contradiction and is reported the same way. Never silently guess either interpretation. Full rules, including the option set that keeps a genuine single-word description working, are in `input-grammar.md` (the same file as the token table above — one read covers both).
 
 ## Phases at a Glance
 
@@ -103,17 +84,9 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:version` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
 
-| Marker state | Action |
-|---|---|
-| Missing | Run Steps 1-8 fully. No changelog notice — nothing to diff against yet. |
-| Present, versions match, or marker newer than installed (shouldn't happen in practice, treat identically) | Skip Steps 1-8 entirely; print a one-line confirmation naming the marker's own recorded version and date, and mentioning that deleting `.claude-tweaks/init-state.yml` forces a full re-check. |
-| Present, marker version older than installed | Run Steps 1-8 fully, then surface the changelog notice below. |
+Marker missing or unreadable → run Steps 1-8 fully, no changelog notice. Marker version equal to (or newer than) the installed version → skip Steps 1-8 entirely and print a one-line confirmation. Marker older → run Steps 1-8 fully, then surface a filtered changelog notice for the version range. The marker-state table, the changelog-notice procedure, and the rule for when the marker itself is written all live in `bootstrap/version-check.md` alongside the commands above — one read covers the whole check.
 
 **Exception:** an explicitly-named `bootstrap` Phase scope (see `## Input`) always runs Steps 1-8 fully, regardless of the marker — `bootstrap` documents itself as "run Phase 0 only (structure + deps)," and a version-match skip would silently turn an explicit request for exactly that into a near no-op.
-
-**Changelog notice (version-mismatch case only).** Read the plugin's own `${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md` (not the target project's — the marker records a *plugin* version, so only the plugin's own changelog is meaningful to diff against) and call `bin/lib/changelog.js`'s `extractChangelogRange` for the range between the marker's old version (exclusive) and the installed version (inclusive). Synthesize a short summary limited to entries that change what `/init` offers, writes to CLAUDE.md, or exposes as a scope/config key — omit internal-only entries (bug fixes, refactors with no `/init`-visible behavior change). Present as an informational note, not a gate, ending with a pointer to `/init update --full` (or a narrower scope) if the user wants to act on anything it surfaces. No cap on how large the range is — if it spans an unusually large number of releases, say so explicitly.
-
-**Write the marker** after Steps 1-8 have run (or been skipped) — i.e. as the last step of this whole Core Bootstrap Version Check, not before Steps 1-8 execute — regardless of which branch ran. Unlike the `worktree.always` decision (see "Finalizing the worktree.always Decision" below), this write creates no new gate that could deny this same invocation's own remaining steps, so there is no need to defer it further than that. Create `.claude-tweaks/` if it doesn't exist yet.
 
 **Core Bootstrap (Steps 1–8):**
 
@@ -191,9 +164,9 @@ Decide whether the unified work record — used by `/claude-tweaks:capture`, `/c
 
 ### Finalizing the worktree.always Decision
 
-If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens: per "Input" above, every scope reaches Phase 9 except `bootstrap`, including the goal-based Phase scopes (`config`/`skills`/`journeys`/`docs`) even though none of them list Phase 9 in their own phase subset. The known early-exit paths that stop the invocation before Phase 9 ever runs are: `$ARGUMENTS` was `bootstrap` (stops after Phase 0); the Scope Selection Gate's Option 4 ("Done"); or Option 2 (Interactive)'s own per-phase gate, if the user selects "Done" ("Stop here") after any phase. These are the known cases, not necessarily an exhaustive list of every way this invocation could ever end — whatever the actual reason this invocation is ending, write the decision right there, immediately before it ends: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens; the known early-exit paths (`bootstrap` scope, the Scope Selection Gate's Option 4, and Option 2's per-phase "Done") write it themselves instead, and are known cases rather than an exhaustive list.
 
-If this invocation instead reaches Phase 9, the decision is finalized there — see "Worktree Policy Finalization."
+For the full exit-path rule, the merge-don't-overwrite write procedure, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
 
 ---
 
@@ -203,45 +176,13 @@ After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` alr
 
 **Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 
-Call `AskUserQuestion` (see "Phases at a Glance" above for the full table):
+The gate is one `AskUserQuestion` with four options — Auto (run every included phase end-to-end), Interactive (a per-phase continue/skip/stop gate re-issued after each phase), Essentials (Phases 2, 3, 5 only — the `config` scope), and Done (stop after Phase 0). Auto and Essentials still reach Phase 9; Interactive's "Stop here" and Done end the invocation early, and when they do and Step 6 queued a `worktree.always` decision, write it first — see "Finalizing the worktree.always Decision" above.
 
-- `question`: `"Bootstrap complete. How much setup do you want?"`, `header`: `"Setup scope"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Auto (Recommended)"`, `description`: `"Run all included phases without stopping"`
-- Option 2 — `label`: `"Interactive"`, `description`: `"Pause for confirmation between phases"`
-- Option 3 — `label`: `"Essentials"`, `description`: `"Reconnaissance + CLAUDE.md only (phases 2, 3, 5)"`
-- Option 4 — `label`: `"Done"`, `description`: `"Just needed the bootstrap structure"`
-
-**Option 1 (Auto):** Run all included phases end-to-end. Phase 3 auto-confirms classification when detection confidence is `high` and signals are consistent (otherwise presents the confirmation gate as a KEPT-PROMPT). Phase 4 still presents the skill selection (governance decision — never silenceable). Phase 9 still presents the final summary for confirmation (governance decision). All other phases run without pausing.
-
-**Option 2 (Interactive):** After each phase completes, present its output, then call `AskUserQuestion`. This is a template — re-issue it once per phase (not a single static site), substituting `{phase}`, `{next phase}`, `{description}`, and `{phase after next}` each time. Resolve "next phase" and "phase after next" by walking the actual sequence in "Phases at a Glance" (0, 1, 2, 3, 4, 5, 6, 7, 8, 8.5, 9) — not `{N+1}`/`{N+2}` integer arithmetic, which breaks at the 8 → 8.5 → 9 step. For example, after Phase 7 the next phase is 8; skipping Phase 8 moves to Phase 8.5, never Phase 9:
-
-- `question`: `"Phase {phase} complete. Continue to Phase {next phase} ({description})?"`, `header`: `"Phase gate"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Continue (Recommended)"`, `description`: `"Proceed to Phase {next phase} ({description})"`
-- Option 2 — `label`: `"Skip Phase {next phase}"`, `description`: `"Move to Phase {phase after next}"`
-- Option 3 — `label`: `"Done"`, `description`: `"Stop here"`
-
-If the user selects this template's "Done" and Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
-
-**Option 3 (Essentials):** Runs phases 2, 3, 5 only — the same phase set as the `config` goal-based Phase scope (see "Input" above; Phase 0 always runs first regardless of scope, so the two are equivalent). Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest running `/init config` directly next time to skip this gate).
-
-**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
+For the literal prompt text, both option sets, and what each option runs (including which gates `auto` never silences), read `scope-selection-gate.md` in this skill's directory.
 
 ### Phase dependencies
 
-When a phase is excluded (by interactive skip, essentials mode, or goal-based argument), handle its dependents:
-
-| If skipped | Impact | Handling |
-|------------|--------|----------|
-| Phase 2 (recon) | Phases 3-8.5 lose their input | Skip all dependent phases — cannot generate config without reconnaissance |
-| Phase 3 (profile) | Phases 4, 5, 8.5 lose maturity/tier classification | Skip dependent phases — philosophy and doc tier need classification |
-| Phase 4 (manifest) | Phase 6 has no skill list | Skip Phase 6 |
-| Phase 5 (CLAUDE.md) | No downstream dependency | Safe to skip |
-| Phase 6 (skills) | No downstream dependency | Safe to skip |
-| Phase 7 (rules) | No downstream dependency | Safe to skip |
-| Phase 8 (journeys) | No downstream dependency | Safe to skip |
-| Phase 8.5 (doc registry) | No downstream dependency | Safe to skip |
-
-When skipping a phase due to a missing dependency, note it: "Skipping Phase {N} ({name}) — requires Phase {dep} which was excluded."
+Excluding a phase — by interactive skip, Essentials mode, or a goal-based argument — cascades to its dependents: Phases 3-8.5 need Phase 2, Phases 4/5/8.5 need Phase 3, Phase 6 needs Phase 4; Phases 5, 6, 7, 8, and 8.5 have no downstream dependents and are safe to skip alone. The full impact/handling table and the wording of the skip notice are in `scope-selection-gate.md` (same file as the gate above).
 
 ---
 
@@ -263,13 +204,9 @@ Check:
 
 ### Else (config exists) → **Update Mode** (proceed to Phase 1u)
 
-Update Mode runs three sub-phases before deciding whether to continue with the full reconnaissance:
+Update Mode runs three sub-phases before deciding whether to continue with the full reconnaissance: Phase 1u (inventory + covered/stale/drifted/gap classification), Phase 1u.5 (claude-tweaks contract drift), then Phase 1u.6 (the early-exit gate that skips straight to Phase 9 on zero drift and few gaps).
 
-- **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
-- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections
-- **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
-
-Update Mode procedures live in `update-mode.md` — load only when Phase 1 detects existing config. That file contains the inventory template, the contract-drift conformance check, and the early-exit decision logic.
+Update Mode procedures live in `update-mode.md` — load only when Phase 1 detects existing config. That file contains the inventory template, the contract-drift conformance check, and the early-exit decision logic. It opens with the one-line description of each sub-phase named above.
 
 ---
 
@@ -281,15 +218,7 @@ Work through these detection steps systematically.
 
 ### 2a: Project Identity
 
-```
-Detect:
-- README.md, CONTRIBUTING.md, docs/ — project purpose and domain
-- LICENSE — open source vs proprietary
-- .github/, .gitlab-ci.yml, Jenkinsfile, .circleci/ — CI/CD platform
-- Monorepo vs single app (workspaces config, multiple package.json, apps/, packages/)
-- Age — earliest commit date (`git log --reverse --format="%ai" -1`)
-- Activity — commits in last 90 days, number of contributors
-```
+Establish what the project *is*: purpose and domain (README, CONTRIBUTING, `docs/`), open-source vs. proprietary licensing, CI/CD platform, monorepo vs. single app, and repo age plus recent commit/contributor activity. Its detect list now sits with 2b–2h in the file named below — one read covers every substep of this phase.
 
 Steps 2b–2g cover stack detection, architecture detection, convention detection, workflow detection, pain point detection, and existing AI configuration detection. For the complete detection tables and checklists, read `detection-tables.md` in this skill's directory.
 
@@ -381,33 +310,9 @@ For projects with user-facing surfaces (web app, CLI, API with docs), offer to d
 
 ### Present the option:
 
-**Call `AskUserQuestion`:**
+One `AskUserQuestion` with three answers: codebase-only discovery **(Recommended)** — infer routes and personas from Phase 2 and write skeleton journey files plus one enrichment work record each; hybrid — delegate to `/claude-tweaks:visual-review discover` for a browser walkthrough; or skip.
 
-- `question`: `"This project has user-facing features but no documented user journeys. User journeys help /review test the app against experiential expectations. Would you like to discover and document journeys?"`, `header`: `"Journey discovery"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Codebase-only (Recommended)"`, `description`: `"Scan codebase for routes and user flows, create journey files."`
-- Option 2 — `label`: `"Hybrid (codebase + browser)"`, `description`: `"Scan codebase AND walk the app in a browser for richer 'should feel' details."`
-- Option 3 — `label`: `"Skip"`, `description`: `"I'll add journeys later."`
-
-### Option 1: Codebase-only discovery
-
-Use Phase 2 findings to identify routes/pages, infer personas (user roles, auth flows, public vs. authenticated), and group routes into goal-oriented journey skeletons. Write skeleton files to `docs/journeys/` (use `journey-template.md` from the `/claude-tweaks:journeys` skill directory) — each one stamped `**Status:** Skeleton — inferred from code, not yet browser-tested`. Skeletons document the intended flows but "should feel" fields are weaker until browser-tested.
-
-**Capture enrichment as backlog work records** for each skeleton journey:
-
-```markdown
-### Browser-test journey: {name}
-Skeleton journey inferred from code — "should feel" and "red flags" need browser validation.
-Routes covered: {list}. Persona: {persona}. Dev URL: {if known}.
-Run `/claude-tweaks:review journey:{name}` to enrich with experiential details.
-```
-
-### Option 2: Hybrid discovery (codebase + browser)
-
-Delegate to `/claude-tweaks:visual-review discover` — runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff). Ask the user for the dev server URL before invoking.
-
-### Option 3: Skip
-
-Note that the user skipped journey discovery. Suggest running `/claude-tweaks:visual-review discover` later when they're ready.
+For the literal prompt, the skeleton-file and work-record templates, and the delegation/skip procedures, read `journey-discovery.md` in this skill's directory.
 
 ---
 
@@ -431,38 +336,15 @@ For the complete summary templates for both modes, read `summary-templates.md` i
 
 ### Actions Performed
 
-After writing files, surface what was created. Generate the table from the actual artifacts produced this run (only include rows for actions that actually occurred):
-
-| Action | Detail | Ref |
-|--------|--------|-----|
-| Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
-| Starter files | Wrote `specs/INDEX.md` (only if missing) | Step 3 |
-| Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
-| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
-| shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |
-| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 17 |
-| GitHub remote | Created `{owner}/{name}` ({visibility}) and set as `origin` (only if Step 9 ran and the user confirmed creation) | Step 9 |
-| Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 14 |
-| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 15 |
-| Routine re-sync | Re-synced {M} drifted routine(s) to their current templates: `{list}` (Update Mode only) | Update Mode |
-| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
-| Classification | Confirmed maturity `{value}` (written to `.claude-tweaks/policy.yml` as `project.maturity`), doc tier `{N}` | Phase 3 |
-| CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
-| Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
-| Rules | Created {N} path-scoped rules in `.claude/rules/` | Phase 7 |
-| Journeys | Wrote {N} skeleton journey files (or delegated to `/visual-review discover`) | Phase 8 |
-| Doc registry | Created `docs/REGISTRY.md` with {N} entries | Phase 8.5 |
-| Backlog | Added {N} work records (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
+After writing files, surface what was created as a `| Action | Detail | Ref |` table generated from the actual artifacts produced this run — only rows for actions that actually occurred, and the Worktree policy row always last. The full row set (bootstrap, starter files, statusline, design and shadcn integration, work records, GitHub remote, cloud parity, routines, routine re-sync, worktree policy, classification, CLAUDE.md, skills, rules, journeys, doc registry, backlog) is in `summary-templates.md` — the same file this phase already reads for the mode summaries, so it costs no extra load.
 
 Execute only after user confirmation.
 
 ### Worktree Policy Finalization
 
-Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, write it now: this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-17, Phases 1-8.5, and this same Phase 9's own confirmed generated-file writes (the Actions Performed table above) were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 17 — the last Optional Companion step Phase 0 runs through — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
+Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, write it now; the `bootstrap`-only scope already wrote its own, so there is nothing to do here for that scope.
 
-Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
-
-If the decision was "Yes," tell the user the same confirmation message quoted in "Finalizing the worktree.always Decision" above.
+For the deferral rationale, the merge-don't-overwrite write procedure, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
 
 ---
 

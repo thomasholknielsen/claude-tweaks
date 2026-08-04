@@ -147,3 +147,32 @@ Ready to apply these changes?
 ```
 
 Execute only after user confirmation.
+
+## Actions Performed (Phase 9)
+
+Rendered after the mode summary above is confirmed. The Worktree policy row's "Worktree Policy Finalization" pointer names that `SKILL.md` section, whose procedure lives in `worktree-policy-finalization.md`.
+
+After writing files, surface what was created. Generate the table from the actual artifacts produced this run (only include rows for actions that actually occurred):
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
+| Starter files | Wrote `specs/INDEX.md` (only if missing) | Step 3 |
+| Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
+| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
+| shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |
+| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 17 |
+| GitHub remote | Created `{owner}/{name}` ({visibility}) and set as `origin` (only if Step 9 ran and the user confirmed creation) | Step 9 |
+| Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 14 |
+| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 15 |
+| Routine re-sync | Re-synced {M} drifted routine(s) to their current templates: `{list}` (Update Mode only) | Update Mode |
+| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
+| Classification | Confirmed maturity `{value}` (written to `.claude-tweaks/policy.yml` as `project.maturity`), doc tier `{N}` | Phase 3 |
+| CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
+| Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
+| Rules | Created {N} path-scoped rules in `.claude/rules/` | Phase 7 |
+| Journeys | Wrote {N} skeleton journey files (or delegated to `/visual-review discover`) | Phase 8 |
+| Doc registry | Created `docs/REGISTRY.md` with {N} entries | Phase 8.5 |
+| Backlog | Added {N} work records (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
+
+Execute only after user confirmation.

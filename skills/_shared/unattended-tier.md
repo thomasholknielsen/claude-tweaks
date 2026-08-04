@@ -3,7 +3,7 @@
 Single source of truth for the `unattended-tier` policy lever (`off` default | `on`). Referenced,
 not restated, by every consumer: `flow/manifesto.md` (Manifesto lever #9), `flow/SKILL.md` Step 3,
 `ledger/resolve-gate.md` Phase 2 + Phase 3, `wrap-up/review-console.md` Step 8.6,
-`wrap-up/SKILL.md` Step 8.5, `wrap-up/leftover-routing.md`.
+`wrap-up/nothing-left-behind.md` (Step 8.5), `wrap-up/leftover-routing.md`.
 
 ## What it authorizes
 
@@ -16,7 +16,7 @@ Exactly three behaviors, all opt-in, all logged, all reversible:
 2. **Queue-write auto-file** (`wrap-up/review-console.md`) — create a proposed record (from the
    above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead
    of waiting for a live per-item approval at the Review Console.
-3. **Ops-item auto-acknowledge** (`wrap-up/SKILL.md` Step 8.5) — auto-select "Acknowledge all"
+3. **Ops-item auto-acknowledge** (`wrap-up/nothing-left-behind.md`, Step 8.5) — auto-select "Acknowledge all"
    for the ops-acknowledgment block.
 
 It never touches `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`

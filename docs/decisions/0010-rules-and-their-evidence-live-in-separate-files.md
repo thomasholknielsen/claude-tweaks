@@ -37,7 +37,7 @@ A rule and the evidence for that rule live in different files, with different bu
 Three mechanisms keep the split from collapsing back:
 
 1. **Ordering.** The incident account is written *first*, then compressed to the rule
-   (`reflect/full-mode.md`, `wrap-up/SKILL.md` Step 6.1). Writing the rule first pads it — the
+   (`reflect/full-mode.md`, `wrap-up/config-updates.md` 6.1). Writing the rule first pads it — the
    incident is vivid, every detail feels load-bearing, and the justification leaks into the
    always-loaded file a clause at a time.
 2. **An exit.** `/claude-tweaks:harness-health`'s rule-expiry check proposes removing rules whose

@@ -9,13 +9,13 @@ const PRIMITIVE_DOC = fs.readFileSync(
   path.join(__dirname, '..', 'skills', '_shared', 'multi-agent-coordination.md'),
   'utf8',
 );
-// Cross-Lens Debate and Per-Candidate Refutation's decision-log templates live in
-// step3-debate-and-refutation.md (lazy-loaded from SKILL.md, not inlined) — concatenate both so
-// this still asserts against the real documented format wherever it currently lives.
-const REVIEW_SKILL =
-  fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'SKILL.md'), 'utf8') +
-  '\n' +
-  fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'step3-debate-and-refutation.md'), 'utf8');
+// Several of /review's decision-log templates live in sub-files lazy-loaded from SKILL.md rather
+// than inlined in it: reproduction's in step3-lens-dispatch.md, Cross-Lens Debate's and
+// Per-Candidate Refutation's in step3-debate-and-refutation.md. Concatenate all three so this
+// still asserts against the real documented format wherever it currently lives.
+const REVIEW_SKILL = ['SKILL.md', 'step3-lens-dispatch.md', 'step3-debate-and-refutation.md']
+  .map((f) => fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', f), 'utf8'))
+  .join('\n');
 const SPECIFY_RED_TEAM = fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'specify', 'red-team.md'),
   'utf8',

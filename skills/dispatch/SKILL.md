@@ -178,13 +178,7 @@ node -e "
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
 
-Two bulk calls plus a small, bounded fallback — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue), but `--limit 200` can silently truncate that pull on a repo with more open issues than that. Rather than raise the cap and still have the same failure mode at a higher threshold, any referenced dependency number the capped pull didn't confirm as open gets one targeted `gh issue view --json state` check of its own — bounded by how many distinct blockers this firing's `auto:build`-eligible records actually reference (typically a handful), not by the repo's total open-issue count. Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
-
-The **first** pull (`--label auto:build`, `--limit 500`) is the actual candidate pool every later step operates on — unlike the second pull's targeted per-dependency fallback above, there is no equivalent per-record recovery for a truncated queue pull, since a silently-dropped record's number was never fetched at all. `--limit 500` is a high-enough ceiling that truncation should be rare in practice, but on a repo with more than 500 open `auto:build` records the pull would still silently drop the oldest same-priority ones — exactly what `next`'s own oldest-first tie-break (Step 3) exists to surface first. The `QUEUE_RAW_COUNT` check above catches exactly this: an exact-cap-count result logs a stderr warning for this firing rather than failing silently with no trace at all.
-
-**`work-links: native` support.** Under `work-links: native`, one additional batched `gh api graphql` call (`buildNativeDependencyQuery`/`hasOpenNativeBlocker`, `bin/lib/issues/record.js`) queries every eligible candidate's native `blockedBy` connection in a single aliased request and drops any candidate with an `OPEN` native blocker — the same outcome `parseDependencies` already produces for an open `Blocked by #N` body-text line under `work-links: body-text`. The two modes are mutually exclusive per record, mirroring `flow/materialize.md`'s existing `blocked-by` driver/work-links branching — a project mid-migration with stale body-text lines under `native` is out of scope. The GraphQL call fails safe: on any error (network, auth, or a schema mismatch — e.g. a GitHub Enterprise host exposing only `issueDependenciesSummary`, not `blockedBy`) it logs a warning and falls back to no native filtering for that run rather than crashing Step 2's queue-build entirely — a missed native-dependency check degrades to the pre-`work-links: native` behavior, not a hard failure of headless dispatch.
-
-The same fallback also triggers when `gh` itself is absent — there is no GraphQL passthrough on the MCP path, so a `work-links: native` project running headless without `gh` degrades to no native filtering for that run, identically to any other query failure. This is not a new code path — it's the existing on-error fallback reached via a capability check instead of a failed call.
+**Queue-pull notes.** Read `queue-pull-notes.md` in this skill's directory when this repo sets `work-links: native` (the `gh api graphql` branch above), or when either pull returns exactly its `--limit` cap — it covers why the two bulk calls plus the bounded per-dependency fallback are shaped this way, what a truncated pull silently drops on each and which one has no per-record recovery, and the native query's fail-safe posture (including the `gh`-absent case). It changes nothing in the script above; skip it otherwise.
 
 The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is Step 4's atomic 201/422 claim attempt; a record can pass this pre-filter and still turn out contested by the time it's actually claimed. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
 
@@ -278,33 +272,7 @@ gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 # mcp-transport.md in this skill's directory.
 ```
 
-**On 422 (contested):** fetch comments and fold through `claimStatus` exactly as `_shared/issue-claims.md`'s "Reading claim state" section describes, then branch on the full returned shape — do not collapse to a two-way live/stale fold:
-
-```bash
-gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/dispatch-claim-${ISSUE}.json"
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" "/tmp/dispatch-claim-${ISSUE}.json"
-```
-
-**MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory — the confirmed "list issue comments" mapping, folded through `claimStatus` exactly as the `gh` path does.
-
-Resolve the returned `{claimed, stale, everReleased}` shape per `_shared/issue-claims.md`'s own "Failure posture" table (not restated here — that file's header explicitly asks consumers not to duplicate it inline) — its `Claim ref 422` rows cover live claim (skip), stale claim (break: delete ref, recreate, takeover comment), unreadable/never-claimed (treat as live), and released-but-undeleted (treat as stale).
-
-Any other `gh` failure during claim: skip, log, continue.
-
-**Partial claim.** If any member of the group resolves to Skip (a live claim held elsewhere) or hits an unresolvable `gh` failure, the group cannot be fully claimed: release every member this firing already claimed this round (`releasePayload`, reason `never-started: file-overlap group partial claim`), log, and move to the next candidate group (bare, and `#N,#M,...` — per Step 3, an explicit-list group proceeds "exactly as a bare-mode pick would," so a partial-claim failure on one named group moves to the next named group rather than aborting the rest of the list) or report nothing eligible this firing (`next` / `#N`, which each name only one group to begin with). A Break outcome (stale-claim takeover) is not a partial-claim failure — it succeeds in claiming that member, so it never triggers the abort path on its own.
-
-**`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
-
-(the `gh` form; for the gh-absent claim and release equivalents see `mcp-transport.md` in this
-skill's directory):
-
-```bash
-gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
-gh issue edit {n} --remove-label bot:in-progress
-```
-
-Every Skip/Break/partial-claim outcome above is unaffected by this modifier — it only short-circuits the path between a *successful* claim and Step 5's Task-agent dispatch.
+**Anything other than a clean claim on every member** — a 422 contested result, an unresolvable `gh`/MCP failure during claim, or a group only partly claimable — and the `--claim-only` modifier's stop point: read `claim-outcomes.md` in this skill's directory and follow it. It carries the `claimStatus` comment fold and the `_shared/issue-claims.md` failure-posture branch (skip / break-and-take-over / treat-as-live), the partial-claim release-and-move-on rule, and `--claim-only`'s report plus manual-release commands. A group claimed cleanly on every member, with no `--claim-only`, proceeds straight to Step 5.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
