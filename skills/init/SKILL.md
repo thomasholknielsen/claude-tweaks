@@ -425,7 +425,7 @@ For the complete procedure (registry format, tier definitions, standard folder t
 
 Present a consolidated summary of all work done across Phase 0 (bootstrap) and Phases 1-8 (configuration). Wait for user confirmation before writing generated files. This phase is the terminal step for every scope except `bootstrap` — see "Input" above — including the goal-based Phase scopes (`config`/`skills`/`journeys`/`docs`) and the Scope Selection Gate's Option 1 (Auto) and Option 3 (Essentials), even though none of the goal-based Phase scopes list Phase 9 explicitly in their own phase subset.
 
-Both modes lead with a **Verified & Consistent** section — an affirmative report of what was checked and found healthy (dependencies present, contract markers up to date, config items still accurate, detections confirmed), not just what changed or was created. This is required, not optional: Update Mode in particular often proposes few or no changes, and the user needs to see *what was audited and deliberately left alone*. The early-exit fast path (Phase 1u.6) carries its own shorter Verified & Consistent block.
+Both modes lead with a **Verified & Consistent** section — an affirmative report of what was checked and found healthy (dependencies present, template conformance verified, config items still accurate, detections confirmed), not just what changed or was created. This is required, not optional: Update Mode in particular often proposes few or no changes, and the user needs to see *what was audited and deliberately left alone*. The early-exit fast path (Phase 1u.6) carries its own shorter Verified & Consistent block.
 
 For the complete summary templates for both modes, read `summary-templates.md` in this skill's directory.
 
