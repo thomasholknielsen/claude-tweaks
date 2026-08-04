@@ -220,3 +220,46 @@ test('project-authored sections are never reported', () => {
   const named = [...r.missing.map((m) => m.section), ...r.drifted.map((d) => d.section), ...r.conformant];
   assert.ok(!named.includes('Stack'), 'Stack is project-authored and must never be reported');
 });
+
+// TPL has no `## Philosophy` heading (byte-comparing it would flag every
+// project — see the PHILOSOPHY_EXCEPTION comment above), so this test uses its
+// own fixture that adds one, mirroring the live template's placeholder body.
+const TPL_WITH_PHILOSOPHY = [
+  '## Initial Mode Template',
+  '',
+  '```markdown',
+  '# {project name}',
+  '',
+  '## Philosophy',
+  '',
+  '{Adaptive principles that calibrate how Claude approaches changes in this project.',
+  'Generated from the maturity classification detected in Phase 2h. See "Generating Philosophy" below.}',
+  '',
+  '## Working Approach',
+  '',
+  '- **Think before coding.** State assumptions.',
+  '',
+  "## Don'ts",
+  '',
+  '{anti-patterns}',
+  '```',
+].join('\n');
+
+test('a missing Philosophy section is reported with a generation instruction, not the template placeholder', () => {
+  const project = ['# acme'].join('\n');
+  const r = checkConformance({ templateSource: TPL_WITH_PHILOSOPHY, projectClaudeMd: project });
+  const missingSections = r.missing.map((m) => m.section).sort();
+  assert.deepStrictEqual(missingSections, ['Philosophy', 'Working Approach']);
+
+  const philosophy = r.missing.find((m) => m.section === 'Philosophy');
+  assert.strictEqual(philosophy.expected, null);
+  assert.strictEqual(philosophy.generate, 'maturity-classification');
+
+  // A different missing plugin-authored section still carries a real,
+  // insertable `expected` string in the same result — only Philosophy is
+  // special-cased.
+  const workingApproach = r.missing.find((m) => m.section === 'Working Approach');
+  assert.strictEqual(typeof workingApproach.expected, 'string');
+  assert.match(workingApproach.expected, /Think before coding/);
+  assert.strictEqual(workingApproach.generate, undefined);
+});

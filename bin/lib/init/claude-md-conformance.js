@@ -129,7 +129,19 @@ function checkConformance({ templateSource, projectClaudeMd }) {
   for (const section of pluginAuthored) {
     const expected = (templateSections.get(section) || '').trim();
     if (!projectSections.has(section)) {
-      missing.push({ section, expected });
+      // Philosophy's template body is a placeholder, not real content — never
+      // offer it as a verbatim patch. Report it as needing generation from the
+      // project's maturity classification instead (see "Generating Philosophy"
+      // in claude-md-template.md).
+      if (section === PHILOSOPHY_EXCEPTION) {
+        missing.push({
+          section,
+          expected: null,
+          generate: 'maturity-classification',
+        });
+      } else {
+        missing.push({ section, expected });
+      }
       continue;
     }
     if (section === PHILOSOPHY_EXCEPTION) {

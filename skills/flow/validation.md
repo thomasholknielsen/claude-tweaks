@@ -37,7 +37,7 @@ This gate protects against *any* path to an uncommitted spec (a spec added by ha
 
 ## 2.5 — Merge check
 
-Read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled and worktree strategy resolves to `worktree`, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
+Read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled and worktree strategy resolves to `worktree`, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
 
 ```bash
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \

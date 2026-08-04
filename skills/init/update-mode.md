@@ -53,7 +53,7 @@ node -e "
 const {checkConformance} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/init/claude-md-conformance');
 const fs = require('fs');
 const tpl = fs.readFileSync(process.env.CLAUDE_PLUGIN_ROOT + '/skills/init/claude-md-template.md','utf8');
-const project = fs.readFileSync('CLAUDE.md','utf8');
+const project = fs.existsSync('CLAUDE.md') ? fs.readFileSync('CLAUDE.md','utf8') : '';
 console.log(JSON.stringify(checkConformance({templateSource: tpl, projectClaudeMd: project}), null, 2));
 "
 ```
@@ -62,12 +62,19 @@ Read the result:
 
 - **`missing`** — the section is absent entirely. Record a **Contract Drift**
   entry whose suggested patch inserts the entry's `expected` body verbatim. No
-  creative writing required.
+  creative writing required — except when the entry carries
+  `generate: 'maturity-classification'` and a null `expected`, which only
+  `## Philosophy` does: that section's template body is a placeholder, so
+  generate its content from the project's detected maturity the same way Initial
+  Mode does, rather than inserting anything verbatim.
 - **`drifted`** — the section exists but its body differs from the template's.
   Record a **Contract Drift** entry offering a re-sync, showing `actual` and
   `expected`. A deliberate local edit is a legitimate answer here — the entry is
   an offer, never an automatic overwrite.
 - **`conformant`** — no entry.
+
+A project with no CLAUDE.md at all reports every plugin-authored section as
+`missing` — the correct and maximally-actionable result here, not an error.
 
 Carry every entry forward into the Drift Report (Phase 3) under a dedicated
 "Contract Drift" section so the user can approve them as a batch alongside other

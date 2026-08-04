@@ -180,7 +180,7 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 
 **Skip this step entirely** under the size + ceremony-profile conditions detailed in plan-audit.md's own Skip section — read that section rather than this summary for the exact gate, since it's the one place this condition is defined.
 
-> **Project setting:** When CLAUDE.md declares `scope-keywords-required: true` under a `## Build` section, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
+> **Project setting:** When `.claude-tweaks/policy.yml` declares `scope-keywords-required: true`, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
 For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 

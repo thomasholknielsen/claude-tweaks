@@ -19,7 +19,7 @@ Runs when the plan or design doc declares `Scope keywords:`. When the plan or de
 grep -rln -E "playwright-cli|claude_in_chrome|PLAYWRIGHT_MCP" skills/ agents/ hooks/ README.md .claude-plugin/ CLAUDE.md docs/ 2>/dev/null
 ```
 
-Read the project's `Plan audit / scope-keywords-required` CLAUDE.md setting:
+Read the `scope-keywords-required` setting from `.claude-tweaks/policy.yml`:
 - `scope-keywords-required: false` (default) — Check B is informational; surface missing-from-plan files as a warning, proceed.
 - `scope-keywords-required: true` — Check B is gating; if any matched files aren't in the plan AND the plan/design has no `Scope keywords:` field, refuse to start. Tells the user: "This project requires scope keywords. Add `Scope keywords: <pattern1, pattern2>` to the plan or design doc and re-run."
 

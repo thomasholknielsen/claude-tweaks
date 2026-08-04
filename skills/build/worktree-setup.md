@@ -21,7 +21,7 @@ surfaces a mismatch loudly rather than letting it pass silently.
    BASE_BRANCH=$(git branch --show-current)
    ```
 
-1. **Pre-flight merge check** — read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
+1. **Pre-flight merge check** — read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
    ```bash
    # Upstream of current branch, else remote default branch (origin/HEAD)
    UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
