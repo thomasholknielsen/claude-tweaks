@@ -239,5 +239,4 @@ One exception to "never creates or enters a worktree": under `worktree.always: t
 | Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means the branch has unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
 | Closing a PR/issue without a comment | Silent closes destroy the audit trail and confuse collaborators. Comment first, then close — the comment is the record of why. |
 | Resolving review threads without commit evidence | Resolving unaddressed feedback is worse than leaving it open — the concern disappears without being fixed. Evidence means a commit touching the flagged lines. |
-| Relabeling a legacy-taxonomy record instead of flagging it | Shape 7 is read-only by design — `/tidy` surfaces retired `tier:*`/`status:*`/`backlog` labels for a dedicated migration pass; it never relabels them itself. |
 | Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label alone doesn't mean scoring happened. Shape 4 exists to catch this proactively, before `/claude-tweaks:backlog refine` has to flag it back reactively. |

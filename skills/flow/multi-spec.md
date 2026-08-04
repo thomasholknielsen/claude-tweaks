@@ -1,21 +1,21 @@
 # Multi-Spec Sequential Flow
 
-When multiple records or spec numbers are provided (e.g., `#42,#45,#48` or the legacy `42,45,48`), flow runs each one's pipeline **sequentially** in one terminal — see `SKILL.md`'s Input resolution for how each form resolves. Everything below is keyed by `{N}`: a record id on the primary path, a spec number under the legacy spec-file alias.
+When multiple records are provided (e.g., `#42,#45,#48`), flow runs each one's pipeline **sequentially** in one terminal — see `SKILL.md`'s Input resolution for how each form resolves. Everything below is keyed by `{N}`, a record id.
 
 ## Validation
 
 Before starting, validate the list:
 
-1. **Parse** — split on commas, resolve each to a record (`materialize.md`) or, under the legacy spec-file alias, a spec file
+1. **Parse** — split on commas, resolve each to a record (`materialize.md`)
 2. **Prerequisites** — for a record-reference target, check that each `blocked-by:` dependency (`materialize.md`'s Populating the header — sourced from `record.js`'s `parseDependencies`, `facets.blockedBy`, or the native dependency API depending on driver/`work-links`) is satisfied; for the legacy spec-file alias, check that each spec's `depends-on:` frontmatter is satisfied. Reject any target with unmet prerequisites.
 
 > A record-reference target's dependency data (`blocked-by:`) is read via `materialize.md`'s Resolution step — read-only, safe before any run dir or worktree exists — or the materialized header once composed; see Steps 3-4 below. Cross-spec conflict detection (Step 5) covers both target types: the legacy `Files:` frontmatter path for spec-file targets, and the record body's `### Key Files` subsection (via the same `groupByFileOverlap` primitive `/claude-tweaks:help`'s and `/claude-tweaks:specify`'s own conflict detection already use) for record-reference targets — see "Cross-spec conflict detection" below.
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
-3. **Frontmatter pre-flight** — for the legacy spec-file alias, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. For a record-reference target, collect the equivalent set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (`Files:` itself has no record-mode equivalent, but `### Key Files` covers the same need — see "Cross-spec conflict detection" below). Both collections feed the same ordering check, Pipeline Preview, and conflict detection (Step 5).
+3. **Pre-flight** — collect each target's set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (see "Cross-spec conflict detection" below). These feed the ordering check, Pipeline Preview, and conflict detection (Step 5).
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
-5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`Files:` frontmatter for legacy spec-file targets, `### Key Files` for record-reference targets).
+5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`### Key Files` in each record body).
 
 ## Dependency-aware ordering
 

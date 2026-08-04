@@ -20,20 +20,19 @@ Present all collected findings as a single report. Every item has a pre-filled r
 | 6 | Parked | "{title}" (trigger met) | Promote — trigger fired |
 | 7 | Scoring | "{title}" (ready, unscored) | Flag for scoring — /claude-tweaks:specify #{n} |
 | 8 | Blocked | "{title}" (bot:blocked) | Re-triage — /claude-tweaks:backlog refine |
-| 9 | Legacy | "{title}" (carries tier:approved) | Retired vocabulary — needs migration/re-triage |
-| 10 | Sizing | "{title}" (ready, 12 tasks implied) | Split into two records |
-| 11 | Design doc | "{filename}" (specified) | Delete |
-| 12 | Plan | "{filename}" (orphaned) | Delete |
-| 13 | Worktree | "{path}" (merged) | Remove |
-| 14 | Branch | "build/{name}" (merged) | Delete |
-| 15 | Backlog (unsynced) | "{title}" — local-only under `work-backend: github-issues` | Sync to GitHub |
+| 9 | Sizing | "{title}" (ready, 12 tasks implied) | Split into two records |
+| 10 | Design doc | "{filename}" (specified) | Delete |
+| 11 | Plan | "{filename}" (orphaned) | Delete |
+| 12 | Worktree | "{path}" (merged) | Remove |
+| 13 | Branch | "build/{name}" (merged) | Delete |
+| 14 | Backlog (unsynced) | "{title}" — local-only under `work-backend: github-issues` | Sync to GitHub |
 
 ### Cross-Spec Patterns (if any)
 
 | # | Pattern | Seen In | Recommended |
 |---|---------|---------|-------------|
-| 16 | {description} | Specs {list} | Add rule to CLAUDE.md |
-| 17 | {description} | Specs {list} | Promote to spec |
+| 15 | {description} | Specs {list} | Add rule to CLAUDE.md |
+| 16 | {description} | Specs {list} | Promote to spec |
 
 *Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
 
@@ -42,7 +41,6 @@ Present all collected findings as a single report. Every item has a pre-filled r
 - Parked: {X} records ({Y} trigger-met, {Z} still waiting)
 - Ready, unscored: {N} — needs `/claude-tweaks:specify`
 - `bot:blocked`: {N} — needs `/claude-tweaks:backlog refine`
-- Legacy taxonomy: {N} records — needs migration
 - Plans to clean: {D} design docs, {E} execution plans
 - Git cleanup: {F} worktrees, {G} build branches
 ```
