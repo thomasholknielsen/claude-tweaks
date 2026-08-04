@@ -251,6 +251,58 @@ must therefore be constructed, not assumed.
    > A relocation *within one file* correctly reports nothing: the content moved, so the
    > counts match. Only a genuine drop is flagged. False positives remain possible and are
    > the acceptable direction — a false negative is the failure this check exists to prevent.
+2b. **The orphan scan — the check that actually guards deletion.** `findLostOccurrences` is the
+   right check for a *relocation* (content moved, counts must hold). It is the **wrong** check for
+   a *deletion*: deleting a DEAD row necessarily drops its identifiers' counts, so the count delta
+   flags every deletion and discriminates nothing. What matters for a DEAD row is the weaker,
+   different question — **after the row is gone, does each of its identifiers still appear
+   somewhere in the same `SKILL.md`?**
+
+   Scoped to the same file rather than the whole tree, that question is sharp. Measured across the
+   whole corpus:
+
+   | | Count | Share |
+   |---|---|---|
+   | Rows carrying ≥1 identifier found nowhere else in their own `SKILL.md` | **184 / 510** | 36.1% |
+   | Orphan identifiers | **307 / 1053** | 29.2% |
+
+   Concentration is uneven and predicts where the judgment work lives: `specify` 19/27,
+   `tidy` 12/24, `wrap-up` 12/25, `routine` 9/11, `journey-health` 10/20 — against `flow` 4/23
+   and `review` 8/30.
+
+   **A sub-file documenting the same fact does not clear an orphan.** Sub-files are lazy-loaded;
+   `Read` is a choice the model makes at runtime. An identifier whose only `SKILL.md` occurrence is
+   the deleted row has left the invocation payload, whatever a sub-file says. Several classification
+   agents cited sub-files as DEAD evidence, which is correct about the *fact* and silent about the
+   *payload* — the orphan scan is what separates those.
+
+   This does not make an orphan a veto. It makes it the gate between bulk approval and individual
+   review: a DEAD row with no orphans is mechanically safe to delete; a DEAD row with orphans is a
+   human call.
+
+2c. **Circular DEAD evidence — the classification's own failure mode.** Classification agents see
+   one skill each. A recurring DEAD justification is "the reciprocal row in the other skill's
+   Relationship table already says this" — and that row is itself scheduled for deletion. Of 17
+   such citations sampled from `code-health` and `design-wrapper`, **17 of 17 pointed into another
+   skill's Relationship section.** Delete both sides and the fact is gone from the repo.
+
+   This is `[IL-52]`'s shape: agents that cannot see each other's edits each leave a
+   cross-reference claiming the other one covers it. It is detectable mechanically — resolve the
+   cited `file:line` and test whether it falls inside that file's Relationship section — and the
+   correction is not to keep the rows but to **reclassify them NAV**, so the edge is stated once
+   in `docs/skill-graph.md` instead of twice in the payload or zero times anywhere. That is
+   precisely the bidirectional-convention collapse this design exists to perform; the only error
+   would be letting them leave as DEAD.
+
+2d. **Cross-agent variance on identical row shapes.** The 21 rows pointing at
+   `_shared/auto-mode-contract.md` are near-boilerplate, and they came back classified across all
+   three classes — DEAD in `capture`, `build`, and `flow`; NAV in `review`, `wrap-up`, `specify`,
+   and `code-health`; OPERATIVE in `tidy`, `reflect`, and `ledger`. Some of that spread is real
+   (`tidy`'s row names Step 6's aggressiveness table; `ledger`'s states that auto never silences
+   its resolve gate), and some is judgment noise. Rows of a shared shape are therefore normalised
+   as one batched decision against their actual text, not accepted per-agent — otherwise identical
+   boilerplate gets three different fates for no reason.
+
 3. **Make the structural tests fail loudly rather than pass silently.** Removing
    `## Relationship to Other Skills` breaks
    `assert.ok(idx('## Relationship to Other Skills') > 0)` in
