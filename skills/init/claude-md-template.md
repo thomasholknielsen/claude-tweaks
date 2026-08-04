@@ -76,45 +76,6 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 **Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
-## Project Defaults (optional)
-
-Override skill-level defaults here. Omit any setting to use its default. Full setting reference in each skill's SKILL.md.
-
-```
-## Build
-execution-strategy: subagent       # subagent | batched
-git-strategy: current-branch       # current-branch | worktree
-
-## Flow
-git-strategy: worktree             # overrides Build setting in /flow context
-
-## Worktree
-directory: .worktrees
-# Base ref is a harness setting, NOT a CLAUDE.md one. Set it in settings.json:
-#   { "worktree": { "baseRef": "head" } }
-# claude-tweaks branches worktrees from your current local HEAD. The harness
-# default `fresh` branches from origin/<default-branch> and silently uses a
-# stale base when your integration branch (e.g. dev) is ahead of the remote.
-
-## Subagent
-markdown-mode: streamlined         # streamlined | full
-
-## Brainstorm
-section-confirmation: adaptive     # adaptive | per-section | batch
-
-## Pre-flight
-merge-check: true
-
-## Plan audit
-scope-keywords-required: false
-
-## Auto-mode
-# /flow defaults to auto on its own — no flag needed. Uncomment to set a
-# project-wide default: default-on also makes standalone /build run in auto;
-# default-off lowers /flow to interactive (per-skill prompts).
-# auto-mode: default-on            # default-on | default-off
-```
-
 ## Don'ts
 
 {Anti-patterns observed or inferred — things that would break the project's conventions.
