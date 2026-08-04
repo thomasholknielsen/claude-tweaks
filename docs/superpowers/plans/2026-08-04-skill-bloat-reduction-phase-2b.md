@@ -22,26 +22,32 @@
 
 ### Task 1: Resolve the unreached identifiers (see the corrected measurement below)
 
-**Files:** Modify: up to 30 `skills/*/SKILL.md` (step bodies only — do NOT touch the Relationship sections yet)
+**Files:** None. After adjudication this task turned out to be **verification-only** — no skill file
+needs an edit. Should a future re-run surface a genuine own-token absence, modify that
+`skills/*/SKILL.md` step body only, and do **not** touch any Relationship section (that is Task 4).
 
-**Interfaces:** Produces: a resolved corpus in which no identifier's only occurrence is a Relationship row, except those explicitly accepted below.
+**Interfaces:** Produces: a verified corpus in which every identifier whose only occurrence is a
+Relationship row is either cross-skill navigation bound for the Task 2 graph, a dropped wrong claim,
+or content already stated in full elsewhere in the payload.
 
 **Why this task exists.** 307 identifiers appear only in a Relationship row. 182 are recoverable because a sub-file the body already points at also carries them. **88 are not** — nothing in the invocation payload reaches them. Deleting those rows removes the identifier from the skill's runtime context outright.
 
-> **Corrected, 2026-08-04 — the 88 figure is an instrument artifact; the real depth-1 figure is 38.**
-> The Step 1 script below has two defects that inflate loss by ~2.3x. It walks only the skill's own
+> **Corrected, 2026-08-04 — the 88 figure is an instrument artifact; the real depth-1 figure is 34.**
+> The Step 1 script below has three defects that inflate loss by ~2.6x. It walks only the skill's own
 > directory plus `_shared/`, so a **cross-skill path the body explicitly names** is never opened —
 > `skills/flow/materialize.md` appears 10 times in build's body and was still scored unreachable.
 > And its head-token artifact test compares against `body` only, never against the reachable
 > sub-files — `diagram-suggestions: enabled` was scored absent while `specify/decomposition-mode.md:195`
-> states the flag *and* its full gate semantics.
+> states the flag *and* its full gate semantics. Third, it split head tokens on a character class
+> containing `{`, so every placeholder-shaped identifier (`{result}`, `{run-dir}/staged/deepen-{n}.md`)
+> produced an *empty* head and could never clear the artifact test.
 >
 > Re-measured with cross-skill path resolution and head-token-vs-reach:
 >
 > | Reach model | Absent | Avg load per skill |
 > |---|---|---|
 > | Original single-hop scan (below) | 88 | — |
-> | **Depth 1** — SKILL.md + files its body names | **38** | 10 files / 141 KB |
+> | **Depth 1** — SKILL.md + files its body names | **34** | 10 files / 141 KB |
 > | **Depth 2** — one further instructed pointer | **1** | 26 files / 340 KB |
 > | Unbounded closure | 1 | 120 files / 1.2 MB — not credible |
 >
@@ -53,8 +59,9 @@
 >
 > The **only** identifier absent even at depth 2 is `version`'s `_shared/auto-mode-contract.md`,
 > whose own row states the contract "does not modify behavior." **Nothing is at risk.** The reword
-> set below therefore shrinks from ~32 to roughly 6; the rest is cross-skill navigation (accept) or
-> a factually wrong claim (drop, and fix in Task 5).
+> set below therefore shrinks from ~32 to **zero** — see the adjudication note under Step 1. Every
+> remaining item is cross-skill navigation (accept), a wrong claim (drop, fix in Task 5), or content
+> already fully stated in the payload with only its canonical-fragment citation missing.
 
 - [ ] **Step 1: Regenerate the unreached list against current HEAD**
 
@@ -90,7 +97,10 @@ for(const n of names){
   for(const row of extractRelationshipRows(md))
     for(const id of extractIdentifiers(row.raw)){
       if(countOccurrences(id,reach)>0) continue;
-      const head=id.split(/[:=\s{(]/)[0].replace(/[*\/]+$/,"");
+      // Strip a leading brace/bracket BEFORE splitting: "{result}" split on a set
+      // containing "{" yields an empty head, so the artifact test never fires and
+      // every placeholder-shaped identifier scores as absent.
+      const head=id.replace(/^[{\[]+/,"").split(/[:=\s{(}\])]/)[0].replace(/[*\/]+$/,"");
       if(head.length>=4 && countOccurrences(head,reach)>0) continue;  // exact-match artifact
       console.log(n+"\t"+row.line+"\t"+id);
     }
@@ -99,9 +109,20 @@ wc -l /tmp/unreached-current.tsv
 DEPTH=2 node -e '...same script...' | wc -l    # sanity: should be ~1
 ```
 
-Expected: **38 lines at depth 1**, 1 at depth 2. If materially different, stop and report — the
+Expected: **34 lines at depth 1**, 1 at depth 2. If materially different, stop and report — the
 corpus moved. Do not use the unbounded closure: it absorbs ~120 of 214 files per skill and reports
 near-zero loss for any corpus, so it cannot fail.
+
+> **All 34 were adjudicated on 2026-08-04. None needs a reword — Task 1 is verification-only.**
+> Every one is (a) cross-skill navigation, which belongs in the Task 2 graph edge label; (b) a
+> tombstone or a wrong claim, dropped and handled in Task 5; or (c) a token whose full operative
+> content is *already* stated in the payload, with only the pointer to its canonical `_shared/`
+> fragment absent. The clearest case of (c) is `backlog`'s `_shared/local-files-preflight-stop.md`:
+> `backlog/SKILL.md:48`'s Preflight section already inlines the entire "stop this sub-stage
+> completely" boundary language — the enumerated prohibitions, the CLAUDE.md-conventions carve-out,
+> and the eval citation. Deleting the row loses a citation, not a behavior.
+>
+> Re-run the scan after Tasks 2–3 to confirm the count has not moved, then proceed to Task 4.
 
 - [ ] **Step 2: Apply the disposition rule to each line**
 
@@ -306,7 +327,17 @@ These are real defects independent of the bloat work, found because classificati
 | 4 | `tidy` row 7 claims `extractFingerprint` backs the Sync payload; `actions-github-issues.md` uses only `recordPayload` | Verify; if stale, drop the claim rather than relocating it |
 | 5 | `help` rows 5 and 25 describe recommendation behaviour absent from Section 3's Priority Order | Documented-but-unimplemented. File as work records rather than fixing inline — implementing them is out of scope here |
 | 6 | `capture` row 7 says leftover work becomes a `parked` record, conflicting with `capture/SKILL.md:22`'s Defer attribution to `tidy` | Resolve which is correct, fix the loser |
-| 7 | `design-wrapper` row at `SKILL.md:262` claims `_shared/design-wrapper-handling.md` "documents the universal `{result}` / `{skipped}` / `{deferred}` / `{fail}` shapes" — that file contains **zero** occurrences of any of those brace tokens | Read the file's actual return-shape notation first. Either the notation changed or the claim was never true; do **not** carry the row's notation forward on faith when rewording |
+| 7 | `design-wrapper` row at `SKILL.md:265` says `/visualize` reads "the same `DESIGN.md`/`DESIGN.json` token files … this skill's `pre-build` mode lazy-loads". But `modes/pre-build.md:39` names only `PRODUCT.md` and `DESIGN.md` as canonical paths — `DESIGN.json` appears nowhere in design-wrapper's tree. It lives in `_shared/visual-html-output.md` and `visualize/SKILL.md` | Verify which skill actually reads `DESIGN.json`. Most likely the row conflates visualize's token-data path with pre-build's markdown path; if so, correct the row rather than adding `DESIGN.json` to pre-build |
+
+> **A defect claimed here on 2026-08-04 and retracted the same day — kept as a worked example.**
+> An earlier revision listed as defect #7: "`_shared/design-wrapper-handling.md` contains **zero**
+> occurrences of `{result}` / `{skipped}` / `{deferred}` / `{fail}`." That was wrong. The file
+> documents all four — as `{result: "ok" | "pass" | "advisory", ...}`, `{result: "fail", findings: [...]}`,
+> `{skipped: {reason: ...}}`, `{deferred: {reason: ...}}`. Grepping the bare token `{result}` cannot
+> match the populated form `{result: …}`, so "zero occurrences" was a fact about the grep, not the file.
+> This is `[IL-15]` (grep the structural pattern, not the keyword) and `[IL-74]` (confirm "grep found
+> nothing" is a fact about the file) recurring inside the very audit that was applying them.
+> **Before recording any absence as a defect, read the file.**
 
 ---
 
