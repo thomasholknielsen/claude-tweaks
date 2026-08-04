@@ -19,7 +19,7 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/claude-t
 - "We should probably..." or "Don't forget to..." moments
 - Anything that would otherwise be lost or forgotten
 
-> **Backlog vs parked:** Use `/claude-tweaks:capture` for new ideas and half-formed features — these land as fresh backlog records: no stage label under `work-backend: github-issues`, no `stage:` frontmatter under `work-backend: local-files`. Work deferred from an active build/review goes through `/claude-tweaks:tidy`'s Defer action instead — the existing record gains the `parked` label (`github-issues`) or `stage: parked` frontmatter (`local-files`) plus a trigger. Either way a deferred record carries origin context, file references, and a timing trigger that a fresh backlog record doesn't have. See `_shared/work-record.md` for the full stage vocabulary (backlog / parked / ready).
+> **Backlog vs parked:** Use `/claude-tweaks:capture` for new ideas and half-formed features — these land as fresh backlog records: no stage label under `work-backend: github-issues`, no `stage:` frontmatter under `work-backend: local-files`. Work deferred from an active build/review goes through `/claude-tweaks:tidy`'s Defer action instead — the existing record gains the `parked` label (`github-issues`) or `stage: parked` frontmatter (`local-files`) plus a trigger. `/claude-tweaks:wrap-up`'s leftover routing is the other producer of `parked` records: it stages a *new* record for each unfinished spec section, which the Review Console creates on approval. Either way a deferred record carries origin context, file references, and a timing trigger that a fresh backlog record doesn't have. See `_shared/work-record.md` for the full stage vocabulary (backlog / parked / ready).
 
 ## Input
 

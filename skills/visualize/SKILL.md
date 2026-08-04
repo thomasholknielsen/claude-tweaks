@@ -72,7 +72,7 @@ For `record-graph`, skip topic resolution entirely and read `record-graph.md` in
 
 ### Step 2: Token extraction and theming (both paths)
 
-Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Continue to Step 3.
+Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Continue to Step 3.
 
 ### Step 3: Resolve placement
 
