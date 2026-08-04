@@ -10,11 +10,7 @@ argument-hint: "[plain|full] [--min <version>]"
 
 Print the installed claude-tweaks plugin version. Utility skill — no lifecycle position.
 
-```
-/claude-tweaks:capture → ... → /claude-tweaks:wrap-up
-                  [ /claude-tweaks:version ] (utility, called from anywhere)
-                                ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: utility — callable from anywhere between `/claude-tweaks:capture` and `/claude-tweaks:wrap-up`.
 
 ## When to Use
 

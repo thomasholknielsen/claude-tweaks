@@ -10,10 +10,7 @@ argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core
 
 Bootstrap the workflow system for a project AND generate intelligent configuration from codebase analysis. Handles everything from directory creation to CLAUDE.md generation, skills, rules, and journey discovery — in one command.
 
-```
-[ /claude-tweaks:init ] → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-  ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: **`/claude-tweaks:init`** → `/claude-tweaks:capture` — first step of the chain; the full chain is in `/claude-tweaks:help`.
 
 This skill works for both greenfield and brownfield projects, operating in two modes:
 

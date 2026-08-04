@@ -10,10 +10,7 @@ argument-hint: "[quick|--lens=<n[,n...]>] <#n|topic|problem statement>"
 
 Pre-brainstorming debiasing to ensure you're solving the right problem before investing time exploring solutions. Part of the workflow lifecycle:
 
-```
-/claude-tweaks:init → /claude-tweaks:capture → [ /claude-tweaks:challenge ] → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                 ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: `/claude-tweaks:capture` → **`/claude-tweaks:challenge`** → `/superpowers:brainstorming`
 
 ## Overview
 

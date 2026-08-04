@@ -10,10 +10,7 @@ argument-hint: "[<spec-number>|<file-path>...|visual <url-or-description>|journe
 
 Post-build quality gate. `/claude-tweaks:test` answers "does it work?" — `/claude-tweaks:review` answers "is it good?" Reviews, refines, and approves the code before handing off to wrap-up. Part of the workflow lifecycle:
 
-```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
-                                                                                                                                                                                ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: `/claude-tweaks:test` → **`/claude-tweaks:review`** → `/claude-tweaks:wrap-up`
 
 ## When to Use
 

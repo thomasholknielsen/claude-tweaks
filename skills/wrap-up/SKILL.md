@@ -10,10 +10,7 @@ argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [-
 
 Post-review reflection, knowledge capture, and lifecycle cleanup. Part of the workflow lifecycle:
 
-```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → [ /claude-tweaks:wrap-up ]
-                                                                                                                                                                                                                            ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: `/claude-tweaks:review` → **`/claude-tweaks:wrap-up`** — last step of the chain; the full chain is in `/claude-tweaks:help`.
 
 ## When to Use
 

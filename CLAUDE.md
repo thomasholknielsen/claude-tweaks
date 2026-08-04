@@ -32,7 +32,7 @@ Every skill follows this structure:
 1. YAML frontmatter: `name`, `description` (trigger condition)
 2. Interaction style directive (identical across all skills)
 3. H1 title with one-line description
-4. ASCII lifecycle position diagram
+4. Lifecycle position — a one-line `Lifecycle:` marker for skills with a fixed chain position, or a diagram for skills whose shape is genuinely non-linear (utility consumer sets, mechanism flows, cycles); the canonical full chain lives in `/claude-tweaks:help`
 5. "When to Use" section
 6. Input resolution (how `$ARGUMENTS` is parsed)
 7. Numbered workflow steps

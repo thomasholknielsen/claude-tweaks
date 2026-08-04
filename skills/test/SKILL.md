@@ -10,10 +10,7 @@ argument-hint: "[types|lint|unit|integration|e2e|affected|qa|all|skip-qa|<path>]
 
 Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "does it work?" without analytical judgment. Part of the workflow lifecycle:
 
-```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → [ /claude-tweaks:test ] → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                                                                                        ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: `/claude-tweaks:stories` → **`/claude-tweaks:test`** → `/claude-tweaks:review`
 
 ## When to Use
 

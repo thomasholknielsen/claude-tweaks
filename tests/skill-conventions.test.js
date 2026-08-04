@@ -48,4 +48,44 @@ test('the directive keeps the prefix five existing tests assert on', () => {
   }
 });
 
-module.exports = { CANONICAL_DIRECTIVE, skillNames, read, SKILLS_DIR };
+const LINEAR_DIAGRAM_SKILLS = [
+  'capture', 'challenge', 'design-wrapper', 'init', 'review',
+  'specify', 'stories', 'test', 'version', 'wrap-up',
+];
+
+test('the 10 linear-diagram skills carry a one-line Lifecycle marker', () => {
+  for (const name of LINEAR_DIAGRAM_SKILLS) {
+    assert.match(read(name), /^Lifecycle: .+$/m, `${name} missing Lifecycle marker`);
+  }
+});
+
+test('the 10 linear-diagram skills no longer open with a fenced block', () => {
+  for (const name of LINEAR_DIAGRAM_SKILLS) {
+    const lines = read(name).split('\n');
+    const h1 = lines.findIndex((l) => /^# /.test(l));
+    const fence = lines.findIndex((l, i) => i > h1 && /^```/.test(l));
+    assert.ok(
+      fence === -1 || fence > h1 + 15,
+      `${name} still opens with a fenced block at line ${fence + 1}`
+    );
+  }
+});
+
+test('no YOU ARE HERE marker survives in the 10 rewritten skills', () => {
+  for (const name of LINEAR_DIAGRAM_SKILLS) {
+    assert.ok(!read(name).includes('YOU ARE HERE'), `${name} still has YOU ARE HERE`);
+  }
+});
+
+test('the 22 untouched skills keep their diagrams', () => {
+  const untouched = skillNames().filter((n) => !LINEAR_DIAGRAM_SKILLS.includes(n));
+  assert.strictEqual(untouched.length, 22);
+  for (const name of ['code-health', 'browse', 'help', 'dispatch']) {
+    const lines = read(name).split('\n');
+    const h1 = lines.findIndex((l) => /^# /.test(l));
+    const fence = lines.findIndex((l, i) => i > h1 && /^```/.test(l));
+    assert.ok(fence > h1 && fence <= h1 + 15, `${name} lost its diagram`);
+  }
+});
+
+module.exports = { CANONICAL_DIRECTIVE, skillNames, read, SKILLS_DIR, LINEAR_DIAGRAM_SKILLS };

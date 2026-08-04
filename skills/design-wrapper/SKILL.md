@@ -10,11 +10,7 @@ argument-hint: "<shape|pre-build|test|review|polish|survey|reset-recommendations
 
 Wrapper skill that encapsulates the Impeccable design-quality plugin behind a stable interface. Caller skills (`/test`, `/review`, `/build`, `/flow`, `/visual-review`, `/specify`) invoke a mode here; this wrapper handles detection, availability checks, dispatch, and graceful skips. Utility skill — no lifecycle position.
 
-```
-/claude-tweaks:capture → ... → /claude-tweaks:wrap-up
-                  [ /claude-tweaks:design-wrapper ] (utility, called by lifecycle skills)
-                                ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: utility — called by lifecycle skills anywhere between `/claude-tweaks:capture` and `/claude-tweaks:wrap-up`.
 
 All seven modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — auto-fit, issue-driven, and intent-driven (the latter reads the record's `Design-intent:` body-metadata line — lifted into the materialized header per spec 20 — and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
 

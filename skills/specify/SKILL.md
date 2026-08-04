@@ -10,10 +10,7 @@ argument-hint: "<#N|record-id|design-doc-path|topic|backlog-title> [phase-N] [--
 
 Shape a single work record into spec shape, or decompose a brainstorming design document into a parent record plus ready leaf records. Part of the workflow lifecycle:
 
-```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                                        ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: `/superpowers:brainstorming` → **`/claude-tweaks:specify`** → `/claude-tweaks:build`
 
 ## When to Use
 

@@ -10,11 +10,7 @@ argument-hint: "[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>]
 
 Browse a website, understand its structure and flows, and generate user story YAML files for UI testing. Stories describe journeys for any persona — customers, admins, developers, operators.
 
-```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:stories ] → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                                                                 ^^^^ YOU ARE HERE ^^^^
-                                                                                                                                 (conditional — only when UI files change)
-```
+Lifecycle: `/claude-tweaks:build` → **`/claude-tweaks:stories`** → `/claude-tweaks:test` (conditional — only when UI files change).
 
 ## When to Use
 

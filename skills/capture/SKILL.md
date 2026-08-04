@@ -10,10 +10,7 @@ argument-hint: '<idea text> [--route=challenge|brainstorm|keep|absorb:N] [--titl
 
 Quick capture for ideas that aren't ready for full specification. Part of the workflow lifecycle:
 
-```
-/claude-tweaks:init → [ /claude-tweaks:capture ] → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-                        ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/claude-tweaks:challenge`
 
 ## When to Use
 
