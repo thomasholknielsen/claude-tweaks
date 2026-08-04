@@ -192,6 +192,20 @@ must therefore be constructed, not assumed.
    substantive original line still appears somewhere in the new file set. This is the
    load-bearing check for Phase 2: a relocated operative row that lands nowhere is exactly
    the silent failure this design must not produce.
+
+   > **Phase 1 outcome — the checker as built cannot carry this.** `bin/lib/skill-audit/identifiers.js`
+   > shipped in Phase 1, and the final whole-branch review measured its sensitivity against a
+   > real case: deleting `skills/review/SKILL.md`'s entire Relationship table, a 100% loss of
+   > 45 identifiers. It reported **4/45 lost (9%)** against the whole tree, and **11/45 (24%)**
+   > against the rest of its own file. Common identifiers (`PIPELINE_RUN_DIR`, `auto:merge`,
+   > `subagent`) recur everywhere, so they always read as surviving no matter what happened to
+   > the row that carried them.
+   >
+   > **Phase 2 must not adopt it unchanged.** Re-spec it as a per-identifier *occurrence-count*
+   > delta scoped to the named relocation destination, rather than binary presence against the
+   > whole tree. Use the same "delete `review`'s whole Relationship table" experiment as its
+   > acceptance test — it must report near-100% loss, not 9%. This supersedes the narrower
+   > deferred finding about unanchored substring matching, which is a rounding error beside it.
 3. **Make the structural tests fail loudly rather than pass silently.** Removing
    `## Relationship to Other Skills` breaks
    `assert.ok(idx('## Relationship to Other Skills') > 0)` in
@@ -226,10 +240,21 @@ proves the convention/test update path works before Phase 2 depends on it.
 | **2** | Relationship triage: classify → human-approve the verdict table → apply. Build `docs/skill-graph.md`; relocate operative rows into step bodies; re-point the two dependencies above | High, gated |
 | **3** | Anti-Pattern compression, 72 KB → ~43 KB | Medium |
 
-Each feature phase carries its own explicit version-bump step (`[IL-12]`) and the marketplace
-mirror is part of the same action, not a follow-up (`[IL-59]`). Because the branch is
+Each feature phase carries its own explicit version-bump step (`[IL-12]`). Because the branch is
 long-running across 32 skills, check `git log --oneline <branch>..main` periodically rather
 than back-loading conflict resolution (`[IL-20]`).
+
+**The marketplace mirror runs after the merge, not on the branch.** `[IL-59]` says not to pause
+between the two repo pushes, and Phase 1's plan read that as "do both on the feature branch" —
+which is wrong: the marketplace `source` is an unpinned git URL tracking this repo's `main`
+HEAD, so mirroring from an unmerged branch publishes a version that does not exist upstream.
+The two pushes are still one action; that action just begins once the bump has landed on `main`.
+CLAUDE.md's Releasing section is worth a clause saying so, since the hazard is a wording gap
+rather than a novel failure.
+
+### Phase 1 outstanding
+
+- **Mirror v6.33.0** to `thomasholknielsen/claude-tweaks-marketplace` once the branch merges.
 
 ## Risks
 
