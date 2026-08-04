@@ -1,5 +1,20 @@
 # Changelog
 
+## v6.37.1 — Fix six dangling "check 10" references shipped in 6.37.0
+
+Resolving the legacy-purge merge retired harness-health's old check 9 and
+renumbered the new context-cost bloat scan from 10 to 9. The numbered list item was
+renumbered; the prose references to it were not. `_shared/harness-health-analysis.md`
+and `harness-health/judge-procedure.md` each shipped three sentences pointing a judge
+agent at "check 10" in a list that now ends at 9.
+
+Prose-only, so no test caught it — and `harness-health-analysis.md` is inlined into
+every dispatched judge agent, so the dangling reference reached every one of them.
+
+The renumbering discipline this violates (`[IL-55]`: verify topic-consistency after a
+renumber rather than expecting a grep to return nothing) was applied to `/help`'s
+Priority Order in the same release and skipped here.
+
 ## v6.37.0 — Skill-bloat reduction Phase 3: Anti-Pattern compression, extraction, and a detector
 
 Closes the three-phase effort. The shipped `SKILL.md` payload — the context re-emitted on

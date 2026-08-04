@@ -115,7 +115,7 @@ Apply the dimensions that meaningfully apply to this target's kind:
 | **6. Decision-framework completeness** | Does the Decision Framework cover the choices the codebase actually makes? | ✓ | — | rarely |
 | **7. Template/structural conformance** | Does this still match the structure its own generator established? | ✓ | ✓ | ✓ |
 | **8. Best-practice / harness-performance fit** | Does it follow known practices for making an LLM harness perform well — clear triggers, right-sized scope, concision? | ✓ | ✓ | ✓ |
-| **9. Context-cost bloat** | Is the document paying context for text that instructs nobody — an oversized file, rows grown into paragraphs, narration of its own edit history, a table spending N rows on one fact? (check 10 is the evidence) | ✓ (all four signals) | ✓ (provenance and degenerate-row signals only; size is check 4's tiered line budget, not the byte ceiling) | ✓ (same as rule) |
+| **9. Context-cost bloat** | Is the document paying context for text that instructs nobody — an oversized file, rows grown into paragraphs, narration of its own edit history, a table spending N rows on one fact? (check 9 is the evidence) | ✓ (all four signals) | ✓ (provenance and degenerate-row signals only; size is check 4's tiered line budget, not the byte ceiling) | ✓ (same as rule) |
 
 For `rule` and `claude-md`, dimensions 7 and 8 read the **same** origin template — for those kinds the structural template and the best-practice guidance are one document, because the author already encoded best-practice judgment into the template.
 
@@ -128,14 +128,14 @@ Cross-skill overlap and right-sized-scope comparisons across the whole skill lib
 
 Always reason about *why* the ratio is low before emitting anything. Never report a raw ratio as if a low number were self-evidently a documentation problem.
 
-**Bloat-signal guard (dimension 9).** Every signal check 10 reports has a legitimate form, so none is a finding on its own. Read the flagged line first:
+**Bloat-signal guard (dimension 9).** Every signal check 9 reports has a legitimate form, so none is a finding on its own. Read the flagged line first:
 
 - **Over the ceiling.** Real for a skill file or one of its sub-files: it loads in full on every invocation and once per dispatched subagent. The fix is extraction to a lazy-loaded sub-file, never raising the ceiling — and a sub-file cited by two or more stubs naming *sections* of it is the same defect one level down, since `Read` has no section granularity. On a `rule` or `claude-md` target this line restates check 4's tiered line budget; bundle them, do not file both.
 - **Over-long rows.** A row carrying an irreducible constraint can be long. What is not legitimate is a row that has absorbed the *reason* it was added — an incident narrative, a summary of what some past change did — which belongs in a project's incident log, not in a table re-read on every invocation.
 - **Provenance narration.** Text whose subject is the document's own edit history. The test is deletion: if removing the sentence changes nothing about what the model does, it was written for a reviewer, not for the harness. A phrase that also constrains runtime behavior stays, however historical it sounds.
 - **Degenerate tables.** N adjacent rows whose right-hand cells say one thing. Legitimate when the left-hand column carries the content and the right-hand column is a deliberate verdict repeated across cases — a decision matrix is supposed to repeat its verdicts. A defect when the repeated cell is prose that could be stated once in the table's lead-in, or when two rows differ only by a reworded clause.
 
-Nothing here licenses an edit. A bloat finding proposes the exact `oldString`/`newString` that removes the weight and files like any other, and it owes the same anchor requirement — cite check 10's reported line and byte count, never an impression that the file feels long.
+Nothing here licenses an edit. A bloat finding proposes the exact `oldString`/`newString` that removes the weight and files like any other, and it owes the same anchor requirement — cite check 9's reported line and byte count, never an impression that the file feels long.
 
 **CLAUDE.md-specific checks unlocked by dimensions 7/8:**
 
