@@ -1,5 +1,44 @@
 # Changelog
 
+## v6.32.0 — Token-audit batch: bounded tool output, split fragments, corrected cardinalities (closes #90, #91, #100; refs #96)
+
+Four records from the token/context optimization audit. The through-line is that
+every one of their issue bodies was factually wrong, and re-deriving each claim
+against the live files — rather than implementing what the record asked for —
+changed the deliverable in all four.
+
+External tool output is now bounded at the point of invocation. `/code-health`'s
+tool-assist commands carry `jq` projections or `head`/`tail` caps instead of
+emitting raw JSON that routinely runs past 200 KB; `/docs-health`'s executed
+command blocks redirect to a temp file and inspect exit status plus `tail -20`,
+since the check is whether a documented command still works, not what it prints.
+The `gh` list calls that inherited `gh`'s implicit default of 30 now carry an
+explicit `--limit` — that default silently truncated rather than erroring, making
+it a correctness bug as much as a cost one. The unbounded-execution instruction
+turned out to live in `docs-health/judge-procedure.md`, the file inlined verbatim
+into each judge agent's prompt, not in `SKILL.md` where the record placed it.
+
+Two `_shared/` fragments were read whole by consumers needing one section. The
+config-key table and the memory-specific checks now live in their own fragments,
+so a config-key-only consumer loads 4.8 KB instead of 22.7 KB and a memory audit
+loads 5.2 KB instead of 34.3 KB. Both parents keep the original heading as a stub
+naming the child, so citations still resolve in one hop. Two further splits the
+record proposed were measured and skipped: every citation of the permission matrix
+and of the new-skill-gap steps reads them alongside their parent, so both would
+have been net-negative on every path.
+
+Template A gained a 15-row cap with a mandatory `+N more` overflow row — ordering
+by severity is what makes truncation safe, and the marker is non-optional so no
+finding is silently dropped. Two dispatch sites that omitted a model tier now
+declare one.
+
+Roughly thirty restated cardinalities were corrected, most by replacing the number
+with a by-reference deferral rather than a new literal. Three files contradicted
+themselves and now state each fact once. `IL-77` records the case that shaped the
+approach: the lifecycle diagram's title said "18 core labels" against a true count
+of 24, but its own table lists 18 rows, so writing the correct number would have
+contradicted the data printed directly beneath it.
+
 ## v6.31.0 — merge-check judges behavior delta, not diff size or file path (closes #78)
 
 `merge-check`'s instruction-file floor named `skills/**` and `agents/**` — this
