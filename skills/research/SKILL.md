@@ -111,8 +111,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Invoking `deep`/`ultradeep` on a fuzzy one-word topic | Burns time on under-scoped queries. Add a clarifying sentence, or use `quick`/`standard` first to refine scope. |
-| Skipping the mode prompt by guessing | The 4 modes differ in runtime by ~10×. Always ask unless `--mode=` is passed. |
-| Treating the inline fallback as failure | The fallback is a first-class path, not an error state. Most users without Dynamic Workflows rely on it. |
-| Editing reports in place after generation | Reports are dated immutable artifacts. Re-run the skill; the new report gets a fresh dated directory (a numeric suffix if the same topic already ran today — see Workflow Step 2). |
-| Hard-depending on the built-in | `/deep-research` is a gated preview feature absent for many users. Never remove the fallback or assume the command exists. |
+| Invoking `deep`/`ultradeep` on a fuzzy one-word topic | Burns time on under-scoped queries — add a clarifying sentence, or refine scope with `quick`/`standard` first |
+| Skipping the mode prompt by guessing | Modes differ in runtime by ~10× — always ask unless `--mode=` is passed |
+| Treating the inline fallback as failure | A first-class path, not an error state — most users without Dynamic Workflows rely on it |
+| Editing reports in place after generation | Dated immutable artifacts — re-run instead; you get a fresh dated directory (numeric suffix if the topic already ran today — see Workflow Step 2) |
+| Hard-depending on the built-in | `/deep-research` is a gated preview absent for many users — never remove the fallback or assume it exists |

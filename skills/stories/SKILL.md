@@ -464,19 +464,19 @@ This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-t
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Generating stories without browsing the site first | Stories must be grounded in actual page structure and the live accessibility-tree snapshot |
-| Using CSS selectors, XPath, IDs, or class names in v2 schema | Schema v2 is semantic-only — see locator types in `story-examples.md`. CSS is brittle and forbidden. |
-| Storing `@eN` snapshot refs in story YAML | Refs are session-scoped and regenerate every snapshot — they are runtime-only. Always store the semantic locator and resolve to a ref at execution time via `agent-browser find`. |
-| Skipping the v1 detection prompt and silently parsing legacy files | v1 stories use CSS selectors that schema v2 forbids — silent parsing produces broken stories. Always run the v1 detection / regeneration UX when `schema_version: 2` is missing. |
-| Inlining credentials in story YAML | Use `auth: { vault: "<name>" }` referencing an Auth Vault entry. The LLM never sees passwords. Inline credentials risk accidental commits. |
-| Deleting existing stories in update mode | Existing stories may cover flows the exploration didn't re-encounter |
+| Generating stories without browsing the site first | Must be grounded in actual page structure and the live accessibility-tree snapshot |
+| Using CSS selectors, XPath, IDs, or class names in v2 schema | Semantic-only schema; CSS is brittle and forbidden — locator types in `story-examples.md` |
+| Storing `@eN` snapshot refs in story YAML | Refs are session-scoped and regenerate every snapshot — store the semantic locator, resolve at execution time via `agent-browser find` |
+| Skipping the v1 detection prompt and silently parsing legacy files | v1 CSS selectors are forbidden in v2, so silent parsing breaks stories — run the v1 detection / regeneration UX whenever `schema_version: 2` is missing |
+| Inlining credentials in story YAML | Risks accidental commits — use `auth: { vault: "<name>" }` so the LLM never sees passwords |
+| Deleting existing stories in update mode | They may cover flows the exploration didn't re-encounter |
 | Vague verify assertions ("page looks right") | QA agents need concrete, testable assertions |
-| Including "Navigate to URL" as a first step | The `url` field handles initial navigation automatically |
-| Skipping form-page negative coverage when NEGATIVE=true | When negative generation is enabled, forms with user input should always get validation-failure stories — they catch real security and UX issues. (Choosing `negative=false` is an explicit opt-out, not an anti-pattern.) |
+| Including "Navigate to URL" as a first step | The `url` field already handles initial navigation |
+| Skipping form-page negative coverage when NEGATIVE=true | Forms with user input always get validation-failure stories — they catch real security and UX bugs. (`negative=false` is an explicit opt-out.) |
 | Running more than one refinement correction round | Diminishing returns and high token cost — cap at one round |
-| Closing a session on step failure without capturing trace first | Failure records without a trace path are not actionable — always run `agent-browser --session <name> trace save` before `close` on failure |
-| Blocking story generation when source analysis fails | Source analysis enhances stories but must never be a hard gate — degrade gracefully to DOM-only |
-| Following imports beyond 3 levels of depth | Signal-to-noise ratio drops and analysis time increases — use what you have at the depth limit |
-| Generating source-aware stories for non-user-triggerable conditionals | Conditionals based on server config or feature flags cannot be exercised through the browser |
-| Browsing from scratch when journey files document the same pages | Journey files already contain URLs, personas, steps, and success states — ingest them in Step 1.1 and enrich with locators and assertions rather than rediscovering everything |
-| Auto-linking existing stories to journeys without user confirmation | Journey link suggestions are recommendations presented in Step 6 — the user decides whether to add `journey:` fields to existing stories |
+| Closing a session on step failure without capturing trace first | Failure records without a trace path aren't actionable — run `agent-browser --session <name> trace save` before `close` |
+| Blocking story generation when source analysis fails | Source analysis is never a hard gate — degrade gracefully to DOM-only |
+| Following imports beyond 3 levels of depth | Signal-to-noise drops, analysis time grows — use what you have at the limit |
+| Generating source-aware stories for non-user-triggerable conditionals | Server-config and feature-flag branches cannot be exercised through the browser |
+| Browsing from scratch when journey files document the same pages | Journeys already carry URLs, personas, steps, and success states — ingest in Step 1.1 and enrich with locators and assertions |
+| Auto-linking existing stories to journeys without user confirmation | Step 6 presents journey links as recommendations — the user decides whether to add `journey:` fields |

@@ -323,15 +323,15 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Building without a spec or design doc | No clear scope leads to scope creep and unverifiable results |
+| Building without a spec or design doc | No clear scope — scope creep and unverifiable results |
 | Asking for feedback during subagent execution | Subagent strategy is fully automated — make reasonable decisions and keep moving |
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
-| Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
+| Skipping code simplification | Iterative implementation accumulates complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
-| Skipping journey capture for features with an interaction surface | Journeys give visual review a structured path to walk and feed `/stories` for QA generation. This applies to all personas: end users, admins, developers, internal tooling users. |
+| Skipping journey capture for features with an interaction surface | Journeys give visual review a path to walk and feed `/stories` for QA generation — every persona: end users, admins, developers, internal tooling. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
-| Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
-| Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 4.5 before it becomes tech debt. Every deviation must be explicitly classified. |
-| Guessing at fixes for behavioral bugs without reproducing them | Edit-and-pray debugging turns a 30-minute bug into a 3-hour one — reproduce on command first via `/superpowers:systematic-debugging`, then fix the confirmed cause (Common Step 5). |
-| Using `batched` execution within `/flow` | Flow's purpose is hands-off automation — batched pauses for human review after every 3 tasks, contradicting flow's no-stopping design. Use `subagent` with `/flow`. |
-| Rewriting docs from scratch during build | Build doc updates are incremental — add/change what the build touched. Full rewrites belong in /wrap-up or /init. |
+| Asking the user whether to create a journey | Journey capture is automatic — the user didn't know they needed the spec either. |
+| Ignoring architectural deviations from the spec | Drift becomes tech debt — catch it in Step 4.5 and explicitly classify every deviation. |
+| Guessing at fixes for behavioral bugs without reproducing them | Edit-and-pray turns a 30-minute bug into a 3-hour one — reproduce on command via `/superpowers:systematic-debugging`, then fix the confirmed cause (Common Step 5). |
+| Using `batched` execution within `/flow` | `batched` pauses for review every 3 tasks, contradicting flow's hands-off design — use `subagent` with `/flow`. |
+| Rewriting docs from scratch during build | Build doc updates are incremental — change what the build touched; full rewrites belong in /wrap-up or /init. |

@@ -456,12 +456,12 @@ short-circuit, `merge-check` — the single-record version of dispatch's same ga
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Overriding a review finding at Medium+ severity because the diff otherwise looks safe | `merge-check` never overrides a real review finding — review's own findings are a hard input, not advisory. |
-| Weighing test-file line count toward risk in `merge-check` | The entire reason this skill exists is that test-line bulk isn't implementation risk — `testLines`/`testFiles` are informational only. |
-| Skipping the sensitive-path hard floor because the content judgment "looks fine" | Sensitive paths are a floor precisely because they're the cases where content judgment alone isn't sufficient signal — never overridden. |
-| Classifying an unclear failure as `transient` "to be less conservative" | Ambiguity always resolves to `correctness`'s conservative handling — the point of this skill is accuracy, not blanket permissiveness. |
-| Rendering `auto-merge` on an agent-instruction change without attempting to refute it | The escape from that floor is a refutation attempt, not a classification: name a behavior an agent could take differently, and pass only when the attempt genuinely comes up empty. Reading a diff as "looks small and tidy" and skipping the attempt is the failure this row exists to catch. |
-| Treating a correction as safe because it is factually true and verifiable | Truth is not the test — behavior delta is. A claim corrected from wrong to right still changes what agents reason from, which is exactly the case a verifiable-therefore-safe heuristic waves through. |
-| Dispatching this as a fresh Task agent instead of an inline Skill invocation | The calling agent already has the diff/review-findings/failure-output in its own context — a subagent restart only pays to re-derive what's already known. |
-| Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check` and fall back to a human-reviewed PR (this is exactly what happened to #18 before `merge-check` existed, for an unrelated reason). Never let ceremony depth influence merge eligibility or vice versa. |
-| Writing to `decisions.md` from inside this skill | This skill doesn't know about run-dir resolution — logging is the caller's job (`/claude-tweaks:backlog refine` or `/claude-tweaks:dispatch`), matching every other auto-decision log entry in this codebase. |
+| Overriding a Medium+ review finding because the diff otherwise looks safe | `merge-check` never overrides a real review finding — they're a hard input, not advisory. |
+| Weighing test-file line count toward risk in `merge-check` | Test-line bulk isn't implementation risk; `testLines`/`testFiles` are informational only. |
+| Skipping the sensitive-path hard floor because the content judgment "looks fine" | A floor exactly because content judgment isn't sufficient signal there — never overridden. |
+| Classifying an unclear failure as `transient` "to be less conservative" | Ambiguity always resolves to `correctness`'s conservative handling — accuracy, not blanket permissiveness. |
+| Rendering `auto-merge` on an agent-instruction change without attempting to refute it | The escape is a refutation attempt, not a classification: name a behavior an agent could take differently; pass only if it comes up empty. "Looks small and tidy" isn't an attempt. |
+| Treating a correction as safe because it is factually true and verifiable | Behavior delta is the test, not truth — a claim corrected wrong→right still changes what agents reason from. |
+| Dispatching this as a fresh Task agent instead of an inline Skill invocation | The caller already holds the diff/review-findings/failure-output — a subagent only pays to re-derive it. |
+| Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check`. Ceremony depth never influences merge eligibility, or vice versa. |
+| Writing to `decisions.md` from inside this skill | This skill doesn't resolve run dirs; logging is the caller's job (`/claude-tweaks:backlog refine` or `/claude-tweaks:dispatch`). |

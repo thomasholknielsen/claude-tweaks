@@ -232,16 +232,16 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Running the full suite when only types were requested | Respect the scope — the user asked for a targeted check |
-| Auto-fixing test failures without asking | Test failures can mask deeper issues — lint/type auto-fix with re-verification is safe, but test failures need investigation |
+| Running the full suite when only types were requested | The user asked for a targeted check |
+| Auto-fixing test failures without asking | They can mask deeper issues — lint/type auto-fix with re-verification is safe, tests need investigation |
 | Skipping CLAUDE.md command lookup | Projects have specific test commands — don't guess |
-| Running tests before type checking | Type errors often cause test failures — fail fast with the cheapest check |
-| Ignoring lint warnings | Warnings accumulate into a noisy codebase — surface them |
-| Running QA on broken code | Verification must pass before QA is meaningful — types/lint/tests gate QA in `all` mode |
-| Auto-fixing QA failures | QA failures indicate broken user-facing behavior — they need investigation, not automated patches |
-| Patching a behavioral test/QA failure without reproducing the cause | Follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` — confirm the repro, find the root cause via `/superpowers:systematic-debugging`, then fix. Never loosen an assertion or selector to make red go green. |
-| Skipping QA when stories exist in pipeline | Stories exist to be validated — if `VERIFICATION_PASSED` is set and stories exist, QA must run |
-| Treating Design CLI skip as a test failure | The wrapper skips for legitimate reasons (backend project, Impeccable not installed, kill-switch disabled). None are test failures — only `result: fail` from the wrapper is a gate failure. |
-| Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper's `test` mode is read-only by design (the Phase 2 `polish` mode is the code-modifying counterpart, invoked separately by `/flow`). |
-| Using `skip-qa` outside the re-verify context | The flag exists for `/flow`'s re-verify gate after polish modifications — it skips browser QA after stylistic changes. Standalone use is allowed but rarely useful; prefer the default suite which includes QA when stories exist. |
-| Skipping the Design CLI gate when `skip-qa` is set | See Step 1.5 — the Design CLI gate is orthogonal to QA and must still run. |
+| Running tests before type checking | Type errors cause test failures — fail fast with the cheapest check |
+| Ignoring lint warnings | Warnings accumulate into noise — surface them |
+| Running QA on broken code | Verification must pass first — types/lint/tests gate QA in `all` mode |
+| Auto-fixing QA failures | They mean broken user-facing behavior — investigate, don't patch |
+| Patching a behavioral test/QA failure without reproducing the cause | Per `_shared/reproduce-first-discipline.md`: confirm the repro, root-cause via `/superpowers:systematic-debugging`, then fix. Never loosen an assertion or selector to make red go green. |
+| Skipping QA when stories exist in pipeline | If `VERIFICATION_PASSED` is set and stories exist, QA must run |
+| Treating Design CLI skip as a test failure | It skips legitimately (backend project, Impeccable not installed, kill-switch disabled) — only `result: fail` is a gate failure. |
+| Auto-fixing Design CLI findings | They require human judgment — surface, never auto-modify code. The Phase 1 wrapper's `test` mode is read-only; Phase 2 `polish` is its code-modifying counterpart, invoked by `/flow`. |
+| Using `skip-qa` outside the re-verify context | For `/flow`'s re-verify gate, skipping browser QA after stylistic polish. Standalone use is rarely useful — prefer the default suite, which runs QA when stories exist. |
+| Skipping the Design CLI gate when `skip-qa` is set | Orthogonal to QA — it must still run. See Step 1.5. |

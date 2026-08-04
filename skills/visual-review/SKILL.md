@@ -213,17 +213,17 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Silently skipping when `agent-browser` is unavailable | Always report the missing dependency and offer options — never skip without telling the user |
-| Skipping First Impressions in visual review | The whole point is raw reaction before structured analysis — don't make it analytical |
-| Starting the dev server without asking **in interactive mode** | Interactive mode offers to start — it doesn't force it. (Auto mode is different: starting an ephemeral worktree server on a free port is pre-authorized and tracked — see `dev-url-detection.md`.) |
-| Reusing a responding port without checking it serves *this* worktree | In a worktree run, a server on :3000 is usually the main checkout — reviewing it reports false confidence on the wrong code. Always apply `dev-url-detection.md` Step 2.7 (worktree awareness) before trusting a port. |
+| Silently skipping when `agent-browser` is unavailable | Report the missing dependency and offer options — never skip silently |
+| Skipping First Impressions in visual review | Raw reaction must precede structured analysis — don't make it analytical |
+| Starting the dev server without asking **in interactive mode** | Interactive mode offers, it doesn't force. (Auto mode pre-authorizes a tracked ephemeral worktree server on a free port — `dev-url-detection.md`) |
+| Reusing a responding port without checking it serves *this* worktree | In a worktree run, :3000 is usually the main checkout — false confidence on the wrong code. Apply `dev-url-detection.md` Step 2.7 first |
 | Generic visual ideas ("improve the UX") | Ideas must be concrete and implementable in the current tech stack |
 | Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
-| Describing elements by position instead of annotated overlay number | "The button on the right" is brittle; "element [3]" is precise. Always reference annotated screenshot overlays in findings |
-| Skipping `vitals` capture | Performance is a first-class finding category — every reviewed page must produce LCP/CLS/INP/TTFB/FCP values |
-| Closing the session before saving a trace on failure | Failure reports without a trace path are not actionable — `trace save` first, then `close` |
-| Per-step `agent-browser` invocations during journey walks | Use `batch` for journey walks — one process, one session lifecycle, fewer tokens and less latency |
+| Describing elements by position instead of annotated overlay number | "The button on the right" is brittle; "element [3]" is precise — always reference annotated screenshot overlays |
+| Skipping `vitals` capture | Performance is a first-class finding — every reviewed page must produce LCP/CLS/INP/TTFB/FCP values |
+| Closing the session before saving a trace on failure | Failure reports without a trace path aren't actionable — `trace save` first, then `close` |
+| Per-step `agent-browser` invocations during journey walks | Use `batch` — one process, one session lifecycle, fewer tokens and less latency |
 | Batching across sessions | One `agent-browser batch` invocation owns a single session — never mix session names |
-| Silently auto-applying a Creative Opportunities suggestion without the apply-gate | The block is recommendations only until the user explicitly accepts via the apply-gate (standalone mode) or takes it away to run manually (parent-invoked mode). /visual-review never executes an Impeccable creative command without that explicit accept. |
-| Rendering the Creative Opportunities block when the wrapper returned `recommendations: []` or `{skipped}` | An empty result is a valid outcome — omit the block entirely. Surfacing "no opportunities found" as positive signal is misleading because survey is heuristic, not exhaustive. |
-| Duplicating browser procedures in SKILL.md | `browser-review.md` is canonical for all mechanical browser procedures. SKILL.md is for mode resolution, auto-mode policy, and orientation — never copy procedure detail here. |
+| Silently auto-applying a Creative Opportunities suggestion without the apply-gate | Recommendations only — the user accepts via the apply-gate (standalone) or takes it away to run manually (parent-invoked); never execute an Impeccable creative command without that accept |
+| Rendering the Creative Opportunities block when the wrapper returned `recommendations: []` or `{skipped}` | An empty result is valid — omit the block. Survey is heuristic, so "no opportunities found" misleads as positive signal |
+| Duplicating browser procedures in SKILL.md | `browser-review.md` is canonical for browser procedures; SKILL.md is mode resolution, auto-mode policy, and orientation |

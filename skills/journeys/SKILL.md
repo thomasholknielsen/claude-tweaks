@@ -190,11 +190,11 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
-| Concluding "no interaction surface" without checking the 3-signal evidence checklist | An unanchored holistic judgment call produced zero true positives across this project's entire history (`docs/journeys/` never existed) despite the persona list explicitly including developers and internal tooling users — Step 1 item 4's checklist exists precisely so the conclusion is evidence-anchored, not a vibe call |
+| Skipping journey capture for features with an interaction surface | No journey, no QA anchor for visual review. Every persona counts: end users, admins, developers, internal tooling users. |
+| Concluding "no interaction surface" without checking the 3-signal evidence checklist | Unanchored judgment scored zero true positives here (`docs/journeys/` never existed) — Step 1 item 4's checklist keeps the call evidence-anchored |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
-| Writing a journey with no `## Steps` heading | Step 3.5 self-review BLOCKs on structurally-invalid journey files — missing `## Steps` is the most common cause. Always render the heading even if the step list is short. |
-| Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
-| Listing every source file in `files:` | Only list files whose changes would affect the journey's behavior — key components, API routes, pages. |
-| One journey per feature instead of per goal | A journey may span features from multiple specs — organize by user goal, not implementation boundary. |
-| Skipping update of existing journeys | When a build modifies an existing flow, the journey file must reflect the change — stale journeys produce false regression signals. |
+| Writing a journey with no `## Steps` heading | Step 3.5 self-review BLOCKs on structurally-invalid files, and missing `## Steps` is the top cause — always render it, even for a short step list. |
+| Asking the user whether to create a journey | Capture is automatic — the user didn't know they needed the spec either. |
+| Listing every source file in `files:` | Only files whose changes affect the journey's behavior — key components, API routes, pages. |
+| One journey per feature instead of per goal | A journey may span multiple specs — organize by user goal, not implementation boundary. |
+| Skipping update of existing journeys | A build that modifies a flow must update its journey — stale journeys give false regression signals. |

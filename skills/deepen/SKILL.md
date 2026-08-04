@@ -187,11 +187,11 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Measuring depth as implementation-lines ÷ interface-lines | Rewards padding the implementation and punishes simple-but-deep modules — judge leverage from call sites, not line counts |
-| Proposing interfaces for every candidate up front | That's the runaway rewrite — Stage 1 presents *what* and *why*; interface design happens only for candidates the user picks |
-| Dressing a collapse up as a deepening | A pass-through that fails the deletion test should be inlined, not "deepened" — call it what it is |
-| Drifting into component / service / boundary vocabulary | Inconsistent language makes proposals impossible to compare — use the controlled vocabulary |
-| Changing behavior during a depth refactor | Depth refactors change structure only — if behavior must change, that's a different skill. Broken tests mean you changed behavior |
-| Auto-applying a refactor in `auto` mode | Architecture is low-reversibility — auto mode stages candidates for the Review Console, never refactors silently |
-| Running a whole-repo depth audit | This skill reviews recent work — a codebase-wide audit is a different, deliberate exercise |
-| Deepening a module by pushing a network call into previously pure code | That trades testability for a smaller surface — flag it as a risk, don't do it silently |
+| Measuring depth as implementation-lines ÷ interface-lines | Rewards padding, punishes simple-but-deep modules — judge leverage from call sites, not line counts |
+| Proposing interfaces for every candidate up front | Runaway rewrite — Stage 1 presents *what* and *why*; interfaces only for candidates the user picks |
+| Dressing a collapse up as a deepening | A pass-through failing the deletion test should be inlined, not "deepened" |
+| Drifting into component / service / boundary vocabulary | Proposals become impossible to compare — use the controlled vocabulary |
+| Changing behavior during a depth refactor | Structure only — behavior changes belong to a different skill; broken tests mean you changed behavior |
+| Auto-applying a refactor in `auto` mode | Architecture is low-reversibility — `auto` stages candidates for the Review Console, never refactors silently |
+| Running a whole-repo depth audit | This skill reviews recent work — repo-wide audits are a separate deliberate exercise |
+| Deepening a module by pushing a network call into previously pure code | Trades testability for a smaller surface — flag it as a risk, don't do it silently |

@@ -133,7 +133,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Pattern | Why It Fails |
 |---------|--------------|
 | Regenerating the core fragment separately per wrapper | The standalone file and markdown embed drift apart. Generate once (Step 4), wrap two ways (Step 5). |
-| Re-asking the DESIGN.md fallback question every invocation | Annoys a user who's already decided not to use Impeccable. Dedupe per session (`visual-html-output.md` Step 2). |
-| Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — this fights the tool the same way theming fights Mermaid/D2's own engines. |
-| Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. `record-graph` is the one by-rule exception (Step 3's own table row): it always writes there, for every invocation. |
-| Model hand-authoring `record-graph`'s D2/SVG source from the fetched JSON | Defeats the type's whole purpose — it exists specifically to avoid LLM transcription of structured queue data (wrong issue numbers, dropped labels). Always route through `bin/record-graph.js render`. |
+| Re-asking the DESIGN.md fallback question every invocation | Annoys a user who already declined Impeccable. Dedupe per session (`visual-html-output.md` Step 2). |
+| Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — it fights the tool like theming fights Mermaid/D2's engines. |
+| Writing every diagram to central `docs/diagrams/` regardless of caller | Co-locate with what the diagram illustrates (Step 3); `docs/diagrams/` is the fallback for context-free invocations only. `record-graph` is the sole by-rule exception (Step 3's table row) — it always writes there. |
+| Model hand-authoring `record-graph`'s D2/SVG source from the fetched JSON | Defeats the type's purpose: avoiding LLM transcription of structured queue data (wrong issue numbers, dropped labels). Always route through `bin/record-graph.js render`. |

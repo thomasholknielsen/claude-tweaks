@@ -96,9 +96,9 @@ If situational filtering leaves only one option (a bare run that surfaced nothin
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Granting `auto:build`/`auto:merge` from anything but an interactive human session | `auto:*` labels are only ever added by an interactive human session — there is no machinery path that originates a grant. This is the security boundary, not a discretionary nicety. |
-| Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-recommended batch. |
-| Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only ever *strips* `bot:blocked` on re-grant; it never adds one. |
-| Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section. |
-| Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | Stays `/claude-tweaks:tidy`'s job (its existing Shape 3) — this skill tags them and (in `refine`) may still suggest/apply `priority:*` for one via the local-files fallback path, but never mirrors it to GitHub. |
-| Claiming or building a record from this skill | Out of scope entirely — stays `/claude-tweaks:dispatch`'s job. |
+| Granting `auto:build`/`auto:merge` from anything but an interactive human session | No machinery path originates a grant — `auto:*` labels come only from a human session. This is the security boundary |
+| Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action is the load-bearing security signature — never skip it, even for an all-recommended batch |
+| Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only *strips* `bot:blocked` on re-grant |
+| Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |
+| Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | `/claude-tweaks:tidy`'s job (Shape 3) — this skill tags them and in `refine` may apply `priority:*` via the local-files fallback, never mirroring to GitHub |
+| Claiming or building a record from this skill | Out of scope — `/claude-tweaks:dispatch`'s job |

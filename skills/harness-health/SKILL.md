@@ -167,15 +167,15 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Applying any patch directly instead of filing an issue | `/harness-health` never edits anything — every finding, regardless of `assetType`/classification/confidence/reversibility, files as a GitHub issue for human review. Matches `/code-health`'s report-only contract. |
-| Treating a rule's low compliance ratio as automatic drift | A low adherence ratio can mean the code violates a still-correct rule (a `/code-health` code-quality problem) rather than the rule being stale — always reason about *why* the ratio is low before emitting a finding. |
-| Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
-| Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging — the verify gate in `_shared/harness-health-analysis.md` is not optional. |
-| Reading every sub-file of a candidate skill regardless of relevance | Some skills (`build`, `stories`, `init`) have many sub-files — exhaustive reads get expensive across a whole-library rotation. Bound reads by relevance. |
-| Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`. |
-| Editing code to "fix" what a skill, rule, or CLAUDE.md describes | This skill only ever touches harness documentation, never the code it describes. |
-| Proposing a "new-rule" or "new-claude-md-section" finding | Gap detection (proposing a brand-new artifact) is skill-only this phase — rules and CLAUDE.md only ever get `patch` findings against their existing content. |
-| Folding memory into `listTargets`'s default pool | A bare Routine firing has no way to know it shouldn't touch memory — the exclusion has to be structural (a separate lister, a separate CLI branch), not a documented convention alone. |
-| Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied to N sections. Use `relatedSections` to cover every occurrence in a single finding instead. |
-| Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
-| Collecting findings from multiple `--budget > 1` targets into one shared `validate-findings` call | `validate-findings` advances the audit cursor for exactly one `--target`/`--kind` pair per invocation — a shared call across targets silently leaves N-1 of N targets' cursors stuck, re-selecting them as due again on the very next firing despite having just been judged. Run Step 6/7 once per target, per Step 1's multi-target instructions. |
+| Applying a patch directly instead of filing an issue | `/harness-health` never edits — every finding files as a GitHub issue regardless of `assetType`/classification/confidence/reversibility, like `/code-health` |
+| Treating a rule's low compliance ratio as automatic drift | It can mean the code violates a still-correct rule (a `/code-health` problem) — reason about *why* the ratio is low before emitting a finding |
+| Re-proposing a patch already marked `declined` in the cache | Decline-memory exists so rejected proposals don't reappear every firing |
+| Skipping the verify gate under time pressure | Unattended firings compound uncaught misreads into staged noise — `_shared/harness-health-analysis.md`'s gate is not optional |
+| Reading every sub-file of a candidate skill regardless of relevance | Sub-file-heavy skills (`build`, `stories`, `init`) make that expensive across a whole-library rotation — bound reads by relevance |
+| Treating the local cache as durable state | It's a rebuildable optimization — GitHub issue state is the cross-run source of truth, same as `/code-health` |
+| Editing code to "fix" what a skill, rule, or CLAUDE.md describes | This skill touches harness documentation only |
+| Proposing a "new-rule" or "new-claude-md-section" finding | Gap detection is skill-only this phase — rules and CLAUDE.md get only `patch` findings |
+| Folding memory into `listTargets`'s default pool | A bare Routine firing can't know to skip memory — the exclusion must be structural (separate lister or CLI branch), not a documented convention |
+| Splitting one recurring root cause into N near-duplicate issues | Floods the tracker with one fix restated N times — use `relatedSections` to cover every occurrence in one finding |
+| Filing before presenting the interactive gate | The two-tier decision must precede any `gh issue create` for new findings — see `_shared/health-filing-gate.md`'s placement rule |
+| Collecting findings from multiple `--budget > 1` targets into one shared `validate-findings` call | It advances the audit cursor for exactly one `--target`/`--kind` pair per invocation — a shared call leaves N-1 cursors stuck, re-selecting those targets as due on the next firing. Run Step 6/7 once per target, per Step 1. |

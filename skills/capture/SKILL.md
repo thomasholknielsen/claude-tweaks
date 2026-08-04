@@ -245,9 +245,9 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec directly instead so the durable record stays the source of truth |
-| Writing a full spec as a backlog record | A backlog record is for half-formed ideas; a fully-formed spec belongs in `specs/` where `/build` and `/flow` can act on it |
-| Never reviewing the backlog | Without periodic triage via `/claude-tweaks:tidy`, the backlog becomes a graveyard and captured ideas lose context over time |
-| Adding implementation details to a backlog record | A backlog record captures *what* and *why* — *how* is brainstorming + spec territory and changes faster than the idea itself |
-| Skipping `/superpowers:brainstorming` and jumping straight to specs | Brainstorming surfaces assumptions and constraints that specs need; without it, specs encode unchallenged premises |
-| Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — annotate the spec file directly so the note moves with the work |
+| Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec so it stays the source of truth |
+| Writing a full spec as a backlog record | Backlog records are for half-formed ideas; a full spec belongs in `specs/` where `/build` and `/flow` can act on it |
+| Never reviewing the backlog | Without periodic `/claude-tweaks:tidy` triage the backlog becomes a graveyard and ideas lose context |
+| Adding implementation details to a backlog record | A record captures *what* and *why* — *how* is brainstorming + spec territory and shifts faster than the idea |
+| Skipping `/superpowers:brainstorming` and jumping straight to specs | Specs encode unchallenged premises without the assumptions and constraints brainstorming surfaces |
+| Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — annotate the spec file so the note moves with the work |

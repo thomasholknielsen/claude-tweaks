@@ -604,13 +604,13 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Reviewing incomplete specs | Wastes effort — spec compliance check (Step 1) catches this, but don't skip it |
-| Skipping the test gate to "save time" | Broken code invalidates the entire review — `/test` must pass first |
+| Reviewing incomplete specs | Wastes effort — Step 1's spec compliance check catches it, but don't skip it |
+| Skipping the test gate to "save time" | Broken code invalidates the review — `/test` must pass first |
 | Reviewing unrelated code | Scope creep — only review files changed in the current work |
-| Accepting all Implementation Hindsight findings as-is | The action gate exists for a reason — "change now" items must be fixed |
-| Running review without a prior build | Review assumes code exists and was recently written — it is not a codebase-wide audit |
-| Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
-| Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 3 Routing), then summarize (Step 7). |
-| Running verification or QA directly in review | Mechanical checks belong in `/claude-tweaks:test` — review gates on test passing, it doesn't duplicate the work |
-| Treating Design Quality findings as authoritative | LLM critiques are opinionated — findings are advisory. The user judges which to action. Phase 1 deliberately keeps the design wrapper read-only. |
-| Auto-fixing Design Quality findings in Step 6.5 | Phase 1's design wrapper is read-only — code-modifying behavior ships in Phase 2's polish phase. Findings route through Step 3 Routing if the user wants to action them. |
+| Accepting all Implementation Hindsight findings as-is | The action gate exists — "change now" items must be fixed |
+| Running review without a prior build | Review assumes recently written code — not a codebase-wide audit |
+| Listing code review findings without routing them | Every finding resolves explicitly: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
+| Putting findings only in the summary table | The summary records resolutions, not observations. Route first (Step 3 Routing), then summarize (Step 7). |
+| Running verification or QA directly in review | Mechanical checks belong in `/claude-tweaks:test` — review gates on it passing, never duplicates it |
+| Treating Design Quality findings as authoritative | LLM critiques are opinionated — advisory only; the user judges which to action. Phase 1's design wrapper is read-only. |
+| Auto-fixing Design Quality findings in Step 6.5 | Phase 1's design wrapper is read-only; code-modifying behavior ships in Phase 2's polish phase. Route findings through Step 3 Routing to action them. |

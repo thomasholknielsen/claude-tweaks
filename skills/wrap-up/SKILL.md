@@ -519,22 +519,22 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Running wrap-up before review | Wrap-up assumes code quality is verified — skipping review means capturing learnings from unvalidated work |
-| Deleting specs that aren't 100% complete | Partial specs need leftover work routed, not deleted — use Step 4 first |
-| Adding every insight to CLAUDE.md | CLAUDE.md has a size budget — route detailed content to skills, rules, or memory files |
-| Skipping reflection for "simple" work | Simple work still surfaces surprises and near-misses worth capturing |
-| Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
-| Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason from the user |
-| Completing wrap-up with open ledger items | The nothing-left-behind gate exists to prevent dropped work — resolve every item before presenting the summary |
-| Scanning the entire skill library on every wrap-up | Step 7's independent scan is bounded to the ~5 skills whose domain overlaps the changed files (~2 under a fast-lane ceremony profile; plus seeded skills) — a whole-library audit on every wrap-up wastes effort and produces noise. Domain-scoped scanning is expected; whole-library scanning is the anti-pattern |
-| Skipping skill curation because nothing was ledger-tagged | Step 7 generates candidates from the work itself — the independent scan and gap detection run even with zero seeds. Declaring "no skill updates needed" just because no entry was tagged is the failure this step exists to fix |
-| Declaring "no skill updates needed" with no logged scan scope | The null result is unfalsifiable without a record of what was scanned and how deep the ranking went — Step 7's mandatory `SCANNED` summary line (`skill-curation.md` 7.6) exists precisely so "nothing needed updating" is auditable, not just asserted |
-| Skipping documentation curation because nothing was directly touched | Step 7.7's domain-overlap scan (D0) reads relevant docs even when this work didn't edit them directly — declaring "no documentation updates needed" without running D0 skips exactly the check this step exists to add |
-| Declaring "no documentation updates needed" with no logged scan scope | The null result is unfalsifiable without a record of what was scanned — Step 7.7's mandatory `SCANNED` summary line (`docs-health-integration.md`) exists precisely so "nothing needed updating" is auditable, not just asserted |
-| Declaring "no journey updates needed" without checking `files:` frontmatter against the diff | Step 7.8's fresh diff-vs-frontmatter computation exists precisely because build-time `/journeys` and review's 3g-cov lens don't catch drift introduced after their own pass ran — skipping the recomputation reintroduces the exact silent-drift gap this step exists to close |
-| Letting a closed sub-file gate suppress the step's `SCANNED` summary line | Steps 7 / 7.7 / 7.8 / 7.9 gate the *read* of their procedure file, never the *reporting*. When a gate is closed, the summary line is emitted from that step's own inline template with `gap detection: not run` — an unreported step is indistinguishable from a step that ran and found nothing, which is exactly the silent skip the summary exists to prevent |
-| Gating `skill-curation.md`'s read on `.claude/skills/*.md` alone | `skill-curation.md` 7.2 step 2 requires gap detection to run even when the directory is absent — "a project with no skills is the strongest case for a first one." Step 7's gate therefore also opens on a cohesive multi-file diff; existence of the skill library is not a sufficient gate on its own |
-| Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
-| Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
-| Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
-| Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — triviality gets a fast path at `/demo`'s own verdict step, not wrap-up's labeling step |
+| Running wrap-up before review | Captures learnings from unvalidated work |
+| Deleting specs that aren't 100% complete | Leftover work needs routing first — use Step 4 |
+| Adding every insight to CLAUDE.md | Size budget — route detail to skills, rules, or memory files |
+| Skipping reflection for "simple" work | It still surfaces surprises and near-misses |
+| Keeping design docs and plans after wrap-up | Consumed artifacts go stale — spec and code are the durable records |
+| Silently dropping insights with no obvious destination | Every insight needs an explicit decision — "don't capture" needs a user-stated reason |
+| Completing wrap-up with open ledger items | The nothing-left-behind gate: resolve every item before the summary |
+| Scanning the entire skill library every wrap-up | Step 7's scan is bounded to the ~5 skills overlapping the changed files (~2 under a fast-lane ceremony profile, plus seeded skills) — a whole-library audit is noise |
+| Skipping skill curation because nothing was ledger-tagged | Step 7's scan and gap detection run with zero seeds — candidates come from the work, not just tagged entries |
+| Declaring "no skill updates needed" with no logged scan scope | Unfalsifiable without a record of scan scope and ranking depth — Step 7's mandatory `SCANNED` line (`skill-curation.md` 7.6) makes it auditable |
+| Skipping doc curation because nothing was directly touched | Step 7.7's domain-overlap scan (D0) reads relevant docs this work didn't edit — skipping D0 skips the whole check |
+| Declaring "no documentation updates needed" with no logged scan scope | Unfalsifiable without a record of scan scope — Step 7.7's mandatory `SCANNED` line (`docs-health-integration.md`) makes it auditable |
+| Declaring "no journey updates needed" without checking `files:` frontmatter against the diff | Build-time `/journeys` and review's 3g-cov lens miss drift landing after their pass — only Step 7.8's fresh diff-vs-frontmatter recomputation catches it |
+| Letting a closed sub-file gate suppress the step's `SCANNED` summary line | Steps 7 / 7.7 / 7.8 / 7.9 gate the *read* of their procedure file, never the *reporting* — a closed gate still emits the line from the step's inline template with `gap detection: not run`; silence and "found nothing" are otherwise indistinguishable |
+| Gating `skill-curation.md`'s read on `.claude/skills/*.md` alone | `skill-curation.md` 7.2 step 2 requires gap detection even with no skills directory — Step 7's gate also opens on a cohesive multi-file diff |
+| Proposing generic skill updates with no concrete anchor | Every update must trace to a ledger entry, a reflection insight, or a changed-file observation — unanchored ones read as hallucinated |
+| Mixing skill updates into the doc/CLAUDE.md batch table | They require full file reads and Update Mode patches — own decision table in Step 7 |
+| Writing an ADR for every decision | ADRs are valuable because rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so; zero per wrap-up is normal |
+| Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — triviality gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step |

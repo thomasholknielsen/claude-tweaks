@@ -500,25 +500,25 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Modifying existing backlog work records or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
-| Skipping CLAUDE.md generation | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
-| Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
-| Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |
-| Prompting for a browser backend choice | There is only one backend (`agent-browser`) — do not present a choice |
-| Silently rewriting a legacy `backlog-backend` flag to `work-backend` during Phase 0 | That rename is Update-Mode's job, offered as a staged change (see `update-mode.md`'s Work-Record Backend Drift) — Phase 0 must leave an existing `## Backlog integration` section untouched |
-| Generating generic skills (e.g., `auth.md`, `api-routes.md`) | These are not real conventions — they're feature names. Real skills must encode rules, anti-patterns, or "Why this is done this way" insights grounded in patterns actually observed in the codebase. If the project doesn't use WebSockets, don't create a realtime skill. If it has no tests, capture testing as an aspirational backlog item, not a SKILL.md file. |
-| Generating generic skills not grounded in the codebase | Skills must encode observed patterns — generic advice adds noise, not value |
-| Rewriting CLAUDE.md in Update Mode | Update Mode produces patches, not rewrites — existing config embeds hard-won lessons |
-| Over-generating skills (15 mediocre > 5 excellent) | Each skill must earn its existence by encoding knowledge that would otherwise be lost |
-| Skipping team input | Code archaeology alone misses social conventions — PR process, deploy cadence, naming debates |
-| Aspirational Don'ts for things that don't exist | Don'ts are guardrails for existing patterns, not wishes for missing infrastructure. "No CI" is a backlog item, not a Don't. |
-| Putting improvement ideas in CLAUDE.md | CLAUDE.md describes how to work in the codebase as it is — improvement opportunities belong in the backlog with Phase 2 context |
-| Generating skills for patterns that don't exist yet | Aspirational skills (testing for a project with no tests) become backlog work records with Phase 2 evidence, not SKILL.md files |
-| Hardcoding greenfield philosophy for all projects | The Philosophy section must adapt to detected project maturity — what's correct for a greenfield project is dangerous for an established one |
-| Creating doc files with only TODO placeholders | Phase 2 reconnaissance has the data — generate real content grounded in actual findings. If a doc would be < 20 lines of real content, it belongs in README instead of its own file. |
-| Skipping journey discovery for projects with user-facing features | Journeys are what `/review` tests against — without them, visual QA has no experiential anchor |
-| Writing journey "should feel" without actually using the app | Codebase-only skeletons are a starting point but the "should feel" is weaker — mark them as skeletons |
-| Auto-copying local MCP server configs (`~/.claude.json`) into the project's committed `.mcp.json` | MCP server configs can carry embedded credentials (API keys, tokens) — copying them into a committed file leaks secrets. Step 14's MCP-parity check is report-only by design; the user reviews and adds any that matter, manually. |
-| Hand-editing `scripts/claude-cloud-setup.sh` | Regenerated in full on every `/init` run from `.claude/settings.json` state — manual edits are silently overwritten. Customize by changing `enabledPlugins`/`extraKnownMarketplaces` instead, then re-run `/init`. |
-| Assuming `/init` can set the cloud environment's Setup-script field itself | No API or CLI sets it remotely — confirmed by inspecting `RemoteTrigger`'s own schema (scoped to `/v1/code/triggers` only). It's always a manual, one-time paste per environment, done in the claude.ai/code environment settings UI. |
-| Assuming Step 9 can authenticate `gh` non-interactively | `gh auth login --web` is a device-flow browser authorization — it always requires the user to complete a step in their own browser. There is no headless/token-based path this step uses instead. |
+| Modifying existing backlog records or INDEX.md | Phase 0 is additive — never overwrite user content |
+| Skipping CLAUDE.md generation | /claude-tweaks:review can't find verification commands |
+| Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up need git — surface the degradation |
+| Installing browser tools without asking | Optional — surface the install command, never run `npm install` |
+| Prompting for a browser backend choice | Only one backend exists (`agent-browser`) |
+| Silently rewriting a legacy `backlog-backend` flag to `work-backend` in Phase 0 | That rename is Update-Mode's staged change (`update-mode.md`, Work-Record Backend Drift) — Phase 0 leaves `## Backlog integration` untouched |
+| Generating generic skills (e.g., `auth.md`, `api-routes.md`) | Feature names, not conventions — skills encode rules, anti-patterns, or "why this way" insights observed in the codebase. No WebSockets, no realtime skill; no tests, testing is a backlog item, not a SKILL.md file. |
+| Generating generic skills not grounded in the codebase | Generic advice adds noise, not value |
+| Rewriting CLAUDE.md in Update Mode | Update Mode patches — existing config embeds hard-won lessons |
+| Over-generating skills (15 mediocre > 5 excellent) | Each skill must encode knowledge otherwise lost |
+| Skipping team input | Code archaeology misses social conventions — PR process, deploy cadence, naming |
+| Aspirational Don'ts for things that don't exist | Don'ts guard existing patterns — "No CI" is a backlog item |
+| Putting improvement ideas in CLAUDE.md | It describes the codebase as it is — improvements go to the backlog with Phase 2 context |
+| Generating skills for patterns that don't exist yet | Aspirational skills (testing with no tests) become backlog records with Phase 2 evidence, not SKILL.md files |
+| Hardcoding greenfield philosophy for all projects | Philosophy adapts to detected maturity — greenfield advice is dangerous on an established project |
+| Creating doc files with only TODO placeholders | Phase 2 recon has the data — generate real content; under 20 lines of it belongs in README |
+| Skipping journey discovery for user-facing features | `/review` tests against journeys — without them visual QA has no anchor |
+| Writing journey "should feel" without using the app | Codebase-only skeletons have a weaker "should feel" — mark them as skeletons |
+| Auto-copying local MCP server configs (`~/.claude.json`) into the committed `.mcp.json` | They can carry credentials — committing leaks secrets. Step 14's MCP-parity check is report-only; the user adds any that matter, manually. |
+| Hand-editing `scripts/claude-cloud-setup.sh` | Regenerated on every `/init` run from `.claude/settings.json` — edits are silently overwritten. Customize via `enabledPlugins`/`extraKnownMarketplaces`, then re-run. |
+| Assuming `/init` can set the cloud environment's Setup-script field | No API or CLI sets it remotely (`RemoteTrigger`'s schema covers only `/v1/code/triggers`) — always a manual one-time paste per environment in the claude.ai/code settings UI |
+| Assuming Step 9 can authenticate `gh` non-interactively | `gh auth login --web` is device-flow — it always requires the user's own browser; no headless path exists |

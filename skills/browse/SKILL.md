@@ -161,13 +161,13 @@ Call `AskUserQuestion`:
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Polling the dashboard programmatically | `http://localhost:4848` is a human debug surface — scraping it is brittle and unsupported |
-| Storing `@eN` snapshot refs in YAML or persisted artifacts | Refs are session-scoped and regenerate on every snapshot — resolve them at runtime via `find` |
-| Batching across sessions | One `agent-browser batch` invocation owns a single session's lifecycle — never mix session names in one batch |
-| Using CSS or XPath selectors with `find` | Schema v2 forbids CSS/XPath — use semantic locators only (role, name, text, testid, label, placeholder) |
+| Polling the dashboard programmatically | `http://localhost:4848` is a human debug surface — scraping is brittle and unsupported |
+| Storing `@eN` snapshot refs in YAML or persisted artifacts | Refs are session-scoped and regenerate every snapshot — resolve at runtime via `find` |
+| Batching across sessions | One `agent-browser batch` owns one session's lifecycle — never mix session names |
+| Using CSS or XPath selectors with `find` | Schema v2 forbids CSS/XPath — semantic locators only (role, name, text, testid, label, placeholder) |
 | Generic session names (`test`, `session1`) | Names show up in dashboards and trace paths — derive from purpose |
-| Forgetting to close sessions | Leaked sessions consume memory — always `close` at the end of a run |
-| Skipping the trace on failure | Failure reports without a trace path are not actionable — capture before closing |
-| A consumer skill routes through `backend=chrome` | Breaks portability to hosted Routines — `agent-browser` is the only backend that works headless; this flag is human-invoked only |
-| A consumer skill (`/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, a Routine) sets `--quick` | Weakens the evidentiary discipline those flows depend on — `--quick` is for direct, human-invoked ad-hoc checks only |
-| Skipping `set viewport`/`set device` and relying on env vars | Use the first-class `set viewport`/`set device` commands — env-var workarounds are not supported |
+| Forgetting to close sessions | Leaked sessions consume memory — `close` at the end of a run |
+| Skipping the trace on failure | Failure reports without a trace path aren't actionable — capture before closing |
+| A consumer skill routes through `backend=chrome` | Breaks portability to hosted Routines — `agent-browser` is the only headless-capable backend; human-invoked only |
+| A consumer skill (`/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, a Routine) sets `--quick` | Weakens the evidentiary discipline those flows depend on — `--quick` is for human-invoked ad-hoc checks only |
+| Skipping `set viewport`/`set device` and relying on env vars | Env-var workarounds are unsupported — use the first-class `set viewport`/`set device` commands |

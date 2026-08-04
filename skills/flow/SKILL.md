@@ -316,23 +316,23 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Stopping the pipeline because the spec is "big" | Size is not a coupling signal. A clean 50-task spec runs through fine. The shape gate (Step 2.6) blocks on **structural** signals (cross-task deps, scope leak), not size. Under `auto`, the model is forbidden from inserting size-driven reality-checks beyond Step 2.6 — see `_shared/auto-mode-contract.md`. |
-| Inserting model-side reality-checks under `auto` | The user said `auto`. Concerns belong in the ledger or the failure card, not as blocking prompts. See `_shared/auto-mode-contract.md` for the full anti-list. |
-| Ignoring gate failures and restarting | Gates exist to catch real problems — investigate before retrying |
-| Running flow on specs with unmet prerequisites | The pipeline will fail at build — check dependencies first |
-| Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
-| Using `batched` execution in flow | Flow's purpose is hands-off automation — batched pauses for human review, contradicting flow's no-stopping design. Use `/claude-tweaks:build batched` directly. |
-| Ignoring open ledger items at pipeline end | The nothing-left-behind gate prevents dropped work — every item must be explicitly resolved |
-| Treating `auto` as authorization to bulk-resolve the ledger | `auto` silences per the contract in `_shared/auto-mode-contract.md`. The resolve gate's Phase 2 is on the "What `auto` does NOT silence" list — every item requires explicit per-item user input |
-| Creating a work record from inside flow without explicit per-item user approval | Both `backlog` and `parked` are valid destinations, but each record requires the user's explicit choice on that specific item. Pipeline phases never file a record autonomously, even when an item looks like an obvious candidate |
-| Skipping test in the pipeline | Test is the mechanical gate — review depends on `TEST_PASSED`. Omitting test means review runs on potentially broken code. |
-| Retrying polish after re-verify failure within the same flow run | The one-cycle cap exists to prevent oscillation (polish → fail → fix → polish → fail → ...). Surface the failure, let the user inspect, and require a fresh `/flow {spec} polish` to retry. |
-| Treating polish skip as a flow failure | Polish skips are normal — non-frontend specs, no Impeccable, `no-polish` flag, no audit findings + no auto-fit changes needed all skip cleanly. The pipeline continues to wrap-up. |
-| Running re-verify without `skip-qa` | Browser QA is irrelevant after stylistic-only polish — re-verify uses `/test skip-qa` to keep the cycle fast. The Design CLI gate still runs (it is not QA). |
-| Using `no-polish` on a frontend spec by reflex | Polish is the value-add for frontend specs — only set `no-polish` when iterating fast or when the user has manually run Impeccable polish before flow. |
-| Auto-running creative commands surfaced in the Creative Opportunities block | The block is recommendations only. Flow never executes Impeccable creative commands from survey output — the user invokes them manually if a suggestion resonates. |
-| Applying (or staging-to-apply) a depth refactor inside flow | The depth survey is analysis-only. Architecture is low-reversibility and the depth refactor is interactive by design — flow surfaces candidates as recommendations and the user runs `/claude-tweaks:deepen` deliberately. Auto-refactoring module interfaces in a hands-off run is exactly the irresponsible move the survey boundary prevents. |
-| Running the depth survey on a config-only or docs-only diff | The pre-check exists to keep cost proportionate — skip the survey when no source modules changed. Burning tokens reading call sites on a trivial diff is waste. |
-| Rendering the Depth Opportunities block when the survey found nothing | An empty result means the abstractions are earning their keep, not that analysis was skipped — omit the block rather than implying there was nothing to analyze. |
-| Rendering the Creative Opportunities block when survey returned empty or skipped | Survey is heuristic. An empty result means "nothing matched the criteria," not "design is complete." Rendering an empty block falsely implies completeness. Omit the block entirely. |
-| Skipping decline detection on re-runs of the same spec | The declined-recommendations cache is what keeps the Creative Opportunities block from becoming noise across iterations. Read the prior recommendations cache, compare against the new diff, increment declines for un-invoked recommendations before invoking survey. |
+| Stopping the pipeline because the spec is "big" | Size isn't coupling — the Step 2.6 shape gate blocks on **structural** signals (cross-task deps, scope leak); under `auto`, further size-driven checks are forbidden (`_shared/auto-mode-contract.md`) |
+| Inserting model-side reality-checks under `auto` | Concerns belong in the ledger or failure card, not blocking prompts — `_shared/auto-mode-contract.md` |
+| Ignoring gate failures and restarting | Gates catch real problems — investigate before retrying |
+| Running flow on specs with unmet prerequisites | Fails at build — check dependencies first |
+| Using flow for interactive skills | Capture, challenge, and specify need human decisions |
+| Using `batched` execution in flow | Batched pauses for human review, contradicting flow's hands-off design — use `/claude-tweaks:build batched` |
+| Ignoring open ledger items at pipeline end | The nothing-left-behind gate requires every item explicitly resolved |
+| Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate's Phase 2 is on `_shared/auto-mode-contract.md`'s "does NOT silence" list — every item needs explicit per-item user input |
+| Creating a work record from inside flow without explicit per-item user approval | Both `backlog` and `parked` are valid, so each record needs the user's choice on that specific item — pipeline phases never file autonomously |
+| Skipping test in the pipeline | Review depends on `TEST_PASSED` — skipping it reviews potentially broken code |
+| Retrying polish after re-verify failure within the same flow run | The one-cycle cap prevents oscillation — surface the failure and require a fresh `/flow {spec} polish` to retry |
+| Treating polish skip as a flow failure | Skips are normal (non-frontend spec, no Impeccable, `no-polish` flag, no audit findings + no auto-fit changes); the pipeline continues to wrap-up |
+| Running re-verify without `skip-qa` | Browser QA is irrelevant after stylistic-only polish — `/test skip-qa` keeps the cycle fast; the Design CLI gate still runs |
+| Using `no-polish` on a frontend spec by reflex | Polish is the value-add for frontend specs — set `no-polish` only when iterating fast or after a manual Impeccable polish |
+| Auto-running creative commands surfaced in the Creative Opportunities block | Recommendations only — flow never executes Impeccable creative commands from survey output; the user invokes them |
+| Applying (or staging-to-apply) a depth refactor inside flow | The depth survey is analysis-only — architecture is low-reversibility; the user runs `/claude-tweaks:deepen` deliberately |
+| Running the depth survey on a config-only or docs-only diff | Disproportionate cost — skip the survey when no source modules changed |
+| Rendering the Depth Opportunities block when the survey found nothing | Empty means the abstractions are earning their keep, not that analysis was skipped — omit the block |
+| Rendering the Creative Opportunities block when survey returned empty or skipped | Survey is heuristic — empty means "nothing matched the criteria," not "design is complete." Omit the block entirely |
+| Skipping decline detection on re-runs of the same spec | The Creative Opportunities block becomes noise across iterations. Before survey: read the prior recommendations cache, compare to the new diff, increment declines for un-invoked recommendations |

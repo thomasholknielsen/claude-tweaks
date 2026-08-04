@@ -188,11 +188,11 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Accepting all hindsight findings as-is | The action gate exists for a reason — "change now" items must be fixed |
-| Running full mode during review | Review needs the focused hindsight gate, not the broader reflection. Full mode is for wrap-up or standalone. |
-| Skipping reflection for "simple" work | Simple work still surfaces surprises and near-misses worth capturing |
-| Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason |
-| Generic findings ("improve error handling") | Findings must be specific and actionable — cite the file, the pattern, the concrete change |
-| Re-deriving insights already in Key Learnings | When review's Key Learnings are available, use them as seeds — don't re-analyze from scratch |
-| Padding findings with praise of the work before naming what's weak | Reflection exists to surface weaknesses — strengths are easy to see unaided; lead with the weakness |
-| Manufacturing a finding to look thorough when the work is sound | "I looked and found nothing worth changing" is a valid, honest reflect outcome — don't invent one |
+| Accepting all hindsight findings as-is | "change now" items must be fixed at the action gate |
+| Running full mode during review | Review needs the focused hindsight gate; full is for wrap-up or standalone |
+| Skipping reflection for "simple" work | Simple work still surfaces surprises and near-misses |
+| Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" needs a reason |
+| Generic findings ("improve error handling") | Cite the file, the pattern, the concrete change |
+| Re-deriving insights already in Key Learnings | Use review's Key Learnings as seeds, don't re-analyze |
+| Padding findings with praise before naming what's weak | Lead with the weakness — strengths are easy to see unaided |
+| Manufacturing a finding to look thorough when the work is sound | "Nothing worth changing" is a valid outcome — don't invent one |

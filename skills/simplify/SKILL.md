@@ -164,7 +164,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | Pattern | Why It Fails |
 |---------|-------------|
 | Simplifying unrelated code | Scope creep — only simplify files changed in the current work |
-| Making behavioral changes | Simplification preserves behavior — if behavior needs changing, that's a different skill |
+| Making behavioral changes | Simplification preserves behavior — behavior changes are a different skill |
 | Skipping verification after changes | Simplifications can introduce regressions — always verify |
 | Running on generated files | Generated code should be regenerated, not hand-simplified |
-| Over-simplifying at the cost of readability | Simpler isn't always better — dense one-liners can be harder to read than explicit code |
+| Over-simplifying at the cost of readability | Dense one-liners can be harder to read than explicit code |

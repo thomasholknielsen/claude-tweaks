@@ -417,18 +417,18 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Editing code to "just fix" a finding during a code-health run | Code-health is report-only. Fixing belongs to `/build` / `/flow` after a finding is promoted to a spec via `/specify`. |
-| Filing every finding regardless of severity or confidence | Floods the tracker. Below-threshold or low-confidence findings are remembered in the cache, not filed. |
-| Re-filing a finding that already has an open issue | Duplicates the tracker. Always run `validate-findings` with `--issues` before filing. |
-| Hashing the prose description instead of the anchor | The dedup contract requires a stable structural anchor (`relfile#NearestSymbol`), not a content hash. Prose changes every run. |
-| Emitting a line number in the anchor | Line numbers move when code is edited, breaking dedup. The anchor format is `file#Symbol` — no `:12`, no `:12:3`. |
-| Calling the network from `code-health.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
-| Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
-| Filing a finding with `confidence: 'low'` for a noisy criterion | Every criterion carrying `confidenceFloor: 'high'` in `bin/lib/code-health/criteria.js` (the canonical list — read it there rather than trusting a copy restated here) requires `confidence: 'high'` to file. The confidence floor is enforced mechanically by the engine — `validate-findings`' `applyConfidenceFloor` drops any finding below its criterion's `confidenceFloor` before dedup runs, not merely discouraged by skill judgment. |
-| Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all five verify questions — real, actionable, reproducible, likelihood justified, effort consistent — before reaching dedup. |
-| Filing a finding still flagged `possiblyStale` | Its anchor file changed after the judge read it — the finding may already be fixed or moot by a concurrent fix pass or another parallel sweep. Route it to human re-confirmation (interactive mode) or hold it for the next sweep (headless mode) instead of filing sight-unseen. |
-| Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |
-| Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied at N call sites. Use `relatedAnchors` to cover every occurrence in a single finding instead. |
-| Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
-| Reading a `"recursive": false` slice's subdirectories | Those subdirectories are separate slices with their own ids and cursors. Sweeping them here re-reads another slice's code, blows the read budget, and files findings under the wrong slice id. Add `-maxdepth 1`. |
-| Dropping files on reaching Step 3's read budget without listing them | Produces findings that imply whole-slice coverage the sweep never had. Over-budget files are read bounded and reported as **deferred** in Step 10 — never silently skipped. |
+| Editing code to fix a finding mid-sweep | Report-only — fixing belongs to `/build` / `/flow` once `/specify` promotes it. |
+| Filing every finding regardless of severity or confidence | Floods the tracker; sub-threshold and low-confidence findings are cached, not filed. |
+| Re-filing a finding that already has an open issue | Duplicates the tracker. Run `validate-findings --issues` first. |
+| Hashing the prose description instead of the anchor | Prose changes every run; dedup needs the stable anchor `relfile#NearestSymbol`. |
+| Emitting a line number in the anchor | Line numbers move, breaking dedup. Anchor is `file#Symbol` — no `:12`, no `:12:3`. |
+| Calling the network from `code-health.js` or `criteria.js` | The engine is emit-only and unit-testable; only the skill touches `gh`. |
+| Treating the cache as durable state | It's a rebuildable optimization; GitHub issue state is the cross-run source of truth. |
+| Filing `confidence: 'low'` on a noisy criterion | Criteria carrying `confidenceFloor: 'high'` (canonical list: `bin/lib/code-health/criteria.js`) need `confidence: 'high'`; `validate-findings`' `applyConfidenceFloor` drops the rest pre-dedup. |
+| Skipping the verify gate before filing | Files plausible-but-wrong findings. Survivors must pass every verify question — real, actionable, reproducible, likelihood justified, effort consistent — pre-dedup. |
+| Filing a finding still flagged `possiblyStale` | Its anchor file changed after the judge read it. Route to human re-confirmation (interactive) or the next sweep (headless). |
+| Filing `gh issue create` off a `--dry-run` payload with no real `validate-findings` call | Breaks rotation silently: cursors and the run-log never persist, so `next-slice` re-selects the same slice. |
+| Splitting one recurring root cause into N near-duplicate issues | One fix at N call sites floods the tracker; `relatedAnchors` covers every occurrence in one finding. |
+| Filing before presenting the interactive gate | The two-tier decision precedes any `gh issue create` for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
+| Reading a `"recursive": false` slice's subdirectories | Separate slices with own ids and cursors — sweeping them blows the read budget and files under the wrong slice id. Add `-maxdepth 1`. |
+| Dropping files at Step 3's read budget without listing them | Implies whole-slice coverage the sweep never had. Over-budget files are read bounded and reported **deferred** in Step 10. |

@@ -264,12 +264,12 @@ always renders.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Handing over "Give me the steps" instructions without running the pre-flight first | The human becomes the integration test, discovering port collisions and broken auth one round-trip at a time instead of Claude catching them in a 30-second automated check |
-| Re-deriving "how do I test this" from the diff | The Verification Brief already has it — `/wrap-up` wrote it at build time with full context; read the brief, don't reconstruct it |
-| Merging or opening a PR from within this skill | Merge/PR decisions belong to `/superpowers:finishing-a-development-branch` — `/demo` only ever resolves the Acceptance axis |
-| Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be explicitly restated before shifting to a new topic — see the Task-anchor discipline in Step 2 |
-| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief just reframes the ask as "review the diff/rationale" instead of "click through this" |
-| Debugging or fixing an application bug a pre-flight check uncovers | That's out of scope the same way code-quality judgment already is — capture it as a Request-changes candidate, don't chase it mid-conversation |
-| Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it the same way `/browse`'s own Anti-Patterns table requires, immediately after the human finishes looking, before re-rendering the verdict question |
-| Writing `demo:approved`/`demo:pending` for a session-recall entry | There's no record to hold it — the verdict lives in the conversation, not a label. Only a Request-changes verdict ever produces a real record for one of these. |
-| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7, which lists every outstanding `#N`) — `/demo` resolves one item per invocation, never a sweep |
+| Handing over "Give me the steps" instructions without running the pre-flight first | The human becomes the integration test, hitting port collisions and broken auth one round-trip at a time |
+| Re-deriving "how do I test this" from the diff | The Verification Brief already has it — `/wrap-up` wrote it at build time with full context |
+| Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
+| Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
+| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief reframes the ask as "review the diff/rationale" |
+| Debugging or fixing an application bug a pre-flight check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
+| Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it as `/browse` requires, right after the human looks, before re-rendering the verdict |
+| Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
+| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |

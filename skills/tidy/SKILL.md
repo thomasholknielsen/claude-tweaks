@@ -226,18 +226,18 @@ One exception to "never creates or enters a worktree": under `worktree.always: t
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Deleting specs without checking if they're implemented | Always scan the codebase first — the spec may be partially or fully built |
-| Promoting backlog records directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
-| Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
-| Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
-| Deleting backlog records marked as "Promote" | A promoted record stays open and unchanged until `/claude-tweaks:specify` shapes it — the record itself is the tracking artifact. Deleting it drops the item on the floor. |
-| Appending an "Absorbed Scope" section to a record | Absorbed content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:writing-plans` may miss. |
-| Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
-| Clearing a local record before `gh issue create` confirms success | Sync to GitHub writes to GitHub before touching the local file — if the local record is removed first and the GitHub write fails, the item is lost entirely, not just unsynced. |
-| Treating Defer (`github-issues` backend) as a single atomic step | It's a multi-step GitHub-side sequence (body edit → label add → possible milestone attach) with no local file involved — if a later step fails after an earlier one succeeded, the record is left partially updated. Report exactly which step failed rather than assuming all-or-nothing. |
-| Auto-running downstream skills like `/review`, `/build`, or `/specify` | /tidy never invokes downstream skills autonomously. Recommendations are staged for the user — they require human judgment about timing and scope. |
-| Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means the branch has unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
-| Closing a PR/issue without a comment | Silent closes destroy the audit trail and confuse collaborators. Comment first, then close — the comment is the record of why. |
-| Resolving review threads without commit evidence | Resolving unaddressed feedback is worse than leaving it open — the concern disappears without being fixed. Evidence means a commit touching the flagged lines. |
-| Relabeling a legacy-taxonomy record instead of flagging it | Shape 7 is read-only by design — `/tidy` surfaces retired `tier:*`/`status:*`/`backlog` labels for a dedicated migration pass; it never relabels them itself. |
-| Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label alone doesn't mean scoring happened. Shape 4 exists to catch this proactively, before `/claude-tweaks:backlog refine` has to flag it back reactively. |
+| Deleting specs without checking if they're implemented | Scan the codebase first — the spec may be partly or fully built |
+| Promoting backlog records directly to specs without brainstorming | Brainstorming catches assumptions that jump to implementation |
+| Keeping everything "just in case" | Stale items create noise and slow `/claude-tweaks:help` down |
+| Presenting items one-at-a-time for individual decisions | Scales badly. Scan silently, then one batch report: approve all or override specific items. |
+| Deleting backlog records marked as "Promote" | The record is the tracking artifact until `/claude-tweaks:specify` shapes it; deleting drops the item. |
+| Appending an "Absorbed Scope" section to a record | Integrate it into the existing Deliverables, Acceptance Criteria, and Technical Approach — appendices are second-class content `/superpowers:writing-plans` may miss. |
+| Committing without running verification | Verify every action landed (Step 7.5) first — partial execution orphans or loses items. |
+| Clearing a local record before `gh issue create` confirms success | Sync writes GitHub-first; clearing early turns a failed write into a lost item, not an unsynced one. |
+| Treating Defer (`github-issues` backend) as a single atomic step | A multi-step GitHub-side sequence (body edit → label add → possible milestone attach), no local file — a late failure leaves the record partially updated. Report which step failed. |
+| Auto-running downstream skills like `/review`, `/build`, or `/specify` | /tidy only stages recommendations; the user judges timing and scope. |
+| Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
+| Closing a PR/issue without a comment | Silent closes destroy the audit trail — the comment is the record of why. |
+| Resolving review threads without commit evidence | The concern disappears unfixed, worse than leaving it open. Evidence is a commit touching the flagged lines. |
+| Relabeling a legacy-taxonomy record instead of flagging it | Shape 7 is read-only — `/tidy` surfaces retired `tier:*`/`status:*`/`backlog` labels for a dedicated migration pass, never relabels them. |
+| Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label doesn't mean scoring happened. Shape 4 catches it before `/claude-tweaks:backlog refine` flags it back. |

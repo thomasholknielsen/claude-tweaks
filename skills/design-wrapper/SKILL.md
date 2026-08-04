@@ -228,18 +228,18 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Running CLI gate on backend specs | Wastes time scanning irrelevant files — detection layer must skip before invocation |
-| Treating `/impeccable:impeccable critique` as authoritative | LLM critiques are opinionated — findings are advisory, surfaced for user judgment, never auto-applied |
-| Hard-failing the test gate when the CLI is missing | Blocks users who haven't installed Impeccable — availability check returns skip, not fail |
+| Running CLI gate on backend specs | Wastes scans on irrelevant files — the detection layer must skip before invocation |
+| Treating `/impeccable:impeccable critique` as authoritative | Advisory only — surfaced for user judgment, never auto-applied |
+| Hard-failing the test gate when the CLI is missing | Blocks users without Impeccable — the availability check returns skip, not fail |
 | Running `polish` when the audit cache is absent | Issue-driven dispatch needs audit signal — degrade to auto-fit-only rather than guessing categories |
-| Polish modifying logic that breaks tests | Re-verify gate (in `/flow`) catches this; one-cycle cap prevents oscillation. Polish must keep changes scoped to design system alignment, not behavior. |
-| Auto-running intent-driven commands without explicit intent | Intent-driven commands dispatch ONLY when `design-intent:` declares a matching value. Inferring intent from file content or LLM judgment removes user agency over creative direction. |
-| Auto-running survey recommendations | `survey` is read-only. It never invokes a command — only suggests. Auto-running survey output bypasses user agency the same way auto-inferring intent does. |
-| Treating survey recommendations as authoritative or complete | Survey is heuristic, not LLM-perfect. It can miss opportunities the user would have wanted surfaced, and it can recommend commands that don't fit the actual context. The block clearly says "could enhance further" — never "design is complete" or "design is brilliant." |
-| Surfacing recommendations the user already declined twice | Annoying noise — the declined-recommendations cache suppresses after 2 declines. Reset via `/claude-tweaks:design-wrapper reset-recommendations <spec>`. |
-| Caching availability check results across sessions on disk | Availability marker is in-memory per session — never written to `~/.claude-tweaks/` (runtime state owned by harness) |
-| Writing audit / recommendations / declined caches to `~/.claude-tweaks/` | Per CLAUDE.md, that path is harness-owned. All three caches live alongside the ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit\|recommendations\|declined}.json`. |
-| Calling `/impeccable:impeccable` commands without first checking availability | If the plugin isn't installed, the Skill tool will error — always run the availability check first and skip cleanly |
-| Treating the `surface:` field as required | `/specify` writes it on new specs, but legacy specs still have it absent — Layer 3 sniff handles them correctly. Demanding presence breaks every existing spec. |
-| Reading `pre-build` context as a hard gate | Lazy-loaded references are *enrichment* for the build subagent. Skipping (no Impeccable installed, non-frontend) must not block the build. |
-| Invoking `live` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | `live` requires a human physically in a browser — it has no non-interactive path. Both current callers already restrict themselves to interactive, standalone invocation before reaching this mode; a future caller must do the same. |
+| Polish modifying logic that breaks tests | `/flow`'s re-verify gate and one-cycle cap only contain it — keep polish scoped to design-system alignment, not behavior. |
+| Auto-running intent-driven commands without explicit intent | Dispatch ONLY when `design-intent:` declares a matching value — inferring it from file content or LLM judgment removes user agency. |
+| Auto-running survey recommendations | `survey` is read-only — it suggests, never invokes. Auto-running its output bypasses user agency. |
+| Treating survey recommendations as authoritative or complete | Survey is heuristic — it misses opportunities and recommends ill-fitting commands. The block says "could enhance further" — never "design is complete" or "design is brilliant." |
+| Surfacing recommendations the user already declined twice | Noise — the declined-recommendations cache suppresses after 2 declines. Reset via `/claude-tweaks:design-wrapper reset-recommendations <spec>`. |
+| Caching availability results across sessions on disk | In-memory per session — never write the marker to `~/.claude-tweaks/` (harness-owned runtime state) |
+| Writing audit / recommendations / declined caches to `~/.claude-tweaks/` | Harness-owned. All three live beside the ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit\|recommendations\|declined}.json`. |
+| Calling `/impeccable:impeccable` without first checking availability | The Skill tool errors if the plugin isn't installed — check first and skip cleanly |
+| Treating the `surface:` field as required | `/specify` writes it on new specs; Layer 3 sniff handles legacy specs that lack it. Demanding it breaks them all. |
+| Reading `pre-build` context as a hard gate | Lazy-loaded references are *enrichment* — skipping (no Impeccable, non-frontend) must not block the build. |
+| Invoking `live` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | `live` needs a human in a browser — no non-interactive path exists. Callers must restrict it to interactive, standalone invocation. |

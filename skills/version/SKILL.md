@@ -82,7 +82,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Hardcoding the version in skill content | The version lives in `plugin.json` — anything else drifts. Always read from the source. |
-| Adding decision prompts or finding gates | This is a one-shot read. Don't over-structure it. |
-| Bumping the version inside this skill | Versioning is the maintainer's job — see CLAUDE.md "Versioning" section. |
-| Padding the output with announcements like "Here's the version!" | The user asked for the version. Print it and stop. |
+| Hardcoding the version in skill content | The version lives in `plugin.json` — anything else drifts. Read from source. |
+| Adding decision prompts or finding gates | A one-shot read — don't over-structure it. |
+| Bumping the version inside this skill | Versioning is the maintainer's job — see CLAUDE.md "Versioning". |
+| Padding the output with announcements like "Here's the version!" | Print the version and stop. |

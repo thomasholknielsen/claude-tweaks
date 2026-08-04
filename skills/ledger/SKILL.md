@@ -230,18 +230,18 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Silently dropping open items | The resolve gate catches this — every item must be explicitly resolved |
-| Bulk-resolving open items without per-item user input | Phase 2 of the resolve gate requires explicit per-item response. Even when items "obviously" belong parked in the backlog, the user gets the call — never assume |
-| Skipping Phase 1 (fix-exhaustion) and jumping straight to the user table | Phase 1 runs first. Showing the user a table with items the agent could have fixed wastes their attention and biases toward defer |
-| Staging a work record proposal (either `backlog` or `parked`) without per-item user confirmation | Both stages are valid destinations, but each proposal must come from an explicit user choice on that specific item — not from the agent's classification, not from a bulk default, not from `auto` mode |
-| Using "out of scope of this plan" as a defer reason | If the file is in the build's diff, it's in scope. Pre-existing baseline failures use `accepted` with proof of pre-existence, not `deferred` |
-| Deferring plan-prescribed routing as a ledger item | If the plan said "X moves to P6," that is plan documentation, not a ledger event. Remove the item, do not defer it — double-tracking creates noise |
-| Bundling small items into one umbrella ledger entry | Each item gets individual classification. Bundles let items hide; one decision covers seven actions |
-| Resolving as "accepted" without a reason | Acceptance requires a stated rationale — "it's fine" is not sufficient |
-| Deferring items introduced by the current build | Items you introduced should be fixed now — defer is for pre-existing issues or genuinely larger scope |
-| Creating duplicate ledger entries | Check for semantic duplicates before adding — same phase + similar description = skip |
+| Silently dropping open items | The resolve gate catches it — every item resolves explicitly |
+| Bulk-resolving open items without per-item user input | Phase 2 requires an explicit per-item response — even for items that "obviously" belong parked, the user decides |
+| Skipping Phase 1 (fix-exhaustion) and jumping straight to the user table | Items the agent could have fixed waste user attention and bias toward defer |
+| Staging a work record proposal (`backlog` or `parked`) without per-item user confirmation | Each needs an explicit user choice on that item — not the agent's classification, not a bulk default, not `auto` mode |
+| Using "out of scope of this plan" as a defer reason | If the file is in the build's diff, it's in scope. Pre-existing baseline failures use `accepted` with proof, not `deferred` |
+| Deferring plan-prescribed routing as a ledger item | "X moves to P6" is plan documentation, not a ledger event — remove it, don't defer it; double-tracking is noise |
+| Bundling small items into one umbrella ledger entry | Each item needs its own classification — bundles let items hide behind one decision |
+| Resolving as "accepted" without a reason | Acceptance requires a stated rationale — "it's fine" is not one |
+| Deferring items introduced by the current build | Fix what you introduced — defer is for pre-existing or genuinely larger scope |
+| Creating duplicate ledger entries | Check semantic duplicates before adding — same phase + similar description = skip |
 | Reopening resolved items | Terminal statuses are final — if the fix was wrong, create a new item |
-| Modifying the ledger file format | The table format is consumed by multiple skills — structural changes break parsing |
-| Using the ledger for feature tracking | The ledger tracks findings and tasks within a single pipeline run. `work-backend: local-files` (legacy spec-file-alias records with no materialized header) — use specs/INDEX.md. `work-backend: github-issues` (the current Record path) — cross-spec/cross-run tracking belongs on the decomposition's parent record's `## Cross-Spec Promises` section instead (`_shared/work-record.md`) — specs/INDEX.md is never touched by Record-mode closure (`wrap-up/cleanup-procedures.md`). |
-| Skipping the resolve gate | The nothing-left-behind gate is non-negotiable — no pipeline completes with open items |
-| Treating `auto` mode as authorization to bypass the resolve gate | The resolve gate always requires per-item user input on Phase 2; `auto` never silences it. For the full list of what `auto` does and does not silence, see `_shared/auto-mode-contract.md` |
+| Modifying the ledger file format | Multiple skills parse the table — structural changes break them |
+| Using the ledger for feature tracking | The ledger covers one pipeline run. Cross-run tracking goes in specs/INDEX.md under `work-backend: local-files` (legacy spec-file-alias records), or on the parent record's `## Cross-Spec Promises` under `work-backend: github-issues` (`_shared/work-record.md`) — Record-mode closure never touches specs/INDEX.md (`wrap-up/cleanup-procedures.md`). |
+| Skipping the resolve gate | Non-negotiable — no pipeline completes with open items |
+| Treating `auto` mode as authorization to bypass the resolve gate | Phase 2 always requires per-item user input; `auto` never silences it — see `_shared/auto-mode-contract.md` |

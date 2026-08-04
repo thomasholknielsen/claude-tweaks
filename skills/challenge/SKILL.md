@@ -282,11 +282,11 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---|---|
-| Agreeing with the user's framing | Defeats the entire purpose |
+| Agreeing with the user's framing | Defeats the purpose |
 | Offering solutions during lenses | Premature closure shuts down reframing — solutions belong in brainstorming |
 | Running all 7 lenses mechanically | Some problems only need 2-3 lenses |
-| Being adversarial rather than curious | The goal is insight, not winning an argument |
+| Being adversarial rather than curious | The goal is insight, not winning |
 | Softening challenges with "maybe" | Be direct — the user opted into this |
-| Bracketing a challenge with flattery — a "great question" opener or a "your instinct is good" closer | The praise signals agreement and blunts the challenge before it lands; the user opted into directness |
-| Inventing a flaw to look rigorous when the framing holds | If the lenses surface nothing real, say so plainly — manufactured doubt is as useless as false agreement |
+| Bracketing a challenge with flattery — a "great question" opener or a "your instinct is good" closer | Praise signals agreement and blunts the challenge before it lands |
+| Inventing a flaw to look rigorous when the framing holds | Say so plainly when the lenses surface nothing — manufactured doubt is as useless as false agreement |
 | Skipping /claude-tweaks:challenge for "obvious" features | Obvious features often have the strongest hidden assumptions |

@@ -239,18 +239,18 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Applying any patch directly instead of filing an issue | `/docs-health` never edits anything — every finding files as a GitHub issue for human review. Matches `/code-health`/`/harness-health`'s report-only contract. |
-| Flagging prose quality or style as a finding | Content quality is explicitly out of scope — only genre-drift, depth-mismatch, findability, and factual staleness are judged, all structural/expectation checks, never editorial ones. See `_shared/criteria-docs-diataxis.md`'s Constraints section. |
-| Flagging a doc's length by itself, without a mismatched expectation | Depth-mismatch only fires when a doc's actual word count would surprise a reader given what its location/heading/native genre imply — a correctly-signaled long or short doc is never a finding regardless of absolute length. See `_shared/criteria-docs-diataxis.md`'s Dimension 3. |
-| Flagging a doc's low inbound-reference count without judging whether it's intentionally standalone | Findability only fires on a genuine, blocking orphan — a doc explicitly marked draft/archived/template, or one meant to be reached only via an out-of-scope external link, is not a finding regardless of its reference count. See `_shared/criteria-docs-diataxis.md`'s Dimension 5. |
-| Flagging mechanical issues (broken links, malformed frontmatter) | Those belong in CI, not an LLM-judged health sweep — the same "CI stays reactive" boundary `/code-health` draws for code. |
-| Including `docs/superpowers/**` in the rotation pool | The historical design-doc archive — deliberately retained records of shipped work, so staleness there is by design, not drift. Excluded from `bin/lib/docs-health/scope.js`'s `listDocs` by construction (`EXCLUDE_TOP_LEVEL_DIRS`). |
-| Excluding the archive by matching the name `plans` or `specs` anywhere in the path | `docs/plans/` (live ephemeral pipeline state) and `docs/superpowers/plans/` (the historical archive) are near-identically named and have been confused before in this repo. The exclusion matches the full path `docs/superpowers` at the top level only, so `docs/plans/` correctly stays in scope. |
-| Reading a target in full when it exceeds the Step 2 byte cap | A 40,000+ byte doc costs more than the finding is worth to read whole. Read the outline plus the first/last sections, then read further sections on demand — but still execute every fenced command block in the file, and cap the resulting findings' `confidence` at `med`. |
-| Auditing `.claude/skills/*.md`, `.claude/rules/*.md`, or CLAUDE.md | That is `/claude-tweaks:harness-health`'s exclusive territory — docs-health's rotation pool only ever walks `docs/`. |
-| Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
-| Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging. |
-| Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`/`/harness-health`. |
-| Editing `docs/**` content to "fix" what a finding describes | This skill only ever judges and files — never edits. |
-| Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied to N sections. Use `relatedSections` to cover every occurrence in a single finding instead. |
-| Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
+| Applying any patch directly instead of filing an issue | `/docs-health` never edits — same report-only contract as `/code-health`/`/harness-health`. |
+| Flagging prose quality or style as a finding | Only genre-drift, depth-mismatch, findability, and factual staleness are judged. See `_shared/criteria-docs-diataxis.md`'s Constraints. |
+| Flagging length alone, without a mismatched expectation | Depth-mismatch needs a surprise against location/heading/genre signals — absolute length never matters. See `_shared/criteria-docs-diataxis.md` Dimension 3. |
+| Flagging a low inbound-reference count without checking if the doc is standalone by intent | Findability needs a blocking orphan — not one marked draft/archived/template, nor reached only via an out-of-scope external link. See `_shared/criteria-docs-diataxis.md` Dimension 5. |
+| Flagging mechanical issues (broken links, malformed frontmatter) | Those belong in CI — the "CI stays reactive" boundary `/code-health` draws for code. |
+| Including `docs/superpowers/**` in the rotation pool | Historical design-doc archive — staleness is by design. Excluded by `bin/lib/docs-health/scope.js`'s `listDocs` (`EXCLUDE_TOP_LEVEL_DIRS`). |
+| Excluding the archive by matching `plans` or `specs` anywhere in the path | `docs/plans/` (live pipeline state) and `docs/superpowers/plans/` (archive) are near-identically named. Match top-level `docs/superpowers` only, keeping `docs/plans/` in scope. |
+| Reading a target in full when it exceeds the Step 2 byte cap | Costs more than the finding is worth. Read the outline plus first/last sections, more on demand — still run every fenced command block, and cap `confidence` at `med`. |
+| Auditing `.claude/skills/*.md`, `.claude/rules/*.md`, or CLAUDE.md | `/claude-tweaks:harness-health`'s territory — this rotation pool only walks `docs/`. |
+| Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists so rejected proposals don't reappear. |
+| Skipping the verify gate under time pressure | Unattended firings compound uncaught misreads into staged noise. |
+| Treating the local cache as durable state | A rebuildable optimization — GitHub issue state is the cross-run source of truth, as in `/code-health`/`/harness-health`. |
+| Editing `docs/**` content to "fix" what a finding describes | This skill judges and files — never edits. |
+| Splitting one recurring root cause into N near-duplicate issues | One fix applied N times floods the tracker. Use `relatedSections` to cover every occurrence in one finding. |
+| Filing before presenting the interactive gate | The two-tier decision must precede any `gh issue create` for new findings — see `_shared/health-filing-gate.md`. |

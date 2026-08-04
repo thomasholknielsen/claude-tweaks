@@ -112,9 +112,9 @@ Call `AskUserQuestion`:
 |---------|-------------|
 | Running a full scan when user just needs command syntax | Wastes time — respect the `commands` argument |
 | Recommending new work when specs await review | Finish in-progress work first — stale reviews lose context |
-| Recommending new work while the current PR has unresolved feedback or failing checks | In-flight work rots fastest — reviewer context decays and merge conflicts accumulate. The pipeline picture is incomplete without PR state. |
-| Skipping the backlog scan | Stale backlog records create noise and slow down the pipeline |
+| Recommending new work while the current PR has unresolved feedback or failing checks | In-flight work rots fastest — reviewer context decays, merge conflicts accumulate; the pipeline picture needs PR state |
+| Skipping the backlog scan | Stale backlog records create noise and slow the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented backlog records bypass the debiasing step |
-| Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to delete, promote, absorb, or defer backlog records, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
+| Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — deleting, promoting, absorbing, or deferring records means handing off to `/claude-tweaks:tidy`, never an ad-hoc walkthrough |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
