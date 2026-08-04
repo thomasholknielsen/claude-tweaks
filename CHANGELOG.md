@@ -1,5 +1,22 @@
 # Changelog
 
+## v6.33.0 — Skill-bloat reduction Phase 1: directive compression + one-line lifecycle markers
+
+Two independent levers against the same 32 `skills/*/SKILL.md` files, both re-emitted
+verbatim on every invocation. The interaction-style directive was byte-identical
+across all 32 skills; compressing it from 570 B to 327 B saved 7,776 B in total.
+Ten of the skills — `capture`, `challenge`, `design-wrapper`, `init`, `review`,
+`specify`, `stories`, `test`, `version`, `wrap-up` — carried a linear ASCII
+lifecycle diagram whose only informational content was that skill's position in
+the pipeline; each is now a one-line `Lifecycle:` marker, saving a further
+2,685 B. Combined: 10,461 bytes (10.2 KB) removed from per-invocation context
+across the 32 files, measured directly rather than estimated.
+
+The directive stays inline in each skill rather than moving to a single
+CLAUDE.md-hosted copy. CLAUDE.md is a repo file, not a shipped plugin asset — the
+plugin distributes only `.claude-plugin`, `skills`, `agents`, `hooks`, `bin`, and
+`commands` — so a pointer there would resolve to nothing for an installed user.
+
 ## v6.32.0 — Token-audit batch: bounded tool output, split fragments, corrected cardinalities (closes #90, #91, #100; refs #96)
 
 Four records from the token/context optimization audit. The through-line is that
