@@ -5,10 +5,10 @@ Canonical procedure for judging whether a project's harness documentation — `.
 | Consumer | Supplies |
 |---|---|
 | `/claude-tweaks:harness-health` | One target per firing (skill/rule/claude-md/design-artifact via churn/staleness rotation, `next-target`); memory only via an explicit `--kind memory --memory-dir <path>` invocation, never auto-selected |
-| `/claude-tweaks:wrap-up` Step 7 | A finished spec's changed skill files + ledger/reflection seeds (skill-only this phase — see Scope note below) |
+| `/claude-tweaks:wrap-up` Step 7 / 7.9 | A finished spec's changed skill files + ledger/reflection seeds (Step 7, skills), plus CLAUDE.md behind an applicability gate (Step 7.9) — see Scope note below |
 | `/claude-tweaks:init` Phase 3/6 | Whole-codebase Phase 2 reconnaissance (skill-only this phase — see Scope note below) |
 
-**Scope note:** all three consumers can read every section of this procedure. `/claude-tweaks:wrap-up` and `/claude-tweaks:init` currently only invoke it against skills (their own scope-selection logic hasn't been extended to pass rule/CLAUDE.md files in) — extending them is a separate, smaller follow-on, not required by the harness-health design. `/claude-tweaks:harness-health` is the only consumer that exercises the rule/claude-md paths today.
+**Scope note:** all three consumers can read every section of this procedure. `/claude-tweaks:wrap-up` invokes it against skills (Step 7) and, behind an applicability gate, against CLAUDE.md (Step 7.9). `/claude-tweaks:init` Phase 6 invokes it against skills only; its CLAUDE.md path is Phase 1u.5's deterministic conformance check (`bin/lib/init/claude-md-conformance.js`), which detects structural drift rather than judging content, so the two are complementary rather than redundant. `/claude-tweaks:harness-health` remains the only consumer that exercises the `rule` path.
 
 This file owns the judgment. It does not own scope selection, staging destination, or cursor/cache mechanics — those are each consumer's own job.
 

@@ -1,5 +1,62 @@
 # Changelog
 
+## v6.34.0 — Adopter CLAUDE.md carries only what always-loaded context needs
+
+`/claude-tweaks:init` wrote byte-identical boilerplate into every adopting project's
+CLAUDE.md, inherited by every dispatched subagent and competing against the
+`harness-health.always-loaded-budget` before the project contributed a word. The
+template now carries only content that must reach the model on a turn where no
+claude-tweaks skill was invoked. `## Working Approach` (1,561 B) and `## Philosophy`
+(200 B) are untouched — they govern ad-hoc work where no skill gate fires. The
+Pipeline section keeps its four routing paragraphs and loses the bookend-architecture
+detail, the run-dir mechanics, and the auto-mode flag explanation, all of which are
+only consulted once `/flow` is already running, dropping from 2,468 B to 847 B.
+
+`## Project Defaults` is deleted outright (1,287 B to 0 B). `markdown-mode` and
+`directory` had no reader anywhere — confirmed structurally, not inferred from a
+keyword search (the `directory` result is consistent with
+`step-06-worktree-configuration.md` requiring worktree detection to use `git worktree
+list` rather than a configured name). `execution-strategy` and `git-strategy` gained
+`policy.yml` paths and `POLICY_KEYS` entries, which had never validated them.
+`section-confirmation`, `merge-check`, and `scope-keywords-required` turned out to
+already be in `POLICY_KEYS`, contradicting the schema doc's claim that they had no
+`policy.yml` path.
+
+`execution.always` is corrected. It was documented as locking the execution axis "to
+`subagent` only" while typed as `enum ['subagent','batched']`. `build/SKILL.md`
+confirms the lock generalizes to whichever value is set; both rows now state the
+distinction from `execution-strategy` (a lock versus an overridable default).
+
+Resolution chains are repointed. `/flow`'s `git-strategy` and `execution-strategy`
+chains, and `/build`'s own default-resolution section they defer to, named CLAUDE.md
+as the source for keys the template no longer writes. `auto-mode` keeps both sources
+named — it is genuinely dual-homed.
+
+Measured across the whole Initial Mode Template body — exiting at the first
+subsequent `## ` heading rather than one section past it — the total drops from
+6,462 B to 3,554 B, a 2,908 B (-45%) reduction that reconciles exactly against the
+two changes above: 2,468 - 847 = 1,621, plus the 1,287 from Project Defaults, equals
+2,908.
+
+`/claude-tweaks:init` Update Mode detected CLAUDE.md drift with four hand-maintained
+greps for contract-version markers. `Working Approach` and `Philosophy` appeared zero
+times in `update-mode.md`, so a project adopting the plugin with an existing
+CLAUDE.md reliably got the pipeline plumbing offered as patches and never the two
+sections that shape how the model behaves. The replacement
+(`bin/lib/init/claude-md-conformance.js`) is deterministic and reads the template
+live, so a future template change needs no edit here. It reports *drift* as well as
+absence — an edited plugin-authored section was previously invisible. A completeness
+assertion fails if any template section belongs to neither the plugin-authored nor
+project-authored list, so a newly added section cannot silently escape the check.
+
+`/claude-tweaks:wrap-up` gains Step 7.9, a CLAUDE.md audit behind an applicability
+gate, opening on a Don't candidate, a renamed command, a contradicted convention, or
+a recorded incident, and reusing `_shared/harness-health-analysis.md` — the
+procedure Step 7 already applies to skills. Its closed-gate summary reports "audit
+not run" rather than "no findings", since a gate that never opened is otherwise
+indistinguishable from a clean CLAUDE.md. Findings surface at the Review Console's
+Configuration updates section and are always offered, never auto-applied.
+
 ## v6.33.0 — Skill-bloat reduction Phase 1: directive compression + one-line lifecycle markers
 
 Two independent levers against the same 32 `skills/*/SKILL.md` files, both re-emitted
