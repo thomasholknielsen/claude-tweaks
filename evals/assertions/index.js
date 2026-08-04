@@ -10,10 +10,12 @@ import { findingsExcludeFalsePositive } from './findings-exclude-false-positive.
 import { localRecordFacet } from './local-record-facet.js';
 import { absolutePathExists } from './absolute-path-exists.js';
 import { toolInputIncludes } from './tool-input-includes.js';
+import { contextCostRegression } from './context-cost-regression.js';
 
 // Registry mapping a scenario assertion's `type` field to its implementation.
 // Each fn takes (context, params) -> {pass, message}. context is built once
-// per scenario run by runner.js: {repoDir, resultText, toolCalls, escapeTargetPath, toolInputs}.
+// per scenario run by runner.js: {repoDir, resultText, toolCalls, escapeTargetPath,
+// toolInputs, scenarioName, tokens, history}.
 const ASSERTIONS = {
   'file-exists': (ctx, params) => fileExists(ctx.repoDir, params),
   'test-passes': (ctx, params) => testPasses(ctx.repoDir, params),
@@ -27,6 +29,7 @@ const ASSERTIONS = {
   'local-record-facet': (ctx, params) => localRecordFacet(ctx.repoDir, params),
   'absolute-path-exists': (ctx, params) => absolutePathExists(ctx, params),
   'tool-input-includes': (ctx, params) => toolInputIncludes(ctx, params),
+  'context-cost-regression': (ctx, params) => contextCostRegression(ctx, params),
 };
 
 export function runAssertion(context, assertion) {

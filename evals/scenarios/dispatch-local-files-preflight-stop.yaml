@@ -52,3 +52,9 @@ assertions:
     max: 3
   - type: tool-count
     max: 20
+  # Cost regression guard. This is the only scenario with enough passing runs
+  # in history.jsonl to have a baseline today; the check reports SKIPPED (never
+  # a silent pass) on any scenario that does not. Baseline is the median of the
+  # last 5 passing runs, threshold and reasoning in
+  # assertions/context-cost-regression.js.
+  - type: context-cost-regression

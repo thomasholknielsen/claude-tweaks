@@ -150,7 +150,13 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   }
 
   const durationMs = Date.now() - startedAt;
-  const context = { repoDir, resultText, toolCalls, escapeTargetPath, toolInputs };
+  // `history` is read HERE, before this run's own append below, so a
+  // history-comparing assertion (context-cost-regression) sees only prior runs
+  // and can never include the current one in its own baseline.
+  const context = {
+    repoDir, resultText, toolCalls, escapeTargetPath, toolInputs,
+    scenarioName: scenario.name, tokens, history: readHistory(historyPath),
+  };
   // A thrown assertion (unknown type, or a fail-closed check like
   // absolute-path-exists.js's missing-target guard) must not crash the whole
   // run after a real, already-paid-for API call completed — that would lose

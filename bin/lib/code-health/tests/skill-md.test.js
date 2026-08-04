@@ -2,6 +2,13 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const {
+  registerHouseSectionOrderTest,
+  registerInteractionStyleTest,
+  registerPipelineRunDirTest,
+  registerNoEmojiTest,
+  registerRequiredTokenTests,
+} = require('../../health-core/tests/skill-md-house-checks');
 
 const SKILL = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
@@ -10,9 +17,7 @@ test('frontmatter declares the canonical name', () => {
   assert.match(read(), /name:\s*claude-tweaks:code-health/);
 });
 
-test('carries the standard interaction-style directive', () => {
-  assert.ok(read().includes('> **Interaction style:**'));
-});
+registerInteractionStyleTest(test, assert, read);
 
 test('invokes the CLI via ${CLAUDE_PLUGIN_ROOT}/bin/code-health.js (not $SKILL_DIR)', () => {
   const body = read();
@@ -26,31 +31,8 @@ test('documents the dry-run-first then run procedure and hands payloads to gh', 
   assert.ok(/gh issue create/.test(body));
 });
 
-test('has the required house sections in order', () => {
-  const body = read();
-  // Match the heading only at the start of its own line (anchored, not a
-  // bare substring search) — SKILL.md's boilerplate "> **Interaction
-  // style:**" directive and the Component-Skill Contract prose both mention
-  // "## Next Actions" inline as a backticked reference, and a plain
-  // body.indexOf() resolves to the first of those mentions instead of the
-  // real section heading further down.
-  const idx = (s) => {
-    const escaped = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const m = body.match(new RegExp(`^${escaped}$`, 'm'));
-    return m ? m.index : -1;
-  };
-  assert.ok(idx('## When to Use') > 0);
-  assert.ok(idx('## Anti-Patterns') > 0);
-  assert.ok(idx('## Component-Skill Contract') > 0);
-  assert.ok(idx('## Next Actions') > 0);
-  // Next Actions before Component-Skill Contract before Anti-Patterns
-  assert.ok(idx('## Next Actions') < idx('## Component-Skill Contract'));
-  assert.ok(idx('## Component-Skill Contract') < idx('## Anti-Patterns'));
-});
-
-test('Component-Skill Contract is keyed on $PIPELINE_RUN_DIR', () => {
-  assert.ok(read().includes('$PIPELINE_RUN_DIR'));
-});
+registerHouseSectionOrderTest(test, assert, read);
+registerPipelineRunDirTest(test, assert, read);
 
 test('docs/skill-graph.md records the edges to /specify, /capture, /tidy, /flow', () => {
   // These edges used to be asserted against this skill's own Relationship table.
@@ -81,24 +63,14 @@ test('v2 SKILL.md: exists', () => {
   });
 });
 
-['validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', 'criteriaForArea', 'anchor',
- 'code-health-fingerprint', 'NearestNamedSymbol', '--min-risk',
- 'Multi-slice runs', '_shared/health-state.md', 'relatedAnchors', 'Bundling rule',
- 'work-record.md', 'work-fingerprint', 'by:code-health', 'extractFingerprint',
-].forEach((token) => {
-  test(`v2 SKILL.md: contains required token '${token}'`, () => {
-    const content = fs.readFileSync(skillMdPath, 'utf8');
-    assert.ok(content.includes(token), `missing required token: ${token}`);
-  });
-});
+registerRequiredTokenTests(test, assert, read, [
+  'validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', 'criteriaForArea', 'anchor',
+  'code-health-fingerprint', 'NearestNamedSymbol', '--min-risk',
+  'Multi-slice runs', '_shared/health-state.md', 'relatedAnchors', 'Bundling rule',
+  'work-record.md', 'work-fingerprint', 'by:code-health', 'extractFingerprint',
+]);
 
-test('v2 SKILL.md: no emojis (common emoji unicode sequences)', () => {
-  const content = fs.readFileSync(skillMdPath, 'utf8');
-  // Match common emoji ranges: U+1F300-U+1FAFF (Misc Symbols, Emoticons, etc.)
-  // Using the surrogate pair regex that matches in JS UTF-16 strings.
-  const emojiRe = /[\u{1F300}-\u{1FAFF}]/u;
-  assert.ok(!emojiRe.test(content), 'SKILL.md must not contain emojis');
-});
+registerNoEmojiTest(test, assert, read);
 
 // ── P4 Task 6: new section anchors ────────────────────────────────────────────
 

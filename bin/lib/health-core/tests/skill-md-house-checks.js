@@ -1,23 +1,26 @@
 'use strict';
 
 // Shared, parameterized SKILL.md house-structure checks -- factored out
-// because docs-health/tests/skill-md.test.js and code-health/tests/
-// skill-md.test.js duplicated the majority of these assertion bodies
-// verbatim (the "has the required house sections in order" ordering test,
-// "carries the standard interaction-style directive", the
-// "$PIPELINE_RUN_DIR" check, the "no emojis" check, and the required-token
-// forEach loop), with nothing enforcing that the copies stay in sync when
-// CLAUDE.md's own documented SKILL.md house-structure convention changes.
+// because the four health skills' tests/skill-md.test.js files duplicated the
+// majority of these assertion bodies verbatim (the "has the required house
+// sections in order" ordering test, "carries the standard interaction-style
+// directive", the "$PIPELINE_RUN_DIR" check, the "no emojis" check, and the
+// required-token forEach loop), with nothing enforcing that the copies stay in
+// sync when CLAUDE.md's own documented SKILL.md house-structure convention
+// changes.
 //
-// Only docs-health/tests/skill-md.test.js has been migrated to this helper
-// so far (2026-07-20 review-findings fix, Task 5) -- code-health/tests/
-// skill-md.test.js predates it and still carries its own copy (out of that
-// task's scope; fixed independently in Task 4 for its own idx() bug).
-// harness-health/tests/skill-md.test.js and journey-health/tests/
-// skill-md.test.js also still carry their own unmigrated copies (and their
-// own version of the same idx() bug this module's sectionIndex fixes,
-// unflagged as a separate finding). Migrating those three is follow-up, not
-// done here -- this task's scope is docs-health's file only.
+// All four health skills' test files now consume this module: docs-health
+// migrated first (2026-07-20 review-findings fix, Task 5), and code-health,
+// harness-health, and journey-health followed. The three late migrations
+// mattered for correctness, not just duplication: harness-health's and
+// journey-health's copies still used a bare body.indexOf(), which made their
+// ordering assertion vacuous (see sectionIndex below).
+//
+// The corpus-wide counterpart lives in
+// bin/lib/skill-audit/tests/house-structure.test.js, which applies the subset
+// of these rules that holds for every skill in skills/*/SKILL.md -- not just
+// the health four. It reuses sectionIndex and EMOJI_RE from here rather than
+// carrying a third copy.
 
 // Anchored heading lookup: matches a heading only when it occupies its own
 // full line, not a bare substring anywhere in the file. SKILL.md's
@@ -61,13 +64,15 @@ function registerPipelineRunDirTest(test, assert, read) {
   });
 }
 
+// Common emoji ranges: U+1F300-U+1FAFF (Misc Symbols, Emoticons, etc.).
+// Non-global on purpose -- a /g regex carries lastIndex state between .test()
+// calls, which would make a shared module-level instance answer differently
+// depending on what ran before it.
+const EMOJI_RE = /[\u{1F300}-\u{1FAFF}]/u;
+
 function registerNoEmojiTest(test, assert, read) {
   test('no emojis (common emoji unicode sequences)', () => {
-    const content = read();
-    // Match common emoji ranges: U+1F300-U+1FAFF (Misc Symbols, Emoticons,
-    // etc.) using the surrogate pair regex that matches in JS UTF-16 strings.
-    const emojiRe = /[\u{1F300}-\u{1FAFF}]/u;
-    assert.ok(!emojiRe.test(content), 'SKILL.md must not contain emojis');
+    assert.ok(!EMOJI_RE.test(read()), 'SKILL.md must not contain emojis');
   });
 }
 
@@ -82,6 +87,7 @@ function registerRequiredTokenTests(test, assert, read, tokens) {
 
 module.exports = {
   sectionIndex,
+  EMOJI_RE,
   registerHouseSectionOrderTest,
   registerInteractionStyleTest,
   registerPipelineRunDirTest,

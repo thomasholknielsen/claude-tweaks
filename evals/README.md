@@ -123,6 +123,38 @@ Pass `--no-record` on `run` to skip appending — useful while iterating on a
 scenario's own definition, where the run doesn't represent a real benchmark
 point. `--no-record` applies to every scenario in a `--all` batch.
 
+### Gating on a context-cost regression
+
+`history.jsonl` recorded cost from the start, but nothing ever failed on it.
+The `context-cost-regression` assertion closes that: it compares this run's
+`tokens.cache_creation_input_tokens` — the prompt bytes written into the cache,
+which is dominated by the skill payload the SDK loaded — against the **median
+of that scenario's last 5 passing runs**, and fails past **+50%**.
+`assertions/context-cost-regression.js` states why each of those three numbers
+was chosen; the short version is that a last-run baseline fires on ordinary
+LLM-trajectory variance (the tightest-clustered scenario here already spans
+±32% with no code change), a best-ever baseline ratchets into permanent red,
+and a moving median absorbs a deliberate, accepted increase after N runs
+instead of needing a pinned number hand-edited.
+
+Add it to a scenario with no parameters:
+
+    assertions:
+      - type: context-cost-regression
+
+Override per scenario if needed: `maxIncreasePct`, `minSamples`, `window`.
+
+**It never passes silently.** Below `minSamples` (default 3) comparable prior
+runs it returns a message starting `SKIPPED` that names the shortfall and how
+many more runs are needed — a scenario with no baseline is reported as *not
+checked*, never as clean. A run that reports no `cache_creation_input_tokens`
+at all **fails**, because the measurement the check depends on is missing.
+Failing runs and other scenarios' runs never count toward the baseline.
+
+Only `dispatch-local-files-preflight-stop` currently has enough passing runs to
+have a live baseline; add the assertion to another scenario and it will report
+`SKIPPED` until that scenario accumulates three.
+
 A `workflow_dispatch`-triggered GitHub Action (`.github/workflows/eval-benchmark.yml`)
 runs the same CLI against a chosen scenario (or all of them) and commits
 `history.jsonl` back to the branch it ran against, so a manually-triggered
