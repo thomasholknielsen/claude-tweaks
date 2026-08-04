@@ -69,14 +69,28 @@ Approach A applies that same move to the Relationship table.
 | Relationship tables | 128 KB / 482 rows | Three-way triage (below) | ~90–110 KB |
 | Anti-Patterns | 72 KB / 379 rows | **Compress in place, do not evict** | ~29 KB |
 | Interaction-style directive | 570 B × 32 files = 17.8 KB | **Compress in place** (see below), 570 B → 327 B | **7.6 KB** |
-| ASCII lifecycle diagrams | 13,502 B across all 32 | Replace each with a one-line position marker | **11.0 KB** |
+| ASCII lifecycle diagrams | 13,502 B across all 32, but only 3,668 B mechanically replaceable | Replace the 10 linear ones with a one-line position marker; leave the other 22 alone | **~2.9 KB** |
 
-**Total ~138–158 KB, roughly 15–17% of `SKILL.md` bytes.**
+**Total ~130–150 KB, roughly 14–16% of `SKILL.md` bytes.**
 
-The diagram is a full lifecycle chain with a `^^^^ YOU ARE HERE ^^^^` marker, repeated in all
-32 files. Deleting it outright would save 13.2 KB but lose the orientation it provides; a
-one-line neighbours-only marker (`Lifecycle: /test → **/review** → /wrap-up`) keeps that for
-about 2 KB more. The canonical full chain already lives in `/claude-tweaks:help`.
+### The diagrams are not uniform
+
+CLAUDE.md's structure convention calls item 4 an "ASCII lifecycle position diagram", but only
+10 of 32 actually are one — a linear chain with a `^^^^ YOU ARE HERE ^^^^` marker, replaceable
+mechanically by a neighbours-only line (`Lifecycle: /test → **/review** → /wrap-up`). The
+canonical full chain already lives in `/claude-tweaks:help`.
+
+| Shape | Count | Bytes | Treatment |
+|---|---|---|---|
+| Linear chain + `YOU ARE HERE` | 10 | 3,668 | Mechanical replacement (Phase 1) |
+| Linear with ASCII art (`tidy`, `help`, `build`, `flow`, `ledger`) | 5 | 2,860 | Leave alone |
+| Non-linear | 17 | 6,974 | Leave alone |
+
+The remaining 22 document mechanism, not position, and it exists nowhere else in one place:
+`code-health`'s is its findings pipeline (`findings → validate → file issue → /specify →
+/build`), `browse`'s is its consumer set, `help`'s is a cycle, `dispatch`'s runs 16 lines.
+Compressing those is judgment work with a poor ratio — 9.6 KB spread across 22 files, each
+needing its own call — and is explicitly out of scope.
 
 ### What ships, and why it constrains the levers
 
@@ -202,13 +216,13 @@ document itself excluded from any "the old pattern is gone" sweep.
 
 ## Phases
 
-Risk-ascending. Phase 1 first is deliberate: it banks ~18.6 KB with zero judgment calls and
+Risk-ascending. Phase 1 first is deliberate: it banks ~10.5 KB with zero judgment calls and
 proves the convention/test update path works before Phase 2 depends on it.
 
 | Phase | Work | Judgment |
 |---|---|---|
 | **0** | Capture eval baselines; build the completeness checker | None |
-| **1** | Compress the interaction directive in all 32 copies; remove ASCII lifecycle diagrams; update CLAUDE.md conventions and the structural tests | **None** — mechanical, ~18.6 KB |
+| **1** | Compress the interaction directive in all 32 copies; replace the 10 linear lifecycle diagrams; update CLAUDE.md conventions and the structural tests | **None** — mechanical, ~10.5 KB |
 | **2** | Relationship triage: classify → human-approve the verdict table → apply. Build `docs/skill-graph.md`; relocate operative rows into step bodies; re-point the two dependencies above | High, gated |
 | **3** | Anti-Pattern compression, 72 KB → ~43 KB | Medium |
 
