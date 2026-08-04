@@ -36,7 +36,7 @@ test('execution-strategy and git-strategy are recognized policy keys', () => {
   assert.ok(git, 'git-strategy missing from POLICY_KEYS');
   assert.strictEqual(git.type, 'enum');
   assert.deepStrictEqual(git.values, ['current-branch', 'worktree']);
-  assert.strictEqual(git.default, 'current-branch');
+  assert.strictEqual(git.default, 'worktree');
 });
 
 test('execution.always locks the axis and execution-strategy sets the default — they are distinct keys', () => {
