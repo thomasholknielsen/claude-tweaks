@@ -3,7 +3,7 @@ name: claude-tweaks:research
 description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, adversarial multi-verifier refutation pass). Delegates to Claude Code's built-in /deep-research when available; falls back to an inline method otherwise. Keywords - research, deep research, web research, sources, citations, literature review.
 argument-hint: "<topic> [--mode=quick|standard|deep|ultradeep] [--engine=auto|inline] [--output=<path>]"
 ---
-> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 
 # Research — Deep Web Research with Citation-Audited Reports

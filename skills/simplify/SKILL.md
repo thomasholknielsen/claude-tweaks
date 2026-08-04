@@ -3,7 +3,7 @@ name: claude-tweaks:simplify
 description: Use when you want to simplify recently changed code — catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Works standalone or as a step within /claude-tweaks:build and /claude-tweaks:review.
 argument-hint: "[<file-or-dir>...|#N|<spec-number>]"
 ---
-> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 
 # Simplify — Code Simplification

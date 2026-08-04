@@ -3,18 +3,14 @@ name: claude-tweaks:version
 description: Use when you want to know which version of the claude-tweaks plugin is installed.
 argument-hint: "[plain|full] [--min <version>]"
 ---
-> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 
 # Version — Plugin Version Lookup
 
-Print the installed claude-tweaks plugin version. Utility skill — no lifecycle position.
+Print the installed claude-tweaks plugin version.
 
-```
-/claude-tweaks:capture → ... → /claude-tweaks:wrap-up
-                  [ /claude-tweaks:version ] (utility, called from anywhere)
-                                ^^^^ YOU ARE HERE ^^^^
-```
+Lifecycle: utility — callable from anywhere between `/claude-tweaks:capture` and `/claude-tweaks:wrap-up`.
 
 ## When to Use
 

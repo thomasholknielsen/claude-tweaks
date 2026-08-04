@@ -32,7 +32,7 @@ Every skill follows this structure:
 1. YAML frontmatter: `name`, `description` (trigger condition)
 2. Interaction style directive (identical across all skills)
 3. H1 title with one-line description
-4. ASCII lifecycle position diagram
+4. Lifecycle position — a one-line `Lifecycle:` marker where one line suffices, or a diagram where the shape needs more (consumer sets, mechanism flows, cycles); the canonical full chain lives in `/claude-tweaks:help`
 5. "When to Use" section
 6. Input resolution (how `$ARGUMENTS` is parsed)
 7. Numbered workflow steps
@@ -77,7 +77,7 @@ Every skill follows this structure:
 All skills use this identical directive after the frontmatter:
 
 ```
-> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 ```
 
 ### Parallel execution directives
