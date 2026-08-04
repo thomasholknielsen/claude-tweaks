@@ -1,5 +1,11 @@
 # Skill Bloat Reduction — Phase 0 + Phase 1 Implementation Plan
 
+> **EXECUTED AND SUPERSEDED — do not re-run.** Shipped as v6.33.0. Two figures below are
+> wrong as instructions: the directive's target is **357 B, not the 327 B this plan specifies**
+> (327 B drops the "resolve each before showing the next" clause — a functional regression the
+> whole-branch review caught), and the plan's "five existing tests assert the prefix" is four.
+> The corrected record is in `docs/superpowers/specs/2026-08-04-skill-bloat-reduction-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the identifier-preservation checker Phase 2 depends on, then bank ~10.5 KB of zero-judgment `SKILL.md` reduction by compressing the interaction-style directive across all 32 skills and replacing the 10 mechanically-linear lifecycle diagrams with one-line position markers.
