@@ -64,4 +64,54 @@ function splitSections(markdown) {
   return sections;
 }
 
-module.exports = { extractTemplateBody, splitSections };
+// Sections the plugin authors and therefore owns the content of. Only these are
+// compared against the template.
+const PLUGIN_AUTHORED_SECTIONS = [
+  'Philosophy',
+  'Working Approach',
+  'claude-tweaks Pipeline',
+];
+
+// Sections the adopting project fills in from its own codebase. Never compared —
+// a project's Stack table differing from the template's skeleton is the whole
+// point of the template.
+const PROJECT_AUTHORED_SECTIONS = [
+  'Stack',
+  'Structure',
+  'Commands',
+  'Conventions',
+  'Testing',
+  'Environment',
+  'Git',
+  "Don'ts",
+];
+
+// `## Philosophy` is plugin-authored but not byte-comparable: the Initial Mode
+// Template carries only a placeholder for it, and its real content lives in the
+// file's own "## Generating Philosophy" section and varies across three maturity
+// blocks. It is reported present/absent only.
+const PHILOSOPHY_EXCEPTION = 'Philosophy';
+
+// A section in neither list is `unclassified` rather than silently assigned.
+// Callers treat a non-empty `unclassified` as a hard error — that is what stops
+// a newly added template section from escaping the conformance check.
+function classifySections(sections) {
+  const pluginAuthored = [];
+  const projectAuthored = [];
+  const unclassified = [];
+  for (const name of sections.keys()) {
+    if (PLUGIN_AUTHORED_SECTIONS.includes(name)) pluginAuthored.push(name);
+    else if (PROJECT_AUTHORED_SECTIONS.includes(name)) projectAuthored.push(name);
+    else unclassified.push(name);
+  }
+  return { pluginAuthored, projectAuthored, unclassified };
+}
+
+module.exports = {
+  extractTemplateBody,
+  splitSections,
+  classifySections,
+  PLUGIN_AUTHORED_SECTIONS,
+  PROJECT_AUTHORED_SECTIONS,
+  PHILOSOPHY_EXCEPTION,
+};

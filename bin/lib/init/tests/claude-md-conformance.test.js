@@ -66,3 +66,74 @@ test('extractTemplateBody throws when a nested fence truncates the template', ()
   );
   assert.throws(() => extractTemplateBody(nested), /stopped early/i);
 });
+
+const { classifySections, PHILOSOPHY_EXCEPTION } = require('../claude-md-conformance');
+
+test('classifySections sorts known sections into the two lists', () => {
+  const sections = new Map([
+    ['Stack', '\n| Layer | Tech |\n|---|---|\n| ... | ... |\n'],
+    ['Working Approach', '\n- **Think before coding.** State assumptions.\n'],
+    ['Philosophy', '\n{Adaptive principles. See "Generating Philosophy" below.}\n'],
+  ]);
+  const { pluginAuthored, projectAuthored, unclassified } = classifySections(sections);
+  assert.deepStrictEqual(pluginAuthored.sort(), ['Philosophy', 'Working Approach']);
+  assert.deepStrictEqual(projectAuthored, ['Stack']);
+  assert.deepStrictEqual(unclassified, []);
+});
+
+test('Stack is project-authored despite having no {...} placeholder', () => {
+  // Regression guard for the rejected heuristic: Stack's body is a literal
+  // table skeleton, so "placeholder body means project-authored" classifies it
+  // plugin-authored and every project then reports drift on it.
+  const sections = new Map([['Stack', '\n| Layer | Tech |\n|---|---|\n| ... | ... |\n']]);
+  const { projectAuthored, pluginAuthored } = classifySections(sections);
+  assert.deepStrictEqual(projectAuthored, ['Stack']);
+  assert.deepStrictEqual(pluginAuthored, []);
+});
+
+test('an unknown section is reported unclassified, never silently dropped', () => {
+  const sections = new Map([['Deployment', '\n{how to deploy}\n']]);
+  const { pluginAuthored, projectAuthored, unclassified } = classifySections(sections);
+  assert.deepStrictEqual(unclassified, ['Deployment']);
+  assert.deepStrictEqual(pluginAuthored, []);
+  assert.deepStrictEqual(projectAuthored, []);
+});
+
+test('PHILOSOPHY_EXCEPTION names the present/absent-only section', () => {
+  assert.strictEqual(PHILOSOPHY_EXCEPTION, 'Philosophy');
+});
+
+const fs = require('fs');
+const path = require('path');
+
+const TEMPLATE = path.resolve(
+  __dirname, '..', '..', '..', '..', 'skills', 'init', 'claude-md-template.md',
+);
+
+test('every section in the live template is classified', () => {
+  const src = fs.readFileSync(TEMPLATE, 'utf8');
+  const { unclassified } = classifySections(splitSections(extractTemplateBody(src)));
+  assert.deepStrictEqual(
+    unclassified, [],
+    'A template section belongs to neither PLUGIN_AUTHORED_SECTIONS nor '
+    + 'PROJECT_AUTHORED_SECTIONS. Add it to one deliberately — this assertion exists so a '
+    + 'new section cannot silently escape the conformance check.',
+  );
+});
+
+test('the live template yields exactly the expected plugin-authored set', () => {
+  const src = fs.readFileSync(TEMPLATE, 'utf8');
+  const { pluginAuthored } = classifySections(splitSections(extractTemplateBody(src)));
+  assert.deepStrictEqual(
+    pluginAuthored.sort(),
+    ['Philosophy', 'Working Approach', 'claude-tweaks Pipeline'].sort(),
+  );
+});
+
+test('the live template still ends with Don\'ts — the fence is unambiguous', () => {
+  // Guards the Plan A dependency: while the Project Defaults block existed, its
+  // same-length inner fence truncated extraction here and Don'ts never appeared.
+  const src = fs.readFileSync(TEMPLATE, 'utf8');
+  const names = [...splitSections(extractTemplateBody(src)).keys()];
+  assert.strictEqual(names[names.length - 1], "Don'ts");
+});
