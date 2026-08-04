@@ -60,7 +60,7 @@ LICENSE                           → MIT
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/health-core/tests/ AND bin/lib/docs-health/tests/ AND bin/lib/record-graph/tests/
+npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/health-core/tests/ AND bin/lib/docs-health/tests/ AND bin/lib/record-graph/tests/ AND bin/lib/skill-audit/tests/
 node --test bin/lib/code-health/tests/*.test.js   # Code-health unit suite only
 node bin/code-health.js <cmd>             # Code-health CLI — run with no args for its subcommand list
 node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
