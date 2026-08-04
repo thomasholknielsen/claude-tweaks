@@ -137,3 +137,86 @@ test('the live template still ends with Don\'ts — the fence is unambiguous', (
   const names = [...splitSections(extractTemplateBody(src)).keys()];
   assert.strictEqual(names[names.length - 1], "Don'ts");
 });
+
+const { checkConformance } = require('../claude-md-conformance');
+
+const TPL = [
+  '## Initial Mode Template',
+  '',
+  '```markdown',
+  '# {project name}',
+  '',
+  '## Stack',
+  '',
+  '{table}',
+  '',
+  '## Working Approach',
+  '',
+  '- **Think before coding.** State assumptions.',
+  '',
+  '## claude-tweaks Pipeline',
+  '',
+  '**Artifacts:** design doc then spec.',
+  '',
+  "## Don'ts",
+  '',
+  '{anti-patterns}',
+  '```',
+].join('\n');
+
+test('a conformant project reports no missing and no drifted sections', () => {
+  const project = [
+    '# acme',
+    '',
+    '## Stack',
+    '',
+    '| Layer | Tech |',
+    '',
+    '## Working Approach',
+    '',
+    '- **Think before coding.** State assumptions.',
+    '',
+    '## claude-tweaks Pipeline',
+    '',
+    '**Artifacts:** design doc then spec.',
+  ].join('\n');
+  const r = checkConformance({ templateSource: TPL, projectClaudeMd: project });
+  assert.deepStrictEqual(r.missing, []);
+  assert.deepStrictEqual(r.drifted, []);
+  assert.deepStrictEqual(r.conformant.sort(), ['Working Approach', 'claude-tweaks Pipeline'].sort());
+});
+
+test('an absent plugin-authored section is reported missing with its expected body', () => {
+  const project = ['# acme', '', '## Stack', '', '| Layer | Tech |'].join('\n');
+  const r = checkConformance({ templateSource: TPL, projectClaudeMd: project });
+  assert.deepStrictEqual(r.missing.map((m) => m.section).sort(), ['Working Approach', 'claude-tweaks Pipeline'].sort());
+  const wa = r.missing.find((m) => m.section === 'Working Approach');
+  assert.match(wa.expected, /Think before coding/);
+});
+
+test('an edited plugin-authored section is reported drifted, not missing', () => {
+  const project = [
+    '# acme',
+    '',
+    '## Working Approach',
+    '',
+    '- **Think before coding.** But ship fast.',
+    '',
+    '## claude-tweaks Pipeline',
+    '',
+    '**Artifacts:** design doc then spec.',
+  ].join('\n');
+  const r = checkConformance({ templateSource: TPL, projectClaudeMd: project });
+  assert.deepStrictEqual(r.missing, []);
+  assert.deepStrictEqual(r.drifted.map((d) => d.section), ['Working Approach']);
+  assert.match(r.drifted[0].actual, /ship fast/);
+  assert.match(r.drifted[0].expected, /State assumptions/);
+});
+
+test('project-authored sections are never reported', () => {
+  const project = ['# acme', '', '## Working Approach', '', '- **Think before coding.** State assumptions.',
+    '', '## claude-tweaks Pipeline', '', '**Artifacts:** design doc then spec.'].join('\n');
+  const r = checkConformance({ templateSource: TPL, projectClaudeMd: project });
+  const named = [...r.missing.map((m) => m.section), ...r.drifted.map((d) => d.section), ...r.conformant];
+  assert.ok(!named.includes('Stack'), 'Stack is project-authored and must never be reported');
+});

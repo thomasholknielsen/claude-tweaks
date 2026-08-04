@@ -107,10 +107,48 @@ function classifySections(sections) {
   return { pluginAuthored, projectAuthored, unclassified };
 }
 
+// Philosophy's expected body is not comparable byte-for-byte: the template
+// carries a placeholder, and the generated content varies by the project's
+// maturity classification. It is reported present/absent only.
+function checkConformance({ templateSource, projectClaudeMd }) {
+  const templateSections = splitSections(extractTemplateBody(templateSource));
+  const { pluginAuthored, unclassified } = classifySections(templateSections);
+  if (unclassified.length) {
+    throw new Error(
+      `Unclassified template section(s): ${unclassified.join(', ')}. Add each to `
+      + 'PLUGIN_AUTHORED_SECTIONS or PROJECT_AUTHORED_SECTIONS. Refusing to run a '
+      + 'conformance check that would silently ignore them.',
+    );
+  }
+  const projectSections = splitSections(projectClaudeMd);
+
+  const missing = [];
+  const drifted = [];
+  const conformant = [];
+
+  for (const section of pluginAuthored) {
+    const expected = (templateSections.get(section) || '').trim();
+    if (!projectSections.has(section)) {
+      missing.push({ section, expected });
+      continue;
+    }
+    if (section === PHILOSOPHY_EXCEPTION) {
+      conformant.push(section);
+      continue;
+    }
+    const actual = projectSections.get(section).trim();
+    if (actual === expected) conformant.push(section);
+    else drifted.push({ section, expected, actual });
+  }
+
+  return { missing, drifted, conformant };
+}
+
 module.exports = {
   extractTemplateBody,
   splitSections,
   classifySections,
+  checkConformance,
   PLUGIN_AUTHORED_SECTIONS,
   PROJECT_AUTHORED_SECTIONS,
   PHILOSOPHY_EXCEPTION,
