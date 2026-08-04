@@ -53,7 +53,7 @@ Not every backlog record needs debiasing. Skip when:
 
 ### Resolve the input:
 
-Driver selection (GitHub vs. local-files) follows the same `work-backend` (legacy alias `backlog-backend`) CLAUDE.md flag as `/claude-tweaks:capture`'s Backend Selection.
+Driver selection (GitHub vs. local-files) follows the same `work-backend` CLAUDE.md flag as `/claude-tweaks:capture`'s Backend Selection.
 
 1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or the record file via `local-store.js`'s `readRecord` (local-files driver; a bare `{n}` resolves to the `specs/{n}-*.md` glob match before `readRecord(path)` is called) and use the record's title + body as the problem statement
 2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement

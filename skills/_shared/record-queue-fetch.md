@@ -18,11 +18,7 @@ prompt, the same pattern already used for `_shared/github-pr-scan.md`.
 Read the `work-backend` field from the project's CLAUDE.md (`_shared/work-record.md`'s Config
 keys table, written by `/claude-tweaks:init`). A missing flag is treated as `local-files`.
 
-**Legacy alias (consumer-specific):** `/claude-tweaks:tidy` additionally accepts
-`backlog-backend` — the pre-migration flag name, under `## Backlog integration` — as a
-read-only alias when `work-backend` is absent (see `_shared/work-record.md`'s Config keys
-section, "Legacy alias exception," for the full current list). `/claude-tweaks:help` does not
-read this alias — it reads `work-backend` directly with no fallback.
+Every consumer reads `work-backend` directly, with no alias fallback.
 
 ## `work-backend: github-issues` fetch
 

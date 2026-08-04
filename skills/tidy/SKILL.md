@@ -115,7 +115,7 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 
 **Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), and remove an orphaned `bot:in-progress` (Step 4.7's backstop). Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
 
-**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table; `/tidy` also accepts the legacy `backlog-backend` alias), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
+**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
 
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|

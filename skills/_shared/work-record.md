@@ -259,10 +259,10 @@ Filing skills read the key and branch; they never re-probe mid-flow.
 
 ## Config keys
 
-Canonical home: `_shared/work-record-config.md` — the key table (names, values, defaults) and
-the `backlog-backend` legacy-alias exception live there, not here, so a consumer that needs one
-key doesn't load this whole contract. Read that file whenever a key's name, accepted values, or
-default matters; nothing about them is restated here.
+Canonical home: `_shared/work-record-config.md` — the key table (names, values, defaults) lives
+there, not here, so a consumer that needs one key doesn't load this whole contract. Read that
+file whenever a key's name, accepted values, or default matters; nothing about them is restated
+here.
 
 The keys it defines govern this contract's drivers and capabilities: `work-backend` (which
 driver stores records), `work-types` (how Type is expressed — see Type, above), `work-links`

@@ -160,12 +160,9 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in CLAUDE.md or `.claude-tweaks/policy.yml` — read as defaults by the Manifesto, overridable per-run.
 
-## Backlog integration
-
-Legacy section/flag name — `/capture`, `/challenge`, and `/tidy` read `backlog-backend` as a read-only alias of the current `work-backend` config key; every other consumer skill reads `work-backend` directly with no alias fallback (see `_shared/work-record.md`'s Config keys section, "Legacy alias exception," for the full current list and caveat). Renaming this section and value, and extending the alias to every consumer, is pending, separate migration work (see README.md's "Migrating from 5.x").
+## Work records
 
 work-backend: github-issues
-backlog-backend: github-issues
 
 ## Don'ts
 

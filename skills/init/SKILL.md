@@ -505,7 +505,6 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |
 | Prompting for a browser backend choice | There is only one backend (`agent-browser`) — do not present a choice |
-| Silently rewriting a legacy `backlog-backend` flag to `work-backend` during Phase 0 | That rename is Update-Mode's job, offered as a staged change (see `update-mode.md`'s Work-Record Backend Drift) — Phase 0 must leave an existing `## Backlog integration` section untouched |
 | Generating generic skills (e.g., `auth.md`, `api-routes.md`) | These are not real conventions — they're feature names. Real skills must encode rules, anti-patterns, or "Why this is done this way" insights grounded in patterns actually observed in the codebase. If the project doesn't use WebSockets, don't create a realtime skill. If it has no tests, capture testing as an aspirational backlog item, not a SKILL.md file. |
 | Generating generic skills not grounded in the codebase | Skills must encode observed patterns — generic advice adds noise, not value |
 | Rewriting CLAUDE.md in Update Mode | Update Mode produces patches, not rewrites — existing config embeds hard-won lessons |

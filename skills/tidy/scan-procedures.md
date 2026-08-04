@@ -8,7 +8,7 @@ Step numbering matches `SKILL.md`. The order below mirrors execution order. Ther
 
 ## Step 1: Audit Work Records
 
-Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). `backlog-backend` — the pre-migration flag name, under `## Backlog integration` — is accepted as a read-only legacy alias. A missing flag is treated as `local-files`.
+Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). A missing flag is treated as `local-files`.
 
 One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 

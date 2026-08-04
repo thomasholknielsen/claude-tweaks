@@ -44,7 +44,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
 ## Backend Selection
 
-Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). `backlog-backend` — the pre-migration flag name, under `## Backlog integration` — is accepted as a read-only legacy alias. A missing flag is treated as `local-files` — same missing-flag convention as `design-integration`.
+Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). A missing flag is treated as `local-files` — same missing-flag convention as `design-integration`.
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 

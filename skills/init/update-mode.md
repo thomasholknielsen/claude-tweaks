@@ -101,7 +101,6 @@ autonomously.
 
 | Signal | Detection | Offer (staged) |
 |---|---|---|
-| Legacy `backlog-backend:` flag present, no `work-backend:` line | `backlog-backend:` found under `## Backlog integration` in CLAUDE.md | Offer the rename: write `work-backend: {same value}` under a new `## Work records` section, replacing `## Backlog integration` — one staged patch (flag + section header together) |
 | `work-backend: github-issues` present but `work-types` and/or `work-links` missing | Absence of `work-types:` / `work-links:` lines alongside a present `work-backend: github-issues` | Run `probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) and offer to write the missing key(s) |
 | `work-backend: github-issues` with both `work-types` and `work-links` already present | — | Every full Update-Mode pass re-probes capabilities (`probeCapabilities()`) and offers a patch when the result has drifted from what's recorded (e.g. the org enabled Issue Types since the last run) |
 
