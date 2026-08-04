@@ -106,13 +106,10 @@ Everything below was checked against the current codebase and found accurate. Su
 | Statusline | wired to claude-tweaks wrapper |
 | Workflow dirs (`specs/`, `docs/`) | present |
 
-**Contract markers (claude-tweaks v{X.Y}+)**
-| Marker | Status |
+**Template conformance**
+| Section | Status |
 |--------|--------|
-| Pipeline section | present |
-| Auto-mode flag | present |
-| Bookend paragraph | present |
-| Run-dir reference | present |
+| {one row per plugin-authored section Phase 1u.5 checked} | {conformant \| missing \| drifted} |
 
 **Config accuracy (verified against codebase)**
 | Area | Finding |

@@ -15,7 +15,7 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Commands: {lists these scripts}
 - Conventions: {count} bullets
 - Don'ts: {count} items
-- Contract markers: {pipeline-section | auto-mode-flag | bookend | run-dir} — {present/missing for each}
+- Template conformance: {plugin-authored sections reported missing | drifted | conformant by Phase 1u.5}
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
 ### policy.yml
@@ -382,7 +382,7 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
    - Superpowers: present · Code simplifier: available · agent-browser: installed (v{X.Y.Z})
    - Git repo: yes · Node: v{X} · Statusline: wired · Workflow dirs: present
 
-   Contract markers (claude-tweaks v{X.Y}+): pipeline section, auto-mode flag, bookend paragraph, run-dir reference — all present.
+   Template conformance: every plugin-authored CLAUDE.md section matches the installed template — none missing, none drifted.
 
    Inventory: {M} skills, {R} rules, CLAUDE.md ({L} lines) — all classified "covered" against the existing config.
 
