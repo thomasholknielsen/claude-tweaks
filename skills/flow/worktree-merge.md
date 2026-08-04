@@ -69,7 +69,6 @@ For each completed branch (in order):
    - Option 3 — `label`: `"Abort remaining merges"`, `description`: `"I'll handle merges manually"`
 
    If `worktree.always: true` is set, don't resolve "Resolve now" directly in the main checkout — `Edit`/`Write` there is denied regardless of `close-run` (see above). Instead: `git worktree add` a scratch worktree off `{base-branch}`, re-run `git merge {branch}` there, resolve and commit inside that worktree (a linked worktree, so both gates pass), verify, fast-forward the main checkout to the result (`git merge --ff-only` — ungated, and creates no new commit), then remove the scratch worktree.
-4. After all merges — legacy spec-file alias runs only — update `specs/INDEX.md` to reflect completed specs (record mode never touches INDEX.md; records close via `Fixes #{n}` on merge)
 
 ### Post-Merge Summary
 

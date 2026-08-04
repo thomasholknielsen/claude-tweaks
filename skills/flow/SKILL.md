@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:flow
-description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a work record or spec without stopping between steps. Accepts record references (#N) and specs only — design docs must be decomposed via /claude-tweaks:specify first.
-argument-hint: "<#n>[,#m,#o]|<spec>[,spec...] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]"
+description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a work record without stopping between steps. Accepts record references (#N) only — design docs must be decomposed via /claude-tweaks:specify first.
+argument-hint: "<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -32,10 +32,10 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <#n>[,#m,#o] | <spec>[,spec...] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto | interactive | hybrid | confirm] [keep-going] [step1,step2,step3]
+/claude-tweaks:flow <#n>[,#m,#o] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto | interactive | hybrid | confirm] [keep-going] [step1,step2,step3]
 ```
 
-All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-spec runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first. The legacy numeric spec-number form (`/claude-tweaks:flow 42`, `/claude-tweaks:flow 42,45,48`) still works — see Input resolution below.
+All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-record runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first.
 
 **Flow defaults to `auto` mode** (its purpose is hands-off automation). In `auto` the Pipeline Config Manifesto runs as a **read-only FYI** — it computes and displays the policy levers, then proceeds without an approval stop. Pass `confirm` to re-enable the Manifesto approval gate, `interactive` for per-skill in-flow prompts, or `hybrid` for floor-gated prompts. See the mode arguments below.
 
@@ -43,8 +43,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects, filters, or claims records itself: `/claude-tweaks:dispatch` claims before handing off (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`), or a human runs `/flow #{n}` directly against any record carrying no live claim. When the caller set the `CLAIM_RUN_ID` env var (dispatch always does — see `dispatch/SKILL.md` Step 5), thread it through unchanged to `/wrap-up`'s Section E / `multispec-review-console.md` release step as the ownership-check comparison value, instead of `/flow`'s own `PIPELINE_RUN_DIR` — dispatch claimed the record under its own (earlier, differently-named) run id. *Not required when the legacy `<spec>` form below is passed instead. |
-| `<spec>` | No | **Legacy alias.** A spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`) reads `specs/{n}-*.md` directly — the pre-materialization path, unchanged, for projects that still carry plain numbered spec files. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. |
+| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects, filters, or claims records itself: `/claude-tweaks:dispatch` claims before handing off (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`), or a human runs `/flow #{n}` directly against any record carrying no live claim. When the caller set the `CLAIM_RUN_ID` env var (dispatch always does — see `dispatch/SKILL.md` Step 5), thread it through unchanged to `/wrap-up`'s Section E / `multispec-review-console.md` release step as the ownership-check comparison value, instead of `/flow`'s own `PIPELINE_RUN_DIR` — dispatch claimed the record under its own (earlier, differently-named) run id. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
@@ -55,18 +54,16 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 | `confirm` | No | Stay in `auto` but **re-enable the Manifesto approval gate** at Step 3 (the `Approve all / Override / Cancel` block). Use when you want to inspect and tweak the policy levers before the pipeline runs hands-off. Everything after the Manifesto still runs as `auto`. |
 | `interactive` | No | Opt out of auto entirely — skills present each decision in-flow as the standalone skills do. The Manifesto is skipped. Highest friction; use when you want a checkpoint at every decision. |
 | `hybrid` | No | Manifesto approval gate runs, and downstream skills still prompt when a decision fails the reversibility/confidence/severity floors (see `_shared/auto-mode-contract.md`). Between full `auto` and `interactive`. |
-| `keep-going` | No | **Multi-spec only.** Continue the run after a HARD-GATE failure in one spec — remaining specs still run, committing into the same shared worktree. Failed specs surface in the consolidated Review Console's "Not run / Failed" footer. Use when specs are genuinely independent (no `depends-on:` edges). The default is to stop on first failure because spec N+1 may build on spec N's correctness — `keep-going` inverts that safety, so it's opt-in. See `multi-spec.md`. On a single-spec/single-record run, `keep-going` has nothing to continue past — treat it as a no-op and note: "`keep-going` has no effect on a single-target run — it only applies when multiple specs/records are given." |
+| `keep-going` | No | **Multi-spec only.** Continue the run after a HARD-GATE failure in one spec — remaining specs still run, committing into the same shared worktree. Failed specs surface in the consolidated Review Console's "Not run / Failed" footer. Use when specs are genuinely independent (no `blocked-by:` edges). The default is to stop on first failure because spec N+1 may build on spec N's correctness — `keep-going` inverts that safety, so it's opt-in. See `multi-spec.md`. On a single-spec/single-record run, `keep-going` has nothing to continue past — treat it as a no-op and note: "`keep-going` has no effect on a single-target run — it only applies when multiple specs/records are given." |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,polish,wrap-up` (re-verify is bundled with polish). |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
 
 ### Input resolution
 
-1. **Record reference(s)** (e.g., `#123` or `#123,#456`; under `work-backend: local-files`, drop the `#`) → **Record mode** — resolved, shape-gated, and materialized via `materialize.md` in this skill's directory before the pipeline proper starts; an unshaped record stops the run with a pointer to `/claude-tweaks:specify #{n}`. Checked first, since a leading `#` (or, under `work-backend: local-files`, a bare id that resolves to an existing record) unambiguously means record mode. `/claude-tweaks:dispatch` is the primary caller of this form (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`) — a human can also run it directly against any record carrying no live claim. A single record runs the standard single-spec pipeline below, built from the materialized file. Multiple records (`#A,#B`) run **Multi-spec mode** (below), each materializing to its own file under the shared run's `spec-{id}/work/` subdirectory (see `materialize.md`'s Multi-record layout and `multi-spec.md`) — `CLAIM_RUN_ID` threads through to every record's `/wrap-up` the same way the legacy multi-spec case does (row below).
-2. **Single spec number** (e.g., `42`) → **Spec mode, legacy alias** — reads `specs/42-*.md` directly; build uses spec tracking, review checks spec compliance. No materialization and no record-level shape gate — the legacy pre-flight checks (Step 2.4/2.7) cover this path instead.
-3. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode, legacy alias** — runs each spec sequentially in one terminal (see Multi-Spec Sequential Flow below). For true parallel execution, use separate terminals with `worktree` mode. When `/claude-tweaks:dispatch` is the caller (a bundle group — see `dispatch/SKILL.md` Step 5), it sets `CLAIM_RUN_ID`; thread it through to each spec's `/wrap-up` the same way record mode does (row above) — the release ownership check needs dispatch's run id, not any per-spec one.
-4. **Topic name** (e.g., `meal planning`) → search `specs/` for a matching spec. If found, use spec mode. If only a design doc exists at `docs/superpowers/specs/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
-5. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
+1. **Record reference(s)** (e.g., `#123` or `#123,#456`; under `work-backend: local-files`, drop the `#`) → **Record mode** — resolved, shape-gated, and materialized via `materialize.md` in this skill's directory before the pipeline proper starts; an unshaped record stops the run with a pointer to `/claude-tweaks:specify #{n}`. Checked first, since a leading `#` (or, under `work-backend: local-files`, a bare id that resolves to an existing record) unambiguously means record mode. `/claude-tweaks:dispatch` is the primary caller of this form (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`) — a human can also run it directly against any record carrying no live claim. A single record runs the standard single-spec pipeline below, built from the materialized file. Multiple records (`#A,#B`) run **Multi-spec mode** (below), each materializing to its own file under the shared run's `spec-{id}/work/` subdirectory (see `materialize.md`'s Multi-record layout and `multi-spec.md`) — they run sequentially in one terminal (see Multi-Spec Sequential Flow below); for true parallel execution, use separate terminals with `worktree` mode. When `/claude-tweaks:dispatch` is the caller (a bundle group — see `dispatch/SKILL.md` Step 5), it sets `CLAIM_RUN_ID`; thread it through to every record's `/wrap-up` — the release ownership check needs dispatch's run id, not any per-record one.
+2. **Topic name** (e.g., `meal planning`) → search the configured `work-backend` for a matching record. If found, use record mode. If only a design doc exists at `docs/superpowers/specs/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
+3. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
 
 ### Automatic story generation
 
@@ -109,11 +106,11 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract record reference(s) (`#N` / `#A,#B`), spec number(s), or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, `no-deepen`, `no-creative`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
+1. Parse `$ARGUMENTS` — extract record reference(s) (`#N` / `#A,#B`) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, `no-deepen`, `no-creative`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
    1. Explicit mode keyword in `$ARGUMENTS` — `interactive` / `hybrid` / `confirm` / `auto`. (`confirm` means "auto mode, but gate the Manifesto"; see Step 3.)
    2. `.claude-tweaks/policy.yml` `auto-mode:` setting (CLAUDE.md is also honored for this key) — `default-off` → `interactive`; `default-on` → `auto`.
    3. **Intrinsic default → `auto`.** Flow's purpose is hands-off automation, so it runs auto unless a param or `auto-mode: default-off` lowers it.
-2. Determine record mode (`#N` / `#A,#B`, or a bare id under `work-backend: local-files`), spec mode (number, legacy alias), or topic-resolution mode (name) — per Input resolution above. A path argument is held until Step 2.7 (pre-flight) where it's checked against the design-doc rejection rule.
+2. Determine record mode (`#N` / `#A,#B`, or a bare id under `work-backend: local-files`) or topic-resolution mode (name) — per Input resolution above. A path argument is held until Step 2.7 (pre-flight) where it's checked against the design-doc rejection rule.
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
    2. `.claude-tweaks/policy.yml` `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
@@ -121,18 +118,17 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
    Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy. Pass `subagent` as an explicit argument in the `/claude-tweaks:build` invocation (Step 4) rather than relying on `/build`'s own default-resolution chain — this keeps flow's execution-strategy guarantee independent of whatever `.claude-tweaks/policy.yml` might otherwise resolve to for a standalone `/build` call.
 4. Validate step list is in lifecycle order and apply the auto-inserts and override rules from `steps-and-gates.md` ("Step Arguments" section): auto-insert `test` before `review`, treat literal `re-verify` as a no-op, and drop `polish` when `no-polish` is set.
-5. If record mode: resolve and shape-gate every target record now, via `materialize.md`'s Resolution + Materialization hard gate in this skill's directory — this is the record-level replacement for the legacy pre-flight's spec-committed check (2.4) and design-doc rejection (2.7); an unshaped record stops the run here with a pointer to `/claude-tweaks:specify #{n}`, before Step 2's other checks or the Config Manifesto run. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
-6. If a path was given in the argument: confirm it's a spec, not a design doc (Step 2.7 enforces). If a topic name was given: resolve to a spec; if only a design doc exists for that topic, stop and present the routing message.
+5. Resolve and shape-gate every target record now, via `materialize.md`'s Resolution + Materialization hard gate in this skill's directory — this subsumes the design-doc rejection (2.7); an unshaped record stops the run here with a pointer to `/claude-tweaks:specify #{n}`, before Step 2's other checks or the Config Manifesto run.
+6. If a path was given in the argument: it is rejected as a design doc (Step 2.7 enforces). If a topic name was given: resolve to a record; if only a design doc exists for that topic, stop and present the routing message.
 7. If validation fails → **stop before starting**
 8. **Create the open items ledger** using `/claude-tweaks:ledger`'s create operation. The `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. See `/claude-tweaks:ledger` for status lifecycle and phase taxonomy.
 
 ### Step 2: Pre-flight Checks
 
-Four checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
-- 2.4 — Spec-committed check (target spec tracked + clean; hard-fail — a worktree from base won't contain an uncommitted spec). Worktree strategy only. **Legacy spec-file alias only** — record mode's equivalent guarantee already ran at Step 1 (`materialize.md`'s hard gate on the fetched record body, before any worktree exists).
+Three checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
 - 2.5 — Merge check (uncommitted changes, branch ahead/behind)
 - 2.6 — Shape check (structural coupling, hard-fail on cross-task deps)
-- 2.7 — Design-doc rejection (granularity contract — specs only, not design docs). **Legacy spec-file / topic alias only** — a record reference is never a file path, so this ambiguity doesn't arise in record mode; `materialize.md`'s Step 1 hard gate is record mode's equivalent granularity check.
+- 2.7 — Design-doc rejection (granularity contract — records only, not design docs). **Path / topic input only** — a record reference is never a file path, so this ambiguity doesn't arise for `#N` input; `materialize.md`'s Step 1 hard gate is the equivalent granularity check there.
 
 Any hard fail or rejection stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for the detailed procedure for each substep.
 
@@ -158,7 +154,7 @@ For the complete Manifesto content (presentation template, recommendation defaul
 For each step in order:
 
 1. **Announce** the step: `## Flow: Running {step} ({N}/{total})`
-2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed on the current branch before any worktree exists — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file exactly as it reads a legacy spec file (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
+2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed on the current branch before any worktree exists — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file as its spec (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
    - `build` → check output for UI file changes and, if applicable, run `stories` — see "Automatic story generation" above for the full detection/dev-URL/invocation rule (not restated here).
@@ -281,10 +277,10 @@ Close the template's fence above, then assemble the applicable options (the base
 
 ## Multi-Spec Sequential Flow
 
-When multiple spec numbers or record references are provided (e.g., `42,45,48` or `#42,#45,#48`), flow runs each spec's (or record's) pipeline **sequentially** in one terminal. Each completes its full pipeline (build → test → review → polish → wrap-up) before the next begins.
+When multiple record references are provided (e.g., `#42,#45,#48`), flow runs each record's pipeline **sequentially** in one terminal. Each completes its full pipeline (build → test → review → polish → wrap-up) before the next begins.
 
 **Pre-flight enrichments (v4.6.4+):**
-- **Dependency-aware ordering** — reads each target's dependency declaration (`depends-on:` frontmatter on a legacy spec-file target, `blocked-by:` on a record-reference target — see `materialize.md`'s Populating the header), builds a DAG, hard-fails on cycles, and offers (or auto-applies in `auto` mode) topological re-ordering when the user's order violates the graph.
+- **Dependency-aware ordering** — reads each target's `blocked-by:` dependency declaration (see `materialize.md`'s Populating the header), builds a DAG, hard-fails on cycles, and offers (or auto-applies in `auto` mode) topological re-ordering when the user's order violates the graph.
 - **Cross-spec conflict detection** — pre-flight scans each spec's `Files:` declarations; surfaces overlapping pairs as a footer line in the Pipeline Preview. Warning, not hard-fail.
 
 **Failure handling:**

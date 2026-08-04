@@ -18,7 +18,7 @@ On any skip, return the skip object — `/build` proceeds without lazy-loaded re
 
 ### Step 2: Read the spec file
 
-When `<spec>` is a number, resolve via `specs/{N}-*.md`; when a path, read directly. Inspect the spec's contents to choose which Impeccable reference files to load.
+When `<spec>` is a record reference, resolve via the run's materialized file (`{run-dir}/work/{n}-spec.md`, per `skills/flow/materialize.md`); when a path, read directly. Inspect the spec's contents to choose which Impeccable reference files to load.
 
 ### Step 3: Decide which Impeccable references to load
 

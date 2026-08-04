@@ -12,7 +12,7 @@ step.
 | Version Check | `version-check.md` | Runs before Step 1 on every invocation — marker read, version compare, changelog notice. |
 | 1 | `step-01-check-plugin-dependencies.md` | Superpowers + code-simplifier detection and install hint. |
 | 2 | `step-02-create-directory-structure.md` | Directory taxonomy and per-directory rationale. |
-| 3 | `step-03-starter-files.md` | Canonical `specs/INDEX.md` starter content. |
+| 3 | `step-03-starter-files.md` | Where work records live per backend; why no starter file is written. |
 | 4 | `step-04-gitignore-suggestions.md` | Suggested `.gitignore` block and the stories-commit prompt. |
 | 5 | `step-05-verify-git.md` | Git-repo verification and the non-git warning. |
 | 6 | `step-06-worktree-configuration.md` | `.worktrees/` setup and the `worktree.always` policy opt-in. |

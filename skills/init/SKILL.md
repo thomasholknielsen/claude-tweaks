@@ -125,9 +125,9 @@ Verify Superpowers plugin and the built-in code-simplifier subagent are availabl
 
 Create the required workflow directories — idempotent, only creates what's missing. Read `bootstrap/step-02-create-directory-structure.md` for the directory taxonomy and per-directory rationale.
 
-### Step 3: Create Starter Files
+### Step 3: Work-Record Storage
 
-Create `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap/step-03-starter-files.md` for the canonical starter content.
+No starter files are written — work records live on the tracker (`github-issues`) or as flat `specs/{n}-{slug}.md` files (`local-files`), neither of which needs scaffolding. Read `bootstrap/step-03-starter-files.md` for the rationale.
 
 ### Step 4: Suggest .gitignore Entries
 
@@ -436,7 +436,6 @@ After writing files, surface what was created. Generate the table from the actua
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
-| Starter files | Wrote `specs/INDEX.md` (only if missing) | Step 3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |
@@ -500,7 +499,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Modifying existing backlog work records or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
+| Modifying existing backlog work records | Phase 0 is additive — it creates missing files but must not overwrite user content |
 | Skipping CLAUDE.md generation | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |

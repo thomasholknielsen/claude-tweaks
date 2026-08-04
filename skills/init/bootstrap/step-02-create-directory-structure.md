@@ -5,7 +5,7 @@
 Check and create the required directories (only create what's missing):
 
 ```
-specs/                      → Spec files; also backlog work records when work-backend: local-files (flat specs/{n}-{slug}.md, local-store.js)
+specs/                      → Work records when work-backend: local-files (flat specs/{n}-{slug}.md, local-store.js)
 docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
 docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
 docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)

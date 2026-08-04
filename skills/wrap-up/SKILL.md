@@ -32,7 +32,7 @@ Determine what type of work was completed:
 ### If `$ARGUMENTS` is provided:
 
 - If it's exactly `resume` (case-insensitive), this is not conversation-based work — see "Resuming a halted Review Console" below instead of falling through to the branches below.
-- If it's a `#`-prefixed record reference (e.g., `#42` — the primary form) or a bare spec/record number (e.g., "42", "73" — legacy alias), strip the leading `#` if present, then proceed as **record- or spec-based work**.
+- If it's a `#`-prefixed record reference (e.g., `#42` — the primary form) or a bare record id under `work-backend: local-files` (e.g., "42", "73"), strip the leading `#` if present, then proceed as **record-based work**.
 - Otherwise, use it as context for **conversation-based work**.
 
 Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywhere in `$ARGUMENTS` alongside any of the above forms — strip them before applying the branches above. See "Flags" below.
@@ -50,24 +50,24 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 ### If no arguments, detect from context:
 
 1. Check whether a materialized header exists for this run (`${RUN_DIR}/work/*-spec.md`) — record mode
-2. Check recent git commits for spec references, and current branch name for spec patterns — legacy spec-file alias
-3. Review conversation for references to spec files, records, or features
+2. Check recent git commits and the current branch name for record references
+3. Review conversation for references to records or features
 
 | Type | Characteristics | Primary Focus |
 |------|----------------|---------------|
-| **Record- or spec-based** | A materialized header exists for this run, or — legacy alias — a spec file exists in `specs/` | Full lifecycle: record/spec completion + plans + all assessments |
-| **Conversation-based** | No record or spec, just work discussed | Assessments only (skip spec/plan cleanup steps) |
+| **Record-based** | A materialized header exists for this run | Full lifecycle: record completion + plans + all assessments |
+| **Conversation-based** | No record, just work discussed | Assessments only (skip record/plan cleanup steps) |
 
 ## Step 2: Summarize Completed Work
 
 > Note: Spec compliance (deliverables + acceptance criteria) was already verified in `/claude-tweaks:review` Step 1. This step summarizes what was done — it does not re-verify.
 
-### For record- or spec-based work:
+### For record-based work:
 
-Summarize the implementation against the record or spec:
+Summarize the implementation against the record:
 
 1. List what was delivered (high-level, not a re-audit)
-2. **100% complete** (confirmed by `/claude-tweaks:review`) → record mode, `github-issues`: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); record mode, `local-files`: the record file is marked `closed: true` in place (`cleanup-procedures.md` item 5); legacy spec-file alias: the spec file will be deleted
+2. **100% complete** (confirmed by `/claude-tweaks:review`) → `github-issues`: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); `local-files`: the record file is marked `closed: true` in place (`cleanup-procedures.md` item 5)
 3. **Partial** (if `/claude-tweaks:review` passed with minor gaps flagged) → identify what remains
 
 ### For conversation-based work:
@@ -103,7 +103,7 @@ Steps 6 and 7 below read the (possibly just-downgraded) value fresh at their own
 
 ---
 
-## Step 4: Analyze Leftover Work (record- or spec-based only)
+## Step 4: Analyze Leftover Work (record-based only)
 
 Identify unfinished spec sections that cannot be completed in the current work context. If at least one such section exists, read `leftover-routing.md` in this skill's directory and route them per that file — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics. If every spec section is complete, report "No leftover work to route" and skip this step entirely — do not read the file.
 
@@ -115,7 +115,7 @@ This step **plans** the cleanup — it does not execute. Actual deletions and ar
 
 Step 5 enumerates 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
 
-First check whether **any** of the 8 conditions holds for this run — record- or spec-based work (items 1, 5), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), a materialized header exists at `${RUN_DIR}/work/*-spec.md` (7), or a pipeline run directory exists (8):
+First check whether **any** of the 8 conditions holds for this run — record-based work (items 1, 5), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), a materialized header exists at `${RUN_DIR}/work/*-spec.md` (7), or a pipeline run directory exists (8):
 
 - **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into Step 9's summary and Step 10's execution.
 - **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
@@ -261,10 +261,10 @@ Reversibility: N/A.
 
 Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. **`audit not run` is deliberate and must never be rendered as `no findings`** — a gate that never opened is indistinguishable from a clean CLAUDE.md unless the summary says which one happened. When the gate did open, the summary instead names the signal that opened it and the finding count, so the two cases are never confusable.
 
-## Step 8: Analyze Next Steps (record- or spec-based only)
+## Step 8: Analyze Next Steps (record-based only)
 
 Determine:
-1. **Newly unblocked records** — what can now be worked on? Record mode only (below); the legacy spec-file alias has no equivalent check here — suggest `/claude-tweaks:help` for that case.
+1. **Newly unblocked records** — what can now be worked on? See below.
 2. **Parallel opportunities** — which specs have no dependencies?
 3. **Recommended next spec** — based on dependencies and logical flow
 
@@ -274,7 +274,7 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
 
-**Gate the read.** If this run is record mode (a materialized header exists at `${RUN_DIR}/work/*-spec.md`), read `unblocked-records.md` in this skill's directory — it holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, or the legacy spec-file alias, neither of which has a record whose closure could unblock a dependent — skip this sub-step entirely and do not read the file.
+**Gate the read.** If this run is record mode (a materialized header exists at `${RUN_DIR}/work/*-spec.md`), read `unblocked-records.md` in this skill's directory — it holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, which has no record whose closure could unblock a dependent — skip this sub-step entirely and do not read the file.
 
 ---
 
@@ -350,8 +350,8 @@ In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outri
 **Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
 
 ```
-## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
-{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
+## Wrap-Up: Record #{n} — {title}
+{Origin: {origin} — the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely when absent.}
 
 ### Reflection Insights
 1. {insight} → {destination}
@@ -388,7 +388,6 @@ Resolved in Step 7 — {N} updates applied, {M} staged, {K} new-skill candidates
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Operational | Closed record #{n} via merge (`Fixes #{n}`) — no local file to delete | `{hash}` |
-| Operational | Deleted spec `specs/{N}.md`, updated `specs/INDEX.md` (legacy spec-file-mode alias only) | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
 | Operational | Deleted ledger | — |
 | Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
@@ -423,16 +422,10 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 If the user chooses to override, let them pick which items to skip or change.
 
-After presenting the summary, output an explicit closure line — record mode (materialized header present):
+After presenting the summary, output an explicit closure line:
 
 ```
 Work archived. Record #{n} closes via this merge (or the wrap-up commit, in current-branch mode); its plans and ledger have been deleted. The code and learnings remain.
-```
-
-Legacy spec-file-mode alias (no materialized header):
-
-```
-Work archived. Spec {N}, its plans, and ledger have been deleted. The code and learnings remain.
 ```
 
 This signals clearly that the lifecycle is complete — there's nothing left to do for this spec.
@@ -455,22 +448,20 @@ After the cleanup, also apply:
 - **Docs-health restructural filings** — for restructural docs-health findings (`docs-health-integration.md`'s D1) approved at the Console or batch, re-run `validate-findings` without `--dry-run` and file each surviving payload via `gh issue create`, per that file's filing procedure
 - **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.2) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
-- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief. **Gate the read:** only when this run is record mode *and* the record is testable, read `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure. Conversation-based work and the legacy spec-file alias have no work record to label — skip this bullet and do not read the file (that file's own header states the same restriction)
+- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief. **Gate the read:** only when this run is record mode *and* the record is testable, read `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure. Conversation-based work has no work record to label — skip this bullet and do not read the file (that file's own header states the same restriction)
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
 and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
 field is the issue number), include one `Fixes #{issue}` line per resolved issue in this commit
 message — it is the closing-keyword carrier for current-branch runs (see
 `cleanup-procedures.md` Section C); GitHub closes the issues when the commit reaches the
-default branch. A legacy spec-file-mode run (no materialized header) carries no closing
-keyword — there was never an issue to close.
+default branch. A run with no materialized header carries no closing keyword — there was
+never an issue to close.
 
 ### Verify execution
 
 Before emitting the closure line, confirm every approved action actually ran:
 
-- Spec file deleted or status updated (legacy spec-file-mode alias only — record mode has no spec file) — `ls specs/{N}*.md` returns nothing (or `git status` shows the status edit committed)
-- INDEX.md updated (legacy spec-file-mode alias only — record mode never touches it) — `git log -1 --stat specs/INDEX.md` shows this run's commit
 - Plans + ledger removed — `ls docs/superpowers/plans/*{spec-slug}* docs/plans/*-ledger.md` returns nothing
 - Design caches deleted (when applicable) — no `*-audit.json` / `*-recommendations.json` / `*-declined.json` for this spec remain in `docs/plans/`
 - Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists, with the `work/` subdirectory (when present) still git-tracked at its new path (skipped when `MULTISPEC_REVIEW_DEFER=1`)
@@ -483,11 +474,10 @@ If any approved action did not land, do NOT emit the closure line. Surface the g
 ## Important Notes
 
 - `/claude-tweaks:review` should have been run before `/claude-tweaks:wrap-up` — this skill assumes code quality is verified
-- INDEX.md is forward-looking only — remove completed entries
 - Skills document reusable patterns, not one-off implementations
 - CLAUDE.md stays concise — use skills, rules, or reference docs for details
 - Reflection insights with no clear destination must still be explicitly resolved — the user confirms "don't capture" with a reason, rather than the skill silently dropping them
-- **Merge conflicts during wrap-up** (e.g., when merging a worktree feature branch back to main): resolve conflicts by understanding both sides' intent — read both versions, pick the correct merge. Never use `git reset` or `git checkout .` to discard changes. If the conflict involves spec or INDEX.md files being deleted by wrap-up but modified on main, prefer the deletion (the spec is complete).
+- **Merge conflicts during wrap-up** (e.g., when merging a worktree feature branch back to main): resolve conflicts by understanding both sides' intent — read both versions, pick the correct merge. Never use `git reset` or `git checkout .` to discard changes.
 
 ## Next Actions
 

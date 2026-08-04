@@ -31,7 +31,6 @@ What /init checked and found true about this repo and environment — the affirm
 | `specs/` | {created/exists} |
 | `docs/plans/` | {created/exists} |
 | `docs/journeys/` | {created/exists} |
-| `specs/INDEX.md` | {created/exists} |
 | Git repo | {yes/no — warning if no} |
 | Worktree directory | {configured/skipped} |
 | Browser: agent-browser | {installed (vX.Y.Z) / not installed — install hint surfaced} |

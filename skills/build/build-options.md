@@ -40,21 +40,20 @@ When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Executio
 
 ## Input
 
-`$ARGUMENTS` = record reference (`#N`), spec number (legacy alias), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), `auto`, and/or the standalone tokens `tier=<fast|standard|capable>` (Common Step 2 model-tier override) and `ops=confirm` (Step 2.5 auto-executable-command confirmation). All optional tokens are matched by keyword, not position — any order works (e.g. `/claude-tweaks:build 42 auto current-branch` and `/claude-tweaks:build 42 current-branch auto` are equivalent).
+`$ARGUMENTS` = record reference (`#N`), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), `auto`, and/or the standalone tokens `tier=<fast|standard|capable>` (Common Step 2 model-tier override) and `ops=confirm` (Step 2.5 auto-executable-command confirmation). All optional tokens are matched by keyword, not position — any order works (e.g. `/claude-tweaks:build #42 auto current-branch` and `/claude-tweaks:build #42 current-branch auto` are equivalent).
 
 ### Resolve the input
 
-1. **Record reference** (e.g., `#42`; under `work-backend: local-files`, drop the `#`) → **Record mode** — primary input. Checked first, since a leading `#` (or, under `work-backend: local-files`, a bare id that resolves to an existing record) unambiguously means record mode — the spec-file alias below only engages when no record matches. Resolved, shape-gated, and materialized via `skills/flow/materialize.md` into `{run-dir}/work/{n}-spec.md`; an unshaped record hard-stops with a pointer to `/claude-tweaks:specify #{n}`. Once materialized, the file reads exactly like a legacy spec file for the rest of build — full lifecycle with spec compliance.
-2. **Spec number** (e.g., `42`, `73`) → **Spec mode, legacy alias** — reads `specs/{N}-*.md` directly; full lifecycle with prerequisites, INDEX.md tracking, and spec compliance. No materialization, no record-level shape gate.
-3. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
-4. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, call `AskUserQuestion` with:
+1. **Record reference** (e.g., `#42`; under `work-backend: local-files`, drop the `#`) → **Record mode** — primary input. Checked first, since a leading `#` (or, under `work-backend: local-files`, a bare id that resolves to an existing record) unambiguously means record mode. Resolved, shape-gated, and materialized via `skills/flow/materialize.md` into `{run-dir}/work/{n}-spec.md`; an unshaped record hard-stops with a pointer to `/claude-tweaks:specify #{n}`. Once materialized, that file is the spec for the rest of build — full lifecycle with spec compliance.
+2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
+3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching record via the configured `work-backend`. If both exist, call `AskUserQuestion` with:
 
-- `question`: `"Found both a spec and a design doc for '{topic}'. Which did you mean?"`, `header`: `"Build mode"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Spec mode"`, `description`: `"spec {N}: {title} — Full lifecycle with prerequisites and tracking"`
+- `question`: `"Found both a work record and a design doc for '{topic}'. Which did you mean?"`, `header`: `"Build mode"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Record mode"`, `description`: `"#{N}: {title} — Full lifecycle with shape gate and tracking"`
 - Option 2 — `label`: `"Design mode"`, `description`: `"{design doc filename} — Build directly, skip spec machinery"`
 
 If only one exists, use it.
-5. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
+4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
 
 ### Prompt for build options
 
@@ -72,10 +71,9 @@ When only ONE axis is still unresolved (whether because an argument supplied the
 
 **In `auto` mode**, skip this prompt and use the `.claude-tweaks/policy.yml` / fallback values for any axis not already resolved by policy or an explicit argument (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
 
-## Record vs Spec vs Design mode
+## Record vs Design mode
 
 | Mode | Source | Skips | Best for |
 |------|--------|-------|----------|
 | **Record mode** | `#N` — materialized via `skills/flow/materialize.md` into `{run-dir}/work/{n}-spec.md` | Nothing | Primary input — a GitHub issue (or local record) shaped `ready` by `/claude-tweaks:specify` |
-| **Spec mode (legacy alias)** | `specs/{N}-*.md` | Nothing | Legacy numbered spec files predating record materialization; acceptance criteria, dependencies, and INDEX.md tracking still apply |
-| **Design mode** | `docs/superpowers/specs/*-design.md` | `/claude-tweaks:specify`, prerequisite checks, INDEX.md | Quick builds where the design doc is clear enough to execute directly |
+| **Design mode** | `docs/superpowers/specs/*-design.md` | `/claude-tweaks:specify`, prerequisite checks | Quick builds where the design doc is clear enough to execute directly |
