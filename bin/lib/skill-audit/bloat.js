@@ -32,11 +32,11 @@ const { extractAntiPatternRows } = require('./anti-patterns.js');
 // moves the corpus (which is exactly what just happened here), and "well above
 // the median" is the actual claim being made.
 //
-// Multiple of 2 chosen by measuring the live corpus (347 rows, median 153 B):
-//   x1.5 -> 32 rows (9.2%)  — a whole quartile's tail; a to-do list, not a signal
-//   x1.75 -> 12 rows (3.5%)
-//   x2.0 ->  5 rows (1.4%)  — genuine outliers
-//   x2.5 ->  2 rows (0.6%)  — too tight to catch regrowth before it spreads
+// Multiple of 2 chosen by measuring the live corpus (345 rows, median 152 B):
+//   x1.5  -> 32 rows (9.3%)  — a whole quartile's tail; a to-do list, not a signal
+//   x1.75 -> 11 rows (3.2%)
+//   x2.0  ->  4 rows (1.2%)  — genuine outliers
+//   x2.5  ->  1 row  (0.3%)  — too tight to catch regrowth before it spreads
 const ROW_LENGTH_MULTIPLE = 2;
 
 // A median over a handful of rows is set by the outlier itself, so the relative
@@ -180,10 +180,10 @@ function findProvenance(text, patterns = PROVENANCE_PATTERNS) {
 //
 //   Word floor. A decision matrix is SUPPOSED to repeat its verdicts — a
 //   `Yes`/`No`/`Auto-apply`/`Fix now` column repeating is the table working.
-//   Measured: with no floor, 87 exact-duplicate adjacent pairs, essentially all
+//   Measured: with no floor, 84 exact-duplicate adjacent pairs, essentially all
 //   verdict enums. With an 8-word floor, 6 — all of them real prose duplicates.
 //
-//   Similarity floor. Jaccard over normalized word sets, 0.8. Measured over 814
+//   Similarity floor. Jaccard over normalized word sets, 0.8. Measured over 810
 //   floor-clearing adjacent pairs:
 //     >=0.7 -> 20 pairs, but the 0.7-0.8 band is dominated by deliberately
 //              parallel rows whose single varying word IS the row's content

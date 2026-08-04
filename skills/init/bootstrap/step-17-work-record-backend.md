@@ -59,18 +59,6 @@ consumer skill that reads it — matching `design-integration`'s missing-flag
 convention. That is a read-time fallback, separate from what `/init` itself does
 when it finds the flag missing at provisioning time — see "Re-run behavior" below.
 
-**Legacy alias note.** `/capture`, `/challenge`, and `/tidy` read `backlog-backend`
-(the pre-migration flag name, under a `## Backlog integration` section) as a
-read-only legacy alias for `work-backend` until the separate migration plan
-retires it — every other consumer skill reads `work-backend` directly, with no
-alias fallback (see `_shared/work-record.md`'s Config keys section, "Legacy alias
-exception"). This write path only ever emits `work-backend`, never
-`backlog-backend`. If this project's CLAUDE.md already has a `## Backlog
-integration` section with a `backlog-backend` value (a pre-migration project), do
-not rewrite it here — see "Re-run behavior" below for why that rename belongs to
-Update-Mode, offered as a staged change, never applied silently by a Phase 0 pass
-landing on an existing config.
-
 **Sub-step 17b — Capability probe.** Runs immediately after Step 17 writes
 `work-backend` fresh (either branch above) — not on a re-run where the flag was
 already set; see "Re-run behavior" below.
@@ -146,11 +134,7 @@ Work-Record Backend Drift), not a repeat of this bootstrap step. When
 `work-backend: local-files` is set, re-run the Gate check — if a GitHub remote has
 since become available (the project was local-only at the last `/init` and has
 since been pushed), offer the upgrade path back to `github-issues`, running 17b/17c
-as part of that upgrade. When `work-backend` is **missing**, check for the legacy
-`backlog-backend` key first: if present, this is not a fresh-init project — leave
-it untouched and defer to Update-Mode's rename offer (see the Legacy alias note
-above), rather than silently provisioning a second, differently-named section
-beside it. Only when neither key is present does this count as a true fresh init:
+as part of that upgrade. When `work-backend` is **missing**, this counts as a true fresh init:
 apply the same Gate-based handling described above — silently set `github-issues`
 (running 17b/17c) when the gate succeeds, present the gate-fails prompt otherwise.
 

@@ -58,18 +58,6 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 
 Read the project's `work-backend` config key (per `_shared/work-record-config.md`, the key table's canonical home). **`work-backend: local-files`** — report that headless dispatch is github-issues only (GitHub's RBAC + atomic refs are the mechanism this protocol depends on, not a policy choice) and **stop this turn completely**: do not invoke `/claude-tweaks:flow`, `/claude-tweaks:build`, or any other skill; do not claim, write, edit, or create any file; do not run any build, test, or git-committing command. Tell the user they can run `/claude-tweaks:flow` or `/claude-tweaks:build` manually against a chosen record if they want that work done — this is information for the user to act on, never an instruction for you to act on yourself. This holds with no exception when no interactive human is present to receive it, including the `next` form's headless/Routine firing (see Input table above): the absence of a human to hand this off to is not license to do the work in their place — it means the claim mechanism this protocol depends on is unavailable, so the correct behavior is to stop, not proceed. **This stop is also not superseded by this project's own documented auto-mode or hands-off-pipeline conventions elsewhere in CLAUDE.md** (e.g. `/claude-tweaks:flow` defaulting to `auto`, "skills MUST NOT invent new mid-flow stops"): those conventions govern behavior within a pipeline run that has already been authorized to proceed — they say nothing about whether this Preflight may authorize new work in the first place, which under `local-files` it explicitly cannot. A record that looks low-risk, well-scoped, or "ready" is not an exception. Only `work-backend: github-issues` proceeds past this point.
 
-**Missing key vs. deliberate `local-files` choice.** Before treating an absent `work-backend` line as an intentional `local-files` project, check whether CLAUDE.md's `## Backlog integration` section already carries a `backlog-backend:` line (the pre-6.0 legacy key, per `_shared/work-record-config.md`'s "Legacy alias exception"):
-
-```bash
-grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:[[:space:]]*\S' CLAUDE.md && echo "MIGRATION_GAP" || echo "GENUINE_LOCAL_FILES"; }
-```
-
-`MIGRATION_GAP` means this is very likely an incomplete migration, not a deliberate `local-files` choice — report exactly this message (substituting the actual `backlog-backend` value for `{value}`) and stop, instead of the generic local-files redirect above:
-
-> CLAUDE.md has backlog-backend but no work-backend: line — add work-backend: {value} (the same value as backlog-backend) to CLAUDE.md's Backlog integration section to fix this.
-
-`GENUINE_LOCAL_FILES` (neither key present, or `work-backend` present) proceeds through the normal branch above unchanged.
-
 **Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), a `next`-form firing files a durable GitHub trace instead: read `headless-self-report.md` in this skill's directory and follow it, then stop. It never softens the stop — it only leaves a record of it, deduplicated against any existing open report so repeated firings don't re-file.
 
 Skip this entirely for the bare / `#N` / `#N,#M,...` forms — those always run with a human present (per the Input table above), so they just report the failing check and stop; self-filing is `next`-only.
@@ -361,8 +349,6 @@ These four rows mirror `_shared/work-record-config.md`'s canonical key table (wh
 | `automerge-max-lines` | `40` | Auto-merge blast-radius guideline on changed lines — a weighted input to `merge-check`'s judgment, not a hard cutoff. |
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
-
-**Legacy aliases:** the pre-grants keys `triage-retry-ceiling`, `triage-fast-track-max-lines`, `triage-fast-track-max-files`, and `triage-dispatch-max-concurrent` are still read as aliases for the four rows above, in that order, when the new key is absent — no project should have to rename its policy file just because this skill was renamed.
 
 **Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to CLAUDE.md/`policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-contract.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 

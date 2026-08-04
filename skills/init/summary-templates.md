@@ -31,7 +31,6 @@ What /init checked and found true about this repo and environment — the affirm
 | `specs/` | {created/exists} |
 | `docs/plans/` | {created/exists} |
 | `docs/journeys/` | {created/exists} |
-| `specs/INDEX.md` | {created/exists} |
 | Git repo | {yes/no — warning if no} |
 | Worktree directory | {configured/skipped} |
 | Browser: agent-browser | {installed (vX.Y.Z) / not installed — install hint surfaced} |
@@ -157,7 +156,6 @@ After writing files, surface what was created. Generate the table from the actua
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
-| Starter files | Wrote `specs/INDEX.md` (only if missing) | Step 3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |

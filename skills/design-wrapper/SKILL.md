@@ -240,6 +240,6 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Caching availability results across sessions on disk | In-memory per session — never write the marker to `~/.claude-tweaks/` (harness-owned runtime state) |
 | Writing audit / recommendations / declined caches to `~/.claude-tweaks/` | Harness-owned. All three live beside the ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit\|recommendations\|declined}.json`. |
 | Calling `/impeccable:impeccable` without first checking availability | The Skill tool errors if the plugin isn't installed — check first and skip cleanly |
-| Treating the `surface:` field as required | `/specify` writes it on new specs; Layer 3 sniff handles legacy specs that lack it. Demanding it breaks them all. |
+| Treating the `surface:` field as required | `/specify` writes it on new records; Layer 3 sniff handles records predating that behavior. Demanding it breaks them all. |
 | Reading `pre-build` context as a hard gate | Lazy-loaded references are *enrichment* — skipping (no Impeccable, non-frontend) must not block the build. |
 | Invoking `live` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | `live` needs a human in a browser — no non-interactive path exists. Callers must restrict it to interactive, standalone invocation. |

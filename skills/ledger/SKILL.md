@@ -242,6 +242,6 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Creating duplicate ledger entries | Check semantic duplicates before adding — same phase + similar description = skip |
 | Reopening resolved items | Terminal statuses are final — if the fix was wrong, create a new item |
 | Modifying the ledger file format | Multiple skills parse the table — structural changes break them |
-| Using the ledger for feature tracking | The ledger covers one pipeline run. Cross-run tracking goes in specs/INDEX.md under `work-backend: local-files` (legacy spec-file-alias records), or on the parent record's `## Cross-Spec Promises` under `work-backend: github-issues` (`_shared/work-record.md`) — Record-mode closure never touches specs/INDEX.md (`wrap-up/cleanup-procedures.md`). |
+| Using the ledger for feature tracking | The ledger covers one pipeline run. Cross-spec/cross-run tracking belongs on the decomposition's parent record's `## Cross-Spec Promises` section (`_shared/work-record.md`). |
 | Skipping the resolve gate | Non-negotiable — no pipeline completes with open items |
 | Treating `auto` mode as authorization to bypass the resolve gate | Phase 2 always requires per-item user input; `auto` never silences it — see `_shared/auto-mode-contract.md` |

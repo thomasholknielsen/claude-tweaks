@@ -28,13 +28,13 @@ For each lever, record both the recommended value AND its source so the user can
 
 ## Compute per-spec preview
 
-Before rendering the Manifesto, derive a per-spec preview by reading each record's materialized header when one exists — pre-materialization, or under the legacy spec-file alias, fall back to the record body's `Surface:`/`Design-intent:` metadata lines or the spec file's own header fields — and inferring what will run:
+Before rendering the Manifesto, derive a per-spec preview by reading each record's materialized header when one exists — pre-materialization, fall back to the record body's `Surface:`/`Design-intent:` metadata lines — and inferring what will run:
 
 | Field | Source | How to derive |
 |---|---|---|
-| Surface | Materialized header `surface:` (`materialize.md`) — or the record body's `Surface:` line / the legacy spec file's `surface:` header field when no run-dir header exists yet (or detect from Key Files extensions, using the same trigger-extension/trigger-path rules as `/claude-tweaks:design-wrapper`'s Layer 3 sniff — for the canonical list, read `frontend-detection.md` in that skill's directory) | `frontend` if trigger files present; else `backend` / `infra` per header or content |
+| Surface | Materialized header `surface:` (`materialize.md`) — or the record body's `Surface:` line when no run-dir header exists yet (or detect from Key Files extensions, using the same trigger-extension/trigger-path rules as `/claude-tweaks:design-wrapper`'s Layer 3 sniff — for the canonical list, read `frontend-detection.md` in that skill's directory) | `frontend` if trigger files present; else `backend` / `infra` per header or content |
 | Ceremony | Materialized header `ceremony:` (`materialize.md`) — always present | Read directly (`fast-lane` or `standard`) |
-| Polish | `surface` × materialized header `design-intent:` (or the body's `Design-intent:` line / legacy spec `design-intent:`) × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
+| Polish | `surface` × materialized header `design-intent:` (or the body's `Design-intent:` line) × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
 | Stories | UI files in plan + `no-stories` arg | `auto-detect` if UI files in plan + no-stories not set; `skip` otherwise |
 | QA | `stories/*.yaml` exists for this record's surface | `run` if matching stories; `skip` if none |
 | Friction note | Lever recommendations × record content | One-line warning when an approved lever still introduces prompts for this record (e.g., review-severity-floor `low` + a frontend record with prior HIGH findings) |
@@ -48,7 +48,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | Lever | Suppressed when |
 |---|---|
 | **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
-| **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata / legacy spec header), OR all records are non-frontend (polish auto-skips regardless) |
+| **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata), OR all records are non-frontend (polish auto-skips regardless) |
 | **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step at all (`steps-and-gates.md`'s Allowed Steps table lists it unconditionally under "Not allowed in flow") and can never be added to a step list. Still written to `config.yml` (per the "suppression is a UI affordance" rule below) since a standalone `/tidy` run can independently resolve the same run directory and read this lever's value. Kept in the canonical lever count for stable numbering across all skills that reference these levers. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review severity floor** (7) | `/review` not in the step list |
@@ -143,7 +143,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | `arg` | Set by an explicit CLI argument in `$ARGUMENTS` |
 | `policy` | From `.claude-tweaks/policy.yml` or CLAUDE.md `auto-mode:` keys |
 | `default` | Hardcoded sensible default |
-| `header` | Locked by the materialized header (`materialize.md`) — e.g. `surface:`/`design-intent:`/`ceremony:` — or the record body's `Surface:`/`Design-intent:` metadata lines — or, under the legacy spec-file alias, the spec file's own header fields (e.g., `design-intent:` set on every record in the run) |
+| `header` | Locked by the materialized header (`materialize.md`) — e.g. `surface:`/`design-intent:`/`ceremony:` — or the record body's `Surface:`/`Design-intent:` metadata lines (e.g., `design-intent:` set on every record in the run) |
 
 ## Recommendation defaults (when no arg and no policy)
 

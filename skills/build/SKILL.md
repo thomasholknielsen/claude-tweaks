@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:build
-description: Use when implementing a work record, spec, or design doc end-to-end. Accepts a record reference (#N) or spec number (legacy alias) for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
-argument-hint: "[#<n>|<spec>|<design-doc-path>|<topic>] [subagent|batched] [auto] [worktree|current-branch] [tier=<fast|standard|capable>] [ops=confirm]"
+description: Use when implementing a work record or design doc end-to-end. Accepts a record reference (#N) for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
+argument-hint: "[#<n>|<design-doc-path>|<topic>] [subagent|batched] [auto] [worktree|current-branch] [tier=<fast|standard|capable>] [ops=confirm]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -39,7 +39,7 @@ When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Executio
 
 ("Rejected" means: substitute the locked value and surface a one-line inline notice, never a hard error or an `AskUserQuestion` prompt — see `build-options.md`'s "Default resolution" step 0 for the exact wording.)
 
-Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the record-vs-spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = record reference (`#N`, primary) / spec number (legacy alias) / design doc path / topic name, optionally followed by execution strategy, git strategy, `auto`, and/or the standalone tokens `tier=<fast|standard|capable>` (Common Step 2 model-tier override, see that step) and `ops=confirm` (Step 2.5 auto-executable-command confirmation, see that step). Tokens are matched by keyword, not position — any order is accepted.
+Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the record-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = record reference (`#N`, primary) / design doc path / topic name, optionally followed by execution strategy, git strategy, `auto`, and/or the standalone tokens `tier=<fast|standard|capable>` (Common Step 2 model-tier override, see that step) and `ops=confirm` (Step 2.5 auto-executable-command confirmation, see that step). Tokens are matched by keyword, not position — any order is accepted.
 
 ## Workflow
 
@@ -63,18 +63,7 @@ Spec/record mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classif
 
 ### Spec Step 1: Resolve, Materialize, and Assess
 
-**Record mode (`#N`) — primary input.** Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md` on the current (pre-worktree) branch — this must land before Common Step 1 creates the worktree, so the new worktree's initial checkout already contains the file. **Exception — `worktree.always: true`:** this pre-worktree ordering is impossible under that policy (the PreToolUse gate denies Edit/Write/git commit outside a worktree unconditionally — see CLAUDE.md's Don'ts section). In that case, invert the order: run Common Step 1 first to create the worktree from current HEAD, then perform this resolve/materialize/commit as the branch's first commit inside it, before proceeding to Spec Step 2. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." Once materialized, read the file in full and proceed to Spec Step 2 exactly as the legacy path below does; the shape gate already replaces the prerequisite check this step used to run.
-
-**Spec mode (legacy alias).** A bare spec number reads the file directly, unchanged since before record materialization existed:
-
-```
-specs/{number}-*.md
-```
-
-- Read the full spec file
-- Read `specs/INDEX.md` to understand dependencies and tier placement
-- Check prerequisites — are all blocking specs completed?
-- If prerequisites are not met, **stop** and tell the user what's blocking
+Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md` on the current (pre-worktree) branch — this must land before Common Step 1 creates the worktree, so the new worktree's initial checkout already contains the file. **Exception — `worktree.always: true`:** this pre-worktree ordering is impossible under that policy (the PreToolUse gate denies Edit/Write/git commit outside a worktree unconditionally — see CLAUDE.md's Don'ts section). In that case, invert the order: run Common Step 1 first to create the worktree from current HEAD, then perform this resolve/materialize/commit as the branch's first commit inside it, before proceeding to Spec Step 2. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." Once materialized, read the file in full and proceed to Spec Step 2; the shape gate already replaces the prerequisite check this step used to run.
 
 ### Spec Step 2: Check for Existing Plan
 
@@ -186,7 +175,7 @@ For the full procedure (Check A failure handling, Check B scope-keyword sweep co
 
 ### Common Step 1.7: Design Pre-Build (frontend specs)
 
-For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (record mode; lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) or the legacy spec file's own `surface:` frontmatter (spec-file alias) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
+For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
 
 ### Common Step 2: Execute the Plan
 
@@ -194,7 +183,7 @@ Execution depends on the chosen execution strategy (see Build Options).
 
 > **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
 
-**subagent** (default): For record mode, check the materialized header's `effort:` field (`skills/flow/materialize.md`'s reader table — the header's model-tier signal). If present, invoke `/superpowers:subagent-driven-development` with an explicit instruction to default every per-task implementer dispatch in this spec to the corresponding model tier — `low` → Fast, `medium` → Standard, `high` → Capable — overriding that skill's own per-task complexity heuristic for this spec's tasks specifically (a spec whose originating finding was already judged cheap or expensive to fix doesn't need re-deriving that signal from file-count heuristics). Legacy spec-file-alias specs carry no equivalent header field, so they invoke `/superpowers:subagent-driven-development` exactly as before, with no tier override. **`tier=<fast|standard|capable>` token:** when present in `$ARGUMENTS`, it always wins over the `effort:`-derived tier (or the no-override default for legacy specs) for this run only — a one-off way to force extra rigor (or cut cost) on a specific build without re-triaging or re-specifying the record. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
+**subagent** (default): Check the materialized header's `effort:` field (`skills/flow/materialize.md`'s reader table — the header's model-tier signal). If present, invoke `/superpowers:subagent-driven-development` with an explicit instruction to default every per-task implementer dispatch in this spec to the corresponding model tier — `low` → Fast, `medium` → Standard, `high` → Capable — overriding that skill's own per-task complexity heuristic for this spec's tasks specifically (a spec whose originating finding was already judged cheap or expensive to fix doesn't need re-deriving that signal from file-count heuristics). When the header carries no `effort:` field, invoke `/superpowers:subagent-driven-development` with no tier override. **`tier=<fast|standard|capable>` token:** when present in `$ARGUMENTS`, it always wins over the `effort:`-derived tier (or the no-override default) for this run only — a one-off way to force extra rigor (or cut cost) on a specific build without re-triaging or re-specifying the record. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
@@ -229,7 +218,7 @@ If the simplifier makes changes, commit them separately.
 If any part of the plan is blocked (missing infrastructure, unresolved dependencies, pending external work):
 
 1. Document blocked items:
-   - **Spec mode:** add to the spec file under a "Blocked / Future Work" section
+   - **Record mode:** add to the materialized spec file under a "Blocked / Future Work" section
    - **Design mode:** file a backlog work record via `/claude-tweaks:capture`
 2. Note what unblocks them
 3. Append blocked items to the open items ledger (see `/claude-tweaks:ledger`) with phase `build/*` and status `open`

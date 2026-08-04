@@ -8,7 +8,7 @@ Step numbering matches `SKILL.md`. The order below mirrors execution order. Ther
 
 ## Step 1: Audit Work Records
 
-Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). `backlog-backend` — the pre-migration flag name, under `## Backlog integration` — is accepted as a read-only legacy alias. A missing flag is treated as `local-files`.
+Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). A missing flag is treated as `local-files`.
 
 One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 
@@ -90,14 +90,6 @@ A watched-path match is a signal to look again, not proof the record still needs
 ### Shape 6 — flagged code demonstrably gone
 
 Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/docs-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6/7) — unchanged by this merge. It's listed in this file only so the seven finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
-
-### Shape 7 — legacy taxonomy present
-
-`work-backend: github-issues` only. Scan the RAW `labels` array (not the parsed facets, which silently drop anything they don't recognize) for any label matching the retired families: `tier:*` (the pre-grants three-tier vocabulary — needs-review, approved, fast-track), `status:*` (the pre-grants bot-state vocabulary — blocked, and the state now mirrored by the claim ref instead of a label), or `backlog`-era labels (the bare `backlog` label plus its `backlog:category-*`/`backlog:priority-*` sub-labels). A record carrying any of these is invisible to the current grants pipeline — `/claude-tweaks:backlog` only ever reads/writes the current label vocabulary (see `_shared/work-record.md`'s axes table), so a pre-6.0 record stuck on the old labels never surfaces at the gate on its own.
-
-This is a **read-only flag** — `/tidy` never relabels it. A dedicated migration plan does the relabeling; this finding exists so a pre-6.0 record can never be silently orphaned in the meantime.
-
-→ Collect each as: `[legacy] #{n}: {title} — carries {label list} — retired vocabulary, invisible to the grants pipeline — needs migration/re-triage`
 
 ## Step 3: Audit Design Docs and Briefs
 

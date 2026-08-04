@@ -54,7 +54,7 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `/help` | `/help` recommends specific specs to `/build` based on dependency graph + `INDEX.md` status; `/build`'s spec resolution rules mirror `/help`'s selection logic. |
+| `/help` | `/help` recommends specific records to `/build` based on dependency graph + work-record status; `/build`'s record resolution rules mirror `/help`'s selection logic. |
 | `/reflect` | `/reflect` is invoked BY `/wrap-up` after `/build` completes; reflection insights tagged for skills/CLAUDE.md feed back into `/build`'s future runs via updated project conventions. |
 | `/review` | Runs AFTER `/build` and after `/test` — gates on `TEST_PASSED=true`. `/build` produces the code and journey files `/review` evaluates. In design mode `/review` uses git diff instead of spec compliance. Standalone `/review` auto-triggers `/test` if no recent pass. `/review`'s visual modes test the user journeys `/build` creates — the bridge between build and visual QA. |
 | `/specify` | Runs BEFORE `/build` — shapes a record to `ready` (spec-shaped body) or decomposes a design doc into ready leaf records. `/build`'s record mode (`#N`) materializes a shaped leaf record into a build-time file via `skills/flow/materialize.md` before implementing it, reading the `Surface:`/`Design-intent:` body-metadata lines `/specify` wrote, lifted into the materialized header. Design mode can skip `/specify` entirely, building directly from a design doc. |

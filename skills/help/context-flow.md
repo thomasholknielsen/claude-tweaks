@@ -44,12 +44,12 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 
 ## What Each Skill Reads and Writes
 
-Where a row below reads or writes `specs/NN-*.md`, that covers both the legacy numbered spec file and — since spec 20 — a work record materialized into `{run-dir}/work/{n}-spec.md` (see `flow/materialize.md`); every downstream skill reads the two identically.
+Where a row below reads or writes `specs/NN-*.md`, that means a work record materialized into `{run-dir}/work/{n}-spec.md` (see `flow/materialize.md`).
 
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
 | `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `health-state` branch `code-health/cursors.json` (per-area sweep state, see `_shared/health-state.md`), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status, local-only), `health-state` branch `code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`) and `code-health/runs.json` (run history for churn tracking, capped at 90 records) — both durable, see `_shared/health-state.md`, a work record (GitHub issue via `gh issue create`, or local `specs/{id}-{slug}.md`) born `ready` (durable sink) | — |
-| `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INDEX.md` (legacy spec-file-mode tracking), CLAUDE.md (incl. `work-backend` under `## Work records`, or `## Backlog integration` on a pre-migration project), `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
+| `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, CLAUDE.md (incl. `work-backend` under `## Work records`), `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | A backlog work record — GitHub issue (`by:capture` label, no stage label) or local `specs/{id}-{slug}.md` file, per `work-backend` | — |
 | `/challenge` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/plans/*-brief.md` | — |
 | `/superpowers:brainstorming` | `docs/plans/*-brief.md` | `docs/superpowers/specs/*-design.md` | — |
@@ -70,7 +70,7 @@ Where a row below reads or writes `specs/NN-*.md`, that covers both the legacy n
 | `/stories` | Existing `stories/*.yaml`, `stories/auth.yml` (for auth profiles), `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields), `stories/auth.yml` (created on first auth detection) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
-| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, a new backlog or `parked` work record (GitHub issue or local file, per `work-backend`) for leftover work, `docs/decisions/*.md` (ADRs, Step 6.2). Invokes `/reflect` (full mode). | Plan files, ledger. A legacy spec file is deleted too; a record-mode build's materialized file stays committed as audit trail instead. |
+| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, a new backlog or `parked` work record (GitHub issue or local file, per `work-backend`) for leftover work, `docs/decisions/*.md` (ADRs, Step 6.2). Invokes `/reflect` (full mode). | Plan files, ledger. The build's materialized spec file stays committed as audit trail. |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 
 ## Open Items Ledger
@@ -114,7 +114,7 @@ This is why every skill writes its output to files, not just to the conversation
 
 Every artifact that a skill produces must be consumed by a downstream skill or explicitly resolved:
 
-- A legacy spec file is deleted by `/wrap-up` after completion; a record-mode build's materialized file is kept as committed audit trail instead
+- A build's materialized spec file is kept by `/wrap-up` as committed audit trail
 - Design docs and briefs are deleted by `/specify` after absorption into the surviving records
 - Plans are deleted by `/wrap-up` after the work is done
 - Ledger files are deleted by `/wrap-up` after all items are resolved

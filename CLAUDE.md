@@ -160,12 +160,9 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in CLAUDE.md or `.claude-tweaks/policy.yml` — read as defaults by the Manifesto, overridable per-run.
 
-## Backlog integration
-
-Legacy section/flag name — `/capture`, `/challenge`, and `/tidy` read `backlog-backend` as a read-only alias of the current `work-backend` config key; every other consumer skill reads `work-backend` directly with no alias fallback (see `_shared/work-record.md`'s Config keys section, "Legacy alias exception," for the full current list and caveat). Renaming this section and value, and extending the alias to every consumer, is pending, separate migration work (see README.md's "Migrating from 5.x").
+## Work records
 
 work-backend: github-issues
-backlog-backend: github-issues
 
 ## Don'ts
 
@@ -271,6 +268,7 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't widen what a value can range over without grepping for the invariant its old range encoded — "only ever X" comments and single-value-derived cache keys are records of that range, and both go silently wrong rather than failing a test `[IL-75]`
 - Don't treat the bytes moved out of a file as an extraction's saving — measure what each resolved mode loads afterward, since the sub-file's header plus the stub left behind can exceed the branch that mode skips `[IL-76]`
 - Don't correct a restated count to match its canonical source without also checking the data printed beside it — where the artifact copies that data (a rendered table, a diagram), the stale part is the copy, and a provably "right" number contradicting what the reader sees is the worse failure `[IL-77]`
+- Don't add a compatibility path without recording the condition under which it gets removed — with no stated end date nothing ever collects it, and a half-maintained alias produces silently wrong behavior rather than an error `[IL-85]`
 - Don't treat a passing verification as evidence without measuring what it examined — a check that would pass on any input is not a weak check, and it is most seductive when it agrees with the conclusion you wanted `[IL-78]`
 - Don't grep a placeholder as a fully-delimited token — `{result}` cannot match the populated `{result: ...}`, so "zero occurrences" describes the grep, not the file. Search the bare name, and open the file before recording any absence as a finding `[IL-79]`
 - Don't write a test that reads live production content you intend to change — the assertion "this real file currently contains X" is a scheduled failure timed to the migration, so the test is gone exactly when the change is riskiest. Freeze the input as a fixture `[IL-80]`

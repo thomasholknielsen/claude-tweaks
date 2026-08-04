@@ -68,8 +68,8 @@ reaching `/flow` already arrives spec-shaped (`ready` + spec-shaped body per
 `_shared/work-record.md`), so `materialize.md` resolves it directly and
 writes `{run-dir}/work/{n}-spec.md` — no derivation pre-step runs first. A
 single record then runs the normal step pipeline
-(`build,test,review,polish,wrap-up`) against that file exactly as it would a
-legacy spec file — the step pipeline and gates below are unchanged. Multiple
+(`build,test,review,polish,wrap-up`) against that file — the step pipeline
+and gates below are unchanged. Multiple
 records (`#A,#B`) run Multi-spec mode instead (see `multi-spec.md`), each
 materializing to its own file. `/flow` performs no selection, filtering, or
 claiming of its own; see `/claude-tweaks:dispatch` (selection + claiming) and

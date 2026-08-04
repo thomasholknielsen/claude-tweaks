@@ -159,10 +159,6 @@ behind CLAUDE.md's `## Don'ts` rules.
 | git CLI | brew/winget/apt install git | Optional — required only for the git segment in the statusline; everything else degrades gracefully. |
 | `gh` CLI | `brew/winget/apt install gh`, then `gh auth login` | Yes, for most `work-backend: github-issues` write paths — required, unauthenticated is a hard gate. `/dispatch`'s whole queue/claim/settle/merge path is dual-transport, falling back to GitHub MCP tools automatically when `gh` isn't on PATH — see `_shared/github-write-transport.md` — but `gh` is still required for every other GitHub-write path in the plugin. |
 
-## Migrating from 5.x
-
-Existing projects on claude-tweaks 5.x may carry pre-6.0 state: open GitHub issues (or `local-files` records) still stamped with the retired `tier:approved`/`tier:fast-track`/`tier:needs-review`/`status:blocked`/`status:in-progress` labels, `specs/backlog/*.md` entries from the earlier two-file backlog design, or a project CLAUDE.md with a `backlog-backend` flag that hasn't been renamed to `work-backend`. The old label set is read as read-only legacy aliases wherever `/claude-tweaks:tidy` scans for it (see `/claude-tweaks:tidy`'s legacy-taxonomy finding). The old flag name is narrower: only `/capture`, `/challenge`, and `/tidy` currently read `backlog-backend` as a read-only fallback (`_shared/work-record.md`'s Config keys section, "Legacy alias exception") — a project with only `backlog-backend:` set (no `work-backend:` line) will see every other consumer skill default to `local-files` instead. A dedicated migration pass — relabeling live records, folding `specs/backlog/` into the unified record store, extending (or retiring) the flag alias across every consumer, and renaming the CLAUDE.md flag — is planned as separate follow-on work; this section will point to it once it lands.
-
 ## Configuration
 
 ### Worktree base ref (important for worktree mode)

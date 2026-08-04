@@ -1,5 +1,36 @@
 # Changelog
 
+## v6.36.0 — Every backward-compatibility path removed
+
+Nine legacy families and no deprecation policy documented anywhere. The marketplace
+source is an unpinned git URL tracking `main` HEAD, so there were never pinned
+versions in the wild to support.
+
+Removed: the legacy spec-file alias (a bare number resolving to `specs/{N}-*.md`
+alongside `#N`), the `specs/` tracking files, the four `triage-*` policy aliases,
+the `backlog-backend` flag alias, the retired Auto-mode-policy block migration and
+its supporting machinery, the legacy `auth.yml` split and v1 stories format, and
+the legacy-taxonomy scan.
+
+`backlog-backend` was the one that had already crossed into wrong behavior: three
+skills read it, every other consumer silently defaulted to `local-files`, and
+`README.md` documented that rather than fixing it. Partial aliasing is worse than
+either full aliasing or none.
+
+Removing the spec-file alias took two changes past renaming. `/flow`'s pre-flight
+2.4 (spec-committed check) was gated "legacy spec-file alias only" and lost its
+last consumer, so the check and its `validation.md` section are gone. `/init`'s
+Step 3 wrote `specs/INDEX.md`, its only starter file; the step keeps its number
+(repurposed to the work-record-storage note) so surrounding references still
+resolve. Bare ids under `work-backend: local-files` are untouched throughout —
+that is a current input form, not the alias.
+
+The `status:in-progress` label was deleted after resolving a contradiction — it is
+retired vocabulary, but its GitHub label description pointed at
+`_shared/issue-claims.md`, which uses `bot:in-progress` and never mentions it.
+`[IL-85]` records the general lesson: a compatibility path with no stated removal
+condition is never collected.
+
 ## v6.35.0 — Adopter CLAUDE.md carries only what always-loaded context needs
 
 `/claude-tweaks:init` wrote byte-identical boilerplate into every adopting project's

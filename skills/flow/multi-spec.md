@@ -1,36 +1,36 @@
 # Multi-Spec Sequential Flow
 
-When multiple records or spec numbers are provided (e.g., `#42,#45,#48` or the legacy `42,45,48`), flow runs each one's pipeline **sequentially** in one terminal — see `SKILL.md`'s Input resolution for how each form resolves. Everything below is keyed by `{N}`: a record id on the primary path, a spec number under the legacy spec-file alias.
+When multiple records are provided (e.g., `#42,#45,#48`), flow runs each one's pipeline **sequentially** in one terminal — see `SKILL.md`'s Input resolution for how each form resolves. Everything below is keyed by `{N}`, a record id.
 
 ## Validation
 
 Before starting, validate the list:
 
-1. **Parse** — split on commas, resolve each to a record (`materialize.md`) or, under the legacy spec-file alias, a spec file
-2. **Prerequisites** — for a record-reference target, check that each `blocked-by:` dependency (`materialize.md`'s Populating the header — sourced from `record.js`'s `parseDependencies`, `facets.blockedBy`, or the native dependency API depending on driver/`work-links`) is satisfied; for the legacy spec-file alias, check that each spec's `depends-on:` frontmatter is satisfied. Reject any target with unmet prerequisites.
+1. **Parse** — split on commas, resolve each to a record (`materialize.md`)
+2. **Prerequisites** — check that each target's `blocked-by:` dependency (`materialize.md`'s Populating the header — sourced from `record.js`'s `parseDependencies`, `facets.blockedBy`, or the native dependency API depending on driver/`work-links`) is satisfied. Reject any target with unmet prerequisites.
 
-> A record-reference target's dependency data (`blocked-by:`) is read via `materialize.md`'s Resolution step — read-only, safe before any run dir or worktree exists — or the materialized header once composed; see Steps 3-4 below. Cross-spec conflict detection (Step 5) covers both target types: the legacy `Files:` frontmatter path for spec-file targets, and the record body's `### Key Files` subsection (via the same `groupByFileOverlap` primitive `/claude-tweaks:help`'s and `/claude-tweaks:specify`'s own conflict detection already use) for record-reference targets — see "Cross-spec conflict detection" below.
+> A record-reference target's dependency data (`blocked-by:`) is read via `materialize.md`'s Resolution step — read-only, safe before any run dir or worktree exists — or the materialized header once composed; see Steps 3-4 below. Cross-spec conflict detection (Step 5) reads the record body's `### Key Files` subsection, via the same `groupByFileOverlap` primitive `/claude-tweaks:help`'s and `/claude-tweaks:specify`'s own conflict detection already use — see "Cross-spec conflict detection" below.
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
-3. **Frontmatter pre-flight** — for the legacy spec-file alias, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. For a record-reference target, collect the equivalent set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (`Files:` itself has no record-mode equivalent, but `### Key Files` covers the same need — see "Cross-spec conflict detection" below). Both collections feed the same ordering check, Pipeline Preview, and conflict detection (Step 5).
+3. **Pre-flight** — collect each target's set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (see "Cross-spec conflict detection" below). These feed the ordering check, Pipeline Preview, and conflict detection (Step 5).
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
-5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`Files:` frontmatter for legacy spec-file targets, `### Key Files` for record-reference targets).
+5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`### Key Files` in each record body).
 
 ## Dependency-aware ordering
 
-A target may declare prerequisite records/specs — `blocked-by:` on a record-reference target (materialized header, or live via `materialize.md`'s Resolution), `depends-on:` frontmatter on a legacy spec-file target. The user's order on `$ARGUMENTS` (`/flow 157,159,160` or `/flow #157,#159,#160`) may not match the dependency graph.
+A target may declare prerequisite records — `blocked-by:` on the record (materialized header, or live via `materialize.md`'s Resolution). The user's order on `$ARGUMENTS` (`/flow #157,#159,#160`) may not match the dependency graph.
 
 ### Procedure
 
-1. **Build the DAG** — for each target in the list, add edges from each prerequisite to the target itself: `depends-on:` entries for a legacy spec-file target, `blocked-by:` entries for a record-reference target
+1. **Build the DAG** — for each target in the list, add edges from each prerequisite to the target itself, from its `blocked-by:` entries
 2. **Detect cycles** — if any cycle exists across the listed specs, **hard fail**:
    ```
    Cycle detected in dependency graph:
-     159 → depends-on: 160
-     160 → depends-on: 159
+     159 → blocked-by: 160
+     160 → blocked-by: 159
    
-   Resolve the circular dependency (edit spec frontmatter) before running /flow.
+   Resolve the circular dependency (edit the records' blocked-by) before running /flow.
    ```
 3. **Topologically sort** the specs
 4. **Compare against user order:**
@@ -51,7 +51,7 @@ A target may declare prerequisite records/specs — `blocked-by:` on a record-re
 
 ### Targets with a dependency on a target NOT in the run
 
-If record/spec 159 depends on record/spec 142 (not in the run list) — via `blocked-by:` (record-reference target) or `depends-on:` (legacy spec-file target) — check 142's status:
+If record 159 depends on record 142 (not in the run list) — via `blocked-by:` — check 142's status:
 - Status `complete` → fine, dependency satisfied
 - Status `pending` or `in-progress` → hard fail with "159 depends on 142 which is not complete and not in this run"
 
@@ -63,7 +63,7 @@ When two specs in the run declare overlapping files, sequential execution can co
 
 ### Procedure
 
-1. Collect each target's key files into a single `[{id, keyFiles}]` list: for a legacy spec-file target, read `Files:` declarations from frontmatter and from the plan if one exists; for a record-reference target, extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from the record body already fetched during Validation step 3 above — the same extraction `/claude-tweaks:specify` Step 1 and `help/status-scan.md`'s Conflict detection section perform. A record with no `### Key Files` subsection (not yet spec-shaped — shouldn't happen for a target that reached this pipeline, but treat defensively) contributes an empty `keyFiles` array rather than erroring.
+1. Collect each target's key files into a single `[{id, keyFiles}]` list: extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from the record body already fetched during Validation step 3 above — the same extraction `/claude-tweaks:specify` Step 1 and `help/status-scan.md`'s Conflict detection section perform. A record with no `### Key Files` subsection (not yet spec-shaped — shouldn't happen for a target that reached this pipeline, but treat defensively) contributes an empty `keyFiles` array rather than erroring.
 2. Call the shared grouping primitive — `groupByFileOverlap` (`bin/lib/issues/grouping.js`), the same one `/claude-tweaks:help`'s dashboard conflict detection and `/claude-tweaks:specify`'s creation-time check both use — over the combined list.
 3. Any group of size > 1 returned by `groupByFileOverlap` shares files across targets — record a **conflict warning** for each pair in that group.
 
@@ -85,11 +85,11 @@ If `auto` mode is set and conflicts are detected, the Manifesto still renders (a
 |---|---|
 | Treating any file overlap as a hard fail | Many specs legitimately touch the same file (e.g., adding new tests to the same test file). False positives would block real work. |
 | Suppressing the warning when conflicts are detected | Conflict footer is the user's only signal that spec interdependencies exist. Silent compounding is the bug to avoid. |
-| Auto-reordering specs to avoid conflicts | Conflicts are not the same as dependencies — re-ordering only helps if a `depends-on:` edge actually exists. Don't conflate the two. |
+| Auto-reordering specs to avoid conflicts | Conflicts are not the same as dependencies — re-ordering only helps if a `blocked-by:` edge actually exists. Don't conflate the two. |
 
 ## Run directory layout
 
-Multi-record (or, under the legacy alias, multi-spec) runs use a parent run directory with per-spec subdirectories so the consolidated end-of-run Review Console can read every record's outputs. The subdirectory pattern `spec-{N}/` is unchanged from the legacy layout — only what fills `{N}` changes: a record id on the primary `#A,#B` path (`materialize.md`'s Multi-record layout), or a spec number under the legacy alias.
+Multi-record runs use a parent run directory with per-spec subdirectories so the consolidated end-of-run Review Console can read every record's outputs. `{N}` in the subdirectory pattern `spec-{N}/` is the record id (`materialize.md`'s Multi-record layout).
 
 ```
 .claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
@@ -104,13 +104,13 @@ Multi-record (or, under the legacy alias, multi-spec) runs use a parent run dire
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-`manifest.yml` lists the records (or, under the legacy alias, specs) in execution order plus their status as the run progresses:
+`manifest.yml` lists the records in execution order plus their status as the run progresses:
 
 ```yaml
 multispec:
   parent: .claude-tweaks/pipelines/2026-05-16T143207-spec-157-159-160/
   specs:
-    - id: 157             # record id (primary path) or spec number (legacy alias)
+    - id: 157             # record id
       status: complete    # pending | running | complete | failed | not-run
       subdir: spec-157/
     - id: 159
@@ -150,8 +150,8 @@ For each per-spec invocation, `/flow` exports these environment variables (the l
 
 When `worktree` is specified, a sequential run uses **one shared worktree for the whole run — NOT one per record.** All records build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
 
-1. **Materialize the first record before the worktree exists** — for a record-reference run, `/flow` runs the first record's `materialize.md` compose/write/commit sub-step (normally folded into its own build step, per `SKILL.md` Step 4.2) early, committing `{parent}/spec-{N1}/work/{N1}-spec.md` on the current (pre-worktree) branch. This satisfies `materialize.md`'s "When this runs" rule that worktree creation must branch from a HEAD that already contains the file — the same requirement `/build`'s Common Step 1 satisfies for a single-record run, applied here to `/flow`'s own up-front worktree creation instead. The legacy spec-file alias needs no equivalent: its spec file is already a tracked, committed file (checked by pre-flight Step 2.4), so there is nothing to write before the worktree branches.
-2. **Create once, up front** — `/flow` creates a single worktree from the current local HEAD (now including the first record's committed materialized file, when applicable) following `skills/build/worktree-setup.md` (including its Step 0/4 base-ref verification). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the record id on the primary path, or the spec number under the legacy alias, the same keying as the run directory layout above. `/flow` then `cd`s into the worktree.
+1. **Materialize the first record before the worktree exists** — `/flow` runs the first record's `materialize.md` compose/write/commit sub-step (normally folded into its own build step, per `SKILL.md` Step 4.2) early, committing `{parent}/spec-{N1}/work/{N1}-spec.md` on the current (pre-worktree) branch. This satisfies `materialize.md`'s "When this runs" rule that worktree creation must branch from a HEAD that already contains the file — the same requirement `/build`'s Common Step 1 satisfies for a single-record run, applied here to `/flow`'s own up-front worktree creation instead.
+2. **Create once, up front** — `/flow` creates a single worktree from the current local HEAD (now including the first record's committed materialized file, when applicable) following `skills/build/worktree-setup.md` (including its Step 0/4 base-ref verification). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the record id, the same keying as the run directory layout above. `/flow` then `cd`s into the worktree.
 3. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. The first record's own build step skips the materialize sub-step (already done in step 1 above); records 2 through N materialize normally as part of their own build step, writing directly into the already-existing shared worktree — `materialize.md`'s "checkout the write can land in before the run's worktree exists" rule constrains only the one worktree-creation event (step 2 above), not a later record's write into a checkout that already exists. It does NOT call `/superpowers:finishing-a-development-branch` between records.
 4. **Finish once at the end** — after the last record's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard). Re-check `main` divergence immediately before this step, not just at the Step 2.5 pre-flight (a point-in-time check at pipeline *start*) — a long-running multi-record run has a real window for `main` to move again while records 2..N build. If it has, rebase onto the new tip inside the worktree first (checking for real file overlap, not just presence in the diff — see the git-diff-merge-base gotcha in CLAUDE.md's Don'ts) so the branch stays fast-forward-mergeable, then proceed with the finish.
 
@@ -190,11 +190,11 @@ The consolidated Review Console's **Not run / Failed** footer distinguishes:
 | 159 | failed | test gate (3 type errors) — see `spec-159/decisions.md` for details |
 
 This is **opt-in** for a reason: it inverts the compounding-risk safety. Use when:
-- Specs are genuinely independent (no `depends-on:` edges between them)
+- Specs are genuinely independent (no `blocked-by:` edges between them)
 - You want to see all failures together rather than fix-and-retry serially
 - A batch of small refactors where one failing doesn't invalidate the others
 
-Do NOT use `keep-going` when specs have `depends-on:` relationships — the failed spec's downstream may compound the bug. The frontmatter dependency check (above) does not auto-disable `keep-going`, but a warning surfaces in the Pipeline Preview footer:
+Do NOT use `keep-going` when specs have `blocked-by:` relationships — the failed spec's downstream may compound the bug. The dependency check (above) does not auto-disable `keep-going`, but a warning surfaces in the Pipeline Preview footer:
 
 ```
 keep-going + dependencies: spec 159 depends on 157 — if 157 fails, 159 may also fail or produce incorrect output. Consider running without keep-going.

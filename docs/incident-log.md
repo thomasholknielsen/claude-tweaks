@@ -160,6 +160,8 @@ For a design-mode build (brainstorm → design doc → writing-plans → SDD, sk
 
 Don't assume two paths/files sharing a directory or a near-identical name belong to the same category — verify each against live cross-references before a bulk delete/rename touches it. Bit a historical-docs cleanup twice: `specs/INBOX.md`/`DEFERRED.md`/`INDEX.md` sit in the same directory as the numbered specs being bulk-deleted but are live mechanism files still read/written by `/init`, `/build`, `/wrap-up` today; and `docs/plans/` (live ephemeral pipeline state — briefs/ledgers/caches `/wrap-up` deletes on completion) was nearly bundled into the same bulk-delete scope as the near-identically-named `docs/superpowers/plans/` (the actual historical archive) before the distinction was caught mid-execution.
 
+*Status note (2026-08-04):* the three `specs/` tracking files were legitimately deleted by the legacy purge, once removing the spec-file alias had cleared their last readers. The entry stands as written — the point is that the verification had to happen first, not that those files were permanently untouchable.
+
 ## IL-38 — Plan-embedded classifiers unverified against source
 
 Don't write a plan-embedded classifier or pattern-list (e.g. regex categories meant to match an existing skill file's vocabulary) without verifying every entry against that file's literal text at plan-authoring time. The unattended-tier plan's floor-check predicate included a pattern that actively matched a reason `ledger/resolve-gate.md` explicitly lists as illegitimate to defer on — caught only at task-review time, costing a fix round that source-verification during planning would have avoided.
@@ -392,3 +394,29 @@ Plan A's byte-measurement step used `awk -v s="## $s" 'index($0,s)==1{f=1} f&&/^
 ## IL-84 — A new test directory outside package.json's enumerated globs
 
 `package.json`'s test script lists `bin/lib/*/tests/*.test.js` one directory at a time — eight explicit globs, no wildcard over the parent. The branch created a ninth module, `bin/lib/init/`, with fifteen tests. Neither plan mentioned `package.json`. `npm test` stayed green throughout and reported a plausible total; the fifteen tests simply never ran under it, only when invoked directly. Nothing fails in this shape — the suite gets quieter, not redder — and CLAUDE.md's own Commands section describes `npm test` as covering "every `bin/lib/*/tests/` directory", which is what the script is meant to do and not what it does. It was caught in a pre-flight read of `package.json` before the plans were executed, not by any check during them. Adding the glob took the suite from 1,826 to 1,841; that arithmetic — baseline plus two policy-schema tests plus fifteen conformance tests — is the only evidence the fix worked, since no assertion covers the script's own coverage. The generalizable point is that an enumerated list standing in for a wildcard silently under-covers the moment something new is added, and a test suite is the one place where under-coverage looks identical to success.
+
+## IL-85 — Compatibility paths with no removal condition accumulate silently
+
+Nine distinct legacy families across 195 mentions in `skills/`, and a grep for
+"deprecation policy", "breaking change", "support window", and "sunset" across
+`README.md`, `CLAUDE.md`, and `docs/` returned zero. Every path was added ad hoc and
+none carried a stated end date, so none was ever collected.
+
+One had already crossed from cost into wrong behavior. `backlog-backend` was read as
+an alias by exactly three skills and ignored by every other consumer, so a project
+setting only that flag had most of the system silently default to `local-files` —
+a defect `README.md` documented rather than fixed, because nothing owned removing it.
+
+Two of them turned out to be load-bearing in ways a schema-level read missed.
+Removing `backlog-backend` also retired three mechanisms that existed only to cope
+with it: `MIGRATION_GAP` detection in `/backlog`'s grant sub-stage and `/dispatch`'s
+Preflight, plus harness-health's check 9 and its inlined copy in
+`judge-procedure.md` — a check written generically that had exactly one instance and
+an alias-specific grep, sitting in a file inlined into every dispatched judge agent.
+And the four `triage-*` policy aliases had a live executable fallback in
+`settle-and-merge.md`, not just schema rows: deleting the rows alone would have left
+shell code reading a key `auditPolicy` no longer recognizes.
+
+Distribution is an unpinned git URL tracking `main` HEAD and the only consumer is the
+author, so none of these needed a deprecation window. The cost was the accumulation,
+never the removal.

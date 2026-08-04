@@ -98,9 +98,9 @@ Verify Superpowers plugin and the built-in code-simplifier subagent are availabl
 
 Create the required workflow directories — idempotent, only creates what's missing. Read `bootstrap/step-02-create-directory-structure.md` for the directory taxonomy and per-directory rationale.
 
-### Step 3: Create Starter Files
+### Step 3: Work-Record Storage
 
-Create `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap/step-03-starter-files.md` for the canonical starter content.
+No starter files are written — work records live on the tracker (`github-issues`) or as flat `specs/{n}-{slug}.md` files (`local-files`), neither of which needs scaffolding. Read `bootstrap/step-03-starter-files.md` for the rationale.
 
 ### Step 4: Suggest .gitignore Entries
 
@@ -382,12 +382,11 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Modifying existing backlog records or INDEX.md | Phase 0 is additive — never overwrite user content |
+| Modifying existing backlog work records | Phase 0 is additive — never overwrite user content |
 | Skipping CLAUDE.md generation | /claude-tweaks:review can't find verification commands |
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up need git — surface the degradation |
 | Installing browser tools without asking | Optional — surface the install command, never run `npm install` |
 | Prompting for a browser backend choice | Only one backend exists (`agent-browser`) |
-| Silently rewriting a legacy `backlog-backend` flag to `work-backend` in Phase 0 | That rename is Update-Mode's staged change (`update-mode.md`, Work-Record Backend Drift) — Phase 0 leaves `## Backlog integration` untouched |
 | Generating generic skills (e.g., `auth.md`, `api-routes.md`) | Feature names, not conventions — skills encode rules, anti-patterns, or "why this way" insights observed in the codebase. No WebSockets, no realtime skill; no tests, testing is a backlog item, not a SKILL.md file. |
 | Generating generic skills not grounded in the codebase | Generic advice adds noise, not value |
 | Rewriting CLAUDE.md in Update Mode | Update Mode patches — existing config embeds hard-won lessons |

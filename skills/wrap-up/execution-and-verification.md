@@ -16,22 +16,20 @@ After the cleanup, also apply:
 - **Docs-health restructural filings** — for restructural docs-health findings (`docs-health-integration.md`'s D1) approved at the Console or batch, re-run `validate-findings` without `--dry-run` and file each surviving payload via `gh issue create`, per that file's filing procedure
 - **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.2) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
-- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief. **Gate the read:** only when this run is record mode *and* the record is testable, read `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure. Conversation-based work and the legacy spec-file alias have no work record to label — skip this bullet and do not read the file (that file's own header states the same restriction)
+- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief. **Gate the read:** only when this run is record mode *and* the record is testable, read `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure. Conversation-based work has no work record to label — skip this bullet and do not read the file (that file's own header states the same restriction)
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
 and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
 field is the issue number), include one `Fixes #{issue}` line per resolved issue in this commit
 message — it is the closing-keyword carrier for current-branch runs (see
 `cleanup-procedures.md` Section C); GitHub closes the issues when the commit reaches the
-default branch. A legacy spec-file-mode run (no materialized header) carries no closing
-keyword — there was never an issue to close.
+default branch. A run with no materialized header carries no closing keyword — there was
+never an issue to close.
 
 ### Verify execution
 
 Before emitting the closure line, confirm every approved action actually ran:
 
-- Spec file deleted or status updated (legacy spec-file-mode alias only — record mode has no spec file) — `ls specs/{N}*.md` returns nothing (or `git status` shows the status edit committed)
-- INDEX.md updated (legacy spec-file-mode alias only — record mode never touches it) — `git log -1 --stat specs/INDEX.md` shows this run's commit
 - Plans + ledger removed — `ls docs/superpowers/plans/*{spec-slug}* docs/plans/*-ledger.md` returns nothing
 - Design caches deleted (when applicable) — no `*-audit.json` / `*-recommendations.json` / `*-declined.json` for this spec remain in `docs/plans/`
 - Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists, with the `work/` subdirectory (when present) still git-tracked at its new path (skipped when `MULTISPEC_REVIEW_DEFER=1`)

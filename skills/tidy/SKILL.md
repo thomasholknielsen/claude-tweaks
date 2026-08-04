@@ -115,7 +115,7 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 
 **Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), and remove an orphaned `bot:in-progress` (Step 4.7's backstop). Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
 
-**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table; `/tidy` also accepts the legacy `backlog-backend` alias), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
+**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
 
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
@@ -239,5 +239,4 @@ One exception to "never creates or enters a worktree": under `worktree.always: t
 | Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
 | Closing a PR/issue without a comment | Silent closes destroy the audit trail — the comment is the record of why. |
 | Resolving review threads without commit evidence | The concern disappears unfixed, worse than leaving it open. Evidence is a commit touching the flagged lines. |
-| Relabeling a legacy-taxonomy record instead of flagging it | Shape 7 is read-only — `/tidy` surfaces retired `tier:*`/`status:*`/`backlog` labels for a dedicated migration pass, never relabels them. |
 | Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label doesn't mean scoring happened. Shape 4 catches it before `/claude-tweaks:backlog refine` flags it back. |

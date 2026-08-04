@@ -7,8 +7,8 @@ References inside the blocks below to "this file" and to a `## Next Actions` sec
 **Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
 
 ```
-## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
-{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
+## Wrap-Up: Record #{n} — {title}
+{Origin: {origin} — the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
 
 ### Reflection Insights
 1. {insight} → {destination}
@@ -45,7 +45,6 @@ Resolved in Step 7 — {N} updates applied, {M} staged, {K} new-skill candidates
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Operational | Closed record #{n} via merge (`Fixes #{n}`) — no local file to delete | `{hash}` |
-| Operational | Deleted spec `specs/{N}.md`, updated `specs/INDEX.md` (legacy spec-file-mode alias only) | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
 | Operational | Deleted ledger | — |
 | Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
@@ -80,16 +79,10 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 If the user chooses to override, let them pick which items to skip or change.
 
-After presenting the summary, output an explicit closure line — record mode (materialized header present):
+After presenting the summary, output an explicit closure line:
 
 ```
 Work archived. Record #{n} closes via this merge (or the wrap-up commit, in current-branch mode); its plans and ledger have been deleted. The code and learnings remain.
-```
-
-Legacy spec-file-mode alias (no materialized header):
-
-```
-Work archived. Spec {N}, its plans, and ledger have been deleted. The code and learnings remain.
 ```
 
 This signals clearly that the lifecycle is complete — there's nothing left to do for this spec.

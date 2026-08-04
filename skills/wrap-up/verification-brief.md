@@ -2,8 +2,8 @@
 
 Canonical procedure for Step 10's acceptance-labeling action: applying `demo:pending` and
 posting the Verification Brief. Record mode only (a materialized header exists for this run,
-per Step 1) — conversation-based work and the legacy spec-file alias have no work record to
-label, so this procedure does not run for them.
+per Step 1) — conversation-based work has no work record to label, so this procedure does not
+run for it.
 
 ## Step 1: Bootstrap the Acceptance labels
 

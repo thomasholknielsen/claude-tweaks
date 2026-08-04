@@ -87,27 +87,19 @@ Run these mechanical checks first and treat their output as **evidence a later j
    **Cap interpretation:** `head -40` exists so one target cannot dominate context. Hitting the cap does **not** by itself mean the regex matched noise — a hub skill that legitimately names many siblings in descriptive prose can exceed 40 tokens with zero findings. Treat a capped result as a sample: triage the first 40, and re-run without the cap only if that triage surfaces real findings.
 
    A bare reference inside **actionable instruction text** ("Run `/X`", "`/X` handles it") is evidence for a `best-practice` finding — the `Skill` tool requires the fully-qualified name, and a bare short form fails at invocation time. A bare short name in a Relationship-to-Other-Skills table row or other descriptive prose is never passed to a tool call and is **not** a finding. Telling these apart requires reading the surrounding section, not just the grep hit.
-9. **Legacy-alias-without-replacement check** (`claude-md` only).
+9. **Context-cost bloat scan** (all kinds). Run the mechanical detector over the target, with the target's siblings supplying the corpus baseline:
 
    ```bash
-   grep -q '^work-backend:' "{target.path}" || echo "MISSING: work-backend"
-   grep -q '^backlog-backend:' "{target.path}" && echo "PRESENT: backlog-backend"
+   node -e "
+   const { bloatReport } = require('{plugin-root}/bin/lib/skill-audit/bloat.js');
+   const [target, ...corpus] = process.argv.slice(1);
+   console.log(bloatReport(target, corpus));
+   " "{target.path}" "{root}"/.claude/skills/*.md "{root}"/.claude/skills/*/*.md
    ```
 
-   The legacy key present AND the replacement missing is unambiguous evidence for a `template-conformance` finding: in that state every consumer except a small alias-fallback list silently defaults to `local-files` — a correctness-affecting drift, not just doc staleness.
-10. **Context-cost bloat scan** (all kinds). Run the mechanical detector over the target, with the target's siblings supplying the corpus baseline:
+   Both skill layouts are listed because a project uses one or the other; a glob matching nothing is skipped rather than erroring. Quote the substituted root but leave the `*` unquoted — a project path containing a space otherwise splits into several bad paths, and quoting the whole pattern would stop it globbing at all.
 
-    ```bash
-    node -e "
-    const { bloatReport } = require('{plugin-root}/bin/lib/skill-audit/bloat.js');
-    const [target, ...corpus] = process.argv.slice(1);
-    console.log(bloatReport(target, corpus));
-    " "{target.path}" "{root}"/.claude/skills/*.md "{root}"/.claude/skills/*/*.md
-    ```
-
-    Both skill layouts are listed because a project uses one or the other; a glob matching nothing is skipped rather than erroring. Quote the substituted root but leave the `*` unquoted — a project path containing a space otherwise splits into several bad paths, and quoting the whole pattern would stop it globbing at all.
-
-    Four signals: files over the 40 KB soft ceiling, Anti-Pattern rows more than twice the corpus median byte length, provenance-narration phrasing (text addressed to whoever edited the file rather than to the model running it), and adjacent table rows whose right-hand cells are identical or near-identical. Each reported line is evidence dimension 9 weighs, never a finding by itself. When the corpus yields fewer than 20 Anti-Pattern rows the report prints `NO BASELINE` and the row signal was **not evaluated** — read that as "not checked," never as "clean."
+   Four signals: files over the 40 KB soft ceiling, Anti-Pattern rows more than twice the corpus median byte length, provenance-narration phrasing (text addressed to whoever edited the file rather than to the model running it), and adjacent table rows whose right-hand cells are identical or near-identical. Each reported line is evidence dimension 9 weighs, never a finding by itself. When the corpus yields fewer than 20 Anti-Pattern rows the report prints `NO BASELINE` and the row signal was **not evaluated** — read that as "not checked," never as "clean."
 
 ## Part 2 — The dimension check
 
@@ -153,7 +145,6 @@ Nothing here licenses an edit. A bloat finding proposes the exact `oldString`/`n
 - **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable), never aspirational infrastructure.
 - **Philosophy matches current maturity** — re-derive today's maturity signal and compare against what the Philosophy section claims; flags e.g. a project that shipped to real users but still reads "Greenfield."
 - **`## claude-tweaks Pipeline` section in sync with the installed plugin version** — do the section's routing paragraphs match what the currently installed claude-tweaks version actually routes? This is the one check measured against the plugin's own contract rather than the target project's source. A surviving `## Project Defaults` section is itself a finding: the plugin stopped generating it and its levers now live in `.claude-tweaks/policy.yml`, so its presence means the project predates that change and its values are being read from a file no consumer resolves any more.
-- **Legacy-alias completeness** — check 9's result.
 - **Rule expiry — is this rule still live?** Rules accumulate monotonically; nothing else here ever proposes removing one, so without this check an always-loaded file only grows. A rule is dead only on **positive evidence that the thing it guards can no longer happen**:
   - the file, module, flag, or API it names — or that the incident account it references names — no longer exists (run check 1 against that account too);
   - a hook, test, or lint now blocks the behaviour mechanically, so enforcement supersedes the prose;

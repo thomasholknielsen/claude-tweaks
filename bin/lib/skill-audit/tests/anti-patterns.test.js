@@ -134,7 +134,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
     total += rows.length;
   }
   // Live corpus measurement. Phase 3 compresses these rows in place, so this
-  // number must not move — a change here means a row was evicted, which is the
-  // one thing the compression is forbidden to do.
-  assert.strictEqual(total, 347);
+  // number must not move unrecorded — a change here means a row was evicted,
+  // which is the one thing the compression is forbidden to do. Moving it is
+  // allowed only alongside evidence that the eviction was deliberate:
+  //
+  //   347 -> 345, merge of the v6.36.0 legacy purge. Two rows removed upstream,
+  //   both about retired legacy config: init's "Silently rewriting a legacy
+  //   `backlog-backend` flag to `work-backend`" and tidy's "Relabeling a
+  //   legacy-taxonomy record instead of flagging it". Verified against the
+  //   merge base — both are present at the base and absent from the upstream
+  //   side, so they were deleted by the purge, not lost in conflict resolution.
+  assert.strictEqual(total, 345);
 });

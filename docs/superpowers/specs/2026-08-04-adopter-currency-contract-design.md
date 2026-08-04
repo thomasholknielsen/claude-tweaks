@@ -50,15 +50,15 @@ Measured against the Initial Mode Template:
 
 | Block | Bytes | Varies by project? |
 |---|---|---|
-| `## Working Approach` | 1,634 | no — verbatim |
-| `## claude-tweaks Pipeline` | 2,627 | no — verbatim |
+| `## Working Approach` | 1,561 | no — verbatim |
+| `## claude-tweaks Pipeline` | 2,468 | no — verbatim |
 | `## Project Defaults` | 1,287 | no — defaults written out literally |
 | `## Philosophy` universal bullets | 784 | no — verbatim |
 | `## Philosophy` maturity paragraph | 457 | one of three fixed blocks |
 | `## Work records` | 45 | value only |
-| **Total plugin-authored** | **6,834** | |
+| **Total plugin-authored** | *see rows above* | |
 
-That 6,834 B is byte-identical in every adopting project. It is inherited by
+That block is byte-identical in every adopting project. It is inherited by
 every dispatched subagent (the same arithmetic that drove #95/#102 in this
 repo), it competes against the 150-line `harness-health.always-loaded-budget`
 before the project contributes a word, and when the plugin changes it, every
@@ -139,11 +139,11 @@ Bring `claude-md-template.md` into compliance with the invariant.
 | Block | Now | After | Rationale |
 |---|---|---|---|
 | `## Philosophy` | 1,241 | 1,241 | Governs every code change; fires with no skill invoked |
-| `## Working Approach` | 1,634 | 1,634 | Its stated job is ad-hoc work where no skill gate fires |
-| `## claude-tweaks Pipeline` | 2,627 | ≤700 target | Routing survives; mechanics are duplication |
+| `## Working Approach` | 1,561 | 1,561 | Its stated job is ad-hoc work where no skill gate fires |
+| `## claude-tweaks Pipeline` | 2,468 | 847 | Routing survives; mechanics are duplication |
 | `## Project Defaults` | 1,287 | 0 | Deleted — see below |
 | `## Work records` | 45 | 45 | Value is project-specific |
-| **Total** | **6,834** | **≤3,620** | **~47% reduction** |
+| **Total** (whole template body) | **6,462** | **3,554** | **-45%** |
 
 **Pipeline section — what survives.** Four routing paragraphs, because each
 fires *before* a skill is chosen and therefore fails the invariant's test if

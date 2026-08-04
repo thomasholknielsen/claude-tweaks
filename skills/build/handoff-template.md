@@ -5,10 +5,10 @@ Loaded by `/claude-tweaks:build` Common Step 7 at end-of-build to render the use
 Render the markdown below, substituting placeholders. Generate field values from: `git log --oneline -n 20` since build start (a build producing more than 20 commits is unusual — widen the count only if the handoff genuinely needs to cite a commit older than that), `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
 
 ```markdown
-## Build Complete: {spec number and title OR design doc topic}
+## Build Complete: {record reference and title OR design doc topic}
 
 ### Mode
-{Spec mode (spec {number}) | Design mode ({design doc filename})}
+{Record mode (#{n}) | Design mode ({design doc filename})}
 
 ### Verification
 - Type check: {pass/fail}
