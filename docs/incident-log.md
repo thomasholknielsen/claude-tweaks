@@ -160,6 +160,8 @@ For a design-mode build (brainstorm → design doc → writing-plans → SDD, sk
 
 Don't assume two paths/files sharing a directory or a near-identical name belong to the same category — verify each against live cross-references before a bulk delete/rename touches it. Bit a historical-docs cleanup twice: `specs/INBOX.md`/`DEFERRED.md`/`INDEX.md` sit in the same directory as the numbered specs being bulk-deleted but are live mechanism files still read/written by `/init`, `/build`, `/wrap-up` today; and `docs/plans/` (live ephemeral pipeline state — briefs/ledgers/caches `/wrap-up` deletes on completion) was nearly bundled into the same bulk-delete scope as the near-identically-named `docs/superpowers/plans/` (the actual historical archive) before the distinction was caught mid-execution.
 
+*Status note (2026-08-04):* the three `specs/` tracking files were legitimately deleted by the legacy purge, once removing the spec-file alias had cleared their last readers. The entry stands as written — the point is that the verification had to happen first, not that those files were permanently untouchable.
+
 ## IL-38 — Plan-embedded classifiers unverified against source
 
 Don't write a plan-embedded classifier or pattern-list (e.g. regex categories meant to match an existing skill file's vocabulary) without verifying every entry against that file's literal text at plan-authoring time. The unattended-tier plan's floor-check predicate included a pattern that actively matched a reason `ledger/resolve-gate.md` explicitly lists as illegitimate to defer on — caught only at task-review time, costing a fix round that source-verification during planning would have avoided.
