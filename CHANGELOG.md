@@ -4,13 +4,19 @@
 
 Two independent levers against the same 32 `skills/*/SKILL.md` files, both re-emitted
 verbatim on every invocation. The interaction-style directive was byte-identical
-across all 32 skills; compressing it from 570 B to 327 B saved 7,776 B in total.
-Ten of the skills — `capture`, `challenge`, `design-wrapper`, `init`, `review`,
-`specify`, `stories`, `test`, `version`, `wrap-up` — carried a linear ASCII
-lifecycle diagram whose only informational content was that skill's position in
-the pipeline; each is now a one-line `Lifecycle:` marker, saving a further
-2,685 B. Combined: 10,461 bytes (10.2 KB) removed from per-invocation context
-across the 32 files, measured directly rather than estimated.
+across all 32 skills; compressing it from 570 B to 327 B initially dropped its
+"resolve each before showing the next" sequencing clause — a rule that now lives
+only in the shipped skill files, since CLAUDE.md does not ship with the plugin. A
+final review caught the drop and restored the clause, landing the directive at
+357 B and saving 6,816 B in total. Ten of the skills — `capture`, `challenge`,
+`design-wrapper`, `init`, `review`, `specify`, `stories`, `test`, `version`,
+`wrap-up` — carried a linear ASCII lifecycle diagram whose only informational
+content was that skill's position in the pipeline; each is now a one-line
+`Lifecycle:` marker, saving a further 2,685 B. The same review widened `/help`'s
+own diagram to list all ten pipeline skills instead of seven (+467 B) and removed
+a self-contradicting sentence from `version` and `design-wrapper`'s subtitles
+(−82 B). Net across the 32 files: 9,116 bytes (8.9 KB) removed from
+per-invocation context, measured directly rather than estimated.
 
 The directive stays inline in each skill rather than moving to a single
 CLAUDE.md-hosted copy. CLAUDE.md is a repo file, not a shipped plugin asset — the
