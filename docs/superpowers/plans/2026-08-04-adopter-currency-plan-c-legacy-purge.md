@@ -86,7 +86,9 @@ No repo files changed in this task. Record the outcome in the next task's commit
 
 ### Task 2: Purge the legacy spec-file alias
 
-The largest family, spanning five skills. `[IL-51]` and `[IL-43]`: parallel agents editing shared files race on one git index, so agents are dispatched **edit-only** and every git operation runs centrally afterwards.
+The largest family. `[IL-51]` and `[IL-43]`: parallel agents editing shared files race on one git index, so agents are dispatched **edit-only** and every git operation runs centrally afterwards.
+
+**Surface shrank since authoring.** The skill-bloat Relationship-table removal (landed on `main` as `7ed9edb5`) took out some of these mentions as a side effect. Measured at `c001b676`: `flow/SKILL.md` 4, `wrap-up/SKILL.md` 2, `build/SKILL.md` 3, and `specify/SKILL.md` / `tidy/SKILL.md` now **0**. Sub-files are unaffected. Re-run Step 1's enumeration rather than trusting either figure — this is exactly the `[IL-41]` case where a related change was already part of the resolution.
 
 **Files:**
 - Modify: `skills/flow/SKILL.md`, `skills/flow/multi-spec.md`, `skills/flow/materialize.md`, `skills/wrap-up/SKILL.md`, `skills/build/SKILL.md`, `skills/build/build-options.md`, `skills/specify/SKILL.md`, `skills/specify/spec-template.md`, `skills/tidy/scan-procedures.md`
@@ -525,7 +527,7 @@ This matches what `skills/init/bootstrap/step-17-work-record-backend.md` generat
 Per `CLAUDE.md`'s own instruction — writing the rule first pads it. Add to `docs/incident-log.md`, allocating the next free `IL-nn` (never renumber; gaps are fine):
 
 ```markdown
-## IL-78 — Compatibility paths with no removal condition accumulate silently
+## IL-85 — Compatibility paths with no removal condition accumulate silently
 
 Nine distinct legacy families across 195 mentions in `skills/`, and a grep for
 "deprecation policy", "breaking change", "support window", and "sunset" across
@@ -545,7 +547,7 @@ one sweep. The cost was the accumulation, not the removal.
 Then add the compressed rule to `CLAUDE.md`'s `## Don'ts`:
 
 ```markdown
-- Don't add a compatibility path without recording the condition under which it gets removed — with no stated end date nothing ever collects it, and a half-maintained alias silently produces wrong behavior rather than an error `[IL-78]`
+- Don't add a compatibility path without recording the condition under which it gets removed — with no stated end date nothing ever collects it, and a half-maintained alias silently produces wrong behavior rather than an error `[IL-85]`
 ```
 
 - [ ] **Step 4: Verify the whole purge**
@@ -568,7 +570,7 @@ git show origin/main:.claude-plugin/plugin.json | grep '"version"'
 Set the next free minor above both `origin/main` and any bump Plans A and B landed. Add:
 
 ```markdown
-## v6.35.0 — Every backward-compatibility path removed
+## v6.36.0 — Every backward-compatibility path removed
 
 Nine legacy families, 195 mentions across `skills/`, and no deprecation policy
 documented anywhere. The marketplace source is an unpinned git URL tracking `main`
@@ -588,7 +590,7 @@ either full aliasing or none.
 The `status:in-progress` label was deleted after resolving a contradiction — it is
 retired vocabulary, but its GitHub label description pointed at
 `_shared/issue-claims.md`, which uses `bot:in-progress` and never mentions it.
-`[IL-78]` records the general lesson: a compatibility path with no stated removal
+`[IL-85]` records the general lesson: a compatibility path with no stated removal
 condition is never collected.
 ```
 
@@ -600,7 +602,7 @@ npm test 2>&1 | tail -25
 git add -A
 git diff --cached --name-only
 git commit -F - <<'EOF'
-Retire the 5.x migration docs, add IL-78, bump for the legacy purge
+Retire the 5.x migration docs, add IL-85, bump for the legacy purge
 
 Claude-Session: https://claude.ai/code/session_01YTkaGS58t7rDkPwkFPjPyY
 EOF
@@ -622,6 +624,6 @@ EOF
 
 **A wrong expectation caught by running the grep.** Task 4's first draft asserted the `triage-*` aliases existed only in the schema files and told the implementer to stop if a consumer appeared. Running the sweep returned two consumers — and `settle-and-merge.md:28-30` holds *executable bash* falling back to `triage-retry-ceiling`, not merely prose about it. Deleting the schema rows alone would have left a shell block reading a key `auditPolicy` no longer recognizes. Task 4 now removes the fallback branch, the prose clause describing it, and `dispatch/SKILL.md`'s Legacy aliases paragraph, before touching the schema. Every other task's expectations were likewise executed against the live tree during authoring: Task 2's enumeration returns 56 sites, and Task 7's baseline is the measured 195.
 
-**Numbers measured, not estimated.** 195 total `legacy` mentions and 56 spec-file-alias sites were both counted by running the plan's own greps. `IL-78` was confirmed as the next free number from `docs/incident-log.md`.
+**Numbers measured, not estimated.** 195 total `legacy` mentions and 56 spec-file-alias sites were both counted by running the plan's own greps. `IL-85` was confirmed as the next free number from `docs/incident-log.md`.
 
 **Known coupling.** Task 4 and Plan A Task 2 both change `POLICY_KEYS.length`. Both plans instruct recounting from the module rather than trusting a literal.
