@@ -42,22 +42,24 @@ test('has the required house sections in order', () => {
   assert.ok(idx('## When to Use') > 0);
   assert.ok(idx('## Anti-Patterns') > 0);
   assert.ok(idx('## Component-Skill Contract') > 0);
-  assert.ok(idx('## Relationship to Other Skills') > 0);
   assert.ok(idx('## Next Actions') > 0);
-  // Next Actions before Component-Skill Contract before Anti-Patterns before Relationship
+  // Next Actions before Component-Skill Contract before Anti-Patterns
   assert.ok(idx('## Next Actions') < idx('## Component-Skill Contract'));
   assert.ok(idx('## Component-Skill Contract') < idx('## Anti-Patterns'));
-  assert.ok(idx('## Anti-Patterns') < idx('## Relationship to Other Skills'));
 });
 
 test('Component-Skill Contract is keyed on $PIPELINE_RUN_DIR', () => {
   assert.ok(read().includes('$PIPELINE_RUN_DIR'));
 });
 
-test('Relationship table references specify, capture, tidy, flow', () => {
-  const body = read();
-  for (const s of ['/claude-tweaks:specify', '/claude-tweaks:capture', '/claude-tweaks:tidy', '/claude-tweaks:flow']) {
-    assert.ok(body.includes(s), `missing relationship to ${s}`);
+test('docs/skill-graph.md records the edges to /specify, /capture, /tidy, /flow', () => {
+  // These edges used to be asserted against this skill's own Relationship table.
+  // That table is gone; the edges live in the graph, which uses the short form.
+  const graph = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', '..', 'docs', 'skill-graph.md'), 'utf8',
+  );
+  for (const s of ['/specify', '/capture', '/tidy', '/flow']) {
+    assert.ok(graph.includes(s), `docs/skill-graph.md is missing the edge to ${s}`);
   }
 });
 
@@ -70,7 +72,7 @@ test('v2 SKILL.md: exists', () => {
 });
 
 ['## When to Use', '## Input', '## Workflow', '## Anti-Patterns',
- '## Component-Skill Contract', '## Relationship to Other Skills',
+ '## Component-Skill Contract',
  '## Next Actions', '## Routine Configuration',
 ].forEach((anchor) => {
   test(`v2 SKILL.md: contains section '${anchor}'`, () => {

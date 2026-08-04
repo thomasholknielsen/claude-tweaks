@@ -233,7 +233,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-`/claude-tweaks:docs-health` is a **standalone-only** skill — no invocation path exists from `/claude-tweaks:flow` or any other skill in this project today (`flow/SKILL.md`'s Allowed Steps table, workflow text, and Relationship table never mention `docs-health`). The `## Next Actions` block always renders. If a future orchestrator wraps this skill, that orchestrator must update this contract to state its own `$PIPELINE_RUN_DIR`-gated handoff; until then, treat parent invocation as not applicable.
+`/claude-tweaks:docs-health` is a **standalone-only** skill — no invocation path exists from `/claude-tweaks:flow` or any other skill in this project today (`flow/SKILL.md`'s Allowed Steps table and workflow text never mention `docs-health`, and `docs/skill-graph.md` records no edge from `/flow`). The `## Next Actions` block always renders. If a future orchestrator wraps this skill, that orchestrator must update this contract to state its own `$PIPELINE_RUN_DIR`-gated handoff; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -254,25 +254,3 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Editing `docs/**` content to "fix" what a finding describes | This skill only ever judges and files — never edits. |
 | Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied to N sections. Use `relatedSections` to cover every occurrence in a single finding instead. |
 | Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but scoped to `docs/**` (excluding harness-health's own `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory) for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
-| `/claude-tweaks:code-health` | Sibling health skill for code quality — one of the four recurring-sweep siblings (code-health, harness-health, journey-health, docs-health). Shares the unified work-record filing contract. |
-| `/claude-tweaks:journey-health` | Sibling health skill for `docs/journeys/*.md` accuracy and agent-e2e coverage — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6 mirrors this skill's own Step 3.5) and `_shared/health-state.md` persistence, scoped to journeys instead of `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness. Both file born-`ready` findings on the unified work-record contract. |
-| `/claude-tweaks:specify` | docs-health findings are pre-specs — a filed `by:docs-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
-| `/claude-tweaks:wrap-up` | Step 7.7 applies the same `_shared/criteria-docs-diataxis.md` procedure inline to docs touched by the just-completed work plus a domain-overlap top-N (see `docs-health-integration.md` in that skill's directory), and separately detects missing documentation from the diff — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md`. |
-| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`/`by:harness-health`/`by:journey-health` issues in its hygiene pass; docs-health follows the same pattern for `by:docs-health` issues. |
-| `/claude-tweaks:backlog` | `refine` mode is the human gate over the `ready` queue — records docs-health files feed into its grant worklist the same way code-health/harness-health findings do. |
-| `/claude-tweaks:routine` | `/routine create docs-health` instantiates docs-health's `routine-template.yml` into a live, scheduled cloud Routine. |
-| `judge-procedure.md` (this skill's directory) | The single source of truth for the JUDGE procedure and finding schema — Step 3 reads it, and Step 1's parallel dispatch inlines its body verbatim into each agent's prompt. Self-contained by contract: an agent receiving that inlined body never needs to open this SKILL.md or any `_shared/` fragment. |
-| `_shared/criteria-docs-diataxis.md` | The canonical judge this skill reads — the genre-drift/depth-mismatch/findability/staleness dimensions, dual-persona misleading-risk tagging, and Finding Shape live there, not here. `judge-procedure.md` is the operational distillation of it; this fragment holds the deeper rationale. |
-| `_shared/health-state.md` | Durable cross-firing storage contract — docs-health's cursors, retry queue, and run history live on the `health-state` branch, reusing the exact same `bin/lib/health-core/*` primitives harness-health and code-health already use. No new persistence mechanism. |
-| `_shared/work-record.md` | Canonical taxonomy docs-health files against — origin `by:docs-health`, scoring, `ready` stage, born-ready rule. |
-| `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
-| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
-| `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill's Step 3.5 inlines — shared with `/code-health` and `/journey-health` (both inline their own copy the same way); `/harness-health` applies the identical discipline via its embedded copy in `_shared/harness-health-analysis.md`. |
-| `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 3/Step 6 inline — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
-| `_shared/health-routine-notes.md` | The canonical billing note, shared with `/code-health`, `/harness-health`, and `/journey-health` — and of the confidence-floor paragraph, shared with `/harness-health` and `/journey-health` now that all three (plus `/code-health`'s own `--min-risk`) have closed the gap it used to describe as open; this skill and `/harness-health` hold sub-threshold findings in a durable `remembered` cache, `/journey-health` drops them for that run instead. |

@@ -168,19 +168,3 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | Skipping verification after changes | Simplifications can introduce regressions — always verify |
 | Running on generated files | Generated code should be regenerated, not hand-simplified |
 | Over-simplifying at the cost of readability | Simpler isn't always better — dense one-liners can be harder to read than explicit code |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:build` | Invokes /simplify after implementation (Common Step 3). Passes files changed during build. |
-| `/claude-tweaks:review` | Invokes /simplify after review fixes (Step 5). Passes files changed during review. |
-| `/claude-tweaks:test` | /simplify uses the shared verification procedure from /test's `verification.md`. |
-| `/claude-tweaks:deepen` | Complementary, different altitude — /simplify cleans up *within* files (line-level complexity), /deepen restructures *across* module interfaces (depth/leverage). Run /simplify on the files /deepen restructured for line-level cleanup. |
-| `/claude-tweaks:design-wrapper` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — neither skill invokes the other; `distill` is intent-only, reserved for `polish`'s intent-driven dispatch so the two don't compete on the same content. |
-| `/claude-tweaks:code-health` | `/code-health` applies the simplification criterion proactively on a schedule; `/simplify` applies it reactively. Both read `_shared/criteria-simplification.md` — see that row below. |
-| `/claude-tweaks:help` | /help references /simplify in the workflow diagram and reference card. |
-| `code-simplifier:code-simplifier` | The subagent that does the actual simplification work. /simplify is the skill wrapper that handles scope, verification, and reporting. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
-| `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 3 verify lives here (CWD anchoring before `git` / `node --test`). |
-| `_shared/criteria-simplification.md` | The shared simplification criteria (what's worth simplifying + the behavior/scope/readability constraints) — single source of truth read by both /simplify and /code-health's simplification lens. |

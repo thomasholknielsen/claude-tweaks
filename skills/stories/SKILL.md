@@ -480,20 +480,3 @@ This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-t
 | Generating source-aware stories for non-user-triggerable conditionals | Conditionals based on server config or feature flags cannot be exercised through the browser |
 | Browsing from scratch when journey files document the same pages | Journey files already contain URLs, personas, steps, and success states — ingest them in Step 1.1 and enrich with locators and assertions rather than rediscovering everything |
 | Auto-linking existing stories to journeys without user confirmation | Journey link suggestions are recommendations presented in Step 6 — the user decides whether to add `journey:` fields to existing stories |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:browse` | /stories speaks /browse's operation vocabulary (open, snapshot, find, click, fill, screenshot, trace, close) and follows /browse's session-naming, screenshot-path, and trace-path conventions. The concrete `agent-browser` syntax lives in `agent-browser-reference.md` in the /browse directory. |
-| `/claude-tweaks:visual-review` | /visual-review can share a session with /stories when run back-to-back against the same URL. /visual-review's annotated screenshots reference the same accessibility-tree refs that /stories' locators resolve to. |
-| `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates via the `qa-agent`. `/test qa journey={name}` filters to stories for a specific journey. Failed stories surface trace paths captured during /stories refinement. Both skills consume `dev-url-detection.md` from `skills/_shared/` for auto-detection. |
-| `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review checks journey-to-story coverage in its code review — uncovered journey steps and orphaned stories are surfaced as informational findings. |
-| `/claude-tweaks:journeys` | /journeys creates journey files (`docs/journeys/*.md`) that /stories ingests in Step 1.1 for journey-aware story generation. Stories reference their source journey via the `journey:` field. |
-| `/claude-tweaks:journey-health` | /journey-health's coverage scan checks journeys against the QA story YAMLs /stories produces; coverage-gap findings recommend `/claude-tweaks:stories journey={name}` to close the gap. |
-| `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change. /build may create journey files via /journeys that /stories then ingests. |
-| `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Both consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
-| `/claude-tweaks:init` | Detects `agent-browser` availability during setup; without it /stories' browse-exploration and refinement steps cannot run (degrades gracefully — generates from journey/source-analysis data only). |
-| `qa-agent` (`agents/qa-agent.md`) | Runtime executor for /stories' YAML — opens an agent-browser session per story, uses Auth Vault for `auth: { vault: ... }` references, and captures trace-on-failure. /stories' refinement step prefigures this same execution path. |
-| `/claude-tweaks:help` | /help recommends /stories when UI files change and no stories exist; /stories' Next Actions block routes back to `/test qa` which /help surfaces as next-up |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

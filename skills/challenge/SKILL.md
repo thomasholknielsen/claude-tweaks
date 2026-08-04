@@ -290,18 +290,3 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Bracketing a challenge with flattery — a "great question" opener or a "your instinct is good" closer | The praise signals agreement and blunts the challenge before it lands; the user opted into directness |
 | Inventing a flaw to look rigorous when the framing holds | If the lenses surface nothing real, say so plainly — manufactured doubt is as useless as false agreement |
 | Skipping /claude-tweaks:challenge for "obvious" features | Obvious features often have the strongest hidden assumptions |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:capture` | Feeds backlog records that /claude-tweaks:challenge can debias |
-| `/superpowers:brainstorming` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
-| `/claude-tweaks:specify` | Downstream — shapes records / decomposes designs into ready leaf records |
-| `/claude-tweaks:help` | Flags backlog records with baked-in assumptions as candidates for /claude-tweaks:challenge |
-| `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
-| `_shared/decision-records.md` | /challenge tags hard-to-reverse framing decisions `[ADR-candidate]` in the brief; /wrap-up Step 6.2 applies the ADR gate and records the survivors. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |
-| `_shared/multi-agent-coordination.md` | Canonical primitive for Layered MoA (Mode 4) — N parallel lens proposers + one sequential aggregator. Hard limits live in the primitive. |
-| `_shared/subagent-output-contract.md` | Per-lens proposer agents follow the input-discipline/status-line/model-tier conventions but emit free-form 2-4 paragraph debiasing perspectives, not Template A/B/C (see that file's "Not every consumer uses A/B/C" note); the aggregator follows the status-line and model-tier conventions (Capable tier). |
-| `_shared/work-record.md` | Taxonomy home for backlog records — stage vocabulary (backlog / parked / ready), the label contract, and work record lifecycle. |

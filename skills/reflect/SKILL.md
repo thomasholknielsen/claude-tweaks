@@ -196,19 +196,3 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | Re-deriving insights already in Key Learnings | When review's Key Learnings are available, use them as seeds — don't re-analyze from scratch |
 | Padding findings with praise of the work before naming what's weak | Reflection exists to surface weaknesses — strengths are easy to see unaided; lead with the weakness |
 | Manufacturing a finding to look thorough when the work is sound | "I looked and found nothing worth changing" is a valid, honest reflect outcome — don't invent one |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:review` | Invokes /reflect in **hindsight** mode (Step 4). Passes analyzed changes and review context. Receives hindsight findings for the review summary. |
-| `/claude-tweaks:wrap-up` | Invokes /reflect in **full** mode (Step 3), or **light** mode when the run's `ceremony-profile` is `fast-lane`. Passes review summary, key learnings, and tradeoffs. Receives routed insights for knowledge capture. |
-| `/claude-tweaks:build` | Produces the code that /reflect evaluates |
-| `/claude-tweaks:deepen` | The structural-debt lens (premature abstractions, wrong boundaries) seeds /deepen candidates — when /reflect surfaces module-level structural debt, it recommends `/claude-tweaks:deepen` for a dedicated depth pass rather than resolving it inline |
-| `/claude-tweaks:test` | /reflect may trigger re-verification after "Change now" fixes |
-| `/claude-tweaks:ledger` | /reflect writes findings to the ledger using the phase provided by the parent (or `reflect` when standalone) |
-| `/claude-tweaks:capture` | /reflect may route complex insights needing brainstorming through /capture, which files a fresh backlog work record |
-| `/claude-tweaks:help` | /help references /reflect in the workflow diagram and reference card. |
-| `_shared/work-record.md` (`parked`) | /reflect routes deferred improvements to a new work record here (with origin, files, trigger) |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
-| `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3 (`{run-dir}/decisions.md`). |

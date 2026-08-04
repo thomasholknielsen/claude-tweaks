@@ -335,33 +335,3 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 | Guessing at fixes for behavioral bugs without reproducing them | Edit-and-pray debugging turns a 30-minute bug into a 3-hour one — reproduce on command first via `/superpowers:systematic-debugging`, then fix the confirmed cause (Common Step 5). |
 | Using `batched` execution within `/flow` | Flow's purpose is hands-off automation — batched pauses for human review after every 3 tasks, contradicting flow's no-stopping design. Use `subagent` with `/flow`. |
 | Rewriting docs from scratch during build | Build doc updates are incremental — add/change what the build touched. Full rewrites belong in /wrap-up or /init. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build — shapes a record to `ready` (spec-shaped body) or decomposes a design doc into ready leaf records. /build's record mode (`#N`) materializes a shaped leaf record into a build-time file via `skills/flow/materialize.md` before implementing it, reading the `Surface:`/`Design-intent:` body-metadata lines `/specify` wrote, lifted into the materialized header. Design mode can skip /specify entirely, building directly from a design doc. |
-| `/superpowers:brainstorming` | Produces the design doc that design mode consumes directly |
-| `/superpowers:writing-plans` | Invoked BY /claude-tweaks:build to create the execution plan |
-| `/superpowers:subagent-driven-development` | Invoked BY /claude-tweaks:build (subagent execution strategy) to execute the plan with automated review chain |
-| `/superpowers:executing-plans` | Invoked BY /claude-tweaks:build (batched execution strategy) to execute the plan with human-reviewed batches |
-| `/superpowers:using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
-| `/superpowers:finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
-| `/superpowers:systematic-debugging` | Invoked BY /claude-tweaks:build (Common Step 5) when a behavioral bug surfaces during verification — reproduce-first discipline before fixing, escalate when the bug can't be reproduced |
-| `/claude-tweaks:simplify` | Invoked BY /claude-tweaks:build after implementation (Common Step 3). Handles code simplification and re-verification. |
-| `/claude-tweaks:deepen` | Produces the modules /deepen evaluates. Architectural deviations build catches in Common Step 4.5 can route to /deepen for a dedicated module-depth pass (distinct from /simplify's line-level cleanup). |
-| `/claude-tweaks:journeys` | Invoked BY /claude-tweaks:build after verification (Common Step 6). Creates/updates journey files for built features. |
-| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. /build creates journey files via /journeys (`docs/journeys/*.md`) that /stories ingests for journey-aware story generation — stories reference their source journey via the `journey:` field. Stories are validated by `/test qa`. |
-| `/claude-tweaks:test` | Runs AFTER /claude-tweaks:build (in pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist). Standalone: runs the same checks as /build Common Step 5. |
-| `/claude-tweaks:review` | Runs AFTER /claude-tweaks:test — gates on `TEST_PASSED=true`. In design mode, uses git diff instead of spec compliance. Standalone /review auto-triggers /test if no recent pass. |
-| `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
-| `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
-| `/claude-tweaks:capture` | Design mode may file backlog work records for blocked work (Step 4); after build, /build calls /capture to file follow-up ideas ("while I'm here" observations) before they're lost — fresh backlog records instead of inflating the current spec |
-| `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
-| `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync. Phase 3 also writes `project.maturity` to `.claude-tweaks/policy.yml`, which Common Step 2 reads to scale its test-discipline instruction on early-production/established projects. |
-| `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
-| `/claude-tweaks:design-wrapper` | /build invokes `/claude-tweaks:design-wrapper pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
-| `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log. In record mode, /flow materializes the record into `{run-dir}/work/{n}-spec.md` via `skills/flow/materialize.md` before invoking `/claude-tweaks:build #{n}`, which reads that file in place; a standalone `/build #{n}` (no `/flow` parent, e.g. dispatched or run directly by a human) performs the same materialize step itself. |
-| `/claude-tweaks:help` | /help recommends specific specs to /build based on dependency graph + INDEX.md status; /build's spec resolution rules mirror /help's selection logic |
-| `/claude-tweaks:reflect` | /reflect is invoked BY /wrap-up after /build completes; reflection insights tagged for skills/CLAUDE.md feed back into /build's future runs via updated project conventions |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

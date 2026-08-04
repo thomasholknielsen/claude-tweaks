@@ -95,7 +95,7 @@ If zero candidates, state: "No shallow modules found in scope — the abstractio
 
 **Filtering by kind:** `/claude-tweaks:deepen --kind deepen|collapse` scopes this table (and the `AskUserQuestion` options built from it) to only that kind before presenting — use it for a pass focused solely on the cheap, low-ceremony collapse cleanups (or, conversely, only the real-abstraction deepen candidates). Candidates of the excluded kind still count toward "Found {N}" in the summary line but are not shown as selectable options, and are folded into the Report's "Candidates not actioned" total. Omit the flag to see the full mixed list, as today.
 
-Note: neither the ledger nor any other durable store remembers a declined or filtered-out candidate across runs (see the `/claude-tweaks:ledger` row in Relationship to Other Skills) — a later `/deepen` run over overlapping scope will re-rank and re-present it as if seen for the first time.
+Note: neither the ledger nor any other durable store remembers a declined or filtered-out candidate across runs (the ledger records resolutions, not declined candidates) — a later `/deepen` run over overlapping scope will re-rank and re-present it as if seen for the first time.
 
 ### Auto mode
 
@@ -160,7 +160,7 @@ Verification: {pass/fail}
 Candidates not actioned: {N} (staged / declined / blocked — listed for follow-up)
 ```
 
-If no changes were made: "No depth changes — abstractions reviewed are earning their keep." List any candidates the user declined so they aren't silently dropped. This list is scoped to the current run only — nothing here persists to the ledger or any other durable store (see the `/claude-tweaks:ledger` row in Relationship to Other Skills); a future `/deepen` run has no memory of what was declined here.
+If no changes were made: "No depth changes — abstractions reviewed are earning their keep." List any candidates the user declined so they aren't silently dropped. This list is scoped to the current run only — nothing here persists to the ledger or any other durable store (the ledger records resolutions, not declined candidates); a future `/deepen` run has no memory of what was declined here.
 
 ## Next Actions
 
@@ -195,22 +195,3 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Auto-applying a refactor in `auto` mode | Architecture is low-reversibility — auto mode stages candidates for the Review Console, never refactors silently |
 | Running a whole-repo depth audit | This skill reviews recent work — a codebase-wide audit is a different, deliberate exercise |
 | Deepening a module by pushing a network call into previously pure code | That trades testability for a smaller surface — flag it as a risk, don't do it silently |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:simplify` | Complementary, different altitude — /simplify cleans up *within* files (line-level), /deepen restructures *across* module interfaces. Run /simplify after /deepen for line-level cleanup on the refactored files. |
-| `/claude-tweaks:review` | /review lens 3e (Architecture) flags shallow abstractions and wrong boundaries; when it does, /review surfaces `/claude-tweaks:deepen` as a Next Action. /deepen is the deeper, dedicated follow-up to that lens. |
-| `/claude-tweaks:reflect` | /reflect's structural-debt lens ("premature abstractions, wrong boundaries") seeds /deepen candidates; /reflect surfaces /deepen as a Next Action when it finds structural debt. |
-| `/claude-tweaks:test` | /deepen uses the shared verification procedure from /test's `verification.md` to confirm a refactor preserved behavior. |
-| `/claude-tweaks:build` | Produces the modules /deepen evaluates. Architectural deviations build catches in Common Step 4.5 can route to /deepen for restructuring. |
-| `/claude-tweaks:help` | /help references /deepen in the workflow diagram and reference card. |
-| `/claude-tweaks:flow` | Invoked BY /flow at the Pipeline Summary (Step 5) in analysis-only mode — /flow runs the read-only depth analysis hands-off and renders the ranked candidates as a Depth Opportunities recommendation block, but never applies a refactor (the responsible boundary for low-reversibility work in an auto pipeline). Skipped by `no-deepen`. |
-| `/claude-tweaks:wrap-up` | Hard-to-reverse interface trade-offs /deepen flags `[ADR-candidate]` in Step 4 are picked up by /wrap-up's Step 6.2 and run through the ADR gate for possible ADR creation — see the `_shared/decision-records.md` row below. |
-| `/claude-tweaks:code-health` | `/code-health` applies the architecture-depth criterion proactively on a schedule; `/deepen` applies it reactively to code you are changing. Both read `_shared/criteria-architecture-depth.md` — see that row below. |
-| `/claude-tweaks:ledger` | `/deepen` does not currently write ledger items — pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`, per Step 3's Auto mode note and the Component-Skill Contract above), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger. |
-| `_shared/decision-records.md` | Hard-to-reverse interface trade-offs surfaced in Step 4 are flagged `[ADR-candidate]` for /wrap-up to record. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — /deepen always stages in auto (architecture is low-reversibility), never auto-refactors. |
-| `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 5 verify lives here (CWD anchoring before `git` / `node --test`). |
-| `_shared/criteria-architecture-depth.md` | The shared depth criteria (leverage, deletion test, dependency classification, vocabulary) — single source of truth read by both /deepen and /code-health's architecture-depth lens. |

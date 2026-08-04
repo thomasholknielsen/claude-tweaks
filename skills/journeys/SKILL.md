@@ -198,22 +198,3 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | Listing every source file in `files:` | Only list files whose changes would affect the journey's behavior — key components, API routes, pages. |
 | One journey per feature instead of per goal | A journey may span features from multiple specs — organize by user goal, not implementation boundary. |
 | Skipping update of existing journeys | When a build modifies an existing flow, the journey file must reflect the change — stale journeys produce false regression signals. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:build` | Invokes /journeys after implementation (Common Step 6). Passes changed files and spec context. |
-| `/claude-tweaks:review` | Reviews journey coverage in lens 3g-cov. Detects journey regressions when changed files overlap with journey `files:` frontmatter. Visual review modes walk documented journeys. |
-| `/claude-tweaks:stories` | Generates QA story YAML files from journey documentation. Stories reference their source journey via the `journey:` field. |
-| `/claude-tweaks:test` | Validates QA stories derived from journeys. Supports `journey={name}` filter for journey-scoped test execution. |
-| `/claude-tweaks:flow` | /flow's build step invokes /journeys transitively through /build. |
-| `/claude-tweaks:visual-review` | Visual review walks documented journeys (`journey:{name}` mode) and tests against each step's "should feel" expectations. |
-| `/claude-tweaks:help` | /help references /journeys in the workflow diagram and reference card. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
-| `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3.5 (`{run-dir}/decisions.md` under `## /journeys`). |
-| `/claude-tweaks:journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing this skill uses. |
-| `/claude-tweaks:wrap-up` | Step 7.8 applies the same `_shared/journey-self-review.md` checks inline to journeys whose `files:` frontmatter overlaps the just-completed work's diff (see `journey-curation.md` in that skill's directory), and separately detects a persona-facing flow with zero journey coverage — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md` and Step 7.7 applies to `_shared/criteria-docs-diataxis.md`. |
-| `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check and `/claude-tweaks:wrap-up` Step 7.8's wrap-up-time check. |
-| `/claude-tweaks:visualize` | Step 3.6 suggests invoking this skill when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 12). |
-| `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 4 commit lives here (CWD anchoring before `git`). |

@@ -251,25 +251,3 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | Adding implementation details to a backlog record | A backlog record captures *what* and *why* — *how* is brainstorming + spec territory and changes faster than the idea itself |
 | Skipping `/superpowers:brainstorming` and jumping straight to specs | Brainstorming surfaces assumptions and constraints that specs need; without it, specs encode unchallenged premises |
 | Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — annotate the spec file directly so the note moves with the work |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:challenge` | Debiases backlog records before `/superpowers:brainstorming` — /claude-tweaks:help flags candidates |
-| `/superpowers:brainstorming` | Explores promoted backlog records — produces design docs |
-| `/claude-tweaks:specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path; also decomposes brainstormed design docs into ready leaf records |
-| `/claude-tweaks:backlog` | Records this skill files reach `refine` mode's grant worklist only after `/claude-tweaks:specify` shapes them to `ready`; `overview` mode surveys and prioritizes them — the reciprocal of `backlog/SKILL.md`'s own Feeder row for `/claude-tweaks:capture` |
-| `/claude-tweaks:tidy` | Reviews the backlog for stale records — promotes, absorbs, or deletes |
-| `/claude-tweaks:review` | May file new backlog records for ideas discovered during review |
-| `/claude-tweaks:wrap-up` | May file new backlog records for genuinely new ideas; leftover work becomes a `parked` record instead |
-| `/claude-tweaks:demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label |
-| `/claude-tweaks:build` | Calls /capture during Common Step 4 (design mode) to file blocked items and follow-up ideas before they slip |
-| `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for capturing ideas that surface during setup but aren't ready to specify |
-| `/claude-tweaks:reflect` | Its Capture disposition (`full` and `hindsight` modes) routes a complex/uncertain insight or finding through `/claude-tweaks:capture` to file it as a fresh backlog work record — distinct from reflect's Defer disposition, which files new backlog records directly at the Wrap-Up Review Console without going through this skill |
-| `/claude-tweaks:visual-review` | Files UI ideas (creative improvements, follow-ups) as new backlog records directly, not via /capture — only recommends /capture to the user afterward, the same pattern as /claude-tweaks:reflect's Defer disposition above |
-| `/claude-tweaks:help` | Feeds items that /claude-tweaks:help surfaces in the status dashboard/queue counts. |
-| `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the label contract this skill files against |
-| `/claude-tweaks:research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
-| `/claude-tweaks:code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

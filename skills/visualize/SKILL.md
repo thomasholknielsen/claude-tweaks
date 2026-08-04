@@ -137,17 +137,3 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — this fights the tool the same way theming fights Mermaid/D2's own engines. |
 | Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. `record-graph` is the one by-rule exception (Step 3's own table row): it always writes there, for every invocation. |
 | Model hand-authoring `record-graph`'s D2/SVG source from the fetched JSON | Defeats the type's whole purpose — it exists specifically to avoid LLM transcription of structured queue data (wrong issue numbers, dropped labels). Always route through `bin/record-graph.js render`. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:journeys` | Step 3.6 invokes this skill with `--source journeys` when a journey shows a multi-persona, decision-tree, or multi-actor signal. |
-| `/claude-tweaks:specify` | Step 2.5d invokes this skill with `--source specify` for every surface (not just frontend) when the design doc describes a state machine, schema, multi-actor flow, decision tree, layered architecture, or hierarchy. |
-| `/claude-tweaks:review` | Lens 3i-diagram invokes this skill with `--source review` as an informational finding when the diff added structural complexity with no matching diagram on disk. |
-| `/claude-tweaks:design-wrapper` | Not invoked directly — this skill reads `DESIGN.md`/`DESIGN.json` (written by `/impeccable:impeccable document`, the same files `/design-wrapper pre-build` mode lazy-loads) but does not go through `/design-wrapper`, since it needs the raw token data, not a critique/audit/polish action. |
-| `/claude-tweaks:init` | Step 12 offers to enable diagram suggestions (writes `diagram-suggestions: enabled/disabled` to CLAUDE.md — no install step, this skill is native). |
-| `/claude-tweaks:help` | /help references /visualize in the workflow diagram and reference card. |
-| `/claude-tweaks:docs-health` | Step 5's suggested `files:` frontmatter line (naming a diagram's depicted source dependencies) gives docs-health's freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track once the user applies it to the embedding doc's frontmatter. |
-| `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, the persist-vs-ephemeral decision, and delivery (Step 7's `file://` link + `SendUserFile` handoff). |
-| `skills/_shared/record-queue-fetch.md` | `record-graph.md` Step A reuses this shared fetch-and-facet-parse procedure verbatim (with `body` added to `{EXTRA_FIELDS}`) — the same procedure `/help`, `/tidy`, and `/backlog` already consume. |

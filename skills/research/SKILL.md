@@ -16,7 +16,7 @@ report under `.claude-tweaks/research/`.
 ```
                              [ /claude-tweaks:research ] ← utility (no fixed lifecycle position)
                                         ↑
-   Referenced by (advisory cross-reference in each skill's own Relationship table —
+   Referenced by (advisory cross-reference, recorded in `docs/skill-graph.md` —
    none of these invoke /research from a numbered Workflow step; a human or the
    caller's own judgment decides to run it): /claude-tweaks:capture,
    /claude-tweaks:challenge, /claude-tweaks:specify, ad-hoc research tasks
@@ -116,14 +116,3 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Treating the inline fallback as failure | The fallback is a first-class path, not an error state. Most users without Dynamic Workflows rely on it. |
 | Editing reports in place after generation | Reports are dated immutable artifacts. Re-run the skill; the new report gets a fresh dated directory (a numeric suffix if the same topic already ran today — see Workflow Step 2). |
 | Hard-depending on the built-in | `/deep-research` is a gated preview feature absent for many users. Never remove the fallback or assume the command exists. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|--------------|
-| `/claude-tweaks:capture` | Research findings can be promoted into a backlog work record via the Next Actions block; `/capture` references `/research` as a way to enrich a captured idea before specifying. |
-| `/claude-tweaks:challenge` | `/challenge`'s own Relationship table references `/research` as a way to back debiasing lenses with evidence (advisory, not an automatic invocation); this skill's reports can be cited as challenge sources. |
-| `/claude-tweaks:specify` | `/specify`'s own Relationship table references `/research` outputs for prior-art sections (advisory, not an automatic invocation); this skill's Next Actions block offers a direct "cite findings in a new spec" path. |
-| `/claude-tweaks:browse` | Both are utility skills (no fixed lifecycle position). `/browse` covers interactive browser automation; `/research` covers autonomous multi-source research. |
-| `/claude-tweaks:help` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
-| `_shared/subagent-output-contract.md` | `reference/methodology.md` Step 4 dispatches parallel claim-verification Task agents under this shared contract (status line, Template C, model tier) when running the inline fallback — a real dependency this skill relies on but doesn't author. |

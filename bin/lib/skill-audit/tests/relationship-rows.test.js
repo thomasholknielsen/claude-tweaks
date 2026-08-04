@@ -59,7 +59,14 @@ test('bodyOutsideSection: returns the whole document when there is no section', 
   assert.strictEqual(bodyOutsideSection('# Skill\n'), '# Skill\n');
 });
 
-test('every shipped skill parses, and the corpus totals hold', () => {
+test('no skill carries a Relationship section any more', () => {
+  // This assertion used to read `assert.strictEqual(total, 510)`. Phase 2b removed the
+  // convention outright — 127.6 KB of author-facing meta that every skill invocation
+  // paid for, describing edges the running model never acts on. The edges now live once
+  // in docs/skill-graph.md, which ships to nobody.
+  //
+  // The parser keeps its unit tests above and gains a second job here: the guard that
+  // stops the convention creeping back one skill at a time.
   const skillsDir = path.join(__dirname, '..', '..', '..', '..', 'skills');
   const names = fs
     .readdirSync(skillsDir)
@@ -67,18 +74,12 @@ test('every shipped skill parses, and the corpus totals hold', () => {
     .sort();
   assert.strictEqual(names.length, 32);
 
-  let total = 0;
   for (const name of names) {
     const md = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
-    const rows = extractRelationshipRows(md);
-    assert.ok(rows.length > 0, `${name} has no Relationship rows`);
-    for (const row of rows) {
-      assert.ok(row.target.length > 0, `${name}:${row.line} has an empty target`);
-      assert.ok(row.description.length > 0, `${name}:${row.line} has an empty description`);
-    }
-    total += rows.length;
+    assert.strictEqual(
+      extractRelationshipRows(md).length,
+      0,
+      `${name}/SKILL.md has a Relationship section again — put the edge in docs/skill-graph.md`,
+    );
   }
-  // Live measurement of the corpus Phase 2 plans against, cross-checked during design
-  // by two independent extractors. A change here means the plan's premise moved.
-  assert.strictEqual(total, 510);
 });

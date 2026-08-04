@@ -72,11 +72,17 @@ test('findLostOccurrences: returns empty when the source text has no identifiers
 test('findLostOccurrences: acceptance — deleting a whole Relationship table reports near-total loss', () => {
   // The experiment that condemned the previous presence-based implementation, which
   // scored 24% on this exact input. Counting occurrences must score at or near 100%.
-  const file = path.join(__dirname, '..', '..', '..', '..', 'skills', 'review', 'SKILL.md');
+  //
+  // The input is a FIXTURE, not the live skills/review/SKILL.md, because Phase 2b then
+  // deleted every Relationship section in the corpus — reading the live file would make
+  // this test unrunnable the moment it proved its point. The fixture is that file
+  // verbatim at the last commit before the deletion, so the experiment still runs on
+  // exactly the bytes that produced the 24% and 100% figures on record.
+  const file = path.join(__dirname, 'fixtures', 'review-SKILL-pre-2b.md');
   const before = fs.readFileSync(file, 'utf8');
   const lines = before.split('\n');
   const start = lines.findIndex((l) => /^##\s+Relationship to Other Skills/.test(l));
-  assert.ok(start > 0, 'review/SKILL.md must still have a Relationship section');
+  assert.ok(start > 0, 'the fixture must still contain a Relationship section');
   let end = start + 1;
   while (end < lines.length && !/^##\s/.test(lines[end])) end += 1;
 
