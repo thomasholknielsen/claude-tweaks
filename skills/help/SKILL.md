@@ -11,9 +11,9 @@ argument-hint: "[status|commands|<topic>] [--budget <n>]"
 One-stop reference and status dashboard for the workflow system. Combines command help, pipeline scanning, and next-step recommendations.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-    ↑                                                                                                                                            |
-    └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←──────────────────────────────────────────────────────┘
+/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+    ↑                                                                                                                                                                                                                                              |
+    └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
                                             ^^^^ YOU ARE HERE ^^^^
 ```
 
