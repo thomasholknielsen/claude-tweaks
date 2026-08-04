@@ -19,8 +19,8 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 35);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 35);
+  assert.strictEqual(POLICY_KEYS.length, 31);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 31);
 });
 
 test('execution-strategy and git-strategy are recognized policy keys', () => {

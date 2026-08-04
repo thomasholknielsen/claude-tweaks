@@ -33,17 +33,6 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in `merge-check`, and feeding `/review`'s diff-heuristic risk proxy |
 | `work-links` | `policy.yml` (CLAUDE.md also honored) | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
 
-## Legacy dispatch aliases
-
-Pre-rename aliases, still read when the current-name key is absent — no project should have to rename its policy file just because a skill was renamed. See `skills/dispatch/SKILL.md`'s own Configuration table for the authoritative alias mapping.
-
-| Key | Canonical home | Owner skill(s) | Default | Meaning |
-|---|---|---|---|---|
-| `triage-retry-ceiling` | `policy.yml` (CLAUDE.md also honored) | `/claude-tweaks:dispatch` | `3` | Legacy alias for `dispatch-retry-ceiling` |
-| `triage-fast-track-max-lines` | `policy.yml` (CLAUDE.md also honored) | `/claude-tweaks:dispatch` | `40` | Legacy alias for `automerge-max-lines` |
-| `triage-fast-track-max-files` | `policy.yml` (CLAUDE.md also honored) | `/claude-tweaks:dispatch` | `2` | Legacy alias for `automerge-max-files` |
-| `triage-dispatch-max-concurrent` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Legacy alias for `dispatch-pick-max-concurrent` |
-
 ## Review
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |

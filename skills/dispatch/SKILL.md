@@ -382,8 +382,6 @@ These four rows mirror `_shared/work-record-config.md`'s canonical key table (wh
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
 
-**Legacy aliases:** the pre-grants keys `triage-retry-ceiling`, `triage-fast-track-max-lines`, `triage-fast-track-max-files`, and `triage-dispatch-max-concurrent` are still read as aliases for the four rows above, in that order, when the new key is absent — no project should have to rename its policy file just because this skill was renamed.
-
 **Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to CLAUDE.md/`policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-contract.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 
 ## Routine Configuration
