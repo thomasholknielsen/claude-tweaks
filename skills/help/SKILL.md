@@ -69,13 +69,14 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 2. **Specs awaiting review** — review completed work before it goes stale
 3. **Specs awaiting wrap-up** — wrap up reviewed work (captures learnings while fresh)
 4. **Records building** (`bot:in-progress`, Stage 1) — finish what's started before starting new work
-5. **Design docs unspecified** — specify before building (don't let designs go stale)
-6. **Parked records with met triggers** — promote via `/claude-tweaks:specify` before starting new work
-7. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:backlog refine` to review and grant `auto:build`
-8. **Authorized records** (Stage 1) — recommend `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct) for the highest-priority one with met prerequisites
-9. **Backlog review** — if the backlog is stale or has 10+ records, suggest `/claude-tweaks:tidy` before new brainstorming
-10. **Challenge + Brainstorming** — if the pipeline is empty, suggest brainstorming from a backlog record; if its title has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
-11. **Nothing to do** — if everything is clean, say so
+5. **Unverified code changes** — the working tree is dirty or the branch is ahead of the default branch, and nothing above fired (no record in review or wrap-up state). Recommend `/claude-tweaks:test`. `/claude-tweaks:review` gates on `TEST_PASSED=true` and never runs verification itself, so unverified changes cannot progress; this is the one state where the next step is the mechanical gate rather than a lifecycle skill
+6. **Design docs unspecified** — specify before building (don't let designs go stale)
+7. **Parked records with met triggers** — promote via `/claude-tweaks:specify` before starting new work
+8. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:backlog refine` to review and grant `auto:build`
+9. **Authorized records** (Stage 1) — recommend `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct) for the highest-priority one with met prerequisites
+10. **Backlog review** — if the backlog is stale or has 10+ records, suggest `/claude-tweaks:tidy` before new brainstorming
+11. **Challenge + Brainstorming** — if the pipeline is empty, suggest brainstorming from a backlog record; if its title has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`. Offer `/claude-tweaks:research` alongside when the record names an external library, protocol, vendor, or standard — prior art is cheapest to gather before the design exists, and this branch is the only point where `/help` already knows the pipeline is empty
+12. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking
 
