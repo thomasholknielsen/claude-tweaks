@@ -1,5 +1,49 @@
 # Changelog
 
+## v6.37.0 — Skill-bloat reduction Phase 3: Anti-Pattern compression, extraction, and a detector
+
+Closes the three-phase effort. The shipped `SKILL.md` payload — the context re-emitted on
+every skill invocation and once per dispatched subagent — is down from **931.1 KB to
+727.8 KB, a 203.3 KB (21.8%) reduction**, and **no file is over CLAUDE.md's 40 KB ceiling**
+for the first time (the largest is now `init` at 39.2 KB, from 58 KB).
+
+**Anti-Patterns compressed in place, never evicted.** All 32 tables tightened for 13.6 KB
+(18.9%) with every row preserved and every backticked identifier intact — verified
+mechanically, because an Anti-Pattern row is a negative instruction and deleting one
+degrades silently: nothing observable happens when the model stops being told not to do
+something. The guard was built and deliberately falsified *before* any rewriting.
+
+This is short of the ~40% the design projected, and the projection was the thing that was
+wrong. Six agents worked disjoint file sets, could not see each other, and all six landed
+between 18% and 21% with the same finding: a Pattern cell names the forbidden thing, so
+compressing it spends specificity rather than bytes, and the Why cells were already one
+clause carrying identifiers and enumerations. The remaining lever — merging semantically
+overlapping rows — needs a human deciding which guardrails may share a row, so nobody took
+it silently.
+
+**Five oversized files extracted** (#119, re-scoped). Its premise was a prose diet
+estimated at ~150 KB; measuring first — the issue's own deliverable, never done — found the
+four named species occur **26 times** in total. The size was structural: `review`'s Step 3
+alone was 17.7 KB. Extraction followed the citation-shape rule, one sub-file per unit a stub
+actually names, with every extracted heading left as a stub so external references still
+resolve in one hop. Verified per file that every substantive original line survives
+somewhere in that skill's file set.
+
+**A detector so none of it regrows** (#120). A harness-health bloat criterion covering
+over-ceiling files, over-long rows, provenance narration, and degenerate tables, calibrated
+against the cleaned corpus rather than the old one — which is why it was sequenced last.
+Plus an eval context-cost regression check that reports and skips rather than silently
+passing when there is no baseline.
+
+The house-structure check now runs corpus-wide, and migrating the three duplicate copies onto
+the shared helper fixed a check that had been passing vacuously: every `SKILL.md`'s
+interaction directive contains the backticked text `## Next Actions`, so the old
+`body.indexOf()` matched that mention — position 906 in `code-health` — instead of the real
+heading at 35835, making the ordering assertion trivially true. Proven by breaking three
+skills so the order really was wrong: the old check passed on every one.
+
+`/help` also gained the two behaviours it had documented but never implemented (#121, #122).
+
 ## v6.36.0 — Every backward-compatibility path removed
 
 Nine legacy families and no deprecation policy documented anywhere. The marketplace
