@@ -369,7 +369,7 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
 
 **On early-exit:**
 
-1. Present the audit findings inline (one block, not a full phase summary). Enumerate what was verified — the early-exit must still answer "what did you check and find healthy?", just from the inventory + contract-marker passes (Phases 1u/1u.5), since Phases 2-8.5 were skipped:
+1. Present the audit findings inline (one block, not a full phase summary). Enumerate what was verified — the early-exit must still answer "what did you check and find healthy?", just from the inventory + conformance passes (Phases 1u/1u.5), since Phases 2-8.5 were skipped:
 
    ```
    ### Update Mode — Quick Audit
