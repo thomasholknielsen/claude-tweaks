@@ -8,6 +8,8 @@ const path = require('path');
 const POLICY_KEYS = [
   { key: 'worktree.always', type: 'boolean', default: false },
   { key: 'execution.always', type: 'enum', values: ['subagent', 'batched'] },
+  { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched'], default: 'subagent' },
+  { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'current-branch' },
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3 },

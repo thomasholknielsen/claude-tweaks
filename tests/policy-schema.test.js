@@ -18,9 +18,31 @@ function writeClaudeMd(repo, content) {
   fs.writeFileSync(path.join(repo, 'CLAUDE.md'), content);
 }
 
-test('POLICY_KEYS has exactly 33 entries with unique keys', () => {
-  assert.strictEqual(POLICY_KEYS.length, 33);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 33);
+test('POLICY_KEYS entries are unique', () => {
+  assert.strictEqual(POLICY_KEYS.length, 35);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 35);
+});
+
+test('execution-strategy and git-strategy are recognized policy keys', () => {
+  const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
+
+  const exec = byKey.get('execution-strategy');
+  assert.ok(exec, 'execution-strategy missing from POLICY_KEYS');
+  assert.strictEqual(exec.type, 'enum');
+  assert.deepStrictEqual(exec.values, ['subagent', 'batched']);
+  assert.strictEqual(exec.default, 'subagent');
+
+  const git = byKey.get('git-strategy');
+  assert.ok(git, 'git-strategy missing from POLICY_KEYS');
+  assert.strictEqual(git.type, 'enum');
+  assert.deepStrictEqual(git.values, ['current-branch', 'worktree']);
+  assert.strictEqual(git.default, 'current-branch');
+});
+
+test('execution.always locks the axis and execution-strategy sets the default — they are distinct keys', () => {
+  const keys = POLICY_KEYS.map((k) => k.key);
+  assert.ok(keys.includes('execution.always'), 'execution.always must survive as the lock');
+  assert.ok(keys.includes('execution-strategy'), 'execution-strategy must exist as the default');
 });
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
