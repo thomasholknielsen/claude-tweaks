@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove the `## Relationship to Other Skills` section from all 32 skills — ~124.5 KB, 13.5% of all `SKILL.md` bytes — after relocating the rows that bind execution, recording every edge once in `docs/skill-graph.md`, and resolving the 88 identifiers that would otherwise leave the runtime payload with nothing reaching them.
+**Goal:** Remove the `## Relationship to Other Skills` section from all 32 skills — ~124.5 KB, 13.5% of all `SKILL.md` bytes — after relocating the rows that bind execution, recording every edge once in `docs/skill-graph.md`, and resolving the identifiers that would otherwise leave the runtime payload with nothing reaching them.
 
 **Architecture:** Additive first, destructive last. Tasks 1–3 only add text: the unreached-identifier rewordings, the graph document, and the OPERATIVE relocations. Task 4 is the single destructive change-set — it deletes all 32 sections and, in the same commit, updates every consumer that assumes they exist (the `auto-mode-contract.md` mandate, three CLAUDE.md conventions, eight in-body pointers, seven test files). Splitting Task 4 would leave the suite red between tasks and would let a task-scoped review approve a deletion whose consumer update never came (`[IL-02]`, `[IL-60]`).
 
@@ -20,7 +20,7 @@
 
 ---
 
-### Task 1: Resolve the 88 unreached identifiers
+### Task 1: Resolve the unreached identifiers (see the corrected measurement below)
 
 **Files:** Modify: up to 30 `skills/*/SKILL.md` (step bodies only — do NOT touch the Relationship sections yet)
 
@@ -28,43 +28,80 @@
 
 **Why this task exists.** 307 identifiers appear only in a Relationship row. 182 are recoverable because a sub-file the body already points at also carries them. **88 are not** — nothing in the invocation payload reaches them. Deleting those rows removes the identifier from the skill's runtime context outright.
 
+> **Corrected, 2026-08-04 — the 88 figure is an instrument artifact; the real depth-1 figure is 38.**
+> The Step 1 script below has two defects that inflate loss by ~2.3x. It walks only the skill's own
+> directory plus `_shared/`, so a **cross-skill path the body explicitly names** is never opened —
+> `skills/flow/materialize.md` appears 10 times in build's body and was still scored unreachable.
+> And its head-token artifact test compares against `body` only, never against the reachable
+> sub-files — `diagram-suggestions: enabled` was scored absent while `specify/decomposition-mode.md:195`
+> states the flag *and* its full gate semantics.
+>
+> Re-measured with cross-skill path resolution and head-token-vs-reach:
+>
+> | Reach model | Absent | Avg load per skill |
+> |---|---|---|
+> | Original single-hop scan (below) | 88 | — |
+> | **Depth 1** — SKILL.md + files its body names | **38** | 10 files / 141 KB |
+> | **Depth 2** — one further instructed pointer | **1** | 26 files / 340 KB |
+> | Unbounded closure | 1 | 120 files / 1.2 MB — not credible |
+>
+> Use **depth 1 as the safety floor**: it is the conservative model of a single invocation.
+> Depth 2 is what actually happens whenever a sub-file says "apply the procedure in X" — e.g.
+> wrap-up Step 7 → `skill-curation.md:37` → `_shared/harness-health-analysis.md:37` →
+> `skills/init/skill-template.md`, three hops the skill instructs. The unbounded closure absorbs
+> ~120 of 214 files per skill and models nothing real.
+>
+> The **only** identifier absent even at depth 2 is `version`'s `_shared/auto-mode-contract.md`,
+> whose own row states the contract "does not modify behavior." **Nothing is at risk.** The reword
+> set below therefore shrinks from ~32 to roughly 6; the rest is cross-skill navigation (accept) or
+> a factually wrong claim (drop, and fix in Task 5).
+
 - [ ] **Step 1: Regenerate the unreached list against current HEAD**
 
-The scratchpad list was computed before Tasks 1–3 of this plan. Recompute so the list is current:
+Use the **corrected** depth-bounded scan. It resolves cross-skill paths the body names and tests head
+tokens against the whole reachable set, both of which the original single-hop version got wrong. A
+sibling `SKILL.md` is deliberately never pulled in — naming another skill does not load it.
 
 ```bash
 node -e '
 const fs=require("fs"),path=require("path");
 const {extractIdentifiers,countOccurrences}=require("./bin/lib/skill-audit/identifiers.js");
 const {extractRelationshipRows,bodyOutsideSection}=require("./bin/lib/skill-audit/relationship-rows.js");
+const DEPTH=Number(process.env.DEPTH||1);
 const D="skills";
 const names=fs.readdirSync(D).filter(n=>fs.existsSync(path.join(D,n,"SKILL.md"))).sort();
-const shared=fs.readdirSync(path.join(D,"_shared")).filter(f=>f.endsWith(".md"));
+const files=[];
+(function walk(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);
+  if(e.isDirectory()){walk(p);continue;}
+  if(e.name.endsWith(".md"))files.push({abs:p,rel:p,base:e.name});}})(D);
 for(const n of names){
   const dir=path.join(D,n);
   const md=fs.readFileSync(path.join(dir,"SKILL.md"),"utf8");
   const body=bodyOutsideSection(md);
-  const texts=[];
-  const walk=(d)=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){
-    if(e.isDirectory()){walk(path.join(d,e.name));continue;}
-    if(!e.name.endsWith(".md")||e.name==="SKILL.md")continue;
-    if(body.includes(e.name))texts.push(fs.readFileSync(path.join(d,e.name),"utf8"));}};
-  walk(dir);
-  for(const f of shared) if(body.includes(f)) texts.push(fs.readFileSync(path.join(D,"_shared",f),"utf8"));
+  const seen=new Set(); let frontier=[body]; const texts=[body];
+  for(let d=0;d<DEPTH;d++){const next=[];
+    for(const t of frontier) for(const f of files){
+      if(seen.has(f.abs))continue;
+      if(f.base==="SKILL.md" && !f.abs.startsWith(dir))continue;
+      if(!(t.includes(f.rel)||t.includes(f.base)))continue;
+      seen.add(f.abs); const c=fs.readFileSync(f.abs,"utf8"); texts.push(c); next.push(c);}
+    frontier=next;}
   const reach=texts.join("\n");
   for(const row of extractRelationshipRows(md))
     for(const id of extractIdentifiers(row.raw)){
-      if(countOccurrences(id,body)>0) continue;
       if(countOccurrences(id,reach)>0) continue;
       const head=id.split(/[:=\s{(]/)[0].replace(/[*\/]+$/,"");
-      if(head.length>=4 && countOccurrences(head,body)>0) continue;  // exact-match artifact
+      if(head.length>=4 && countOccurrences(head,reach)>0) continue;  // exact-match artifact
       console.log(n+"\t"+row.line+"\t"+id);
     }
 }' > /tmp/unreached-current.tsv
 wc -l /tmp/unreached-current.tsv
+DEPTH=2 node -e '...same script...' | wc -l    # sanity: should be ~1
 ```
 
-Expected: ~88 lines. If materially different, stop and report — the corpus moved.
+Expected: **38 lines at depth 1**, 1 at depth 2. If materially different, stop and report — the
+corpus moved. Do not use the unbounded closure: it absorbs ~120 of 214 files per skill and reports
+near-zero loss for any corpus, so it cannot fail.
 
 - [ ] **Step 2: Apply the disposition rule to each line**
 
@@ -75,7 +112,20 @@ Two dispositions, decided by what the identifier names:
 | **Another skill's internals** — a step number in a different skill, a `docs/` or `.claude/` path, another skill's sub-file or `bin/` module | **Accept.** This is cross-skill navigation. It belongs in the graph edge label (Task 2), not in this skill's payload. No edit. |
 | **This skill's own runtime token** — a config key it reads, a label it writes, an env var it sets, a CLI flag it accepts, a field name it emits | **Reword into the step body** that uses it, as one clause. Do not copy the row; state the token where it is used. |
 
-Known members of the second group, from the pre-plan scan — verify each against the regenerated list rather than trusting this table:
+**The seven bare filenames the mechanical rule cannot place — all resolved, none needs a reword:**
+
+| Skill | Identifier | Verdict | Evidence |
+|---|---|---|---|
+| `code-health` | `criteria-simplification.md` | Accept | Binding is data, not prose — `bin/lib/code-health/criteria.js:21` carries `fragment: 'criteria-simplification.md'` |
+| `docs-health` | `docs-health-integration.md` | Accept | Wrap-up's file; wrap-up's own Step 7.7 owns the pointer |
+| `harness-health` | `routine-relevance-analysis.md` | Accept | `init/update-mode.md:197` already reads it; harness-health's own steps never do |
+| `review` | `verification-brief.md` | Accept | Wrap-up's file, reached by wrap-up's own body |
+| `wrap-up` | `skill-template.md` | Accept | Three instructed hops: Step 7 → `skill-curation.md:37` → `_shared/harness-health-analysis.md:37` → `skills/init/skill-template.md` |
+| `assess-agent-autonomy` | `tier.js` | **Drop** | Tombstone — `bin/lib/issues/tier.js` does not exist; `recommendGrants`/`recommendTier` appear nowhere in the repo |
+| `backlog` | `grouping.js` | **Drop** | Factually wrong (Task 5 defect #3) — `overview-mode.md:66` calls only `ranking.js`'s `rankNextToBuild` |
+
+Known members of the second group, from the pre-plan scan — **most of these were cleared by the
+re-measurement above; verify each against a depth-1 run rather than trusting this table:**
 
 `journeys` `journey={name}` · `routine` `by:docs-health` · `visual-review` `demo:pending` ·
 `wrap-up` `needs-human`, `test/qa` · `visualize` `--source journeys|specify|review` ·
@@ -242,7 +292,7 @@ Measure the actual saving with the same method Phase 1 used — bytes before min
 
 ---
 
-### Task 5: Fix the six defects the triage surfaced
+### Task 5: Fix the defects the triage surfaced (see the table below)
 
 **Files:** `skills/help/SKILL.md` + `skills/help/reference-card.md`; `skills/backlog/SKILL.md`; `skills/tidy/SKILL.md` + `skills/tidy/actions-github-issues.md`; `skills/capture/SKILL.md`
 
@@ -256,6 +306,7 @@ These are real defects independent of the bloat work, found because classificati
 | 4 | `tidy` row 7 claims `extractFingerprint` backs the Sync payload; `actions-github-issues.md` uses only `recordPayload` | Verify; if stale, drop the claim rather than relocating it |
 | 5 | `help` rows 5 and 25 describe recommendation behaviour absent from Section 3's Priority Order | Documented-but-unimplemented. File as work records rather than fixing inline — implementing them is out of scope here |
 | 6 | `capture` row 7 says leftover work becomes a `parked` record, conflicting with `capture/SKILL.md:22`'s Defer attribution to `tidy` | Resolve which is correct, fix the loser |
+| 7 | `design-wrapper` row at `SKILL.md:262` claims `_shared/design-wrapper-handling.md` "documents the universal `{result}` / `{skipped}` / `{deferred}` / `{fail}` shapes" — that file contains **zero** occurrences of any of those brace tokens | Read the file's actual return-shape notation first. Either the notation changed or the claim was never true; do **not** carry the row's notation forward on faith when rewording |
 
 ---
 
