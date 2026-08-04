@@ -238,6 +238,29 @@ Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/
 
 Journey curation declares "No journey updates needed" only when no journey's `files:` frontmatter overlaps the diff AND missing-journey gap detection finds no persona-facing flow with zero coverage — and even then a mandatory summary line (naming journeys checked, self-review outcome per journey, and gap-detection outcome — see `journey-curation.md`) is logged so the null result is auditable. Findings surface at the Wrap-Up Review Console (Step 8.6) in the "Journey updates" section.
 
+## Step 7.9: CLAUDE.md Curation
+
+The end of a piece of work is when a convention changed, a command was renamed, or an incident happened — the moment CLAUDE.md is most likely to have gone stale, and the moment the context explaining why is still available. Rotation finds the same drift weeks later, cold.
+
+**Gate the read.** Run the audit when **any** of these holds:
+
+- `/claude-tweaks:reflect` or the ledger produced a Don't candidate (a `[claude-md: …]`-tagged ledger entry, or a reflection insight naming a pattern that should not be repeated)
+- A command listed in CLAUDE.md's `## Commands` section was renamed or removed in this work's diff
+- A convention asserted in CLAUDE.md's `## Conventions` section is contradicted by this work's diff
+- An incident account was recorded for this work
+
+When one holds, read `_shared/harness-health-analysis.md` and apply it with `assetType: claude-md` against the project's `CLAUDE.md` — the same procedure Step 7 applies to skills. Findings **stage**; they never auto-apply, per that file's standing CLAUDE.md exception.
+
+When **none** holds, skip the read and emit the mandatory summary line directly:
+
+```
+SCANNED {time} — Step 7.9 CLAUDE.md curation summary: audit not run (no CLAUDE.md-relevant signal in this work — no Don't candidate, no renamed command, no contradicted convention, no recorded incident).
+Result: 0 staged.
+Reversibility: N/A.
+```
+
+Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. **`audit not run` is deliberate and must never be rendered as `no findings`** — a gate that never opened is indistinguishable from a clean CLAUDE.md unless the summary says which one happened. When the gate did open, the summary instead names the signal that opened it and the finding count, so the two cases are never confusable.
+
 ## Step 8: Analyze Next Steps (record- or spec-based only)
 
 Determine:
