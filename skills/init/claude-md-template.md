@@ -173,11 +173,11 @@ Established codebase with active users. Schema changes require migrations with r
 
 ## Working Approach (universal behavior block)
 
-`## Working Approach` is the one **standard, non-adaptive** section in the template — include it verbatim in every generated CLAUDE.md (like the `## claude-tweaks Pipeline` section). It encodes universal task-execution behavior (think-before-coding, honest-not-agreeable, simplicity, surgical changes, goal-driven, read-before-write, checkpointing, fail-loud) so that **ad-hoc work outside the pipeline** — where no skill gate fires — still gets the same guardrails the lifecycle skills enforce.
+`## Working Approach` is the one **standard, non-adaptive** section in the template — include it verbatim in every generated CLAUDE.md (like the `## claude-tweaks Pipeline` section). It encodes universal task-execution behavior (think-before-coding, honest-not-agreeable, simplicity, surgical changes, goal-driven, read-before-write, checkpointing, fail-loud) so that **ad-hoc work outside the pipeline** — where no skill gate fires — still gets the same guardrails the lifecycle skills enforce. Update Mode's conformance check byte-compares this section against the template, so a project that edits or trims it reports drifted on every pass — verbatim is enforced, not just advised.
 
 Two rules of thumb:
 
-- **Complements Philosophy, doesn't repeat it.** Philosophy calibrates *how aggressive changes should be in this codebase* (maturity-dependent). Working Approach is *how to execute any task* (project-independent). If a bullet is already fully covered by an existing project convention, trim it to respect the 150-line budget.
+- **Complements Philosophy, doesn't repeat it.** Philosophy calibrates *how aggressive changes should be in this codebase* (maturity-dependent). Working Approach is *how to execute any task* (project-independent).
 - **No hard token-budget rule (deliberate).** The popular 8-rule CLAUDE.md template adds a "hard per-task / per-session token budget, summarize-and-restart on breach" rule. claude-tweaks **omits it on purpose**: context management is the harness's job, and `_shared/auto-mode-contract.md` explicitly forbids the model from inserting context-window/budget stop prompts. Do not add a token-budget bullet here.
 
 ## Principles
