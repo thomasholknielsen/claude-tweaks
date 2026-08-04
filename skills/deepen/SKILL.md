@@ -3,7 +3,7 @@ name: claude-tweaks:deepen
 description: Use when you want an architectural-depth pass on recently changed code — finds shallow modules (interface nearly as complex as implementation) and proposes deepening or collapsing them, ranked by leverage. Catches architecture entropy that line-level simplification misses. Works standalone or surfaced as a Next Action by /claude-tweaks:review and /claude-tweaks:reflect.
 argument-hint: "[<file-or-dir>...|<spec-number>] [--kind deepen|collapse]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 
 # Deepen — Architectural Depth Pass

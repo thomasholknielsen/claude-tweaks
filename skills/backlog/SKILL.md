@@ -3,7 +3,7 @@ name: claude-tweaks:backlog
 description: Use when you want to sweep the open work-record backlog and ensure records carry the right priority/Related/grant labels (refine mode), or get a distribution overview and a recommendation for what to build next (overview mode). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next.
 argument-hint: "[refine|overview] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 # Backlog — Refine Labels and Understand the Queue
 

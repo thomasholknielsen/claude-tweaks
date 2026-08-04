@@ -3,7 +3,7 @@ name: claude-tweaks:flow
 description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a work record or spec without stopping between steps. Accepts record references (#N) and specs only — design docs must be decomposed via /claude-tweaks:specify first.
 argument-hint: "<#n>[,#m,#o]|<spec>[,spec...] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 
 # Flow — Automated Pipeline

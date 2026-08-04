@@ -10,8 +10,8 @@ const SKILLS_DIR = path.join(__dirname, '..', 'skills');
 const CANONICAL_DIRECTIVE =
   '> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked ' +
   'Recommended. Multi-item → batch table with recommendations pre-filled, then one ' +
-  '`AskUserQuestion` for apply-all/override. Never more than one call per decision. End with ' +
-  '`## Next Actions` via `AskUserQuestion`, not a navigation menu.';
+  '`AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each ' +
+  'before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.';
 
 function skillNames() {
   return fs
