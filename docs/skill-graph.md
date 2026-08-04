@@ -1,0 +1,369 @@
+# Skill graph
+
+Every relationship between claude-tweaks skills, stated once.
+
+This file is maintainer documentation. It is **not** part of the shipped plugin —
+`evals/runner.js`'s `PLUGIN_SNAPSHOT_DIRS` covers `.claude-plugin`, `skills`, `agents`,
+`hooks`, `bin`, and `commands`, not `docs/`. No skill reads it at runtime, and consuming
+projects have no use for a map of this plugin's internal wiring. That is why the content
+could leave the `SKILL.md` files at all.
+
+Edges are stated once, not once per direction. The per-skill `## Relationship to Other
+Skills` tables it replaces stated each edge twice, and the two copies drifted.
+
+## How to read this
+
+Each section is one skill. Its table lists the relationships that skill **owns** — for a
+relationship with a natural direction, the producer or upstream side owns it; for a
+symmetric one (two siblings sharing a criterion, two utility skills sharing a niche), the
+alphabetically first side owns it. So a relationship involving `/review` may live under
+`/build`, and the `/review` section will not restate it. Non-skill targets — `_shared/*.md`
+fragments, `bin/` modules, design docs, `agents/qa-agent.md` — sit with the skill that
+depends on them.
+
+## assess-agent-autonomy
+
+| Target | Relationship |
+|---|---|
+| `/backlog` | `refine` calls `grant-check` once per worklist record; the output becomes the unified table's Recommended column for grant rows directly. `refine` still renders the human batch-confirm exactly as before — only what generates the suggestion changed. |
+| `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as backlog refine's recommendation signal. |
+| `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md` | Design rationale for `merge-check`'s behavior-delta criterion: why the instruction-file floor is defined by role rather than by path, why its escape is framed as a refutation rather than a classification, and why the blast-radius guideline binds only on behavior-carrying diffs. Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the previous anchor was a design doc, and it was pruned. |
+| `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Original design rationale and calibration examples for `ceremony-check`, and for how `/build`/`/wrap-up` consume the `ceremony-profile` lever — amended (not superseded) by the 2026-08-03 design doc above. |
+
+## backlog
+
+| Target | Relationship |
+|---|---|
+| `/dispatch` | The queue consumer — claims records `refine` authorized (`auto:build`) and hands each to `/flow`. `/backlog` never claims, dispatches, or executes. |
+| `/flow` | Indirect only, via `/dispatch`. `refine` is the human gate upstream of `/dispatch`: it grants `auto:build`/`auto:merge` on records `/flow` may later build and (with `auto:merge`) merge. `/backlog` never invokes `/flow`, and never selects, filters, sorts, or claims records. |
+| `/help` | Surfaces `refine`'s pending-authorization count on its dashboard; shares `bin/lib/issues/ranking.js`'s `rankNextToBuild` with `overview`'s recommendation section. |
+| `/tidy` | Folds `unsynced: true` local fallback records into its survey — surfacing, and for the priority axis the apply path via the local-files fallback branch; `/tidy`'s Shape 3 owns the actual sync-to-GitHub action. `/tidy`'s Shape 4/5 findings (unscored `ready`, `bot:blocked`) surface the same facts `refine`'s grant sweep would encounter — proactive hygiene, not a new redundancy. |
+| `_shared/issue-claims.md` | Defines the claim protocol `/dispatch` uses after `refine` grants — `/backlog` itself never claims. |
+| `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface `refine`'s pending-authorization count elsewhere. |
+
+## browse
+
+| Target | Relationship |
+|---|---|
+| `/help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
+| `/init` | Detects `agent-browser` availability during setup and records the requirement `/browse` depends on. |
+| `/research` | Both utility skills, no fixed lifecycle position. `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
+| `/test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in `/test` reports. |
+
+## build
+
+| Target | Relationship |
+|---|---|
+| `/help` | `/help` recommends specific specs to `/build` based on dependency graph + `INDEX.md` status; `/build`'s spec resolution rules mirror `/help`'s selection logic. |
+| `/reflect` | `/reflect` is invoked BY `/wrap-up` after `/build` completes; reflection insights tagged for skills/CLAUDE.md feed back into `/build`'s future runs via updated project conventions. |
+| `/review` | Runs AFTER `/build` and after `/test` — gates on `TEST_PASSED=true`. `/build` produces the code and journey files `/review` evaluates. In design mode `/review` uses git diff instead of spec compliance. Standalone `/review` auto-triggers `/test` if no recent pass. `/review`'s visual modes test the user journeys `/build` creates — the bridge between build and visual QA. |
+| `/specify` | Runs BEFORE `/build` — shapes a record to `ready` (spec-shaped body) or decomposes a design doc into ready leaf records. `/build`'s record mode (`#N`) materializes a shaped leaf record into a build-time file via `skills/flow/materialize.md` before implementing it, reading the `Surface:`/`Design-intent:` body-metadata lines `/specify` wrote, lifted into the materialized header. Design mode can skip `/specify` entirely, building directly from a design doc. |
+| `/stories` | Runs AFTER `/build` — auto-triggered by `/flow` when UI files change, or run manually; `/build` also recommends it when UI files change. `/build` creates journey files via `/journeys` (`docs/journeys/*.md`) that `/stories` ingests for journey-aware story generation — stories reference their source journey via the `journey:` field. Stories are validated by `/test qa`. |
+| `/test` | Runs AFTER `/build`. In pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist. Standalone: runs the same checks as `/build` Common Step 5. |
+| `/tidy` | Reviews specs from `/build` for staleness — periodic cleanup complement. |
+| `/superpowers:brainstorming` | Produces the design doc `/build`'s design mode consumes directly. |
+
+## capture
+
+| Target | Relationship |
+|---|---|
+| `/backlog` | Records `/capture` files reach `refine`'s grant worklist only after `/specify` shapes them to `ready`; `overview` mode surveys and prioritizes them. |
+| `/challenge` | Debiases backlog records before `/superpowers:brainstorming` — `/help` flags candidates. |
+| `/code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
+| `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |
+| `/help` | Feeds items `/help` surfaces in the status dashboard / queue counts. |
+| `/init` | After bootstrap, `/init` suggests `/capture` as the entry point for ideas that surface during setup but aren't ready to specify. |
+| `/research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
+| `/specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path; also decomposes brainstormed design docs into ready leaf records. |
+| `/wrap-up` | May file new backlog records for genuinely new ideas; leftover work becomes a `parked` record instead. |
+| `/superpowers:brainstorming` | Explores promoted backlog records — produces design docs. |
+
+## challenge
+
+| Target | Relationship |
+|---|---|
+| `_shared/work-record.md` | Taxonomy home for backlog records — stage vocabulary (backlog / parked / ready), the label contract, and work record lifecycle. |
+
+## code-health
+
+| Target | Relationship |
+|---|---|
+| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them. `refine`'s grant sub-stage is the primary consumer of code-health's `risk:<tier>`/`effort:<tier>` labels: `grant-check` (via `/assess-agent-autonomy`) reads them as one input to its authorization recommendation, not a direct label-driven rule. `/dispatch` (not `triage dispatch`, which no longer exists) then claims each authorized record's file-overlap group and hands it to `/flow` for pure execution. |
+| `/deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `_shared/criteria-architecture-depth.md`. |
+| `/docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. One of the four recurring-sweep siblings; both file born-`ready` findings on the unified work-record contract. |
+| `/harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of code quality. One of the four recurring-sweep siblings; both file born-`ready` findings on the unified work-record contract. |
+| `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6) and shared `_shared/health-state.md` persistence, scoped to `docs/journeys/*.md` for journey accuracy and agent-e2e coverage instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
+| `/review` | `/review` judges diffs reactively; `/code-health` judges latent code proactively on a schedule. Both reuse the same criteria fragments from `skills/_shared/` — see `_shared/criteria-review-quality.md`. |
+| `/simplify` | `/simplify` applies the simplification criterion reactively; `/code-health` applies it proactively. Both read `criteria-simplification.md`. |
+| `/tidy` | `/code-health` files improvement findings as `by:code-health`-labelled records; `/tidy` Step 4.8 audits them in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval, still-valid ones suggested for `/backlog refine` or captured to the backlog. |
+| `_shared/health-routine-notes.md` | The canonical text of this skill's Routine Configuration billing note — shared with `/harness-health`, `/journey-health`, and `/docs-health` (which also share its confidence-floor-asymmetry paragraph, not applicable to this skill since `--min-risk` closes that gap here). |
+
+## deepen
+
+| Target | Relationship |
+|---|---|
+| `/build` | Produces the modules `/deepen` evaluates. Architectural deviations `/build` catches in Common Step 4.5 can route to `/deepen` for restructuring. |
+| `/flow` | Invoked BY `/flow` at the Pipeline Summary (Step 5) in analysis-only mode — `/flow` runs the read-only depth analysis hands-off and renders the ranked candidates as a Depth Opportunities recommendation block, but never applies a refactor (the responsible boundary for low-reversibility work in an auto pipeline). Skipped by `no-deepen`. |
+| `/help` | `/help` references `/deepen` in the workflow diagram and reference card. |
+| `/wrap-up` | Hard-to-reverse interface trade-offs `/deepen` flags `[ADR-candidate]` in Step 4 are picked up by `/wrap-up`'s Step 6.2 and run through the ADR gate for possible ADR creation (see `_shared/decision-records.md`). |
+| `_shared/criteria-architecture-depth.md` | The shared depth criteria (leverage, deletion test, dependency classification, vocabulary) — single source of truth read by both `/deepen` and `/code-health`'s architecture-depth lens. |
+
+## demo
+
+| Target | Relationship |
+|---|---|
+| `/visual-review` | `/demo`'s Verification Brief digest (Step 2) is sourced from `/visual-review`'s own report — headline result + 1-3 committed screenshots. `/demo`'s optional "See it yourself" escape hatch consumes `/browse`'s conventions directly (the same relationship `/visual-review` itself has with `/browse`), not a re-invocation of `/visual-review`. |
+
+## design-wrapper
+
+| Target | Relationship |
+|---|---|
+| `/build` | Invokes `pre-build` mode before implementation (Common Step 1.7) to lazy-load Impeccable references and project design context into the build subagent's context. |
+| `/flow` | Invokes `polish` mode in the polish phase between review and wrap-up (auto-fit + issue-driven + intent-driven). The polish phase modifies code; flow's re-verify gate runs `/test skip-qa` afterward. Flow's pipeline summary also invokes `survey` mode against the full diff to render the Creative Opportunities block. Flow handles decline detection by comparing the recommendations cache from the previous run against the new diff. |
+| `/help` | Utility wrapper — `/help` lists it in the utility skills table. Standalone usage is rare; this skill is invoked by `/build` (Common Step 1.7 pre-build), `/test` (Step 1.5 CLI gate), `/review` (Step 6.5 advisory pass), `/flow` (polish phase), and `/visual-review`. |
+| `/ledger` | The wrapper writes no ledger items itself — its caches (audit, recommendations, declined) are separate files, which `/ledger` neither reads nor cleans (`/wrap-up` Step 5's job). Each design-wrapper command invoked during `/flow`'s polish phase does append one entry under phase `design` (`fixed` for auto-fit successes, `observation` for reported issues); polish-phase actions also surface in `/flow`'s pipeline summary via the actions-performed table. *(Unresolved: design-wrapper's side called this "no direct interaction," ledger's side described the phase-`design` appends — reconcilable only if `/flow`, not the wrapper, does the appending.)* |
+| `/review` | Invokes `review` mode during code review (Step 6.5). Findings appear as a "Design Quality" section in the review summary — advisory, not blocking. `review` mode also writes an audit cache (`docs/plans/...-audit.json`) consumed by `polish`. |
+| `/visual-review` | Invokes `survey` mode after browser review steps complete, passing screenshot paths via `--screenshots`. Renders the Creative Opportunities block in the visual review report. Standalone-only (no `$PIPELINE_RUN_DIR`), `/visual-review`'s Step 5 Boost gate also invokes `review` mode (Fix flagged issues) and `live` mode (Explore alternatives). |
+| `/wrap-up` | Cleans up the wrapper's audit / recommendations / declined caches alongside the ledger during artifact cleanup. |
+| `/superpowers:brainstorming` | Invoked by `/specify` when given a topic input — produces the design doc that `shape` mode then enriches. The wrapper does not invoke `/superpowers:brainstorming` directly. |
+
+## dispatch
+
+| Target | Relationship |
+|---|---|
+| `/help` | Surfaces the `authorized` and `building` counts on the dashboard (Stage 1). |
+
+## docs-health
+
+| Target | Relationship |
+|---|---|
+| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them. `refine` is the human gate over the `ready` queue: docs-health records feed its grant worklist the same way code-health/harness-health findings do. |
+| `/harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but on a disjoint file set: docs-health's rotation pool only ever walks `docs/`, never harness-health's `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Diátaxis genre-drift + depth-mismatch + findability + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
+| `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6 mirrors this skill's Step 3.5) and `_shared/health-state.md` persistence, scoped to `docs/journeys/*.md` accuracy and agent-e2e coverage instead of `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness. Both file born-`ready` findings on the unified work-record contract. |
+| `/tidy` | `/docs-health` files `docs/**` genre-drift/depth-mismatch/findability/staleness findings as `by:docs-health`-labelled records; `/tidy` Step 4.8 audits them alongside `by:code-health`/`by:harness-health`/`by:journey-health` ones — stale/superseded closed after batch approval, still-valid suggested for `/backlog refine`. |
+| `/wrap-up` | Step 7.7 applies the same `_shared/criteria-docs-diataxis.md` procedure inline to docs touched by the just-completed work plus a domain-overlap top-N (see `docs-health-integration.md` in that skill's directory), and separately detects missing documentation from the diff — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md`. |
+| `_shared/health-state.md` | Durable cross-firing storage contract — docs-health's cursors, retry queue, and run history live on the `health-state` branch, reusing the exact `bin/lib/health-core/*` primitives harness-health and code-health already use. No new persistence mechanism. |
+| `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
+| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
+| `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 3/Step 6 inline — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
+| `_shared/health-routine-notes.md` | The canonical billing note, shared with `/code-health`, `/harness-health`, and `/journey-health` — and the confidence-floor paragraph, shared with `/harness-health` and `/journey-health` now that all three (plus `/code-health`'s `--min-risk`) have closed the gap it used to describe as open. This skill and `/harness-health` hold sub-threshold findings in a durable `remembered` cache; `/journey-health` drops them for that run instead. |
+
+## flow
+
+| Target | Relationship |
+|---|---|
+| `/browse` | Transitive only — `/flow` invokes `/review` in full mode by default, which drives `/visual-review` and `/browse` for the browser portion; `/stories` uses `/browse` too. Browser availability detected at `/flow` startup determines whether visual review runs. |
+| `/help` | Shows pipeline status and recommends flow-ready specs. |
+| `/specify` | Produces the `ready` leaf records `/flow` accepts as `#N`/`#A,#B`, materialized via `materialize.md` — flow never calls `/specify` internally; an unshaped record's materialization hard gate points back at it instead. Also creates the legacy numbered specs the alias path still reads. |
+| `_shared/issue-claims.md` | `/flow` no longer claims records itself — `/dispatch` claims before handing off. Release on a record-mode run happens via `/wrap-up`'s generic Section E `abandoned:` path (user doesn't merge) or a failure-card-offered release (gate failure) — the same mechanisms any single-spec run already uses, not a flow-specific "console decline" step. |
+
+## harness-health
+
+| Target | Relationship |
+|---|---|
+| `/backlog` | Feeder — files records born `ready`; `/backlog` never files or closes harness-health issues. `/assess-agent-autonomy`'s `grant-check` mode (invoked from `refine`'s grant sub-stage) reads this skill's finding body directly — including recognizing `harness-health:new-skill` findings from their "New skill candidate" body content, not from a label, since those findings carry no `risk:*`/`effort:*` labels at all. `additive`/`restructural` findings already carry colon-form `risk:*`/`effort:*` labels (this skill's `issue-payload.js` co-emits them alongside the diagnostic label), which grant-check also reads as one input. |
+| `/init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. Update Mode also invokes this skill's `routine-relevance-analysis.md` directly to judge whether a project's instantiated cloud Routines are still relevant given recent skill changes — the only consumer of that file, and the only case where `/init` reaches into a harness-health-owned analysis file outside this skill's own SELECT/JUDGE/FILE pipeline. |
+| `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape and `_shared/health-state.md`'s durable persistence, scoped to `docs/journeys/*.md` accuracy and agent-e2e coverage instead of skill/rule/CLAUDE.md accuracy. harness-health folds its verify gate into Step 3 (JUDGE) rather than a separate numbered step — journey-health's Step 3.6 corresponds to that embedded check, not to harness-health's Step 5, which is GATHER OPEN ISSUES for dedup. |
+| `/specify` | Harness-health findings are pre-specs — a filed `by:harness-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
+| `/tidy` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `by:harness-health`-labelled records; `/tidy` Step 4.8 sweeps them alongside `by:code-health` and `by:journey-health` ones with the same stale/superseded triage — stale/superseded closed after batch approval, still-valid suggested for `/backlog refine` or direct application. |
+| `/wrap-up` | Step 7 (Skill Curation) applies the same `_shared/harness-health-analysis.md` procedure on a spec's changed skill files, and writes to the same cursor/cache state this skill reads and writes. |
+| `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 7 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
+| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 7 inlines (as `{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`) — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
+| `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill applies via its embedded copy in `_shared/harness-health-analysis.md` — `/code-health`, `/docs-health`, and `/journey-health` each inline their own copy the same way. |
+
+## help
+
+| Target | Relationship |
+|---|---|
+| `/ledger` | Utility skill — `/help` lists it in the utility skills table. Does not scan ledger files or surface open items on the dashboard; the resolve gate (`/ledger resolve`, run by `/wrap-up` Step 8.5 or `/flow` Step 5) is what actually catches unresolved items. |
+| `/version` | `/version` prints the installed plugin version; `/help` surfaces version-aware command syntax and points at `/version` for the canonical answer. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to `/help` (e.g. if a future status scan ever auto-resolves recommendations). |
+| `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). `/help` has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
+
+## init
+
+| Target | Relationship |
+|---|---|
+| `/build` | `/init` creates `docs/REGISTRY.md` (Phase 8.5) that `/build` consumes in Step 6.5 for documentation sync. Phase 3 also writes `project.maturity` to `.claude-tweaks/policy.yml`, which `/build` Common Step 2 reads to scale its test-discipline instruction on early-production/established projects. |
+| `/help` | `/init` configures the workflow system `/help` reports on — `/help` reads the same artifact paths `/init` bootstraps (the work-record queue, plans, docs registry) and surfaces doc staleness signals from the registry. Running `/help` is the quick way to verify `/init` worked. |
+| `/review` | `/init` creates the doc registry `/review` lens 3i uses for documentation-freshness checks. |
+| `/specify` | Phase 3 writes `project.maturity` to `.claude-tweaks/policy.yml`; `/specify` Step 2 reads it to bias decomposition toward strangler-fig-shaped leaves on early-production/established projects when a design doc proposes replacing an existing subsystem. |
+| `/stories` | `/init` Phase 8 (journey discovery) feeds `/stories` — discovered journeys become story-generation input. `/init` also detects `agent-browser` availability during setup; without it `/stories`' browse-exploration and refinement steps cannot run (degrades gracefully — generates from journey/source-analysis data only). |
+| `/tidy` | `/tidy` Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
+| `/visual-review` | `/init` Phase 0 configures the browser backends visual review depends on and detects `agent-browser` availability during setup; Phase 8 delegates to `/visual-review discover` for brownfield journey bootstrapping. |
+| `/wrap-up` | `/wrap-up` captures learnings after features, keeping `/init`-generated skills alive and accurate. Its Step 7 references `skill-template.md` from `/init`'s directory for Update Mode format and quality gates; its Step 7.7 maintains the doc registry `/init` creates in Phase 8.5. |
+
+## journey-health
+
+| Target | Relationship |
+|---|---|
+| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored) into `refine`'s grant worklist; `/backlog` never files or closes them. |
+| `/review` | Both read `_shared/journey-coverage-check.md`'s coverage computation — `/review`'s lens `3g-cov` stays inline/informational; journey-health's decoupled coverage-scan tier adds cursor-tracking and issue-filing on top. |
+| `/specify` | Journey-health findings are pre-specs — a filed `by:journey-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
+| `/tidy` | `/journey-health` files `docs/journeys/*.md` drift and coverage-gap findings as `by:journey-health`-labelled records; `/tidy` Step 4.8 sweeps them alongside `by:code-health`/`by:harness-health`/`by:docs-health` ones with the same stale/superseded triage — stale/superseded closed after batch approval, still-valid suggested for `/backlog refine`. |
+| `/wrap-up` | Step 7.8 applies this skill's own `_shared/journey-self-review.md` criteria inline, wrap-up-time, to journeys the just-completed work's diff touches — a fix-inline safety net rather than this skill's file-an-issue routing, since wrap-up still has full session context on what was just built. |
+
+## journeys
+
+| Target | Relationship |
+|---|---|
+| `/flow` | `/flow`'s build step invokes `/journeys` transitively through `/build`. |
+| `/help` | `/help` references `/journeys` in the workflow diagram and reference card. |
+| `/journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing `/journeys` uses. |
+| `/review` | `/journeys` produces the journey files `/review` consults in Step 6 to recommend visual review for affected journeys, and in lens `3g-cov` for journey-to-story coverage. `/review` detects journey regressions when changed files overlap with journey `files:` frontmatter, and surfaces uncovered journey steps and orphaned stories as informational findings. Visual review modes walk documented journeys. |
+| `/stories` | Generates QA story YAML files from journey documentation. Stories reference their source journey via the `journey:` field. |
+| `/test` | Validates QA stories derived from journeys; `journey={name}` filter runs only the QA stories tied to a single journey. |
+| `/wrap-up` | Step 7.8 applies the same `_shared/journey-self-review.md` checks inline to journeys whose `files:` frontmatter overlaps the just-completed work's diff (see `journey-curation.md` in that skill's directory), and separately detects a persona-facing flow with zero journey coverage — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md` and Step 7.7 applies to `_shared/criteria-docs-diataxis.md`. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+
+## ledger
+
+| Target | Relationship |
+|---|---|
+| `/deepen` | Does not write ledger items. Pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger. |
+| `/tidy` | `/ledger` creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted by `/wrap-up` Step 10 on successful completion. `/tidy` does not currently scan ledger files — no step in `tidy/scan-procedures.md` reads `docs/plans/*-ledger.md`, so a stale or orphaned ledger left by a pipeline that never reached wrap-up is not surfaced by a `/tidy` sweep today. Known gap. |
+
+## reflect
+
+| Target | Relationship |
+|---|---|
+| `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
+
+## research
+
+| Target | Relationship |
+|---|---|
+| `/help` | Utility skill — `/help` lists it in the utility skills table. `/research` has no fixed lifecycle position; `/help` may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
+| `_shared/subagent-output-contract.md` | `reference/methodology.md` Step 4 dispatches parallel claim-verification Task agents under this shared contract (status line, Template C, model tier) when running the inline fallback — a real dependency this skill relies on but doesn't author. |
+
+## review
+
+| Target | Relationship |
+|---|---|
+| `/browse` | Used by visual, journey, and discover modes for browser interaction. |
+| `/capture` | `/review` routes new ideas discovered during review through `/capture`, which files a fresh backlog work record. |
+| `/help` | `/help` flags specs awaiting review and recommends `/review` in its pipeline status scan. |
+| `/tidy` | `/tidy` reads `/review` summaries to detect cross-spec patterns (Step 5.5) — recurring finding categories, frequently flagged files, repeated gotchas — and recommends adding rules to CLAUDE.md when patterns appear in 3+ specs. `/tidy` also flags specs that appear complete but lack a `/review` run. |
+| `/wrap-up` | Runs after `/review` passes — reflection, cleanup, knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and `/reflect` hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed wrap-up's skill update analysis (Step 7). `/wrap-up`'s Step 10 safety-net gate (`verification-brief.md`) reads this skill's `### Visual Review` summary status and, when it shows only `Recommended` (no browser walk ran), triggers `/visual-review` itself using the same Step 6 mode resolution — never a separate implementation. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |
+
+## routine
+
+| Target | Relationship |
+|---|---|
+| `/code-health` | First consumer — `skills/code-health/routine-template.yml` is the reference template; code-health's SKILL.md points here instead of documenting manual `/schedule` setup. |
+| `/dispatch` | Third consumer — `skills/dispatch/routine-template.yml` is the headless queue consumer, instantiated by `/routine create dispatch`; carries write tools, unlike code-health's report-only template. |
+| `/docs-health` | Sixth consumer — `skills/docs-health/routine-template.yml` audits `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and staleness (report-only, like code-health's and harness-health's templates), filing `by:docs-health` findings. |
+| `/flow` | Indirect only, via `/dispatch` — `/flow` no longer ships its own routine template; `/routine create dispatch` instantiates the scheduled headless dispatcher that claims work and invokes `/flow`, so `/routine` never talks to `/flow` directly. |
+| `/harness-health` | Fourth consumer — `skills/harness-health/routine-template.yml` audits `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init` and `/wrap-up`. |
+| `/journey-health` | Fifth consumer — `skills/journey-health/routine-template.yml` audits `docs/journeys/*.md` for drift and coverage gaps (light tier only; the deep tier is interactive-only, pending a cloud-Routine feasibility spike). |
+| `/tidy` | Second consumer — `skills/tidy/routine-template.yml` relies on tidy's own Standalone-auto support for safe unattended execution. |
+| `skills/_shared/routine-diagnostic-probe.md` | Consumer, not a skill — references this skill's CREATE Step 4 environment-resolution procedure by name rather than duplicating it, for firing ad hoc diagnostics against an already-existing project environment. A future change to Step 4's resolution sources must consider this dependent. |
+
+## simplify
+
+| Target | Relationship |
+|---|---|
+| `/deepen` | Complementary, different altitude — `/simplify` cleans up *within* files (line-level complexity), `/deepen` restructures *across* module interfaces (depth/leverage). Run `/simplify` on the files `/deepen` restructured for line-level cleanup. |
+| `/design-wrapper` | `/simplify` runs before `polish` mode in `/flow` — different phases (simplify is in build, polish is post-review). Neither invokes the other; `distill` is intent-only, reserved for `polish`'s intent-driven dispatch, so the two don't double-strip the same content. |
+| `/help` | `/help` references `/simplify` in the workflow diagram and reference card. |
+
+## specify
+
+| Target | Relationship |
+|---|---|
+| `/assess-agent-autonomy` | Step 3 (Create the Records) invokes `ceremony-check` inline (not a fresh Task dispatch) once per record — Shaping mode's single record, decomposition mode's per leaf, never the parent — immediately alongside `risk:*`/`effort:*` stamping, deciding `ceremony:fast-lane`/`ceremony:standard` and persisting the verdict as an explicit `ceremony:*` label. Step 5 (Multi-Persona Red-Team) reads the freshly-stamped label to decide persona count. `/specify` is this mode's primary caller; `/flow`'s `materialize.md` falls back to it only for records that never went through this step. |
+| `/backlog` | Upstream hand-off source (`overview` surfaces priority-suggested records) and downstream gate — `/specify` is "the shaper" `refine` names: stamping `ready` + scoring is what admits a record into its grant worklist, and a record `refine` flags back for missing/empty spec-shaped fields returns here via `/specify #{n}` for re-shaping. |
+| `/design-wrapper` | `/specify` invokes `/design-wrapper shape <topic>` (Step 2.5b) as a pre-decomposition step on frontend design docs, to enrich the doc with UX/UI planning. `/specify` asks the design-intent question and writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-leaf procedure, or Shaping mode's Metadata block for a single record) — never frontmatter, never labels; the wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish`'s intent-driven dispatch for `Design-intent:`, active in v4.5.0). When the shape brief is confirmed, `/specify` may also invoke `live` mode (Step 2.5b-ii) against a throwaway scaffold and write an accepted direction's path as a `Visual-reference:` body-metadata line. The full pre-step procedure lives in `specify/design-pre-steps.md`. |
+| `/help` | Shows which leaf records from `/specify` are `ready` for `/build` — also uses Key Files for implicit dependency detection. |
+| `/research` | Prior-art lookup before authoring a record — `/research` reports can be cited directly in a leaf's `Technical Approach` or `Gotchas` section. |
+| `/review` | Reads the `risk:*`/`effort:*` labels this skill stamps (Shaping mode's "Stamp scoring and stage labels" step; decomposition mode's Step 3) to auto-derive its own `review-effort` tier (Step 2.5) — a read of the same labels via the same low-level helpers `assess-agent-autonomy`'s other modes already consume, not a skill-to-skill call. |
+| `/tidy` | Reviews backlog-stage records for staleness; its Promote action recommends `/specify #{n}` to shape a record into `ready`. Step 8's old backlog-entry deletion is retired — a captured record has no separate file to delete (Shaping mode edits it in place). |
+| `/superpowers:executing-plans` | Executes leaf records AFTER `/specify` — uses the plan from `/superpowers:writing-plans`, via `/build`'s batched execution strategy. |
+| `/superpowers:subagent-driven-development` | Executes leaf records AFTER `/specify` — uses the plan from `/superpowers:writing-plans`, via `/build`'s subagent execution strategy. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+| `_shared/work-record.md` | Canonical taxonomy `/specify` shapes and files against — stage vocabulary (backlog / parked / ready), the label contract, the permission matrix (`/specify`'s row: adds `ready`/scoring/Type, removes `parked`, never `auto:*`/`bot:*`), the born-ready rule, and the parent/leaf decomposition rules this skill implements. |
+
+## stories
+
+| Target | Relationship |
+|---|---|
+| `/flow` | Auto-triggers `/stories` between build and test when UI files change (unless `no-stories`). Both consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
+| `/help` | `/help` recommends `/stories` when UI files change and no stories exist; `/stories`' Next Actions block routes back to `/test qa`, which `/help` surfaces as next-up. |
+| `/journey-health` | `/journey-health`'s coverage scan checks journeys against the QA story YAMLs `/stories` produces; coverage-gap findings recommend `/stories journey={name}` to close the gap. |
+| `/review` | `/stories` generates the YAML stories `/test` validates; `/review` gates on `/test` passing (which includes QA when stories exist) via `TEST_PASSED`, and checks journey-to-story coverage in code review lens `3g-cov` — uncovered journey steps and orphaned stories surface as informational findings. |
+| `/test` | `/test qa` and `/test all` validate the stories `/stories` generates, via the `qa-agent`. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Failed stories surface trace paths captured during `/stories` refinement. Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL auto-detection. |
+| `/visual-review` | `/visual-review` can share a session with `/stories` when run back-to-back against the same URL. Its annotated screenshots reference the same accessibility-tree refs `/stories`' locators resolve to. |
+| `qa-agent` (`agents/qa-agent.md`) | Runtime executor for `/stories`' YAML — opens an agent-browser session per story, uses Auth Vault for `auth: { vault: ... }` references, and captures trace-on-failure. `/stories`' refinement step prefigures this same execution path. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+
+## test
+
+| Target | Relationship |
+|---|---|
+| `/flow` | `/flow` chains build → [stories →] test → review → polish → re-verify → wrap-up. `/test` is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
+| `/help` | `/help` can recommend `/test` when code changes exist but no review is warranted. |
+| `/journey-health` | The deep tier drives `/test qa journey={name}` when auditing a journey that has story coverage — this is the "agent e2e testing" journey-health exists to protect. |
+| `/reflect` | `/reflect` may surface implementation findings that reference `/test` verification gaps; `/test` does not invoke `/reflect`, but reflection insights can call for new test coverage. |
+| `/review` | `/review` gates on `TEST_PASSED=true` from `/test`. `/review` never runs verification itself — that's `/test`'s job. |
+| `/simplify` | `/simplify` runs before `/test` in `/build`'s Common Step 3; `/test` verifies that simplification did not break behavior. |
+| `/wrap-up` | Indirect dependency — `/test` passes before `/review`, which passes before `/wrap-up`. Open `test/qa`-phase ledger entries `/test` appends carry forward and surface in `/wrap-up`'s Step 8.5 resolve gate as items requiring per-item user decision. |
+
+## tidy
+
+| Target | Relationship |
+|---|---|
+| `/capture` | Feeds the backlog records `/tidy` audits. |
+| `/dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s periodic sweep rather than a console dispatch renders itself. |
+| `/help` | `/help` suggests `/tidy` when maintenance signals are detected; both read the same work-record queue via `parseRecordFacets`. |
+
+## version
+
+| Target | Relationship |
+|---|---|
+| `/init` | `/init` may print the version during bootstrap; `/version` is its standalone equivalent. |
+
+## visual-review
+
+| Target | Relationship |
+|---|---|
+| `/flow` | `/flow` invokes `/review` in full mode, which delegates to `/visual-review` for the browser portion. |
+| `/help` | Component skill — `/help` lists it in the component skills table. |
+| `/journeys` | Journey mode walks journeys created by `/journeys`; discover mode creates new journey files. |
+| `/test` | QA data from `/test` enriches the visual review (page inventories, caveats, screenshots). Trace-on-failure convention is shared with qa-agent. |
+| `/wrap-up` | `verification-brief.md`'s Step 2.5 safety-net gate invokes `/visual-review` directly (same mode resolution as `/review` Step 6) when a testable record reaches wrap-up without a full pass already having run. Any bug found gates `demo:pending` the same way `/review`'s Step 3 Routing gates PASS. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The "Auto mode" branches in Step 1 (browser prereqs) and Step 2 (dev URL) implement the contract's auto-skip + stage-at-Review-Console pattern. |
+| `_shared/subagent-output-contract.md` | Page mode's per-page review agents (`browser-review.md`) and discover mode's per-journey walk agents (`discover-mode.md` Phase 3) both dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A-shaped output inlined verbatim. Model tier: Standard. |
+
+## visualize
+
+| Target | Relationship |
+|---|---|
+| `/design-wrapper` | Not invoked through the wrapper — `/visualize` reads the same `DESIGN.md`/`DESIGN.json` token files (written by `/impeccable:impeccable document`) that `/design-wrapper pre-build` lazy-loads, but goes straight to the raw token data instead of a critique/audit/polish action. |
+| `/help` | `/help` references `/visualize` in the workflow diagram and reference card. |
+| `/init` | Step 12 offers to enable diagram suggestions (writes `diagram-suggestions: enabled/disabled` to CLAUDE.md — no install step, this skill is native). |
+| `skills/_shared/record-queue-fetch.md` | `record-graph.md` Step A reuses this shared fetch-and-facet-parse procedure verbatim (with `body` added to `{EXTRA_FIELDS}`) — the same procedure `/help`, `/tidy`, and `/backlog` already consume. |
+
+## wrap-up
+
+| Target | Relationship |
+|---|---|
+| `/demo` | `/wrap-up` applies `demo:pending` and posts the Verification Brief (Step 10, `verification-brief.md`) — record mode only, gated on a clean visual-review pass (Step 2.5's safety net). `/demo` later resolves the label to `demo:approved`/`demo:changes-requested` and, on the latter, files a linked follow-up record. |
+| `/dispatch` | Cleanup Section E releases the claim on success using the `CLAIM_RUN_ID` dispatch threads through `/flow` (not `/wrap-up`'s own `PIPELINE_RUN_DIR`) — see the ownership-check procedure in `cleanup-procedures.md`. Dispatch's group-scoped Auto-merge gate then runs its checks against this skill's Review Console output before it would otherwise render. |
+| `/flow` | Invoked BY `/flow` as the pipeline's final step; flow waits for `/wrap-up`'s Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
+| `/tidy` | `/wrap-up` cleans artifacts for a single spec; `/tidy` does periodic bulk cleanup. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+
+## Provenance
+
+212 navigational rows, harvested from the `## Relationship to Other Skills` tables of all
+32 `SKILL.md` files, collapsed to 173 entries here. 40 of the input rows were reciprocal
+duplicates spanning 39 skill pairs — `build` → `review` contributed two rows to a single
+pair (one for `/review` proper, one for its visual modes), so the pair count is one short
+of the row count. One input row (`backlog`'s feeder row, which named all four health
+skills at once) was split into four per-pair entries, three of which merged with an
+existing reciprocal; the fourth, `journey-health` → `backlog`, is the only entry here with
+no single source row of its own.
+
+Source of the navigational-vs-binding classification:
+`docs/superpowers/specs/2026-08-04-relationship-triage-verdicts.md`.
