@@ -35,7 +35,7 @@ function sectionIndex(body, heading) {
 // When to Use / Anti-Patterns / Component-Skill Contract / Next Actions, each
 // present and in the documented order (Next Actions -> Component-Skill
 // Contract -> Anti-Patterns). Relationship to Other Skills was removed from
-// every skill in v6.33.0; its edges live in docs/skill-graph.md.
+// every skill in v6.34.0; its edges live in docs/skill-graph.md.
 function registerHouseSectionOrderTest(test, assert, read) {
   test('has the required house sections in order', () => {
     const body = read();

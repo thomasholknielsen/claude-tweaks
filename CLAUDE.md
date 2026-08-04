@@ -38,7 +38,7 @@ Every skill follows this structure:
 7. Numbered workflow steps
 8. Anti-Patterns table (`| Pattern | Why It Fails |`)
 
-Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.33.0 — every edge is recorded once in `docs/skill-graph.md` instead.
+Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.34.0 — every edge is recorded once in `docs/skill-graph.md` instead.
 
 **Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in `## Don'ts`.
 
