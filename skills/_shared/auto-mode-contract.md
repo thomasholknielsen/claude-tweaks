@@ -202,7 +202,7 @@ If the skill genuinely needs information not in the Config Manifesto, it logs `N
 
 The canonical per-stop behavior table is the "What `auto` silences" / "What `auto` does NOT silence" pair above. Each pipeline-participating skill MUST:
 
-1. Reference this file in its Relationship table (e.g., `\| _shared/auto-mode-contract.md \| Single source of truth for auto-mode behavior \|`).
+1. Cite this file **at the point where the skill implements an auto branch** — in the step body that makes the decision, not in a list of files the skill relates to. A citation the running model reads on its way into the branch is the one that binds; a citation parked in a table it never consults is not.
 2. When implementing an auto branch, follow the "Skill integration pattern" below (read pipeline config → project policy → skill default → log entry).
 3. Resist the urge to redeclare semantics inline. If a skill needs a per-stop quick reference, link to the relevant row in the silences table rather than duplicating it.
 

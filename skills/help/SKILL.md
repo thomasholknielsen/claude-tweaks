@@ -118,36 +118,3 @@ Call `AskUserQuestion`:
 | Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to delete, promote, absorb, or defer backlog records, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:capture` | Feeds items that /claude-tweaks:help surfaces |
-| `/claude-tweaks:challenge` | /claude-tweaks:help flags items with baked-in assumptions for debiasing |
-| `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs and uses Key Files from open records for implicit dependency detection (Stage 1's conflict detection) |
-| `/claude-tweaks:build` | /claude-tweaks:help recommends which spec to build |
-| `/claude-tweaks:test` | /claude-tweaks:help can recommend /test when code changes exist but no review is warranted |
-| `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
-| `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
-| `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
-| `/claude-tweaks:backlog` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `backlog/SKILL.md`'s own `/claude-tweaks:help` row. Shares `bin/lib/issues/ranking.js`'s `rankNextToBuild` with `overview` mode's recommendation section. |
-| `/claude-tweaks:demo` | `/help` is the sole discovery surface for the acceptance queue — lists every outstanding `#N` (Stage 4.7, `acceptance-queue` scope), not just a count; `/demo #N` executes the walkthrough for one — the reciprocal of `demo/SKILL.md`'s own `/claude-tweaks:help` row. |
-| `/claude-tweaks:dispatch` | /claude-tweaks:help surfaces the `authorized` and `building` counts dispatch acts on (Stage 1) — the reciprocal of `dispatch/SKILL.md`'s own `/claude-tweaks:help` row. |
-| `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
-| `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
-| `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |
-| `/claude-tweaks:ledger` | Utility skill — /claude-tweaks:help lists it in the utility skills table. Does not scan ledger files or surface open items on the dashboard — the resolve gate (`/claude-tweaks:ledger resolve`, run by `/claude-tweaks:wrap-up` Step 8.5 or `/claude-tweaks:flow` Step 5) is what actually catches unresolved items. |
-| `/claude-tweaks:reflect` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:simplify` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:deepen` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:visualize` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (the work-record queue, plans, docs registry) |
-| `/claude-tweaks:version` | /version prints the installed plugin version; /help surfaces version-aware command syntax and points at /version for the canonical answer |
-| `/claude-tweaks:design-wrapper` | Utility wrapper — /help lists it in the utility skills table. /design-wrapper is invoked by /build (Common Step 1.7 pre-build), /test (Step 1.5 CLI gate), /review (Step 6.5 advisory pass), /flow (polish phase), and /visual-review; standalone usage is rare. |
-| `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |
-| `_shared/github-pr-scan.md` | Stage 4.5 scans the current branch's PR per this shared procedure (`current-pr` scope); Stage 4.6 scans the triage queue (`triage-queue` scope); Stage 4.7 scans the acceptance queue (`acceptance-queue` scope) — detection ladder, exact gh/GraphQL commands, output contract, severity mapping |
-| `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). /help has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |

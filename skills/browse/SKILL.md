@@ -171,18 +171,3 @@ Call `AskUserQuestion`:
 | A consumer skill routes through `backend=chrome` | Breaks portability to hosted Routines — `agent-browser` is the only backend that works headless; this flag is human-invoked only |
 | A consumer skill (`/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, a Routine) sets `--quick` | Weakens the evidentiary discipline those flows depend on — `--quick` is for direct, human-invoked ad-hoc checks only |
 | Skipping `set viewport`/`set device` and relying on env vars | Use the first-class `set viewport`/`set device` commands — env-var workarounds are not supported |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:stories` | Consumes /browse conventions for session naming, screenshot paths, and the operation vocabulary used to resolve semantic locators at runtime |
-| `/claude-tweaks:visual-review` | Drives page, journey, and discover walks against `/browse`'s lifecycle; uses annotated screenshots and `vitals` from the operation table. `/visual-review` is the review procedure; `/browse` is the conventions reference for session naming, screenshot paths, trace paths, and the operation vocabulary. |
-| `/claude-tweaks:review` | Delegates to /visual-review (visual mode) and qa-agent (QA mode) — both speak /browse's operation vocabulary transitively |
-| `qa-agent` (`agents/qa-agent.md`) | Each story instance opens a uniquely named session; uses the auth vault and trace-on-failure conventions defined here |
-| `/claude-tweaks:test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in /test reports |
-| `/claude-tweaks:init` | Detects `agent-browser` availability during setup and records the requirement that /browse depends on |
-| `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
-| `/claude-tweaks:flow` | `/flow` invokes `/review` in full mode by default, which transitively drives `/visual-review` and `/browse` for the browser portion. Browser availability detected at `/flow` startup determines whether visual review runs. |
-| `/claude-tweaks:help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
-| `/claude-tweaks:demo` | `/demo`'s "See it yourself" option (Step 2) opens an on-demand `agent-browser` session at a record's resolved entry point, following /browse's session-naming and lifecycle conventions directly — not a workflow-step invocation, the same relationship `/visual-review` has with `/browse`. |

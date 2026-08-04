@@ -32,10 +32,10 @@ function sectionIndex(body, heading) {
 }
 
 // Registers the standard "has the required house sections in order" test:
-// When to Use / Anti-Patterns / Component-Skill Contract / Relationship to
-// Other Skills / Next Actions, each present and in the documented order
-// (Next Actions -> Component-Skill Contract -> Anti-Patterns -> Relationship
-// to Other Skills).
+// When to Use / Anti-Patterns / Component-Skill Contract / Next Actions, each
+// present and in the documented order (Next Actions -> Component-Skill
+// Contract -> Anti-Patterns). Relationship to Other Skills was removed from
+// every skill in v6.34.0; its edges live in docs/skill-graph.md.
 function registerHouseSectionOrderTest(test, assert, read) {
   test('has the required house sections in order', () => {
     const body = read();
@@ -43,11 +43,9 @@ function registerHouseSectionOrderTest(test, assert, read) {
     assert.ok(idx('## When to Use') > 0);
     assert.ok(idx('## Anti-Patterns') > 0);
     assert.ok(idx('## Component-Skill Contract') > 0);
-    assert.ok(idx('## Relationship to Other Skills') > 0);
     assert.ok(idx('## Next Actions') > 0);
     assert.ok(idx('## Next Actions') < idx('## Component-Skill Contract'));
     assert.ok(idx('## Component-Skill Contract') < idx('## Anti-Patterns'));
-    assert.ok(idx('## Anti-Patterns') < idx('## Relationship to Other Skills'));
   });
 }
 

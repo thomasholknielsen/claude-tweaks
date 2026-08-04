@@ -13,38 +13,24 @@ function readSubfile(skill, filename) {
   return fs.readFileSync(path.join(REPO_ROOT, 'skills', skill, filename), 'utf8');
 }
 
-// /research → capture, challenge, specify, browse (forward references — should exist from Task 6)
-test('/research SKILL.md references /capture in Relationship table', () => {
-  const body = readSkill('research');
-  assert.match(body, /claude-tweaks:capture/, '/research must reference /capture in its Relationship table');
-});
+// These edges used to be asserted twice — once in /research's own Relationship
+// table and once in each counterpart's. Both tables were removed in v6.33.0 and
+// every edge now lives once in docs/skill-graph.md. The invariant is unchanged:
+// these relationships stay recorded. Only their home moved.
+function readGraph() {
+  return fs.readFileSync(path.join(REPO_ROOT, 'docs', 'skill-graph.md'), 'utf8');
+}
 
-test('/research SKILL.md references /challenge in Relationship table', () => {
-  const body = readSkill('research');
-  assert.match(body, /claude-tweaks:challenge/, '/research must reference /challenge in its Relationship table');
-});
-
-test('/research SKILL.md references /specify in Relationship table', () => {
-  const body = readSkill('research');
-  assert.match(body, /claude-tweaks:specify/, '/research must reference /specify in its Relationship table');
-});
-
-test('/research SKILL.md references /browse in Relationship table', () => {
-  const body = readSkill('research');
-  assert.match(body, /claude-tweaks:browse/, '/research must reference /browse in its Relationship table');
-});
-
-// Reverse references — added by Task 8
-test('/capture, /challenge, /specify, /browse each reference /research', () => {
-  for (const skill of ['capture', 'challenge', 'specify', 'browse']) {
-    const body = readSkill(skill);
-    assert.match(
-      body,
-      /claude-tweaks:research/,
-      `skills/${skill}/SKILL.md must reference /research in its Relationship table`
+for (const skill of ['capture', 'challenge', 'specify', 'browse']) {
+  test(`docs/skill-graph.md records the /research <-> /${skill} edge`, () => {
+    const graph = readGraph();
+    assert.match(graph, /research/, 'docs/skill-graph.md must mention /research');
+    assert.ok(
+      graph.includes(skill),
+      `docs/skill-graph.md must record the edge between /research and /${skill}`,
     );
-  }
-});
+  });
+}
 
 // Task 9 will add this — expected to fail until then
 test('/help reference card lists /research', () => {

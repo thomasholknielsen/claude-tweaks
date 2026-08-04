@@ -38,13 +38,14 @@ test('documents the dry-run-first procedure and hands payloads to gh', () => {
 registerHouseSectionOrderTest(test, assert, read);
 registerPipelineRunDirTest(test, assert, read);
 
-test('Relationship table references harness-health, code-health, tidy, backlog, routine', () => {
-  const body = read();
-  for (const s of [
-    '/claude-tweaks:harness-health', '/claude-tweaks:code-health', '/claude-tweaks:tidy',
-    '/claude-tweaks:backlog', '/claude-tweaks:routine',
-  ]) {
-    assert.ok(body.includes(s), `missing relationship to ${s}`);
+test('docs/skill-graph.md records the edges to /harness-health, /code-health, /tidy, /backlog, /routine', () => {
+  // These edges used to be asserted against this skill's own Relationship table.
+  // That table is gone; the edges live in the graph, which uses the short form.
+  const graph = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', '..', 'docs', 'skill-graph.md'), 'utf8',
+  );
+  for (const s of ['/harness-health', '/code-health', '/tidy', '/backlog', '/routine']) {
+    assert.ok(graph.includes(s), `docs/skill-graph.md is missing the edge to ${s}`);
   }
 });
 

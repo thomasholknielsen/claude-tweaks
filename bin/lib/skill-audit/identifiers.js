@@ -38,9 +38,43 @@ function extractIdentifiers(text) {
   return [...found].sort();
 }
 
-function findLostIdentifiers(beforeText, afterCorpus) {
-  const haystack = normalize(afterCorpus);
-  return extractIdentifiers(beforeText).filter((id) => !haystack.includes(normalize(id)));
+// indexOf rather than RegExp: identifiers routinely contain / . { } * : and ( ).
+function countOccurrences(needle, haystack) {
+  const n = normalize(needle);
+  if (!n) return 0;
+  const h = normalize(haystack);
+  let count = 0;
+  let from = 0;
+  for (;;) {
+    const at = h.indexOf(n, from);
+    if (at === -1) return count;
+    count += 1;
+    from = at + n.length;
+  }
 }
 
-module.exports = { extractIdentifiers, findLostIdentifiers };
+// Reports every identifier in sourceText whose occurrence count fell between the
+// two corpora. The caller chooses the scope: the source file plus every file named
+// as a relocation destination.
+//
+// Counting rather than testing presence is deliberate and load-bearing. Presence
+// asks "does this identifier appear anywhere afterwards?", and common identifiers
+// (PIPELINE_RUN_DIR, auto:merge, subagent) recur across the whole tree, so they
+// always read as surviving no matter what happened to the row that carried them.
+// Measured against a real 100% loss — deleting review/SKILL.md's entire
+// Relationship table — presence reported 24%, counting reports 100%.
+function findLostOccurrences(sourceText, beforeCorpus, afterCorpus) {
+  const before = normalize(beforeCorpus);
+  const after = normalize(afterCorpus);
+  const lost = [];
+
+  for (const identifier of extractIdentifiers(sourceText)) {
+    const b = countOccurrences(identifier, before);
+    const a = countOccurrences(identifier, after);
+    if (a < b) lost.push({ identifier, before: b, after: a });
+  }
+
+  return lost;
+}
+
+module.exports = { extractIdentifiers, countOccurrences, findLostOccurrences };

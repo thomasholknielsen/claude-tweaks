@@ -245,25 +245,3 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 | Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper's `test` mode is read-only by design (the Phase 2 `polish` mode is the code-modifying counterpart, invoked separately by `/flow`). |
 | Using `skip-qa` outside the re-verify context | The flag exists for `/flow`'s re-verify gate after polish modifications — it skips browser QA after stylistic changes. Standalone use is allowed but rarely useful; prefer the default suite which includes QA when stories exist. |
 | Skipping the Design CLI gate when `skip-qa` is set | See Step 1.5 — the Design CLI gate is orthogonal to QA and must still run. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:build` | /build runs verification as Common Step 5, sets `VERIFICATION_PASSED=true`. In pipeline, /test skips types/lint/tests when this is set. |
-| `/claude-tweaks:review` | /review gates on `TEST_PASSED=true` from /test. /review never runs verification itself — that's /test's job. |
-| `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
-| `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → polish → re-verify → wrap-up. /test is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
-| `/claude-tweaks:wrap-up` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open `test/qa`-phase ledger entries /test appends (see the `/claude-tweaks:ledger` row above) carry forward and surface in /wrap-up's Step 8.5 resolve gate as items requiring per-item user decision. |
-| `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
-| `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
-| `/claude-tweaks:design-wrapper` | /test invokes `/claude-tweaks:design-wrapper test <files>` as Step 1.5 after the standard suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. The wrapper handles its own detection and availability checks. |
-| `/claude-tweaks:browse` | /test's QA mode dispatches `qa-agent`, which speaks /browse's operation vocabulary (session naming, trace-on-failure, semantic locators) for browser-driven story validation — /test invokes qa-agent, not /browse directly; /browse never invokes /test. |
-| `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
-| `/claude-tweaks:journey-health` | The deep tier drives `/test qa journey={name}` when auditing a journey that has story coverage — this is the "agent e2e testing" journey-health exists to protect. |
-| `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |
-| `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 3; /test verifies that simplification did not break behavior. |
-| `/claude-tweaks:deepen` | /deepen uses the shared verification procedure from /test's `verification.md` to confirm a depth refactor preserved behavior. |
-| `/claude-tweaks:visual-review` | /visual-review consumes QA data produced by /test qa (when stories exist); both contribute to the /review verdict surface. |
-| `/superpowers:systematic-debugging` | Invoked BY /test Step 3 Fix Mode when a behavioral test or QA failure needs root-causing — reproduce-first before fixing, never patch a symptom to make red go green |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Step 3 Fix Mode follows the contract's auto-fix-threshold + reversibility-floor pattern. |

@@ -95,7 +95,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
-| 1 | Open work records — `gh issue list` (`github-issues`) or `queryRecords('specs', {})` (`local-files`) via `bin/lib/issues/{record,local-store}.js` | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` |
+| 1 | Open work records — `gh issue list` facet-parsed by `record.js`'s `parseRecordFacets` (`github-issues`), or `local-store.js`'s `queryRecords('specs', {})` (`local-files`); those two plus `writeRecord` are the whole record driver in `bin/lib/issues/{record,local-store}.js` | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` |
 | 3 | `docs/superpowers/specs/*-design.md`, `docs/plans/*-brief.md` | `[doc]` |
 | 4 (main thread, parallel with the agent batch) | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
@@ -112,6 +112,8 @@ There is no Step 2 — it merged into Step 1 (see Scope Selection above). The re
 ## Action Vocabulary
 
 Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., deleting a backlog record without creating the destination artifact).
+
+**Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), and remove an orphaned `bot:in-progress` (Step 4.7's backstop). Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
 
 **Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table; `/tidy` also accepts the legacy `backlog-backend` alias), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
 
@@ -147,7 +149,7 @@ These two branches are mutually exclusive — read exactly one file from this sk
 
 ### Auto mode (aggressiveness-based routing)
 
-Applies when a pipeline run directory exists (embedded pipeline), or when `/tidy` runs standalone in `auto` mode. Read `step-6-auto.md` — aggressiveness routing, `decisions.md` log entries, Standalone-auto fallback, archival compaction.
+Applies when a pipeline run directory exists (embedded pipeline), or when `/tidy` runs standalone in `auto` mode. Read `step-6-auto.md` — aggressiveness routing, `decisions.md` log entries, Standalone-auto fallback, archival compaction. Its conservative/moderate/aggressive routing implements `_shared/auto-mode-contract.md`'s reversibility and confidence floors; apply the tier's row as written rather than widening it by judgment.
 
 ### Interactive mode (batch approval)
 
@@ -239,32 +241,3 @@ One exception to "never creates or enters a worktree": under `worktree.always: t
 | Resolving review threads without commit evidence | Resolving unaddressed feedback is worse than leaving it open — the concern disappears without being fixed. Evidence means a commit touching the flagged lines. |
 | Relabeling a legacy-taxonomy record instead of flagging it | Shape 7 is read-only by design — `/tidy` surfaces retired `tier:*`/`status:*`/`backlog` labels for a dedicated migration pass; it never relabels them itself. |
 | Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label alone doesn't mean scoring happened. Shape 4 exists to catch this proactively, before `/claude-tweaks:backlog refine` has to flag it back reactively. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:capture` | Feeds the backlog records /claude-tweaks:tidy audits |
-| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify (Step 3). /claude-tweaks:specify's Shaping mode removes `parked` and stamps `ready` on a promoted record in place — there is no separate backlog entry to delete. |
-| `/claude-tweaks:review` | /claude-tweaks:tidy's Step 5.5 scans review summaries for cross-spec patterns (recurring findings, flagged files) |
-| `/claude-tweaks:wrap-up` | /claude-tweaks:tidy's Step 5.5 scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
-| `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected; both read the same work-record queue via `parseRecordFacets` |
-| `_shared/work-record.md` | Taxonomy home — the record label contract Step 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here), and the permission-matrix row `/tidy` implements: adds/removes `parked` (Defer action / trigger-met wake), removes orphaned `bot:in-progress` (Step 4.7's backstop); never touches `auto:*`. |
-| `bin/lib/issues/{record,local-store}.js` | `record.js`'s `parseRecordFacets` facet-parses every open `github-issues` record in Step 1, and its `recordPayload`/`extractFingerprint` back the Sync action's issue-creation payload; `local-store.js`'s `queryRecords`/`writeRecord` are the entire `local-files` driver for the same step. |
-| `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
-| `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
-| `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted by `/wrap-up` Step 10 on successful completion. /tidy does not currently scan ledger files — no step in `scan-procedures.md` reads `docs/plans/*-ledger.md`, so a stale or orphaned ledger left behind by a pipeline that never reached wrap-up is not surfaced by a `/tidy` sweep today. |
-| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled records; `/tidy` Step 4.8 audits them — stale/superseded ones are closed (with comment) after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine`. |
-| `/claude-tweaks:harness-health` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `harness-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health and journey-health records — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine` or direct application. |
-| `/claude-tweaks:journey-health` | `/journey-health` files `docs/journeys/*.md` drift and coverage-gap findings as `by:journey-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health, harness-health, and docs-health records, using the same stale/superseded triage — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine`. |
-| `/claude-tweaks:docs-health` | `/docs-health` files `docs/**` genre-drift/depth-mismatch/findability/staleness findings as `by:docs-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health, harness-health, and journey-health records — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine`. |
-| `/claude-tweaks:routine` | `/routine create tidy` instantiates tidy's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
-| `/claude-tweaks:backlog` | Reciprocal gate relationship: `/tidy`'s Step 1 record scan surfaces `bot:blocked` records (Shape 5) and `ready`-but-unscored records (Shape 4) as candidates for `refine` mode's grant worklist, and its Step 4.8 pending-authorization count (per `_shared/github-pr-scan.md`'s `repo-wide` scope) surfaces in the Step 6 report. `overview` mode folds `unsynced: true` local fallback records into its survey (surfacing only — for the priority axis specifically, the actual write happens via `refine` mode's apply path); neither mode fixes the sync state itself — `/tidy`'s existing Shape 3 (Step 1) owns the actual sync action. `/tidy` never grants authorization itself — that stays `refine` mode's job. Migration note: pre-6.0 records still carrying retired `tier:*`/`status:*`/`backlog` labels surface via `/tidy`'s legacy-taxonomy finding (Shape 7), not through the gate — see `backlog/SKILL.md`'s own Relationship row for the reciprocal note. |
-| `/claude-tweaks:dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s own periodic sweep rather than a console dispatch renders itself. |
-| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
-| `_shared/pipeline-run-dir.md` | Standalone-auto fallback (Step 6) creates `.claude-tweaks/pipelines/{ts}-tidy-standalone/` with `decisions.md` + `staged/` per this shared procedure. /tidy is on the standalone-auto allowlist. |
-| `_shared/subagent-output-contract.md` | Steps 1, 3, 4.5, 4.7, 4.8, and 5.5 dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A inlined verbatim. Model tier: Fast. Steps 4 and 4.6 run in the main thread and are not covered by this contract. |
-| `_shared/issue-claims.md` | Step 4.7 sweeps `refs/claims/*` for stale and orphaned claims per this contract — release only after batch approval, never autonomous. |
-| `_shared/github-pr-scan.md` | Step 4.8 sweeps open PRs, code-health, harness-health, journey-health, and docs-health records per this shared procedure (`repo-wide` scope) — detection ladder, staleness thresholds, findings table, severity mapping. Backlog-record queries live in Step 1 now, not here. |
-| `flow/materialize.md` | Step 4.7's parked-restoration backstop reads the `record:`/`parked-at-shaping` fields this file defines, on the committed build-time headers under `.claude-tweaks/pipelines/**/work/*-spec.md`. |
-| `wrap-up/cleanup-procedures.md` | Section E's claim-release step restores `parked` on an abandoned outcome when the materialized header carries `parked-at-shaping: true`; Step 4.7's backstop above catches a restoration that silently failed there. |

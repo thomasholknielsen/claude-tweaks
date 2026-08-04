@@ -37,7 +37,8 @@ Every skill follows this structure:
 6. Input resolution (how `$ARGUMENTS` is parsed)
 7. Numbered workflow steps
 8. Anti-Patterns table (`| Pattern | Why It Fails |`)
-9. Relationship to Other Skills table (`| Skill | Relationship |`)
+
+Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.34.0 — every edge is recorded once in `docs/skill-graph.md` instead.
 
 **Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in `## Don'ts`.
 
@@ -63,7 +64,7 @@ Every skill follows this structure:
   Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
   ```
 
-- **Next Actions placement** — Render as `## Next Actions` (top-level section, NOT `###`) placed **at the end of the workflow steps and before Component-Skill Contract / Anti-Patterns / Relationship to Other Skills**. Conceptually: Next Actions is the user-facing handoff after the last workflow Step; CSC, Anti-Patterns, and Relationship are meta-documentation for skill authors and should come last. A skill with no Component-Skill Contract still places Next Actions before Anti-Patterns.
+- **Next Actions placement** — Render as `## Next Actions` (top-level section, NOT `###`) placed **at the end of the workflow steps and before Component-Skill Contract / Anti-Patterns**. Conceptually: Next Actions is the user-facing handoff after the last workflow Step; CSC and Anti-Patterns are meta-documentation for skill authors and should come last. The retired Relationship table was meta-documentation of the same kind — which is why it could leave the shipped payload entirely rather than merely move down the file. A skill with no Component-Skill Contract still places Next Actions before Anti-Patterns.
 
 ### Frontmatter conventions
 
@@ -115,7 +116,7 @@ The marketplace `source` is an **unpinned git URL**, so installs and updates tra
 
 ### Cross-references
 
-- Every skill's Relationship table must be bidirectional — if A references B, B must reference A
+- Every relationship between skills is stated **once**, in `docs/skill-graph.md`. Adding or changing a skill means adding or updating its edges there. Do not restate an edge inside a `SKILL.md`: the bidirectional convention this replaces required each edge in two places, and the two copies drifted
 - Workflow diagrams in `/help` must list all skills
 - The artifact lifecycle diagram in `/help` and `README.md` must stay in sync
 - Prefer describing a list's size by reference ("see the table below") over restating it as a literal count — see the cardinality rule in `## Don'ts`
@@ -174,7 +175,7 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 
 - Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `## Next Actions` blocks with pre-filled commands
 - Don't add per-item decision prompts for lists — use batch tables with "apply all / override"
-- Don't create skills without the standard structure (frontmatter, interaction directive, anti-patterns table, relationship table)
+- Don't create skills without the standard structure (frontmatter, interaction directive, anti-patterns table) — and don't add a relationship table back; its edges belong in `docs/skill-graph.md`
 - Don't add one-directional cross-references — always update both sides
 - Don't silently skip or drop findings — every surfaced item must be explicitly resolved (fix now, defer, accept with reason)
 - Don't put detailed reference content inline in a SKILL.md when it would make the file unwieldy — use a sub-file and reference it with "read `{filename}` in this skill's directory". Treat **40 KB as a soft ceiling** for one SKILL.md: past it, within-file consistency failures (a contract restated twice, only one copy updated) start appearing, because the file is too long to hold coherently. Extract rather than reorganize in place — the pending extraction record (#90) is the path back under it. **The ceiling applies to the sub-file too.** A sub-file is a lazy-load unit, not an overflow bucket: `Read` has no section granularity, so the moment two or more stubs cite *sections* of one sub-file, every stub pays the whole file. That shape — not size alone — is the defect; `init/bootstrap-steps.md` reached 86 KB behind 18 section-naming stubs while this rule was followed to the letter (#83, `[IL-70]`). Split by the unit the stubs actually name. When extracting, leave the original heading in place as a stub — external references name sections and step numbers, and a surviving heading keeps them resolving in one hop; then confirm nothing was dropped by checking that every substantive original line still appears somewhere in the new file set, since no test reads skill prose

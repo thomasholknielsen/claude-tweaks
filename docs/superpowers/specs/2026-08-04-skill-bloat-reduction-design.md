@@ -66,12 +66,21 @@ Approach A applies that same move to the Relationship table.
 
 | Lever | Current | Action | Saving |
 |---|---|---|---|
-| Relationship tables | 128 KB / 482 rows | Three-way triage (below) | ~90–110 KB |
+| Relationship tables | 127.6 KB / 510 rows | Three-way triage (below) | ~90–110 KB (pre-classification estimate) |
 | Anti-Patterns | 72 KB / 379 rows | **Compress in place, do not evict** | ~29 KB |
-| Interaction-style directive | 570 B × 32 files = 17.8 KB | **Compress in place** (see below), 570 B → 327 B | **7.6 KB** |
-| ASCII lifecycle diagrams | 13,502 B across all 32, but only 3,668 B mechanically replaceable | Replace the 10 linear ones with a one-line position marker; leave the other 22 alone | **~2.9 KB** |
+| Interaction-style directive | 570 B × 32 files = 17.8 KB | **Compress in place** (see below), 570 B → 357 B | **6,816 B — shipped, Phase 1** |
+| ASCII lifecycle diagrams | 13,502 B across all 32, but only 3,668 B mechanically replaceable | Replace the 10 linear ones with a one-line position marker; leave the other 22 alone | **2,685 B — shipped, Phase 1** |
 
-**Total ~130–150 KB, roughly 14–16% of `SKILL.md` bytes.**
+**Total ~130–150 KB, roughly 14–16% of `SKILL.md` bytes.** Phase 1 banked 9,116 B of it
+(the two shipped rows above, net of a +467 B `/help` diagram widening and −82 B of subtitle
+trims); the Relationship table is the rest.
+
+> **Row count corrected, 2026-08-04.** This document first stated 482 rows / 128 KB. A
+> re-measurement before Phase 2 planning found **510 rows / 127.6 KB**, confirmed by two
+> independent extractors (a Node section-walker and an `awk` pass) agreeing exactly. The
+> original method could not be reconstructed, so the discrepancy is unexplained rather than
+> attributed; 510 is the figure Phase 2 plans against. Length distribution likewise moves
+> from 56/298/128 to **59 under 120 chars / 315 at 120–300 / 136 over 300**.
 
 ### The diagrams are not uniform
 
@@ -100,15 +109,42 @@ needing its own call — and is explicitly out of scope.
 
 - **The interaction-style directive cannot be hoisted into CLAUDE.md.** Doing so would strip
   it from all 32 skills in every consuming project with nothing replacing it — a functional
-  regression, not a byte saving. It is compressed in place instead: the current 570 B
-  directive states its four rules discursively, and a 327 B version carries all four,
-  saving 7.6 KB across 32 files while remaining inline where it is needed.
+  regression, not a byte saving. It is compressed in place instead: the original 570 B
+  directive states its four rules discursively, and the 357 B version shipped in Phase 1
+  carries all four, saving 6,816 B across 32 files while remaining inline where it is needed.
+  (The first draft cut it to 327 B by dropping "resolve each before showing the next" — a real
+  functional regression that the whole-branch review caught and reverted. 357 B is the floor
+  that preserves all four rules.)
 - **`docs/skill-graph.md` is correctly out of the shipped payload.** That is the point — it is
   maintainer documentation for this repo, never read by a skill mid-execution, and consuming
   projects have no use for a map of claude-tweaks' internal wiring.
 
-Relationship rows by length: 56 under 120 chars (label-like), 298 at 120–300 (sentence),
-**128 over 300 chars (grown into paragraphs)**.
+Relationship rows by length: 59 under 120 chars (label-like), 315 at 120–300 (sentence),
+**136 over 300 chars (grown into paragraphs)**.
+
+### A fourth class the triage did not name: rows targeting `_shared/*.md`
+
+**111 of the 510 rows (27.1 KB) do not point at another skill at all** — their first cell is a
+`_shared/*.md` contract file. `auto-mode-contract.md` alone accounts for 21, `work-record.md`
+and `subagent-output-contract.md` for 10 each. These are contract citations wearing a
+relationship table's clothes, and they have a property the skill-to-skill rows lack: whether
+the skill *already* cites that file in its own step bodies is mechanically decidable.
+
+| | Rows | Bytes |
+|---|---|---|
+| Shared file is **already cited** in the skill's step bodies | 77 | 19.2 KB |
+| The Relationship row is the **only** mention in the whole `SKILL.md` | 34 | 7.9 KB |
+
+The 77 are a strong prior for class 3, **not a verdict** — a duplicated pointer is not a
+duplicated payload. A six-row sample splits: `build`, `dispatch`, and `code-health` add nothing
+their bodies do not already say (`dispatch` says it twice more, at L98 and L424), but `tidy`'s
+row carries "the Step 6 aggressiveness table implements the contract's reversibility floors" —
+operative content whose home is Step 6 — and `capture`'s names a permission-matrix row
+(`by:capture` + Type only) that may appear nowhere else. The prior goes to the classification
+agents as evidence; the verdict stays theirs, then the human's.
+
+The 34 "only mention" rows are the opposite signal: deleting one silently removes a skill's
+sole pointer to a contract it is required to follow. They are class 2 by default.
 
 ## The three-way triage
 
@@ -201,11 +237,72 @@ must therefore be constructed, not assumed.
    > `subagent`) recur everywhere, so they always read as surviving no matter what happened to
    > the row that carried them.
    >
-   > **Phase 2 must not adopt it unchanged.** Re-spec it as a per-identifier *occurrence-count*
-   > delta scoped to the named relocation destination, rather than binary presence against the
-   > whole tree. Use the same "delete `review`'s whole Relationship table" experiment as its
-   > acceptance test — it must report near-100% loss, not 9%. This supersedes the narrower
-   > deferred finding about unanchored substring matching, which is a rounding error beside it.
+   > **Resolved in Phase 2a (`fbacce08`).** `findLostIdentifiers` is replaced by
+   > `findLostOccurrences(sourceText, beforeCorpus, afterCorpus)`, a per-identifier
+   > occurrence-count delta over a caller-chosen scope: the source file plus every file named
+   > as a relocation destination. An identifier that appeared 12 times and now appears 11 has
+   > lost an occurrence, which is the signal a relocation audit needs; presence could never
+   > see it. Both semantics were run against the same file before the change landed —
+   > presence **11/45 (24%)**, counting **45/45 (100%)** — and the deletion experiment is now
+   > the module's own acceptance test rather than a claim in this document. This supersedes
+   > the narrower deferred finding about unanchored substring matching, which is a rounding
+   > error beside it.
+   >
+   > A relocation *within one file* correctly reports nothing: the content moved, so the
+   > counts match. Only a genuine drop is flagged. False positives remain possible and are
+   > the acceptable direction — a false negative is the failure this check exists to prevent.
+2b. **The orphan scan — the check that actually guards deletion.** `findLostOccurrences` is the
+   right check for a *relocation* (content moved, counts must hold). It is the **wrong** check for
+   a *deletion*: deleting a DEAD row necessarily drops its identifiers' counts, so the count delta
+   flags every deletion and discriminates nothing. What matters for a DEAD row is the weaker,
+   different question — **after the row is gone, does each of its identifiers still appear
+   somewhere in the same `SKILL.md`?**
+
+   Scoped to the same file rather than the whole tree, that question is sharp. Measured across the
+   whole corpus:
+
+   | | Count | Share |
+   |---|---|---|
+   | Rows carrying ≥1 identifier found nowhere else in their own `SKILL.md` | **184 / 510** | 36.1% |
+   | Orphan identifiers | **307 / 1053** | 29.2% |
+
+   Concentration is uneven and predicts where the judgment work lives: `specify` 19/27,
+   `tidy` 12/24, `wrap-up` 12/25, `routine` 9/11, `journey-health` 10/20 — against `flow` 4/23
+   and `review` 8/30.
+
+   **A sub-file documenting the same fact does not clear an orphan.** Sub-files are lazy-loaded;
+   `Read` is a choice the model makes at runtime. An identifier whose only `SKILL.md` occurrence is
+   the deleted row has left the invocation payload, whatever a sub-file says. Several classification
+   agents cited sub-files as DEAD evidence, which is correct about the *fact* and silent about the
+   *payload* — the orphan scan is what separates those.
+
+   This does not make an orphan a veto. It makes it the gate between bulk approval and individual
+   review: a DEAD row with no orphans is mechanically safe to delete; a DEAD row with orphans is a
+   human call.
+
+2c. **Circular DEAD evidence — the classification's own failure mode.** Classification agents see
+   one skill each. A recurring DEAD justification is "the reciprocal row in the other skill's
+   Relationship table already says this" — and that row is itself scheduled for deletion. Of 17
+   such citations sampled from `code-health` and `design-wrapper`, **17 of 17 pointed into another
+   skill's Relationship section.** Delete both sides and the fact is gone from the repo.
+
+   This is `[IL-52]`'s shape: agents that cannot see each other's edits each leave a
+   cross-reference claiming the other one covers it. It is detectable mechanically — resolve the
+   cited `file:line` and test whether it falls inside that file's Relationship section — and the
+   correction is not to keep the rows but to **reclassify them NAV**, so the edge is stated once
+   in `docs/skill-graph.md` instead of twice in the payload or zero times anywhere. That is
+   precisely the bidirectional-convention collapse this design exists to perform; the only error
+   would be letting them leave as DEAD.
+
+2d. **Cross-agent variance on identical row shapes.** The 21 rows pointing at
+   `_shared/auto-mode-contract.md` are near-boilerplate, and they came back classified across all
+   three classes — DEAD in `capture`, `build`, and `flow`; NAV in `review`, `wrap-up`, `specify`,
+   and `code-health`; OPERATIVE in `tidy`, `reflect`, and `ledger`. Some of that spread is real
+   (`tidy`'s row names Step 6's aggressiveness table; `ledger`'s states that auto never silences
+   its resolve gate), and some is judgment noise. Rows of a shared shape are therefore normalised
+   as one batched decision against their actual text, not accepted per-agent — otherwise identical
+   boilerplate gets three different fates for no reason.
+
 3. **Make the structural tests fail loudly rather than pass silently.** Removing
    `## Relationship to Other Skills` breaks
    `assert.ok(idx('## Relationship to Other Skills') > 0)` in

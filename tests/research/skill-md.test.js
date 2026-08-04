@@ -38,11 +38,10 @@ test('SKILL.md contains interaction style directive', () => {
   assert.ok(body.includes('> **Interaction style:**'));
 });
 
-test('SKILL.md has the four required sections', () => {
+test('SKILL.md has the required sections', () => {
   const body = readSkill();
   assert.match(body, /## When to Use/);
   assert.match(body, /## Anti-Patterns/);
-  assert.match(body, /## Relationship to Other Skills/);
   assert.match(body, /## Next Actions/);
 });
 

@@ -75,7 +75,7 @@ These validate against the existing `bin/lib/harness-health/validate-finding.js`
 | Pattern | Why it fails |
 |---|---|
 | Scanning all pairs across 30+ skills every firing | Infeasible cost — always pre-filter by description similarity first |
-| Flagging two skills as overlapping without checking their Relationship tables | A documented complementary relationship (e.g. `/deepen` vs `/simplify`) is evidence against overlap, not for it |
+| Flagging two skills as overlapping without checking `docs/skill-graph.md` | A documented complementary relationship (e.g. `/deepen` vs `/simplify`) is evidence against overlap, not for it |
 | Using line count as the deciding signal for "too shallow" | Contradicts this project's own `/claude-tweaks:deepen` model — leverage, not line ratio |
 | Auto-applying a merge/split/simplify | This pass is report-only, like every other harness-health finding — structural changes are `restructural`, human-gated |
 | Treating dimension 3 as needing a comparison partner | It's explicitly single-skill — don't pair it with an unrelated skill just to "match" dimensions 1-2's shape |

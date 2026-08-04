@@ -245,19 +245,3 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Using the ledger for feature tracking | The ledger tracks findings and tasks within a single pipeline run. `work-backend: local-files` (legacy spec-file-alias records with no materialized header) — use specs/INDEX.md. `work-backend: github-issues` (the current Record path) — cross-spec/cross-run tracking belongs on the decomposition's parent record's `## Cross-Spec Promises` section instead (`_shared/work-record.md`) — specs/INDEX.md is never touched by Record-mode closure (`wrap-up/cleanup-procedures.md`). |
 | Skipping the resolve gate | The nothing-left-behind gate is non-negotiable — no pipeline completes with open items |
 | Treating `auto` mode as authorization to bypass the resolve gate | The resolve gate always requires per-item user input on Phase 2; `auto` never silences it. For the full list of what `auto` does and does not silence, see `_shared/auto-mode-contract.md` |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:build` | Creates the ledger (if needed) and appends items during Steps 2.5, 4, 4.5, and 5.5. Uses phases: `ops`, `build`, `build/skill`, `build/ops`. |
-| `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phases: `test`, `test/qa`. |
-| `/claude-tweaks:review` | Appends code review findings (Step 3 Routing) and reads/routes existing entries. Uses phases: `review`, `review/skill`. Hindsight findings (Step 4) are written by /reflect. |
-| `/claude-tweaks:reflect` | Appends hindsight findings (via /review, phase `review/hindsight`), reflection insights (via /wrap-up, phase `wrap-up`), or standalone findings (phase `reflect`). |
-| `/claude-tweaks:deepen` | Does not write ledger items. Pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger — see `deepen/SKILL.md`'s own Relationship-table row for the full mechanism. |
-| `/claude-tweaks:design-wrapper` | The wrapper's own caches (audit, recommendations, declined) are separate files from the ledger — reciprocally, /ledger does not read or clean those caches (that's /wrap-up Step 5's job). But each design-wrapper command invoked during /flow's polish phase appends one entry under phase `design` (`fixed` for auto-fit successes, `observation` for reported issues) — see the Phase Taxonomy table above. |
-| `/claude-tweaks:wrap-up` | Runs the resolve gate (Step 8.5) and deletes the ledger (Step 10, planned in Step 5). Reflection insights are written by /reflect (Step 3). |
-| `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 5). |
-| `/claude-tweaks:help` | Does not scan ledger files or surface open items on the dashboard — `/claude-tweaks:ledger resolve`, run by `/claude-tweaks:wrap-up` Step 8.5 or `/claude-tweaks:flow` Step 5, is what actually catches unresolved items. |
-| `/claude-tweaks:tidy` | Does not currently scan ledger files — no step in `tidy/scan-procedures.md` reads `docs/plans/*-ledger.md`, so an abandoned pipeline's stale ledger is not detected by a `/tidy` sweep today (a known gap; see `tidy/SKILL.md`'s own Relationship-table row for the same note). |
-| `_shared/auto-mode-contract.md` | The resolve gate (Phase 8.5 in /wrap-up, Phase 5 in /flow) is on the contract's "not silenced" list — even under `auto`, per-item user input is required. Bulk-route shortcuts are forbidden. |

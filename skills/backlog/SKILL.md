@@ -102,25 +102,3 @@ If situational filtering leaves only one option (a bare run that surfaced nothin
 | Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section. |
 | Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | Stays `/claude-tweaks:tidy`'s job (its existing Shape 3) — this skill tags them and (in `refine`) may still suggest/apply `priority:*` for one via the local-files fallback path, but never mirrors it to GitHub. |
 | Claiming or building a record from this skill | Out of scope entirely — stays `/claude-tweaks:dispatch`'s job. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:dispatch` | The queue consumer — claims records `refine` mode authorized (`auto:build`) and hands each to `/claude-tweaks:flow`. This skill never claims, dispatches, or executes. |
-| `/claude-tweaks:flow` | Indirect only, via `/claude-tweaks:dispatch` — `/flow` builds and (with `auto:merge`) merges records this skill's `refine` mode has authorized. |
-| `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:journey-health`, `/claude-tweaks:docs-health` | Feeders — file records born `ready` (spec-shaped, scored). This skill never files or closes their records. |
-| `/claude-tweaks:capture` | Feeder — files raw backlog records; `overview` mode surveys and prioritizes them, `refine`'s priority/Related sweep enriches the `**Related:**` field `/capture`'s Entry Format stamps. |
-| `/claude-tweaks:specify` | The shaper — stamps `ready` + scoring before a record can enter `refine`'s grant worklist; is where a flagged-back record returns for re-shaping; is the hand-off target for a backlog record `overview` surfaced. |
-| `/claude-tweaks:tidy` | Reciprocal: folds `unsynced: true` local fallback records into its survey (surfacing, and — for the priority axis specifically — the apply path via the local-files fallback branch); `/tidy`'s existing Shape 3 owns the actual sync-to-GitHub action. `/tidy`'s Shape 4/5 findings (unscored `ready`, `bot:blocked`) surface the same facts `refine`'s own grant sweep would encounter — proactive hygiene, not a new redundancy. |
-| `/claude-tweaks:help` | Surfaces `refine`'s pending-authorization count on its dashboard (the reciprocal of this row); shares `bin/lib/issues/ranking.js`'s `rankNextToBuild` with `overview`'s recommendation section. |
-| `_shared/work-record.md` | Taxonomy home — the label contract, grant semantics, spec-shaped body definition, and the permission-matrix row this skill implements. |
-| `_shared/work-record-config.md` | Config-key home split out of the taxonomy — where Preflight reads `work-backend` without loading the whole contract. |
-| `_shared/issue-claims.md` | Defines the claim protocol `/claude-tweaks:dispatch` uses after `refine` grants — this skill itself never claims. |
-| `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface `refine`'s pending-authorization count elsewhere. |
-| `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `auto:build`/`auto:merge`/`priority:*`/`risk:*`/`effort:*` pairs this skill applies. |
-| `_shared/pipeline-run-dir.md` | This skill resolves a standalone-auto run dir for its own `decisions.md`. |
-| `_shared/auto-mode-contract.md` | Governs `decisions.md` logging for this skill's standalone run dir; the grants and priority/Related writes themselves are never auto-mode behavior — they require an interactive session by construction. |
-| `_shared/local-files-preflight-stop.md` | Canonical "stop this turn completely" boundary-language pattern `refine`'s grant sub-stage Preflight follows for its local-files-hard-stop portion specifically. |
-| `/claude-tweaks:assess-agent-autonomy` | Called inline once per grant-worklist record in `refine`'s grant-check pass — its `RECOMMEND_BUILD`/`RECOMMEND_MERGE` output becomes the unified table's Recommended column for grant rows. |
-| `bin/lib/issues/{record,backlog,grouping,ranking}.js` | `record.js`'s `parseRecordFacets` facet-parses the fetched queue; `backlog.js`'s filter/sort/split/merge/budget helpers back both modes' mechanical logic; `grouping.js`'s `groupByFileOverlap` and `ranking.js`'s `rankNextToBuild` back `overview`'s recommendation section. |

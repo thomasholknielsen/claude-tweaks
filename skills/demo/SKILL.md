@@ -273,13 +273,3 @@ always renders.
 | Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it the same way `/browse`'s own Anti-Patterns table requires, immediately after the human finishes looking, before re-rendering the verdict question |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | There's no record to hold it — the verdict lives in the conversation, not a label. Only a Request-changes verdict ever produces a real record for one of these. |
 | Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7, which lists every outstanding `#N`) — `/demo` resolves one item per invocation, never a sweep |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:wrap-up` | Sole producer of *label-backed* `demo:pending` + the Verification Brief (Step 10, `verification-brief.md`), gated on a clean visual-review pass — `/demo` is the sole consumer/resolver for that path. `/demo`'s session-recall source (Step 1) surfaces conversation-based work independently of `/wrap-up` ever running. |
-| `/claude-tweaks:browse` | `/demo`'s "See it yourself" option (Step 2) consumes /browse's conventions directly (session naming, lifecycle) for an on-demand live look — the same relationship /claude-tweaks:visual-review has with /browse, not a workflow-step invocation |
-| `/claude-tweaks:visual-review` | `/demo`'s Verification Brief digest (Step 2) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. |
-| `/claude-tweaks:help` | `/help` is the sole discovery surface for the acceptance queue — lists every outstanding `#N` (Stage 4.7, `acceptance-queue` scope), not just a count; `/demo #N` executes the walkthrough for one |
-| `/claude-tweaks:capture` | On "request changes," `/demo` files a follow-up backlog record using the same `recordPayload` composition `/capture` itself uses, without invoking `/capture` |

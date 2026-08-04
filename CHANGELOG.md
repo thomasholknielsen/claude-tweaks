@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.34.0 — Adopter CLAUDE.md carries only what always-loaded context needs
+## v6.35.0 — Adopter CLAUDE.md carries only what always-loaded context needs
 
 `/claude-tweaks:init` wrote byte-identical boilerplate into every adopting project's
 CLAUDE.md, inherited by every dispatched subagent and competing against the
@@ -56,6 +56,39 @@ procedure Step 7 already applies to skills. Its closed-gate summary reports "aud
 not run" rather than "no findings", since a gate that never opened is otherwise
 indistinguishable from a clean CLAUDE.md. Findings surface at the Review Console's
 Configuration updates section and are always offered, never auto-applied.
+
+
+## v6.34.0 — Skill-bloat reduction Phase 2: the Relationship table leaves the payload
+
+Every `skills/*/SKILL.md` carried a `## Relationship to Other Skills` table describing
+how that skill related to the others. All 32 are gone, removing **130,677 bytes —
+127.6 KB, 13.8% of every SKILL.md byte in the plugin** — from the context re-emitted on
+each invocation. Measured before and after across the 32 files, not projected; Phase 1's
+figures went stale exactly by carrying a projection forward.
+
+The removal rests on reading all 510 rows against the files they described and asking one
+question of each: does this bind what the model does while executing *this* skill? Twenty
+rows did — 3.9%, with 24 of the 32 skills at zero. Those moved into the step bodies that
+use them, rewritten as instructions rather than third-person description. The rest
+documented relationships a running model never acts on, and they now live once in
+`docs/skill-graph.md`, which ships to nobody: `PLUGIN_SNAPSHOT_DIRS` covers
+`.claude-plugin`, `skills`, `agents`, `hooks`, `bin`, and `commands`, not `docs/`.
+
+Collapsing 212 navigational rows into 173 graph entries merged 39 reciprocal pairs — the
+direct cost of the bidirectional cross-reference convention this replaces, which required
+every edge in two places. That convention is retired; `CLAUDE.md` now requires each edge
+stated once in the graph, and `bin/lib/skill-audit`'s parser, written to perform the
+migration, stays on as the guard against the tables creeping back one skill at a time.
+
+Stating each edge once immediately exposed drift the two copies had been hiding. `/tidy`
+queried `--label by:code-health` while its own table claimed the bare form. `/backlog`
+credited `overview` mode's recommendations to `groupByFileOverlap`, which it never calls.
+`/tidy` credited `extractFingerprint` to its Sync payload; it is a dedup helper.
+`/design-wrapper` and `/ledger` appeared to contradict each other about ledger writes —
+neither was wrong, `/flow` does the writing. And `DESIGN.json` turned out to be a phantom:
+three files promised token extraction from it while the one procedure they all delegate to
+reads `DESIGN.md` only. Two behaviours `/help` documented but never implemented are filed
+as #121 and #122 rather than quietly deleted with their rows.
 
 ## v6.33.0 — Skill-bloat reduction Phase 1: directive compression + one-line lifecycle markers
 

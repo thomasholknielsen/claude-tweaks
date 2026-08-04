@@ -86,11 +86,3 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Adding decision prompts or finding gates | This is a one-shot read. Don't over-structure it. |
 | Bumping the version inside this skill | Versioning is the maintainer's job — see CLAUDE.md "Versioning" section. |
 | Padding the output with announcements like "Here's the version!" | The user asked for the version. Print it and stop. |
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:help` | /help shows the full reference card; /version is the minimal "just the version" complement |
-| `/claude-tweaks:init` | /init may print the version during bootstrap; /version is its standalone equivalent |
-| `_shared/auto-mode-contract.md` | `/version` is a pure read — no decisions, no staged actions, no auto-mode interaction. Listed for completeness; the contract does not modify behavior. |
