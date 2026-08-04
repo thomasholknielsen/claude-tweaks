@@ -17,7 +17,7 @@ Review a running application through the browser: first impressions, persona-bas
                                               (page, journey, or discover mode)
 ```
 
-This SKILL.md is the **orientation + mode resolution** layer. The mechanical browser procedures (warm-up, batch walks, vitals capture, trace on failure, the Step 1-6 review flow) live in `browser-review.md` in this skill's directory — that file is canonical.
+This SKILL.md is the **orientation + mode resolution** layer. The mechanical browser procedures (warm-up, batch walks, vitals capture, trace on failure, the review flow itself) live in `browser-review.md` in this skill's directory — that file is canonical. Step 3 below lists exactly what it holds.
 
 ## When to Use
 

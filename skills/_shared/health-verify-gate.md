@@ -41,8 +41,11 @@ failure mode it exists to prevent.
 ## Keeping the three copies in sync
 
 `code-health/SKILL.md`'s VERIFY GATE step, `docs-health/SKILL.md`'s VERIFY GATE step, and
-`journey-health/SKILL.md`'s VERIFY GATE step each inline their own version of the five questions
-above, worded against their own finding schema. When one skill's copy changes, check the other
+`journey-health/SKILL.md`'s VERIFY GATE step each inline their own version of the questions
+above, worded against their own finding schema and covering every question that schema carries
+— question 5 is explicitly conditional on an `effort` field, so a skill whose findings derive
+`effort` mechanically rather than carrying it as a judged field inlines the rest without it.
+When one skill's copy changes, check the other
 two against this file's canonical shape rather than assuming the change was skill-specific — the
 discipline itself has no per-skill behavioral variation, only the field names referenced in each
 question do. `harness-health`'s embedded copy in `_shared/harness-health-analysis.md` should be

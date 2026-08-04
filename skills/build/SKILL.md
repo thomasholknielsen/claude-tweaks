@@ -25,7 +25,7 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 
 ## Build Options (summary)
 
-Two orthogonal axes (execution × git) combine freely. Default is `subagent` + `worktree`.
+The axes below are orthogonal and combine freely. Default is `subagent` + `worktree`.
 
 | Axis | Options | Default |
 |------|---------|---------|

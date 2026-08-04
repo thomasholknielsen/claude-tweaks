@@ -1,23 +1,24 @@
 # Health-State — Durable Cross-Firing Storage Contract
 
 `code-health`, `harness-health`, `journey-health`, and `docs-health` each need rotation cursors, a
-filing retry queue, and (code-health only) a sub-threshold "remembered" cache to survive
-between scheduled Routine firings. A scheduled cloud-routine (CCR) firing starts from a
-fresh, stateless container every time, so local gitignored disk (`.claude-tweaks/{skill}/*.json`)
-does not survive between firings — only `cache.json` (the open/closed/wontfix/regressed dedup
-cache, rebuilt fresh from `gh issue list` every run) stays there, since GitHub issue state is
-already its own source of truth.
+filing retry queue, and — where the skill opts in, see the tree below — a sub-threshold
+"remembered" cache to survive between scheduled Routine firings. A scheduled cloud-routine
+(CCR) firing starts from a fresh, stateless container every time, so local gitignored disk
+(`.claude-tweaks/{skill}/*.json`) does not survive between firings — only `cache.json`
+(the open/closed/wontfix/regressed dedup cache, rebuilt fresh from `gh issue list` every run)
+stays there, since GitHub issue state is already its own source of truth.
 
 Everything else durable lives on a dedicated branch, **`health-state`**, created once and never
 merged into `main` or any other branch — a scratch area for machine bookkeeping only:
 
 ```
 code-health/cursors.json
-code-health/remembered.json      # sub-threshold findings — code-health only
+code-health/remembered.json      # sub-threshold findings — only where includeRemembered is set
 code-health/retry-queue.json
 code-health/runs.json            # capped to the last 90 records
 
 harness-health/cursors.json
+harness-health/remembered.json
 harness-health/retry-queue.json
 harness-health/runs.json
 
@@ -26,6 +27,7 @@ journey-health/retry-queue.json
 journey-health/runs.json
 
 docs-health/cursors.json
+docs-health/remembered.json
 docs-health/retry-queue.json
 docs-health/runs.json
 ```
@@ -60,9 +62,9 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
 - `includeRemembered` (default `false`) gates whether `remembered.json` is ever read or written
   at all for this skill — a property decided once, at `createDurableState` call time, not
   inferred per-write from whether the in-memory state object happens to carry a `remembered`
-  key. Only `code-health` passes `{ includeRemembered: true }`; `harness-health` and
-  `journey-health` never opt in, so they can never accidentally pick up a stray
-  `remembered.json`.
+  key. The skills that pass `{ includeRemembered: true }` are exactly the ones carrying a
+  `remembered.json` in the tree above; any skill that leaves the flag at its default can
+  never accidentally pick up a stray `remembered.json`.
 - Each skill's own `bin/lib/{skill}/cache.js` calls these instead of the old local
   `readCursors`/`writeCursors` — same call shape, new storage underneath.
 - **`bin/lib/health-core/retry-cli.js`**'s `makeRetryQueueCommands({ readDurableState, writeDurableState })`

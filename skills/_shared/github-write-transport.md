@@ -33,13 +33,13 @@ production incidents when `tidy`'s Rolling digest briefly used `gh issue list --
 (#1016, #1079, #1089). Always use the plain list-then-filter approach (`list_issues`/
 `gh issue list`, no `--search`, then `findByMarker` in-process), on both transports.
 
-## The conditional-write pattern (for the two CAS consumers)
+## The conditional-write pattern (dispatch's claim lock)
 
-Both dispatch's claim lock and health-state's cursor writes need "write this, but only if
-nothing else wrote first." `gh`'s ref-level compare-and-set (atomic create, fast-forward-only
-update) has no MCP equivalent — but `create_or_update_file` carries the identical guarantee
-one level down, at the file-blob level: omit its `sha` parameter and the write fails if the
-file already exists; supply a stale `sha` and it fails on mismatch. Both consumers use this
-same primitive against a dedicated branch, gated on the same detection check above — see
-`_shared/issue-claims.md` (claim lock) and `_shared/health-state.md` (cursor CAS) for each
-consumer's specific procedure.
+Dispatch's claim lock needs "write this, but only if nothing else wrote first." `gh`'s
+ref-level compare-and-set (atomic create, fast-forward-only update) has no MCP equivalent —
+but `create_or_update_file` carries the identical guarantee one level down, at the file-blob
+level: omit its `sha` parameter and the write fails if the file already exists; supply a
+stale `sha` and it fails on mismatch. The claim lock uses this primitive against a dedicated
+branch, gated on the same detection check above — see `_shared/issue-claims.md` for the full
+procedure. Health-state's cursor CAS is *not* this pattern (it is a plain non-force `git
+push`) — see the note at the top of this file before adding it back here.

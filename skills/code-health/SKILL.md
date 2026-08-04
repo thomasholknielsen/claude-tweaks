@@ -135,13 +135,13 @@ Before or during judging, the judge MAY call the following deterministic tools t
 
 | Tool | Command | Evidence it provides |
 |------|---------|----------------------|
-| Project lint/typecheck | `npm run lint --if-present` or `npx tsc --noEmit` | Concrete type errors and lint violations in the slice |
-| Dead code / unused deps | `npx knip --reporter json` or `npx depcheck` | Unused exports, unreferenced packages |
-| Dependency vulnerabilities | `npm audit --json` or `npx osv-scanner --format json .` | Known CVEs in installed packages |
-| Dependency cycles | `npx madge --circular --json <slice-path>` | Import cycles in the slice |
+| Project lint/typecheck | `npm run lint --if-present 2>&1 \| tail -40` or `npx tsc --noEmit 2>&1 \| head -40` | Concrete type errors and lint violations in the slice |
+| Dead code / unused deps | `npx knip --reporter json \| head -c 4000` or `npx depcheck --json \| jq '{dependencies, devDependencies}'` | Unused exports, unreferenced packages |
+| Dependency vulnerabilities | `npm audit --json \| jq '{critical:.metadata.vulnerabilities.critical, high:.metadata.vulnerabilities.high}'` or `npx osv-scanner --format json . \| jq '[.results[].packages[].vulnerabilities[]] \| length'` | Known CVEs in installed packages |
+| Dependency cycles | `npx madge --circular --json <slice-path> \| jq 'length'` | Import cycles in the slice |
 | Grep / git log | Standard Bash + git CLI | Code patterns, recent churn, authorship |
 
-A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant tool output line as part of the finding's `evidence` field (not as a separate finding).
+Every command above is already projected or capped — the raw JSON/text a tool prints can run past 200 KB, and none of it is worth reading in full for evidence purposes. A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant bounded excerpt (the jq projection's result, or the `head`/`tail` slice) as part of the finding's `evidence` field (not as a separate finding). If a bounded run signals something worth deeper diagnosis (e.g. `critical` or `high` counts are non-zero), it's fine to re-run that one tool without the cap to pull the specific detail into evidence — never file a finding wider than what the judge actually read.
 
 When a tool is absent or errors, log a single line to stderr and continue — do not abort the judge run.
 
@@ -424,7 +424,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Emitting a line number in the anchor | Line numbers move when code is edited, breaking dedup. The anchor format is `file#Symbol` — no `:12`, no `:12:3`. |
 | Calling the network from `code-health.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
-| Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`scalability`, `security-logic`, `resilience`, `config-secrets`, `input-validation`) require `confidence: 'high'` to file. The confidence floor is enforced mechanically by the engine — `validate-findings`' `applyConfidenceFloor` drops any finding below its criterion's `confidenceFloor` before dedup runs, not merely discouraged by skill judgment. |
+| Filing a finding with `confidence: 'low'` for a noisy criterion | Every criterion carrying `confidenceFloor: 'high'` in `bin/lib/code-health/criteria.js` (the canonical list — read it there rather than trusting a copy restated here) requires `confidence: 'high'` to file. The confidence floor is enforced mechanically by the engine — `validate-findings`' `applyConfidenceFloor` drops any finding below its criterion's `confidenceFloor` before dedup runs, not merely discouraged by skill judgment. |
 | Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all five verify questions — real, actionable, reproducible, likelihood justified, effort consistent — before reaching dedup. |
 | Filing a finding still flagged `possiblyStale` | Its anchor file changed after the judge read it — the finding may already be fixed or moot by a concurrent fix pass or another parallel sweep. Route it to human re-confirmation (interactive mode) or hold it for the next sweep (headless mode) instead of filing sight-unseen. |
 | Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |

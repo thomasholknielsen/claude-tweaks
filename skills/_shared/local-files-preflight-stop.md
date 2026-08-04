@@ -49,8 +49,8 @@ override.
 
 A compliant local-files Preflight paragraph contains all of the following, in this order:
 
-1. **The trigger** — read `work-backend` (per `_shared/work-record.md`'s Config keys table)
-   and identify the `local-files` branch.
+1. **The trigger** — read `work-backend` (per `_shared/work-record-config.md`, the key
+   table's canonical home) and identify the `local-files` branch.
 2. **The reason**, stated in this skill's own terms — what mechanism or grant is actually
    unavailable under `local-files` (e.g. backlog refine: the grant conditions this skill exists to
    enforce; dispatch: the claim mechanism the protocol depends on).

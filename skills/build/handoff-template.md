@@ -2,7 +2,7 @@
 
 Loaded by `/claude-tweaks:build` Common Step 7 at end-of-build to render the user-facing handoff.
 
-Render the markdown below, substituting placeholders. Generate field values from: `git log --oneline` since build start, `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
+Render the markdown below, substituting placeholders. Generate field values from: `git log --oneline -n 20` since build start (a build producing more than 20 commits is unusual — widen the count only if the handoff genuinely needs to cite a commit older than that), `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
 
 ```markdown
 ## Build Complete: {spec number and title OR design doc topic}

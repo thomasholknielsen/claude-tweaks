@@ -22,7 +22,7 @@ When `<spec>` is a number, resolve via `specs/{N}-*.md`; when a path, read direc
 
 ### Step 3: Decide which Impeccable references to load
 
-> **Parallel execution:** Use parallel tool calls aggressively — Steps 3-4 together read up to 8 independent files (up to 6 Impeccable reference docs plus `PRODUCT.md`/`DESIGN.md` or their fallback globs); none depends on another's content, so batch every Read once the file list is decided.
+> **Parallel execution:** Use parallel tool calls aggressively — Steps 3-4 together read a set of independent files (every Impeccable reference doc the selection rules below resolve to, plus `PRODUCT.md`/`DESIGN.md` or their fallback globs); none depends on another's content, so batch every Read once the file list is decided.
 
 Reference selection rules (inspect the spec body):
 

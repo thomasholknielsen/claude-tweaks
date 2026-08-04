@@ -59,6 +59,8 @@ When page inventories from multiple pages are available, compare patterns across
 
 > **Parallel execution (conditional):** When more than 5 screenshots exist across the QA run, dispatch a screenshot review Task agent that reads the screenshots using the Read tool (multimodal) and returns visual observations. When 5 or fewer, review screenshots inline in the main thread.
 >
+> **Model tier:** Capable (Opus) — judgment-heavy visual/UX synthesis across screenshots, matching lens 3h's tier in `skills/review/SKILL.md`.
+>
 > **Output template (inline this into the Task() prompt verbatim):**
 >
 > ```markdown
@@ -68,7 +70,7 @@ When page inventories from multiple pages are available, compare patterns across
 > - [Severity] {path/screenshot.png} — {observation} — Evidence: {what you saw}
 >   Suggested fix: {one line}
 >
-> Severity scale: high / medium / low / info
+> Severity scale: critical / high / medium / low / info — but the UX lens ceiling is `high`, so use only high / medium / low / info here
 > If no observations: return literal text "No observations."
 > Do not add narration or grouping headers.
 > ```

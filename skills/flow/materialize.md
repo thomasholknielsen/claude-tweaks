@@ -8,7 +8,7 @@ Input is one or more record references: `#N` (single) or `#A,#B,...` (comma-join
 
 > **Parallel execution:** Use parallel tool calls aggressively — resolving N record references (the `gh issue view` / local-store reads below) are independent per-record fetches and should run concurrently, the same way `multi-spec.md`'s "Frontmatter pre-flight" batches its own reads.
 
-Read the project's `work-backend` config key (`_shared/work-record.md`'s Config keys table):
+Read the project's `work-backend` config key (`_shared/work-record-config.md`, the key table's canonical home):
 
 - **`work-backend: github-issues`** — `gh issue view {n} --json number,title,body,labels,url`. Derive `facets` from the returned `labels` via `parseRecordFacets` (`bin/lib/issues/record.js`).
 - **`work-backend: local-files`** — glob `specs/{n}-*.md` for the matching filename, then `readRecord(path)` (`bin/lib/issues/local-store.js`). `facets` is already on the returned record (`.facets`).
@@ -74,7 +74,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 Every field except `surface`/`design-intent` (next section) and `blocked-by` under `work-links: native` (one extra read — see its bullet below) comes straight off data already fetched during Resolution — nothing extra to read. `ceremony` is usually also free (`facets.ceremony`, from the label `/claude-tweaks:specify` already stamped) — see its own bullet below for the fallback case:
 
 - `record` — the id used to resolve it.
-- `origin` — `facets.origin` (`code-health` / `harness-health` / `journey-health` / `docs-health` / `capture`), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
+- `origin` — `facets.origin` (the `by:*` label's suffix — see `_shared/work-record.md`'s Label taxonomy table for the members, stated once there), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
 - `risk` / `effort` — `facets.risk` / `facets.effort`; omit the line when the value is `null` (unscored).
 - `grants` — `facets.grants.build` / `facets.grants.merge`, as the bracket list `[build, merge]` / `[build]` / `[]`. Unlike every other optional field here, always emit the `grants:` line, even empty — a record can reach materialization ungranted (a human running `/flow #{n}` directly against a record nobody authorized).
 - `fingerprint` — from Resolution; omit the line when `null`.
