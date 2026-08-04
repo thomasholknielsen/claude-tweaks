@@ -10,7 +10,7 @@ The sequential path (`--budget 1`) still reads `_shared/harness-health-analysis.
 
 - `kind: design-artifact` and `kind: memory` targets use `SKILL.md`'s own Step 3 branch text instead, so they are out of scope here by construction.
 - New-skill gap detection and its qualification gate are out of scope: the gap scan runs **once per firing**, not once per target, and is never part of a per-target agent's work.
-- The "Project Defaults / claude-tweaks Pipeline sections in sync with the installed plugin version" CLAUDE.md sub-check is retained below; it is the one check that reads the installed plugin's own contract rather than the target project's source.
+- The "`## claude-tweaks Pipeline` section in sync with the installed plugin version" CLAUDE.md sub-check is retained below; it is the one check that reads the installed plugin's own contract rather than the target project's source.
 
 Substitute `{target.path}`, `{target.id}`, `{target.kind}`, `{plugin-root}` (the resolved `$CLAUDE_PLUGIN_ROOT`), and `{root}` (the resolved `${ROOT:-$PWD}`) before dispatch.
 
