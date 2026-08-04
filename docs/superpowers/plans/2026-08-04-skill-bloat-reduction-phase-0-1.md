@@ -16,7 +16,7 @@
 - New `bin/lib/<name>/tests/` directories are **not** auto-discovered. `package.json`'s `test` script enumerates seven explicit paths; a new module requires adding its path there.
 - Skill files must contain **no emojis** (CLAUDE.md `## Don'ts`). The existing `registerNoEmojiTest` enforces this for 5 skills.
 - Every skill reference inside actionable instruction text uses the fully-qualified `/claude-tweaks:{skill}` form.
-- The interaction-style directive keeps its exact `> **Interaction style:**` prefix — five existing tests assert `read().includes('> **Interaction style:**')` and must continue to pass unchanged.
+- The interaction-style directive keeps its exact `> **Interaction style:**` prefix. **Corrected during execution:** only *four* tests assert on the prefix alone (the three inline health-skill copies plus `registerInteractionStyleTest`). A fifth, `tests/research/skill-md.test.js:38`, regex-matched the **full** long-form directive text and therefore had to change with it — making Task 3's true file count 35, not 34. The original claim that all five were prefix-only was a plan error found by the Task 3 implementer.
 - Commit message style: `{Verb} {what} — {detail}`, imperative, no conventional-commit prefixes. End with the `Claude-Session:` trailer.
 - Work happens in the existing worktree at `.claude/worktrees/skill-bloat-reduction-design` (policy `worktree.always`). Do **not** create a second worktree.
 - Do not use issue-closing keywords in commits — write `refs #N`.
