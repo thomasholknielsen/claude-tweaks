@@ -41,20 +41,45 @@ Then proceed to Phase 2 as normal — but carry this inventory forward. Every Ph
 
 ## Phase 1u.5: claude-tweaks Contract Drift
 
-Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode, bookend architecture, etc.). Detect missing contract sections so Update Mode can offer pre-filled patches.
+An existing CLAUDE.md may not match the plugin's current template — because it
+predates a template change, or because someone edited a plugin-authored section
+in place. Detect both so Update Mode can offer pre-filled patches.
 
-> **Parallel execution:** Use parallel tool calls aggressively — all marker checks below are independent and should run concurrently.
+This check is deterministic and compares against the template **live**, so a
+future template change is picked up with no edit here. Run:
 
-| Marker | Grep target | Contract version | Patch source |
-|---|---|---|---|
-| `## claude-tweaks Pipeline` section | `^## claude-tweaks Pipeline` in CLAUDE.md | v4.0+ | `claude-md-template.md` Initial Mode template |
-| Auto-mode flag (`auto-mode: default-off` / `default-on`) | `auto-mode:` in CLAUDE.md | v4.5+ | `claude-md-template.md` Project Defaults block |
-| Bookend architecture paragraph | `Bookend architecture` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
-| Pipeline run directory reference | `pipelines/{run-id}` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
+```bash
+node -e "
+const {checkConformance} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/init/claude-md-conformance');
+const fs = require('fs');
+const tpl = fs.readFileSync(process.env.CLAUDE_PLUGIN_ROOT + '/skills/init/claude-md-template.md','utf8');
+const project = fs.readFileSync('CLAUDE.md','utf8');
+console.log(JSON.stringify(checkConformance({templateSource: tpl, projectClaudeMd: project}), null, 2));
+"
+```
 
-For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
+Read the result:
 
-If all markers are present, record "Contract: up to date (v4.6+)" in the inventory and skip ahead.
+- **`missing`** — the section is absent entirely. Record a **Contract Drift**
+  entry whose suggested patch inserts the entry's `expected` body verbatim. No
+  creative writing required.
+- **`drifted`** — the section exists but its body differs from the template's.
+  Record a **Contract Drift** entry offering a re-sync, showing `actual` and
+  `expected`. A deliberate local edit is a legitimate answer here — the entry is
+  an offer, never an automatic overwrite.
+- **`conformant`** — no entry.
+
+Carry every entry forward into the Drift Report (Phase 3) under a dedicated
+"Contract Drift" section so the user can approve them as a batch alongside other
+CLAUDE.md patches.
+
+`## Philosophy` is reported present/absent only, never drifted — its content
+varies by the project's maturity classification, so a byte comparison would flag
+every project. Its *content* freshness is `/claude-tweaks:harness-health`'s
+"Philosophy matches current maturity" check, not this one.
+
+If `missing` and `drifted` are both empty, record "Contract: conformant with the
+installed template" in the inventory and skip ahead.
 
 ### Work-Record Backend Drift
 
