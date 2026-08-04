@@ -95,6 +95,8 @@ Author the `<svg>` content directly for the diagram type and topic, binding ever
 
 Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-file wrapper to the path from Step 3. Write the markdown-embed wrapper's content inline in this skill's own response (for the user to copy into a doc) rather than as a separate file — it's a snippet, not a standalone artifact.
 
+Run `visual-html-output.md` Step 5's MDX/Nextra detection at the same time; when it finds an MDX-based docs app, include that file's reference snippet with the embed wrapper. Skip it on an ephemeral run — nothing stays in the project to embed.
+
 Once the standalone file is written, run `visual-html-output.md` Step 7 to deliver it — a clickable `file://` link plus a `SendUserFile` handoff when that tool is available — rather than leaving the diagram's preview path to be improvised later.
 
 Alongside the embed snippet, also surface a suggested `files:` frontmatter line naming the diagram's depicted source dependencies (the files under discussion when the diagram's topic was resolved in Step 1) — e.g.:

@@ -48,6 +48,8 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
+Apply `by:capture` and the Type expression and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, stage, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and only `/claude-tweaks:tidy` and `/claude-tweaks:specify` move a record along it).
+
 **When `work-backend: github-issues`:**
 
 1. Bootstrap per `_shared/label-bootstrap.md`, `LABELS_JSON`:

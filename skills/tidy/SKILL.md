@@ -95,7 +95,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
-| 1 | Open work records — `gh issue list` (`github-issues`) or `queryRecords('specs', {})` (`local-files`) via `bin/lib/issues/{record,local-store}.js` | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` |
+| 1 | Open work records — `gh issue list` facet-parsed by `record.js`'s `parseRecordFacets` (`github-issues`), or `local-store.js`'s `queryRecords('specs', {})` (`local-files`); those two plus `writeRecord` are the whole record driver in `bin/lib/issues/{record,local-store}.js` | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` |
 | 3 | `docs/superpowers/specs/*-design.md`, `docs/plans/*-brief.md` | `[doc]` |
 | 4 (main thread, parallel with the agent batch) | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
@@ -112,6 +112,8 @@ There is no Step 2 — it merged into Step 1 (see Scope Selection above). The re
 ## Action Vocabulary
 
 Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., deleting a backlog record without creating the destination artifact).
+
+**Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), and remove an orphaned `bot:in-progress` (Step 4.7's backstop). Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
 
 **Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table; `/tidy` also accepts the legacy `backlog-backend` alias), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
 
@@ -147,7 +149,7 @@ These two branches are mutually exclusive — read exactly one file from this sk
 
 ### Auto mode (aggressiveness-based routing)
 
-Applies when a pipeline run directory exists (embedded pipeline), or when `/tidy` runs standalone in `auto` mode. Read `step-6-auto.md` — aggressiveness routing, `decisions.md` log entries, Standalone-auto fallback, archival compaction.
+Applies when a pipeline run directory exists (embedded pipeline), or when `/tidy` runs standalone in `auto` mode. Read `step-6-auto.md` — aggressiveness routing, `decisions.md` log entries, Standalone-auto fallback, archival compaction. Its conservative/moderate/aggressive routing implements `_shared/auto-mode-contract.md`'s reversibility and confidence floors; apply the tier's row as written rather than widening it by judgment.
 
 ### Interactive mode (batch approval)
 

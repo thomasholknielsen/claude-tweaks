@@ -243,6 +243,8 @@ Compare what was actually built to what the spec or design doc said. For the ful
 
 **Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` — see `architecture-alignment.md`'s own Skip section for the full rationale (why fast-lane skip is deliberate, not an oversight, and what the safety net is).
 
+When a mismatch is an architectural deviation at module level — a boundary in the wrong place, an interface nearly as complex as what it wraps — route it to `/claude-tweaks:deepen` for a dedicated module-depth pass rather than to Common Step 3's `/claude-tweaks:simplify`, whose scope is line-level cleanup.
+
 ### Common Step 5: Final Verification
 
 After code simplification, run the shared verification procedure (`skills/test/verification.md`). This runs type checking, linting, and tests using the project's commands from CLAUDE.md.

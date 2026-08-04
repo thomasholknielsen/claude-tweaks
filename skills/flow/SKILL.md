@@ -149,6 +149,8 @@ This is the bookend "begin stop" that locks in policy for the rest of the pipeli
 
 **This is the first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). In default `auto` the begin-stop is informational only; the single user-facing stop is the Wrap-Up Review Console at the end. Regardless of mode, after this step no downstream skill re-asks the user about these levers — they read `config.yml` and apply.
 
+Export the directory you just created as `PIPELINE_RUN_DIR` so every downstream skill resolves this same run per `_shared/pipeline-run-dir.md`; a multi-spec run exports the per-spec `spec-{N}/` subdirectory instead of the parent (see `multi-spec.md`).
+
 For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory.
 
 ### Step 4: Run Pipeline
