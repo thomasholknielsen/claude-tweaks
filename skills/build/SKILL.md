@@ -31,7 +31,7 @@ The axes below are orthogonal and combine freely. Default is `subagent` + `workt
 |------|---------|---------|
 | **Execution** | `subagent` (automated review chain) / `batched` (3-task human-reviewed batches) | `subagent` |
 | **Git** | `worktree` (isolated branch) / `current-branch` (direct commits) | `worktree` |
-| **Auto** | `auto` keyword — applies CLAUDE.md / fallback defaults, skips confirmation prompts, routes deviations per `_shared/auto-mode-contract.md` | off |
+| **Auto** | `auto` keyword — applies `.claude-tweaks/policy.yml` / fallback defaults, skips confirmation prompts, routes deviations per `_shared/auto-mode-contract.md` | off |
 
 When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has only one value: `current-branch` is not offered and is rejected if passed explicitly — the mechanical PreToolUse gate would deny any edit outside a worktree regardless (see `_shared/git-discipline.md`).
 

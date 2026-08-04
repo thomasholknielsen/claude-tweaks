@@ -70,7 +70,7 @@ When execution strategy AND git strategy are both still unresolved after policy 
 
 When only ONE axis is still unresolved (whether because an argument supplied the other, or policy locked it), call `AskUserQuestion` for just that one with a simple 2-option question instead. Skip the call entirely if both are resolved.
 
-**In `auto` mode**, skip this prompt and use the CLAUDE.md / fallback values for any axis not already resolved by policy or an explicit argument (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
+**In `auto` mode**, skip this prompt and use the `.claude-tweaks/policy.yml` / fallback values for any axis not already resolved by policy or an explicit argument (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
 
 ## Record vs Spec vs Design mode
 
