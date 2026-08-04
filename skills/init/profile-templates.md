@@ -78,15 +78,15 @@ Compare the Phase 1u inventory against Phase 2 findings. Classify every finding:
 - **Stale:** {N} references to things that changed or no longer exist
 - **Drifted:** {N} documented patterns the codebase has moved away from
 - **Gaps:** {N} codebase patterns with no config coverage
-- **Contract Drift:** {N} claude-tweaks contract sections missing from CLAUDE.md
+- **Contract Drift:** {N} plugin-authored sections missing from or drifted in CLAUDE.md
 
-### Contract Drift (claude-tweaks version sync)
+### Contract Drift (claude-tweaks template conformance)
 
-CLAUDE.md sections required by the current claude-tweaks contract that are missing or outdated. Patches come verbatim from `claude-md-template.md` — no judgment calls.
+Plugin-authored CLAUDE.md sections that are missing entirely, or present but drifted from the current template. Patches come verbatim from `claude-md-template.md` — no judgment calls.
 
-| Missing Marker | Contract Version | Patch Source |
+| Section | Status | Patch source |
 |---|---|---|
-| {one row per marker flagged missing in Phase 1u.5's marker table — see `update-mode.md`, the canonical owner of the marker list} | {version} | {patch source} |
+| {one row per entry in Phase 1u.5's `missing` and `drifted` results — see `update-mode.md`, the canonical owner of the conformance check} | {missing \| drifted} | {the entry's `expected` body} |
 
 Call `AskUserQuestion`:
 

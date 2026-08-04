@@ -266,10 +266,10 @@ Check:
 Update Mode runs three sub-phases before deciding whether to continue with the full reconnaissance:
 
 - **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
-- **Phase 1u.5** — detect claude-tweaks contract drift (missing pipeline section, auto-mode flag, bookend paragraph, run-dir reference)
+- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections
 - **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
 
-Update Mode procedures live in `update-mode.md` — load only when Phase 1 detects existing config. That file contains the inventory template, the contract-drift marker table, and the early-exit decision logic.
+Update Mode procedures live in `update-mode.md` — load only when Phase 1 detects existing config. That file contains the inventory template, the contract-drift conformance check, and the early-exit decision logic.
 
 ---
 

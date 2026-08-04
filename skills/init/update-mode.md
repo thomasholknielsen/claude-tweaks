@@ -84,10 +84,11 @@ installed template" in the inventory and skip ahead.
 ### Work-Record Backend Drift
 
 The work-record backend (`work-backend` / `work-types` / `work-links`) predates a
-versioned contract tag, so it isn't a row in the marker table above — but its drift
-is detected the same pass and counts identically toward the Total drift count in
-Phase 1u.6 below (treat entries from this table as additional Contract Drift
-entries from 1u.5). All three rows are **staged offers** — never a silent CLAUDE.md
+versioned contract tag, so it isn't one of the plugin-authored sections the
+conformance check above compares — but its drift is detected the same pass and
+counts identically toward the Total drift count in Phase 1u.6 below (treat
+entries from this table as additional Contract Drift entries from 1u.5). All
+three rows are **staged offers** — never a silent CLAUDE.md
 edit, per the auto-mode contract's rule that CLAUDE.md is never edited
 autonomously.
 
@@ -103,9 +104,9 @@ as bootstrap Step 17b.
 
 ### Maturity Drift
 
-Like the Work-Record Backend Drift check above, maturity drift isn't a row in the
-Phase 1u.5 marker table — that table checks for presence/absence of contract
-markers, while this checks whether a *value* has changed. Unlike every other
+Like the Work-Record Backend Drift check above, maturity drift isn't reported by the
+Phase 1u.5 conformance check — that check compares plugin-authored sections
+against the template, while this checks whether a *value* has changed. Unlike every other
 drift check in this file, it can only be detected as part of a full
 reconnaissance pass, never the early-exit fast path (Phase 1u.6): re-detecting
 maturity requires re-running Phase 2h, and Phase 1u.6's own early-exit decision
