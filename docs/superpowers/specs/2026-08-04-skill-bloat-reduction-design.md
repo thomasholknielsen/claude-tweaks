@@ -237,11 +237,20 @@ must therefore be constructed, not assumed.
    > `subagent`) recur everywhere, so they always read as surviving no matter what happened to
    > the row that carried them.
    >
-   > **Phase 2 must not adopt it unchanged.** Re-spec it as a per-identifier *occurrence-count*
-   > delta scoped to the named relocation destination, rather than binary presence against the
-   > whole tree. Use the same "delete `review`'s whole Relationship table" experiment as its
-   > acceptance test — it must report near-100% loss, not 9%. This supersedes the narrower
-   > deferred finding about unanchored substring matching, which is a rounding error beside it.
+   > **Resolved in Phase 2a (`fbacce08`).** `findLostIdentifiers` is replaced by
+   > `findLostOccurrences(sourceText, beforeCorpus, afterCorpus)`, a per-identifier
+   > occurrence-count delta over a caller-chosen scope: the source file plus every file named
+   > as a relocation destination. An identifier that appeared 12 times and now appears 11 has
+   > lost an occurrence, which is the signal a relocation audit needs; presence could never
+   > see it. Both semantics were run against the same file before the change landed —
+   > presence **11/45 (24%)**, counting **45/45 (100%)** — and the deletion experiment is now
+   > the module's own acceptance test rather than a claim in this document. This supersedes
+   > the narrower deferred finding about unanchored substring matching, which is a rounding
+   > error beside it.
+   >
+   > A relocation *within one file* correctly reports nothing: the content moved, so the
+   > counts match. Only a genuine drop is flagged. False positives remain possible and are
+   > the acceptable direction — a false negative is the failure this check exists to prevent.
 3. **Make the structural tests fail loudly rather than pass silently.** Removing
    `## Relationship to Other Skills` breaks
    `assert.ok(idx('## Relationship to Other Skills') > 0)` in
