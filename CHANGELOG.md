@@ -1,5 +1,34 @@
 # Changelog
 
+## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
+
+`tests/statusline.test.js`'s render-time assertion failed whenever another agent session ran
+its own `npm test` in a sibling worktree — a routine occurrence in this repo, not an edge
+case. Best-of-7 at a 1000 ms threshold was already a load mitigation and was not enough.
+
+Measuring the problem rather than retuning the threshold showed the assertion was mostly not
+about the renderer. A bare `node -e ""` spawn with the same temp-HOME setup costs ~34 ms
+against a ~58 ms full statusline spawn, so ~59% of what it timed was Node process startup —
+and startup is also the term that inflates under load. A competing `npm test` pushed that
+control spawn from 34 ms to 566 ms, a 16x swing in something the renderer neither owns nor
+can influence.
+
+Subtracting a control spawn was tried first and rejected on evidence: under a real competing
+suite the *difference* still reached 573 ms against a 250 ms budget, because contention
+inflates both terms unequally. A ratio bound was rejected for the opposite reason — it is
+stable under load (1.7x idle, 1.8-2.5x saturated) but a fixed-size regression becomes
+proportionally invisible as the baseline grows, so it would miss under load exactly the
+regression it catches when idle.
+
+The assertion therefore moves to `perf/`, run via `npm run test:perf` and excluded from
+`npm test`. Correctness runs are now deterministic under concurrent load; the performance
+bound is kept, not deleted. It also got stricter in the move: the budget is now 250 ms of
+render cost above a bare-Node control rather than 1000 ms absolute, and a 300 ms injected
+stall fails it at 335 ms of render cost — while its 422 ms absolute would have passed the
+threshold it replaces.
+
+Removing it also takes ~21 s off every full run under load, and ~450 ms idle.
+
 ## v6.38.0 — The last two legacy families (closes #128)
 
 v6.36.0 claimed nine legacy families removed and shipped seven. The two it missed

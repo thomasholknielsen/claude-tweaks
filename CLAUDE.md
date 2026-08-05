@@ -139,6 +139,7 @@ Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption)
 
 ```bash
 npm test                            # Full suite — tests/ plus every bin/lib/*/tests/ directory
+npm run test:perf                   # Timing budgets (perf/) — deliberately excluded from npm test, see docs/plugin-structure.md
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
 
