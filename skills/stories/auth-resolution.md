@@ -1,6 +1,6 @@
 # Stories — Auth Resolution
 
-Loaded by `/claude-tweaks:stories` Step 2 **only when** at least one discovered page requires authentication (or a legacy `auth.yml` is detected). When no auth-gated page is found, SKILL.md skips this file entirely.
+Loaded by `/claude-tweaks:stories` Step 2 **only when** at least one discovered page requires authentication. When no auth-gated page is found, SKILL.md skips this file entirely.
 
 ## Auth Vault — vault-naming convention
 
@@ -38,9 +38,3 @@ Stay consistent with whatever vault list `agent-browser auth list` already shows
    ```
    Surface the install hint at the Wrap-Up Review Console.
 4. **Multiple vaults exist** (e.g., `default-user`, `admin-user`): map each story's persona to the matching vault; fall back to `default-user` with a comment when no clean match.
-
-## Legacy `auth.yml` detection
-
-**Trigger:** `{OUTPUT_DIR}/auth.yml` exists from a v3 install.
-
-When detected: read `migration.md` in this skill's directory for the split procedure (credentials → Auth Vault, server URLs → `servers.yml`). Migration is a one-time operation — once `auth.yml` is split, this section never re-runs for the project.

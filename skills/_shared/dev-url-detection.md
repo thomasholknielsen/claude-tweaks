@@ -25,7 +25,7 @@ Before probing ports, check if a URL was previously detected and persisted:
    c. If it doesn't respond → log: "Persisted URL {url} not responding — probing ports..." and continue to Step 1
 3. If no file or no `servers` section → continue to Step 1
 
-> **File split:** `stories/servers.yml` holds server URLs only — safe to commit and share between runs. Credentials live in the encrypted Auth Vault (set via `agent-browser auth set`), or in `stories/auth.yml` for legacy projects. `stories/auth.yml` must be gitignored; `stories/servers.yml` must not.
+> **File split:** `stories/servers.yml` holds server URLs only — safe to commit and share between runs. Credentials live in the encrypted Auth Vault (set via `agent-browser auth set`), never in a file under `stories/` — `stories/servers.yml` must not be gitignored.
 
 ### Step 1: Probe Common Ports
 
@@ -121,7 +121,7 @@ This procedure sets two variables for the calling skill:
 
 After resolving `APP_URL`, persist it for future runs. **This write is mandatory — do not skip it.**
 
-Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, if any, live in the encrypted Auth Vault or in legacy `stories/auth.yml` — never mix the two files.
+Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, if any, live in the encrypted Auth Vault — never in this file.
 
 1. Use the Glob tool to check if `stories/servers.yml` (or `{STORIES_DIR}/servers.yml`) exists.
 2. **File exists:** Use the Read tool to load the current contents. Parse the YAML to preserve existing `servers` entries.
@@ -140,14 +140,6 @@ Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, 
 8. **Verify:** Use the Glob tool to confirm `{STORIES_DIR}/servers.yml` exists after writing.
 
 `stories/servers.yml` is safe to commit — it contains no credentials. Do NOT add it to `.gitignore`.
-
-If a legacy `stories/auth.yml` exists (older projects stored credentials there), ensure it is gitignored. Check `.gitignore` for `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If not present, offer to add it:
-
-**Call `AskUserQuestion`:**
-
-- `question`: `"Add stories/auth.yml to .gitignore? This file contains credentials and must not be committed."`, `header`: `"Gitignore auth.yml"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Yes (Recommended)"`, `description`: `"Add stories/auth.yml to .gitignore."`
-- Option 2 — `label`: `"No"`, `description`: `"I manage .gitignore manually."`
 
 ### Cleanup
 

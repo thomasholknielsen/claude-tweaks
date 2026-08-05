@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:stories
 description: Use when generating or updating user story YAML files for UI testing — browses a site with agent-browser, discovers flows, creates structured stories using semantic locators (schema v2) with diff-aware updates, negative testing, source-aware contracts, journey awareness, and self-validation. Keywords - stories, generate, create, user journey, persona, QA, testing, semantic-locators.
-argument-hint: "[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>] [migrate]"
+argument-hint: "[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -31,24 +31,6 @@ Parse `$ARGUMENTS` to extract:
 - **REFINE:** (optional) `refine=true|false` — validate sample stories and self-correct. Default: `true`.
 - **NEGATIVE:** (optional) `negative=true|false` — generate failure-path negative stories. Default: `true`.
 - **JOURNEY_FILTER:** (optional) `journey=<name>` — scope generation to pages covered by the named journey. When set, only generates stories for pages documented in that journey file (`docs/journeys/{name}.md`).
-- **MIGRATE_MODE:** (optional) `migrate` — bare keyword, no value. Explicit re-entry point for resolving a staged v1→v2 migration (this is the exact command the Review Console, wrap-up, and staged migration items recommend running). Not required for normal migration — Step 1's v1 detection auto-triggers whenever legacy YAML is found regardless of this flag. Passing `migrate` alone (typically with no URL) marks the invocation as migration-focused, forces the interactive migration flow in `migration.md` even inside an otherwise-auto pipeline context, and — critically — prevents the bare `migrate` token from being misparsed as URL.
-
-**Keyword detection rules (applied to $ARGUMENTS):**
-- `refine=false` → REFINE = `false` (default is `true`)
-- `negative=false` → NEGATIVE = `false` (default is `true`)
-- `dir=<path>` → OUTPUT_DIR = `<path>`
-- `persona=<name>` → PERSONA = `<name>`
-- `focus=<area>` → FOCUS = `<area>`
-- `pages=<n>` → PAGES = `<n>`
-- `journey=<name>` → JOURNEY_FILTER = `<name>`
-- `migrate` (bare token, no `=`) → MIGRATE_MODE = `true`; do NOT treat as URL
-- Remaining non-keyword argument → URL
-
-### URL Resolution
-
-If no URL is provided in `$ARGUMENTS`, run the dev URL detection procedure from `dev-url-detection.md` in `skills/_shared/`. This probes common ports, checks project configuration, and resolves `APP_URL` automatically. If no server can be detected or started, stop and ask the user for a URL.
-
-**Auto-detected behavior:**
 - **Update mode:** If `{OUTPUT_DIR}/*.yaml` or `{OUTPUT_DIR}/*.yml` files already exist, automatically enter diff-aware mode. No keyword needed — the skill detects existing stories and only generates new or changed ones.
 - **v1 detection:** If any existing YAML lacks `schema_version: 2` at the top, the v1 detection / regeneration UX (see below) runs before update-mode comparison.
 
@@ -93,7 +75,7 @@ agent-browser auth set <vault-name> <username> <password>
 agent-browser --session <story-id> auth use <vault-name>
 ```
 
-This replaces the cookie-injection path used in earlier versions and removes the need for `auth.yml` profile files in new projects. Stories generated against an existing project that already has `{OUTPUT_DIR}/auth.yml` continue to work — Step 2's auth resolution detects the legacy file and offers to migrate vault entries from it.
+This replaces the cookie-injection path used in earlier versions: credentials live in the encrypted Auth Vault, never in a file under `{OUTPUT_DIR}`.
 
 ## Step 1: Ingest
 
@@ -104,8 +86,7 @@ Gather pre-existing information before browsing.
 ### Diff-Aware Ingestion (auto-detected)
 
 1. Use the Glob tool to check for existing YAML files in OUTPUT_DIR matching `{OUTPUT_DIR}/*.yaml` AND `{OUTPUT_DIR}/*.yml` (both extensions — projects may use either).
-2. **Legacy v1 detection (runs first when files exist).** If any YAML files were found, read the top of each and check for `schema_version: 2`. If any file lacks the marker, stop here and read `migration.md` in this skill's directory for the full migration procedure (auto-mode staging, interactive prompt, per-story diff, regeneration rules). Resolve the v1 prompt BEFORE doing any further processing. Do NOT silently parse legacy v1 files — they use CSS selectors which schema v2 forbids.
-3. **Update mode (after v1 detection clears).** If all existing YAML files are schema v2, enter update mode:
+2. **Update mode.** If existing YAML files were found, enter update mode:
    a. Parse the `stories` array from each file.
    b. Build an EXISTING_STORIES map: `{ storyId -> { url, locators[], steps[], sourceFile } }` — extract all semantic locators from each story's steps.
    c. Build an EXISTING_URLS set: all unique `url` values across existing stories.
@@ -170,9 +151,9 @@ For each page visited during exploration, check JOURNEY_URL_INDEX:
 
 ### Auth Resolution (conditional)
 
-If no discovered page requires authentication and no legacy `{OUTPUT_DIR}/auth.yml` exists, skip this section entirely.
+If no discovered page requires authentication, skip this section entirely.
 
-If at least one auth-gated page was found OR a legacy `auth.yml` is present, read `auth-resolution.md` in this skill's directory for the full procedure (vault listing, vault-name convention, interactive/auto branches, legacy `auth.yml` migration trigger).
+If at least one auth-gated page was found, read `auth-resolution.md` in this skill's directory for the full procedure (vault listing, vault-name convention, interactive/auto branches).
 
 ### URL-to-Source-File Mapping
 
@@ -268,7 +249,6 @@ For the full staleness procedure (locator-resolution checks via `agent-browser f
 
     **Auth Vault references (v2):** When the story requires authentication, set the story-level `auth: { vault: "<vault-name>" }` field — see the top-level Auth Vault section for the setup command, runtime invocation, and the "LLM never sees passwords" guarantee.
 
-    When the project's auth came from a legacy `auth.yml` and the user opted not to migrate (Step 2 Auth Resolution), continue to use the legacy `setup.auth: <profile>` reference. Do not invent vault names that do not exist.
 
 7. Identify `depends_on` relationships between stories:
     - If story B only makes sense after story A passes (e.g. "view cart" depends on "add to cart"), set `depends_on: add-to-cart` on story B
@@ -312,7 +292,7 @@ stories:
     description: "Descriptive name of the journey"
     url: "https://example.com/starting-page"
     journey: profile-settings                      # optional — refs docs/journeys/profile-settings.md
-    auth: { vault: "default-user" }                # optional — overrides file-level setup.auth
+    auth: { vault: "default-user" }                # optional — the vault holding this story's credentials
     tags: [core, smoke]
     priority: high
     source_files:                                  # relative paths to source files that render this page
@@ -391,7 +371,6 @@ Otherwise read `refine.md` in this skill's directory for the full Refine procedu
     - Number of new stories added
     - Stale locator warnings (full list with story IDs and locator specs)
     - Behavioral contract change warnings (full list with story IDs and change descriptions)
-    - **v1 → v2 migration:** when v1 detection ran, report the choice the user made (regenerated all / showed diff first / cancelled) and the count of stories migrated.
 
     **Negative additions:**
     - Number of negative stories generated

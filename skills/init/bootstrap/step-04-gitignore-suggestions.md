@@ -8,7 +8,6 @@ Check whether `.gitignore` exists and already covers workflow artifacts. Suggest
 # claude-tweaks: transient artifacts
 screenshots/
 .worktrees/
-stories/auth.yml
 .claude-tweaks/pipelines/*
 !.claude-tweaks/pipelines/*/
 .claude-tweaks/pipelines/*/*

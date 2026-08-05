@@ -144,43 +144,6 @@ longer an open surface by the time this comparison is computable.
 |---|---|---|
 | The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Note the change in Phase 9's Actions Performed Classification row (see `SKILL.md`'s Phase 9 Actions Performed table); the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
 
-### Auto-Mode-Policy Migration
-
-Existing projects initialized before the policy-schema consolidation may have
-CLAUDE.md's retired `## Auto-mode policy` block still present (8 lever lines —
-see `_shared/policy-schema.md`'s "Auto-mode levers" section for the full list).
-`claude-tweaks:init` no longer generates this block for new projects; this
-check offers existing projects a one-time cleanup.
-
-Run:
-
-```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd())))"
-```
-
-If `legacyClaudeMdLevers` is empty, record "Auto-mode policy: already migrated or never present" in the inventory and skip the rest of this section — no prompt.
-
-Otherwise, for each entry, the recommendation is:
-- `isValid: false` → **flag, don't move**: report "`{key}: {value}` isn't a recognized value — fix or remove it" and leave the CLAUDE.md line untouched. Never silently relocate a broken value into `policy.yml`.
-- `isValid: true, matchesDefault: true` → **delete** the line from CLAUDE.md. Pure cleanup — dual-read already falls through to the same default either way, so this is a zero-behavior-change removal.
-- `isValid: true, matchesDefault: false` → **move to `policy.yml`**: append `{key}: {value}` to `.claude-tweaks/policy.yml` (creating the file/directory if absent), then delete the line from CLAUDE.md. Preserves the project's override.
-
-Present via the standard batch-table convention (`AskUserQuestion`, per the root CLAUDE.md's Multi-item Decisions rule):
-
-- `question`: `"{N} legacy Auto-mode policy line(s) found in CLAUDE.md. Clean these up? Levers at their default get deleted; overrides move to .claude-tweaks/policy.yml."`, `header`: `"Policy cleanup"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Delete {D} default-valued line(s), move {M} override(s) to policy.yml{, flag {F} invalid value(s) if F > 0}."` (`D`/`M`/`F` are the counts of `isValid: true, matchesDefault: true` / `isValid: true, matchesDefault: false` / `isValid: false` entries — omit the flag clause entirely when `F` is 0)
-- Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-line what happens to each of the {N} entries."`
-- Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave CLAUDE.md as-is — I'll clean it up myself later."`
-
-On "Override specific items," follow up with the per-line choices as ordinary free-text in the next message (per the root CLAUDE.md's batch-table convention — the tool's `Other` field is a single answer to the batch question, not a per-item list).
-
-On any outcome except "Skip entirely," apply the selected deletions/moves (invalid entries are only flagged, never touched), then log to `decisions.md` (or the inventory summary, if this project has no active pipeline run dir):
-```
-AUTO {time} — Update Mode: migrated {D + M} of {N} legacy Auto-mode policy line(s) off CLAUDE.md ({D} deleted at-default, {M} moved to policy.yml{, F flagged as invalid and left untouched if F > 0}).
-```
-
-This check runs once per Update Mode invocation and counts toward the Total drift count in Phase 1u.6 the same way Work-Record Backend Drift does — a non-empty `legacyClaudeMdLevers` result is one additional Contract Drift entry.
-
 ### Routine Drift
 
 Unlike the checks above, this isn't a CLAUDE.md/policy.yml marker — it audits the project's
@@ -225,7 +188,7 @@ Each returned record resolves to one of five verdicts (see `skills/routine/SKILL
 This check's Drifted count (not Orphaned/Stale/Malformed, which have no auto-fix and so aren't
 "drift a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total
 drift count — treat each Drifted record as an additional Contract Drift entry for that count,
-the same self-classifying convention Work-Record Backend Drift and Auto-Mode-Policy Migration
+the same self-classifying convention Work-Record Backend Drift
 both already use, so Phase 1u.6's own "Contract Drift entries from 1u.5" formula picks it up
 without that table needing its own edit.
 
@@ -237,7 +200,7 @@ and apply its procedure directly against this project's instantiated records —
 one place `/init` reaches into a harness-health-owned file outside that skill's own
 SELECT/JUDGE/FILE pipeline (see that file's own header for why).
 
-Present any resulting rows directly, right here in Phase 1u.5 — matching the Auto-Mode-Policy
+Present any resulting rows directly, right here in Phase 1u.5 — matching the Work-Record Backend Drift
 Migration subsection's own precedent above, this resolves immediately with no Phase 3
 hand-off:
 

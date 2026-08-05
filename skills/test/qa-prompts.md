@@ -61,7 +61,7 @@ This phase dispatches qa-agent subagents in parallel — one per story, bounded 
     - If the story has a `steps` array -> structured format
     - If the story has a `workflow` string -> legacy format
 
-19. For each Task call, use the appropriate prompt template. If the story has `auth: { vault: "<name>" }`, include the `**Auth (vault):**` field. If the story uses legacy `setup.auth` resolved from `auth.yml`, include the `**Auth (legacy):**` field instead. The agent uses one or the other — never both.
+19. For each Task call, use the appropriate prompt template. If the story has `auth: { vault: "<name>" }`, include the `**Auth (vault):**` field.
 
 **Canonical schema.** Both templates below inline the `REPORT_JSON` envelope's nested `page_inventories` shape (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) verbatim rather than referencing it — required by this file's own no-sibling-file-references contract (line 7), since each template is copied wholesale into a dispatched Task agent's prompt and that agent never sees another file. `agents/qa-agent.md`'s `## Report` section declares this same shape canonical for the agent's structured output. Any future change to the schema must be mirrored byte-for-byte across all four locations: `agents/qa-agent.md`, both templates below, and `skills/test/qa-reporting.md`'s aggregated `report.json` schema.
 
@@ -78,7 +78,6 @@ Execute this user story and report results using the agent-browser CLI.
 **Headed:** {HEADED}
 
 **Auth (vault):** {vault name from story.auth.vault — omit if not present}
-**Auth (legacy):** {resolved url/username/password from auth.yml — omit if not present or if vault was used}
 
 **Viewport:** {story.viewport or setup.viewport or omit}
 
@@ -94,7 +93,6 @@ Execute this user story and report results using the agent-browser CLI.
 Instructions:
 - Open the session: `agent-browser --session {story.id} open {story.url}`
 - If `Auth (vault)` is present, run `agent-browser --session {story.id} auth use <vault-name>` immediately after `open` and before the first interactive step.
-- If `Auth (legacy)` is present and no vault is configured, perform the login flow inline using the resolved credentials (navigate to auth.url, fill, submit).
 - If a `Viewport` is set, run `agent-browser --session {story.id} set viewport <w> <h>`.
 - If `Setup` is present, execute its steps first, using the same step semantics as the Steps loop below (locator-first, snapshot-fallback, annotated screenshot). Setup failures are treated like any other step failure (capture trace, stop, report).
 - For each step in the steps array sequentially:
@@ -142,7 +140,6 @@ Execute this user story and report results using the agent-browser CLI.
 **Headed:** {HEADED}
 
 **Auth (vault):** {vault name from story.auth.vault — omit if not present}
-**Auth (legacy):** {resolved url/username/password from auth.yml — omit if not present or if vault was used}
 
 **Workflow:**
 {story.workflow}
@@ -167,8 +164,6 @@ Instructions:
   <!-- REPORT_JSON: {"caveats": ["{observation 1}", "{observation 2}"], "recovered_locators": [{"step_index": {N}, "original_locator": "{old}", "recovered_locator": "{new}", "reason": "{description}"}], "page_inventories": [{"url": "{absolute URL}", "interactive_elements": {"buttons": {N}, "links": {N}, "inputs": {N}, "selects": {N}, "checkboxes": {N}}, "forms": {"count": {N}, "fields_per_form": [{N}, {N}]}, "navigation": {"nav_elements": {N}, "breadcrumbs": {bool}, "tabs": {N}}, "accessibility": {"aria_landmarks": {N}, "heading_levels": [1, 2, 3], "missing_labels": {N}}, "layout": {"viewport_overflow": {bool}, "scroll_height": {N}}}]} -->
   ```
   All three arrays are required keys (use `[]` when empty — never omit). `caveats` is non-empty only when RESULT is `PASS_WITH_CAVEATS`. Legacy stories typically have no `recovered_locators` — use `[]`. `page_inventories` is one entry per unique URL visited; populate it from snapshot data at each URL transition (interactive element counts, form structure, navigation, accessibility, layout details). Keep the entire comment on a single line so downstream parsing can use a simple regex.
-
-**Note (legacy auth):** this prompt receives plaintext credentials in the `Auth (legacy)` field. The LLM sees them. Migrate to Auth Vault (`agent-browser auth set <vault> <user> <pass>`) as soon as possible — the structured prompt above never receives credentials, only the vault name. Treat this template as a deprecated fallback for legacy story files.
 ```
 
 20. **Record start time** for each story when it is dispatched and elapsed time when it completes (wall-clock seconds). Store timing data alongside the result for use in Phase 5.

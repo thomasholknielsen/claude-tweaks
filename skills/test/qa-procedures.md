@@ -92,7 +92,7 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
 
 Before dispatching any tier, resolve auth vault references for stories that require login.
 
-13. **Check auth requirements:** Scan all stories in the run for the story-level `auth: { vault: "<name>" }` field, or for `requires: [auth]` / `setup.auth` blocks (legacy). If none require auth, skip to Phase 3.
+13. **Check auth requirements:** Scan all stories in the run for the story-level `auth: { vault: "<name>" }` field. If none require auth, skip to Phase 3.
 
 14. **Resolve vault references (preferred path):**
     - Collect the set of unique vault names referenced across stories.
@@ -100,12 +100,6 @@ Before dispatching any tier, resolve auth vault references for stories that requ
     - For every referenced vault, confirm it is present in the listing. If a vault is missing, log a warning: `Auth vault '{name}' not configured. Run: agent-browser auth set {name} <username> <password>`. Stories that reference the missing vault are marked `SKIPPED` with reason `missing-auth-vault` and their dependents cascade as `SKIPPED`.
     - The LLM never sees credentials. Vaults store passwords encrypted, locally. The runtime executes `agent-browser --session <story-id> auth use <vault-name>` after `open` and before the first interactive step (see Phase 3 prompt template in `qa-prompts.md`).
 
-15. **Legacy `auth.yml` fallback:** If a story uses the legacy `setup.auth: <profile>` reference and `{STORIES_DIR}/auth.yml` exists:
-    - Read and parse `{STORIES_DIR}/auth.yml`.
-    - Resolve the named profile's `url`, `username`, and `password`. Substitute `${VAR}` references from environment variables.
-    - Surface a one-line migration suggestion in the run summary: `Legacy auth.yml in use — consider migrating to Auth Vault via agent-browser auth set ...`.
-    - Pass the resolved credentials to the qa-agent via the prompt's `**Auth (legacy):**` field. The agent performs the login flow inline as its first step. Vault references take precedence whenever both are present on the same story.
-
-16. **Pre-flight failure handling:** If `agent-browser auth list` itself fails (daemon down, agent-browser not installed), abort the run with the agent-browser doctor recovery hint. Do not attempt per-story workarounds.
+15. **Pre-flight failure handling:** If `agent-browser auth list` itself fails (daemon down, agent-browser not installed), abort the run with the agent-browser doctor recovery hint. Do not attempt per-story workarounds.
 
 → Continue with Phase 3 in `qa-prompts.md`.

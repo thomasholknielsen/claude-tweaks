@@ -2,7 +2,7 @@
 
 Every project-config lever claude-tweaks skills read, in one place — the way `_shared/work-record.md`'s Config Keys table indexes the work-record system's keys. `bin/lib/policy-schema.js` owns the same keys as data (name, type/enum, default) plus `auditPolicy(repoRoot)`, a deterministic validator. If this table and that file disagree, one of them has a bug — fix, don't fork.
 
-`.claude-tweaks/policy.yml` is the canonical home for every lever below. CLAUDE.md remains a legacy fallback wherever a lever's Canonical home cell says so — for the 8 Auto-mode-policy levers specifically, `/claude-tweaks:init` no longer generates those lines (see the "Auto-mode policy" block retirement in `claude-md-template.md`), and Update Mode offers a one-time migration for existing projects that still have them (`skills/init/update-mode.md`'s "Auto-Mode-Policy Migration" section). The one exception is `worktree.always`, which has never had a CLAUDE.md path at all — it's mechanically enforced by `bin/lib/hooks/pre-tool-use.js`, which only ever reads `policy.yml`. The reverse exception also exists: most of the levers listed under "Additional levers" below have no documented `policy.yml` path at all yet — CLAUDE.md is their only current home.
+`.claude-tweaks/policy.yml` is the canonical home for every lever below. `worktree.always` is `policy.yml`-only — it's mechanically enforced by `bin/lib/hooks/pre-tool-use.js`, which never reads CLAUDE.md. The reverse case also exists: most of the levers listed under "Additional levers" below have no documented `policy.yml` path at all yet — CLAUDE.md is their only current home.
 
 ## Worktree & execution
 
@@ -49,7 +49,7 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 
 ## Auto-mode levers
 
-These 8 were, until this spec, generated into every new CLAUDE.md's `## Auto-mode policy` block regardless of whether a project ever customized them — contradicting the very "omit means default" principle documented one section above that block. `/claude-tweaks:init` no longer generates that block; `policy.yml` is the canonical home going forward, with CLAUDE.md honored only for values already written there before this change.
+These 8 resolve from `policy.yml`. `/claude-tweaks:init` does not generate them into CLAUDE.md — omitting a lever means its default, so writing every lever out contradicts the "omit means default" principle.
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|

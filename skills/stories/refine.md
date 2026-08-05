@@ -15,7 +15,7 @@ Refine validates a sample of newly-written stories against the live app, capture
 
 2. For each selected story, validate against the live app using agent-browser:
     a. `agent-browser --session <story-id> open <story.url>` (kebab-case session, derived from the story id).
-    b. If the story declares `auth: { vault: "<name>" }`: `agent-browser --session <story-id> auth use <name>`. Otherwise, if the story uses legacy `setup.auth: <profile>` and `{OUTPUT_DIR}/auth.yml` exists (per `auth-resolution.md`'s Legacy `auth.yml` detection — the project has chosen to keep `auth.yml` rather than migrate): read and parse `auth.yml`, resolve the named profile's `url`/`username`/`password`, and perform the login flow inline (navigate, fill, submit) before proceeding. A story with neither `auth.vault` nor a resolvable legacy profile is unauthenticated for this validation — its subsequent steps are expected to fail for that reason, not a story defect.
+    b. If the story declares `auth: { vault: "<name>" }`: `agent-browser --session <story-id> auth use <name>`. A story with no `auth.vault` is unauthenticated for this validation — its subsequent steps are expected to fail for that reason, not a story defect.
     c. `agent-browser --session <story-id> snapshot -i -c` to get the accessibility tree.
     d. For each step, attempt execution:
        - **Locator resolution:** Run `agent-browser --session <story-id> find <type> <args>` for the step's semantic locator. If `find` returns 0 matches, record failure: `{ storyId, stepIndex, issue: "locator_unresolved", locator }`. If `find` returns >1 matches, record: `{ storyId, stepIndex, issue: "locator_ambiguous", locator, matchCount }` — flag for disambiguation. If exactly 1, capture the resulting `@eN` ref and proceed.

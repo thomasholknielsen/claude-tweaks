@@ -47,7 +47,6 @@ Pipeline config snapshot:
 
 ## /stories
 - AUTO 14:52:08 — Step 6: applied 2 journey link suggestions (mechanical mapping). Files: stories/login.yml, stories/logout.yml.
-- STAGED 14:52:11 — Step 1: legacy v1 stories detected (3 files). Migration deferred. Stage path: `staged/stories-legacy-migration.md`. Surface at Review Console with command: `/claude-tweaks:stories migrate`.
 
 ## /wrap-up
 - AUTO 15:02:18 — Step 4 leftover routing: 2 sections routed to `defer` per policy. Detail: error-handling-edge-cases (cannot finish — external API spec), localization-pass (deferred to spec 45).

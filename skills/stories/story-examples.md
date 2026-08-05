@@ -207,4 +207,3 @@ Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `pro
 
 Locator preference order (Step 3 of `/claude-tweaks:stories`): `testid` > `role + name` > `label` > `placeholder` > `text`.
 
-For the v1 → v2 migration prompt, per-story diff, and regenerated YAML example, read `migration.md` in this skill's directory.

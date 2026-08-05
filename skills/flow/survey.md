@@ -9,7 +9,7 @@ This is the responsible way `/flow` captures the value of low-reversibility work
 
 ## Pipeline Creative Opportunities Survey
 
-Enabled by default in `auto` and `interactive` (the wrapper handles `{skipped}` returns silently). Opt out with the `no-creative` flag (or `creative-survey: off` in CLAUDE.md under `## Auto-mode policy`), mirroring the Depth Opportunities survey's `no-deepen` / `depth-survey: off` mechanics below.
+Enabled by default in `auto` and `interactive` (the wrapper handles `{skipped}` returns silently). Opt out with the `no-creative` flag (or `creative-survey: off` in CLAUDE.md), mirroring the Depth Opportunities survey's `no-deepen` / `depth-survey: off` mechanics below.
 
 The survey produces the **Creative Opportunities** block rendered before Next Actions — ranked recommendations for creative Impeccable commands the user might want to run manually. Flow never invokes these commands automatically.
 
@@ -45,7 +45,7 @@ Decline detection runs only when a prior recommendations cache exists for the sa
 
 ## Pipeline Depth Survey
 
-Enabled by default; opt out with the `no-deepen` flag (or `depth-survey: off` in CLAUDE.md under `## Auto-mode policy`). This is how a hands-off `/flow` run captures the value of `/claude-tweaks:deepen` **responsibly** — it runs the depth *analysis* automatically and surfaces ranked candidates, but never performs an architecture refactor unattended.
+Enabled by default; opt out with the `no-deepen` flag (or `depth-survey: off` in CLAUDE.md). This is how a hands-off `/flow` run captures the value of `/claude-tweaks:deepen` **responsibly** — it runs the depth *analysis* automatically and surfaces ranked candidates, but never performs an architecture refactor unattended.
 
 ### The responsibility boundary (read this first)
 

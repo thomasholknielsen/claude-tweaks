@@ -39,18 +39,6 @@ const POLICY_KEYS = [
   { key: 'merge-check', type: 'boolean', default: true },
 ];
 
-// The 8 levers previously generated into CLAUDE.md's "## Auto-mode policy" block.
-const LEGACY_CLAUDE_MD_LEVER_KEYS = [
-  'unattended-tier',
-  'scope-creep',
-  'overlap',
-  'design-intent',
-  'leftover-default',
-  'auto-fix-threshold',
-  'review-severity-floor',
-  'tidy-aggressiveness',
-];
-
 function readFileSafe(filePath) {
   try {
     return fs.readFileSync(filePath, 'utf8');
@@ -110,20 +98,7 @@ function auditPolicy(repoRoot) {
     }
   }
 
-  const legacyClaudeMdLevers = LEGACY_CLAUDE_MD_LEVER_KEYS
-    .filter((key) => claudeMdEntries[key] !== undefined)
-    .map((key) => {
-      const schemaEntry = schemaByKey.get(key);
-      const value = claudeMdEntries[key];
-      return {
-        key,
-        value,
-        matchesDefault: value === String(schemaEntry.default),
-        isValid: isValidValue(schemaEntry, value),
-      };
-    });
-
-  return { unrecognizedKeys, invalidValues, legacyClaudeMdLevers };
+  return { unrecognizedKeys, invalidValues };
 }
 
 module.exports = { POLICY_KEYS, auditPolicy };

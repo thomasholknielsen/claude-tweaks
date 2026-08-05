@@ -64,7 +64,6 @@ A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-
 |---|---|---|---|---|---|
 | 6 | 157 | /review | 2 severity:medium findings | Unhandled rejection in src/api.ts:180; missing null check in src/auth/session.ts:42 | `spec-157/staged/review-2.patch`, `spec-157/staged/review-3.patch` |
 | 7 | 159 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `spec-159/staged/wrap-up-skill-restructure.md` |
-| 8 | 160 | /stories | Legacy v1 stories detected (3 files) | stories/checkout.yml, stories/profile.yml, stories/settings.yml | Migration: `/claude-tweaks:stories migrate` |
 
 #### Skill updates (from each spec's Step 7)
 

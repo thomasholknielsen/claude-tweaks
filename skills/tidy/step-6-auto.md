@@ -36,7 +36,7 @@ STAGED 11:14:35 — Step 6: absorb proposal for backlog record "{title}" into #4
 
 Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline.
 
-**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from `.claude-tweaks/policy.yml` (see `_shared/policy-schema.md`) as the routing key, falling back to CLAUDE.md's `## Auto-mode policy` block only if `policy.yml` has no such line (legacy fallback for projects that set it there before the policy-schema consolidation). Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
+**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from `.claude-tweaks/policy.yml` (see `_shared/policy-schema.md`) as the routing key. Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
 
 #### Archival compaction (every Standalone-auto firing, any scope)
 

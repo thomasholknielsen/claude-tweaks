@@ -121,7 +121,7 @@ Picking this option never hands over untested instructions. First, run a pre-fli
    `/claude-tweaks:browse`'s conventions directly — the same relationship
    `/claude-tweaks:visual-review` already has with `/claude-tweaks:browse`) and confirm the target
    page actually renders, not just an HTTP 200. If the page requires auth and credentials are
-   already resolvable (Auth Vault / `stories/auth.yml`, the same source `/stories` uses), attempt
+   already resolvable (the Auth Vault, the same source `/stories` uses), attempt
    login too. No configured credentials → skip the login check; reachability/render alone is
    still worth confirming.
 3. Close the session.
