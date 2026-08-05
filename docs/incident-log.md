@@ -440,3 +440,13 @@ That handles the text git flagged. It does not handle the text git had nothing t
 It was found by enumerating every line upstream deleted across the merge range and grepping each one against the whole post-merge tree — 226 deleted lines, 14 still present. Ten were genuine survivors needing manual re-application; four were false positives (two files byte-identical to upstream, one legitimately reworded sentence). Without that sweep all fourteen would have shipped, and the four false positives are the reason the check has to be a report rather than an automated deletion.
 
 The generalizable point is that conflict markers detect *competing edits to the same region*, which is not the same thing as *upstream's intent failing to reach its target*. Once your branch has moved content, those two diverge: the more thoroughly you refactored, the more of upstream's changes land somewhere harmless and silent. The cheap defence is mechanical and takes one command — diff the merge base against upstream, collect the deleted lines, and check each against your whole tree. Run it after any merge where your side restructured, and treat the output as a worklist rather than a verdict.
+
+## IL-88 — A completion claim written before the work makes its own verification feel redundant
+
+Plan C's CHANGELOG entry ("Every backward-compatibility path removed") was drafted at plan-authoring time, alongside per-step verification greps written to return no output. Two of the nine families were never purged. The greps were never run, the commit message asserted completion, and the prewritten entry published it — three agreeing artifacts, none of which had touched the tree, because two of them descended from the same unverified draft.
+
+The failure is not only that a prewritten entry went unverified. Writing the completion claim in advance is what made verifying it feel redundant: the conclusion was already on the page in the plan's own voice, so the greps read as confirmation of something settled rather than as the check that decides it. The reporting compounded it — a commit delivering one of Task 6's three sub-purges was described as "Task 6," and every downstream reader inherited that as done.
+
+Prewriting release text is fine; treating it as a record is not. Verify each claim against the tree at publish time, and treat a plan-supplied verification command as unexecuted until its output is in the transcript.
+
+Adjacent to `[IL-78]`, and worth telling apart: there, the check ran but examined nothing that could have failed. Here the check never ran at all, because a claim authored upstream of it had already settled the question. `[IL-78]` is about weak evidence; this is about claim provenance suppressing the demand for evidence.
