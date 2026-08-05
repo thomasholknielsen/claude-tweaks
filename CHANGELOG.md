@@ -59,7 +59,7 @@ skills so the order really was wrong: the old check passed on every one.
 
 `/help` also gained the two behaviours it had documented but never implemented (#121, #122).
 
-## v6.36.0 — Every backward-compatibility path removed
+## v6.36.0 — Most backward-compatibility paths removed
 
 Nine legacy families and no deprecation policy documented anywhere. The marketplace
 source is an unpinned git URL tracking `main` HEAD, so there were never pinned
@@ -67,9 +67,17 @@ versions in the wild to support.
 
 Removed: the legacy spec-file alias (a bare number resolving to `specs/{N}-*.md`
 alongside `#N`), the `specs/` tracking files, the four `triage-*` policy aliases,
-the `backlog-backend` flag alias, the retired Auto-mode-policy block migration and
-its supporting machinery, the legacy `auth.yml` split and v1 stories format, and
-the legacy-taxonomy scan.
+the `backlog-backend` flag alias, and the legacy-taxonomy scan.
+
+**Correction (2026-08-05).** This entry as first published also claimed the retired
+Auto-mode-policy block migration "and its supporting machinery" and the legacy
+`auth.yml` split and v1 stories format were removed. Neither was — both families
+are still live, and the heading said "Every" when it should have said "Most". The
+entry was written from the plan's prewritten text rather than verified against the
+tree, the exact failure `[IL-71]` describes. Still present: `LEGACY_CLAUDE_MD_LEVER_KEYS`
+and `legacyClaudeMdLevers` in `bin/lib/policy-schema.js`, `### Auto-Mode-Policy
+Migration` in `skills/init/update-mode.md`, and both migration sections in
+`skills/stories/migration.md`. Tracked for completion in #128.
 
 `backlog-backend` was the one that had already crossed into wrong behavior: three
 skills read it, every other consumer silently defaulted to `local-files`, and
