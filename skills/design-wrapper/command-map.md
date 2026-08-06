@@ -52,11 +52,7 @@ The wrapper's `review` mode invokes exactly two commands:
 
 Both run on the changed UI files resolved by the preconditions (Layer 3 sniff). Outputs are merged into a normalized findings list and returned to `/review` as `result: advisory`. The audit findings are also written to `docs/plans/...-audit.json` for later consumption by `polish` mode.
 
-The wrapper's `test` mode (Phase 1) invokes the deterministic CLI:
-
-```bash
-npx impeccable detect --fast --json <files>
-```
+The wrapper's `test` mode (Phase 1) invokes the deterministic CLI exactly as specified in `impeccable-cli.md` ("Invocation"), and derives `pass` / `fail` from its "Advisory-to-result mapping". The flags and the parse are deliberately not restated here — three copies of this contract is what let it drift.
 
 The CLI is not part of the LLM command map — it's a separate Node binary. See `impeccable-cli.md` for invocation details.
 

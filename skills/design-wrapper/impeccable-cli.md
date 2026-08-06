@@ -1,6 +1,7 @@
 # Impeccable CLI — Invocation + JSON Parsing
 
-*Last verified against Impeccable CLI 3.2.1 (2026-07-20), verified directly against live output and the installed package source.*
+<!-- upstream-pin: impeccable-cli@3.5.0 -->
+*Contract pinned to Impeccable CLI 3.5.0 and proven by `tests/impeccable-cli-contract.test.js`, which replays committed fixtures against the installed binary. A prose re-verification pass is not a substitute for running that test: the 3.2.1 stamp this replaces was written in good faith twice while the machine ran 2.1.8, because nothing ever compared the stamp to what was installed (`[IL-89]`).*
 
 Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a deterministic Node binary that scans frontend files for design anti-patterns without LLM cost.
 
@@ -9,15 +10,16 @@ Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a determ
 The wrapper invokes the CLI exactly as:
 
 ```bash
-npx impeccable detect --fast --json <file1> <file2> ... <fileN>
+npx impeccable detect --json <file1> <file2> ... <fileN>
 ```
 
 | Flag | Why |
 |------|-----|
 | `detect` | Subcommand — runs the deterministic anti-pattern scanner |
-| `--fast` | No-op as of CLI 3.x — the detector always full-scans regardless of this flag. Kept in the invocation for now; harmless either way, and removing it is a separate, non-urgent cleanup. |
 | `--json` | Machine-readable output — required for parsing |
 | `<files>` | Space-separated list of files to scan; passed positionally |
+
+`--fast` was removed from this invocation. At the pinned 3.5.0 it is deprecated and ignored, and passing it writes `Note: --fast is deprecated and ignored. The full scan is fast now and runs every rule.` to stderr on every call — noise in a stream the parser reads. At 2.1.8 it was not a no-op at all: it forced regex-only scanning and skipped linked stylesheets entirely, which is the degradation CLI 3.5.0's own release notes describe as turning eighteen findings into one.
 
 ### Arguments resolution
 
@@ -35,13 +37,13 @@ Run the CLI from the project root (the directory containing the spec/CLAUDE.md) 
 
 ### Timeout
 
-Use the Bash tool's default timeout. The CLI is fast (`--fast` flag); a single invocation should complete in well under a minute even for large file lists. If the CLI times out, treat as a transient failure and return:
+Use the Bash tool's default timeout. A single invocation completes in well under a minute even for large file lists. If the CLI times out, treat as a transient failure and return:
 
 ```json
 {
   "mode": "test",
   "skipped": "Impeccable CLI timed out",
-  "install_hint": "Re-run later or invoke manually with `npx impeccable detect --fast --json <files>`"
+  "install_hint": "Re-run later or invoke manually with `npx impeccable detect --json <files>`"
 }
 ```
 
@@ -58,6 +60,7 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
     "name": "AI color palette",
     "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.",
     "severity": "warning",
+    "category": "slop",
     "file": "/project/src/components/Hero.tsx",
     "line": 47,
     "snippet": "from-purple-500 gradient"
@@ -72,59 +75,57 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
 | `antipattern` | string | Yes | Rule identifier (use for de-dup, grouping) |
 | `name` | string | Yes | Short human-readable rule name |
 | `description` | string | Yes | Full explanation of the anti-pattern |
-| `severity` | string | Yes | `warning` (default — most rules) or `advisory` (10 specific rule ids: `repeated-section-kickers`, `numbered-section-markers`, `design-system-color`, `design-system-radius`, `design-system-font-size`, `gpt-thin-border-wide-shadow`, `repeating-stripes-gradient`, `codex-grid-background`, `theater-slop-phrase`, `image-hover-transform`) |
+| `severity` | string | Yes | Informational display value; not the classification axis (see `advisory`). Observed domain: `warning`, `advisory`, `error` — `error` is currently emitted only by rules reachable through the browser/URL engine, not through `detect --json <files>`, so it will not appear in this wrapper's output at the pinned version. |
+| `category` | string | Yes | Rule grouping (e.g. `slop`). Present since at least 3.5.0; useful for dispatch grouping in place of keyword-matching `description`. |
 | `file` | string | Yes | Absolute path (the CLI resolves before scanning) |
 | `line` | integer | Yes | Line number; `0` for file-level findings (the CLI always sets this field, defaulting to `0`) |
 | `snippet` | string | Yes | The matched text/pattern that triggered the finding |
+| `advisory` | boolean | No — present only when `true` | Upstream's own blocking signal. `cli/engine/findings.mjs` stamps this flag from the registry's `advisory: true` key "so every consumer (CLI, JSON, hook) can partition without a registry lookup," and `main.mjs` computes the exit code from it, never from `severity`. This is the field the wrapper classifies on — see [Advisory-to-result mapping](#advisory-to-result-mapping) below. Which rule ids carry it is upstream's data and is deliberately not enumerated here — read the field off the output. Enumerating it is what drifted this file three times. |
 
-### Severity-to-result mapping
+### Advisory-to-result mapping
 
-| Findings present | Wrapper result |
-|-------------------|----------------|
+Derive the result from the **parsed findings' `advisory` field**, never from `severity` and never from the exit code:
+
+| Findings after parsing stdout | Wrapper result |
+|-------------------------------|----------------|
 | None (`[]`) | `pass` |
-| `advisory` only | `pass` (surfaced in output, does not block) |
-| Any `warning` | `fail` (gate fails, caller blocks pipeline) |
+| Every finding has `advisory === true` | `pass` (listed in output, does not block) |
+| Any finding without `advisory === true` | `fail` (gate fails, caller blocks pipeline) |
 
 ### Schema version compatibility
 
-The schema above reflects verified live CLI 3.2.1 output and source. The CLI may evolve. Defensive parsing rules:
+The schema above is the pinned CLI version's real, verified output shape — the pin comment and contract statement at the top of this file, proven by `tests/impeccable-cli-contract.test.js`, are the authority on which version; this section does not restate it. The CLI may evolve.
 
-1. **Unknown finding fields** → ignore (do not fail).
-2. **Top-level JSON is an array** → treat directly as the findings list (this is the real, verified shape).
-3. **Top-level JSON is an object exposing a `findings` array** → use `.findings` as the findings list, ignore other top-level fields (forward-compatibility only — not the current real shape, but cheap to keep in case a future CLI version reintroduces a wrapper).
-4. **`severity` not in `{warning, advisory}`** → treat as `warning` (fail-safe — unknown is more serious, not less).
-5. **Exit code 0** → treat as zero findings, regardless of stdout content (the CLI's own "nothing found" signal).
-6. **Exit code 2** → expect a non-empty JSON array on stdout; parse per rules 1-4 above.
-7. **Any other exit code, or stdout that fails to parse as JSON under rule 6** → malformed output; return:
+### Defensive parsing rules
+
+1. **Parse stdout unconditionally.** `--json` writes the findings array to stdout at the pinned version; stderr carries only diagnostics. Never read findings from stderr.
+2. **The exit code is a whole-run summary of `advisory`, never a per-finding signal.** `main.mjs` sets it via `process.exit(primary.length > 0 ? 2 : 0)`, where `primary` is exactly the findings whose `advisory` flag is not `true` (`isAdvisory()` checks `finding.advisory === true`, the same value stamped in the JSON) — so the exit code and the JSON `advisory` field agree by construction; it is `severity` that can disagree with both (see the note after the parsing rules below for the verified specifics). Still, never derive `pass`/`fail` from the exit code: it can't tell you *which* finding needs surfacing, only whether the run as a whole had one. Always parse stdout and classify each finding by the [Advisory-to-result mapping](#advisory-to-result-mapping) below. Exit code otherwise distinguishes only ran (0 or 2) from crashed (1, a usage error).
+3. **Unknown finding fields** → ignore. `category` was added this way.
+4. **Top-level JSON is an array** → treat directly as the findings list.
+5. **`severity` outside `{warning, advisory, error}`** → informational only; surface a contract-breach note naming the observed value, same as any other unexpected shape (Phase 2's drift auditor is what escalates it). It does not change `pass`/`fail` — classification never reads `severity`, so an unrecognized value has nothing left to decide.
+6. **Exit code 1, or stdout that does not parse as JSON** → malformed; return the skip object below.
 
 ```json
 {
   "mode": "test",
   "skipped": "Impeccable CLI returned malformed output",
-  "install_hint": "Reinstall: `npm install -g impeccable` and verify with `npx impeccable --version`"
+  "install_hint": "Verify the pin: `npx impeccable --version` should print 3.5.0"
 }
 ```
 
-Malformed output is treated as a skip, not a fail — same rationale as availability check.
+Malformed output is a skip, not a fail — same rationale as the availability check.
+
+**Advisory path — fixture-proven.** `tests/fixtures/impeccable-cli/advisory.html` and `tests/fixtures/impeccable-cli/warning.html`, replayed by `tests/impeccable-cli-contract.test.js` on every test run, assert the `severity`/`advisory` divergence live rather than leaving it as a claim read off upstream source. One fixture fires a rule whose registry entry carries `advisory: true` without declaring its own `severity` — the finding reports `severity: "warning"` (the default) and `advisory: true`, and the CLI exits `0`. The other fires a rule whose registry entry declares a `severity` but no `advisory: true` — the finding reports its declared `severity` and carries no `advisory` field at all, and the CLI exits `2`. `severity` and `advisory` are populated from two different, independent registry keys, so they disagree in both directions at the pinned version; which rule ids fall on which side is upstream's data, deliberately not enumerated here for the same reason the `severity` field entry in the field reference above gives.
+
+This is exactly why the wrapper classifies on `advisory` instead of `severity`. The CLI's own `--no-advisory` help text names em-dash overuse (`Suppress advisory findings entirely (e.g. em-dash overuse)`) as its worked example of a non-blocking finding, and that finding's `severity` field reads `"warning"` — a `severity`-keyed mapping would `fail` the gate on exactly the finding upstream calls out as safe to ignore. The opposite direction is just as real: a finding whose `severity` reads `"advisory"` but carries no `advisory: true` flag exits `2` — upstream blocks on it — so a `severity`-keyed mapping would have wrongly passed it. Classifying on `advisory` gets both directions right, because it is the one field the exit code itself is computed from.
 
 ## Sample invocation (canonical)
 
 ```bash
-$ npx impeccable detect --fast --json src/components/Hero.tsx
-[
-  {
-    "antipattern": "ai-color-palette",
-    "name": "AI color palette",
-    "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.",
-    "severity": "warning",
-    "file": "/project/src/components/Hero.tsx",
-    "line": 47,
-    "snippet": "from-purple-500 gradient"
-  }
-]
+$ npx impeccable detect --json src/components/Hero.tsx
 ```
 
-Wrapper returns:
+The CLI's raw stdout for this invocation has the same shape as the sample under "Expected JSON output schema" above — repeating it here added nothing but a second copy to keep in sync, so it isn't restated. What that section doesn't show is what the wrapper hands back after processing the CLI's output:
 
 ```json
 {
@@ -132,14 +133,14 @@ Wrapper returns:
   "result": "fail",
   "files_scanned": 1,
   "findings": [
-    { "antipattern": "ai-color-palette", "name": "AI color palette", "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.", "severity": "warning", "file": "/project/src/components/Hero.tsx", "line": 47, "snippet": "from-purple-500 gradient" }
+    { "antipattern": "ai-color-palette", "name": "AI color palette", "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.", "severity": "warning", "category": "slop", "file": "/project/src/components/Hero.tsx", "line": 47, "snippet": "from-purple-500 gradient" }
   ]
 }
 ```
 
-**Result rules:** Any `severity: warning` sets `result: fail`. Otherwise `result: pass`. `advisory` findings appear in the findings list but never promote the result. Empty findings (`[]`) is a pass.
+**Result rules:** see the [Advisory-to-result mapping](#advisory-to-result-mapping) table above — not restated here. This sample finding carries no `advisory` field, so `result` is `fail`.
 
 ## Open items (tracked in parent design doc)
 
-- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. This schema was last re-verified directly against live CLI output and installed package source on 2026-07-20 (CLI 3.2.1) — that pass found the 3.2.0→3.2.1 *patch* bump had silently added a 10th advisory rule id (`design-system-font-size`) to the field-reference table above, proving "major version bump" is not a sufficient re-verification trigger. Re-verify the same way after any future Impeccable CLI version bump — major, minor, or patch — not just major, the way both the 2026-07-07 and 2026-07-20 drifts were caught.
+- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing rules above handle unknown/missing fields, but a genuinely breaking change (e.g. a new required field, or the `advisory` flag being removed or repurposed) still needs a version pin bump. This used to rely on a human re-verifying by hand after each bump — a 2026-07-20 pass caught a patch bump that had silently added a new advisory rule id, but the same manual process was written in good faith twice while the actually-installed CLI had drifted further still, because nothing compared the stamp to what was installed (`[IL-89]`, see the pin comment at the top of this file). `tests/impeccable-cli-contract.test.js` now does this mechanically: it replays committed fixtures against whatever CLI is actually installed on every test run, so drift is caught structurally instead of depending on someone remembering to re-verify.
 - **Log path** — the wrapper does not currently log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.

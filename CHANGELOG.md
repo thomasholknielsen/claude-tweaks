@@ -20,6 +20,39 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.44.0 — The Impeccable design gate can fail again
+
+`/claude-tweaks:test`'s Impeccable gate had been unable to fail. The installed CLI was
+2.1.8, which writes findings JSON to **stderr** and leaves stdout empty, while
+`skills/design-wrapper/impeccable-cli.md` documented stdout and treated an empty one as
+malformed output. Every real finding therefore fell through to a skip, and skips are not
+failures. The gate returned `pass` on a clean file and `skipped` on a dirty one; the `fail`
+branch was unreachable.
+
+The document claimed verification against CLI **3.2.1** — a version the machine had never
+run. Two deliberate re-verification passes both missed it, because nothing ever compared
+the claim to what was installed (`[IL-89]`). Both the pin and the contract are now
+machine-checked: `tests/impeccable-cli-contract.test.js` replays committed fixtures against
+the installed binary, with stdout and stderr captured separately, and fails when the CLI is
+present at the wrong version rather than skipping. The wrapper's own availability check does
+the same comparison, which is the only pin enforcement a consumer of the published plugin
+ever gets.
+
+The gate also read the wrong field. It classified on `severity`, but upstream's blocking
+decision rides on a separate `advisory` boolean stamped on each finding, and the two are
+near-inverted: a finding can carry `severity: "warning"` with `advisory: true` (upstream
+exits 0, non-blocking) or `severity: "advisory"` with no flag (upstream exits 2, blocking).
+Classifying on `severity` was wrong for 12 of the 59 registry rules in both directions —
+design-token violations on a project with a `DESIGN.md` would have been waved through, while
+em-dash overuse, upstream's own worked example of something safe to ignore, would have
+failed the build. Three independent verifications agreed the advisory path was impossible to
+reproduce before a fourth found the fixture is three lines of HTML (`[IL-90]`).
+
+Alongside: `--fast` is dropped from the invocation (deprecated and ignored at the pin, and it
+writes a deprecation note into a stream the parser reads), the `category` field is documented,
+the enumerated advisory rule-id list is deleted rather than corrected — enumerating upstream's
+data is what drifted the file three times — and three files that restated the invocation now
+point at the one that owns it.
 ## v6.43.0 — `sed -i` no longer walks past the worktree gate (closes #70)
 
 The gate never saw `sed -i` at all. `hooks/hooks.json`'s PreToolUse `Bash` matcher
@@ -97,7 +130,7 @@ them as Drifted and `update <skill>` rewrites the live prompt in place;
 `_shared/routine-template-schema.md` documents the case that recourse cannot reach — a routine
 created outside this skill, with no record.
 
-## v6.41.0 — Every shipped version has a changelog entry, and a gate that keeps it that way
+### Every shipped version has a changelog entry, and a gate that keeps it that way — branch-numbered v6.41.0
 
 This file documented 59 of the 145 versions that had shipped. The other 103 —
 whole features, not only patches — had no entry, and 11 entries named versions
@@ -147,7 +180,7 @@ branch number.
 
 Recorded as `[IL-94]`.
 
-## v6.40.0 — One statement of what the worktree gate covers, pinned to the code (closes #138, #139)
+### One statement of what the worktree gate covers, pinned to the code (closes #138, #139) — branch-numbered v6.40.0
 
 The `worktree.always` gate was widened twice on 2026-07-20 — `c8f929e1` added `git push`
 beside `git commit`, `cab6142b` added Bash `cp`/`mv`/`tee`. Both correct, both tested,
@@ -183,7 +216,7 @@ Found by grepping the *procedure shape* (`git push`, `cp`/`mv`/`tee`), not the k
 `materialize.md` and `review-console.md` never mention the gate, so their defect is silence.
 That sweep turned up the fifth site after four were already known. Recorded as `[IL-93]`.
 
-## v6.39.4 — The worktree gate stops failing open under load (closes #134)
+### The worktree gate stops failing open under load (closes #134) — branch-numbered v6.39.4
 
 `bin/lib/hooks/git-exec.js` ran every git query with a fixed 3000 ms budget and a bare
 `catch { return null }`. That `null` reached `repoInfo()`, which returned `repoRoot: null`,
@@ -235,7 +268,7 @@ here reflexively would have silenced the flake and left the enforcement gap live
 undetectable — the tests were not misbehaving, they were correctly reporting a production
 defect.
 
-## v6.39.3 — Correct the gh-CLI dependency claim; record IL-91
+### Correct the gh-CLI dependency claim; record IL-91 — branch-numbered v6.39.3
 
 Wrap-up findings from the #129 investigation. No behavior change.
 
@@ -252,7 +285,7 @@ Wrap-up findings from the #129 investigation. No behavior change.
   `git show` loop over three refs reported zero matches for a string that was plainly present,
   and nearly pinned #129's root cause on the wrong repository.
 
-## v6.39.2 — One broken journey no longer pins journey-health's rotation (closes #131)
+### One broken journey no longer pins journey-health's rotation (closes #131) — branch-numbered v6.39.2
 
 `journey-health`'s Phase 0 force-picks any journey declaring a `files:` path that no longer
 exists — a certain, judgment-free drift signal, and the right thing to surface ahead of
@@ -313,7 +346,7 @@ The regression test runs the starvation model forward — 90 candidates against 
 threshold, one pick per simulated day — and asserts the full set is covered with no
 repeats. It fails on the old implementation at 31 of 90.
 
-### Routines report which build they resolved (closes #129) — branch-numbered v6.39.0
+## v6.39.0 — Routines report which build they resolved (closes #129)
 
 A scheduled `dispatch next` Routine hard-gated on `gh` being absent — the gate 6.24.0 had
 already replaced with an MCP branch — and described `dispatch/SKILL.md` as having no MCP
@@ -352,7 +385,7 @@ behind #129 first concluded `dispatch`'s gate was still wrong.
 - New regression test asserting all six templates' preambles still match the canonical block
   in `_shared/routine-template-schema.md`, and `[IL-89]` recording the general rule.
 
-## v6.38.3 — journey-health's deleted-file pick fires once per missing set (2026-08-06)
+### journey-health's deleted-file pick fires once per missing set (2026-08-06) — branch-numbered v6.38.3
 
 The #131 fix reached `main` under this number and was then renumbered to 6.39.2
 after a collision, so both versions shipped and both carry it. The write-up is
