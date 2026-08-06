@@ -153,6 +153,13 @@ This applies only where claude-tweaks is a dependency. When this project *is*
 claude-tweaks, the self-reference check above collapses D5 and the finding files
 locally as usual.
 
+**Headless runs.** With no human present, `/claude-tweaks:feedback` cannot
+clear its confirmation gate. Do not drop the finding: file it locally as an
+ordinary record labelled `upstream-candidate`, with the body naming the
+claude-tweaks component and the symptom, so a human can forward it with
+`/claude-tweaks:feedback` later. Never file it as a defect against this
+project's own code.
+
 ## Consumers
 
 | Consumer | How it uses this file |
