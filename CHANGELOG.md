@@ -31,6 +31,41 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.47.0 — Run bookkeeping stops writing to other sessions' runs (closes #62)
+
+When `PIPELINE_RUN_DIR` was absent, hooks resolved "the newest non-terminal run under cwd."
+That is correct while exactly one pipeline run is in flight, and this project runs several
+concurrently as standard practice. Reported from a downstream project: run directories whose
+`events.jsonl` had accumulated commits from three unrelated worktrees, and runs whose issues
+were closed hours earlier still stamped `status: "interrupted"` days later, so the
+session-start hook kept warning about finished work.
+
+The stuck status was self-perpetuating, which is why it never cleared. `session-end` resolved
+a run it did not own, saw a non-`clean` status, and wrote `interrupted` — and that write is
+what makes a run non-terminal, so it kept winning the same fallback for every session that
+followed. Nothing in the loop degrades.
+
+The fix is not a better heuristic. The distinction that mattered is between **reading** a run
+and **writing** to one:
+
+- **Enforcement still reads the newest non-terminal run regardless of owner.** E1's
+  working-directory gate has to resolve runs it does not own — its foreign-session branch
+  exists to warn a bystander that the checkout belongs to someone else's worktree. Scoping
+  resolution to the caller broke that gate the first time it was tried, and the suite caught it.
+- **Everything that writes uses the new ownership-scoped `ctx.ownedRun`.** A run owned by
+  another session is never written to. An unowned run still is — ownership is stamped only by
+  `record-worktree`, so a run that never provisioned a worktree may well be ours — but the
+  event carries `attribution: "fallback"` so a contaminated log stays filterable, and the
+  sticky `interrupted`/`lastEvent` stamps are withheld.
+- `context.js` exports `resolveRun(cwd, env, sessionId)` returning `{dir, attribution}` —
+  `env` / `session` / `fallback`. `resolveRunDir` keeps its signature; called without a session
+  id (as `record-worktree` and `close-run` do, deliberately resolving runs they don't own so
+  they can report that) it behaves exactly as before.
+
+13 tests, each verified by reverting the resolver. Recorded as `[IL-96]`: before letting a
+fallback path write, check whether the write is one of that path's own future inputs — if it
+is, the failure mode is not a wrong value but a latch.
+
 ## v6.45.1 — /code-health sees the files again when run from a worktree (closes #111)
 
 `bin/lib/code-health/scope.js`'s `sourceFiles()` excluded `SKIP_DIRS` by passing `find` a

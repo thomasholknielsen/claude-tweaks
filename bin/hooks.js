@@ -120,9 +120,24 @@ function main(argv) {
   if (!mod || typeof mod.run !== 'function') return 0;
   const input = ctxLib.parseInput(ctxLib.readStdin());
   const cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
+  // Two views of the same runs, because enforcement and bookkeeping want
+  // different things (#62).
+  //
+  // `runDir`/`runState` stay UNFILTERED — the newest non-terminal run. E1's
+  // working-directory gate is about this checkout, not about who owns the run:
+  // its whole foreign-session branch exists to warn a bystander that the
+  // checkout belongs to somebody else's worktree, which it can only do by
+  // resolving a run it does not own.
+  //
+  // `ownedRun` is scoped to the calling session and is what may be WRITTEN to.
+  // The session id comes off the hook payload, not the environment: hook
+  // processes are spawned with the harness's own env, so CLAUDE_CODE_SESSION_ID
+  // is not reliably present here even though `record-worktree` (a Bash-invoked
+  // subcommand, not a hook) can read it.
   const runDir = ctxLib.resolveRunDir(cwd, process.env);
   const runState = runDir ? ctxLib.readRunState(runDir) : null;
-  const out = mod.run({ input, runDir, runState, cwd }) || {};
+  const ownedRun = ctxLib.resolveRun(cwd, process.env, input.session_id);
+  const out = mod.run({ input, runDir, runState, ownedRun, cwd }) || {};
   if (out.json) fs.writeSync(1, JSON.stringify(out.json));
   return typeof out.exit === 'number' ? out.exit : 0;
 }

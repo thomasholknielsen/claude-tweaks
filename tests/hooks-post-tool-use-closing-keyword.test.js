@@ -64,7 +64,7 @@ test('fires even when a runDir IS set (both checks run independently)', () => {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ck-run-'));
   const out = post.run({
     input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "..."' }, cwd: repo },
-    runDir, runState: { status: 'active' }, cwd: repo,
+    runDir, runState: { status: 'active' }, ownedRun: { dir: runDir, attribution: 'session' }, cwd: repo,
   });
   assert.match(out.json.systemMessage, /closing keyword/i);
   // E2's breadcrumb still logs independently, unaffected by the new check:
