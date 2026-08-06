@@ -59,7 +59,7 @@ and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass 
 `--base <ref>` is `merge-check`-only: an optional pre-known merge-base commit or ref the caller
 already has in context (e.g. dispatch's per-group Task agent, which ran `/flow` and set up the
 worktree itself). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
-`$MERGE_BASE` from `$DEFAULT_BRANCH`. Ignored by the other three modes.
+`$MERGE_BASE` from `$INTEGRATION_BRANCH`. Ignored by the other three modes.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
 human-driven `/claude-tweaks:backlog refine` session, or dispatch's per-group Task agent running `/flow`)
@@ -166,26 +166,25 @@ from.
 - **If the caller passed `--base <ref>`** (see Input — e.g. dispatch's per-group Task agent, which
   ran `/flow` and set up the worktree itself, often already knows this value), use it directly:
   `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
-- **Otherwise**, if not already known from context, resolve it dynamically rather than assuming
-  `main` — some projects default to `master`, `trunk`, or another branch name, and this skill runs
-  against whatever project has it installed. `gh` is already a hard dependency of this skill
-  (`grant-check`/`failure-check` both shell out to it), so reuse the same one-liner
-  `skills/dispatch/SKILL.md`'s own auto-merge flow already uses for this:
 
-```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch 2>/dev/null)
-```
+  Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`. `--base <ref>` remains
+  rank 1 of that ladder — a caller that already knows the merge base (dispatch's per-group Task
+  agent, which set up the worktree itself) passes it and skips resolution entirely.
 
-  If `$DEFAULT_BRANCH` comes back empty (no `origin` remote configured, no `gh` auth, or an
-  offline/detached runner), stop here — this is exactly the "inconclusive read" case `## Error
-  Handling` already covers, not a hard crash to let the rest of Gather fail on. Render Step 3
-  directly — `VERDICT: needs-human` / `RATIONALE: {name the specific resolution failure, e.g.
-  "could not resolve this project's default branch via gh api"}` — and skip the rest of this
+  If nothing resolves — no `origin` remote, no `gh` auth, an offline or detached runner — stop
+  here. This is the "inconclusive read" case `## Error Handling` already covers, not a hard crash.
+  Render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {name the specific resolution
+  failure, e.g. "could not resolve this project's integration branch"}`, and skip the rest of this
   mode's procedure.
 
 ```bash
-MERGE_BASE=$(git merge-base "$DEFAULT_BRANCH" HEAD)
+MERGE_BASE=$(git merge-base "$INTEGRATION_BRANCH" HEAD)
 ```
+
+  Measuring from the integration branch rather than the GitHub default is what makes blast radius
+  mean the record's own change. Against a branch that diverged long ago, the merge base is ancient
+  and the diff spans every commit since the fork — which reads as an enormous change and returns
+  `needs-human` for a reason that looks legitimate and isn't (#132).
 
 ```bash
 git diff --numstat "$MERGE_BASE"..HEAD | node -e "
