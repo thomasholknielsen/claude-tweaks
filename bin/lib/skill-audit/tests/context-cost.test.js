@@ -18,7 +18,7 @@ const kb = (b) => (b / 1024).toFixed(1);
 
 test('measureSkills finds every shipped skill', () => {
   const skills = measureSkills(REPO);
-  assert.strictEqual(skills.length, 32);
+  assert.strictEqual(skills.length, 33);
   assert.ok(skills.every((s) => s.bytes > 0));
 });
 

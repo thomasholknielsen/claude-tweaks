@@ -120,7 +120,7 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
     .readdirSync(skillsDir)
     .filter((n) => fs.existsSync(path.join(skillsDir, n, 'SKILL.md')))
     .sort();
-  assert.strictEqual(names.length, 32);
+  assert.strictEqual(names.length, 33);
 
   let total = 0;
   for (const name of names) {
@@ -144,5 +144,9 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   legacy-taxonomy record instead of flagging it". Verified against the
   //   merge base — both are present at the base and absent from the upstream
   //   side, so they were deleted by the purge, not lost in conflict resolution.
-  assert.strictEqual(total, 345);
+  //
+  //   345 -> 352, addition of `skills/feedback/SKILL.md` (learning-routing plan,
+  //   Task 2). A wholly new skill, not a compression pass — its Anti-Patterns
+  //   table contributes 7 rows and nothing elsewhere in the corpus lost a row.
+  assert.strictEqual(total, 352);
 });

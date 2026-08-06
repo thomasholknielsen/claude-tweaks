@@ -23,7 +23,7 @@ function skillNames() {
 const read = (name) => fs.readFileSync(path.join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 
 test('every skill directory with a SKILL.md is discovered', () => {
-  assert.strictEqual(skillNames().length, 32);
+  assert.strictEqual(skillNames().length, 33);
 });
 
 test('every skill carries the canonical compressed interaction directive', () => {
@@ -49,17 +49,17 @@ test('the directive keeps the prefix five existing tests assert on', () => {
 });
 
 const LINEAR_DIAGRAM_SKILLS = [
-  'capture', 'challenge', 'design-wrapper', 'init', 'review',
+  'capture', 'challenge', 'design-wrapper', 'feedback', 'init', 'review',
   'specify', 'stories', 'test', 'version', 'wrap-up',
 ];
 
-test('the 10 linear-diagram skills carry a one-line Lifecycle marker', () => {
+test('the 11 linear-diagram skills carry a one-line Lifecycle marker', () => {
   for (const name of LINEAR_DIAGRAM_SKILLS) {
     assert.match(read(name), /^Lifecycle: .+$/m, `${name} missing Lifecycle marker`);
   }
 });
 
-test('the 10 linear-diagram skills no longer open with a fenced block', () => {
+test('the 11 linear-diagram skills no longer open with a fenced block', () => {
   for (const name of LINEAR_DIAGRAM_SKILLS) {
     const lines = read(name).split('\n');
     const h1 = lines.findIndex((l) => /^# /.test(l));
@@ -71,7 +71,7 @@ test('the 10 linear-diagram skills no longer open with a fenced block', () => {
   }
 });
 
-test('no YOU ARE HERE marker survives in the 10 rewritten skills', () => {
+test('no YOU ARE HERE marker survives in the 11 rewritten skills', () => {
   for (const name of LINEAR_DIAGRAM_SKILLS) {
     assert.ok(!read(name).includes('YOU ARE HERE'), `${name} still has YOU ARE HERE`);
   }

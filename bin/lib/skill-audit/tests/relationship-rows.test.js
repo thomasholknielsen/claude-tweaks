@@ -72,7 +72,7 @@ test('no skill carries a Relationship section any more', () => {
     .readdirSync(skillsDir)
     .filter((n) => fs.existsSync(path.join(skillsDir, n, 'SKILL.md')))
     .sort();
-  assert.strictEqual(names.length, 32);
+  assert.strictEqual(names.length, 33);
 
   for (const name of names) {
     const md = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
