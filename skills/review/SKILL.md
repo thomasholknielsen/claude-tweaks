@@ -250,7 +250,7 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 | 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
 | 3i Doc freshness | low / informational | Never blocks the review. |
 
-**3a subject check.** Classify skill-routed findings via skills/_shared/learning-routing.md — a finding about a claude-tweaks skill is D5, not a project skill update.
+**3a skill-routed entries.** Lens 3a records a `review/skill` ledger entry rather than choosing a destination; `/claude-tweaks:wrap-up` Step 7 classifies it via `skills/_shared/learning-routing.md`, where a finding about a claude-tweaks skill resolves to D5 (upstream) rather than a project skill update. Do not inline this note into the 3a agent prompt — that agent's job is to record, not to route.
 
 **Lens scope, the dispatch contract, and the 3a-3f lens definitions live in `step3-lens-dispatch.md`** in this skill's directory — read it before dispatching. It holds: which lenses each `review-effort` tier puts in scope (fewer at `low` and `medium`, every applicable lens at `high` and above) and the `xhigh`/`max` reasoning nudge; the Working Directory Discipline rule for every `Task()` dispatch in Steps 3, 3.5, and 3.6; the on-disk shared context bundle that keeps full diff content out of this thread; the reproduction-pair dispatch and its `categoriseReproduction` call; per-lens model tiers; and the question list each of lenses 3a-3f reviews against. The canonical agent prompt it tells you to inline (Calibration block + OUTPUT FORMAT) lives in `step3-routing.md`.
 
