@@ -1,5 +1,41 @@
 # Changelog
 
+## v6.39.0 — Routines audit the branch you name, not the GitHub default (closes #132)
+
+Every routine template's prompt opened by telling the cloud agent to resolve its target branch
+from `git remote show origin`'s HEAD pointer. That is the GitHub default branch, which on a
+`dev` → `staging` → `main` model is the one branch nobody develops on. On the reported repo it
+was 102 commits behind the active branch **and 51 ahead of it** — divergent rather than merely
+stale, because urgent fixes are cherry-picked straight onto it. Findings were judged against a
+tree matching neither branch, and fixes already merged to the active branch were re-reported as
+live problems on every firing, with nothing in the report explaining why.
+
+#61 raised this a while back with evidence for `/dispatch` only, and said outright that it could
+not tell whether the health engines were affected. #132 settles it for all four, with cursor
+evidence from the reporting repo: journey-health stayed pinned to a journey whose frontmatter
+declares a missing data file, and that frontmatter entry exists only on the default branch — it
+had already been removed on the active one, where the selector picks a different journey
+entirely.
+
+The preamble now carries a `{{TARGET_BRANCH}}` placeholder that `/claude-tweaks:routine`
+substitutes at instantiation, resolving in precedence order: `--branch`, the template's own
+optional `branch:` field, `routine.branch` in `.claude-tweaks/policy.yml`, a branching model
+documented unambiguously in CLAUDE.md, and finally git — where a current branch that differs
+from the GitHub default is surfaced in the creation preview rather than silently picked. When
+nothing resolves, the substitution reproduces the old wording exactly, so unaffected projects
+see no behavior change. `update` re-resolves too, but with the instantiated record's existing
+`branch` outranking git inference, so a re-sync run from `main` can't quietly re-point a routine
+pinned to `dev`.
+
+Naming the branch was only half of it: the preamble previously told a container that started on
+the wrong branch to fast-forward, never to switch. It now says to check the target branch out.
+
+Existing live routines hold a frozen copy of the prompt they were created from and do not pick
+this up on their own. Each template's `template_version` is bumped, so
+`/claude-tweaks:routine status --all` reports them as Drifted and `update <skill>` rewrites the
+live prompt in place; `_shared/routine-template-schema.md` documents the case that recourse
+doesn't reach — a routine created outside this skill, which has no record to update.
+
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
 `tests/statusline.test.js`'s render-time assertion failed whenever another agent session ran

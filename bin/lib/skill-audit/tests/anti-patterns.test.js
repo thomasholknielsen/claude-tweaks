@@ -144,5 +144,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   legacy-taxonomy record instead of flagging it". Verified against the
   //   merge base — both are present at the base and absent from the upstream
   //   side, so they were deleted by the purge, not lost in conflict resolution.
-  assert.strictEqual(total, 345);
+  //
+  //   345 -> 347, v6.39.0 (#132). Two rows ADDED to routine/SKILL.md, none
+  //   evicted: "Letting a routine's target branch default to the repo's GitHub
+  //   default..." and "Editing a `routine-template.yml` without bumping its
+  //   `template_version`". Confirmed additive for this corpus: `git diff --
+  //   'skills/*/SKILL.md' | grep -E '^-\|'` is empty across the change set, so
+  //   no Anti-Pattern row was evicted anywhere. (The change set does delete one
+  //   `|` row overall — the `prompt` field row in _shared/routine-template-
+  //   schema.md, replaced by an updated one — but that file has no SKILL.md and
+  //   this count never saw it.)
+  assert.strictEqual(total, 347);
 });

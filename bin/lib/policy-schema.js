@@ -11,6 +11,7 @@ const POLICY_KEYS = [
   { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched'], default: 'subagent' },
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree' },
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
+  { key: 'routine.branch', type: 'string' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3 },
   { key: 'automerge-max-lines', type: 'integer', default: 40 },
@@ -71,6 +72,12 @@ function isValidValue(schemaEntry, value) {
       return /^-?\d+$/.test(value);
     case 'enum':
       return schemaEntry.values.includes(value);
+    case 'string':
+      // Non-empty and whitespace-free. Enough to catch a mistyped branch name
+      // ("dev branch") without reimplementing git check-ref-format's full rules
+      // — a name git itself would reject is worth flagging, but this validator
+      // has no repo to resolve the name against.
+      return value.length > 0 && !/\s/.test(value);
     case 'list':
     case 'opaque':
       return true;

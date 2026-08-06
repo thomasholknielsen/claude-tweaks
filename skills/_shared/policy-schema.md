@@ -19,6 +19,7 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 |---|---|---|---|---|
 | `project.maturity` | `policy.yml` (the machine flag; CLAUDE.md's Philosophy section holds a separate narrative description, not this flag) | `/claude-tweaks:init` Phase 3, `/claude-tweaks:build`, `/claude-tweaks:specify` | `greenfield` (absent or invalid value) | `greenfield`/`pre-launch`/`early-production`/`established` — scales `/build`'s test-discipline instruction and `/specify`'s decomposition strategy |
 | `auto-mode` | `policy.yml` or CLAUDE.md — commented-out optional template line, unaffected by this spec | `/claude-tweaks:flow`, `/claude-tweaks:tidy`, `/claude-tweaks:build` standalone | unset (`/flow` still defaults to `auto`) | `default-on`/`default-off` — whether standalone `/build` and unattended `/tidy` firings default to auto mode |
+| `routine.branch` | `policy.yml` (CLAUDE.md also honored — one grep checks both, same idiom as `dispatch-retry-ceiling`. A branching model described in CLAUDE.md *prose*, with no flat key, is a separate source one rank lower) | `/claude-tweaks:routine` (CREATE Step 5.5), substituted into every `skills/*/routine-template.yml` prompt | unset (each firing resolves the repo's GitHub default branch itself) | The branch scheduled cloud Routines check out and audit. Set it on any repo whose active development branch isn't its GitHub default — a `dev` → `staging` → `main` model — where the default is the one branch a routine should *not* be judging |
 
 ## Dispatch & merge
 
