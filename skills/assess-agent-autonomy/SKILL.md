@@ -153,10 +153,14 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 
 ### Step 1: Gather
 
-> **Parallel execution:** Use parallel tool calls aggressively — resolving `$MERGE_BASE` (below)
-> and reading this project's `merge-sensitive-paths`/`automerge-max-lines`/`automerge-max-files`
-> config are independent read-only operations and should run concurrently; only the blast-radius
-> compute at the end of this step depends on both of their outputs.
+> **Parallel execution:** Use parallel tool calls aggressively — the merge-base-and-diff call
+> (below) and reading this project's `merge-sensitive-paths`/`automerge-max-lines`/`automerge-max-files`
+> config are independent read-only operations and should run concurrently; only the threshold
+> comparison at the end of this step depends on both of their outputs. Note the qualifier: it is
+> the **single** call deriving `$MERGE_BASE` and the diff together that runs concurrently with the
+> config read. Do not split that call in two — `$MERGE_BASE` would be empty in the second shell,
+> and an empty base makes `git diff --numstat` report a zero-file blast radius that clears every
+> threshold silently.
 
 The calling agent has just finished this run's build, test, and review — the diff and review
 verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE`
@@ -178,13 +182,15 @@ from.
   failure, e.g. "could not resolve this project's integration branch"}`, and skip the rest of this
   mode's procedure.
 
-Substitute the resolved branch **literally** into the command below — a Bash call gets a fresh
-shell, so a branch name resolved in an earlier call is empty here, and `git merge-base "" HEAD`
-does not fail loudly enough to notice:
-
-```bash
-MERGE_BASE=$(git merge-base {integration-branch} HEAD)
-```
+Substitute the resolved branch **literally** where `{integration-branch}` appears below, and issue
+the derivation and the diff as **one** Bash call. Each Bash invocation gets a fresh shell, so
+`MERGE_BASE` assigned in one call is empty in the next — and the two commands fail in opposite
+directions on an empty value. `git merge-base "" HEAD` exits 128 with `fatal: Not a valid object
+name`, which is loud. `git diff --numstat ""..HEAD` reads `..HEAD` as `HEAD..HEAD` and returns
+**zero lines with exit 0** — a blast radius of 0 files and 0 lines, which clears every
+`automerge-max-*` threshold and verdicts `auto-merge`. Splitting these blocks turns a
+resolution failure into an unconditional approval, which is the failure class this whole
+procedure exists to prevent.
 
   Measuring from the integration branch rather than the GitHub default is what makes blast radius
   mean the record's own change. Against a branch that diverged long ago, the merge base is ancient
@@ -192,6 +198,7 @@ MERGE_BASE=$(git merge-base {integration-branch} HEAD)
   `needs-human` for a reason that looks legitimate and isn't (#132).
 
 ```bash
+MERGE_BASE=$(git merge-base {integration-branch} HEAD)
 git diff --numstat "$MERGE_BASE"..HEAD | node -e "
 const fs = require('fs');
 let input = '';

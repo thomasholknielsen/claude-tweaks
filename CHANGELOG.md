@@ -1,5 +1,25 @@
 # Changelog
 
+Every version this plugin has shipped, newest first. "Shipped" means a value the
+`version` field in `.claude-plugin/plugin.json` held at the tip of `main` — the
+marketplace `source` is an unpinned git URL, so an install tracks that tip, and
+every distinct value it reported is a build someone could be running.
+`tests/changelog-coverage.test.js` fails the suite if any of them is missing here.
+
+Two conventions follow from how this repo works, and both are visible below:
+
+- **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
+  developed and written up under one number but reached users under another,
+  because a concurrent worktree session claimed the number first (`[IL-12]`).
+  `main`'s tip never reported the branch number, so the entry lives under the
+  build that actually carried it. The original write-up is kept verbatim.
+- **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
+  commit history rather than written at release time — the changelog step was
+  not part of the release convention until v6.41.0, and 103 of the first 145
+  releases went undocumented (`[IL-94]`). They are summaries of what each version
+  contained, not contemporaneous release notes, and they are thinner than the
+  entries written since.
+
 ## v6.42.0 — Routines and merges follow the branch you name, not the GitHub default (closes #132)
 
 Four places independently resolved "which branch is this project's current state" — which tree a
@@ -39,26 +59,6 @@ their own. Every `template_version` is bumped, so `/claude-tweaks:routine status
 them as Drifted and `update <skill>` rewrites the live prompt in place;
 `_shared/routine-template-schema.md` documents the case that recourse cannot reach — a routine
 created outside this skill, with no record.
-
-Every version this plugin has shipped, newest first. "Shipped" means a value the
-`version` field in `.claude-plugin/plugin.json` held at the tip of `main` — the
-marketplace `source` is an unpinned git URL, so an install tracks that tip, and
-every distinct value it reported is a build someone could be running.
-`tests/changelog-coverage.test.js` fails the suite if any of them is missing here.
-
-Two conventions follow from how this repo works, and both are visible below:
-
-- **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
-  developed and written up under one number but reached users under another,
-  because a concurrent worktree session claimed the number first (`[IL-12]`).
-  `main`'s tip never reported the branch number, so the entry lives under the
-  build that actually carried it. The original write-up is kept verbatim.
-- **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
-  commit history rather than written at release time — the changelog step was
-  not part of the release convention until v6.41.0, and 103 of the first 145
-  releases went undocumented (`[IL-94]`). They are summaries of what each version
-  contained, not contemporaneous release notes, and they are thinner than the
-  entries written since.
 
 ## v6.41.0 — Every shipped version has a changelog entry, and a gate that keeps it that way
 
