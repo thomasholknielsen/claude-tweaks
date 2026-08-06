@@ -37,7 +37,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 
 ## Numbering rules
 
-Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Queue writes section (a tenth, separate section there, never counted into its nine named batch sections). Do not restart either sequence per spec or per section.
+Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Three sections sit outside that global sequence because they require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s own three per-item sections (never counted into its nine named batch sections): **Queue writes** use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own. **Memory updates** use a separate `M`-prefixed sequence (`M1`, `M2`, …) — aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own. **Upstream feedback** uses a separate `U`-prefixed sequence (`U1`, `U2`, …) — aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own. Do not restart any of the four sequences per spec or per section.
 
 ## Present the consolidated console
 
@@ -108,6 +108,26 @@ Render this section only when leftover routing, the ledger resolve gate (`staged
 
 Below each row, show the full staged file content for the item so the user can see exactly what will be filed. Omit the section entirely when no spec (and no parent-level proposal) staged a record proposal.
 
+#### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+
+Render this section only when any spec's Step 7.10 (or the parent run dir's own) staged a memory-file proposal (`staged/wrap-up-memory-*.md`). Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s memory-write row, exactly as `wrap-up/review-console.md`'s Memory updates section. A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project.
+
+| M# | Spec | Name | Type | Fact | Index line | Patch |
+|---|---|---|---|---|---|---|
+| M1 | 157 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `spec-157/staged/wrap-up-memory-1.md` |
+
+Below each row, show the full staged file content for the item so the user can see exactly what would be written. Omit the section entirely when no spec (and no parent-level proposal) staged a memory proposal.
+
+#### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+
+Render this section only when any spec's Step 7.11 (or the parent run dir's own) staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`). Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s upstream-filing row, exactly as `wrap-up/review-console.md`'s Upstream feedback section. Filing publishes privately-derived content to a public repository; the body shown is already scrubbed.
+
+| U# | Spec | Kind | Component | Summary | Patch |
+|---|---|---|---|---|---|
+| U1 | 157 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `spec-157/staged/wrap-up-upstream-1.md` |
+
+Below each row, show the full staged file content for the item so the user can see exactly what would be published. Filing happens after approval by invoking `/claude-tweaks:feedback` per approved row. Omit the section entirely when no spec (and no parent-level proposal) staged an upstream proposal.
+
 #### Not run / Failed (if any spec didn't complete cleanly)
 
 | Spec | Status | Reason | Worktree |
@@ -136,14 +156,14 @@ Immediately after presenting the console tables above, call `AskUserQuestion` wi
 
 If "Override specific items" is chosen, the skip/modify list is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field.
 
-Queue writes (Q1, Q2, …) are handled separately from the three terminal options above — they are never part of that decision, regardless of which option is chosen. After the user selects option 1 or 2, prompt the queue writes individually — one small `AskUserQuestion` call per `Q#` item, issued separately (never batched into a single call, and never batched across specs).
+Queue writes (Q1, Q2, …), Memory updates (M1, M2, …), and Upstream feedback (U1, U2, …) are all handled separately from the three terminal options above — none of them is ever part of that decision, regardless of which option is chosen. After the user selects option 1 or 2, prompt each per-item row individually — one small `AskUserQuestion` call per `Q#`/`M#`/`U#` item, issued separately (never batched into a single call, and never batched across specs or across sections).
 
-For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → new record, parked (trigger: /auth provider docs land), spec 157: \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
-- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""`
+For each `Q#`, `M#`, or `U#` item, call `AskUserQuestion` with `question`: the item's own line (e.g. for a queue write, `"Queue write Q1 → new record, parked (trigger: /auth provider docs land), spec 157: \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"` (or `"Memory update {M#}"` / `"Upstream feedback {U#}"`), `multiSelect`: `false`:
+- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""` for a queue write, `"Write the memory file: \"{name}\""` for a memory update, `"File the issue: \"{summary}\""` for upstream feedback
 - Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
 - Option 3 — `label`: `"Edit"`, `description`: `"Modify before creating"`
 
-None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, mirroring `wrap-up/review-console.md`'s Queue writes prompt exactly (see that file for the full worked example and the `Other`-field override note).
+None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, mirroring `wrap-up/review-console.md`'s three per-item sections exactly (see that file for the full worked examples and the `Other`-field override note).
 
 ## Preflight
 
@@ -202,7 +222,7 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 - The console MUST present every entry from every per-spec `decisions.md` AND the parent run dir's `decisions.md` (auto-applied + staged + kept-prompt + scanned), and every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`. Silently dropping any item is forbidden.
 - The `Spec` column is mandatory in every table — the user must be able to trace any row to its originating spec for context.
 - The `Not run` footer is mandatory when any spec was skipped due to a HARD-GATE earlier in the pipeline — those specs' contexts are explicit, not buried.
-- **Queue writes are per-item only.** Never group them under "Approve all," and never batch two `Q#` items (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rule for work-record creation, the same as `wrap-up/review-console.md`'s Queue writes section (its tenth, separate section).
+- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items from the same per-item section — `Q#`, `M#`, or `U#` — (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing, the same as `wrap-up/review-console.md`'s three per-item sections.
 
 ## Anti-Patterns
 
@@ -212,4 +232,4 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 | Aggregating across runs (e.g., yesterday's spec + today's spec in one console) | Each `/flow` invocation has its own parent run dir. The consolidated console is scoped to one `/flow` invocation only. |
 | Omitting the `Spec` column to keep the table narrow | Spec attribution is the whole point of the consolidated view. Wide tables wrap; the column stays. |
 | Replacing per-spec audit trails with a merged `decisions.md` | The per-spec subdirectories are the audit trail. Merging discards the spec attribution and makes archive review harder. The consolidated console *reads* multiple per-spec files; it does not *replace* them. |
-| Bulk-approving queue writes under "Approve all" or "Override" | Work-record creation is never silenced by `auto` (`_shared/auto-mode-contract.md`). Each `Q#` item requires its own `AskUserQuestion` call, aggregated across specs but never grouped — the same contract `wrap-up/review-console.md`'s Queue writes section (its tenth, separate section) enforces for a single-spec run. |
+| Bulk-approving queue writes, memory updates, or upstream feedback under "Approve all" or "Override" | Work-record creation, memory writes, and upstream filing are never silenced by `auto` (`_shared/auto-mode-contract.md`). Each `Q#`, `M#`, or `U#` item requires its own `AskUserQuestion` call, aggregated across specs but never grouped — the same contract `wrap-up/review-console.md`'s three per-item sections enforce for a single-spec run. |

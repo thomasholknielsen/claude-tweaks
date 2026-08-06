@@ -120,7 +120,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 ## Numbering rules
 
 - The console has **up to nine named batch sections** — Auto-applied, Pending review, Low-confidence findings, Contested findings, Skill updates, Documentation updates, Journey updates, Configuration updates, Cleanup actions (the two coordination-derived sections — Low-confidence findings, Contested findings — render only when non-empty — see `wrap-up/SKILL.md`'s own "up to nine sections" summary of this same console). Together they use a **single global sequence** starting at #1: every row across every present section has a unique number, with no restart between sections.
-- Queue writes is a tenth, separate section. It uses its own **`Q`-prefixed sequence** (`Q1`, `Q2`, …) because those items require per-item approval and are NOT part of the global "Approve all" choice — it is never counted into the nine batch sections above.
+- Three sections sit outside the global sequence because they require per-item approval and are NOT part of the global "Approve all" choice: **Queue writes** (`Q1`, `Q2`, …), **Memory updates** (`M1`, `M2`, …), and **Upstream feedback** (`U1`, `U2`, …). Each uses its own prefixed sequence, and none is ever counted into the nine batch sections above.
 - This applies to both the example below and any real Console output. Do not restart numbering within the global sequence.
 
 ## Unattended-tier auto-file (runs before rendering)
@@ -244,17 +244,17 @@ file; this table only needs enough to render the prompt.
 
 #### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-| # | Name | Type | Fact | Index line | Patch |
+| M# | Name | Type | Fact | Index line | Patch |
 |---|---|---|---|---|---|
-| 13 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `staged/wrap-up-memory-1.md` |
+| M1 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `staged/wrap-up-memory-1.md` |
 
 > A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project. `_shared/auto-mode-contract.md` lists it as not silenced by `auto`.
 
 #### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-| # | Kind | Component | Summary | Patch |
+| U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
-| 14 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
+| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
 
 > Filing publishes privately-derived content to a public repository. The body shown is already scrubbed; approving files it via `/claude-tweaks:feedback`.
 
