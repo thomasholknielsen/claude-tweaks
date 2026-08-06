@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const SKILLS_DIR = path.join(__dirname, '..', 'skills');
 const FRAGMENT = '_shared/integration-branch.md';
+const RESOLVER = /default_branch|remote show origin|refs\/remotes\/origin\/HEAD/;
 
 // Any file naming the GitHub default branch is answering "which branch is this
 // project's current state" — unless it is on this list, which states why not.
@@ -34,7 +35,7 @@ test('every file resolving the GitHub default branch cites the shared fragment o
   for (const file of walk(SKILLS_DIR)) {
     const rel = path.relative(SKILLS_DIR, file);
     const text = fs.readFileSync(file, 'utf8');
-    if (!/default_branch|remote show origin/.test(text)) continue;
+    if (!RESOLVER.test(text)) continue;
     if (ALLOWLIST.has(rel)) continue;
     if (text.includes(FRAGMENT)) continue;
     offenders.push(rel);
@@ -55,7 +56,7 @@ test('the allowlist has no stale entries', () => {
       continue;
     }
     const text = fs.readFileSync(full, 'utf8');
-    if (!/default_branch|remote show origin/.test(text)) {
+    if (!RESOLVER.test(text)) {
       stale.push(`${rel} (no longer resolves a default branch — drop the entry)`);
       continue;
     }

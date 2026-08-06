@@ -22,9 +22,14 @@ surfaces a mismatch loudly rather than letting it pass silently.
    ```
 
 1. **Pre-flight merge check** — read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
+
+   Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` first — when set it names the expected fork point directly, replacing the upstream-then-`origin/HEAD` guess.
+
    ```bash
-   # Upstream of current branch, else remote default branch (origin/HEAD)
-   UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
+   # Integration branch when set (skills/_shared/integration-branch.md), else the
+   # upstream of the current branch, else the remote default branch (origin/HEAD).
+   UPSTREAM="${INTEGRATION_BRANCH:+origin/$INTEGRATION_BRANCH}"
+   [ -n "$UPSTREAM" ] || UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
      || UPSTREAM="origin/$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
    git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
    ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
