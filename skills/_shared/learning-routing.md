@@ -158,7 +158,7 @@ locally as usual.
 | Consumer | How it uses this file |
 |---|---|
 | `/claude-tweaks:reflect` | Routes each insight through the classifier instead of its own destination table |
-| `/claude-tweaks:wrap-up` | Steps 6/7 classify before writing; Steps 7.10/7.11 own the D4/D5 stage-and-surface |
-| `/claude-tweaks:review` lens 3a | Classifies skill-routed findings |
+| `/claude-tweaks:wrap-up` | Step 6 classifies each candidate before collecting it (`config-updates.md` 6.1); Step 7 classifies each ledger-entry seed before seeding it (`skill-curation.md` 7.1); Steps 7.10/7.11 own the D4/D5 stage-and-surface |
+| `/claude-tweaks:review` lens 3a | Records a `review/skill` ledger entry; does not classify itself — `/claude-tweaks:wrap-up` Step 7 classifies it afterward |
 | `/claude-tweaks:build` Common Step 4.5 | Classifies architecture-alignment learnings |
 | health sweeps | A finding whose subject is a claude-tweaks skill routes to D5 rather than a project issue |

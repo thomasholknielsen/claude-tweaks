@@ -148,5 +148,12 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   345 -> 352, addition of `skills/feedback/SKILL.md` (learning-routing plan,
   //   Task 2). A wholly new skill, not a compression pass — its Anti-Patterns
   //   table contributes 7 rows and nothing elsewhere in the corpus lost a row.
-  assert.strictEqual(total, 352);
+  //
+  //   352 -> 351, removal of `skills/feedback/SKILL.md`'s "Dropping a payload
+  //   when `gh` fails" row (learning-routing plan, Task 6b, Step 6). The row's
+  //   Why-column named a retry queue that never existed — no `bin/feedback.js`,
+  //   nothing drains it — so the row was deleted rather than reworded, per the
+  //   task brief's explicit instruction. feedback/SKILL.md now contributes 6
+  //   rows (was 7); no other row in the corpus was touched.
+  assert.strictEqual(total, 351);
 });

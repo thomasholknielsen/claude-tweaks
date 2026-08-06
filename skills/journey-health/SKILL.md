@@ -208,6 +208,10 @@ Before filing, bootstrap only the label families this run applies, with real des
 
 Each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json` carries structured fields, not just the GitHub issue text — `id`, `journey`, `category`, `section`, `severity`, `confidence` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
 
+**Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
+
+**Headless runs.** With no human present, `/claude-tweaks:feedback` cannot clear its confirmation gate. Do not drop the finding: file it locally as an ordinary record labelled `upstream-candidate`, with the body naming the claude-tweaks component and the symptom, so a human can forward it with `/claude-tweaks:feedback` later. Never file it as a defect against this project's own code.
+
 For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/journey-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
@@ -216,8 +220,6 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 ```
 
 `<issue_number>` is that cache entry's `issue` field.
-
-**Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
 
 **Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `journey-health` row for the table columns and the Recommended pre-fill rule.
 

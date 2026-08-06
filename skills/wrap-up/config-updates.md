@@ -6,6 +6,8 @@ Loaded by `/claude-tweaks:wrap-up` Step 6 when that step's fast-lane pre-check d
 
 ### 6.1: CLAUDE.md and Rules
 
+**Classify before collecting.** Run each candidate through `skills/_shared/learning-routing.md` first. Only a **D1** outcome belongs here. A candidate resolving to D4 or D5 is *not* a CLAUDE.md rule — hand it to Step 7.10 or 7.11 and do not collect it, or Step 7.10's "not already routed by Steps 6-7.9" scope will skip it permanently.
+
 CLAUDE.md describes **how to work in this codebase** — patterns to follow, commands to run, conventions to respect, mistakes to avoid. Every update must describe something that exists and is actively used, not aspirational improvements.
 
 Check if the work introduced project-wide conventions:

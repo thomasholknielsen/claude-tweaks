@@ -192,9 +192,11 @@ why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `effort:*`),
 which belongs to records that moved through its in-repo pipeline.
 
-On failure, enqueue the payload to the retry queue rather than dropping it, per
-`_shared/health-filing-mechanics.md`'s retry-drain shape. An entry that stays
-stuck escalates as a `feedback:filing-failed` issue.
+On failure, do not silently drop the payload. Report the `gh` error verbatim,
+write the drafted body to the run directory's `staged/` as
+`wrap-up-upstream-{N}-unfiled.md` when a run directory exists, and tell the
+user the filing did not happen and the draft is preserved. There is no
+automatic retry for upstream filings.
 
 ### Step 9: Report
 
@@ -231,4 +233,3 @@ silence this skill — see `_shared/auto-mode-contract.md`.
 | Applying a label `gh label list` did not confirm | Guessing risks importing the repo's internal automation taxonomy from outside its pipeline |
 | Skipping the scrub because the reporting project "looks fine" | The scrub is unconditional; the cost of one leak exceeds the cost of every scrub |
 | Filing when `git remote` shows claude-tweaks itself | Self-filing duplicates a record the project should hold directly |
-| Dropping a payload when `gh` fails | The retry queue exists so a transient failure does not silently lose the learning |

@@ -95,6 +95,8 @@ Mode-specific lens procedures live in sub-files (a given invocation only uses on
 
 When a pipeline run directory exists, route findings by category without prompting:
 
+**Classify first.** Route every insight through `skills/_shared/learning-routing.md` before applying any row below. A D4 (memory) or D5 (upstream) outcome is staged for approval and never auto-applied, regardless of what the rows below would otherwise do.
+
 | Finding type | Default routing | Log entry |
 |---|---|---|
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |

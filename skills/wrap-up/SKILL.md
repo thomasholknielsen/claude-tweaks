@@ -242,6 +242,12 @@ STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibili
 The stage file holds the complete proposed memory file plus its `MEMORY.md`
 index line, so the Review Console can show exactly what would be written.
 
+Surfaces at the Wrap-Up Review Console (Step 8.6), or — in interactive mode
+and standalone wrap-up, where Step 8.6 does not run — as its own per-item
+batch decision presented before Step 9's summary. Standalone wrap-up has no
+run directory: stage in-memory and present the same per-item decision rather
+than writing to `staged/`.
+
 **Skip entirely** when the invoking assistant's system prompt states no memory
 directory for this project — D4 is unavailable, and the contract re-runs the
 classifier from rule 4.
@@ -265,8 +271,17 @@ STAGED {time} — Step 7.11: upstream {defect|gap} report proposed for {componen
 ```
 
 The stage file holds the fully drafted **and already scrubbed** body, so the
-Review Console shows exactly what would be published. Filing happens in Step 10
-by invoking `/claude-tweaks:feedback` per approved row.
+Review Console shows exactly what would be published. Filing happens when the
+item is approved — at the Review Console's `On approval` step (Step 8.6) or
+its per-item batch-decision equivalent below (interactive mode, standalone
+wrap-up) — by invoking `/claude-tweaks:feedback` per approved row. Step 10
+only confirms the filing landed; see `execution-and-verification.md`.
+
+Surfaces at the Wrap-Up Review Console (Step 8.6), or — in interactive mode
+and standalone wrap-up, where Step 8.6 does not run — as its own per-item
+batch decision presented before Step 9's summary. Standalone wrap-up has no
+run directory: stage in-memory and present the same per-item decision rather
+than writing to `staged/`.
 
 **Mandatory summary**, emitted every run regardless of outcome:
 
@@ -307,7 +322,7 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 **Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to Step 9.
 
-Empty-console fast path: skip the console entirely and proceed to Step 9 when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes are pending).
+Empty-console fast path: skip the console entirely and proceed to Step 9 when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending).
 
 **Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, the Auto-merge short-circuit, the full console template with all nine section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement — when **either** holds:
 
@@ -332,7 +347,7 @@ Next Actions are rendered as a top-level `## Next Actions` section after Step 10
 
 Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`, filtered by Condition) plus the configuration, documentation, skill, and acceptance-labeling actions approved at the Review Console (Step 8.6) or the Step 9 batch decision — then verify each one landed before the closure line is emitted.
 
-**Gate the read.** Read `execution-and-verification.md` in this skill's directory — the `--dry-run` preview branch, the `MULTISPEC_REVIEW_DEFER` skip list, the full apply list (documentation, CLAUDE.md/rules, D2 new docs, docs-health restructural filings, ADRs, skill updates, and acceptance labeling with its own gated read of `verification-brief.md`), the closing-keyword carrier commit, and the Verify-execution checklist — when at least one approved action exists: a cleanup row surviving Step 5's Condition filter, an approved configuration / documentation / skill update, or record-mode acceptance labeling. When Step 5 reported "No cleanup actions apply" and nothing else was approved, report "No actions to execute" and skip the read — there is nothing to commit or verify.
+**Gate the read.** Read `execution-and-verification.md` in this skill's directory — the `--dry-run` preview branch, the `MULTISPEC_REVIEW_DEFER` skip list, the full apply list (documentation, CLAUDE.md/rules, D2 new docs, docs-health restructural filings, ADRs, skill updates, and acceptance labeling with its own gated read of `verification-brief.md`), the closing-keyword carrier commit, and the Verify-execution checklist — when at least one approved action exists: a cleanup row surviving Step 5's Condition filter, an approved configuration / documentation / skill update, an approved memory write or upstream filing, or record-mode acceptance labeling. When Step 5 reported "No cleanup actions apply" and nothing else was approved, report "No actions to execute" and skip the read — there is nothing to commit or verify.
 
 ## Important Notes
 

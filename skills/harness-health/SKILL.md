@@ -131,6 +131,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings "${FINDINGS
 
 **Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
 
+**Headless runs.** With no human present, `/claude-tweaks:feedback` cannot clear its confirmation gate. Do not drop the finding: file it locally as an ordinary record labelled `upstream-candidate`, with the body naming the claude-tweaks component and the symptom, so a human can forward it with `/claude-tweaks:feedback` later. Never file it as a defect against this project's own code.
+
 Read `filing.md` in this skill's directory and apply it. It owns the whole filing procedure: the classification-to-scoring fold (`additive` -> `risk:low`/`effort:low`, `restructural` -> `risk:medium`/`effort:high`, `new-skill` unscored by design), the born-`ready` rule, the retry-queue drain and regressed-reopen mechanics (`_shared/health-filing-mechanics.md`'s canonical shape, as `{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`), label bootstrapping, the interactive file-all/route-individually gate (`_shared/health-filing-gate.md`), and the `work-types` Type-expression branch. `/harness-health` never edits anything directly — it only judges and files.
 
 **Step 8 — SUMMARIZE.**

@@ -183,6 +183,8 @@ Each payload in `/tmp/docs-health-payloads.json` carries structured fields direc
 
 **Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
 
+**Headless runs.** With no human present, `/claude-tweaks:feedback` cannot clear its confirmation gate. Do not drop the finding: file it locally as an ordinary record labelled `upstream-candidate`, with the body naming the claude-tweaks component and the symptom, so a human can forward it with `/claude-tweaks:feedback` later. Never file it as a defect against this project's own code.
+
 **Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `docs-health` row for the table columns and the Recommended pre-fill rule.
 
 **Headless (Routine) runs skip this gate entirely** — do not read that file — per `_shared/health-filing-gate.md`'s applicability rule; every surviving finding files automatically, with no human to route it through a table.
