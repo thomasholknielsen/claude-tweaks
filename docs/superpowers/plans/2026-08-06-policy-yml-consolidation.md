@@ -718,7 +718,11 @@ Take the next free **minor** (this is a feature addition). **Treat any number wr
 
 If another session ships `6.45.0` while these tasks run, renumber rather than arguing — the number belongs to whatever ships first, and the plan's own history here is the argument for checking twice.
 
-- [ ] **Step 4: Bump and write the CHANGELOG entry in one commit**
+- [ ] **Step 4: Bump, write the CHANGELOG entry, and record the shipped version — one commit**
+
+**The release convention gained a step while this plan was executing.** `origin/main` v6.45.0 (#144, `[IL-95]`) replaced the `git rev-list --first-parent` reconstruction of "what shipped" with a recorded file, because the walk was unstable rather than merely lossy — a branch that merges `main` into itself and is then pushed as `main` moves everything since the fork point onto the merge's second parent, where the walk never looks, so versions *leave* the set as later merges land. That is this repo's normal working mode, and it is why the changelog gate was red for most of this plan's execution and is green now.
+
+So the bump commit owes **three** files here, not two: append `{version}\t{YYYY-MM-DD}\trelease` to `docs/shipped-versions.tsv` alongside the manifest bump and the CHANGELOG entry. `tests/changelog-coverage.test.js` fails when the manifest's version is missing from that file, so this cannot be deferred.
 
 Edit `.claude-plugin/plugin.json`'s `version`. Add to `CHANGELOG.md`, directly under the `# Changelog` header, in exactly this heading shape — `bin/lib/changelog.js`'s parser requires the strict `X.Y.Z` and the em-dash, and `tests/changelog-coverage.test.js` fails the suite without it:
 

@@ -31,6 +31,36 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.48.0 — policy.yml is the single home for project config
+
+`.claude-tweaks/policy.yml` is now the only file claude-tweaks reads for config keys.
+Before this, eight levers were readable from either CLAUDE.md or `policy.yml`, four more
+were documented as CLAUDE.md-only, and one — `merge-sensitive-paths` — was documented as
+`policy.yml`-only while the skill that reads it grepped CLAUDE.md anyway.
+
+- Every lever in `_shared/policy-schema.md` resolves from `.claude-tweaks/policy.yml`. The
+  five remaining dual-read greps now name one file, and pick up the inline-comment strip the
+  rest of the codebase already used — a value like `5  # raised for the migration` no longer
+  carries its comment into the command it is interpolated into.
+- `depth-survey`, `creative-survey`, `backlog-fetch-limit`, and `promise-register-min-leaves`
+  gain the `policy.yml` path they never had. Defaults are unchanged.
+- `auditPolicy()` stops validating CLAUDE.md values and starts reporting recognized keys found
+  there under a new `migratableKeys` field. A value in a file nobody reads cannot be wrong,
+  only misplaced — so the remedy is to move the key, not correct the value.
+- `/claude-tweaks:init --update` gains a **Config Home Drift** check that shows a diff and
+  offers to move those keys, removing only exactly-matched lines. It is a staged offer, never
+  an autonomous edit: CLAUDE.md is the file users hand-tune most, and `parseFlatLines`
+  deliberately matches key-shaped lines inside fenced blocks, so a CLAUDE.md that *documents*
+  these levers can produce rows that must not be applied.
+- `/claude-tweaks:harness-health`'s policy check reports migrations alongside unrecognized
+  keys and invalid values.
+
+**If your project sets levers in CLAUDE.md, run `/claude-tweaks:init --update`.** Those keys
+stop applying in this release; the check finds them and offers the move. The work-record keys
+`work-backend`, `work-types`, and `record-staleness-weeks` are unaffected and stay in
+CLAUDE.md — `_shared/work-record-config.md` states why, and they are absent from `POLICY_KEYS`
+so the migration never touches them.
+
 ## v6.45.1 — /code-health sees the files again when run from a worktree (closes #111)
 
 `bin/lib/code-health/scope.js`'s `sourceFiles()` excluded `SKIP_DIRS` by passing `find` a
