@@ -45,6 +45,18 @@ already exists there:
 
 Two subsystems wrote the same lesson twice because neither can see the other.
 
+Worse than duplication: in several cases the memory holds a **strictly better
+version** of a rule that ships, and the improvement never merged back.
+
+| Shipped rule | Memory file | What the memory adds |
+|---|---|---|
+| CLAUDE.md: *"Don't dispatch agents that run `git`… require `cd "$WORKTREE"` plus a `pwd` + `git rev-parse` check before commit"* | `subagent-worktree-dispatch-verification` | **"and again before the first edit"** — the commit-time check alone lets a wrong-checkout edit land first |
+| `[IL-16]` run planned greps against the after-state | `plan-self-check-verification` | *"recurred a 5th time (3 instances in one plan)"* — a recurrence count the rule does not carry |
+| `[IL-07]` don't trust a fork's own narrative of what it did | `workflow-agent-fabricated-fix-reports` | Extends the same hazard to Workflow-dispatched agents, which `[IL-07]` does not mention |
+
+The always-loaded file that every dispatched agent pays for is therefore not
+the most accurate copy. That is the sharpest cost of having no router.
+
 ### 3. Lessons that would help every adopter never leave the private store
 
 These appear in memory and nowhere in `CLAUDE.md` or `docs/incident-log.md`:
@@ -96,8 +108,10 @@ and the hook points that route producers into them.
   is already covered by the user's personal `repo-feedback` skill. A learning
   classified "upstream, but not claude-tweaks" is reported and stopped, leaving
   `repo-feedback` as the manual path.
-- *Eval coverage for the classifier.* Tracked as a known follow-up. See
-  "Deferred" below.
+Eval coverage for the classifier **is** in scope — see "Testing" below. Issue
+#115 records `assess-agent-autonomy` shipping four judgments with no eval
+coverage; shipping a sixth unmeasured judgment one release later is the same
+mistake, not a smaller one.
 
 ## Destinations
 
@@ -143,24 +157,42 @@ An ordered decision procedure. First match wins.
 
 1. **Names a `/claude-tweaks:*` skill, a `skills/_shared/*` contract, or a
    `bin/*.js` behavior, and would hold in any project using the plugin**
-   → **D5 upstream**
-2. **No project file, no plugin file, and no repo-specific fact appears in the
-   statement of the lesson** → **D4 memory**
-3. **A rule about this codebase that must always be loaded** → **D1**
-4. **Procedure knowledge for a bounded domain** → **D2**
-5. **Work to do, not knowledge to keep** → **D3**
-6. Otherwise → do not capture, with a stated reason (existing rule,
+   → **D5 defect report**
+2. **About the user** — a preference, a working style, how they want decisions
+   made or work presented → **D4 memory** (`type: user` or `feedback`)
+3. **An environment or tooling fact with no owning artifact** in this project or
+   the plugin — shell behavior, a harness quirk, a third-party tool's contract
+   → **D4 memory** (`type: reference`)
+4. **A rule about this codebase that must always be loaded** → **D1**
+5. **Procedure knowledge for a bounded domain** → **D2**
+6. **Work to do, not knowledge to keep** → **D3**
+7. **Generic craft knowledge that rules 4-6 found no home for, and that no
+   claude-tweaks artifact currently covers** → **D5 gap report**
+8. Otherwise → do not capture, with a stated reason (existing rule,
    `skills/reflect/full-mode.md:75`)
+
+**Rules 2 and 3 are the whole of memory.** Everything else has an owner, and the
+job of the classifier is to find it. Applied to the corpus in Problem §1, this
+keeps roughly four preference lessons plus the ownerless environment facts —
+against 31 today.
+
+**Rule 7 is what makes rule 2 affordable.** Without it, a strict memory rule
+leaves genuinely useful craft lessons homeless, and the pressure to widen rule 2
+returns immediately. Eight of the 31 memories are plan-authoring lessons whose
+natural owner (`superpowers:writing-plans`) is outside D5's scope. In *this*
+repository they have a home — `[IL-03]`, `[IL-16]`, `[IL-24]`, `[IL-38]`,
+`[IL-55]`, `[IL-66]`, `[IL-81]` and `[IL-88]` are all plan-authoring `Don't`s,
+so rule 4 catches them. In a project with no such convention, rule 7 catches
+them instead and they surface as *"claude-tweaks should carry guidance on X."*
+
+Rules 1 and 7 both reach D5 but are not the same filing — see "D5" below for how
+the two kinds are labelled and why they must not arrive looking identical.
 
 **Ordering is the fix.** D5 is evaluated before D4. Today D4 is the only
 cross-project store in existence, so every transferable lesson defaults into it
 — the mechanism that produced Problem §1. Ranking upstream above memory routes
 `workflow-agent-fabricated-fix-reports` to `subagent-output-contract.md` rather
 than to a private directory.
-
-Rule 2's test is deliberately harsh. Applied to the current 31 memories it keeps
-three: `brainstorming-interaction-style`, `design-feedback-style`,
-`claude-md-conciseness`. Memory should be small, and about the user.
 
 **One lesson, one destination.** First match wins and routing stops. This is a
 deliberate change from the current behavior: `skills/reflect/full-mode.md:65`
@@ -220,8 +252,16 @@ convention is the established safe pattern: the path is supplied, not computed.
 
 ### D5 — `/claude-tweaks:feedback`
 
-Gather → self-reference check → dedup → draft → **scrub** → confirm → file →
-report.
+Gather → classify kind → self-reference check → dedup → draft → **scrub** →
+confirm → file → report.
+
+**Two kinds, labelled distinctly.** A *defect report* (classifier rule 1) says
+something the plugin does is wrong. A *gap report* (rule 7) says the plugin has
+no opinion where it should. They differ in triage, in urgency, and in what a
+maintainer does with them, so they must not arrive looking identical — the label
+is chosen at draft time from which rule fired, never guessed. Label existence is
+confirmed via `gh label list` before use; an unconfirmed label is omitted rather
+than substituted, per the same discipline the health sweeps follow.
 
 The scrub is non-negotiable and is the reason this destination can never be
 silent: the lesson is derived from a private codebase and the target repository
@@ -272,12 +312,32 @@ silence" table (line 137), following that file's own change checklist at line
   new code appears — and if a `bin/lib/<name>/tests/` directory is added, its glob
   must be added to `package.json`'s test script (`[IL-84]`).
 
+### Eval coverage
+
+The classifier is a model judgment, not a pure function. Unit fixtures prove the
+*plumbing*; only an eval proves the *judgment*. In `evals/`:
+
+- `scenarios/learning-routing-classification.yaml` — a set of learnings with a
+  known correct destination, drawn from the real corpus analyzed in Problem §1
+  and frozen as a fixture (`[IL-80]`).
+- `fixtures/learning-routing-corpus/` — the frozen lessons, each stripped of
+  anything that would identify a private codebase, with its expected
+  destination recorded separately from its text so the classifier cannot read
+  the answer off the input.
+- `assertions/routing-destination-matches.js` — new assertion comparing the
+  emitted destination against the expected one.
+
+The corpus must include the adversarial cases, not just the clear ones: a lesson
+that names a claude-tweaks skill but is genuinely project-specific (D5 must
+*not* fire), and a lesson discovered inside the claude-tweaks repository itself
+(self-reference must collapse D5). A corpus of only obvious cases would pass on
+any classifier, which is the failure `[IL-78]` describes.
+
 ## Deferred
 
 | Item | Why deferred |
 |---|---|
 | Backfilling the existing memories and Don'ts | Classifier should prove itself on live traffic first |
-| Eval coverage for the classifier | Issue #115 records `assess-agent-autonomy` shipping four judgments with no eval coverage. This spec would repeat that pattern one release later; flagged explicitly rather than silently omitted |
 | Retirement/demotion loop — finding the same lesson in two stores, expiring rules that stopped earning their cost | `harness-health`'s rule-expiry check covers Don'ts only. Extending it across all five destinations is the natural next spec |
 
 ## Release
