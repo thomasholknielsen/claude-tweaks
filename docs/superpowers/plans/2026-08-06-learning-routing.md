@@ -1087,6 +1087,82 @@ git commit -m "Make the routing contract reachable from every producer and mode"
 
 ---
 
+### Task 6c: Close F1 and F4 properly
+
+**Files:**
+- Modify: `skills/wrap-up/summary-template.md`, `skills/wrap-up/SKILL.md`, `skills/_shared/label-bootstrap.md`, `skills/_shared/learning-routing.md`, the four health-sweep `SKILL.md` files, `skills/build/architecture-alignment.md`
+
+**Why.** Task 6b's F1 fix was itself a promise with no consumer, and its F6 fix removed the fallback that was accidentally covering it — so in interactive mode and standalone wrap-up an approved memory write or upstream filing now has **no executor at all**, and fails silently. F4's remedy names a label that exists nowhere, so a headless run following it gets a 422.
+
+- [ ] **Step 1 (F1a): Give the interactive batch decision real M#/U# sections**
+
+`skills/wrap-up/summary-template.md` renders the interactive/standalone substitute for the Review Console and currently enumerates cleanup rows plus configuration rows only. Add two per-item sections after the configuration rows, mirroring `review-console.md`'s shape:
+
+```
+#### Memory updates — REQUIRES PER-ITEM APPROVAL
+
+| M# | Name | Type | Fact | Index line |
+|---|---|---|---|---|
+| M1 | {name} | {type} | {the fact} | {the MEMORY.md line} |
+
+#### Upstream feedback — REQUIRES PER-ITEM APPROVAL
+
+| U# | Kind | Component | Summary |
+|---|---|---|---|
+| U1 | {defect\|gap} | {component} | {one line} |
+```
+
+Below them, state that each row gets its own `AskUserQuestion` call — never batched, never folded into the cleanup+configuration batch choice — and that on Apply the action is performed here, exactly as `review-console.md`'s `On approval` steps describe, because Step 10 only verifies.
+
+- [ ] **Step 2 (F1b): Fix the standalone stage path**
+
+`wrap-up/SKILL.md` Steps 7.10/7.11 tell a standalone run to "stage in-memory", which has no precedent here. This codebase already answers the identical question — `skills/ledger/resolve-gate.md` handles a standalone run with *"no Review Console will ever read a staged file, so create the record directly instead."* Follow it: in standalone wrap-up, present the per-item decision inline and act on approval directly, writing no `staged/` file.
+
+Also fix two leftovers in the same steps:
+- their `STAGED` log line names `staged/wrap-up-memory-{N}.md` with no standalone variant — give it one, or state that standalone emits no stage path.
+- their **Mandatory summary** blocks are the only `SCANNED`-emitting blocks in the file lacking the *"Auto mode appends this line to `decisions.md`…; interactive mode prints the equivalent line inline"* branch that Steps 7, 7.7, 7.8 and 7.9 all carry. Standalone has no `decisions.md`. Add the branch.
+
+- [ ] **Step 3 (F4a): Make `upstream-candidate` a real label**
+
+The label appears only in `learning-routing.md` and this plan. Add it to `skills/_shared/label-bootstrap.md`'s canonical `LABELS_JSON` with a description and colour consistent with its neighbours, and add it to each of the four sweeps' own bootstrap blocks — those blocks deliberately bootstrap only the families a run applies, so an unlisted label fails as a 422 on `gh issue create`.
+
+- [ ] **Step 4 (F4b): Stop the local record entering the build queue**
+
+The sweeps file born-`ready`, `by:{sweep}`-labelled, `risk:*`/`effort:*`-scored records. A record so labelled enters `/claude-tweaks:dispatch`'s worklist as buildable local work — which is the outcome the headless clause's own last sentence forbids. In `learning-routing.md`'s "Subject check (health sweeps)" section, extend the headless paragraph:
+
+```
+File it **without** the born-`ready` stage label and without `risk:`/`effort:` scoring, so it stays a backlog record and never enters `/claude-tweaks:dispatch`'s worklist — it is not this project's work to build. Label it `upstream-candidate` plus the sweep's own `by:` label, and open the body with the claude-tweaks component and symptom so a human can hand it to `/claude-tweaks:feedback` unchanged.
+```
+
+- [ ] **Step 5 (tenth instance): Classify before the ledger in architecture-alignment**
+
+`skills/build/architecture-alignment.md` is in Task 6b's Modify list but was never touched. `build/SKILL.md:233` says architecture-alignment learnings route via the contract "rather than defaulting to a ledger entry" — while the sub-file it sends the reader to says, unconditionally, *"Append a one-sentence ledger entry (phase `build/skill`)"*. The named file instructs exactly the default the namer forbids. At the head of its `## Skill Observation` section, add:
+
+```
+**Classify before appending.** Run the observation through `skills/_shared/learning-routing.md` first. A D1, D2 or D3 outcome appends the ledger entry below as usual. A D4 or D5 outcome does not — hand it to `/claude-tweaks:wrap-up` Step 7.10 or 7.11 instead, because Step 7.10's "not already routed by Steps 6-7.9" scope will otherwise skip it permanently.
+```
+
+- [ ] **Step 6: Verify**
+
+```bash
+grep -c "Memory updates\|Upstream feedback" skills/wrap-up/summary-template.md
+grep -c "upstream-candidate" skills/_shared/label-bootstrap.md
+grep -rn "stage in-memory" skills/
+grep -c "learning-routing" skills/build/architecture-alignment.md
+wc -c skills/code-health/SKILL.md
+```
+
+Expected: the first returns non-zero; `upstream-candidate` present in the canonical label list; `stage in-memory` returns NOTHING (replaced by the direct-action wording); `architecture-alignment.md` cites the contract; `code-health/SKILL.md` still under 40960.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add skills/
+git commit -m "Give interactive wrap-up an executor and make the headless label real"
+```
+
+---
+
 ### Task 7: Classifier eval coverage
 
 **Files:**
