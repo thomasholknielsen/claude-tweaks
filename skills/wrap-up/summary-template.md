@@ -79,7 +79,7 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 If the user chooses to override, let them pick which items to skip or change.
 
-**Memory updates and Upstream feedback — per-item, not part of the batch decision above.** After the cleanup+configuration batch decision resolves, render whichever of the two tables below has at least one row staged by Step 7.10/7.11; omit a table entirely when it has no rows, mirroring `review-console.md`'s shape:
+**Memory updates and Upstream feedback — per-item, not part of the batch decision above.** "Not part of the batch decision" means not folded into the cleanup+configuration Apply-all/Override choice — it does **not** disclaim the section's own gating: this block sits inside the same **Conditional batch decision** section as that batch, so it renders under the identical condition — only when Step 8.6's Review Console did not run. When the Review Console did run, it already resolved every Memory/Upstream row per-item at approval time (`review-console.md`'s `On approval` steps), and this whole block is skipped here — never re-presented, never re-applied. After the cleanup+configuration batch decision resolves, render whichever of the two tables below has at least one row staged by Step 7.10/7.11; omit a table entirely when it has no rows, mirroring `review-console.md`'s shape:
 
 ```
 #### Memory updates — REQUIRES PER-ITEM APPROVAL

@@ -328,6 +328,8 @@ gh issue create \
   --label type:task
 ```
 
+**Exception — a headless D5 finding.** When the subject check routes this finding to D5 with no human to clear `/claude-tweaks:feedback`'s gate, apply `upstream-candidate` plus `by:code-health` only — omit `ready`, `risk:*`, `effort:*`. Not this project's work to build. See `_shared/learning-routing.md`'s Subject check.
+
 Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`effort` tier labels and the underlying `gh issue create --title/--body` never do.
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.

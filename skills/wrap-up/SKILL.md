@@ -249,9 +249,13 @@ a standalone ledger item — so skip the `STAGED` line and `staged/` file entire
 present the proposal directly in `summary-template.md`'s Memory updates section
 and write the memory file on approval there instead.
 
-**Skip entirely** when the invoking assistant's system prompt states no memory
-directory for this project — D4 is unavailable, and the contract re-runs the
-classifier from rule 4.
+**No memory directory available.** D4 is unavailable when the invoking
+assistant's system prompt states no memory directory for this project — but
+the lesson is never dropped for that reason alone: re-run the classifier from
+rule 4 **here** and act on the result in this step. A D1/D2 outcome stages as
+a configuration or skill update alongside Steps 6/7's own output; a D3
+outcome becomes a queue-write proposal, staged the way `ledger/resolve-gate.md`
+Phase 3 stages `Keep`/`Defer`, for the Review Console to create on approval.
 
 **Mandatory summary**, emitted every run regardless of outcome:
 

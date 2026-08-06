@@ -291,6 +291,8 @@ file; this table only needs enough to render the prompt.
 
 #### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
+Render this section only when Step 7.10 staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.
+
 | M# | Name | Type | Fact | Index line | Patch |
 |---|---|---|---|---|---|
 | M1 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `staged/wrap-up-memory-1.md` |
@@ -298,6 +300,8 @@ file; this table only needs enough to render the prompt.
 > A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project. `_shared/auto-mode-contract.md` lists it as not silenced by `auto`.
 
 #### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+
+Render this section only when Step 7.11 staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|

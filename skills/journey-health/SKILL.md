@@ -246,6 +246,8 @@ gh issue create --title "<payload.title>" --body "<payload.body>" \
   --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected --label type:bug
 ```
 
+**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:journey-health`, and omit `ready`, `risk:*` and `effort:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
+
 Apply the same branch to every payload regardless of category — a `coverage` payload's call carries `journey-health:coverage` and `--type task`/`--label type:task` the same way a `drift` payload does; only the `--type task`/`--type bug` vs. `--label type:task`/`--label type:bug` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. `/journey-health` never edits journey files, stories, or code.
 
 In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.

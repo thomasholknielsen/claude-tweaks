@@ -64,6 +64,7 @@ depends on them.
 | `/tidy` | Reviews specs from `/build` for staleness — periodic cleanup complement. |
 | `/superpowers:brainstorming` | Produces the design doc `/build`'s design mode consumes directly. |
 | `skills/_shared/integration-branch.md` | Names the expected fork point when set, replacing the upstream-then-`origin/HEAD` derivation in `worktree-setup.md`. Shared with `/flow`'s `validation.md`, which runs the identical check. |
+| `_shared/learning-routing.md` | Common Step 4.5 classifies every architecture-alignment observation through this contract, tagging the ledger entry `[route: D4]`/`[route: D5]` when applicable so `/wrap-up` Step 7.1 hands it to Step 7.10/7.11 instead of seeding it as a skill update. |
 
 ## capture
 
@@ -100,6 +101,7 @@ depends on them.
 | `/simplify` | `/simplify` applies the simplification criterion reactively; `/code-health` applies it proactively. Both read `criteria-simplification.md`. |
 | `/tidy` | `/code-health` files improvement findings as `by:code-health`-labelled records; `/tidy` Step 4.8 audits them in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval, still-valid ones suggested for `/backlog refine` or captured to the backlog. |
 | `_shared/health-routine-notes.md` | The canonical text of this skill's Routine Configuration billing note — shared with `/harness-health`, `/journey-health`, and `/docs-health` (which also share its confidence-floor-asymmetry paragraph, not applicable to this skill since `--min-risk` closes that gap here). |
+| `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's Step 9 applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 
 ## deepen
 
@@ -152,6 +154,7 @@ depends on them.
 | `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
 | `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 3/Step 6 inline — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
 | `_shared/health-routine-notes.md` | The canonical billing note, shared with `/code-health`, `/harness-health`, and `/journey-health` — and the confidence-floor paragraph, shared with `/harness-health` and `/journey-health` now that all three (plus `/code-health`'s `--min-risk`) have closed the gap it used to describe as open. This skill and `/harness-health` hold sub-threshold findings in a durable `remembered` cache; `/journey-health` drops them for that run instead. |
+| `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's Step 6 applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 
 ## feedback
 
@@ -163,6 +166,7 @@ depends on them.
 | `/harness-health` | Same subject check as `/code-health` — plugin-owned findings route to `/feedback` rather than to the project's tracker. |
 | `/journey-health` | Same subject check — routes to `/feedback`. |
 | `/docs-health` | Same subject check — routes to `/feedback`. |
+| `_shared/learning-routing.md` | This skill is the contract's D5 writer — Steps 2-3 read the classifier directly to confirm a learning is D5 and to re-run it from rule 4 on self-reference collapse. |
 
 ## flow
 
@@ -188,6 +192,7 @@ depends on them.
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 7 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
 | `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 7 inlines (as `{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`) — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
 | `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill applies via its embedded copy in `_shared/harness-health-analysis.md` — `/code-health`, `/docs-health`, and `/journey-health` each inline their own copy the same way. |
+| `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's `filing.md` (Step 7) applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 
 ## help
 
@@ -222,6 +227,7 @@ depends on them.
 | `/specify` | Journey-health findings are pre-specs — a filed `by:journey-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/tidy` | `/journey-health` files `docs/journeys/*.md` drift and coverage-gap findings as `by:journey-health`-labelled records; `/tidy` Step 4.8 sweeps them alongside `by:code-health`/`by:harness-health`/`by:docs-health` ones with the same stale/superseded triage — stale/superseded closed after batch approval, still-valid suggested for `/backlog refine`. |
 | `/wrap-up` | Step 7.8 applies this skill's own `_shared/journey-self-review.md` criteria inline, wrap-up-time, to journeys the just-completed work's diff touches — a fix-inline safety net rather than this skill's file-an-issue routing, since wrap-up still has full session context on what was just built. |
+| `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's Step 6 applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 
 ## journeys
 
@@ -249,6 +255,7 @@ depends on them.
 |---|---|
 | `/feedback` | Insights classified via `_shared/learning-routing.md` that resolve to D5 route to `/feedback` for upstream filing. |
 | `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
+| `_shared/learning-routing.md` | Routes every insight/finding through this contract's classifier instead of reflect's own destination table; hindsight mode additionally tags a D4/D5 ledger entry `[route: D4]`/`[route: D5]` for `/wrap-up` Step 7.1 to pick up. |
 
 ## research
 
@@ -267,6 +274,7 @@ depends on them.
 | `/tidy` | `/tidy` reads `/review` summaries to detect cross-spec patterns (Step 5.5) — recurring finding categories, frequently flagged files, repeated gotchas — and recommends adding rules to CLAUDE.md when patterns appear in 3+ specs. `/tidy` also flags specs that appear complete but lack a `/review` run. |
 | `/wrap-up` | Runs after `/review` passes — reflection, cleanup, knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and `/reflect` hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed wrap-up's skill update analysis (Step 7). `/wrap-up`'s Step 10 safety-net gate (`verification-brief.md`) reads this skill's `### Visual Review` summary status and, when it shows only `Recommended` (no browser walk ran), triggers `/visual-review` itself using the same Step 6 mode resolution — never a separate implementation. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |
+| `_shared/learning-routing.md` | Lens 3a records a `review/skill` ledger entry without classifying it — `/wrap-up` Step 7 classifies it afterward through this contract, routing a claude-tweaks-skill finding to D5 rather than a project-skill update. |
 
 ## routine
 
@@ -378,6 +386,7 @@ depends on them.
 | `/tidy` | `/wrap-up` cleans artifacts for a single spec; `/tidy` does periodic bulk cleanup. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
 | `skills/_shared/integration-branch.md` | Resolves the fast-lane merge and push target in the single-record auto-merge gate (Step 8) — the same lever `/dispatch`'s group-scoped auto-merge gate uses. The concurrent-session guard compares the main checkout against this value, not the GitHub default. |
+| `_shared/learning-routing.md` | Steps 6/7 classify every candidate/seed through this contract before collecting it; Steps 7.10/7.11 own the D4/D5 stage-and-surface, writing memory files per its "Memory write procedure (D4)" and staging upstream proposals for `/feedback`. |
 
 ## Provenance
 

@@ -35,7 +35,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | Free-text learning | The substance of the report. When absent, gather it from the conversation or ask. |
 | `--kind=defect` | The plugin does something wrong. Skips Step 2's inference. |
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
-| `--dry-run` | Run classification, self-reference, dedup, drafting, and scrub, then render the draft and **stop**. Makes no `gh` calls and files nothing. |
+| `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. |
 
 ## Workflow
 
@@ -194,7 +194,10 @@ which belongs to records that moved through its in-repo pipeline.
 
 On failure, do not silently drop the payload. Report the `gh` error verbatim,
 write the drafted body to the run directory's `staged/` as
-`wrap-up-upstream-{N}-unfiled.md` when a run directory exists, and tell the
+`upstream-unfiled-{N}.md` when a run directory exists — deliberately outside
+the `staged/wrap-up-upstream-*.md` aggregation glob `review-console.md` and
+`multispec-review-console.md` both scan, so a stop-and-resume never
+re-enumerates a failed draft as a fresh upstream proposal — and tell the
 user the filing did not happen and the draft is preserved. There is no
 automatic retry for upstream filings.
 

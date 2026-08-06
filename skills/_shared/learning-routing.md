@@ -161,11 +161,16 @@ claude-tweaks component and the symptom, so a human can forward it with
 project's own code.
 
 File it **without** the born-`ready` stage label and without `risk:`/`effort:`
-scoring, so it stays a backlog record and never enters
-`/claude-tweaks:dispatch`'s worklist — it is not this project's work to build.
-Label it `upstream-candidate` plus the sweep's own `by:` label, and open the
-body with the claude-tweaks component and symptom so a human can hand it to
-`/claude-tweaks:feedback` unchanged.
+scoring, so it stays a backlog record and never enters the authorization
+gate's worklist — `/claude-tweaks:backlog refine`'s grant sub-stage, which
+scans `ready` records to decide `auto:build` — the gate that would shape it
+toward being built. (`/claude-tweaks:dispatch`'s own queue is `auto:build`-gated,
+not `ready`-gated; withholding `ready` keeps the record a step upstream of
+that, out of the worklist that would grant it `auto:build` in the first
+place.) It is not this project's work to build. Label it `upstream-candidate`
+plus the sweep's own `by:` label, and open the body with the claude-tweaks
+component and symptom so a human can hand it to `/claude-tweaks:feedback`
+unchanged.
 
 ## Consumers
 
