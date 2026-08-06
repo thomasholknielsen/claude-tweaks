@@ -1,5 +1,33 @@
 # Changelog
 
+## v6.38.2 — Health rotation reaches past its alphabetical prefix (closes #130)
+
+`health-core/rotation.js`'s Phase 1 returned on the *first* candidate past `staleDays`
+rather than the most overdue one. Since every engine's `scope.js` sorts candidates by id
+and each run advances exactly one slice, coverage was a strict alphabetical march at one
+slice per run — and by run number `staleDays` the head of the list had re-crossed the
+threshold and was force-picked again, long before the march reached the tail.
+
+Everything ranked past position ≈ `staleDays` was therefore permanently unreachable. Not
+a slow rotation: an unreachable one. Measured on a real repo, docs-health could never
+audit ~59% of its 146 docs (`staleDays` 60), and code-health >90% of its several hundred
+slices (`MAX_STALE_DAYS` 30). One repo's docs-health had spent 19 days on `REGISTRY` plus
+`decisions/ADR-001` through `ADR-004`, still inside the alphabetically-first directory.
+
+Phase 1 now selects `max(daysSince)`, applying the existing `tieBreakKey` to equal
+staleness — which matters more here than in Phase 2, since every never-audited candidate
+sits at `Infinity` and a fresh repo's whole pool is one big tie. All four engines share
+this module, so all four are fixed at once.
+
+A consequence worth naming: each engine's explicit candidate sort is now a determinism
+detail rather than the coverage mechanism. Selection no longer depends on the order
+candidates arrive in. `code-health/scope.js`'s comment, which justified its sort on
+first-qualifying-wins grounds, is corrected to match.
+
+The regression test runs the starvation model forward — 90 candidates against a 30-day
+threshold, one pick per simulated day — and asserts the full set is covered with no
+repeats. It fails on the old implementation at 31 of 90.
+
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
 `tests/statusline.test.js`'s render-time assertion failed whenever another agent session ran

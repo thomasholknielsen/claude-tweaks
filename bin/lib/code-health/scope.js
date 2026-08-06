@@ -55,12 +55,15 @@ function listSlices(root) {
   }
   candidates.push(...workspaceSlices);
   for (const candidate of candidates) splitOversized(candidate.id, candidate.path, slices);
-  // fs.readdirSync order is not guaranteed by Node's API, so without an
-  // explicit sort, selectByStaleThenChurn's Phase 1 (first-qualifying-wins)
-  // could force-pick a different slice across environments/checkouts for
-  // the identical repo state, undermining round-robin coverage. Sibling
-  // engines (e.g. harness-health/scope.js's listSkills/listRules) already
-  // sort their candidate lists for the same reason.
+  // fs.readdirSync order is not guaranteed by Node's API, so sort for a
+  // stable emitted list across environments/checkouts of the identical repo
+  // state. This is now presentation-order only, NOT the coverage mechanism:
+  // selectByStaleThenChurn's Phase 1 used to be first-qualifying-wins, which
+  // made this sort load-bearing (and starved everything past position
+  // ≈ MAX_STALE_DAYS — #130). Phase 1 now picks the most overdue candidate
+  // outright and tie-breaks equal staleness by slice id, so selection is
+  // independent of the order this function returns. Sibling engines (e.g.
+  // harness-health/scope.js's listSkills/listRules) sort likewise.
   slices.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return slices;
 }

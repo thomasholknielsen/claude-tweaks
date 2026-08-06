@@ -99,7 +99,7 @@ function listMemory(memoryDir) {
 }
 
 // ─── selectMemoryTarget ──────────────────────────────────────────────────────
-// Mirrors selectTarget's Phase 1 (force-pick anything unaudited past
+// Mirrors selectTarget's Phase 1 (force-pick the entry most overdue past
 // STALE_DAYS) only — no Phase 2 hotspot/churn scoring, since memory has no git
 // churn signal. Returns null (not an error) when nothing is due, same as
 // selectTarget. Cursor key is namespaced "memory:<id>", same convention every
