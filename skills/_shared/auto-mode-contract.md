@@ -43,7 +43,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 | `hybrid` | Explicit `hybrid` arg | Begin stop is an approval gate; downstream skills also auto-resolve only when reversibility:high AND confidence:high AND severity ≤ low — everything else asks. Review Console still runs at end. |
 | `interactive` | Explicit `interactive` arg, or `auto-mode: default-off` in `.claude-tweaks/policy.yml` | No Manifesto presented; skills present each decision in-flow as the standalone skills do. |
 
-**Default note:** `/flow` defaults to `auto` (its purpose is hands-off automation). Standalone skills invoked outside `/flow` with no mode signal fall back to `interactive`. The `auto-mode:` CLAUDE.md flag lowers (`default-off` → interactive) or confirms (`default-on` → auto) the default; an explicit mode arg always wins.
+**Default note:** `/flow` defaults to `auto` (its purpose is hands-off automation). Standalone skills invoked outside `/flow` with no mode signal fall back to `interactive`. The `auto-mode:` key in `.claude-tweaks/policy.yml` lowers (`default-off` → interactive) or confirms (`default-on` → auto) the default; an explicit mode arg always wins.
 
 ## Decision precedence
 

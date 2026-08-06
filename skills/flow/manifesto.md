@@ -17,7 +17,7 @@ Walk the precedence chain (see `_shared/auto-mode-contract.md`):
 
 1. Explicit CLI args from `$ARGUMENTS` (e.g., `no-polish` sets `polish: skip`)
 2. Pipeline-config file from a previous run that's still active in this session (rare; usually skipped)
-3. Project policy from `.claude-tweaks/policy.yml` (if exists) `auto-mode:` key
+3. Project policy from `.claude-tweaks/policy.yml`'s `auto-mode:` key (if the file exists)
 4. Hardcoded sensible defaults (last resort)
 
 For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
