@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump marketplace-mirror nudge (warn tier).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier).
 'use strict';
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
@@ -163,11 +163,18 @@ function checkDesignDocWrite(ctx) {
   };
 }
 
-// Marketplace-mirror nudge (warn tier). This repo's own release convention
-// (CLAUDE.md's "Releasing (two repos)") requires mirroring a plugin.json
-// version bump into the separate claude-tweaks-marketplace repo's
-// marketplace.json — a step with no code-level enforcement, missed twice in
-// practice before this check existed. Fires unconditionally whenever a
+// Release-follow-up nudge (warn tier). This repo's release convention
+// (CLAUDE.md's "Releasing (two repos)") hangs two steps off a plugin.json
+// version bump: a CHANGELOG.md entry, and mirroring the version into the
+// separate claude-tweaks-marketplace repo's marketplace.json. The mirror was
+// missed twice in practice before this check existed; the changelog was missed
+// 103 times out of 145 releases, because until the coverage gate in
+// tests/changelog-coverage.test.js nothing checked and the convention never
+// actually named the step.
+//
+// This nudge is the cheap half. It fires after the fact and can be ignored, so
+// it complements rather than replaces the gate — the gate is what makes an
+// omission fail. Fires unconditionally whenever a
 // commit touches `.claude-plugin/plugin.json` at all, without trying to
 // parse whether the change was actually a version bump (same "cheap false
 // positive, no smart detection" precedent checkClosingKeyword and
@@ -177,7 +184,7 @@ function checkDesignDocWrite(ctx) {
 // Scoped to this specific project via the committed file's own `name` field
 // rather than the path alone: `.claude-plugin/plugin.json` is the standard
 // manifest path for ANY Claude Code plugin repo, so an unscoped check would
-// misfire with an irrelevant marketplace-mirror reminder in a completely
+// misfire with an irrelevant release-follow-up reminder in a completely
 // unrelated plugin repo that happens to have this plugin active.
 const PLUGIN_MANIFEST_PATH = '.claude-plugin/plugin.json';
 
@@ -203,9 +210,10 @@ function checkPluginVersionBump(recentByDir) {
         json: {
           systemMessage:
             'claude-tweaks: this commit touched .claude-plugin/plugin.json (likely a version bump). ' +
-            "Remember to mirror the new version into the claude-tweaks-marketplace repo's " +
-            'marketplace.json (plugins[].version) and push both repos — see CLAUDE.md\'s ' +
-            '"Releasing (two repos)" section.',
+            'Two follow-ups, both from CLAUDE.md\'s "Releasing (two repos)" section: add the ' +
+            "release's CHANGELOG.md entry (\"## v{version} — {summary}\"), and mirror the new " +
+            "version into the claude-tweaks-marketplace repo's marketplace.json " +
+            '(plugins[].version). Then push both repos.',
         },
       };
     }
@@ -265,7 +273,7 @@ function run(ctx) {
   const designDocNudge = checkDesignDocWrite(ctx);
   if (designDocNudge) return designDocNudge;
 
-  // Plugin-version-bump marketplace-mirror nudge (warn tier) — deliberately NOT gated on ctx.runDir.
+  // Plugin-version-bump release-follow-up nudge (warn tier) — deliberately NOT gated on ctx.runDir.
   if (hasCommand) {
     const versionBumpNudge = checkPluginVersionBump(recentByDir);
     if (versionBumpNudge) return versionBumpNudge;
