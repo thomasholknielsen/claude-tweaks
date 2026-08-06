@@ -228,6 +228,52 @@ Reversibility: N/A.
 
 Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. **`audit not run` is deliberate and must never be rendered as `no findings`** — a gate that never opened is indistinguishable from a clean CLAUDE.md unless the summary says which one happened. When the gate did open, the summary instead names the signal that opened it and the finding count, so the two cases are never confusable.
 
+## Step 7.10: Memory curation (D4)
+
+Classify every reflection insight and ledger learning not already routed by
+Steps 6-7.9 through `_shared/learning-routing.md`. For each that resolves to
+**D4**, dedup against `MEMORY.md` per the contract, then stage — never write
+directly:
+
+```
+STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibility: high (stage path: staged/wrap-up-memory-{N}.md).
+```
+
+The stage file holds the complete proposed memory file plus its `MEMORY.md`
+index line, so the Review Console can show exactly what would be written.
+
+**Skip entirely** when the invoking assistant's system prompt states no memory
+directory for this project — D4 is unavailable, and the contract re-runs the
+classifier from rule 4.
+
+**Mandatory summary**, emitted every run regardless of outcome:
+
+```
+SCANNED {time} — Step 7.10 memory curation: {N} insights classified, {M} resolved D4, {K} deduped against MEMORY.md. Reversibility: N/A.
+```
+
+## Step 7.11: Upstream feedback (D5)
+
+For every learning that `_shared/learning-routing.md` resolves to **D5**, run
+the contract's self-reference check first. When it collapses D5, re-classify and
+handle the result in the appropriate earlier step instead.
+
+Otherwise stage one proposal per learning — never file during the run:
+
+```
+STAGED {time} — Step 7.11: upstream {defect|gap} report proposed for {component}. Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).
+```
+
+The stage file holds the fully drafted **and already scrubbed** body, so the
+Review Console shows exactly what would be published. Filing happens in Step 10
+by invoking `/claude-tweaks:feedback` per approved row.
+
+**Mandatory summary**, emitted every run regardless of outcome:
+
+```
+SCANNED {time} — Step 7.11 upstream feedback: {N} learnings classified, {M} resolved D5 ({D} defect / {G} gap), self-reference: {collapsed|not applicable}. Reversibility: N/A.
+```
+
 ## Step 8: Analyze Next Steps (record-based only)
 
 Determine:

@@ -152,7 +152,7 @@ Queue writes below — do not drop it.
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice; Queue writes (a separate, tenth section) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The per-item sections that follow them — Queue writes, Memory updates, Upstream feedback — each require per-item approval, because `_shared/auto-mode-contract.md` lists work-record creation, memory writes, and upstream filing as not silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -241,6 +241,22 @@ file; this table only needs enough to render the prompt.
 |---|---|---|---|
 | Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
 | Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
+
+#### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+
+| # | Name | Type | Fact | Index line | Patch |
+|---|---|---|---|---|---|
+| 13 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `staged/wrap-up-memory-1.md` |
+
+> A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project. `_shared/auto-mode-contract.md` lists it as not silenced by `auto`.
+
+#### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+
+| # | Kind | Component | Summary | Patch |
+|---|---|---|---|---|
+| 14 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
+
+> Filing publishes privately-derived content to a public repository. The body shown is already scrubbed; approving files it via `/claude-tweaks:feedback`.
 
 Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
 ```
