@@ -1163,6 +1163,61 @@ git commit -m "Give interactive wrap-up an executor and make the headless label 
 
 ---
 
+### Task 6d: Never stop a write to redirect it
+
+**Files:**
+- Modify: `skills/build/architecture-alignment.md`, `skills/wrap-up/skill-curation.md`, `skills/_shared/work-record.md`, `skills/wrap-up/execution-and-verification.md`
+
+**Why.** Task 6c's Step 5 told `architecture-alignment.md` to *withhold* the ledger append for a D4/D5 observation and "hand it to Step 7.10 or 7.11". Nothing transports it there: Step 7.10 classifies only reflection insights and ledger learnings, the staged files have no producer but 7.10/7.11 themselves, `/claude-tweaks:reflect` never runs during `/build`, and `/claude-tweaks:flow` runs build and wrap-up in separate subagent contexts. Withholding the write turned a visible-but-mistyped entry into a silently lost one.
+
+**The rule this task encodes: never suppress a write in order to redirect it.** Keep writing to the channel that already exists and already gets read; change only what the reader does with it. A suppressed write has no reader by construction.
+
+- [ ] **Step 1: Restore the append, redirect the classification**
+
+In `skills/build/architecture-alignment.md`, replace the `**Classify before appending.**` paragraph added by Task 6c with:
+
+```
+**Classify, then tag — never withhold.** Run the observation through `skills/_shared/learning-routing.md`. Append the ledger entry below **in every case**; suppressing it would leave the observation with no reader at all, since nothing else in `/claude-tweaks:build` writes to a channel `/claude-tweaks:wrap-up` reads. When the outcome is D4 or D5, additionally tag the entry body `[route: D4]` or `[route: D5]`, which `/claude-tweaks:wrap-up` Step 7.1 uses to hand it to Step 7.10 or 7.11 rather than seeding it as a project-skill update.
+```
+
+- [ ] **Step 2: Teach Step 7.1 to honour the tag, for D4 as well as D5**
+
+`skills/wrap-up/skill-curation.md`'s 7.1 paragraph (added in Task 6b) currently hands only **D5**-subject entries onward. Extend it to cover D4 and the explicit tag:
+
+```
+An entry whose body carries `[route: D4]` or `[route: D5]`, or whose subject is a claude-tweaks skill, contract or CLI rather than this project's own code, is not a project-skill seed. Hand it to Step 7.10 (D4) or Step 7.11 (D5) and do not seed it here — seeding it would route it to this project's skill library and those steps would never see it. Where this project *is* claude-tweaks, the contract's self-reference check collapses D5 and the entry seeds here as usual.
+```
+
+- [ ] **Step 3: Add `upstream-candidate` to the canonical record contract**
+
+`skills/_shared/work-record.md` is the canonical work-record contract and does not know this label exists. Two places need it, both found by review:
+1. Its **Label taxonomy** table — add an `upstream-candidate` row describing it as marking a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate.
+2. Its **Permission matrix**, Health-skills row — currently authorizes `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready) and Type. Add the headless-D5 exception: `upstream-candidate` **instead of** `ready`/`risk:*`/`effort:*`, so the record stays out of `/claude-tweaks:dispatch`'s worklist.
+
+- [ ] **Step 4: Correct the stale executor cross-reference**
+
+`skills/wrap-up/execution-and-verification.md` lines 19-20 describe the interactive/standalone executor as "`wrap-up/SKILL.md` Step 7.10's per-item batch-decision equivalent". Step 7.10 no longer renders or executes anything — the executor is `summary-template.md`, loaded by Step 9. Name it correctly.
+
+- [ ] **Step 5: Verify**
+
+```bash
+grep -c "never withhold\|in every case" skills/build/architecture-alignment.md
+grep -c "route: D4" skills/build/architecture-alignment.md skills/wrap-up/skill-curation.md
+grep -c "upstream-candidate" skills/_shared/work-record.md
+grep -c "summary-template" skills/wrap-up/execution-and-verification.md
+```
+
+Expected: the first non-zero; `route: D4` present in **both** files (producer and reader — a tag written by one and read by neither is the defect this task exists to stop); `upstream-candidate` at least 2 in `work-record.md` (taxonomy + permission matrix); `summary-template` cited in the executor file.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add skills/
+git commit -m "Tag the ledger entry instead of withholding it — a suppressed write has no reader"
+```
+
+---
+
 ### Task 7: Classifier eval coverage
 
 **Files:**
