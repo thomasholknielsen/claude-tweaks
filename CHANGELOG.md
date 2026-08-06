@@ -1,5 +1,44 @@
 # Changelog
 
+## v6.39.0 — Routines report which build they resolved (closes #129)
+
+A scheduled `dispatch next` Routine hard-gated on `gh` being absent — the gate 6.24.0 had
+already replaced with an MCP branch — and described `dispatch/SKILL.md` as having no MCP
+claim path at all. Both statements are accurate about 6.23.7 and false about the build the
+marketplace was serving. The sandbox had been running pre-fix code for days while its setup
+script's `claude plugin update` reported success on every firing.
+
+`claude plugin update` compares the installed version *string* against the *local* marketplace
+catalog and inspects nothing else. Emptying a cached plugin directory of its files and
+re-running it yields `already at the latest version (6.38.1)` and exit 0, repairing nothing;
+pointing an installation record at an older directory yields the same line; so does a catalog
+that failed to refresh, since the comparison then measures the sandbox against itself. Three
+broken states and one healthy one produce identical logs — which is why the investigation
+behind #129 first concluded `dispatch`'s gate was still wrong.
+
+- **Every routine prompt now opens by printing the build it resolved**, read from
+  `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — the directory the running skill files
+  were loaded from, and the only source that cannot disagree with them. Added to the standard
+  preamble in `_shared/routine-template-schema.md` and to all six `routine-template.yml`
+  files, each with its `template_version` bumped so `/claude-tweaks:routine status` reports
+  the drift. Live routines carry a frozen copy of their prompt and pick this up only via
+  `/claude-tweaks:routine update {skill}`.
+- **`dispatch`'s headless self-report records the resolved build** on the issue it files, and
+  on a deduplicated re-file adds one comment per *distinct* build. The marker asks "has this
+  check been reported," whose answer stays yes forever; the build line asks "has this build
+  been seen failing it," whose answer changes when a sandbox is repaired or silently rolls
+  back. #129's own self-report issue sat silent through three later firings without it.
+- **The generated cloud setup script verifies instead of trusting.** Marketplace `update`
+  failures are no longer silenced to `/dev/null` — a catalog that failed to refresh is the
+  precondition that makes every version check downstream meaningless. After the install loop,
+  each plugin's version is resolved from the directory a session would actually load,
+  compared against the catalog, and reinstalled on drift. `claude plugin list`'s recorded
+  `version` and `installed_plugins.json`'s `gitCommitSha` are deliberately not used: the
+  former is metadata beside the directory rather than out of it, and the latter is not
+  refreshed by `claude plugin update` at all.
+- New regression test asserting all six templates' preambles still match the canonical block
+  in `_shared/routine-template-schema.md`, and `[IL-89]` recording the general rule.
+
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
 `tests/statusline.test.js`'s render-time assertion failed whenever another agent session ran
