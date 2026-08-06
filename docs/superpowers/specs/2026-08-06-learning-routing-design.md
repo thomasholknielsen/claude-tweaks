@@ -108,6 +108,7 @@ and the hook points that route producers into them.
   is already covered by the user's personal `repo-feedback` skill. A learning
   classified "upstream, but not claude-tweaks" is reported and stopped, leaving
   `repo-feedback` as the manual path.
+
 Eval coverage for the classifier **is** in scope — see "Testing" below. Issue
 #115 records `assess-agent-autonomy` shipping four judgments with no eval
 coverage; shipping a sixth unmeasured judgment one release later is the same
