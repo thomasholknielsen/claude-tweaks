@@ -4,7 +4,7 @@ Invoked via `/claude-tweaks:design-wrapper test <files>`. Returns `{mode, result
 
 ## When this runs
 
-Called by `/claude-tweaks:test` after the standard verification suite (types/lint/tests). Acts as a frontend anti-pattern gate via the deterministic Impeccable CLI. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not.
+Called by `/claude-tweaks:test` after the standard verification suite (types/lint/tests). Acts as a frontend anti-pattern gate via the deterministic Impeccable CLI. Findings carrying `advisory === true` do not fail the gate; any other finding does. Skips do not fail the gate either.
 
 ## Preconditions
 
@@ -26,7 +26,7 @@ Apply the Layer 3 sniff rules from `../frontend-detection.md` to drop non-fronte
 
 ### Step 4: Invoke the CLI
 
-Invoke the CLI exactly as specified in `../impeccable-cli.md` ("Invocation"), and derive `pass` / `fail` from its "Severity-to-result mapping". The flags and the parse are deliberately not restated here — three copies of this contract is what let it drift.
+Invoke the CLI exactly as specified in `../impeccable-cli.md` ("Invocation"), and derive `pass` / `fail` from its "Advisory-to-result mapping". The flags and the parse are deliberately not restated here — three copies of this contract is what let it drift.
 
 ### Step 5: Parse JSON output
 
@@ -38,10 +38,10 @@ Invoke the CLI exactly as specified in `../impeccable-cli.md` ("Invocation"), an
 
 ### Step 6: Compute pass/fail
 
-- **pass** — zero findings, or all findings are `severity: advisory`
-- **fail** — any finding with `severity: warning`
+- **pass** — zero findings, or every finding carries `advisory === true`
+- **fail** — any finding without `advisory === true`
 
-`advisory` findings are included in the findings list but do not cause `result: fail`. Callers may surface them informationally.
+Findings carrying `advisory === true` are included in the findings list but do not cause `result: fail`. Callers may surface them informationally.
 
 ## Output to caller
 
@@ -50,7 +50,7 @@ Invoke the CLI exactly as specified in `../impeccable-cli.md` ("Invocation"), an
   "mode": "test",
   "result": "pass" | "fail",
   "files_scanned": <int>,
-  "findings": [ { "antipattern": "...", "name": "...", "description": "...", "severity": "...", "file": "...", "line": <int>, "snippet": "..." }, ... ]
+  "findings": [ /* each finding has the shape documented in ../impeccable-cli.md's field reference — not restated here */ ]
 }
 ```
 
