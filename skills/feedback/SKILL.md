@@ -49,7 +49,13 @@ current behavior does not support it.
 
 ### Step 2: Classify the kind
 
-Read `_shared/learning-routing.md` and confirm the learning is D5 at all. Then:
+Read `_shared/learning-routing.md` and confirm the learning is D5 at all.
+
+**If it is not D5, stop.** Report the destination the contract actually returned
+and hand the learning back to the caller. This skill files D5 learnings and
+nothing else — a misrouted learning filed here becomes an off-topic public issue.
+
+Otherwise:
 
 - Classifier **rule 1** fired → `defect`
 - Classifier **rule 7** fired → `gap`
@@ -133,6 +139,13 @@ Keep only what a maintainer needs to reproduce or understand the report.
 This gate is unconditional. It runs on every invocation, including `--dry-run`
 and including invocations that began inside a pipeline.
 
+**If the learning cannot survive the scrub, stop.** When the report is only
+intelligible with content that must be removed — the reproduction depends on
+private code, or the symptom cannot be stated without naming private
+infrastructure — do not file a gutted version and do not file the original.
+Report that the learning is unfileable as-is and hand it back. A learning that
+cannot be scrubbed cannot be published.
+
 ### Step 7: Confirm — HARD GATE
 
 Show the full scrubbed draft and call `AskUserQuestion`:
@@ -151,6 +164,19 @@ and kind, and **stop here** — do not call `AskUserQuestion` and do not file.
 
 ### Step 8: File
 
+**First**, resolve the label. Never pass one that has not been confirmed to
+exist:
+
+```bash
+gh label list --repo thomasholknielsen/claude-tweaks --limit 200
+```
+
+Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
+that label is present in the output.
+
+**Then** file, appending the resolved `--label` argument if and only if the
+previous command confirmed it:
+
 ```bash
 BODY_FILE=$(mktemp)
 cat > "$BODY_FILE" <<'BODY'
@@ -161,14 +187,7 @@ gh issue create --repo thomasholknielsen/claude-tweaks \
   --body-file "$BODY_FILE"
 ```
 
-Confirm a label exists before passing it:
-
-```bash
-gh label list --repo thomasholknielsen/claude-tweaks --limit 200
-```
-
-Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
-that label is present in the output. Omit `--label` entirely otherwise and say
+Omit `--label` entirely otherwise and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `effort:*`),
 which belongs to records that moved through its in-repo pipeline.
@@ -179,8 +198,10 @@ stuck escalates as a `feedback:filing-failed` issue.
 
 ### Step 9: Report
 
-Give the user the created issue URL. If the flow stopped at Step 3, 4, 6, or 7,
-report where it stopped and why — nothing further is needed.
+Give the user the created issue URL. If the flow stopped early — at Step 2 (not
+a D5 learning), Step 3 (self-reference), Step 4 (duplicate), Step 6 (unscrubbable),
+or Step 7 (declined or `--dry-run`) — report which step stopped it and why.
+Nothing further is needed.
 
 ## Next Actions
 
