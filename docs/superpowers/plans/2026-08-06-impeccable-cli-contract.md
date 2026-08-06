@@ -323,11 +323,14 @@ Expected: no output. Those three ids are retired, renamed, or never existed. A h
 
 - [ ] **Step 7: Verify `--fast` is gone from this file except its epitaph**
 
+Count occurrences, not matching lines — `grep -c` counts lines, and Step 2's paragraph mentions `--fast` more than once, so its result would depend on how the paragraph happens to wrap:
+
 ```bash
-grep -c -- "--fast" skills/design-wrapper/impeccable-cli.md
+grep -o -- "--fast" skills/design-wrapper/impeccable-cli.md | wc -l
+grep -n -- "--fast" skills/design-wrapper/impeccable-cli.md
 ```
 
-Expected: `1` — the explanatory paragraph from Step 2. Measured before the fix: `5`.
+Expected: every remaining occurrence sits inside Step 2's explanatory paragraph, and nowhere else. Read the second command's output and confirm that by eye — the count alone cannot tell you *where* they are, which is the thing that matters. Measured before the fix: 5 occurrences across 5 distinct lines (12, 18, 38, 44, 113).
 
 - [ ] **Step 8: Commit**
 
