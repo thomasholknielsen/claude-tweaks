@@ -356,15 +356,23 @@ Expected survivors after this task, and **only** these:
 - `skills/init/SKILL.md:161`, `skills/dispatch/SKILL.md:59`, `skills/backlog/SKILL.md:56` — `work-backend`, out of scope
 - `skills/init/update-mode.md:105`, `skills/tidy/step-6-auto.md:27` — the "CLAUDE.md is never edited autonomously" rule, which is about *editing*, not about where a key is read
 - `skills/_shared/local-files-preflight-stop.md:70`, `skills/_shared/auto-mode-contract.md:180`, `skills/dispatch/SKILL.md` and `skills/backlog/SKILL.md` Preflight paragraphs — all say "conventions elsewhere in CLAUDE.md do not supersede this stop," which is about precedence of *instructions*, not config-key homes
-- `skills/wrap-up/config-updates.md:18`, `skills/init/claude-md-template.md:181`, `skills/_shared/decision-records.md:48`, `skills/tidy/SKILL.md:205`, `skills/_shared/auto-mode-contract.md:46` — incidental co-occurrence, no home claim
+- `skills/wrap-up/config-updates.md:18`, `skills/init/claude-md-template.md:181`, `skills/_shared/decision-records.md:48` — incidental co-occurrence, no home claim
+
+**Corrected after Task 2's review.** This bucket originally also listed `skills/tidy/SKILL.md:205` and `skills/_shared/auto-mode-contract.md:46` as incidental. Both are genuine home claims and both are now fixed in Task 2's fix round. The `/claude-tweaks:tidy` one was not cosmetic: its paragraph says an unattended firing whose project has not set `auto-mode: default-on` "falls back to interactive and blocks on a batch-approval prompt that will never be answered" — so leaving it pointed at CLAUDE.md would make a migrated project's scheduled `/claude-tweaks:tidy` deadlock. **Treat every entry in a survivor list as a claim to re-check, not a clearance.** An expected-survivor list is written by the same person who wrote the change, and mislabeling a real hit as benign is the one error the list itself cannot catch.
 - `skills/flow/**` and `skills/_shared/record-queue-fetch.md` `depth-survey`/`creative-survey`/`backlog-fetch-limit` lines — Task 3's job
 
 Any hit outside both lists is a site this task missed. Read it before deciding it is benign.
 
 - [ ] **Step 5: Commit**
 
+Eleven files, not seven — this list originally named only the seven sites known before the authoring greps found four more. Stage what Steps 1 and 3 actually told you to edit, and let `git status` settle any disagreement with this list:
+
 ```bash
-git add skills/wrap-up/unblocked-records.md skills/dispatch/settle-and-merge.md skills/dispatch/SKILL.md skills/assess-agent-autonomy/SKILL.md skills/flow/SKILL.md skills/flow/manifesto.md skills/_shared/unattended-tier.md
+git add skills/wrap-up/unblocked-records.md skills/dispatch/settle-and-merge.md skills/dispatch/SKILL.md \
+        skills/assess-agent-autonomy/SKILL.md skills/flow/SKILL.md skills/flow/manifesto.md \
+        skills/_shared/unattended-tier.md skills/_shared/auto-mode-contract.md \
+        skills/_shared/pipeline-run-dir.md skills/visualize/record-graph.md \
+        skills/init/summary-templates.md
 git diff --cached --name-only
 git commit -m "Read every dual-homed policy key from policy.yml alone — refs #132"
 ```
@@ -374,12 +382,14 @@ git commit -m "Read every dual-homed policy key from policy.yml alone — refs #
 ## Task 3: The four CLAUDE.md-only levers get a policy.yml home
 
 **Files:**
-- Modify: `skills/_shared/policy-schema.md:5,88,92-95`
-- Modify: `skills/flow/SKILL.md:51,52,181`
-- Modify: `skills/flow/survey.md:12,18,48,63`
-- Modify: `skills/_shared/record-queue-fetch.md:25,37`
-- Modify: `skills/backlog/refine-mode.md:45`
-- Modify: `skills/_shared/work-record-config.md` (the boundary statement)
+- Modify: `skills/_shared/policy-schema.md` — the intro sentence, the `## Additional levers` preamble, and the table rows named by key below
+- Modify: `skills/flow/SKILL.md` — the `no-deepen` and `no-creative` rows, and the Creative Opportunities survey paragraph
+- Modify: `skills/flow/survey.md` — four `in CLAUDE.md` parentheticals
+- Modify: `skills/_shared/record-queue-fetch.md` — the `backlog-fetch-limit` read instruction and its warning string
+- Modify: `skills/backlog/refine-mode.md` — the `See CLAUDE.md.` warning string
+- Modify: `skills/_shared/work-record-config.md` — the boundary statement
+
+**Locate every target by its key name or quoted text, never by line number.** `origin/main` merged into this branch twice mid-plan and shifted every line in `_shared/policy-schema.md` by +9; any number written here is a snapshot, and grepping the key is both faster and correct.
 
 **Interfaces:**
 - Consumes: Task 2's single-read idiom, restated for `backlog-fetch-limit`.
@@ -387,13 +397,13 @@ git commit -m "Read every dual-homed policy key from policy.yml alone — refs #
 
 - [ ] **Step 1: Rewrite `_shared/policy-schema.md`'s two framing sentences**
 
-Line 5 currently ends with a sentence saying most Additional levers have no `policy.yml` path. Replace the whole of line 5 with:
+The first is the file's intro paragraph — the one beginning ``` `.claude-tweaks/policy.yml` is the canonical home for every lever below ``` and ending "CLAUDE.md is their only current home." Replace that whole paragraph with:
 
 ```markdown
 `.claude-tweaks/policy.yml` is the canonical **and only** home for every lever below — no key in this table is read from CLAUDE.md. `worktree.always` is additionally enforced mechanically by `bin/lib/hooks/pre-tool-use.js`, which reads `policy.yml` directly. A recognized key still sitting in a project's CLAUDE.md no longer applies to anything; `auditPolicy()` reports it under `migratableKeys` and `/claude-tweaks:init --update`'s Config Home Drift check offers to move it.
 ```
 
-Replace the whole of line 88 (the `## Additional levers` preamble) with:
+The second is the paragraph directly under the `## Additional levers` heading, beginning "Most of these levers still have no documented `policy.yml` path at all". Replace that whole paragraph with:
 
 ```markdown
 These levers resolve from `.claude-tweaks/policy.yml`, like every other lever in this file. `/claude-tweaks:init`'s CLAUDE.md template generates none of them — omitting a lever means its default. `backlog-fetch-limit` and `promise-register-min-leaves` also appear in `_shared/work-record-config.md`'s table — if the two disagree, that file wins for those two keys, per the same rule the "Dispatch & merge" section states.
@@ -401,7 +411,7 @@ These levers resolve from `.claude-tweaks/policy.yml`, like every other lever in
 
 - [ ] **Step 2: Rewrite the four table rows' Canonical home column**
 
-In `skills/_shared/policy-schema.md`, rows 92-95. Change only the second column of each; leave every other column byte-identical.
+In `skills/_shared/policy-schema.md`, the four rows under `## Additional levers` whose second column currently reads `CLAUDE.md only — no `policy.yml` path documented today`. Change only that second column; leave every other column byte-identical.
 
 | Key | New second column |
 |---|---|
@@ -410,7 +420,13 @@ In `skills/_shared/policy-schema.md`, rows 92-95. Change only the second column 
 | `backlog-fetch-limit` | `` `policy.yml` `` |
 | `promise-register-min-leaves` | `` `policy.yml` `` |
 
-Then remove the now-false "Three exceptions" framing if any trace of it survives Step 1, and check rows 50-55 and 77-84 for the parenthetical `(CLAUDE.md also honored)` / `(CLAUDE.md legacy fallback)` phrases — every one of those must become plain `` `policy.yml` `` too, since Task 2 removed the fallback they describe. Affected rows, verified present today: `dispatch-retry-ceiling` (50), `automerge-max-lines` (52), `automerge-max-files` (53), `work-links` (55), `unattended-tier` (77), `scope-creep` (78), `tidy-aggressiveness` (84), and `auto-mode` (41, currently `` `policy.yml` or CLAUDE.md``).
+Then remove the now-false "Three exceptions" framing if any trace of it survives Step 1, and clear every remaining `(CLAUDE.md also honored)` / `(CLAUDE.md legacy fallback)` parenthetical — each must become plain `` `policy.yml` ``, since Task 2 removed the fallback they describe. Find them by key rather than by line:
+
+```bash
+grep -n "CLAUDE.md also honored\|CLAUDE.md legacy fallback\|\`policy.yml\` or CLAUDE.md" skills/_shared/policy-schema.md
+```
+
+That returns eight rows: `auto-mode`, `dispatch-retry-ceiling`, `automerge-max-lines`, `automerge-max-files`, `work-links`, `unattended-tier`, `scope-creep`, `tidy-aggressiveness`. If it returns a different set, the file moved under this plan again — trust the grep, not this sentence.
 
 For `unattended-tier`, keep the second half of its parenthetical — it names a different file as the concept's canonical home, which is still true: `` `policy.yml` (canonical home is `_shared/unattended-tier.md`) ``.
 
