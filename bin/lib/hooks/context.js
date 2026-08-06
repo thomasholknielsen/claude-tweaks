@@ -56,15 +56,49 @@ function listRunDirs(cwd) {
   return listRunDirsWithState(cwd).map(({ dir }) => dir);
 }
 
-function resolveRunDir(cwd, env) {
+// Which run an event belongs to, and how confidently we know it (#62).
+//
+//   'env'      — PIPELINE_RUN_DIR named it. Certain.
+//   'session'  — the run records this session as its owner. Certain.
+//   'fallback' — nobody claims it and nobody else owns it, so the newest
+//                non-terminal run is the best guess. This is the pre-#62
+//                behavior, kept only for runs whose ownership is unknown.
+//   null dir   — every non-terminal run is owned by a DIFFERENT session.
+//                Guessing here is what cross-contaminated events.jsonl and
+//                left finished runs stamped `interrupted` forever.
+//
+// The asymmetry is deliberate: an unowned run may still be ours (ownership is
+// only stamped by `record-worktree`, which a run without a worktree never
+// calls), but a run owned by someone else never is.
+function resolveRun(cwd, env, sessionId) {
   if (env && env.PIPELINE_RUN_DIR) {
-    try { if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) return env.PIPELINE_RUN_DIR; } catch { /* fall through */ }
+    try {
+      if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) {
+        return { dir: env.PIPELINE_RUN_DIR, attribution: 'env' };
+      }
+    } catch { /* fall through */ }
   }
-  // Only the newest non-terminal run is needed — stop at the first yielded
-  // entry instead of reading every OTHER run dir's run-state.json just to
-  // discard it.
-  for (const { dir } of iterRunDirsWithState(cwd)) return dir;
-  return null;
+  const me = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  if (!me) {
+    // Caller identity unknown — behave exactly as before #62. Filtering by an
+    // owner we cannot compare against would just be the old guess with fewer
+    // candidates, and `record-worktree`/`close-run` deliberately resolve runs
+    // they do NOT own so they can report that fact (see bin/hooks.js).
+    for (const { dir } of iterRunDirsWithState(cwd)) return { dir, attribution: 'fallback' };
+    return { dir: null, attribution: null };
+  }
+  let unowned = null;
+  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+    const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
+    if (owner === me) return { dir, attribution: 'session' };
+    // Newest-first, so the first unowned run is the one the old code returned.
+    if (!owner && !unowned) unowned = dir;
+  }
+  return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
+}
+
+function resolveRunDir(cwd, env, sessionId) {
+  return resolveRun(cwd, env, sessionId).dir;
 }
 
 // True synchronous sleep (no CPU-spinning) for writeRunState's lock retry
@@ -132,7 +166,7 @@ function writeRunState(runDir, patch) {
   }
 }
 
-function appendEvent(runDir, type, data) {
+function appendEvent(runDir, type, data, attribution) {
   try {
     // Derived/trusted fields (ts, type) spread LAST so they always win —
     // never spread caller-supplied `data` after them (see CLAUDE.md's
@@ -141,12 +175,18 @@ function appendEvent(runDir, type, data) {
     // but nothing enforced that invariant before; a future call site
     // spreading a richer/less-curated object could otherwise silently
     // overwrite this event's own classification or timestamp.
-    const line = JSON.stringify({ ...(data || {}), ts: new Date().toISOString(), type });
+    // `attribution` is stamped only when the run was a guess (#62). Its absence
+    // means the run was named by PIPELINE_RUN_DIR or claims this session as its
+    // owner; its presence marks the line as evidence that may belong to another
+    // session, so a reader auditing a contaminated events.jsonl can filter on it
+    // rather than having to reconstruct which worktree each commit came from.
+    const guessed = attribution === 'fallback' ? { attribution } : null;
+    const line = JSON.stringify({ ...(data || {}), ...guessed, ts: new Date().toISOString(), type });
     fs.appendFileSync(path.join(runDir, 'events.jsonl'), line + '\n');
   } catch { /* best-effort */ }
 }
 
 module.exports = {
-  readStdin, parseInput, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
+  readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
   readRunState, writeRunState, appendEvent,
 };

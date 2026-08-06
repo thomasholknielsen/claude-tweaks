@@ -5,7 +5,7 @@ The record this run just closed is already known — `record: {n}` from the mate
 **`work-backend: github-issues`:** branches on `work-links` (same grep convention `/claude-tweaks:dispatch` Step 2 uses):
 
 ```bash
-WORK_LINKS=$(grep -E "^work-links:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//')
+WORK_LINKS=$(grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//')
 gh issue list --state open --json number,title,body --limit 200 > /tmp/wrapup-open-records.json
 ```
 

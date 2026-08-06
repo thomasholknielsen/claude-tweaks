@@ -5,7 +5,7 @@ Loaded by `/init` Phase 1 when existing config is detected. Covers the Update Mo
 ## Sub-phases at a glance
 
 - **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
-- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections
+- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections; and detect policy keys still living in CLAUDE.md, which no longer apply, offering to move them
 - **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
 
 ## Phase 1u: Audit Existing Configuration
@@ -26,6 +26,8 @@ Build an inventory of what's currently configured before scanning the codebase:
 
 ### policy.yml
 - `project.maturity`: {value, or "not set" if the key is absent}
+- Recognized keys present: {count}
+- Recognized keys still in CLAUDE.md: {migratableKeys count from the Config Home Drift check below, or "none"}
 
 ### Skills ({count})
 | Skill | Description trigger | Key file paths referenced |
@@ -96,7 +98,7 @@ installed template" in the inventory and skip ahead.
 
 ### Work-Record Backend Drift
 
-The work-record backend (`work-backend` / `work-types` / `work-links`) predates a
+The work-record backend (`work-backend` and `work-types` in CLAUDE.md, `work-links` in `.claude-tweaks/policy.yml`) predates a
 versioned contract tag, so it isn't one of the plugin-authored sections the
 conformance check above compares — but its drift is detected the same pass and
 counts identically toward the Total drift count in Phase 1u.6 below (treat
@@ -107,12 +109,78 @@ autonomously.
 
 | Signal | Detection | Offer (staged) |
 |---|---|---|
-| `work-backend: github-issues` present but `work-types` and/or `work-links` missing | Absence of `work-types:` / `work-links:` lines alongside a present `work-backend: github-issues` | Run `probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) and offer to write the missing key(s) |
+| `work-backend: github-issues` present but `work-types` and/or `work-links` missing | Absence of `work-types:` / `work-links:` lines alongside a present `work-backend: github-issues` | Run `probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) and offer to write the missing key(s) — `work-types` into CLAUDE.md, `work-links` into `.claude-tweaks/policy.yml` |
 | `work-backend: github-issues` with both `work-types` and `work-links` already present | — | Every full Update-Mode pass re-probes capabilities (`probeCapabilities()`) and offers a patch when the result has drifted from what's recorded (e.g. the org enabled Issue Types since the last run) |
 
 `work-backend: local-files` needs no probe on any of these rows — its
 `work-types: labels` / `work-links: body-text` fallback is unconditional, the same
 as bootstrap Step 17b.
+
+### Config Home Drift
+
+`.claude-tweaks/policy.yml` is the only file claude-tweaks reads for config keys
+(`_shared/policy-schema.md`). A project configured before that consolidation may still carry
+recognized keys in CLAUDE.md, where they no longer apply — the failure is silent, because a key
+that is not read looks exactly like a key that was never set, and the lever's default takes over
+with nothing objecting.
+
+Each flagged key counts toward Phase 1u.6's Total drift count, the same as Work-Record Backend
+Drift above — a project whose only drift is stranded policy keys must not take the early-exit
+fast path, since the fast path would suppress the very offer this check exists to make.
+
+Detect by calling the same module `/claude-tweaks:harness-health` uses:
+
+```bash
+node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).migratableKeys))"
+```
+
+An empty array means nothing to do — omit this check from the Drift Report entirely rather than
+reporting a clean result. Otherwise each entry carries `key`, its CLAUDE.md `value`, and
+`alsoInPolicy`, which picks the remedy:
+
+| `alsoInPolicy` | What happened | Recommended action |
+|---|---|---|
+| `false` | The key applies nowhere — the lever has been running on its default | **Move** — add `{key}: {value}` to `.claude-tweaks/policy.yml`, remove the CLAUDE.md line |
+| `true` | `policy.yml` already carries this key and is what applies; the CLAUDE.md line is a dead duplicate that may state a *different* value | **Remove** — delete the CLAUDE.md line only, leaving `policy.yml` untouched |
+
+Present a batch table (Key | CLAUDE.md value | policy.yml value or "not set" | Recommended action),
+and for any `alsoInPolicy: true` row whose two values differ, say so in the row — that is a project
+whose intended setting has not been in effect, and the user may want the CLAUDE.md value promoted
+rather than dropped. The policy.yml-side value is not in `migratableKeys` — read it from the
+Phase 1u inventory pass above, which has already parsed `.claude-tweaks/policy.yml`;
+`alsoInPolicy` only tells you whether the key is present there.
+
+**Show the diff before asking.** Render the exact `policy.yml` additions and the exact CLAUDE.md
+lines to be deleted, with their line numbers. CLAUDE.md is the file users hand-tune most, and the
+detector matches key-shaped lines wherever they sit — including inside fenced code blocks, which is
+deliberate, since that is how the legacy form was often written, but it also means a CLAUDE.md that
+*documents* claude-tweaks levers can produce rows that must not be applied. The diff is what lets
+the user see that before it happens.
+
+Then call `AskUserQuestion`:
+
+- `question`: `"{N} policy key(s) in CLAUDE.md no longer apply. Move them into policy.yml?"`,
+  `header`: `"Config home"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Move {M} key(s)
+  into .claude-tweaks/policy.yml and delete {N} line(s) from CLAUDE.md, exactly as shown in the
+  diff above"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-key what happens
+  to each of the {N} entries"`
+- Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave both files as-is — the keys in
+  CLAUDE.md will continue to have no effect"`
+
+On "Override specific items," the user's per-key corrections arrive as ordinary free-text in the
+next message, per CLAUDE.md's Multi-item Decisions convention — not the tool's `Other` field.
+
+**Applying.** This is a **staged offer, never an autonomous edit** — the same rule the
+Work-Record Backend Drift section above states, and for the same reason: CLAUDE.md is never
+edited without the user accepting the specific change. Under `--defaults`, or any invocation with
+no interactive human, present the diff in the report and apply nothing. Remove **only**
+exactly-matched whole lines from CLAUDE.md — never reflow a paragraph, never rewrite a heading,
+never delete a surrounding fenced block even when removing its only line leaves it empty. Append
+to `.claude-tweaks/policy.yml` in `{key}: {value}` form, creating the file if absent. On any
+outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
+`Operational` row.
 
 ### Maturity Drift
 
