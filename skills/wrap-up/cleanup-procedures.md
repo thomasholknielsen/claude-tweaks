@@ -143,10 +143,19 @@ If the build used worktree git strategy, clean up the worktree directory:
    [ -d "$RUN_DIR/staged" ] && [ "$(ls -A "$RUN_DIR/staged" 2>/dev/null)" ] && cp -r "$RUN_DIR/staged" "$ARCHIVE_DEST/staged"
    ```
 
-   A plain `cp` via Bash — not the `Write`/`Edit` tool, not `git commit` — so the `worktree.always`
-   PreToolUse gate does not deny it (`bin/lib/hooks/pre-tool-use.js`'s `checkWorktreeRequired`
-   only gates `Edit`/`Write`/`NotebookEdit` and a Bash command whose `gitTargets` resolves a
-   `commit` action; a bare `cp` matches neither). `git rev-parse --git-common-dir` resolves the
+   The `worktree.always` PreToolUse gate **does** cover a bare `cp` into the main checkout —
+   `cp`/`mv`/`tee` are gated write shapes, and choosing Bash over the `Write` tool changes
+   nothing. This copy is permitted by the gate's one path-prefix exemption instead: file writes
+   under the repo's own `.claude-tweaks/pipelines/` are plugin-owned bookkeeping, not the project
+   work the gate isolates. See the `worktree.always` coverage block in `_shared/policy-schema.md`
+   — the canonical statement of what the gate intercepts; do not restate it here.
+
+   Keep the destination under `.claude-tweaks/pipelines/`. A copy anywhere else in the main
+   checkout is denied, and the denial is easy to miss: it is a refused tool call mid-cleanup,
+   not a hard stop, which is how this step went silently broken on every `worktree.always`
+   project until #138.
+
+   `git rev-parse --git-common-dir` resolves the
    shared `.git` directory regardless of which worktree the command runs from; stripping the
    trailing `.git` segment gives the main checkout root. Section B's archival step (item 8, above)
    then only needs to `git mv` the already-merged `work/` subdirectory into this same archive path
@@ -161,7 +170,11 @@ If the build used worktree git strategy, clean up the worktree directory:
    `MULTISPEC_REVIEW_DEFER=1` regardless — so this step's per-spec invocation is skipped in that
    mode already (see "Multi-spec defer behavior" above) and does not need separate handling here.
    Whether the parent `/flow`'s own end-of-run worktree teardown needs an equivalent pre-removal
-   copy step is a follow-up, not covered by this fix.
+   copy step is a follow-up, not covered by this fix. What #138 *did* settle for that follow-up:
+   permission is no longer the obstacle. The exemption is a path prefix, so it covers a
+   per-spec `spec-{N}/` run dir exactly as it covers a single-record one — whatever teardown
+   ends up performing the copy, the gate will allow it. The open part is purely which step
+   invokes it.
 5. Remove the worktree: `git worktree remove {path}`.
 6. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 

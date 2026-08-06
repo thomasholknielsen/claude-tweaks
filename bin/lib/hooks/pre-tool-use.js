@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets } = require('./git-command');
+const { gitTargets, fileWriteTargets, WRITE_SHAPES } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -32,6 +32,45 @@ const { runGit } = require('./git-exec');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
+}
+
+// The single machine-readable statement of what the worktree.always gate
+// covers. `skills/_shared/policy-schema.md`'s `worktree.always` row is its
+// prose counterpart, and tests/hooks-gate-coverage.test.js asserts the two
+// agree — so widening this constant fails a test until that row is updated.
+// Every other skill file cites that row rather than restating the list.
+//
+// Why the binding exists: this set was widened twice on 2026-07-20 (push in
+// c8f929e1, cp/mv/tee in cab6142b) and no commit swept the prose describing
+// it. Four skill files went on documenting the pre-widening gate, two of them
+// prescribing procedures that the widened gate denies (#138).
+// Each field is read by the code below (or, for bashWriteShapes, re-exported
+// from the module that implements it) — never a parallel hand-kept list, which
+// is the drift this whole binding exists to prevent.
+const GATE_COVERAGE = Object.freeze({
+  tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
+  gitActions: Object.freeze(['commit', 'push']),
+  bashWriteShapes: WRITE_SHAPES,
+});
+
+// The gate's one path-prefix exemption. `.claude-tweaks/pipelines/` holds
+// plugin-owned pipeline bookkeeping — run config, the auto-decision log,
+// staged proposals — which is gitignored and is not the project work this
+// gate exists to isolate. Without the exemption, /wrap-up cannot copy a run's
+// audit state out of a worktree before removing it, so decisions.md is
+// destroyed on every run of every worktree.always project (#138).
+const PIPELINE_STATE_DIR = path.join('.claude-tweaks', 'pipelines');
+
+// Fails CLOSED, deliberately: anything this cannot prove sits under the repo's
+// own .claude-tweaks/pipelines/ is NOT exempt and falls through to the deny.
+// A relative path is unprovable here (the cwd it would resolve against is not
+// necessarily the one the write executes in), so it is never exempt — matching
+// resolveWriteTarget's own "never fabricate a target you can't prove" posture
+// in git-command.js.
+function isPipelineBookkeeping(repoRoot, targetPath) {
+  if (!repoRoot || typeof targetPath !== 'string' || !targetPath) return false;
+  if (!path.isAbsolute(targetPath)) return false;
+  return path.resolve(targetPath).startsWith(path.join(repoRoot, PIPELINE_STATE_DIR) + path.sep);
 }
 
 // Kept returning `string | null` — E1's own callers below compare toplevels for
@@ -63,15 +102,24 @@ function safeReal(p) {
 function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets = []) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
+  // Each entry is { path, exemptible }. `exemptible` marks a target that names
+  // a FILE being written, which is the only kind the .claude-tweaks/pipelines/
+  // exemption may apply to. A git commit/push target is the command's working
+  // DIRECTORY, not a file — exempting those by prefix would allow any commit
+  // merely ISSUED from inside .claude-tweaks/pipelines/, which is precisely
+  // the isolation this gate enforces. The distinction has to be carried from
+  // where each target is resolved; it cannot be recovered later.
   let targetPaths = [];
 
-  // Keep this tool list in sync with the Edit/Write/NotebookEdit matchers in
-  // hooks/hooks.json — a new file-mutation tool must be added to both or it
-  // silently bypasses this gate.
-  if (toolName === 'Edit' || toolName === 'Write') {
-    if (toolInput && typeof toolInput.file_path === 'string') targetPaths = [toolInput.file_path];
-  } else if (toolName === 'NotebookEdit') {
-    if (toolInput && typeof toolInput.notebook_path === 'string') targetPaths = [toolInput.notebook_path];
+  // GATE_COVERAGE.tools decides WHETHER a tool is gated; only the input field
+  // name varies per tool. Keep that list in sync with the Edit/Write/
+  // NotebookEdit matchers in hooks/hooks.json — a new file-mutation tool must
+  // be added to both or it silently bypasses this gate.
+  if (GATE_COVERAGE.tools.includes(toolName)) {
+    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+    if (toolInput && typeof toolInput[field] === 'string') {
+      targetPaths = [{ path: toolInput[field], exemptible: true }];
+    }
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
@@ -86,16 +134,18 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       // each one is checked on its own below: a violation later in the
       // chain must not be masked by an earlier, compliant target.
       const targets = precomputedGitTargets || gitTargets(command, ctx.cwd);
-      const gitTargetPaths = targets.filter((t) => t.action === 'commit' || t.action === 'push').map((t) => t.dir);
+      const gitTargetPaths = targets
+        .filter((t) => GATE_COVERAGE.gitActions.includes(t.action))
+        .map((t) => ({ path: t.dir, exemptible: false }));
       // Non-git direct file writes (tee, cp, mv) — best-effort,
       // not exhaustive (see fileWriteTargets' own header comment).
-      const writeTargetPaths = fileWriteTargets(command, ctx.cwd).map((t) => t.file);
+      const writeTargetPaths = fileWriteTargets(command, ctx.cwd).map((t) => ({ path: t.file, exemptible: true }));
       targetPaths = [...gitTargetPaths, ...writeTargetPaths];
     }
   }
   if (!targetPaths.length) return {};
 
-  for (const targetPath of targetPaths) {
+  for (const { path: targetPath, exemptible } of targetPaths) {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
     // ancestor chain, there is definitely nothing to enforce for THIS
     // target — skip forking git entirely for the overwhelming majority of
@@ -128,6 +178,10 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     if (!repoRoot) continue; // git answered: not a git repo at all -> allow
     if (!policy.isWorktreeAlwaysOn(repoRoot)) continue;
     if (isLinkedWorktree) continue;
+    // Placed here, immediately before the deny, so no earlier `continue` can
+    // claim a path this was meant to exempt — the ordering defect [IL-83]
+    // records. Only file-write targets are eligible; see `exemptible` above.
+    if (exemptible && isPipelineBookkeeping(repoRoot, targetPath)) continue;
 
     return {
       exit: 0,
@@ -263,4 +317,4 @@ function run(ctx) {
   return { ...out, exit: 0, json };
 }
 
-module.exports = { run };
+module.exports = { run, GATE_COVERAGE, PIPELINE_STATE_DIR, isPipelineBookkeeping };

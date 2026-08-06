@@ -12,8 +12,16 @@ Run substeps 2.5, 2.6, and 2.7 in order. Any hard fail or rejection stops the pi
 
 Read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled and worktree strategy resolves to `worktree`, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
 
+A project that pins an integration branch names the expected fork point directly, replacing the upstream-then-`origin/HEAD` guess. Only the *stated* ranks of `skills/_shared/integration-branch.md` apply here — the policy line below, and any explicit argument or CLAUDE.md statement above it. **That fragment's git-inference rank must not be used for this check:** it resolves a branch in nearly every repo, which would shadow the `@{upstream}` fallback and make `/claude-tweaks:flow` on a tracked feature branch compare against the wrong ref and warn about a divergence that isn't there.
+
 ```bash
-UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
+# Integration branch when the project pins one, else the upstream of the current
+# branch, else the remote default branch (origin/HEAD). Assigned and used in the
+# same call — a fresh shell per Bash invocation means a value resolved elsewhere
+# would arrive empty here, and an empty UPSTREAM silently skips the check.
+INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
+UPSTREAM="${INTEGRATION_BRANCH:+origin/$INTEGRATION_BRANCH}"
+[ -n "$UPSTREAM" ] || UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
   || UPSTREAM="origin/$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
 git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
 ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)

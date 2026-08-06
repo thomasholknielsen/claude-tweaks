@@ -11,6 +11,8 @@
    ```
    Worktree base ref is `{current value or 'unset (default: fresh)'}`. claude-tweaks branches from your current local HEAD — `fresh` can branch from a stale `origin/<default-branch>`. Set `worktree.baseRef: "head"`? (Y/n)
    ```
+   **When `integration-branch` is set in `.claude-tweaks/policy.yml` and differs from the repo's GitHub default branch, this stops being a recommendation.** Under `fresh` every task forks from `origin/<GitHub default>` — the wrong branch by construction, on every single run. Say so explicitly rather than asking neutrally: `"This project's integration branch is '{integration}', but the GitHub default is '{default}'. With baseRef 'fresh', every worktree would branch from '{default}'. Setting it to 'head' is required for this project, not optional."` The plugin cannot set this itself — it lives in the harness's settings.json and `EnterWorktree` accepts no base-ref argument — so a declined offer leaves the hole open, with `/claude-tweaks:build`'s own base-ref verification as the only backstop.
+
    On yes, write `{ "worktree": { "baseRef": "head" } }` into `settings.json` (backup first, merge — don't clobber existing keys). In `auto` mode, set it without prompting and log the change.
 5. **`worktree.always` policy** — check `.claude-tweaks/policy.yml` (repo root) for a `worktree.always:` line:
 

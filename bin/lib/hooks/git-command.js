@@ -226,9 +226,19 @@ function resolveWriteTarget(effCwd, raw) {
   return path.resolve(effCwd, stripped);
 }
 
+// The Bash write shapes this function recognizes. Load-bearing, not
+// descriptive: the guard below drops any segment whose command word is absent
+// here, so adding a branch without adding its name makes that branch dead
+// code. pre-tool-use.js's GATE_COVERAGE re-exports this list, and
+// tests/hooks-gate-coverage.test.js pins it to the prose in
+// skills/_shared/policy-schema.md — so widening this array is what forces the
+// documentation to be updated (#138).
+const WRITE_SHAPES = Object.freeze(['cp', 'mv', 'tee']);
+
 function fileWriteTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
+    if (!WRITE_SHAPES.includes(t[0])) return;
     if (t[0] === 'tee') {
       // tee genuinely writes to EVERY non-flag argument, not just the
       // first — `tee a.txt b.txt` writes both files. .find() silently
@@ -276,4 +286,4 @@ function fileWriteTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize };
+module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, WRITE_SHAPES };

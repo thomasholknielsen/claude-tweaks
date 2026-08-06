@@ -1,5 +1,151 @@
 # Changelog
 
+Every version this plugin has shipped, newest first. "Shipped" means a value the
+`version` field in `.claude-plugin/plugin.json` held at the tip of `main` — the
+marketplace `source` is an unpinned git URL, so an install tracks that tip, and
+every distinct value it reported is a build someone could be running.
+`tests/changelog-coverage.test.js` fails the suite if any of them is missing here.
+
+Two conventions follow from how this repo works, and both are visible below:
+
+- **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
+  developed and written up under one number but reached users under another,
+  because a concurrent worktree session claimed the number first (`[IL-12]`).
+  `main`'s tip never reported the branch number, so the entry lives under the
+  build that actually carried it. The original write-up is kept verbatim.
+- **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
+  commit history rather than written at release time — the changelog step was
+  not part of the release convention until v6.41.0, and 103 of the first 145
+  releases went undocumented (`[IL-94]`). They are summaries of what each version
+  contained, not contemporaneous release notes, and they are thinner than the
+  entries written since.
+
+## v6.42.0 — Routines and merges follow the branch you name, not the GitHub default (closes #132)
+
+Four places independently resolved "which branch is this project's current state" — which tree a
+routine audits, where a task forks from, where finished work merges, and what a change's blast
+radius is measured against. All four asked GitHub for its default branch. On a `dev` → `staging` →
+`main` model that is the one branch nobody develops on: on the reporting repo it was 102 commits
+behind the active branch **and 51 ahead of it**, divergent rather than merely stale, because urgent
+fixes are cherry-picked straight onto it.
+
+They failed differently, and the worst one had never been reported. Auto-merge aborted, which is
+visible. But `merge-check` sizes a record's change by diffing against the merge base with the
+default branch — and against a branch that diverged long ago, that base is ancient, so the diff
+spans every commit since the fork. Blast radius came back enormous, the verdict was `needs-human`,
+and the stated reason was "too many files changed." Auto-merge could never fire on such a repo, and
+the log looked like the gate working correctly.
+
+One `integration-branch` key in `.claude-tweaks/policy.yml` now answers all four, resolved through
+`skills/_shared/integration-branch.md`: an explicit argument, then the key, then a branching model
+documented in CLAUDE.md prose, then git — where a current branch differing from the GitHub default
+is surfaced rather than silently picked, and a linked worktree's throwaway branch is never proposed
+at all. Unset reproduces the old behavior per consumer, so a project that sets nothing sees no
+change. A conformance test now fails on any new site that resolves the default branch without
+citing the fragment — the check that would have caught this originally.
+
+`/claude-tweaks:init` now treats `worktree.baseRef: head` as required, not merely recommended,
+whenever `integration-branch` is set and differs from the repo's GitHub default: under `fresh`,
+every worktree would otherwise fork from the wrong branch by construction. The plugin cannot set
+that value itself — it lives in the harness's `settings.json` — so init states the requirement
+explicitly and asks.
+
+Naming the branch was only half of it: the routine preamble previously told a container that
+started on the wrong branch to fast-forward, never to switch. It now says to check the target
+branch out.
+
+Existing live routines hold a frozen copy of their creation-time prompt and do not pick this up on
+their own. Every `template_version` is bumped, so `/claude-tweaks:routine status --all` reports
+them as Drifted and `update <skill>` rewrites the live prompt in place;
+`_shared/routine-template-schema.md` documents the case that recourse cannot reach — a routine
+created outside this skill, with no record.
+
+## v6.41.0 — Every shipped version has a changelog entry, and a gate that keeps it that way
+
+This file documented 59 of the 145 versions that had shipped. The other 103 —
+whole features, not only patches — had no entry, and 11 entries named versions
+`main`'s tip never reported. It had been accumulating since v1.0.0 in February
+2026, and nothing had gone wrong from the repo's point of view, because nothing
+was checking.
+
+The step was never written down. CLAUDE.md's "Releasing (two repos)" specified
+the version bump and the marketplace mirror in detail and did not mention the
+changelog once; its only occurrence of the word sat in a parenthetical about
+where *not* to write a version number early. So entries were not being forgotten
+against a procedure — there was no procedure, and whether a release got one
+depended on whether someone happened to think of it.
+
+Three changes, of which only the first is enforcement:
+
+- **`tests/changelog-coverage.test.js`** reconstructs every version `main`'s tip
+  ever reported and fails the suite on any that lacks an entry, on a heading the
+  parser can't read or that appears twice, and on an entry naming a version that
+  never shipped. The reconstruction walks the release branch's own first-parent
+  chain and reads each commit's manifest blob (`bin/lib/changelog-git.js`);
+  walking `git log --first-parent -- <manifest>` instead finds bump commits on
+  side branches, which is a different set whenever two sessions bump
+  concurrently — this repo's normal mode. The first version of the analysis used
+  that wrong walk and disagreed with the right one about 11 versions. On a
+  shallow clone the check skips and says so rather than passing silently.
+- **`checkPluginVersionBump`** now names the changelog alongside the marketplace
+  mirror. It had fired on exactly the right event since 6.12.1 — any commit
+  touching `plugin.json` — while mentioning only half of what that event obliges,
+  and its test asserted `/marketplace/i` and passed throughout. Both halves are
+  asserted separately now.
+- **CLAUDE.md's Releasing section** gained the step as step 2, including why the
+  heading shape is load-bearing rather than cosmetic.
+
+The backfill fills all 103 gaps, back to the initial scaffold on 2026-02-20.
+Entries through v5.29.0 are reconstructed from commit history and are thinner
+than those written since. Two second-order defects surfaced while doing it and
+are also fixed. Six early headings (`## v4.1`, `## v4.2 — Token Saver`) matched
+neither the parser's strict `X.Y.Z` nor its em-dash title, so
+`/claude-tweaks:init`'s upgrade notice had been silently omitting those releases
+from every range it reported; they are normalized. And the 11 orphans are the
+residue of version collisions (`[IL-12]`) — the manifest got renumbered, the
+heading kept the branch's number, and a user on 6.38.3 was reading about
+"v6.39.0" under a number no install ever reported. Each is folded into the
+version that carried it, verbatim, as a `###` subsection labelled with its
+branch number.
+
+Recorded as `[IL-94]`.
+
+## v6.40.0 — One statement of what the worktree gate covers, pinned to the code (closes #138, #139)
+
+The `worktree.always` gate was widened twice on 2026-07-20 — `c8f929e1` added `git push`
+beside `git commit`, `cab6142b` added Bash `cp`/`mv`/`tee`. Both correct, both tested,
+neither swept the prose. Five skill files went on describing the pre-widening gate, and three
+of them prescribed procedures the widened gate denies:
+
+- `wrap-up/cleanup-procedures.md` claimed a bare `cp` wasn't gated, so every
+  `worktree.always` project silently lost `decisions.md` and `config.yml` at every wrap-up.
+  Issue #32 had *closed* that same data-loss bug by adding the `cp` — its verification never
+  ran under the policy.
+- `wrap-up/review-console.md`'s headless fast-lane auto-merge pushed from the main checkout,
+  where the push is denied and no human is present to see it.
+- `flow/materialize.md` told the pipeline to commit the materialized record on the
+  pre-worktree branch, which cannot execute under the policy at all (#139).
+- `flow/worktree-merge.md` and `_shared/git-discipline.md` both stated flatly that
+  `git push` is never gated.
+
+All five corrected. The durable part is the binding: `pre-tool-use.js` exports a
+`GATE_COVERAGE` constant it actually branches on, `_shared/policy-schema.md` carries the
+single prose statement between marker comments, every other file cites it rather than
+restating it, and `tests/hooks-gate-coverage.test.js` fails when the two diverge. Widening
+the gate again now breaks a test until the canonical block is updated — and one edit
+suffices, because nothing else holds a copy.
+
+Also new: the gate's one path-prefix exemption. File writes under a repo's own
+`.claude-tweaks/pipelines/` are allowed from anywhere, since that directory is plugin-owned,
+gitignored bookkeeping rather than the project work the gate isolates. It applies to
+file-write targets only — a `git commit`/`git push` target is the command's *working
+directory*, so exempting those by prefix would permit any commit issued from inside a run
+dir — and it fails closed on any path it cannot prove.
+
+Found by grepping the *procedure shape* (`git push`, `cp`/`mv`/`tee`), not the keyword:
+`materialize.md` and `review-console.md` never mention the gate, so their defect is silence.
+That sweep turned up the fifth site after four were already known. Recorded as `[IL-93]`.
+
 ## v6.39.4 — The worktree gate stops failing open under load (closes #134)
 
 `bin/lib/hooks/git-exec.js` ran every git query with a fixed 3000 ms budget and a bare
@@ -102,7 +248,7 @@ rotation, and Phase 1 now actually rotates. Neither one alone gives the coverage
 to provide; all 184 journey-health tests were verified green against #130's rewritten
 `rotation.js` before either landed.
 
-## v6.39.1 — Health rotation reaches past its alphabetical prefix (closes #130)
+### Health rotation reaches past its alphabetical prefix (closes #130) — branch-numbered v6.39.1
 
 `health-core/rotation.js`'s Phase 1 returned on the *first* candidate past `staleDays`
 rather than the most overdue one. Since every engine's `scope.js` sorts candidates by id
@@ -130,7 +276,7 @@ The regression test runs the starvation model forward — 90 candidates against 
 threshold, one pick per simulated day — and asserts the full set is covered with no
 repeats. It fails on the old implementation at 31 of 90.
 
-## v6.39.0 — Routines report which build they resolved (closes #129)
+### Routines report which build they resolved (closes #129) — branch-numbered v6.39.0
 
 A scheduled `dispatch next` Routine hard-gated on `gh` being absent — the gate 6.24.0 had
 already replaced with an MCP branch — and described `dispatch/SKILL.md` as having no MCP
@@ -168,6 +314,12 @@ behind #129 first concluded `dispatch`'s gate was still wrong.
   refreshed by `claude plugin update` at all.
 - New regression test asserting all six templates' preambles still match the canonical block
   in `_shared/routine-template-schema.md`, and `[IL-89]` recording the general rule.
+
+## v6.38.3 — journey-health's deleted-file pick fires once per missing set (2026-08-06)
+
+The #131 fix reached `main` under this number and was then renumbered to 6.39.2
+after a collision, so both versions shipped and both carry it. The write-up is
+in the 6.39.2 entry above.
 
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
@@ -393,7 +545,6 @@ not run" rather than "no findings", since a gate that never opened is otherwise
 indistinguishable from a clean CLAUDE.md. Findings surface at the Review Console's
 Configuration updates section and are always offered, never auto-applied.
 
-
 ## v6.34.0 — Skill-bloat reduction Phase 2: the Relationship table leaves the payload
 
 Every `skills/*/SKILL.md` carried a `## Relationship to Other Skills` table describing
@@ -520,7 +671,7 @@ and silently overrode Step 2's own "substantially editing" qualifier — is repl
 Calibration cases now live in the skill rather than in a design doc, since the
 previous anchor was a design doc and it was pruned.
 
-## v6.30.0 — Mode-conditional and headless-path content stops loading unconditionally (closes #89, #82; refs #93)
+### Mode-conditional and headless-path content stops loading unconditionally (closes #89, #82; refs #93) — branch-numbered v6.30.0
 
 Three independent passes at the same defect: procedure that only one branch of a
 run will ever execute, loaded on every run.
@@ -550,6 +701,13 @@ The four health skills each inlined the whole ask-before-file gate, which is
 interactive-only by its own rule — so every scheduled Routine firing, their
 primary path, carried 2.1-2.4 KB it would never execute. Each consumer now
 carries a short interactive-only pointer instead.
+
+## v6.29.0 — Behavior-delta merge judgment, in progress (2026-08-03)
+
+The design and first implementation of merge-check judging behavior delta rather
+than diff size or file path (refs #78). `main` briefly reported 6.29.0 before a
+concurrent bump moved the release to 6.31.0, where the finished feature is
+written up.
 
 ## v6.28.0 — Dispatched agents get their procedure inlined, not a pointer (closes #94, #101, #110)
 
@@ -608,7 +766,7 @@ transcription of issue numbers, titles, or labels. Content is a point-in-time
 snapshot, not a live-refreshing view — the diagram carries a "Generated {timestamp}
 — re-run to refresh" note rather than a client-side data fetch.
 
-## v6.26.0 — CLAUDE.md context budget: rules and evidence split (closes #95, #102)
+### CLAUDE.md context budget: rules and evidence split (closes #95, #102) — branch-numbered v6.26.0
 
 `CLAUDE.md` was 94 KB, and its `## Don'ts` section alone was 53,939 B — 57% of the file. That cost
 is paid per *agent*, not per session: every Task-dispatched subagent inherits the whole file, so a
@@ -635,7 +793,7 @@ unmodelled across every health validator. `/reflect` and `/wrap-up` now direct t
 account be written before the rule, and `/init`'s CLAUDE.md template teaches the same shape to newly
 initialized projects. See ADR-0010.
 
-## v6.25.0 — Live proof the eval harness's OS sandbox denies a Bash escape (closes #46)
+### Live proof the eval harness's OS sandbox denies a Bash escape (closes #46) — branch-numbered v6.25.0
 
 `evals/actor.js`'s scope guard denies path-bearing tool inputs outside a scenario's fixture
 `repoDir`, but by design never inspects `Bash` command text — the real containment for Bash
@@ -662,6 +820,11 @@ crash a live run uncaught), and a stale wrap-up cleanup instruction that would h
 
 ## v6.24.0 — /dispatch's gh-CLI/MCP bridge (closes #61)
 
+This number shipped twice. `main`'s tip first reported 6.24.0 on 2026-07-30, then
+rolled back to 6.23.2 and worked forward through 6.23.7 before returning to
+6.24.0 on 2026-08-02 — the only backwards step in the plugin's history, and the
+reason this file is ordered by ship date rather than by semver.
+
 `/claude-tweaks:dispatch`'s Preflight previously hard-gated on `gh` CLI presence
 unconditionally — its entire queue/claim/settle/merge read path was `gh`-only end to end, so
 running headless in a Claude Code cloud Routine sandbox (no `gh` CLI, GitHub MCP tools only)
@@ -680,6 +843,28 @@ every read-path call site (`dispatch/SKILL.md`, `settle-and-merge.md`, `issue-cl
 only then flip the Preflight gate: `gh` present → proceed exactly as always; `gh` absent →
 proceed via the now-documented, verified MCP path. The `gh`-CLI path is unchanged everywhere.
 
+## v6.23.7 — cloud-setup.sh fixes (2026-08-02)
+
+Fixes to `cloud-setup.sh` (#74, #75), plus ADR 0009 recording that guided
+environment creation attaches the caller's real routine rather than a throwaway.
+The bulk of the version is the `/dispatch` gh-CLI/MCP bridge work that shipped
+as 6.24.0.
+
+## v6.23.6 — Wrap-up reflection insights (2026-07-31)
+
+Whole-branch review fixes: repo selection in guided routine creation, `/init`
+Step 15's unreachable fresh-project resolution, and environment resolution that
+was blind to locally-recorded routines.
+
+## v6.23.5 — Cloud routine environment freshness + per-project dedication (2026-07-31)
+
+Routine environments got freshness handling and per-project dedication, with a
+plan amendment covering stale Rolling-digest references and an orphaned module.
+
+## v6.23.4 — Remove the tidy github-triage routine (2026-07-31)
+
+Retired `/tidy`'s `github-triage` routine variant.
+
 ## v6.23.2 — /init Update Mode: Routine Drift & Relevance Audit
 
 - `/claude-tweaks:routine` gains `status --all` (bulk drift check across every instantiated
@@ -690,7 +875,7 @@ proceed via the now-documented, verified MCP path. The `gh`-CLI path is unchange
   owned judgment pass, invoked only by `/init`, surfacing routines whose underlying skill has
   changed enough to warrant a second look).
 
-## v6.23.1 — durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo
+### durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo — branch-numbered v6.23.1
 
 `bin/lib/health-core/durable-state.js`'s `writeState()` shelled out to `gh api` for every
 `health-state` branch write; v6.21.0's documented GitHub-MCP fallback for cloud Routine
@@ -807,6 +992,12 @@ three-band scale scales with it — `fresh` below half the threshold, `review` u
 it, `stale` beyond — so a project with a slower cadence can widen the window without every
 consumer drifting apart.
 
+## v6.18.0 — /claude-tweaks:backlog replaces /triage and /review-backlog (2026-07-26)
+
+Two overlapping skills collapsed into one `/claude-tweaks:backlog` with refine
+and overview modes. Includes the cross-repo sweep for stale `/demo` references
+that the final review surfaced.
+
 ## v6.17.0 — /demo single-item scope + pre-flight self-verification
 
 `/claude-tweaks:demo` no longer sweeps the `demo:pending` backlog or renders a batch table — it
@@ -823,7 +1014,7 @@ a live session and copy-paste-ready manual steps (self-contained, no inline comm
 about surprising-but-correct states). A once-per-session scope-fork checkpoint and task-anchor
 discipline keep a pending verdict from getting silently lost mid-tangent.
 
-## v6.16.3 — Maturity-aware build & specify discipline
+### Maturity-aware build & specify discipline — branch-numbered v6.16.3
 
 Project maturity (greenfield / pre-launch / early-production / established) is now a durable
 `project.maturity` value in `.claude-tweaks/policy.yml`, instead of living only as CLAUDE.md
@@ -835,6 +1026,17 @@ dispatch, and `/claude-tweaks:specify` biases decomposition toward strangler-fig
 implement-behind-a-flag then remove-the-old-path, or parallel-implementation/cutover/decommission —
 when a design doc proposes replacing an existing, in-use subsystem on early-production or
 established projects.
+
+## v6.16.1 — Step 13's live branch-mismatch warning (2026-07-25)
+
+`/init` Step 13 warns when the branch it is about to act on isn't the one
+expected. The version also carries the journey drift-audit step (record #58) and
+the journeys evidence checklist (#57).
+
+## v6.15.0 — Parallel skill-audit fix pass (2026-07-24)
+
+A wide parallel fix pass over the skill set, plus the shared facet-default shape
+extracted into `facet-shape.js`.
 
 ## v6.13.0 — Smoke-test follow-through: dispatch diagnostics, audit-log hardening, grant-time disclosure
 
@@ -858,6 +1060,33 @@ now discloses when a `ceremony:fast-lane` `auto:merge` recommendation means self
 the full review lens matrix — the actual tradeoff a human granting merge trust is taking, previously
 invisible at grant time; `/claude-tweaks:triage`'s batch-confirm gained an explicit "grant
 `auto:build` only, hold merge" option for supervising a pipeline's first autonomous run.
+
+## v6.12.1 — Warn-tier hook nudge for plugin.json version bumps (2026-07-22)
+
+Added `checkPluginVersionBump` to `post-tool-use.js` — a warn-tier reminder,
+fired on any commit touching the manifest, to mirror the version into the
+marketplace repo. v6.41.0 extended the same check to name the changelog, which
+it had been silent about since this release (`[IL-94]`). Also added the
+`work-backend` key alongside the legacy `backlog-backend` alias, and six process
+optimizations from a live cross-terminal smoke test.
+
+## v6.12.0 — Review effort tiering (2026-07-22)
+
+`/claude-tweaks:review` gained a `review-effort` argument, Step 2.5 derivation,
+and tier-gated lens dispatch and debate — with unconfirmed and contested
+findings surfaced inline at the `xhigh` and `max` tiers.
+
+## v6.11.3 — 256-finding full-plugin code-review remediation (2026-07-21)
+
+The second and larger of two remediation passes over findings from a
+full-plugin code review.
+
+## v6.11.2 — 158-finding code-review remediation (2026-07-21)
+
+The first remediation pass, merged in twelve themed batches — hooks/policy,
+issues/state, code-health, the health siblings, shared fragments and agent
+definitions, the lifecycle skills, component skills, the utility skills, and the
+shared criteria fragments.
 
 ## v6.11.1 — Wrap-up follow-through on v6.11.0's ceremony tiering
 
@@ -896,7 +1125,7 @@ throwaway scaffold and hand off to `live` mode for real side-by-side variant com
 `/build` ever starts, recorded as a `Visual-reference:` body-metadata line. See
 `docs/superpowers/specs/2026-07-19-visual-quality-boost-design.md`.
 
-## v6.9.0 — /demo session-recall fallback
+### /demo session-recall fallback — branch-numbered v6.9.0
 
 `/claude-tweaks:demo` now aggregates a second, independent source alongside `demo:pending`
 records: work done directly in the current conversation with no backing record at all. When
@@ -905,6 +1134,16 @@ work, it recaps that work in the same Verification Brief shape (composed from re
 diff) and asks for a verdict. Approve/Skip leave no trace — the verdict lives in the
 conversation — while Request changes files a real follow-up record, same as it always has for
 record-backed items.
+
+## v6.8.0 — The record-driven pipeline, exercised (2026-07-19)
+
+The first release built almost entirely by running the work-record pipeline on
+itself: records #13, #14, #15, #17, #21, #22, #32, #38 and #39 were each
+materialized, built and closed in turn. Substantive changes include a native
+`Blocked-by` dependency check in `/dispatch`, local-file record closure,
+`--run` on `record-worktree` (fixing cross-run state corruption), a real
+unblock-cascade check in wrap-up Step 8, and feedback-loop metrics for the
+pipeline. `/review-backlog` was catalogued.
 
 ## v6.7.0 — Fast-lane pipeline profile
 
@@ -927,7 +1166,7 @@ Extends `/claude-tweaks:docs-health` with three new/strengthened judging dimensi
 - **Unified 6-genre template library** — new `skills/_shared/diataxis-genre-templates.md` is now the single source of truth for all six doc genres `/claude-tweaks:docs-health` recognizes: the four core Diátaxis genres (Tutorial, How-To, Reference, Explanation — new) plus the two native-exempt genres it already judged, ADR and Journey, whose canonical skeletons migrated here from `_shared/decision-records.md` and `journeys/journey-template.md` (which now point here instead of duplicating the literal skeleton). Consumed by `/claude-tweaks:init` Phase 8.5's missing-doc backlog items and `/claude-tweaks:wrap-up`'s D2 missing-doc detection.
 - `/claude-tweaks:wrap-up` Step 9/10 templates gained a `docs-health-issue` config-update type and two new Step 10 execution bullets (new-doc scaffolding from the template library, restructural docs-health filing) so approved docs-health findings from the Console/batch have somewhere to land.
 
-## v6.5.0 — Demo walkthrough redesign
+### Demo walkthrough redesign — branch-numbered v6.5.0
 
 `/claude-tweaks:demo`'s Verification Brief is now a self-contained digest instead of a pointer to
 re-run another skill — vision/why, what shipped, and confirmed evidence (visual-review's result +
@@ -937,7 +1176,7 @@ the one path (`/review` outside `full` mode) where one might not have already ru
 `/claude-tweaks:demo`'s verdict prompt reframes around vision/fit ("Does this do what you asked
 for?") and gains an on-demand "Show me live" option for a live look via `agent-browser`.
 
-## v6.4.0 — Unattended tier: fewer clicks in `auto` mode
+### Unattended tier: fewer clicks in `auto` mode — branch-numbered v6.4.0
 
 A new opt-in policy lever, `unattended-tier` (off by default), lets three narrow, low-stakes
 decision points — floor-clearing ledger residue, queue-write record creation, and ops-item
@@ -947,7 +1186,7 @@ still logged to `decisions.md` and rolled into one consolidated push notificatio
 merge conflicts, and every `Fix anyway`/`Accept`/`Drop` ledger disposition stay fully
 human-gated regardless of the lever's state. See `skills/_shared/unattended-tier.md`.
 
-## v6.3.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
+### Human acceptance sign-off (`/claude-tweaks:demo`) — branch-numbered v6.3.0
 
 A new seventh work-record axis (`demo:pending` / `demo:approved` / `demo:changes-requested`)
 closes the gap between tests passing, spec completion, and an actual human verifying a built
@@ -972,9 +1211,103 @@ Human-granted `auto:build`/`auto:merge` labels replace the retired `tier:approve
 
 See "Migrating from 5.x" in README.md if a project still carries pre-6.0 state (live `tier:*`/`status:*` labels, `specs/backlog/` files, or the old `backlog-backend` flag name).
 
+## v5.29.0 — The unified work record, in progress (2026-07-13)
+
+Ninety-one commits building the unified work record that GA'd as 6.0.0:
+consolidating user-facing docs onto the single record, regenerating the
+lifecycle diagram around the spine, six axes, grants and dispatch, and deleting
+the compatibility module once it had no callers.
+
+## v5.28.0 — Routine setup friction reduction, planned (2026-07-13)
+
+The implementation plan for reducing routine setup friction in `/init` and
+`/routine`.
+
+## v5.27.2 — Routine setup friction reduced (2026-07-12)
+
+`/routine`'s CREATE flow collapsed its review gate into one preview+confirm with
+a `--defaults` skip path, resolved the environment silently, cut the cadence
+picker to four options, and moved the picker behind an explicit Customize
+choice — the front-door-confirm pattern that is now house style. `/init`
+Step 13 batches routine setup into a single multiSelect picklist.
+
+## v5.27.1 — Document the upstream worktree/resume limitation (2026-07-12)
+
+Recorded that a session vanishing from `claude --resume` after entering a
+worktree is an upstream limitation, not a plugin bug. The version also carries
+the GitHub-issues consistency pass: a reopen branch in dedup, harness-health
+tiering via a kind-adapter chain, the gh-availability Detection Ladder wired
+into `/triage`, `/wrap-up` and the multi-spec console, and the 4x-duplicated
+label bootstrap loop extracted into `_shared/label-bootstrap.md`.
+
 ## v5.27.0 — Native diagram generation replaces the Diagram Design companion
 
 **`/claude-tweaks:visualize`** replaces the external `diagram-design` companion-plugin integration introduced in v4.7 with a fully native skill — no separate plugin install. It generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up). An optional D2-backed enhanced rendering path handles diagrams-as-code source generation for types with a native D2 construct. The same three soft-hook call sites — `/journeys` Step 3.6, `/specify` Step 2.5d, `/review` Lens 3i-diagram — now suggest invoking it directly, gated by `diagram-suggestions: enabled` in CLAUDE.md (renamed from `diagram-integration:`), written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
+
+## v5.26.0 — journey-health deep-tier cursor fix (2026-07-11)
+
+Fixed deep-tier cursor advancement on the QA-satisfied path.
+
+## v5.25.1 — watchman-core extraction (2026-07-11)
+
+The cache, run-log, fingerprint and dedup primitives that code-health,
+harness-health and journey-health had each implemented separately were extracted
+into a shared `watchman-core` and all three refactored onto it. journey-health
+also gained a severity field, a deletion force-select phase, and a QA-evidence
+module for its deep tier.
+
+## v5.25.0 — Fix a stale reviewer description in build-options.md (2026-07-11)
+
+`subagent-driven-development`'s reviewer description had drifted.
+
+## v5.24.0 — /claude-tweaks:triage and the status lifecycle (2026-07-11)
+
+Sixty commits. The scheduled headless routine moved out of `/flow`, leaving
+`/flow` a pure executor, and landed in a new `/claude-tweaks:triage` skill —
+bare for interactive authorization, `dispatch` for headless. Adds the unified
+`status:*` tier lifecycle, a fast-track auto-merge short-circuit in the Review
+Console (with a main-checkout branch check before it merges), retry-ceiling
+comment tracking, and pending-authorization/blocked/auto-merged counts on
+`/help`'s dashboard. `journey-health` shipped here too — CLI, scope selection,
+light and deep tiers, coverage scan and routine template — and harness-health
+became report-only, dropping its auto-apply path.
+
+## v5.23.0 — Impeccable design-plugin integration batch (2026-07-09)
+
+Score trend, harness-health design artifacts, a `/tidy` extract recommendation,
+and a CLI schema-drift fix. Also `/routine --variant` for multi-instance
+routines, `/tidy --scope` for partial sweeps, and `/init` Step 13 discovering
+template variants rather than only skills.
+
+## v5.22.0 — Renumbered from 5.21.0 after a collision (2026-07-09)
+
+A concurrent session claimed 5.21.0 first, so the harness-health v2
+budget/memory work was renumbered onto 5.22.0 — one of the collisions that
+`[IL-12]` came from.
+
+## v5.21.0 — harness-health memory-kind (2026-07-09)
+
+Version bump and doc sync for the memory-kind feature.
+
+## v5.20.0 — harness-health v2 + GitHub-issues backlog backend, Phase 2 (2026-07-08)
+
+harness-health v2: self-declared tiered budgets, unscoped-rule structural
+detection, a self-referential count check, a narrative-density heuristic, and
+local-only memory health via `--kind memory --memory-dir`. Alongside it,
+`/claude-tweaks:capture` and `/claude-tweaks:tidy` became backend-aware, filing
+and sweeping GitHub issues under `backlog-backend: github-issues`.
+
+## v5.19.1 — /init Step 15 (backlog-backend flag) (2026-07-08)
+
+Added the backend flag and set it on this repo, added
+`bin/lib/issues/backlog.js`, reworked the label taxonomy, and fixed a
+GitHub Enterprise false negative in three `github.com` string-match checks.
+
+## v5.19.0 — Browser backend policy + isolation guardrail (2026-07-08)
+
+Established `agent-browser` as the only backend that works both interactively
+and in hosted Routines, with a narrow `claude-in-chrome` escape hatch in
+`/browse` and a CLAUDE.md guardrail against calling it directly.
 
 ## v5.18.0 — shadcn/ui bootstrap + Phase 0 step renumbering
 
@@ -982,9 +1315,110 @@ See "Migrating from 5.x" in README.md if a project still carries pre-6.0 state (
 
 Also folded in: Phase 0's internal step numbering (previously `Step 0.1`–`Step 0.97`, an ad-hoc decimal scheme approaching its practical ceiling) is now two clean sequential groups — Core Bootstrap (Steps 1–8) and Optional Enhancements (Steps 9–14, order-agnostic and append-only). Every cross-reference in README and the plugin's skill files was updated to match.
 
+## v5.17.1 — Close three gaps from another project's process-feedback audit (2026-07-08)
+
+Three gaps surfaced by running the plugin's own feedback audit from a different
+project.
+
+## v5.17.0 — Impeccable re-baseline + automatic hook integration (2026-07-08)
+
+Re-baselined the Impeccable docs and wired its hook integration to happen
+automatically.
+
+## v5.16.0 — AskUserQuestion adoption (2026-07-08)
+
+Version bump for adopting `AskUserQuestion` at the plugin's interaction points —
+the decision surface every skill now uses.
+
 ## v5.15.0 — code-health: risk-based triage + closing-keyword safety net
 
 `/claude-tweaks:recon` is renamed to `/claude-tweaks:code-health` (bare rename, no migration shim — the fingerprint-marker convention this rename introduced has since been unified into the single `work-fingerprint` marker every filing skill writes; see `skills/_shared/work-record.md`'s Fingerprint marker section). Findings now carry a `likelihood` and `effort` alongside `severity`; a new deterministic helper (`bin/lib/code-health/risk.js`) computes a `risk` tier (`severity × likelihood`, product-bucketed) the same way `dedup.js#decide()` already computes decisions — never LLM-judged. GitHub labels move from `code-health:{severity}` to `code-health:risk-{tier}` + `code-health:effort-{tier}` (criterion labels are kept, now with real descriptions); filing and CI gates move from `--min-severity`/`--fail-on critical` to `--min-risk`/`--fail-on risk-high`. Downstream, `/build` reads the `code-health-effort:` frontmatter to pick its implementer's model tier. (The `/flow --from-code-health`/`--quick-wins` batch-selection flags described here at v5.15.0 were later removed — issue selection and dispatch now live in `/claude-tweaks:triage` (grants authorization) and `/claude-tweaks:dispatch` (claims and executes); `/flow` itself never selects records.) Separately, a new harness-wide PostToolUse hook (warn tier, not gated on a resolved pipeline run) flags any commit that references a bare `#N` issue number without an immediately-preceding GitHub closing keyword — catching ad hoc fix commits that would otherwise silently leave the issue open.
+
+## v5.14.0 — Commit-time closing-keyword safety net (2026-07-07)
+
+A warn-tier `post-tool-use` hook that fires when a commit lands without an issue
+closing keyword, anchored to avoid a false negative on comma-separated
+multi-issue commits. The version also adds the `--quick-wins` selector
+(`risk:high` AND `effort:low`), stamps `code-health-effort` onto derived specs,
+and reads it in `/build` to pick the implementer model tier.
+
+## v5.13.0 — recon renamed to code-health (2026-07-07)
+
+Completed the `/recon` -> `/claude-tweaks:code-health` rename, including 17
+files the original pass's literal-token grep missed — the incident behind
+`[IL-21]`. Also drops `severity:critical` in favour of a deterministic
+severity x likelihood risk matrix, and normalizes `med` to `medium`.
+
+## v5.12.0 — skill-health generalized into harness-health (2026-07-07)
+
+`/claude-tweaks:skill-health` became `/claude-tweaks:harness-health`, widening
+its scope from `.claude/skills/*.md` to rules and CLAUDE.md as well, with
+`--target`/`--kind` flags and a unified target pool.
+
+## v5.11.0 — Always-worktree enforcement (2026-07-06)
+
+The `worktree.always` policy landed: a run-independent PreToolUse gate requiring
+an isolated worktree before any edit. This repo has run under it since.
+
+## v5.10.0 — Fix silent GitHub issue-closure gaps (2026-07-06)
+
+Issues that should have closed on merge were silently staying open.
+
+## v5.9.0 — code-health signal-quality and granularity hardening (2026-07-06)
+
+Workspace-aware slicing, a severity filter that files only high and critical by
+default, `relatedAnchors` rendered as an "Also affects" list, a hard fail when
+`validate-findings` runs without `--slice`, and a bundling rule for recurring
+root-cause findings.
+
+## v5.8.0 — Severity-filter validation (2026-07-05)
+
+`pull-issues --min-severity` is validated against known severities, so a typo
+can no longer silently disable the filter and suppress critical findings.
+
+## v5.7.0 — The dispatch phase, documented across consumers (2026-07-04)
+
+Issue-claims Phases 2-4 wrapped up: `agent:go` removal wired through,
+unattended-console semantics, decline handling, and a statusline fallback to the
+actual cwd so the project segment is never dropped.
+
+## v5.6.0 — The issue dispatcher (2026-07-04)
+
+A `/flow` routine template with the `agent:go`/`agent:eligible` lifecycle, a
+`--from-milestone` selector, a `--require-eligible` gate, and a `requireLabels`
+AND-filter — labels as maintainer signatures for dispatch authorization.
+
+## v5.5.0 — Generic issue ingestion, documented across consumers (2026-07-04)
+
+Wires translation staging and the current-branch carrier end to end.
+
+## v5.4.0 — Generic issue ingestion (2026-07-04)
+
+`issuesToBriefs` with shape detection, three selectors (`--from-label`,
+`--from-issues`, `--from-milestone`) with `--from-recon` as an alias, a
+GitHub issue form template offered at `/init` so human-filed issues arrive
+pipeline-ready, and the current-branch closing carrier.
+
+## v5.3.0 — Close issues via merge keywords (2026-07-04)
+
+Issue closure moved from explicit close commands to `Fixes` lines riding the
+merge artifact, with a mapping table surfaced at the Review Console,
+ownership-checked claim releases, and blocked-checkpoint comments as resumable
+breadcrumbs on claimed issues.
+
+## v5.2.0 — The issue-claims contract (2026-07-04)
+
+An atomic `refs/claims` lock with a comment mirror, TTL staleness folding that
+fails closed on unreadable claims, and a stale-claim sweep in `/tidy` Step 4.7.
+`parseClaimMarker` was hardened so a derived kind wins over marker JSON rather
+than trusting it.
+
+## v5.1.1 — /claude-tweaks:routine (2026-07-04)
+
+The routine skill arrived with CREATE, UPDATE and STATUS workflows, backed by
+`routine-template-schema` — the canonical schema for plugin templates and
+project records — with code-health as its first consumer. Also scopes E1
+enforcement to the owning session, fixing a foreign-session false deny.
 
 ## v5.1.0 — Hook surface: pipeline continuity + working-directory enforcement
 
@@ -998,6 +1432,25 @@ Near-inert outside pipeline runs: SessionStart's dependency check always runs re
 ## v5.0.0 — Code-health v2: LLM-as-judge + scheduled Routine
 
 Code-health v2 replaces the v1 mechanical-lens spine with an LLM-as-judge model: the LLM evaluates the repo against a criteria catalog, calling deterministic tool checks as evidence. Area-type routing, content-hash skip, hotspot priority, fingerprinting, and dedup are handled by deterministic helpers. The v1 subagent dance and `plan-judgment` / `ingest-judgment` phases are removed. Code-health now runs as a scheduled Routine for continuous, hands-off coverage — no manual invocation needed.
+
+## v4.20.0 — /recon: an LLM-as-code-judge scheduled Routine (2026-06-15)
+
+The largest release of the 4.x line. `/recon` — later renamed
+`/claude-tweaks:code-health` — arrived as a proactive repo-improvement finder
+built on an LLM judge with deterministic scaffolding around it: an area-type
+classifier, a universal and domain criteria catalog (resilience, observability,
+security-logic, scalability, a11y, i18n, api-stability, migration-safety,
+iac-security, privacy-pii, concurrency), fingerprinting and dedup, a
+confidence-floor gate, and issue-payload rendering. Mid-version the whole spine
+was rewritten from v1 to v2: plan-judgment, ingest-judgment and the mechanical
+lens were removed in favour of SCOPE -> JUDGE -> validate-findings -> file, with
+content-hash scope rotation and a `next-slice` CLI.
+
+## v4.17.0 — Pocock-inspired discipline skills (2026-06-14)
+
+Added systematic debugging, ADRs, `/claude-tweaks:deepen`, and a depth survey
+in `/flow`. Also documented the two-repo release process in CLAUDE.md — the
+`Versioning` section that this release note's own convention now extends.
 
 ## v4.15.0 — Research delegates to the built-in /deep-research
 
@@ -1019,6 +1472,11 @@ The v4.2 "token-saver" — a `PostToolUse[Bash]` hook that compacted noisy comma
 - No migration needed. Stale `~/.claude-tweaks/logs/` files (raw bash logs + `filter.jsonl`) are now inert and can be deleted by hand.
 - The **Subagent Contract** (clean-room input, Templates A/B/C, model-tier selection) is unaffected — it's dispatch discipline, not part of the filter.
 
+## v4.13.1 — Fix a stale research SKILL.md test (2026-06-13)
+
+`Next Actions` had moved from `###` to `##` and the test still asserted the old
+level.
+
 ## v4.13.0 — Filter compaction + universal Working Approach
 
 Two additions, both folded in together: smarter bash-output compaction, and a standard task-execution guardrail block in every generated CLAUDE.md.
@@ -1026,11 +1484,41 @@ Two additions, both folded in together: smarter bash-output compaction, and a st
 - **Bash filter now groups, not just clips.** `compactExcerpt` gained three shape-aware modes ahead of the old head/tail clip: file listings (git status / ls / find) collapse into a **by-directory histogram**, lint findings (ruff / flake8 / pylint / clippy / eslint stylish) collapse into a **by-rule histogram**, and identical adjacent runs **dedupe** into `line  (×N)`. Grouping only triggers when a clear majority of lines match the expected shape (ratio gates: 0.6 for paths, 0.5 for rules, min 8 lines) — otherwise it falls back to dedupe + clip, so prose output is never mangled. A new `Test summary:` section surfaces aggregate test-runner result lines (cargo `test result:`, jest `Tests:`/`Test Suites:`, pytest `N passed … in`, mocha `N passing`) that dedupe/clip would otherwise bury under per-test noise. New unit coverage for `dedupeLines`, `testSummaryLines`, `groupByDirectory`, `groupByRule`, and the `summarize` integration paths.
 - **`/init` emits a `## Working Approach` block.** Every generated CLAUDE.md now carries a standard, non-adaptive block of universal task-execution guardrails — think-before-coding, simplicity-first, surgical-changes, goal-driven, read-before-write, checkpoint-multi-step, fail-loud — so ad-hoc work outside the pipeline (where no skill gate fires) gets the same discipline the lifecycle skills enforce. It complements the maturity-adaptive Philosophy section rather than repeating it, and **deliberately omits a token-budget rule** (context management is the harness's job; `_shared/auto-mode-contract.md` forbids the model from inserting context-window stop prompts).
 
+## v4.12.0 — wrap-up generates skill candidates (2026-06-04)
+
+`/claude-tweaks:wrap-up` began proposing skill candidates rather than only
+filtering ones already tagged.
+
+## v4.11.0 — Ephemeral worktree dev server for visual review (2026-05-25)
+
+In `auto` mode, visual review starts its own throwaway dev server in the
+worktree instead of requiring one to be running.
+
+## v4.10.0 — Worktree base ref fix; one worktree per multi-spec flow (2026-05-25)
+
+Corrected which ref a worktree branches from, and made a multi-spec `/flow`
+share a single worktree across its specs instead of one each.
+
+## v4.9.0 — Spec-committed pre-flight gate (2026-05-24)
+
+`/flow` gained a pre-flight gate requiring the spec to be committed, and
+`/claude-tweaks:specify` became terminal at its commit.
+
+## v4.8.0 — /flow defaults to auto with an FYI Manifesto (2026-05-24)
+
+`/flow` defaulted to `auto`, showing the Pipeline Config Manifesto as
+information rather than a prompt, with a confirm gate ahead of it.
+
 ## v4.7.1 — Statusline ledger fix
 
 - **Statusline `ledger` segment now sums open rows across *all* `-ledger.md` files in the current checkout's `docs/plans`**, instead of reading only the most-recently-modified file. The old "newest file wins" logic both undercounted (open items in older ledgers were invisible) and relied on mtimes that are unreliable right after a worktree checkout. Worktree isolation is preserved — the scan is relative to the session's `cwd`, so side-by-side worktrees never see each other's uncommitted ledgers. Added `findOpenLedger` test coverage (previously none).
 
-## v4.7 — Deep web research + Diagram Design companion
+## v4.7.0 — Deep web research + Diagram Design companion
+
+`/claude-tweaks:research` was built by vendoring
+`199-biotechnologies/claude-deep-research-skill` at `f2f2c0f`, kept with its
+`UPSTREAM.md` and upstream licence, with output paths repatched to
+`.claude-tweaks/research/`.
 
 **`/claude-tweaks:research`** adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
 
@@ -1043,7 +1531,26 @@ As of v4.15.0 this delegates to Claude Code's built-in `/deep-research` Dynamic 
 
 **`/claude-tweaks:visualize`** — native diagram generation, replacing the former `diagram-design` companion-plugin integration. Generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up), with an optional D2-backed enhanced rendering path. Soft-hook nudges in `/journeys` Step 3.6, `/specify` Step 2.5d, and `/review` Lens 3i-diagram suggest invoking it — gated by `diagram-suggestions: enabled` in CLAUDE.md, written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
 
-## v4.6 — Bookend Architecture + Auto-Mode Contract
+## v4.6.4 — Multi-spec ordering, conflict detection, keep-going (2026-05-16)
+
+Multi-spec runs gained ordering, conflict detection between specs, and a
+keep-going posture on failure.
+
+## v4.6.3 — Consolidated multi-spec Review Console (2026-05-16)
+
+One Review Console for a whole multi-spec run rather than one per spec.
+
+## v4.6.2 — Manifesto UX: pipeline preview + inline options (2026-05-15)
+
+The Pipeline Config Manifesto gained a preview of what would run, with options
+inline.
+
+## v4.6.1 — Lazy-load entry points + /init contract-drift check (2026-05-15)
+
+Entry points became lazy-loaded, and `/init` gained a check for drift against
+the pipeline contract.
+
+## v4.6.0 — Bookend Architecture + Auto-Mode Contract
 
 The pipeline now has at most **two user-facing stops in `auto` mode**, regardless of how many decisions it makes:
 
@@ -1061,7 +1568,24 @@ Per-skill rewrites: `/review` Step 3g (severity-based routing), `/tidy` (aggress
 
 **Strict rule:** skills MUST NOT invent new mid-flow stops in `auto`. Mid-flow stops are reserved for HARD-GATEs and the explicit "not silenced" list.
 
-## v4.5 — Impeccable Integration
+## v4.5.2 — Pipeline contract: 2-tier taxonomy, shape gate, auto-mode (2026-05-03)
+
+The pipeline contract took its two-tier taxonomy, a shape gate, and auto-mode
+handling.
+
+## v4.5.1 — Fix Impeccable install instructions; namespace slash commands (2026-05-03)
+
+Corrected the Impeccable install instructions and namespaced every slash-command
+reference.
+
+## v4.5.0 — Impeccable Integration
+
+Phases 1 and 2 were published as their own builds — `4.5.0-phase1` and
+`4.5.0-phase2` — before Phase 3 and GA landed under 4.5.0 itself. Those are the
+only two versions this plugin has ever shipped that are not plain `X.Y.Z`, and
+they cannot carry their own heading here: the changelog parser requires a strict
+three-component version, so `bin/lib/changelog.js` treats a prerelease build as
+covered by its base version's entry.
 
 Three-phase rollout of the `/claude-tweaks:design` wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin:
 
@@ -1076,7 +1600,27 @@ The manual-only commands (`colorize`, `extract`, `overdrive`) are surfaced via `
 
 **Caches written by the wrapper** live alongside the open items ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit|recommendations|declined}.json`. All three are cleaned up by `/wrap-up` Step 5 alongside the ledger.
 
-## v4.2 — Token Saver
+## v4.4.0 — Per-item consent for INBOX/DEFERRED writes (2026-05-03)
+
+Writing an item to INBOX or DEFERRED required explicit per-item user consent.
+Carries the Impeccable integration design spec and its decomposition into three
+phase documents.
+
+## v4.3.2 — Statusline survives plugin upgrades (2026-05-03)
+
+The statusline is invoked through a stable wrapper at `~/.claude-tweaks/bin/`,
+so a plugin upgrade no longer breaks a configured `statusLine.command`.
+
+## v4.3.1 — /init Step 0.8 writes a literal `${CLAUDE_PLUGIN_ROOT}` (2026-05-03)
+
+Step 0.8 had been expanding the variable at write time, baking one machine's
+path into the config; it now writes the literal and migrates old paths.
+
+## v4.3.0 — Statusline schema fix + /version skill (2026-05-03)
+
+Fixed the statusline schema and added `/claude-tweaks:version`.
+
+## v4.2.0 — Token Saver
 
 Three additions that reduce token consumption with no behavior change to skills:
 
@@ -1088,7 +1632,7 @@ Three additions that reduce token consumption with no behavior change to skills:
 
 To disable color: `export NO_COLOR=1`. To inspect raw bash output: `cat ~/.claude-tweaks/logs/bash-{ts}.log` (path appears in the filter footer).
 
-## v4.1
+## v4.1.0 — Quality-of-life follow-through on the v4.0 migration
 
 Quality-of-life improvements that emerged from doing the v4.0 migration. Non-breaking; opt in by adding the relevant settings to your project's `CLAUDE.md`.
 
@@ -1099,7 +1643,10 @@ Quality-of-life improvements that emerged from doing the v4.0 migration. Non-bre
 - **`/flow auto` keyword** — symmetrical with `/build auto`. Silences the merge-check and scope-check prompts (each auto-acknowledged in the ledger), making `/flow … auto` a single-decision invocation.
 - **Adaptive section batching** — when a multi-section approval flow gets 2 consecutive yeses, remaining sections are batched into one approval. Configurable via `Brainstorm / section-confirmation` (`adaptive` | `per-section` | `batch`).
 
-## v4.0 — Breaking changes
+### Breaking changes — branch-numbered v4.0
+
+`main`'s tip went 3.23.0 straight to 4.1.0: the agent-browser migration and the
+follow-up fixes merged together, so no install ever reported 4.0.0.
 
 Two changes affect users upgrading from v3:
 
@@ -1107,3 +1654,178 @@ Two changes affect users upgrading from v3:
 2. **`/stories` schema bumped to v2.** Existing v1 story files (with CSS selectors) are detected on first run and you'll be prompted to regenerate — `/stories <url>` reuses your existing story names, descriptions, and journey assignments while replacing CSS selectors with semantic locators (role / text / testid). No silent breakage.
 
 Run `/claude-tweaks:init` against your existing project to refresh the configuration after upgrading.
+
+## v3.23.0 — /build defaults to worktree mode (2026-05-01)
+
+Worktree isolation became the default for `/claude-tweaks:build` rather than an
+opt-in argument.
+
+## v3.22.0 — Worktree cleanup hard-stop and visual-review skip bias (2026-03-09)
+
+Fixed a hard-stop in worktree cleanup and a bias that let visual review skip
+itself. Carries the design spec and implementation plan for the agent-browser
+migration that became v4.0, and a `.gitignore` for `.worktrees` and `.DS_Store`.
+
+## v3.21.0 — Superpowers transition friction, flow worktree default, init scope (2026-03-07)
+
+Reduced friction in the handoffs to Superpowers skills, defaulted `/flow` to
+worktree mode, and added scope selection to `/init`.
+
+## v3.20.1 — Automatic worktree cleanup in wrap-up (2026-03-07)
+
+`/claude-tweaks:wrap-up` began cleaning up its worktree without being asked.
+
+## v3.20.0 — visual-review becomes a standalone component skill (2026-03-07)
+
+Extracted `/claude-tweaks:visual-review` out of its callers, following the
+same split v3.19.0 applied to reflect, simplify and journeys.
+
+## v3.19.0 — reflect, simplify and journeys become standalone component skills (2026-03-07)
+
+Three behaviors that had been inlined in larger skills became separately
+invocable skills, callable both directly and as pipeline steps.
+
+## v3.18.0 — Cross-reference drift, contradictions, missing error paths (2026-03-06)
+
+A consistency pass across the skill set: fixed drifted cross-references,
+resolved contradictions between skills, and added error paths that were
+documented nowhere.
+
+## v3.16.0 — Visual review optimization + reconnaissance pre-step (2026-03-04)
+
+Added a reconnaissance pre-step to visual review and optimized the rest of it.
+The bulk of the version is a README rewrite that cycled through ASCII and
+Mermaid diagram layouts before settling, plus a switch to full
+plugin-prefixed skill names throughout the README and reference card.
+
+## v3.14.0 — Version bump and manifest fix (2026-03-01)
+
+A version bump and a manifest correction, with no other content.
+
+## v3.13.0 — Ledger skill, dev-URL persistence, flow resume (2026-03-01)
+
+Added `/claude-tweaks:ledger`, persisted the dev URL between runs, and made
+`/flow` resumable. Also a general interaction-efficiency pass.
+
+## v3.12.0 — Journeys integrated into stories (2026-02-28)
+
+Story generation became journey-aware: coverage tracking against documented
+journeys, and detection of stories orphaned from any journey.
+
+## v3.11.0 — Auth profiles for QA stories (2026-02-27)
+
+QA stories gained credential discovery and named auth profiles, replacing
+guesswork about how to log a persona in.
+
+## v3.10.0 — Contextual Next Actions + Actions Performed table (2026-02-27)
+
+Every skill gained a context-derived `Next Actions` block and an
+`Actions Performed` table — the interaction conventions that still govern the
+plugin.
+
+## v3.9.0 — Skill updates redesigned across the lifecycle (2026-02-26)
+
+Reworked how skill files get updated at each lifecycle stage.
+
+## v3.8.0 — /test splits from /review; QA pipeline overhaul (2026-02-26)
+
+Separated the mechanical "does it work" gate (`/claude-tweaks:test`) from the
+judgment gate (`/claude-tweaks:review`), overhauled the QA pipeline, and fed QA
+results into visual review inside `/flow`.
+
+## v3.5.0 — QA story execution automated (2026-02-25)
+
+Dev-URL detection, auto-trigger in `/flow`, and auto-validation in `/review`,
+so stories ran without being invoked by hand.
+
+## v3.4.0 — Drop the /superpowers: prefix from skill references (2026-02-25)
+
+Skill references lost the `/superpowers:` prefix, and `/flow`'s worktree
+default was corrected. Also standardized the worktree directory on
+`.claude/worktrees/`.
+
+## v3.3.0 — Windows compatibility (2026-02-25)
+
+Fixed Windows incompatibilities across skills, hooks and agents.
+
+## v3.2.0 — Tidy action vocabulary, verification step, help handoff gate (2026-02-25)
+
+`/claude-tweaks:tidy` gained its action vocabulary and a verification step, and
+`/help` gained a handoff gate.
+
+## v3.1.1 — Build option prompts (2026-02-25)
+
+Version bump for the build-option prompting added in 3.1.0.
+
+## v3.1.0 — All Superpowers skills integrated via a 2x2 build matrix (2026-02-24)
+
+`/claude-tweaks:build` routed to the full Superpowers skill set through a 2x2
+matrix, prompted for build options when they weren't passed as arguments, and
+renumbered its steps 1-7.
+
+## v3.0.1 — Fix duplicate hooks error on install (2026-02-24)
+
+Installing hit a duplicate-hooks error; the redundant manifest field causing it
+was removed.
+
+## v3.0.0 — browser-pilot merges into claude-tweaks (2026-02-24)
+
+Absorbed the separate browser-pilot plugin. Also enforced one batch decision
+table per message across all skills, fixed the agents manifest field to take an
+array of paths, and dropped the redundant `hooks` field now that
+`hooks/hooks.json` loads by convention.
+
+## v2.9.0 — Correct Superpowers command names; /capture promote options split (2026-02-22)
+
+Fixed wrong Superpowers command names and split `/capture`'s promote options.
+
+## v2.8.0 — Parallel execution directives + multi-spec flow (2026-02-22)
+
+Added the parallel-execution directives that skills still use to signal
+concurrent work, and multi-spec support in `/flow`. Journey capture widened
+from end users to all personas.
+
+## v2.7.0 — Cross-spec intelligence (2026-02-22)
+
+Pattern detection, journey regression checks and dependency awareness across
+specs. Routing was biased toward fixing now — close small gaps early rather
+than deferring them — with the hierarchy stated as fix now -> defer -> INBOX.
+
+## v2.6.0 — Workflow friction reduction (2026-02-22)
+
+Batched decisions, removed navigation menus, and fixed cross-references — the
+first pass at the interaction conventions that became house style. Added design
+mode to `/flow` (brainstorming straight to pipeline, skipping `/specify`) and
+gave the plugin repo its own CLAUDE.md.
+
+## v2.5.0 — Journey discovery mode for brownfield projects (2026-02-22)
+
+Journeys could be discovered from an existing codebase rather than only written
+for new work.
+
+## v2.4.0 — Explicit routing gates (2026-02-21)
+
+Every skill got explicit routing gates so nothing could be silently dropped —
+the ancestor of the current "every surfaced item must be explicitly resolved"
+rule.
+
+## v2.3.0 — browser-review skill, user journeys, browser setup (2026-02-21)
+
+Added the browser-review skill, user journey documentation, and browser setup.
+
+## v2.2.0 — Build modes, help and flow skills (2026-02-21)
+
+Added build modes (autonomous by default, plus guided and branched), the
+`/help` and `/flow` skills, and lazy-loaded codebase onboarding. Also an audit
+follow-up removing dead references and resolving contradictions.
+
+## v2.0.0 — The workflow system replaces the hello skill (2026-02-21)
+
+The placeholder skill gave way to the full workflow system: design mode in
+`/build` (build straight from a design doc, skipping `/specify`), numbered
+options for choices and skill transitions, and the `claude-tweaks:` prefix on
+every skill name and cross-reference.
+
+## v1.0.0 — Initial scaffold (2026-02-20)
+
+The first commit: plugin scaffold.

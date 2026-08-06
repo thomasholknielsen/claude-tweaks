@@ -50,6 +50,29 @@ for (const templatePath of findTemplates()) {
       'prompt must be self-contained and end with a /claude-tweaks:<skill> kickoff command (the standard preamble in routine-template-schema.md precedes it)'
     );
 
+    // The preamble's target branch is substituted at instantiation by
+    // /claude-tweaks:routine (CREATE Step 5.5). A template authored without the
+    // placeholder silently reverts to resolving the repo's GitHub default branch
+    // on every firing — the #132 bug, which is invisible in a diff review.
+    assert.equal(
+      tpl.prompt.split('{{TARGET_BRANCH}}').length - 1,
+      1,
+      'prompt must contain the standard preamble\'s {{TARGET_BRANCH}} placeholder exactly once — substitution is a single replacement'
+    );
+    assert.ok(
+      !/\{\{(?!TARGET_BRANCH\}\})/.test(tpl.prompt),
+      'the preamble defines exactly one placeholder; any other {{...}} would reach a live routine unsubstituted'
+    );
+
+    // `branch` is a legal template field (a vendored, single-project template may
+    // pin one) but must stay unset in the plugin-shipped copies — the same
+    // portability rule that bans environment_id and repo URLs below.
+    assert.equal(
+      tpl.branch,
+      undefined,
+      'a plugin-shipped template must not pin `branch` — it ships to every project, and /claude-tweaks:routine resolves the branch per project'
+    );
+
     assert.equal(typeof tpl.model, 'string');
     assert.ok(tpl.model.length > 0, 'model must be non-empty');
 

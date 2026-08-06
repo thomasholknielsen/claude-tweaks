@@ -51,7 +51,10 @@ test('warns when a commit touches .claude-plugin/plugin.json for this project (n
   const repo = gitRepoWithManifestCommit(JSON.stringify({ name: 'claude-tweaks', version: '9.9.9' }));
   const out = runPostToolUse(repo);
   assert.ok(out.json && typeof out.json.systemMessage === 'string', 'expected a systemMessage warning');
+  // Both release follow-ups, asserted separately. A single /marketplace/ match
+  // passed for months while the message said nothing about the changelog.
   assert.match(out.json.systemMessage, /marketplace/i);
+  assert.match(out.json.systemMessage, /CHANGELOG/i);
 });
 
 test('does not warn when plugin.json belongs to a different project', () => {
@@ -91,4 +94,5 @@ test('fires even when a runDir IS set (independent of the breadcrumb/other check
     runDir, runState: { status: 'active' }, cwd: repo,
   });
   assert.match(out.json.systemMessage, /marketplace/i);
+  assert.match(out.json.systemMessage, /CHANGELOG/i);
 });
