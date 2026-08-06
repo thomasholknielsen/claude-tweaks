@@ -49,7 +49,6 @@ test('integration-branch accepts a branch name and flags a whitespace-bearing on
   const result = auditPolicy(bad);
   assert.strictEqual(result.invalidValues.length, 1, 'a name git itself would reject must be flagged, like every other typed key');
   assert.strictEqual(result.invalidValues[0].key, 'integration-branch');
-  assert.strictEqual(result.invalidValues[0].source, 'policy.yml');
 });
 
 test('execution-strategy and git-strategy are recognized policy keys', () => {
@@ -74,9 +73,62 @@ test('execution.always locks the axis and execution-strategy sets the default �
   assert.ok(keys.includes('execution-strategy'), 'execution-strategy must exist as the default');
 });
 
+test('a recognized key in CLAUDE.md is flagged for migration, not validated', () => {
+  const repo = tmpRepo();
+  writeClaudeMd(repo, 'tidy-aggressiveness: moderate\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.migratableKeys, [
+    { key: 'tidy-aggressiveness', value: 'moderate', alsoInPolicy: false },
+  ]);
+  assert.deepStrictEqual(result.invalidValues, [], 'CLAUDE.md values are no longer validated — the fix is to move the key, not to correct a value that has no effect');
+});
+
+test('a recognized key in CLAUDE.md with an INVALID value is still only a migration, never an invalidValues entry', () => {
+  const repo = tmpRepo();
+  writeClaudeMd(repo, 'tidy-aggressiveness: extreme\n');
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.migratableKeys.length, 1);
+  assert.strictEqual(result.migratableKeys[0].value, 'extreme');
+  assert.deepStrictEqual(result.invalidValues, [], 'once CLAUDE.md is not read, its values cannot be wrong — only misplaced');
+});
+
+test('the same key in policy.yml is not flagged for migration', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'tidy-aggressiveness: moderate\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.migratableKeys, []);
+});
+
+test('a key in BOTH resolves to policy.yml and still flags the CLAUDE.md copy, marked alsoInPolicy', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'tidy-aggressiveness: aggressive\n');
+  writeClaudeMd(repo, 'tidy-aggressiveness: conservative\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.migratableKeys, [
+    { key: 'tidy-aggressiveness', value: 'conservative', alsoInPolicy: true },
+  ]);
+  assert.deepStrictEqual(result.invalidValues, [], 'both values are individually valid; policy.yml is the one that applies');
+});
+
+test('an UNrecognized key in CLAUDE.md is not flagged — CLAUDE.md prose is full of key-shaped lines', () => {
+  const repo = tmpRepo();
+  writeClaudeMd(repo, 'Lifecycle: capture -> specify -> build\nStatus: Approved\nwork-backend: github-issues\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.migratableKeys, [], 'only keys in POLICY_KEYS are migratable; work-backend is deliberately out of scope, and ordinary prose must never be touched');
+  assert.deepStrictEqual(result.unrecognizedKeys, [], 'unrecognizedKeys is policy.yml-derived only');
+});
+
+test('invalidValues entries no longer carry a source field', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'tidy-aggressiveness: extreme\n');
+  const [entry] = auditPolicy(repo).invalidValues;
+  assert.strictEqual(entry.source, undefined, 'every entry is policy.yml-derived now — a field that can hold exactly one value reads as a live branch and is not one');
+  assert.deepStrictEqual(Object.keys(entry).sort(), ['expected', 'key', 'value']);
+});
+
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
   const result = auditPolicy(tmpRepo());
-  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [] });
+  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [] });
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {
@@ -133,17 +185,15 @@ test('invalid value in policy.yml is flagged with source: policy.yml', () => {
   assert.strictEqual(result.invalidValues.length, 1);
   assert.strictEqual(result.invalidValues[0].key, 'tidy-aggressiveness');
   assert.strictEqual(result.invalidValues[0].value, 'extreme');
-  assert.strictEqual(result.invalidValues[0].source, 'policy.yml');
 });
 
-test('invalid value in CLAUDE.md is flagged in invalidValues with source: CLAUDE.md', () => {
+test('a CLAUDE.md key is reported under migratableKeys, never invalidValues', () => {
   const repo = tmpRepo();
   writeClaudeMd(repo, 'tidy-aggressiveness: extreme\n');
   const result = auditPolicy(repo);
-  assert.strictEqual(result.invalidValues.length, 1);
-  assert.strictEqual(result.invalidValues[0].key, 'tidy-aggressiveness');
-  assert.strictEqual(result.invalidValues[0].value, 'extreme');
-  assert.strictEqual(result.invalidValues[0].source, 'CLAUDE.md');
+  assert.deepStrictEqual(result.invalidValues, []);
+  assert.strictEqual(result.migratableKeys.length, 1);
+  assert.strictEqual(result.migratableKeys[0].key, 'tidy-aggressiveness');
 });
 
 test('malformed policy.yml (unparseable) is treated as absent, not thrown', () => {
@@ -160,7 +210,7 @@ test('mixed policy.yml + CLAUDE.md content is read independently, both audited t
   writeClaudeMd(repo, 'tidy-aggressiveness: not-a-real-value\n');
   const result = auditPolicy(repo);
   assert.deepStrictEqual(result.unrecognizedKeys, ['made-up-lever']);
-  const flagged = result.invalidValues.find((e) => e.key === 'tidy-aggressiveness');
-  assert.ok(flagged, 'expected the CLAUDE.md invalid value to be audited too');
-  assert.strictEqual(flagged.source, 'CLAUDE.md');
+  const migrated = result.migratableKeys.find((e) => e.key === 'tidy-aggressiveness');
+  assert.ok(migrated, 'expected the CLAUDE.md key to be reported as migratable');
+  assert.strictEqual(migrated.alsoInPolicy, false);
 });
