@@ -440,7 +440,9 @@ BODY
 gh issue create --repo thomasholknielsen/claude-tweaks \
   --title '<title>' \
   --body-file "$BODY_FILE"
-``` Omit `--label` entirely otherwise and say
+```
+
+Omit `--label` entirely otherwise and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `effort:*`),
 which belongs to records that moved through its in-repo pipeline.
