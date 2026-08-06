@@ -50,7 +50,7 @@ Without `--budget` (or `--budget 1`), prints `{ target: {...}|null, coverageScan
 
 Read the `why` field on whichever target came back:
 - If `target` is `null` and `coverageScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
-- `why: "deleted-file"` — this journey has a `files:` entry that no longer exists on disk (`target.missingFiles` lists which). Takes priority over staleness and churn — light tier only, always checked before Phase 1/2.
+- `why: "deleted-file"` — this journey has a `files:` entry that no longer exists on disk (`target.missingFiles` lists which). Takes priority over staleness and churn — light tier only, always checked before Phase 1/2. Fires once per distinct missing set, not once per firing: Step 5's light-tier `validate-findings` call records the set on the journey's cursor (`deletedFileSig`), and an unchanged set is skipped from then on, leaving the journey to the normal staleness/churn rotation until its frontmatter or the missing paths actually change. A *new* file going missing behind an already-reported one still force-picks immediately. This is why the light-tier call in Step 5 must run even when its findings file is `[]` — skipping it leaves the acknowledgement unrecorded and the same journey force-picked forever, starving every other journey's rotation.
 - `why: "stale"` — this journey has not been audited in over 30 days regardless of churn.
 - `why: "hotspot"` — this journey's `files:` frontmatter paths have the highest git churn since its last light-tier audit among journeys with any churn at all.
 - `why: "manual"` — `--target` was passed, bypassing selection.

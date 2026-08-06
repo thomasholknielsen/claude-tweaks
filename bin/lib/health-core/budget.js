@@ -11,8 +11,10 @@
 // (selectByStaleThenChurn, above in rotation.js) already went through this
 // same extraction once. Each engine differs only in: how it derives a
 // candidate's cursor key, what fields the simulated post-audit cursor patch
-// carries, and (journey-health only) an extra alreadyPicked side-channel
-// its Phase 0 needs since Phase 0 ignores cursors entirely.
+// carries, and (journey-health only) an extra alreadyPicked side-channel its
+// Phase 0 needs, since Phase 0 keys off a cursor field (deletedFileSig) that
+// only a real validate-findings run writes, not one the simulated patch below
+// carries.
 //
 // selectOne(cursors) -> candidate|null : the engine's own single-pick call,
 //   closed over its own root/now/tier/kind/memoryDir/etc.

@@ -1,5 +1,36 @@
 # Changelog
 
+## v6.38.3 — One broken journey no longer pins journey-health's rotation (closes #131)
+
+`journey-health`'s Phase 0 force-picks any journey declaring a `files:` path that no longer
+exists — a certain, judgment-free drift signal, and the right thing to surface ahead of
+staleness and churn. It consulted no cursor at all, by design, which meant a journey whose
+declared file was *genuinely* deleted was re-picked on every firing indefinitely: the file
+stays deleted until a human edits the frontmatter, so the condition that selected it never
+clears. Its within-batch `alreadyPicked` guard only dedups inside one `--budget` call.
+
+Measured on the reporting repo: 17 journeys, ~9 days of daily firings, and a persisted cursor
+map containing exactly one journey plus `__coverageScan`. Sixteen were never audited. Fixing
+the pinned journey's frontmatter only moved the pin to the next journey alphabetically, which
+had three missing declared files behind it. The starvation was also invisible in the issue
+stream — dedup swallowed the repeat finding every time, so nothing surfaced the repetition.
+
+The force-pick now fires once per distinct missing set rather than once per firing. The
+light-tier `validate-findings` call records the audited journey's missing set on its cursor
+(`deletedFileSig`, recomputed from the tree as it stands when the audit finishes), and Phase 0
+skips a journey whose live missing set already matches what's recorded. The signal is kept in
+full: a *new* file going missing behind an already-reported one is a different set and still
+force-picks immediately, a restored file clears the acknowledgement, and an unfixed journey
+still comes back around on Phase 1's normal 30-day staleness floor. Deep-tier audits never
+write the field — Phase 0 is light-tier only, so a deep audit must not suppress a light
+force-pick that never happened.
+
+This is distinct from #73, which fixed the adjacent *glob* false-positive (a `files:` entry
+like `docs/**/*.md` reading as missing). That was a wrong signal; this was a correct signal
+with no off switch. It is also distinct from #130 (v6.38.2), which fixed the shared rotation
+core's Phase 1: the two compose — Phase 0 now hands a journey off to the rotation, and Phase 1
+now actually rotates. Neither one alone gives the coverage both were meant to provide.
+
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
 `tests/statusline.test.js`'s render-time assertion failed whenever another agent session ran
