@@ -59,7 +59,7 @@ and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass 
 `--base <ref>` is `merge-check`-only: an optional pre-known merge-base commit or ref the caller
 already has in context (e.g. dispatch's per-group Task agent, which ran `/flow` and set up the
 worktree itself). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
-`$MERGE_BASE` from `$INTEGRATION_BRANCH`. Ignored by the other three modes.
+the merge base from this project's integration branch. Ignored by the other three modes.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
 human-driven `/claude-tweaks:backlog refine` session, or dispatch's per-group Task agent running `/flow`)
@@ -178,8 +178,12 @@ from.
   failure, e.g. "could not resolve this project's integration branch"}`, and skip the rest of this
   mode's procedure.
 
+Substitute the resolved branch **literally** into the command below — a Bash call gets a fresh
+shell, so a branch name resolved in an earlier call is empty here, and `git merge-base "" HEAD`
+does not fail loudly enough to notice:
+
 ```bash
-MERGE_BASE=$(git merge-base "$INTEGRATION_BRANCH" HEAD)
+MERGE_BASE=$(git merge-base {integration-branch} HEAD)
 ```
 
   Measuring from the integration branch rather than the GitHub default is what makes blast radius

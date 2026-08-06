@@ -159,6 +159,7 @@ depends on them.
 | `/help` | Shows pipeline status and recommends flow-ready specs. |
 | `/specify` | Produces the `ready` leaf records `/flow` accepts as `#N`/`#A,#B`, materialized via `materialize.md` — flow never calls `/specify` internally; an unshaped record's materialization hard gate points back at it instead. Also creates the legacy numbered specs the alias path still reads. |
 | `_shared/issue-claims.md` | `/flow` no longer claims records itself — `/dispatch` claims before handing off. Release on a record-mode run happens via `/wrap-up`'s generic Section E `abandoned:` path (user doesn't merge) or a failure-card-offered release (gate failure) — the same mechanisms any single-spec run already uses, not a flow-specific "console decline" step. |
+| `skills/_shared/integration-branch.md` | Names the expected fork point in `validation.md`'s pre-flight divergence check, replacing the upstream-then-`origin/HEAD` guess. `/claude-tweaks:build`'s `worktree-setup.md` runs the identical check — the two must be edited together, and only the fragment's stated ranks apply to either: its git-inference rank would shadow the `@{upstream}` fallback and warn about a divergence that isn't there. |
 
 ## harness-health
 

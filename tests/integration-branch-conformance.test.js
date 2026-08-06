@@ -7,7 +7,14 @@ const path = require('node:path');
 
 const SKILLS_DIR = path.join(__dirname, '..', 'skills');
 const FRAGMENT = '_shared/integration-branch.md';
-const RESOLVER = /default_branch|remote show origin|refs\/remotes\/origin\/HEAD/;
+// Identifiers a real resolver uses, deliberately NOT the English phrase "default
+// branch" — that appears as ordinary prose in eleven files that resolve nothing,
+// and an allowlist padded with those would stop being evidence of anything.
+//   `defaultBranchRef` is the gh JSON field this repo's own canonical fragment
+//   teaches, so it is the single likeliest thing a future author copies.
+//   `$DEFAULT_BRANCH` is the case variant that once shipped a stale reference past
+//   a case-sensitive check, caught only because a human happened to read the line.
+const RESOLVER = /default_branch|defaultBranchRef|\$DEFAULT_BRANCH|remote show origin|refs\/remotes\/origin\/HEAD/;
 
 // Any file naming the GitHub default branch is answering "which branch is this
 // project's current state" — unless it is on this list, which states why not.

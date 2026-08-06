@@ -79,19 +79,26 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"
 
 so the merge itself, landing in the main checkout, isn't denied as a wrong-checkout commit (E1). That only satisfies E1, though — if the project also has `worktree.always: true` set, the separate, run-independent `checkWorktreeRequired` policy gate in `bin/lib/hooks/pre-tool-use.js` still applies, and it denies any `git push` issued from the main checkout regardless of `close-run` (that gate keys off whether the command's target is a linked worktree, not run state — `close-run` never touches it). `git merge` itself is never flagged by that gate (only `commit`/`push` targets are), so the merge below is safe to run from the main checkout either way. The push after it is not — it must run from inside this group's own linked worktree instead, as a **separate** Bash call: chaining merge-then-push into one compound command still gets the whole invocation denied before either half runs, since the gate inspects the full command string up front (see CLAUDE.md's Don'ts list on this exact shape). Capture the worktree path before leaving it — this agent's own `pwd` from Step 5 is already inside it:
 
+**Shell state does not survive between these calls** — each Bash invocation gets a fresh shell, so a variable assigned in one is empty in the next. Read the three values you need first, still inside the worktree, and substitute them **literally** into the calls below; do not carry them in shell variables. (Same rule and same reason as `wrap-up/review-console.md`'s fast-lane merge.)
+
 ```bash
-GROUP_WORKTREE=$(git rev-parse --show-toplevel)
+git rev-parse --show-toplevel                       # -> {group-worktree}
+git branch --show-current                           # -> {branch}
+grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//'
+git remote show origin | sed -n '/HEAD branch/s/.*: //p'   # only when the line above came back empty
 ```
 
-Then, from the main checkout. Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` — its Per-consumer fallback table gives this skill's rank-6 behavior (`git remote show origin`, local repository metadata that works regardless of transport):
+The last two commands together resolve `{integration-branch}`: take the `grep`'s output when it is non-empty, otherwise the `git remote show origin` fallback — local repository metadata that works regardless of transport, and this skill's rank-6 behavior per `skills/_shared/integration-branch.md`. See that file for the full precedence, including the explicit-argument and CLAUDE.md ranks this two-command shorthand collapses.
+
+**First call — merge, from the main checkout.** `{integration-branch}` and `{branch}` are the values just read:
 
 ```bash
 CURRENT=$(git branch --show-current)
-if [ "$CURRENT" != "$INTEGRATION_BRANCH" ]; then
-  echo "Main checkout is on '$CURRENT', not '$INTEGRATION_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
+if [ "$CURRENT" != "{integration-branch}" ]; then
+  echo "Main checkout is on '$CURRENT', not '{integration-branch}' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
-git merge --no-ff "$BRANCH" -m "[auto-merge] {one-line summary}
+git merge --no-ff {branch} -m "[auto-merge] {one-line summary}
 
 Fixes #{issue}
 Fixes #{second-issue}"
@@ -99,10 +106,10 @@ Fixes #{second-issue}"
 
 The guard stays, retargeted. Its job is catching a concurrent session switching the shared checkout out from under this merge — unchanged and still necessary. What changes is that on a repo whose integration branch isn't the GitHub default, it no longer aborts every single time on a mismatch that was never real.
 
-Then, back inside `$GROUP_WORKTREE` — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run` (both checkouts share the same underlying `.git`, so pushing the just-merged `$INTEGRATION_BRANCH` ref from the worktree pushes exactly what the main checkout just merged):
+**Second call — push, from inside the worktree** — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run`. Both checkouts share the same underlying `.git`, so pushing the just-merged integration branch from the worktree publishes exactly what the main checkout just merged. Both placeholders are the literal values read above, and the branch must be the same one the first call merged into — pushing a different one strands the merge locally:
 
 ```bash
-git -C "$GROUP_WORKTREE" push origin "$INTEGRATION_BRANCH"
+git -C "{group-worktree}" push origin {integration-branch}
 ```
 
 One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path. **If the merge conflicts:** conflict resolution requires judgment a headless run can't supply — abort the merge (`git merge --abort`) and fall back to the normal `auto:build`-only path (present the Review Console, wait for a human), logging why the auto-merge path was abandoned.
