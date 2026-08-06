@@ -295,6 +295,8 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 `<issue_number>` is that cache entry's `issue` field.
 
+**Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
+
 **Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or reopen decisions above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `code-health` row for the table columns and the Recommended pre-fill rule (including the `possiblyStale` → `"Capture"` override).
 
 **Headless (Routine) runs skip this gate entirely** — do not read that file — per `_shared/health-filing-gate.md`'s applicability rule; every surviving finding files automatically, with no human to route it through a table. The one exception is a finding still flagged `possiblyStale` after Step 7.5: hold it back rather than filing it blind. Drop it from the filing set (log the drop reason) instead of calling `gh issue create` for it — the slice's next scheduled sweep will re-judge the same content and, if the finding still holds against then-current evidence, file it then.

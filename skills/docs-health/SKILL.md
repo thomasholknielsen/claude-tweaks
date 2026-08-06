@@ -181,6 +181,8 @@ Before filing, bootstrap only the label families this run applies, with real des
 
 Each payload in `/tmp/docs-health-payloads.json` carries structured fields directly (`id`, `target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — the batch table below reads `category`/`misleads`/`classification`/`confidence`, and the dismiss path reads `id`. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it.
 
+**Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
+
 **Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `docs-health` row for the table columns and the Recommended pre-fill rule.
 
 **Headless (Routine) runs skip this gate entirely** — do not read that file — per `_shared/health-filing-gate.md`'s applicability rule; every surviving finding files automatically, with no human to route it through a table.
