@@ -31,6 +31,29 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.46.0 — One classifier decides where a learning goes
+
+Learnings had five possible destinations, three writers, and nothing deciding
+between them. Two of the five — a memory file, and the plugin's own issue
+tracker — had no writer at all, so any lesson that outlived the current project
+either landed in whichever store the producing skill happened to name, or
+nowhere.
+
+`skills/_shared/learning-routing.md` is now the single source of truth: an
+ordered, first-match-wins classifier over D1 (CLAUDE.md Don'ts), D2 (project
+skills and docs), D3 (work records), D4 (memory) and D5 (upstream). Producers —
+`/claude-tweaks:reflect`, `/claude-tweaks:review`, `/claude-tweaks:build`, and
+the four health sweeps — cite it instead of carrying their own destination
+tables, which retires `reflect`'s row routing "a fundamentally better approach
+exists" to both a skill update and a memory file, the mechanism that put the
+same lesson in two stores in different words.
+
+`/claude-tweaks:feedback` is the new D5 writer, filing defect and gap reports
+against the plugin itself with an unconditional scrub gate and an explicit
+confirmation in every mode, including `--dry-run`. `/claude-tweaks:wrap-up`
+Steps 7.10 and 7.11 stage memory and upstream proposals to two new per-item
+Review Console sections; `auto` silences neither.
+
 ## v6.45.0 — Which versions shipped is recorded, not reconstructed (closes #144)
 
 `tests/changelog-coverage.test.js` reconstructed the shipped set by walking
