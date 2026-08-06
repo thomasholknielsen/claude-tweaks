@@ -83,3 +83,39 @@ for (const templatePath of findTemplates()) {
     }
   });
 }
+
+// The standard preamble is written once in routine-template-schema.md and copied verbatim
+// into every template's `prompt`. Nothing but this test notices when one copy is edited and
+// the others aren't — and a preamble paragraph that reaches five of six routines is worse
+// than one that reaches none, because the gap is invisible from any single file.
+function canonicalPreamble() {
+  const schema = fs.readFileSync(path.join(SKILLS_DIR, '_shared', 'routine-template-schema.md'), 'utf8');
+  const section = schema.split('## Standard prompt preamble')[1];
+  assert.ok(section, 'routine-template-schema.md must carry a "## Standard prompt preamble" section');
+  const block = section.split('```')[1];
+  assert.ok(block, 'the preamble section must carry a fenced block holding the canonical text');
+  // Normalise to how a YAML folded scalar renders it: each paragraph joined onto one line,
+  // blank lines between paragraphs kept, and the template-specific kickoff line dropped.
+  return block
+    .trim()
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' ').trim())
+    .filter((paragraph) => !paragraph.startsWith('Then: '))
+    .join('\n\n');
+}
+
+for (const templatePath of findTemplates()) {
+  const skillName = path.basename(path.dirname(templatePath));
+
+  test(`${skillName}/routine-template.yml opens with the canonical standard preamble`, () => {
+    const tpl = parseRoutineTemplate(fs.readFileSync(templatePath, 'utf8'));
+    const kickoffAt = tpl.prompt.lastIndexOf('Then: ');
+    assert.ok(kickoffAt > 0, 'prompt must carry a "Then: " kickoff line after the preamble');
+    assert.equal(
+      tpl.prompt.slice(0, kickoffAt).trim(),
+      canonicalPreamble(),
+      `${skillName}'s preamble has drifted from the canonical block in _shared/routine-template-schema.md — ` +
+        'edit the schema and every skills/*/routine-template.yml together, never one alone'
+    );
+  });
+}

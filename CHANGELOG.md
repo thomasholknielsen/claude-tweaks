@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.38.3 — One broken journey no longer pins journey-health's rotation (closes #131)
+## v6.39.2 — One broken journey no longer pins journey-health's rotation (closes #131)
 
 `journey-health`'s Phase 0 force-picks any journey declaring a `files:` path that no longer
 exists — a certain, judgment-free drift signal, and the right thing to surface ahead of
@@ -27,9 +27,78 @@ force-pick that never happened.
 
 This is distinct from #73, which fixed the adjacent *glob* false-positive (a `files:` entry
 like `docs/**/*.md` reading as missing). That was a wrong signal; this was a correct signal
-with no off switch. It is also distinct from #130 (v6.38.2), which fixed the shared rotation
-core's Phase 1: the two compose — Phase 0 now hands a journey off to the rotation, and Phase 1
-now actually rotates. Neither one alone gives the coverage both were meant to provide.
+with no off switch. It is also distinct from #130 (v6.39.1, immediately below), which fixed the
+shared rotation core's Phase 1: the two compose — Phase 0 now hands a journey off to the
+rotation, and Phase 1 now actually rotates. Neither one alone gives the coverage both were meant
+to provide; all 184 journey-health tests were verified green against #130's rewritten
+`rotation.js` before either landed.
+
+## v6.39.1 — Health rotation reaches past its alphabetical prefix (closes #130)
+
+`health-core/rotation.js`'s Phase 1 returned on the *first* candidate past `staleDays`
+rather than the most overdue one. Since every engine's `scope.js` sorts candidates by id
+and each run advances exactly one slice, coverage was a strict alphabetical march at one
+slice per run — and by run number `staleDays` the head of the list had re-crossed the
+threshold and was force-picked again, long before the march reached the tail.
+
+Everything ranked past position ≈ `staleDays` was therefore permanently unreachable. Not
+a slow rotation: an unreachable one. Measured on a real repo, docs-health could never
+audit ~59% of its 146 docs (`staleDays` 60), and code-health >90% of its several hundred
+slices (`MAX_STALE_DAYS` 30). One repo's docs-health had spent 19 days on `REGISTRY` plus
+`decisions/ADR-001` through `ADR-004`, still inside the alphabetically-first directory.
+
+Phase 1 now selects `max(daysSince)`, applying the existing `tieBreakKey` to equal
+staleness — which matters more here than in Phase 2, since every never-audited candidate
+sits at `Infinity` and a fresh repo's whole pool is one big tie. All four engines share
+this module, so all four are fixed at once.
+
+A consequence worth naming: each engine's explicit candidate sort is now a determinism
+detail rather than the coverage mechanism. Selection no longer depends on the order
+candidates arrive in. `code-health/scope.js`'s comment, which justified its sort on
+first-qualifying-wins grounds, is corrected to match.
+
+The regression test runs the starvation model forward — 90 candidates against a 30-day
+threshold, one pick per simulated day — and asserts the full set is covered with no
+repeats. It fails on the old implementation at 31 of 90.
+
+## v6.39.0 — Routines report which build they resolved (closes #129)
+
+A scheduled `dispatch next` Routine hard-gated on `gh` being absent — the gate 6.24.0 had
+already replaced with an MCP branch — and described `dispatch/SKILL.md` as having no MCP
+claim path at all. Both statements are accurate about 6.23.7 and false about the build the
+marketplace was serving. The sandbox had been running pre-fix code for days while its setup
+script's `claude plugin update` reported success on every firing.
+
+`claude plugin update` compares the installed version *string* against the *local* marketplace
+catalog and inspects nothing else. Emptying a cached plugin directory of its files and
+re-running it yields `already at the latest version (6.38.1)` and exit 0, repairing nothing;
+pointing an installation record at an older directory yields the same line; so does a catalog
+that failed to refresh, since the comparison then measures the sandbox against itself. Three
+broken states and one healthy one produce identical logs — which is why the investigation
+behind #129 first concluded `dispatch`'s gate was still wrong.
+
+- **Every routine prompt now opens by printing the build it resolved**, read from
+  `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — the directory the running skill files
+  were loaded from, and the only source that cannot disagree with them. Added to the standard
+  preamble in `_shared/routine-template-schema.md` and to all six `routine-template.yml`
+  files, each with its `template_version` bumped so `/claude-tweaks:routine status` reports
+  the drift. Live routines carry a frozen copy of their prompt and pick this up only via
+  `/claude-tweaks:routine update {skill}`.
+- **`dispatch`'s headless self-report records the resolved build** on the issue it files, and
+  on a deduplicated re-file adds one comment per *distinct* build. The marker asks "has this
+  check been reported," whose answer stays yes forever; the build line asks "has this build
+  been seen failing it," whose answer changes when a sandbox is repaired or silently rolls
+  back. #129's own self-report issue sat silent through three later firings without it.
+- **The generated cloud setup script verifies instead of trusting.** Marketplace `update`
+  failures are no longer silenced to `/dev/null` — a catalog that failed to refresh is the
+  precondition that makes every version check downstream meaningless. After the install loop,
+  each plugin's version is resolved from the directory a session would actually load,
+  compared against the catalog, and reinstalled on drift. `claude plugin list`'s recorded
+  `version` and `installed_plugins.json`'s `gitCommitSha` are deliberately not used: the
+  former is metadata beside the directory rather than out of it, and the latter is not
+  refreshed by `claude plugin update` at all.
+- New regression test asserting all six templates' preambles still match the canonical block
+  in `_shared/routine-template-schema.md`, and `[IL-89]` recording the general rule.
 
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
