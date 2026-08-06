@@ -168,6 +168,20 @@ The line must stay within **150 characters** — the budget
 silently degrades every future session in every project. Stage it and surface it
 for explicit approval. See `_shared/auto-mode-contract.md`.
 
+## Subject check (health sweeps)
+
+Before filing a finding as a project issue, a health sweep asks whose code the
+finding is actually about.
+
+When the subject is a claude-tweaks skill, contract, or CLI rather than this
+project's own code, the finding is a **D5** learning, not a project issue —
+route it to `/claude-tweaks:feedback` instead of filing locally. Classify via
+the classifier above.
+
+This applies only where claude-tweaks is a dependency. When this project *is*
+claude-tweaks, the self-reference check above collapses D5 and the finding files
+locally as usual.
+
 ## Consumers
 
 | Consumer | How it uses this file |
@@ -765,19 +779,17 @@ git commit -m "Declare memory writes and upstream filing as never silenced by au
 
 **Sequencing note.** These six edits are near-identical in shape. Apply them one at a time in the order listed and re-read each file's surrounding context before editing — a finding that one file's review surfaces about a sibling must be applied to that sibling in this same task, not deferred (`[IL-52]`, `[IL-53]`).
 
-- [ ] **Step 1: Add the routing clause to each health sweep**
+- [ ] **Step 1: Add the routing citation to each health sweep**
 
-In each of the four health-sweep `SKILL.md` files, in the FILE step before the filing gate, add:
+**Cite, do not restate.** `skills/code-health/SKILL.md` is already at the 40 KB Global Constraint (40,089 bytes measured before this plan ran), and the subject-check prose is identical across all four sweeps — restating it four times is the duplication `[IL-32]` forbids and the `_shared/` convention exists to prevent. The block itself lives in `_shared/learning-routing.md`'s "Subject check (health sweeps)" section, added in Task 1.
+
+In each of the four health-sweep `SKILL.md` files, in the FILE step immediately before the filing gate, add exactly this one line and nothing more:
 
 ```markdown
-**Subject check before filing.** When a finding's subject is a claude-tweaks
-skill, contract, or CLI rather than this project's own code, it is a D5 learning,
-not a project issue — route it to `/claude-tweaks:feedback` instead of filing
-locally. Classify via `skills/_shared/learning-routing.md`. This applies only
-where claude-tweaks is a dependency; when this project *is* claude-tweaks, the
-contract's self-reference check collapses D5 and the finding files locally as
-usual.
+**Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
 ```
+
+Do not paste the section's body into any sweep. Do not paraphrase its self-reference caveat inline — the citation carries it.
 
 - [ ] **Step 2: Add the contract citation to build Common Step 4.5**
 
@@ -795,13 +807,29 @@ grep -rl "learning-routing" skills/code-health/SKILL.md skills/harness-health/SK
 ```
 Expected: all six paths listed. A missing path means that consumer silently no-ops (`[IL-60]`).
 
-- [ ] **Step 5: Verify the self-reference caveat reached every health sweep**
+- [ ] **Step 5: Verify the caveat lives once, and no sweep restated it**
+
+The self-reference caveat must exist exactly once — in the contract — with the four sweeps citing it. A sweep that restated it would drift from the others.
 
 Run:
 ```bash
-grep -rc "self-reference" skills/code-health/SKILL.md skills/harness-health/SKILL.md skills/journey-health/SKILL.md skills/docs-health/SKILL.md
+grep -c "Subject check (health sweeps)" skills/_shared/learning-routing.md
 ```
-Expected: a non-zero count for each of the four. A sweep that routes to D5 without the caveat would file issues against claude-tweaks from inside claude-tweaks.
+Expected: `1`.
+
+Run:
+```bash
+grep -rn "collapses D5" skills/code-health/SKILL.md skills/harness-health/SKILL.md skills/journey-health/SKILL.md skills/docs-health/SKILL.md
+```
+Expected: no output — the caveat's body must not appear in any sweep.
+
+- [ ] **Step 5b: Verify no modified file breached the size ceiling**
+
+Run:
+```bash
+wc -c skills/code-health/SKILL.md skills/harness-health/SKILL.md skills/journey-health/SKILL.md skills/docs-health/SKILL.md skills/build/SKILL.md skills/review/SKILL.md
+```
+Expected: every file under 40960 bytes. `code-health/SKILL.md` began this plan at 40,089 bytes and must grow by no more than the one citation line — if it grew by more, Step 1's "cite, do not restate" instruction was not followed.
 
 - [ ] **Step 6: Run the full suite**
 
