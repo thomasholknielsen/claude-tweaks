@@ -14,7 +14,7 @@ When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md` Step 1's 
 
 - Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
 - Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
-- Queue writes (`Q#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead.
+- Queue writes (`Q#` items), Memory updates (`M#` items), and Upstream feedback (`U#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead; under `--dry-run` no memory file is ever written and `/claude-tweaks:feedback` is never invoked.
 - Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
 - After presenting, stop — do not proceed to Step 9/10's real execution; report the preview as the run's final output.
 
@@ -272,10 +272,10 @@ If "Override specific items" is chosen, the skip/modify list is ordinary free-te
 
 Queue writes (Q1, Q2) are handled separately below — they are never part of this terminal decision, regardless of which option is chosen.
 
-After the user selects option 1 or 2, prompt the queue writes individually — one small `AskUserQuestion` call per `Q#` item, issued separately (never batched into a single call's multiple questions).
+After the user selects option 1 or 2, prompt each per-item row individually — one small `AskUserQuestion` call per `Q#`/`M#`/`U#` item, issued separately (never batched into a single call's multiple questions, and never batched across sections).
 
-For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
-- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""`
+For each `Q#`, `M#`, or `U#` item, call `AskUserQuestion` with `question`: the item's own line (e.g. for a queue write, `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"` for a queue write, `"Memory update {M#}"` for a memory update, or `"Upstream feedback {U#}"` for upstream feedback, `multiSelect`: `false`:
+- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""` for a queue write, `"Write the memory file: \"{name}\""` for a memory update, `"File the issue: \"{summary}\""` for upstream feedback
 - Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
 - Option 3 — `label`: `"Edit"`, `description`: `"Modify before creating"`
 
@@ -283,7 +283,7 @@ Applied to this example's two queue writes:
 - Q1 — `question`: `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Create the record: \"Add OAuth refresh edge case\" — blocked on /auth provider docs, parked with trigger '/auth provider docs land'"`
 - Q2 — `question`: `"Queue write Q2 → new record, backlog: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Create the record: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3\""`
 
-None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#` items (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
+None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#`, `M#`, or `U#` items, whether from the same section or different ones (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
 
 ## On approval (option 1)
 
@@ -294,8 +294,10 @@ None of these three options carries `(Recommended)` — the source text requires
 5. Apply config updates (item 15: CLAUDE.md, rules, ADRs) — including any CLAUDE.md findings staged by Step 7.9, which are always offered, never auto-applied
 6. Execute cleanup actions (items 16 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Step 10 picks these up
 7. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
-8. Commit with a wrap-up message
-9. Proceed to Step 9 (Present Consolidated Summary)
+8. For each `M#` memory update, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (`staged/wrap-up-memory-{N}.md`). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the wrap-up commit below. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+9. For each `U#` upstream feedback item, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): invoke `/claude-tweaks:feedback` with the staged, already-scrubbed body from the item's staged file (`staged/wrap-up-upstream-{N}.md`) — that skill re-runs its own scrub and confirm gates, since its Component-Skill Contract states a pipeline never relaxes them. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+10. Commit with a wrap-up message
+11. Proceed to Step 9 (Present Consolidated Summary)
 
 ## On override (option 2)
 
@@ -303,7 +305,7 @@ None of these three options carries `(Recommended)` — the source text requires
 2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
-5. Queue writes (`Q#`): still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
+5. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
 6. Commit, then proceed to Step 9 (Present Consolidated Summary)
 
 ## On stop (option 3)

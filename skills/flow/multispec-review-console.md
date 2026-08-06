@@ -176,17 +176,19 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 
 1. For each `spec-{N}/staged/` patch: `git apply` (each spec already has its own commit context — patches apply against the cumulative pipeline state)
 2. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged record-proposal file (`leftover-*.md`, `ledger-record-*.md`, or any other `Title:`-headed staged proposal — the same generic clause `wrap-up/review-console.md`'s create step uses). Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level leftover) with the user's stated reason, or "declined, no reason given" when none was offered.
-3. Apply skill updates and create new skills (from each spec's Step 7)
-4. Apply config updates (docs, CLAUDE.md, rules)
-5. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
-6. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)
-7. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
+3. For each `M#` memory update, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the multi-spec wrap-up commit below. Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level item) with the user's stated reason, or "declined, no reason given" when none was offered.
+4. For each `U#` upstream feedback item, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): invoke `/claude-tweaks:feedback` with the staged, already-scrubbed body from the item's staged file (aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own) — that skill re-runs its own scrub and confirm gates, since its Component-Skill Contract states a pipeline never relaxes them. Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level item) with the user's stated reason, or "declined, no reason given" when none was offered.
+5. Apply skill updates and create new skills (from each spec's Step 7)
+6. Apply config updates (docs, CLAUDE.md, rules)
+7. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
+8. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)
+9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
 
 ## On override (option 2)
 
 1. Parse the user's overrides — `#`s map to consolidated table rows; resolve back to the originating spec's subdirectory for each
 2. Apply, skip, or modify per item
-3. Queue writes (`Q#`): still prompted per item even under override — see "Present the consolidated console" above; the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved across specs either
+3. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — see "Present the consolidated console" above; the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved across specs either
 4. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
 5. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)
 6. Archive the parent run dir
