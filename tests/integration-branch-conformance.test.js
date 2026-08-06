@@ -55,8 +55,13 @@ test('the allowlist has no stale entries', () => {
       stale.push(`${rel} (file no longer exists)`);
       continue;
     }
-    if (!/default_branch|remote show origin/.test(fs.readFileSync(full, 'utf8'))) {
+    const text = fs.readFileSync(full, 'utf8');
+    if (!/default_branch|remote show origin/.test(text)) {
       stale.push(`${rel} (no longer resolves a default branch — drop the entry)`);
+      continue;
+    }
+    if (text.includes(FRAGMENT)) {
+      stale.push(`${rel} (cites ${FRAGMENT} — the entry is redundant, drop it)`);
     }
   }
   assert.deepStrictEqual(stale, [], `stale allowlist entries: ${stale.join(', ')}`);
