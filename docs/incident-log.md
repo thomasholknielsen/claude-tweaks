@@ -472,3 +472,21 @@ What converted the defect into a contract was the new test written alongside the
 It ran for 17 days of daily Routine firings across four engines before an operator noticed docs-health had only ever audited five of 146 docs. No test could have caught it, because the defect lived in the semantics every test agreed on.
 
 The narrow rule is about extraction: a parity criterion answers "did I move this correctly," never "was this correct." When N implementations are being unified, the extraction is the one moment all N behaviors are stated in one place and comparable to intent — spend a pass asking what the behavior is *for*, separately from whether it was preserved. The broader one is about characterization tests generally: a test written to describe existing behavior asserts nothing about whether that behavior is wanted, and once written it is indistinguishable from a test that does.
+
+## IL-91 — zsh's `:s` modifier silently mangles `"$ref:path"`, and the command returns empty rather than failing
+
+While diagnosing #129, a loop compared one file across three git refs:
+
+```bash
+for ref in origin/main origin/dev HEAD; do
+  c=$(git show "$ref:scripts/claude-cloud-setup.sh" 2>/dev/null | grep -c "claude plugin update")
+done
+```
+
+Every iteration reported `0`. Read literally, that said the consuming project's committed cloud setup script had never gained the `claude plugin update` step — which would have made *that* repo the root cause of the stale sandbox, and pointed the whole investigation at the wrong codebase.
+
+The string never reached git. The Bash tool runs zsh, where `:s` inside a parameter expansion is a history-style substitution modifier, so `"$ref:scripts/claude-cloud-setup.sh"` expanded to `origin/mainloud-setup.sh`. `git show` failed with `fatal: ambiguous argument`, `2>/dev/null` swallowed it, and the empty stdout flowed into `grep -c`, which dutifully counted zero. Brace the variable — `"${ref}:path"` — and it works. Note that a bare unquoted `git show HEAD:path` is also fine; the modifier only applies to a parameter expansion, which is why the same command written two ways disagreed.
+
+It was caught only because the result contradicted a `grep` run against the same file thirty seconds earlier. Nothing else would have: exit code 0 (masked by the pipe to `grep`), no stderr, plausible-looking output, and a conclusion that fit the hypothesis under test.
+
+Two generalizable points, and the second is the load-bearing one. First: in zsh, any `"$var:..."` is suspect, and `2>/dev/null` on an exploratory command converts a loud failure into a quiet wrong answer — drop it while exploring, add it only once the command is known-good. Second, and independent of shells: when a command's output contradicts something verified moments earlier, suspect the command before the fact. The instinct runs the other way — the new result feels like the discovery and the old one like the assumption — and that instinct is what makes this class expensive. Same family as `[IL-74]` (a grep silently returning nothing because of a NUL byte): there the file broke the tool, here the shell broke the command, and both present as an empty result that reads as evidence.
