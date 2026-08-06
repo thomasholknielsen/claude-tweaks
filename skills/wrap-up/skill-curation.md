@@ -8,7 +8,7 @@ Wrap-Up Step 7. Analyze whether project skills need updating, and whether the wo
 
 ## 7.1: Gather Seeds
 
-**Subject check before seeding.** A `review/skill` or `build/skill` ledger entry whose subject is a claude-tweaks skill, contract or CLI — rather than this project's own code — is a **D5** learning, not a project-skill update. Classify via `skills/_shared/learning-routing.md` and hand it to Step 7.11 instead of seeding it here. Seeding it would route it to this project's skill library and Step 7.11 would never see it. Where this project *is* claude-tweaks, the contract's self-reference check collapses D5 and the entry seeds here as usual.
+An entry whose body carries `[route: D4]` or `[route: D5]`, or whose subject is a claude-tweaks skill, contract or CLI rather than this project's own code, is not a project-skill seed. Hand it to Step 7.10 (D4) or Step 7.11 (D5) and do not seed it here — seeding it would route it to this project's skill library and those steps would never see it. Where this project *is* claude-tweaks, the contract's self-reference check collapses D5 and the entry seeds here as usual.
 
 1. Read ledger entries with phase `build/skill` (from /build Step 4.5) or `review/skill` (from /review lens 3a), plus any ledger entry whose body contains a `[skill: …]` tag (from /reflect findings under phases `review/hindsight`, `wrap-up`, or `reflect`).
 2. Check reflection insights (SKILL.md Step 3) tagged for skill destinations.

@@ -51,7 +51,7 @@ Apply the `Architecture alignment (/build Common Step 4.5)` row from the silence
 
 ## Skill Observation
 
-**Classify before appending.** Run the observation through `skills/_shared/learning-routing.md` first. A D1, D2 or D3 outcome appends the ledger entry below as usual. A D4 or D5 outcome does not — hand it to `/claude-tweaks:wrap-up` Step 7.10 or 7.11 instead, because Step 7.10's "not already routed by Steps 6-7.9" scope will otherwise skip it permanently.
+**Classify, then tag — never withhold.** Run the observation through `skills/_shared/learning-routing.md`. Append the ledger entry below **in every case**; suppressing it would leave the observation with no reader at all, since nothing else in `/claude-tweaks:build` writes to a channel `/claude-tweaks:wrap-up` reads. When the outcome is D4 or D5, additionally tag the entry body `[route: D4]` or `[route: D5]`, which `/claude-tweaks:wrap-up` Step 7.1 uses to hand it to Step 7.10 or 7.11 rather than seeding it as a project-skill update.
 
 While checking architectural alignment, also compare against relevant project skills:
 
