@@ -581,7 +581,25 @@ In `skills/reflect/full-mode.md` line 16 and `skills/reflect/light-mode.md` line
 
 - [ ] **Step 3: Add the same citation to hindsight-mode**
 
-In `skills/reflect/hindsight-mode.md`, wherever findings are routed to a destination, add the sentence: `Classify via skills/_shared/learning-routing.md — do not restate its destination table.`
+In `skills/reflect/hindsight-mode.md`, the destination is chosen in the **Change now** disposition. Classification must come **before** acting, not after — a D4 (memory) or D5 (upstream) outcome is staged for approval and must never be applied in place, so an "act first, classify second" reading produces exactly the auto-write the contract forbids.
+
+Replace the `- **Change now**` bullet's body with:
+
+```
+the strong default (full mode's equivalent is "Implement now"). Classify the finding via `skills/_shared/learning-routing.md` **first** — do not restate its destination table — then act on the destination it returns. D1, D2 and D3 outcomes are applied or filed directly; a D4 (memory) or D5 (upstream) outcome is staged for approval, never applied in place. Most hindsight findings are small enough to fix in a few minutes.
+```
+
+The same file's closing instruction has the same defect. Replace:
+
+```
+If any findings are **"Change now"**, make the changes, then re-run `/claude-tweaks:test` (or verification if standalone) and resume.
+```
+
+with:
+
+```
+If any findings are **"Change now"**, apply the ones whose destination permits direct application, stage the rest, then re-run `/claude-tweaks:test` (or verification if standalone) and resume.
+```
 
 - [ ] **Step 4: Verify no reflect file still carries its own destination table**
 
