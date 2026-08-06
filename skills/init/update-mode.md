@@ -124,6 +124,10 @@ recognized keys in CLAUDE.md, where they no longer apply — the failure is sile
 that is not read looks exactly like a key that was never set, and the lever's default takes over
 with nothing objecting.
 
+Each flagged key counts toward Phase 1u.6's Total drift count, the same as Work-Record Backend
+Drift above — a project whose only drift is stranded policy keys must not take the early-exit
+fast path, since the fast path would suppress the very offer this check exists to make.
+
 Detect by calling the same module `/claude-tweaks:harness-health` uses:
 
 ```bash
@@ -142,7 +146,9 @@ reporting a clean result. Otherwise each entry carries `key`, its CLAUDE.md `val
 Present a batch table (Key | CLAUDE.md value | policy.yml value or "not set" | Recommended action),
 and for any `alsoInPolicy: true` row whose two values differ, say so in the row — that is a project
 whose intended setting has not been in effect, and the user may want the CLAUDE.md value promoted
-rather than dropped.
+rather than dropped. The policy.yml-side value is not in `migratableKeys` — read it from the
+Phase 1u inventory pass above, which has already parsed `.claude-tweaks/policy.yml`;
+`alsoInPolicy` only tells you whether the key is present there.
 
 **Show the diff before asking.** Render the exact `policy.yml` additions and the exact CLAUDE.md
 lines to be deleted, with their line numbers. CLAUDE.md is the file users hand-tune most, and the
