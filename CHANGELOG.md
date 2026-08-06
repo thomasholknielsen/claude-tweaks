@@ -20,6 +20,40 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.44.0 — The Impeccable design gate can fail again
+
+`/claude-tweaks:test`'s Impeccable gate had been unable to fail. The installed CLI was
+2.1.8, which writes findings JSON to **stderr** and leaves stdout empty, while
+`skills/design-wrapper/impeccable-cli.md` documented stdout and treated an empty one as
+malformed output. Every real finding therefore fell through to a skip, and skips are not
+failures. The gate returned `pass` on a clean file and `skipped` on a dirty one; the `fail`
+branch was unreachable.
+
+The document claimed verification against CLI **3.2.1** — a version the machine had never
+run. Two deliberate re-verification passes both missed it, because nothing ever compared
+the claim to what was installed (`[IL-89]`). Both the pin and the contract are now
+machine-checked: `tests/impeccable-cli-contract.test.js` replays committed fixtures against
+the installed binary, with stdout and stderr captured separately, and fails when the CLI is
+present at the wrong version rather than skipping. The wrapper's own availability check does
+the same comparison, which is the only pin enforcement a consumer of the published plugin
+ever gets.
+
+The gate also read the wrong field. It classified on `severity`, but upstream's blocking
+decision rides on a separate `advisory` boolean stamped on each finding, and the two are
+near-inverted: a finding can carry `severity: "warning"` with `advisory: true` (upstream
+exits 0, non-blocking) or `severity: "advisory"` with no flag (upstream exits 2, blocking).
+Classifying on `severity` was wrong for 12 of the 59 registry rules in both directions —
+design-token violations on a project with a `DESIGN.md` would have been waved through, while
+em-dash overuse, upstream's own worked example of something safe to ignore, would have
+failed the build. Three independent verifications agreed the advisory path was impossible to
+reproduce before a fourth found the fixture is three lines of HTML (`[IL-90]`).
+
+Alongside: `--fast` is dropped from the invocation (deprecated and ignored at the pin, and it
+writes a deprecation note into a stream the parser reads), the `category` field is documented,
+the enumerated advisory rule-id list is deleted rather than corrected — enumerating upstream's
+data is what drifted the file three times — and three files that restated the invocation now
+point at the one that owns it.
+
 ## v6.42.0 — Routines and merges follow the branch you name, not the GitHub default (closes #132)
 
 Four places independently resolved "which branch is this project's current state" — which tree a
