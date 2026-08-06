@@ -67,9 +67,8 @@ function expandGlobSegments(baseDir, segments) {
 
 function expandGlob(globPattern) {
   const pattern = globPattern.startsWith('~') ? path.join(os.homedir(), globPattern.slice(1)) : globPattern;
-  const isAbsolute = path.isAbsolute(pattern);
-  const segments = pattern.split('/').filter(Boolean);
-  return expandGlobSegments(isAbsolute ? path.parse(pattern).root || '/' : '.', segments);
+  const baseDir = path.isAbsolute(pattern) ? path.parse(pattern).root : '.';
+  return expandGlobSegments(baseDir, pattern.split('/').filter(Boolean));
 }
 
 // Every plugin-cache-glob candidate paired with the version its OWN
@@ -139,34 +138,15 @@ function checkVersion(entry, options = {}) {
     installed = resolveGlobCandidates(entry, options).map((c) => c.version);
   }
 
+  const base = { check: 'version', name, installed, pinned };
   if (installed.length === 0) {
-    return {
-      check: 'version',
-      name,
-      status: 'absent',
-      installed,
-      pinned,
-      detail: `${name}: not installed — probe found no artifact`,
-    };
+    return { ...base, status: 'absent', detail: `${name}: not installed — probe found no artifact` };
   }
+  const found = `installed version(s) [${installed.join(', ')}]`;
   if (installed.includes(pinned)) {
-    return {
-      check: 'version',
-      name,
-      status: 'ok',
-      installed,
-      pinned,
-      detail: `${name}: installed version(s) [${installed.join(', ')}] include pinned ${pinned}`,
-    };
+    return { ...base, status: 'ok', detail: `${name}: ${found} include pinned ${pinned}` };
   }
-  return {
-    check: 'version',
-    name,
-    status: 'breach',
-    installed,
-    pinned,
-    detail: `${name}: installed version(s) [${installed.join(', ')}] do not include pinned ${pinned}`,
-  };
+  return { ...base, status: 'breach', detail: `${name}: ${found} do not include pinned ${pinned}` };
 }
 
 // ─── checkAssertions ────────────────────────────────────────────────────────
@@ -196,25 +176,22 @@ function checkAssertions(entry, options = {}) {
 
   const results = assertions.map((assertion) => {
     const upstreamPath = assertion['upstream-path'];
+    const mustMatch = assertion['must-match'];
     const fullPath = path.join(root, upstreamPath);
-    const { file, claims } = assertion;
-
-    if (!fs.existsSync(fullPath)) {
-      return { file, claims, upstreamPath, status: 'missing-file', detail: `${fullPath} does not exist` };
-    }
+    const base = { file: assertion.file, claims: assertion.claims, upstreamPath };
 
     let content;
     try {
       content = fs.readFileSync(fullPath, 'utf8');
     } catch (err) {
-      return { file, claims, upstreamPath, status: 'missing-file', detail: `${fullPath} could not be read: ${err.message}` };
+      const reason = err.code === 'ENOENT' ? 'does not exist' : `could not be read: ${err.message}`;
+      return { ...base, status: 'missing-file', detail: `${fullPath} ${reason}` };
     }
 
-    if (!content.includes(assertion['must-match'])) {
-      return { file, claims, upstreamPath, status: 'unmatched', detail: `${fullPath} no longer contains "${assertion['must-match']}"` };
+    if (!content.includes(mustMatch)) {
+      return { ...base, status: 'unmatched', detail: `${fullPath} no longer contains "${mustMatch}"` };
     }
-
-    return { file, claims, upstreamPath, status: 'ok', detail: `${fullPath} still contains "${assertion['must-match']}"` };
+    return { ...base, status: 'ok', detail: `${fullPath} still contains "${mustMatch}"` };
   });
 
   const status = results.every((r) => r.status === 'ok') ? 'ok' : 'drift';
@@ -231,59 +208,51 @@ function tryParseJson(text) {
   try {
     return { ok: true, value: JSON.parse(text) };
   } catch {
-    return { ok: false, value: undefined };
+    return { ok: false };
   }
 }
 
 function checkOneFixture(fixture, cwd, runFixture) {
   const expect = fixture.expect || {};
   const result = runFixture(fixture.run, cwd);
-  const stdout = result.stdout || '';
-  const stderr = result.stderr || '';
-  const observed = { exit: result.status, stdoutLen: stdout.length, stderrLen: stderr.length };
+  // The two streams are kept as separate keys and are never concatenated —
+  // a payload that moved between them is the drift this replay exists to
+  // catch, and merging them would reproduce exactly that blindness.
+  const streams = { stdout: result.stdout || '', stderr: result.stderr || '' };
+  const observed = { exit: result.status, stdoutLen: streams.stdout.length, stderrLen: streams.stderr.length };
 
-  if (result.status !== expect.exit) {
-    return { run: fixture.run, status: 'mismatch', detail: `expected exit ${expect.exit}, observed exit ${result.status}`, observed };
+  function mismatch(detail) {
+    return { run: fixture.run, status: 'mismatch', detail, observed };
   }
 
-  const streamName = expect.stream === 'stderr' ? 'stderr' : 'stdout';
-  const otherName = streamName === 'stderr' ? 'stdout' : 'stderr';
-  const primaryText = (streamName === 'stderr' ? stderr : stdout).trim();
-  const otherText = (streamName === 'stderr' ? stdout : stderr).trim();
+  if (result.status !== expect.exit) {
+    return mismatch(`expected exit ${expect.exit}, observed exit ${result.status}`);
+  }
 
-  const primaryParsed = tryParseJson(primaryText);
-  if (!primaryParsed.ok) {
+  const wanted = expect.stream === 'stderr' ? 'stderr' : 'stdout';
+  const other = wanted === 'stderr' ? 'stdout' : 'stderr';
+
+  const parsed = tryParseJson(streams[wanted].trim());
+  if (!parsed.ok) {
     // The single most important case this function exists to catch: the
     // payload silently moved to the other stream (stdout <-> stderr). A
     // plain "didn't parse" detail would hide that — name where it actually
     // landed instead.
-    const otherParsed = tryParseJson(otherText);
-    if (otherParsed.ok) {
-      return {
-        run: fixture.run,
-        status: 'mismatch',
-        detail: `expected the JSON payload on ${streamName}, but it appeared on ${otherName} instead`,
-        observed,
-      };
+    if (tryParseJson(streams[other].trim()).ok) {
+      return mismatch(`expected the JSON payload on ${wanted}, but it appeared on ${other} instead`);
     }
-    return { run: fixture.run, status: 'mismatch', detail: `${streamName} did not parse as JSON`, observed };
+    return mismatch(`${wanted} did not parse as JSON`);
   }
 
   const keys = expect.keys || [];
   if (keys.length > 0) {
-    const arr = Array.isArray(primaryParsed.value) ? primaryParsed.value : [primaryParsed.value];
-    const first = arr[0];
+    const first = Array.isArray(parsed.value) ? parsed.value[0] : parsed.value;
     if (!first || typeof first !== 'object') {
-      return {
-        run: fixture.run,
-        status: 'mismatch',
-        detail: `expected an object with key(s) [${keys.join(', ')}], but ${streamName}'s payload had no first element`,
-        observed,
-      };
+      return mismatch(`expected an object with key(s) [${keys.join(', ')}], but ${wanted}'s payload had no first element`);
     }
     const missing = keys.filter((k) => !(k in first));
     if (missing.length > 0) {
-      return { run: fixture.run, status: 'mismatch', detail: `missing expected key(s) [${missing.join(', ')}] in ${streamName}'s first payload object`, observed };
+      return mismatch(`missing expected key(s) [${missing.join(', ')}] in ${wanted}'s first payload object`);
     }
   }
 
