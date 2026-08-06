@@ -44,7 +44,7 @@ Full per-mode behavior and argument shape: see the Input table below.
 |------|--------|----------|
 | `shape <topic>` | Topic name | Invokes `/impeccable:impeccable shape <topic>`; returns the output for the caller to append to the design doc |
 | `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files plus project's root `PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths and an approximate context size |
-| `test <files>` | Space-separated file list | Runs `npx impeccable detect --fast --json` on the files; returns pass/fail |
+| `test <files>` | Space-separated file list | Runs the deterministic CLI per `impeccable-cli.md`; returns pass/fail |
 | `review <spec>` | Spec number or path | Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files; returns advisory findings; writes findings cache for `polish` mode to read |
 | `polish <spec>` | Spec number or path | Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (per the record's `Design-intent:` body-metadata line, lifted into the materialized header — spec 20) commands per `command-map.md`; modifies code. With `--dry-run`, computes the same category/trigger dispatch list but issues no Impeccable commands and modifies nothing — see `modes/polish.md` Step 8. |
 | `survey <files>` | Space-separated file list, or `--screenshots <paths>` when invoked from `/visual-review` | Analyzes the diff (and screenshots when provided) and returns ranked Creative Opportunities recommendations; suppresses recommendations the user previously declined for the same spec; read-only. `--limit <n>` overrides the default cap of 5 recommendations. |
@@ -112,7 +112,7 @@ For the dispatched mode, verify the dependency is available:
 
 | Mode | Required | Verify by |
 |------|----------|-----------|
-| `test` | Impeccable CLI | Run `npx impeccable --version` via Bash. Exit 0 with version string → available. Non-zero or no output → unavailable. |
+| `test` | Impeccable CLI **at the pinned version** | Run `npx impeccable --version` via Bash. Non-zero or no output → unavailable. Exit 0 → compare the version string against the pin recorded in `impeccable-cli.md`'s `<!-- upstream-pin: impeccable-cli@X.Y.Z -->` comment. Equal → available. Different → **unavailable**, with the skip reason naming both versions (see below). Do not discard the version string: every rule in `impeccable-cli.md` describes the pinned version's behaviour, so running the gate against a different one produces a verdict about a contract that was never verified. |
 | `review` | Impeccable plugin (LLM commands) | Check whether `/impeccable:impeccable` skill resolves. Look for `/impeccable:impeccable*` in the available skills list provided by the harness. If none resolve, treat as unavailable. |
 | `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. |
 | `pre-build` | Impeccable plugin (reference files) | Same as `review`. The reference files ship with the plugin; if the plugin resolves, the references are available. |
@@ -128,9 +128,20 @@ On unavailable:
 }
 ```
 
+On a CLI version mismatch, use this shape instead — it is a distinct condition from "not installed" and must not be reported as one:
+
+```
+{
+  "skipped": "Impeccable CLI {found} does not match the pinned {pinned}",
+  "install_hint": "npm install -g impeccable@{pinned}"
+}
+```
+
+Naming both versions is the point. A bare "unavailable" on a machine that plainly has the CLI installed reads as a bug in this wrapper; naming the mismatch tells the user what to do in one line. This skip is also the only pin enforcement a consumer of the published plugin ever gets — `tests/impeccable-cli-contract.test.js` runs for this repo's contributors only.
+
 Install hints (use the appropriate one for the mode):
 
-- **CLI:** `npm install -g impeccable` (verify with `npx impeccable --version`)
+- **CLI:** `npm install -g impeccable@{pinned}` (verify with `npx impeccable --version`)
 - **Plugin:** `/plugin install impeccable@<marketplace>` (verify by checking `/impeccable:impeccable` skill resolves)
 
 **De-dupe:** Track availability-skip warnings via an in-memory marker for the session. If the same mode skips twice for the same reason in a session, surface only the first skip in the response and keep the rest silent. The marker is per-process (in-memory) — there is no on-disk state.

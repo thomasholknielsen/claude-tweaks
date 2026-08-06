@@ -24,18 +24,61 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets } = require('./git-command');
+const { gitTargets, fileWriteTargets, WRITE_SHAPES } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
-const { execGit } = require('./git-exec');
+const { runGit } = require('./git-exec');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
 }
 
+// The single machine-readable statement of what the worktree.always gate
+// covers. `skills/_shared/policy-schema.md`'s `worktree.always` row is its
+// prose counterpart, and tests/hooks-gate-coverage.test.js asserts the two
+// agree — so widening this constant fails a test until that row is updated.
+// Every other skill file cites that row rather than restating the list.
+//
+// Why the binding exists: this set was widened twice on 2026-07-20 (push in
+// c8f929e1, cp/mv/tee in cab6142b) and no commit swept the prose describing
+// it. Four skill files went on documenting the pre-widening gate, two of them
+// prescribing procedures that the widened gate denies (#138).
+// Each field is read by the code below (or, for bashWriteShapes, re-exported
+// from the module that implements it) — never a parallel hand-kept list, which
+// is the drift this whole binding exists to prevent.
+const GATE_COVERAGE = Object.freeze({
+  tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
+  gitActions: Object.freeze(['commit', 'push']),
+  bashWriteShapes: WRITE_SHAPES,
+});
+
+// The gate's one path-prefix exemption. `.claude-tweaks/pipelines/` holds
+// plugin-owned pipeline bookkeeping — run config, the auto-decision log,
+// staged proposals — which is gitignored and is not the project work this
+// gate exists to isolate. Without the exemption, /wrap-up cannot copy a run's
+// audit state out of a worktree before removing it, so decisions.md is
+// destroyed on every run of every worktree.always project (#138).
+const PIPELINE_STATE_DIR = path.join('.claude-tweaks', 'pipelines');
+
+// Fails CLOSED, deliberately: anything this cannot prove sits under the repo's
+// own .claude-tweaks/pipelines/ is NOT exempt and falls through to the deny.
+// A relative path is unprovable here (the cwd it would resolve against is not
+// necessarily the one the write executes in), so it is never exempt — matching
+// resolveWriteTarget's own "never fabricate a target you can't prove" posture
+// in git-command.js.
+function isPipelineBookkeeping(repoRoot, targetPath) {
+  if (!repoRoot || typeof targetPath !== 'string' || !targetPath) return false;
+  if (!path.isAbsolute(targetPath)) return false;
+  return path.resolve(targetPath).startsWith(path.join(repoRoot, PIPELINE_STATE_DIR) + path.sep);
+}
+
+// Kept returning `string | null` — E1's own callers below compare toplevels for
+// a PROVABLE mismatch and already resolve any falsy value to allow, so the
+// indeterminate/negative distinction that repoInfo now draws would change no
+// decision here. (The worktree gate is the caller that needed it.)
 function toplevel(dir) {
-  return execGit(['rev-parse', '--show-toplevel'], dir);
+  return runGit(['rev-parse', '--show-toplevel'], dir).stdout;
 }
 
 function safeReal(p) {
@@ -51,18 +94,32 @@ function safeReal(p) {
 // gitTargets() parse of the command with its own later E1 loop instead of
 // re-running git-command.js's quote-aware segment/token walk a second time
 // over the same string.
-function checkWorktreeRequired(ctx, precomputedGitTargets) {
+// `indeterminateTargets` (optional, caller-supplied array) collects paths whose
+// repo status could not be determined — see the branch below. An out-parameter
+// rather than an extra return field so this function's return shape stays
+// exactly `{}` | `{exit, json}`, leaving runInner's `if (gate.json) return gate`
+// dispatch untouched.
+function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets = []) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
+  // Each entry is { path, exemptible }. `exemptible` marks a target that names
+  // a FILE being written, which is the only kind the .claude-tweaks/pipelines/
+  // exemption may apply to. A git commit/push target is the command's working
+  // DIRECTORY, not a file — exempting those by prefix would allow any commit
+  // merely ISSUED from inside .claude-tweaks/pipelines/, which is precisely
+  // the isolation this gate enforces. The distinction has to be carried from
+  // where each target is resolved; it cannot be recovered later.
   let targetPaths = [];
 
-  // Keep this tool list in sync with the Edit/Write/NotebookEdit matchers in
-  // hooks/hooks.json — a new file-mutation tool must be added to both or it
-  // silently bypasses this gate.
-  if (toolName === 'Edit' || toolName === 'Write') {
-    if (toolInput && typeof toolInput.file_path === 'string') targetPaths = [toolInput.file_path];
-  } else if (toolName === 'NotebookEdit') {
-    if (toolInput && typeof toolInput.notebook_path === 'string') targetPaths = [toolInput.notebook_path];
+  // GATE_COVERAGE.tools decides WHETHER a tool is gated; only the input field
+  // name varies per tool. Keep that list in sync with the Edit/Write/
+  // NotebookEdit matchers in hooks/hooks.json — a new file-mutation tool must
+  // be added to both or it silently bypasses this gate.
+  if (GATE_COVERAGE.tools.includes(toolName)) {
+    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+    if (toolInput && typeof toolInput[field] === 'string') {
+      targetPaths = [{ path: toolInput[field], exemptible: true }];
+    }
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
@@ -77,16 +134,18 @@ function checkWorktreeRequired(ctx, precomputedGitTargets) {
       // each one is checked on its own below: a violation later in the
       // chain must not be masked by an earlier, compliant target.
       const targets = precomputedGitTargets || gitTargets(command, ctx.cwd);
-      const gitTargetPaths = targets.filter((t) => t.action === 'commit' || t.action === 'push').map((t) => t.dir);
+      const gitTargetPaths = targets
+        .filter((t) => GATE_COVERAGE.gitActions.includes(t.action))
+        .map((t) => ({ path: t.dir, exemptible: false }));
       // Non-git direct file writes (tee, cp, mv) — best-effort,
       // not exhaustive (see fileWriteTargets' own header comment).
-      const writeTargetPaths = fileWriteTargets(command, ctx.cwd).map((t) => t.file);
+      const writeTargetPaths = fileWriteTargets(command, ctx.cwd).map((t) => ({ path: t.file, exemptible: true }));
       targetPaths = [...gitTargetPaths, ...writeTargetPaths];
     }
   }
   if (!targetPaths.length) return {};
 
-  for (const targetPath of targetPaths) {
+  for (const { path: targetPath, exemptible } of targetPaths) {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
     // ancestor chain, there is definitely nothing to enforce for THIS
     // target — skip forking git entirely for the overwhelming majority of
@@ -98,10 +157,31 @@ function checkWorktreeRequired(ctx, precomputedGitTargets) {
     // repo (e.g. a submodule) that never opted in itself.
     if (!wtDetect.findPolicyFile(targetPath)) continue;
 
-    const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(targetPath);
-    if (!repoRoot) continue; // not a git repo at all -> allow
+    const { repoRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(targetPath);
+    // TWO different conditions reach a null repoRoot, and they are not the same
+    // fact (#134):
+    //   indeterminate: false -> git ran and said "not a git repository". A real
+    //     answer, and nothing to enforce: allow, silently, as before.
+    //   indeterminate: true  -> git never answered (timed out under load, the
+    //     fork was refused, git is missing, or realpath on its answer failed).
+    //     We do not know whether this path is a repo, let alone whether it opted
+    //     into the policy.
+    // We still ALLOW the indeterminate case: CLAUDE.md's hooks contract is
+    // "never break a session" and "ambiguity resolves to allow", and denying on
+    // a transient load spike would freeze unattended runs. What changes is that
+    // it is no longer SILENT — before, a load spike and a non-repo produced
+    // byte-identical behavior, so an enforcement gap left no trace anywhere.
+    if (indeterminate) {
+      indeterminateTargets.push(targetPath);
+      continue;
+    }
+    if (!repoRoot) continue; // git answered: not a git repo at all -> allow
     if (!policy.isWorktreeAlwaysOn(repoRoot)) continue;
     if (isLinkedWorktree) continue;
+    // Placed here, immediately before the deny, so no earlier `continue` can
+    // claim a path this was meant to exempt — the ordering defect [IL-83]
+    // records. Only file-write targets are eligible; see `exemptible` above.
+    if (exemptible && isPipelineBookkeeping(repoRoot, targetPath)) continue;
 
     return {
       exit: 0,
@@ -110,8 +190,13 @@ function checkWorktreeRequired(ctx, precomputedGitTargets) {
           hookEventName: 'PreToolUse',
           permissionDecision: 'deny',
           permissionDecisionReason:
-            `claude-tweaks: this project requires an isolated worktree for Edit/Write/NotebookEdit, ` +
-            `git commit/push, and Bash cp/mv/tee writes (not every possible Bash write shape — see CLAUDE.md) ` +
+            // Derived from GATE_COVERAGE rather than spelled out, so widening
+            // the gate can never leave this message describing the old reach
+            // — the failure this whole binding exists to prevent (#70, #138).
+            `claude-tweaks: this project requires an isolated worktree for ` +
+            `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
+            `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
+            `see _shared/policy-schema.md's worktree.always coverage block) ` +
             `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
             `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
             `then retry this edit inside the new worktree.`,
@@ -122,7 +207,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets) {
   return {};
 }
 
-function run(ctx) {
+function runInner(ctx, indeterminateTargets) {
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
   // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
@@ -130,7 +215,7 @@ function run(ctx) {
   // invocation was pure repeated work.
   const commandGitTargets = command ? gitTargets(command, ctx.cwd) : null;
 
-  const gate = checkWorktreeRequired(ctx, commandGitTargets);
+  const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
   if (gate.json) return gate;
 
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
@@ -206,4 +291,35 @@ function run(ctx) {
   return {};
 }
 
-module.exports = { run };
+// Attaching the worktree-gate's indeterminate warning is done HERE, once, on
+// whatever runInner returned — not at runInner's own return sites. runInner has
+// a dozen of them and grows more over time; enumerating them to add the message
+// is the exact shape `[IL-14]` records (an enumeration silently misses a path,
+// and no test notices because the omission is invisible). This wrapper states
+// the unconditional rule instead: every outcome, deny or allow, carries the
+// warning if one was collected.
+function run(ctx) {
+  const indeterminateTargets = [];
+  const out = runInner(ctx, indeterminateTargets) || {};
+  if (!indeterminateTargets.length) return out;
+
+  // Deliberately says the check could not RUN, not that a policy was skipped.
+  // Reaching here means findPolicyFile found a policy.yml somewhere up the
+  // ancestor chain, which is not the same as worktree.always being on for this
+  // repo — that check needs a repoRoot we never obtained. Claiming "the gate was
+  // not applied" would assert a policy applied that may not exist.
+  const note =
+    `claude-tweaks: could not determine the git repo status of `
+    + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
+    + `The worktree.always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
+    + `${indeterminateTargets.length > 1 ? 'they were' : 'it was'} allowed rather than denied, per the never-break-a-session rule. `
+    + `If this project requires an isolated worktree, verify manually.`;
+
+  const json = { ...(out.json || {}) };
+  json.systemMessage = json.systemMessage ? `${json.systemMessage} ${note}` : note;
+  // exit stays 0 on every path, deny included — the deny signal is the stdout
+  // JSON's permissionDecision, never the exit code (see this file's header).
+  return { ...out, exit: 0, json };
+}
+
+module.exports = { run, GATE_COVERAGE, PIPELINE_STATE_DIR, isPipelineBookkeeping };

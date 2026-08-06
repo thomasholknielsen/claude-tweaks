@@ -145,6 +145,16 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   merge base — both are present at the base and absent from the upstream
   //   side, so they were deleted by the purge, not lost in conflict resolution.
   //
+  //   345 -> 347, v6.42.0 (#132). Two rows ADDED to routine/SKILL.md, none
+  //   evicted: "Letting a routine's target branch default to the repo's GitHub
+  //   default..." and "Editing a `routine-template.yml` without bumping its
+  //   `template_version`". Confirmed additive for this corpus: `git diff --
+  //   'skills/*/SKILL.md' | grep -E '^-\|'` is empty across the change set, so
+  //   no Anti-Pattern row was evicted anywhere. (The change set does delete one
+  //   `|` row overall — the `prompt` field row in _shared/routine-template-
+  //   schema.md, replaced by an updated one — but that file has no SKILL.md and
+  //   this count never saw it.)
+  //
   //   345 -> 352, addition of `skills/feedback/SKILL.md` (learning-routing plan,
   //   Task 2). A wholly new skill, not a compression pass — its Anti-Patterns
   //   table contributes 7 rows and nothing elsewhere in the corpus lost a row.
@@ -155,5 +165,12 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   nothing drains it — so the row was deleted rather than reworded, per the
   //   task brief's explicit instruction. feedback/SKILL.md now contributes 6
   //   rows (was 7); no other row in the corpus was touched.
-  assert.strictEqual(total, 351);
+  //
+  //   -> 353, merge of origin/main into the learning-routing branch. The two
+  //   preceding entries are the two sides of that merge, both measured against
+  //   the same 345 base: upstream added 2 (routine), this branch added 6 net
+  //   (feedback's 7 minus its 1 removed). 345 + 2 + 6 = 353. Neither side's own
+  //   total is correct after the merge — 347 and 351 each omit the other's
+  //   additions — so this number is derived from both, not picked from one.
+  assert.strictEqual(total, 353);
 });

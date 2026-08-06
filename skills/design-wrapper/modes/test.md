@@ -4,7 +4,7 @@ Invoked via `/claude-tweaks:design-wrapper test <files>`. Returns `{mode, result
 
 ## When this runs
 
-Called by `/claude-tweaks:test` after the standard verification suite (types/lint/tests). Acts as a frontend anti-pattern gate via the deterministic Impeccable CLI. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not.
+Called by `/claude-tweaks:test` after the standard verification suite (types/lint/tests). Acts as a frontend anti-pattern gate via the deterministic Impeccable CLI. Findings carrying `advisory === true` do not fail the gate; any other finding does. Skips do not fail the gate either.
 
 ## Preconditions
 
@@ -26,27 +26,22 @@ Apply the Layer 3 sniff rules from `../frontend-detection.md` to drop non-fronte
 
 ### Step 4: Invoke the CLI
 
-Invoke exactly as documented in `../impeccable-cli.md`:
-
-```bash
-npx impeccable detect --fast --json <files>
-```
+Invoke the CLI exactly as specified in `../impeccable-cli.md` ("Invocation"), and derive `pass` / `fail` from its "Advisory-to-result mapping". The flags and the parse are deliberately not restated here — three copies of this contract is what let it drift.
 
 ### Step 5: Parse JSON output
 
 1. Capture stdout and the process exit code from Step 4's invocation.
-2. Exit code `0` → treat as zero findings; skip to Step 6 with an empty findings list.
-3. Exit code `2` → parse stdout as JSON per `../impeccable-cli.md`'s schema rules 1-4 into normalized findings.
-4. Any other exit code, or a parse failure under step 3 → return the malformed-output skip object from `../impeccable-cli.md`'s rule 7 immediately; do not proceed to Step 6.
+2. Exit code `1`, or stdout that fails to parse as JSON → malformed; return the malformed-output skip object from `../impeccable-cli.md` immediately; do not proceed to Step 6.
+3. Otherwise (exit code `0` or `2`) → parse stdout as JSON per `../impeccable-cli.md`'s defensive parsing rules into normalized findings. The exit code carries no findings signal beyond distinguishing ran from crashed — an advisory-only scan exits `0` with a non-empty findings array, so treating exit `0` as "zero findings" would silently discard it.
 
 `files_scanned` is the count of files in the list resolved by Steps 2-3 — the CLI's own output never includes this field.
 
 ### Step 6: Compute pass/fail
 
-- **pass** — zero findings, or all findings are `severity: advisory`
-- **fail** — any finding with `severity: warning`
+- **pass** — zero findings, or every finding carries `advisory === true`
+- **fail** — any finding without `advisory === true`
 
-`advisory` findings are included in the findings list but do not cause `result: fail`. Callers may surface them informationally.
+Findings carrying `advisory === true` are included in the findings list but do not cause `result: fail`. Callers may surface them informationally.
 
 ## Output to caller
 
@@ -55,7 +50,7 @@ npx impeccable detect --fast --json <files>
   "mode": "test",
   "result": "pass" | "fail",
   "files_scanned": <int>,
-  "findings": [ { "antipattern": "...", "name": "...", "description": "...", "severity": "...", "file": "...", "line": <int>, "snippet": "..." }, ... ]
+  "findings": [ /* each finding has the shape documented in ../impeccable-cli.md's field reference — not restated here */ ]
 }
 ```
 

@@ -6,6 +6,8 @@ const {
   compareVersions,
   parseChangelogVersions,
   extractChangelogRange,
+  findHeadingDefects,
+  findCoverageGaps,
 } = require('../bin/lib/changelog.js');
 
 const SAMPLE_CHANGELOG = `# Changelog
@@ -82,4 +84,55 @@ test('extractChangelogRange works by pure semver comparison even when the old ve
 
 test('extractChangelogRange throws when the old version is malformed (e.g. an empty string from an unreadable marker)', () => {
   assert.throws(() => extractChangelogRange(SAMPLE_CHANGELOG, '', '3.2.0'), /Invalid semver version/);
+});
+
+// Frozen fixture, not the real CHANGELOG.md: these assert the checker's
+// behavior, and pointing them at live content would turn every future release
+// into a test edit. The live file is gated separately, by relationship rather
+// than by content, in tests/changelog-coverage.test.js.
+const DEFECTIVE_CHANGELOG = `# Changelog
+
+## v4.2 — Two-component version, invisible to the parser
+
+## v4.1
+
+## v4.0.0 — Fine
+
+## v4.0.0 — Documented twice
+`;
+
+test('findHeadingDefects reports headings the parser silently drops', () => {
+  const { unparseable } = findHeadingDefects(DEFECTIVE_CHANGELOG);
+  assert.deepStrictEqual(unparseable, [
+    '## v4.2 — Two-component version, invisible to the parser',
+    '## v4.1',
+  ]);
+});
+
+test('findHeadingDefects reports a version documented more than once', () => {
+  assert.deepStrictEqual(findHeadingDefects(DEFECTIVE_CHANGELOG).duplicates, ['4.0.0']);
+});
+
+test('findHeadingDefects is clean on a well-formed changelog', () => {
+  assert.deepStrictEqual(findHeadingDefects(SAMPLE_CHANGELOG), { unparseable: [], duplicates: [] });
+});
+
+test('findCoverageGaps separates undocumented shipped versions from headings that never shipped', () => {
+  const gaps = findCoverageGaps(['3.0.0', '3.1.0', '3.5.0'], SAMPLE_CHANGELOG);
+  assert.deepStrictEqual(gaps.missing, ['3.5.0']);
+  assert.deepStrictEqual(gaps.orphans, ['3.2.0']);
+});
+
+test('findCoverageGaps counts a prerelease build as covered by its base version entry', () => {
+  // 4.5.0-phase1/-phase2 shipped as real builds but cannot carry their own
+  // heading — HEADER_RE requires a strict X.Y.Z.
+  const gaps = findCoverageGaps(['3.0.0-phase1', '3.0.0'], SAMPLE_CHANGELOG);
+  assert.deepStrictEqual(gaps.missing, []);
+});
+
+test('findCoverageGaps reports nothing missing when every shipped version is documented', () => {
+  assert.deepStrictEqual(findCoverageGaps(['3.0.0', '3.1.0', '3.2.0'], SAMPLE_CHANGELOG), {
+    missing: [],
+    orphans: [],
+  });
 });

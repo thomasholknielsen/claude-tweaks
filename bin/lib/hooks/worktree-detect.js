@@ -6,7 +6,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execGit: git } = require('./git-exec');
+const { runGit, isIndeterminate } = require('./git-exec');
 
 // Returns null (not the original, unresolved path) on failure — matching
 // pre-tool-use.js's own identically-named/-purposed safeReal(). This
@@ -44,20 +44,52 @@ function nearestExistingDir(p) {
 // --show-superproject-working-tree which prints nothing at all when the
 // path isn't a submodule — always requested last here so its absence never
 // shifts the other three lines' positions.
-function repoInfo(p) {
+// Returns { repoRoot, isLinkedWorktree, indeterminate }.
+//
+// `indeterminate` is the third state this function used to collapse into the
+// second (#134). A null `repoRoot` previously meant BOTH "git answered, and the
+// answer is: not a git repo" (permanent, knowable) and "git never answered"
+// (transient — a timeout under load, a refused fork). Callers gating on
+// `!repoRoot` therefore treated a load spike identically to a definitive
+// negative, which is how the worktree.always gate came to stop enforcing while
+// the machine was busy.
+//
+//   indeterminate: false -> repoRoot is trustworthy (a path, or null meaning
+//                           git genuinely says this is not a repo)
+//   indeterminate: true  -> repoRoot is null because the question went
+//                           unanswered; it carries NO information either way
+// opts is forwarded verbatim to runGit — tests use { timeoutMs } to force the
+// indeterminate branch deterministically. Production callers omit it.
+function repoInfo(p, opts = {}) {
   const dir = nearestExistingDir(p);
-  if (!dir) return { repoRoot: null, isLinkedWorktree: false };
-  const out = git(
+  // A path with no existing ancestor is a definitive negative, not a failure to
+  // look: there is nothing on disk to be a repo.
+  if (!dir) return { repoRoot: null, isLinkedWorktree: false, indeterminate: false };
+  const { stdout: out, failure } = runGit(
     ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir', '--show-superproject-working-tree'],
     dir,
+    opts,
   );
-  if (!out) return { repoRoot: null, isLinkedWorktree: false }; // not a git repo at all
+  if (failure) {
+    // git-error == git ran and said "not a git repository": a real answer.
+    // timeout/spawn/no-git == we never got one.
+    return { repoRoot: null, isLinkedWorktree: false, indeterminate: isIndeterminate(failure) };
+  }
   const [top, gitDir, gitCommon, superproject] = out.split('\n');
-  if (!top || !gitDir || !gitCommon) return { repoRoot: null, isLinkedWorktree: false };
+  // Exit 0 but missing lines: git answered something we cannot parse. Treat as
+  // unanswered rather than as a negative — we have no basis for a negative.
+  if (!top || !gitDir || !gitCommon) {
+    return { repoRoot: null, isLinkedWorktree: false, indeterminate: true };
+  }
   const isLinked = superproject
     ? false // submodule -> not an isolated worktree
     : safeReal(path.resolve(dir, gitDir)) !== safeReal(path.resolve(dir, gitCommon));
-  return { repoRoot: safeReal(top), isLinkedWorktree: isLinked };
+  const repoRoot = safeReal(top);
+  // The second, independent route to a null repoRoot: git answered fine, but
+  // realpath on its answer failed (the directory went away between the two
+  // calls). Also a failure to determine, not a negative.
+  if (!repoRoot) return { repoRoot: null, isLinkedWorktree: false, indeterminate: true };
+  return { repoRoot, isLinkedWorktree: isLinked, indeterminate: false };
 }
 
 // fs-only walk-up looking for a .claude-tweaks/policy.yml, so callers can

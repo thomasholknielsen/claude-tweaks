@@ -203,32 +203,119 @@ function gitTargets(command, cwd) {
   return targets;
 }
 
-// Best-effort detection of common non-git, non-Edit/Write direct file-write
-// shapes in a Bash command: tee, cp, mv. Scoped to what hooks.json can also
-// gate on structurally via its own if-matcher (Bash(cp *)/Bash(mv *)/
-// Bash(tee *)) — output redirection (>, >>) is deliberately NOT covered here,
-// since the if-matcher can't recognize a bare shell operator (only a named
-// subcommand), and firing this on every Bash call to catch it unconditionally
-// would add latency to every Bash invocation in every session using this
-// plugin, not just ones exercising the gap. sed -i, python -c, perl -i, awk,
-// and nested `sh -c "..."` invocations are also NOT covered — this catches
-// representative common cases, not every possible one. Ambiguity resolves to
-// "no target" (allow), matching gitTargets' own safety posture: never
-// fabricate a target from a path this can't prove.
+// Best-effort detection of non-git, non-Edit/Write direct file-write shapes in
+// a Bash command. Every shape here is one hooks.json can ALSO gate structurally
+// via an if-matcher (`Bash(cp *)`, `Bash(sed *)`, ...) — that pairing is the
+// whole design constraint. A branch here without a matcher there is dead code,
+// because the hook process never spawns; that asymmetry is exactly what let
+// `sed -i` bypass the gate silently for months (#70). The test in
+// tests/hooks-gate-coverage.test.js now asserts the two lists agree.
+//
+// Still NOT covered, and deliberately (see the coverage block in
+// skills/_shared/policy-schema.md for the measured rationale):
+//   - bare shell redirection (`>`, `>>`) — no command word for an if-matcher to
+//     recognize, so catching it means firing the hook on EVERY Bash call.
+//     Measured at 42 ms idle / 68 ms under three-way contention per call.
+//   - `python -c`, `sh -c`, `awk` program strings — the write target lives
+//     inside an opaque program and is not statically knowable at any cost.
+//
+// Ambiguity resolves to "no target" (allow), matching gitTargets' own safety
+// posture: never fabricate a target from a path this can't prove.
 const DEVNULL_LIKE = new Set(['/dev/null', '/dev/stdout', '/dev/stderr']);
 
 function resolveWriteTarget(effCwd, raw) {
   if (isUnresolvable(raw)) return null;
   const stripped = stripQuotes(raw);
+  // An explicitly-empty token is never a file. It reaches here as BSD sed's
+  // separate backup suffix (`sed -i '' ...`); without this it would resolve to
+  // effCwd itself and flag the whole directory as a write target.
+  if (stripped === '') return null;
   if (DEVNULL_LIKE.has(stripped)) return null;
   if (path.isAbsolute(stripped)) return path.resolve(stripped);
   if (effCwd === null) return null; // cwd UNKNOWN and a relative path — not provable
   return path.resolve(effCwd, stripped);
 }
 
+// Split a shape's argument list into positionals and the flags seen, given the
+// flags that consume the FOLLOWING token as their value. Long `--flag=value`
+// forms are self-contained and never consume the next token. `--` ends option
+// parsing, as it does for every one of these commands.
+function partitionArgs(rest, valueFlags) {
+  const positionals = [];
+  const flags = [];
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--') { positionals.push(...rest.slice(i + 1)); break; }
+    if (a.startsWith('-') && a !== '-') {
+      flags.push(a);
+      if (valueFlags.has(a) && i + 1 < rest.length) i += 1;
+      continue;
+    }
+    positionals.push(a);
+  }
+  return { positionals, flags };
+}
+
+// Does this flag list request an in-place edit? Without one, sed and perl only
+// read, and a read of the main checkout must stay allowed — so this gate is
+// what keeps the shape from denying ordinary inspection commands.
+//
+// Detection can't just look for a literal `-i`: GNU attaches the backup suffix
+// (`-i.bak`), and short flags bundle (`perl -pi -e`, `sed -ni`).
+function hasInPlaceFlag(flags) {
+  return flags.some((f) => {
+    if (f === '--in-place' || f.startsWith('--in-place=')) return true;
+    if (f.startsWith('--') || !f.startsWith('-')) return false;
+    if (f.startsWith('-I')) return false; // perl's include path — not in-place
+    if (f.startsWith('-i')) return true; // -i, -i.bak
+    return /^-[A-Za-z]+$/.test(f) && f.includes('i'); // bundled: -pi, -ni
+  });
+}
+
+// The Bash write shapes this function recognizes. Load-bearing, not
+// descriptive: the guard below drops any segment whose command word is absent
+// here, so adding a branch without adding its name makes that branch dead
+// code. pre-tool-use.js's GATE_COVERAGE re-exports this list, and
+// tests/hooks-gate-coverage.test.js pins it to the prose in
+// skills/_shared/policy-schema.md — so widening this array is what forces the
+// documentation to be updated (#138).
+const WRITE_SHAPES = Object.freeze(['cp', 'mv', 'tee', 'sed', 'perl', 'install', 'ln', 'truncate', 'dd']);
+
+// Per-shape value-consuming flags. Wrong entries here shift which token is read
+// as a positional, so each is taken from the command's own documented options
+// rather than guessed.
+const SED_VALUE_FLAGS = new Set(['-e', '-f', '--expression', '--file', '-l', '--line-length']);
+const PERL_VALUE_FLAGS = new Set(['-e', '-E', '-I', '-m', '-M', '-F', '-x']);
+const INSTALL_VALUE_FLAGS = new Set(['-m', '--mode', '-o', '--owner', '-g', '--group', '-t', '--target-directory', '-S', '--suffix']);
+const LN_VALUE_FLAGS = new Set(['-t', '--target-directory', '-S', '--suffix']);
+const TRUNCATE_VALUE_FLAGS = new Set(['-s', '--size', '-r', '--reference', '-o', '--io-blocks']);
+
+// `-t DIR` / `--target-directory[=]DIR` names the destination explicitly, which
+// makes EVERY positional a source rather than the last one being the target.
+// Shared by cp/mv/install/ln, all of which accept it.
+function explicitTargetDir(rest) {
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if ((a === '-t' || a === '--target-directory') && i + 1 < rest.length) return rest[i + 1];
+    if (a.startsWith('--target-directory=')) return a.slice('--target-directory='.length);
+  }
+  return null;
+}
+
+// sed and perl share a program/file split: with -e/-f supplying the program,
+// EVERY positional is a file; without one, the FIRST positional IS the program
+// and only the rest are files.
+function inPlaceEditTargets(rest, valueFlags, scriptFlags) {
+  const { positionals, flags } = partitionArgs(rest, valueFlags);
+  if (!hasInPlaceFlag(flags)) return []; // read-only invocation — nothing written
+  const programSupplied = flags.some((f) => scriptFlags.some((s) => f === s || f.startsWith(`${s}=`)));
+  return programSupplied ? positionals : positionals.slice(1);
+}
+
 function fileWriteTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
+    if (!WRITE_SHAPES.includes(t[0])) return;
     if (t[0] === 'tee') {
       // tee genuinely writes to EVERY non-flag argument, not just the
       // first — `tee a.txt b.txt` writes both files. .find() silently
@@ -247,28 +334,106 @@ function fileWriteTargets(command, cwd) {
       // the destination" rule below only applies when neither form is
       // present.
       const rest = t.slice(1);
-      let targetDirRaw = null;
+      const targetDirRaw = explicitTargetDir(rest);
       const nonFlags = [];
       for (let i = 0; i < rest.length; i++) {
         const a = rest[i];
-        if (a === '-t' || a === '--target-directory') {
-          targetDirRaw = rest[i + 1];
-          i += 1;
-          continue;
-        }
-        if (a.startsWith('--target-directory=')) {
-          targetDirRaw = a.slice('--target-directory='.length);
-          continue;
-        }
+        if (a === '-t' || a === '--target-directory') { i += 1; continue; }
         if (a.startsWith('-')) continue; // other flags — never a positional
         nonFlags.push(a);
       }
+      const action = t[0] === 'cp' ? 'copy' : 'move';
       if (targetDirRaw !== null) {
         const file = resolveWriteTarget(effCwd, targetDirRaw);
-        if (file) targets.push({ action: t[0] === 'cp' ? 'copy' : 'move', file });
+        if (file) targets.push({ action, file });
       } else if (nonFlags.length >= 2) {
         const file = resolveWriteTarget(effCwd, nonFlags[nonFlags.length - 1]);
-        if (file) targets.push({ action: t[0] === 'cp' ? 'copy' : 'move', file });
+        if (file) targets.push({ action, file });
+      }
+      return;
+    }
+
+    if (t[0] === 'sed' || t[0] === 'perl') {
+      // Only an in-place edit writes; a plain `sed -n .. file` is a read and
+      // must stay allowed even in the main checkout.
+      const isSed = t[0] === 'sed';
+      const raw = inPlaceEditTargets(
+        t.slice(1),
+        isSed ? SED_VALUE_FLAGS : PERL_VALUE_FLAGS,
+        isSed ? ['-e', '-f', '--expression', '--file'] : ['-e', '-E'],
+      );
+      for (const arg of raw) {
+        const file = resolveWriteTarget(effCwd, arg);
+        if (file) targets.push({ action: 'edit', file });
+      }
+      return;
+    }
+
+    if (t[0] === 'install') {
+      // Same source→dest shape as cp, plus `-d`, under which EVERY positional
+      // is a directory being created rather than a source.
+      const rest = t.slice(1);
+      const { positionals, flags } = partitionArgs(rest, INSTALL_VALUE_FLAGS);
+      const targetDirRaw = explicitTargetDir(rest);
+      if (targetDirRaw !== null) {
+        const file = resolveWriteTarget(effCwd, targetDirRaw);
+        if (file) targets.push({ action: 'install', file });
+        return;
+      }
+      const creatingDirs = flags.some((f) => (
+        f === '-d' || f === '--directory' || (/^-[A-Za-z]+$/.test(f) && f.includes('d'))
+      ));
+      // `-d`: every positional is a directory being created. Otherwise the
+      // last positional is the destination and needs a source before it.
+      let written = [];
+      if (creatingDirs) written = positionals;
+      else if (positionals.length >= 2) written = positionals.slice(-1);
+      for (const arg of written) {
+        const file = resolveWriteTarget(effCwd, arg);
+        if (file) targets.push({ action: 'install', file });
+      }
+      return;
+    }
+
+    if (t[0] === 'ln') {
+      // The LINK name is what gets created — the last positional. With a single
+      // positional the link lands in the cwd under the source's basename.
+      const rest = t.slice(1);
+      const targetDirRaw = explicitTargetDir(rest);
+      const { positionals } = partitionArgs(rest, LN_VALUE_FLAGS);
+      if (targetDirRaw !== null) {
+        const file = resolveWriteTarget(effCwd, targetDirRaw);
+        if (file) targets.push({ action: 'link', file });
+        return;
+      }
+      if (positionals.length >= 2) {
+        const file = resolveWriteTarget(effCwd, positionals[positionals.length - 1]);
+        if (file) targets.push({ action: 'link', file });
+      } else if (positionals.length === 1) {
+        const file = resolveWriteTarget(effCwd, path.basename(stripQuotes(positionals[0])));
+        if (file) targets.push({ action: 'link', file });
+      }
+      return;
+    }
+
+    if (t[0] === 'truncate') {
+      // Every positional is truncated — and truncation CREATES the file when it
+      // does not exist, so this writes regardless of `-c`.
+      const { positionals } = partitionArgs(t.slice(1), TRUNCATE_VALUE_FLAGS);
+      for (const arg of positionals) {
+        const file = resolveWriteTarget(effCwd, arg);
+        if (file) targets.push({ action: 'truncate', file });
+      }
+      return;
+    }
+
+    if (t[0] === 'dd') {
+      // dd takes keyword arguments, not flags: the destination is `of=`.
+      for (const arg of t.slice(1)) {
+        const bare = stripQuotes(arg);
+        if (!bare.startsWith('of=')) continue;
+        const file = resolveWriteTarget(effCwd, bare.slice('of='.length));
+        if (file) targets.push({ action: 'write', file });
       }
       return;
     }
@@ -276,4 +441,4 @@ function fileWriteTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize };
+module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, WRITE_SHAPES };

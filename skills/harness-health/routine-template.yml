@@ -1,11 +1,12 @@
-template_version: 3
+template_version: 4
 routine_name: harness-health-daily
 prompt: >
-  Before anything else, fetch origin and confirm this checkout is at the tip of the
-  target branch (resolve the target branch from `git remote show origin`'s HEAD branch
-  line if not already obvious). If it's merely behind, fast-forward it via `git merge
-  --ff-only` — never `git reset --hard`. If it has diverged rather than just fallen
-  behind, stop and report that instead of proceeding on unverified state.
+  Before anything else, fetch origin and confirm this checkout is on {{TARGET_BRANCH}}
+  and at its tip. If the container started on a different branch, check the target
+  branch out first (`git checkout <branch>`, creating it from `origin/<branch>` if it
+  isn't local yet). If it's merely behind, fast-forward it via `git merge --ff-only` —
+  never `git reset --hard`. If it has diverged rather than just fallen behind, stop and
+  report that instead of proceeding on unverified state.
 
   If any project documentation (CLAUDE.md, rules, README) describes this skill's past
   or historical behavior in a way that doesn't match this skill's own current
@@ -20,6 +21,8 @@ prompt: >
   bug in the current build are indistinguishable from the outside.
 
   Then: /claude-tweaks:harness-health
+# Optional: `branch: <name>` pins the prompt's {{TARGET_BRANCH}}. Normally unset here — a
+# branch is project-specific, so /claude-tweaks:routine resolves it at instantiation.
 model: claude-sonnet-5
 allowed_tools: [Bash, Read, Grep, Glob]
 mcp_connections: []

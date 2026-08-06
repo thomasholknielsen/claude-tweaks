@@ -125,6 +125,45 @@ test('listRoutineRecords parses every .yml file in the directory, attaching file
   }
 });
 
+// The optional `branch` field sits between the folded `prompt:` block and
+// `model:` in a template that pins one, so it has to survive the folded-scalar
+// terminator; the shipped templates ship it as a comment, which must NOT parse
+// into a value.
+test('parseRoutineTemplate reads an explicit branch: key set after a folded prompt block', () => {
+  const yaml = [
+    'template_version: 3',
+    'prompt: >',
+    '  Confirm this checkout is on {{TARGET_BRANCH}}.',
+    '',
+    '  Then: /claude-tweaks:code-health',
+    'branch: dev',
+    'model: claude-sonnet-5',
+    '',
+  ].join('\n');
+  const result = parseRoutineTemplate(yaml);
+  assert.strictEqual(result.branch, 'dev');
+  assert.strictEqual(result.model, 'claude-sonnet-5');
+  assert.strictEqual(
+    result.prompt,
+    'Confirm this checkout is on {{TARGET_BRANCH}}.\n\nThen: /claude-tweaks:code-health',
+  );
+});
+
+test('parseRoutineTemplate leaves branch unset when the template only carries it as a comment', () => {
+  const yaml = [
+    'prompt: >',
+    '  Then: /claude-tweaks:code-health',
+    '# Optional: `branch: <name>` pins the prompt\'s {{TARGET_BRANCH}}. Normally unset here — a',
+    '# branch is project-specific, so /claude-tweaks:routine resolves it at instantiation.',
+    'model: claude-sonnet-5',
+    '',
+  ].join('\n');
+  const result = parseRoutineTemplate(yaml);
+  assert.strictEqual(result.branch, undefined);
+  assert.strictEqual(result.model, 'claude-sonnet-5');
+  assert.strictEqual(result.prompt, 'Then: /claude-tweaks:code-health');
+});
+
 test('listRoutineRecords ignores non-.yml files in the same directory', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-records-'));
   try {

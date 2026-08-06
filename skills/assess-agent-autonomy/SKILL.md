@@ -59,7 +59,7 @@ and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass 
 `--base <ref>` is `merge-check`-only: an optional pre-known merge-base commit or ref the caller
 already has in context (e.g. dispatch's per-group Task agent, which ran `/flow` and set up the
 worktree itself). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
-`$MERGE_BASE` from `$DEFAULT_BRANCH`. Ignored by the other three modes.
+the merge base from this project's integration branch. Ignored by the other three modes.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
 human-driven `/claude-tweaks:backlog refine` session, or dispatch's per-group Task agent running `/flow`)
@@ -153,10 +153,14 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 
 ### Step 1: Gather
 
-> **Parallel execution:** Use parallel tool calls aggressively — resolving `$MERGE_BASE` (below)
-> and reading this project's `merge-sensitive-paths`/`automerge-max-lines`/`automerge-max-files`
-> config are independent read-only operations and should run concurrently; only the blast-radius
-> compute at the end of this step depends on both of their outputs.
+> **Parallel execution:** Use parallel tool calls aggressively — the merge-base-and-diff call
+> (below) and reading this project's `merge-sensitive-paths`/`automerge-max-lines`/`automerge-max-files`
+> config are independent read-only operations and should run concurrently; only the threshold
+> comparison at the end of this step depends on both of their outputs. Note the qualifier: it is
+> the **single** call deriving `$MERGE_BASE` and the diff together that runs concurrently with the
+> config read. Do not split that call in two — `$MERGE_BASE` would be empty in the second shell,
+> and an empty base makes `git diff --numstat` report a zero-file blast radius that clears every
+> threshold silently.
 
 The calling agent has just finished this run's build, test, and review — the diff and review
 verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE`
@@ -166,28 +170,36 @@ from.
 - **If the caller passed `--base <ref>`** (see Input — e.g. dispatch's per-group Task agent, which
   ran `/flow` and set up the worktree itself, often already knows this value), use it directly:
   `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
-- **Otherwise**, if not already known from context, resolve it dynamically rather than assuming
-  `main` — some projects default to `master`, `trunk`, or another branch name, and this skill runs
-  against whatever project has it installed. `gh` is already a hard dependency of this skill
-  (`grant-check`/`failure-check` both shell out to it), so reuse the same one-liner
-  `skills/dispatch/SKILL.md`'s own auto-merge flow already uses for this:
 
-```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch 2>/dev/null)
-```
+- **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`.
+  `--base <ref>` short-circuits that ladder entirely rather than being a rank of it — it names a
+  merge-base commit, not a branch, so a caller that already knows the merge base
+  (dispatch's per-group Task agent, which set up the worktree itself) passes it and skips
+  resolution entirely.
 
-  If `$DEFAULT_BRANCH` comes back empty (no `origin` remote configured, no `gh` auth, or an
-  offline/detached runner), stop here — this is exactly the "inconclusive read" case `## Error
-  Handling` already covers, not a hard crash to let the rest of Gather fail on. Render Step 3
-  directly — `VERDICT: needs-human` / `RATIONALE: {name the specific resolution failure, e.g.
-  "could not resolve this project's default branch via gh api"}` — and skip the rest of this
+  If nothing resolves — no `origin` remote, no `gh` auth, an offline or detached runner — stop
+  here. This is the "inconclusive read" case `## Error Handling` already covers, not a hard crash.
+  Render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {name the specific resolution
+  failure, e.g. "could not resolve this project's integration branch"}`, and skip the rest of this
   mode's procedure.
 
-```bash
-MERGE_BASE=$(git merge-base "$DEFAULT_BRANCH" HEAD)
-```
+Substitute the resolved branch **literally** where `{integration-branch}` appears below, and issue
+the derivation and the diff as **one** Bash call. Each Bash invocation gets a fresh shell, so
+`MERGE_BASE` assigned in one call is empty in the next — and the two commands fail in opposite
+directions on an empty value. `git merge-base "" HEAD` exits 128 with `fatal: Not a valid object
+name`, which is loud. `git diff --numstat ""..HEAD` reads `..HEAD` as `HEAD..HEAD` and returns
+**zero lines with exit 0** — a blast radius of 0 files and 0 lines, which clears every
+`automerge-max-*` threshold and verdicts `auto-merge`. Splitting these blocks turns a
+resolution failure into an unconditional approval, which is the failure class this whole
+procedure exists to prevent.
+
+  Measuring from the integration branch rather than the GitHub default is what makes blast radius
+  mean the record's own change. Against a branch that diverged long ago, the merge base is ancient
+  and the diff spans every commit since the fork — which reads as an enormous change and returns
+  `needs-human` for a reason that looks legitimate and isn't (#132).
 
 ```bash
+MERGE_BASE=$(git merge-base {integration-branch} HEAD)
 git diff --numstat "$MERGE_BASE"..HEAD | node -e "
 const fs = require('fs');
 let input = '';

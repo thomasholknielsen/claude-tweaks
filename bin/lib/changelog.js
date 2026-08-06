@@ -42,4 +42,56 @@ function extractChangelogRange(changelogText, oldVersion, newVersion) {
   );
 }
 
-module.exports = { compareVersions, parseChangelogVersions, extractChangelogRange };
+// Any line that LOOKS like a version heading, however malformed. Deliberately
+// looser than HEADER_RE: its whole job is to find headings HEADER_RE rejects.
+// A rejected heading is not a parse error anyone sees — it is silently absent
+// from parseChangelogVersions, so /init's version notice skips that release
+// without a word. `## v4.1` (no title) and `## v4.2 — Token Saver` (two-component
+// version) both shipped for months in exactly that state.
+const LOOSE_HEADING_RE = /^## v(\S+)(.*)$/gm;
+const STRICT_HEADING_RE = /^## v(\d+\.\d+\.\d+) — (.+)$/;
+
+// Headings the parser can't see, and versions documented twice. Both are silent
+// failures rather than errors, which is why they need an explicit check.
+function findHeadingDefects(changelogText) {
+  const unparseable = [];
+  for (const match of changelogText.matchAll(LOOSE_HEADING_RE)) {
+    if (!STRICT_HEADING_RE.test(match[0])) unparseable.push(match[0].trim());
+  }
+  const counts = new Map();
+  for (const entry of parseChangelogVersions(changelogText)) {
+    counts.set(entry.version, (counts.get(entry.version) || 0) + 1);
+  }
+  const duplicates = [...counts.entries()].filter(([, n]) => n > 1).map(([v]) => v);
+  return { unparseable, duplicates };
+}
+
+// Compare the set of versions that actually shipped against the set the
+// changelog documents. `shippedVersions` comes from git (see
+// bin/changelog-coverage.js) and is the authority for `missing`; the changelog
+// is the authority for nothing — a heading naming a version that never shipped
+// is an `orphan`, which is how a concurrent-session version collision shows up
+// after the fact.
+function findCoverageGaps(shippedVersions, changelogText) {
+  // A prerelease build (4.5.0-phase1, 4.5.0-phase2 — both shipped in May 2026)
+  // is covered by its base version's entry. It cannot have an entry of its own:
+  // HEADER_RE and parseVersion both require a strict X.Y.Z, so a
+  // "## v4.5.0-phase1" heading would be invisible to the parser and would make
+  // extractChangelogRange throw the moment /init spanned it. Normalizing here
+  // keeps that constraint in one place instead of loosening the comparator.
+  const base = (v) => String(v).split('-')[0];
+  const shipped = new Set(shippedVersions.map(base));
+  const documented = new Set(parseChangelogVersions(changelogText).map((e) => e.version));
+  return {
+    missing: [...shipped].filter((v) => !documented.has(v)),
+    orphans: [...documented].filter((v) => !shipped.has(v)),
+  };
+}
+
+module.exports = {
+  compareVersions,
+  parseChangelogVersions,
+  extractChangelogRange,
+  findHeadingDefects,
+  findCoverageGaps,
+};

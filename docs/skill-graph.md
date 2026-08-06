@@ -29,6 +29,7 @@ depends on them.
 | `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as backlog refine's recommendation signal. |
 | `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md` | Design rationale for `merge-check`'s behavior-delta criterion: why the instruction-file floor is defined by role rather than by path, why its escape is framed as a refutation rather than a classification, and why the blast-radius guideline binds only on behavior-carrying diffs. Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the previous anchor was a design doc, and it was pruned. |
 | `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Original design rationale and calibration examples for `ceremony-check`, and for how `/build`/`/wrap-up` consume the `ceremony-profile` lever — amended (not superseded) by the 2026-08-03 design doc above. |
+| `skills/_shared/integration-branch.md` | Resolves the `merge-base` that blast radius is measured from in `merge-check`. `--base <ref>` is rank 1 of that ladder. |
 
 ## backlog
 
@@ -62,6 +63,7 @@ depends on them.
 | `/test` | Runs AFTER `/build`. In pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist. Standalone: runs the same checks as `/build` Common Step 5. |
 | `/tidy` | Reviews specs from `/build` for staleness — periodic cleanup complement. |
 | `/superpowers:brainstorming` | Produces the design doc `/build`'s design mode consumes directly. |
+| `skills/_shared/integration-branch.md` | Names the expected fork point when set, replacing the upstream-then-`origin/HEAD` derivation in `worktree-setup.md`. Shared with `/flow`'s `validation.md`, which runs the identical check. |
 
 ## capture
 
@@ -132,6 +134,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/help` | Surfaces the `authorized` and `building` counts on the dashboard (Stage 1). |
+| `skills/_shared/integration-branch.md` | Resolves the auto-merge target and push target. The concurrent-session guard compares the main checkout against this value, not the GitHub default. |
 
 ## docs-health
 
@@ -156,6 +159,7 @@ depends on them.
 | `/help` | Shows pipeline status and recommends flow-ready specs. |
 | `/specify` | Produces the `ready` leaf records `/flow` accepts as `#N`/`#A,#B`, materialized via `materialize.md` — flow never calls `/specify` internally; an unshaped record's materialization hard gate points back at it instead. Also creates the legacy numbered specs the alias path still reads. |
 | `_shared/issue-claims.md` | `/flow` no longer claims records itself — `/dispatch` claims before handing off. Release on a record-mode run happens via `/wrap-up`'s generic Section E `abandoned:` path (user doesn't merge) or a failure-card-offered release (gate failure) — the same mechanisms any single-spec run already uses, not a flow-specific "console decline" step. |
+| `skills/_shared/integration-branch.md` | Names the expected fork point in `validation.md`'s pre-flight divergence check, replacing the upstream-then-`origin/HEAD` guess. `/claude-tweaks:build`'s `worktree-setup.md` runs the identical check — the two must be edited together, and only the fragment's stated ranks apply to either: its git-inference rank would shadow the `@{upstream}` fallback and warn about a divergence that isn't there. |
 
 ## harness-health
 
@@ -257,8 +261,10 @@ depends on them.
 | `/docs-health` | Sixth consumer — `skills/docs-health/routine-template.yml` audits `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and staleness (report-only, like code-health's and harness-health's templates), filing `by:docs-health` findings. |
 | `/flow` | Indirect only, via `/dispatch` — `/flow` no longer ships its own routine template; `/routine create dispatch` instantiates the scheduled headless dispatcher that claims work and invokes `/flow`, so `/routine` never talks to `/flow` directly. |
 | `/harness-health` | Fourth consumer — `skills/harness-health/routine-template.yml` audits `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init` and `/wrap-up`. |
+| `/init` | Step 14's branch check names `integration-branch` as the recourse when the current branch differs from the GitHub default; Step 15 invokes this skill's `create --defaults --source init` in bulk, which reads that lever. Update Mode's Routine Drift check runs `status --all` then `update --defaults` — the path by which an existing project's live routines pick up a changed template. |
 | `/journey-health` | Fifth consumer — `skills/journey-health/routine-template.yml` audits `docs/journeys/*.md` for drift and coverage gaps (light tier only; the deep tier is interactive-only, pending a cloud-Routine feasibility spike). |
 | `/tidy` | Second consumer — `skills/tidy/routine-template.yml` relies on tidy's own Standalone-auto support for safe unattended execution. |
+| `skills/_shared/integration-branch.md` | Canonical resolution ladder for the branch this skill substitutes into `{{TARGET_BRANCH}}`. Shared with `/dispatch`, `/wrap-up`, `/build`, `/flow`, and `/assess-agent-autonomy` — this skill contributes ranks 1-2 (its `--branch` argument and the template's own `branch:` pin) and consumes the rest. Owns the `integration-branch` policy key, indexed in `_shared/policy-schema.md`. |
 | `skills/_shared/routine-diagnostic-probe.md` | Consumer, not a skill — references this skill's CREATE Step 4 environment-resolution procedure by name rather than duplicating it, for firing ad hoc diagnostics against an already-existing project environment. A future change to Step 4's resolution sources must consider this dependent. |
 
 ## simplify
@@ -354,6 +360,7 @@ depends on them.
 | `/flow` | Invoked BY `/flow` as the pipeline's final step; flow waits for `/wrap-up`'s Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/tidy` | `/wrap-up` cleans artifacts for a single spec; `/tidy` does periodic bulk cleanup. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+| `skills/_shared/integration-branch.md` | Resolves the fast-lane merge and push target in the single-record auto-merge gate (Step 8) — the same lever `/dispatch`'s group-scoped auto-merge gate uses. The concurrent-session guard compares the main checkout against this value, not the GitHub default. |
 
 ## Provenance
 
