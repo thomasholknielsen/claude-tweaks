@@ -1398,6 +1398,26 @@ git add evals/scenarios/learning-routing-classification.yaml evals/fixtures/lear
 git commit -m "Add classifier eval coverage — frozen corpus with adversarial cases"
 ```
 
+- [ ] **Step 9: Exercise the adversarial cases, not just store them**
+
+`evals/runner.js` has no matrix or loop construct — one scenario runs one prompt. So a corpus of seven entries behind a single scenario exercises exactly one of them, and the two entries that exist *specifically* to catch a naive classifier are never run. The eval would pass while the classifier fails precisely the cases it was built to catch — `[IL-78]`, a check that examines the wrong thing.
+
+Add one scenario per adversarial corpus entry, each modelled on `learning-routing-classification.yaml`:
+
+- `evals/scenarios/learning-routing-adversarial-named-but-local.yaml` — prompts `/claude-tweaks:feedback --dry-run` with the `adversarial-named-but-local` lesson text. It names a claude-tweaks skill but is genuinely project-specific, so **rule 1 must not fire**: assert `expectedDestination: D1`.
+- `evals/scenarios/learning-routing-adversarial-self-reference.yaml` — prompts with the `adversarial-self-reference` lesson. It is a real plugin defect, but the repo under test is claude-tweaks itself, so the self-reference check must collapse D5: assert `expectedDestination: D1`.
+
+Each scenario's `description` must state what a naive classifier would answer and why that is wrong — a scenario whose description does not say what it discriminates is one nobody can tell is still doing its job later.
+
+Leave the remaining corpus entries as fixture-only and say so in the scenario descriptions, so a later reader knows the gap is deliberate and bounded rather than an oversight.
+
+Verify:
+```bash
+ls evals/scenarios/learning-routing-*.yaml
+cd evals && node -e "const y=require('js-yaml'),f=require('fs');for(const s of f.readdirSync('scenarios').filter(n=>n.startsWith('learning-routing'))){const d=y.load(f.readFileSync('scenarios/'+s,'utf8'));console.log(s, '->', d.assertions.find(a=>a.type==='routing-destination-matches')?.expectedDestination)}"
+```
+Expected: three scenario files; each prints its expected destination — `D5`, `D1`, `D1`.
+
 ---
 
 ### Task 8: Documentation, graph edges, changelog, version
