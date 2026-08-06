@@ -9,7 +9,7 @@ Light mode is a narrowed subset of full mode — see `full-mode.md` for the Near
 | Lens | Question | Surfaces |
 |------|----------|----------|
 | **1. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
-| **2. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
+| **2. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives; route via _shared/learning-routing.md |
 
 Surprises and Approach are skipped — light mode exists specifically to trim ceremony for a `fast-lane`-profiled record. If this run's escape hatch fires mid-pass (see below), the *next* wrap-up steps run at standard depth — this pass itself is not retroactively widened.
 

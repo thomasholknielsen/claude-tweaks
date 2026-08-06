@@ -13,7 +13,7 @@ Runs all four reflection lenses plus a tradeoff review.
 | **1. Surprises** | "What surprised us?" — Unexpected constraints, library behavior, shape changes | Don'ts, skill updates |
 | **2. Approach** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering. Same evaluations as hindsight mode (Approach, Structure, Consolidation, Convention, Skills) — see `hindsight-mode.md`. | Skill updates, conventions, spec adjustments |
 | **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
-| **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
+| **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives; route via _shared/learning-routing.md |
 
 ### Seed from Review Learnings (pipeline context)
 
@@ -54,17 +54,22 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
-**Routing guide:**
+**Routing guide.** Classify every insight through the ordered procedure in
+`skills/_shared/learning-routing.md` — that file is the single source of truth
+for destinations and their precedence. Do not restate its table here.
 
-| Finding Type | Suggested Destination |
-|-------------|-----------|
-| "Never do X because Y" (X exists in codebase) | CLAUDE.md Don'ts |
-| "When building Z, always do W" | Existing skill update |
-| "This reusable pattern emerged" | New skill candidate |
-| "Remaining specs should use X instead" | Spec amendments |
-| "A fundamentally better approach exists" | Skill update + Memory file |
-| "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
-| "We should add X" (X doesn't exist yet) | Backlog work record — improvement work, not a convention |
+Two of its outcomes are newer than this skill's previous behavior and deserve
+naming explicitly:
+
+- **D4 (memory)** — the insight is about the user, or is an environment fact
+  with no owning artifact. Written per the contract's memory write procedure,
+  staged for approval, never auto-applied.
+- **D5 (upstream)** — the insight is about a claude-tweaks skill or contract and
+  would hold in any project using the plugin. Routed to
+  `/claude-tweaks:feedback`.
+
+The contract is first-match-wins: one insight yields one destination. An insight
+that genuinely serves two audiences is two insights, stated separately.
 
 **Writing a Don't: narrative first, then compress.** When an insight routes to CLAUDE.md's Don'ts, write the incident account *first* — the specific build, how it was caught, what it cost — wherever this project keeps that evidence (an incident log if it has one, otherwise the work record or the commit message). Only then compress it to the rule that lands in CLAUDE.md: one sentence of rule, one clause of why. Doing it in this order matters. Write the rule first and you pad it — the incident is vivid, every detail feels load-bearing, and the justification gets smuggled into the always-loaded file a clause at a time. Giving the evidence a home where it is allowed to be long removes the pressure to do that. A Don't that needs three sentences of background to be believed is a compressed rule plus an account that belongs somewhere else, not a long rule.
 

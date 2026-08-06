@@ -44,7 +44,7 @@ Present all findings as a batch:
 The table renders as markdown, as above. Same `AskUserQuestion` mechanics as full mode (see `full-mode.md`'s Interactive mode section) — substitute "findings" for "insights" in the question text and header (`question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`); the two options are identical.
 
 **Recommendation rules:** **Defer** and **Capture** are the same as `full-mode.md`'s Recommendation rules (substitute "finding" for "insight" and "files" for "context") — see that section rather than repeating it here. What differs in hindsight mode:
-- **Change now** — the strong default (full mode's equivalent is "Implement now"). If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes.
+- **Change now** — the strong default (full mode's equivalent is "Implement now"). If the improvement is clear, make the change. Classify via `skills/_shared/learning-routing.md` — do not restate its destination table. Most hindsight findings are small enough to fix in a few minutes.
 - **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. Not a valid option for genuine improvements. (Full mode's equivalent, "Don't capture", covers the same "must state why" requirement.)
 
 If any findings are **"Change now"**, make the changes, then re-run `/claude-tweaks:test` (or verification if standalone) and resume.
