@@ -83,15 +83,12 @@ so the merge itself, landing in the main checkout, isn't denied as a wrong-check
 GROUP_WORKTREE=$(git rev-parse --show-toplevel)
 ```
 
-Then, from the main checkout:
-
-Resolved via plain `git`, not `gh`/MCP — this is local repository metadata (the remote's `HEAD` pointer), not GitHub-hosted state, so it works identically regardless of transport with no branching needed at all.
+Then, from the main checkout. Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` — its Per-consumer fallback table gives this skill's rank-6 behavior (`git remote show origin`, local repository metadata that works regardless of transport):
 
 ```bash
-DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
 CURRENT=$(git branch --show-current)
-if [ "$CURRENT" != "$DEFAULT_BRANCH" ]; then
-  echo "Main checkout is on '$CURRENT', not '$DEFAULT_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
+if [ "$CURRENT" != "$INTEGRATION_BRANCH" ]; then
+  echo "Main checkout is on '$CURRENT', not '$INTEGRATION_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
 git merge --no-ff "$BRANCH" -m "[auto-merge] {one-line summary}
@@ -100,10 +97,12 @@ Fixes #{issue}
 Fixes #{second-issue}"
 ```
 
-Then, back inside `$GROUP_WORKTREE` — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run` (both checkouts share the same underlying `.git`, so pushing the just-merged `$DEFAULT_BRANCH` ref from the worktree pushes exactly what the main checkout just merged):
+The guard stays, retargeted. Its job is catching a concurrent session switching the shared checkout out from under this merge — unchanged and still necessary. What changes is that on a repo whose integration branch isn't the GitHub default, it no longer aborts every single time on a mismatch that was never real.
+
+Then, back inside `$GROUP_WORKTREE` — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run` (both checkouts share the same underlying `.git`, so pushing the just-merged `$INTEGRATION_BRANCH` ref from the worktree pushes exactly what the main checkout just merged):
 
 ```bash
-git -C "$GROUP_WORKTREE" push origin "$DEFAULT_BRANCH"
+git -C "$GROUP_WORKTREE" push origin "$INTEGRATION_BRANCH"
 ```
 
 One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path. **If the merge conflicts:** conflict resolution requires judgment a headless run can't supply — abort the merge (`git merge --abort`) and fall back to the normal `auto:build`-only path (present the Review Console, wait for a human), logging why the auto-merge path was abandoned.

@@ -85,7 +85,7 @@ Keep track of which source won: Step 7's preview names it, and Step 9 writes the
 }
 ```
 
-`RESOLVED_PROMPT` is `template.prompt` with its single `{{TARGET_BRANCH}}` placeholder replaced, using Step 5.5's result:
+`RESOLVED_PROMPT` is `template.prompt` with its single `{{TARGET_BRANCH}}` placeholder replaced, using Step 5.5's result (see `skills/_shared/integration-branch.md`'s Per-consumer fallback table for why the unresolved row reads as it does):
 
 | Step 5.5 outcome | Replace `{{TARGET_BRANCH}}` with |
 |---|---|

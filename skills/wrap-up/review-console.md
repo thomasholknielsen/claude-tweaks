@@ -39,13 +39,12 @@ headless `dispatch` run. Before merging, clear this run's worktree
 assignment the same way `flow/worktree-merge.md`'s reconciliation does
 (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so
 the merge itself, landing in the main checkout, isn't denied as a
-wrong-checkout commit. Then, from the main checkout:
+wrong-checkout commit. Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`, then from the main checkout:
 
 ```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
 CURRENT=$(git branch --show-current)
-if [ "$CURRENT" != "$DEFAULT_BRANCH" ]; then
-  echo "Main checkout is on '$CURRENT', not '$DEFAULT_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
+if [ "$CURRENT" != "$INTEGRATION_BRANCH" ]; then
+  echo "Main checkout is on '$CURRENT', not '$INTEGRATION_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
 git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}

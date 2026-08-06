@@ -19,9 +19,6 @@ const ALLOWLIST = new Map([
   ['dispatch/SKILL.md', 'same claim-ref base SHA as _shared/issue-claims.md'],
   ['init/bootstrap/step-14-cloud-routine-parity.md', 'genuinely about the GitHub default branch — cloud sessions check out the environment branch, which is a different fact'],
   ['assess-agent-autonomy/SKILL.md', 'PENDING MIGRATION — Task 5'],
-  ['dispatch/settle-and-merge.md', 'PENDING MIGRATION — Task 4'],
-  ['routine/create-and-update.md', 'PENDING MIGRATION — Task 2 left the fallback reference; re-checked in Task 4'],
-  ['wrap-up/review-console.md', 'PENDING MIGRATION — Task 4'],
 ]);
 
 function walk(dir, acc = []) {
