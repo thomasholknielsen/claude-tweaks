@@ -22,7 +22,7 @@ Every consumer reads `work-backend` directly, with no alias fallback.
 
 ## `work-backend: github-issues` fetch
 
-Before running the fetch script below, read `backlog-fetch-limit` from the project's CLAUDE.md
+Before running the fetch script below, read `backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml`
 (per `_shared/work-record.md`'s Config keys table) and export it as `BACKLOG_FETCH_LIMIT`; if
 the key is absent, leave the variable unset so the script's own `:-1000` default applies.
 
@@ -34,7 +34,7 @@ node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('{tmp-records-file}');
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + issues.length + ' open issues (the configured backlog-fetch-limit) — there may be more beyond this cap. Consider raising backlog-fetch-limit in CLAUDE.md, or running /claude-tweaks:tidy to reduce backlog volume.');
+    console.error('WARNING: fetched exactly ' + issues.length + ' open issues (the configured backlog-fetch-limit) — there may be more beyond this cap. Consider raising backlog-fetch-limit in .claude-tweaks/policy.yml, or running /claude-tweaks:tidy to reduce backlog volume.');
   }
   console.log(JSON.stringify(issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))));
 " > {tmp-faceted-file}
