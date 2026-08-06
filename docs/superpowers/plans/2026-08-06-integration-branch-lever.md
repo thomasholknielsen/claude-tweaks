@@ -176,9 +176,9 @@ EOF
 
 - [ ] **Step 1: Create the fragment**
 
-Create `skills/_shared/integration-branch.md`:
+Create `skills/_shared/integration-branch.md` with exactly this content (the outer fence is four backticks so the file's own indented `\`\`\`bash` blocks survive — write the file with normal three-backtick fences):
 
-```markdown
+````markdown
 # Integration Branch — Canonical Resolution
 
 The branch where finished work lands and new work starts. Canonical for every consumer that needs to know which branch represents this project's current state — read it, start from it, add to it, or compare against it.
@@ -236,7 +236,7 @@ Rank 6 is deliberately per-consumer, because they degrade differently. In every 
 | Using the branch the main checkout currently has checked out | A concurrent session switches it underfoot — the reason `/claude-tweaks:dispatch`'s merge guard exists at all |
 | Pinning the current branch inside a linked worktree | It is a throwaway isolation branch; it will not exist when a routine fires or a later run merges |
 | Treating rank 4's CLAUDE.md read as a config-key lookup | It reads prose describing a branching model, not a `key: value` line. Design B's policy.yml consolidation does not remove it |
-```
+````
 
 - [ ] **Step 2: Collapse Step 5.5 to a citation**
 
@@ -450,7 +450,7 @@ Expected: FAIL, listing `dispatch/settle-and-merge.md`, `routine/create-and-upda
 
 Replace the paragraph and code block at lines 88-107. The old prose justifying plain `git` over `gh` is dropped — the fragment owns that choice now.
 
-```markdown
+````markdown
 Then, from the main checkout. Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` — its Per-consumer fallback table gives this skill's rank-6 behavior (`git remote show origin`, local repository metadata that works regardless of transport):
 
 ```bash
@@ -472,13 +472,13 @@ Then, back inside `$GROUP_WORKTREE` — not the main checkout, which the `worktr
 ```bash
 git -C "$GROUP_WORKTREE" push origin "$INTEGRATION_BRANCH"
 ```
-```
+````
 
 - [ ] **Step 4: Migrate `wrap-up/review-console.md`**
 
 Replace its `DEFAULT_BRANCH` block the same way:
 
-```markdown
+````markdown
 Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`, then from the main checkout:
 
 ```bash
@@ -492,7 +492,7 @@ git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
 Fixes #{issue}"
 git push
 ```
-```
+````
 
 - [ ] **Step 5: Add the citation to `routine/create-and-update.md`**
 
@@ -558,7 +558,7 @@ Expected: FAIL, naming `assess-agent-autonomy/SKILL.md`.
 
 Replace the `DEFAULT_BRANCH` paragraph and its two code blocks with:
 
-```markdown
+````markdown
   Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`. `--base <ref>` remains rank 1 of that ladder — a caller that already knows the merge base (dispatch's per-group Task agent, which set up the worktree itself) passes it and skips resolution entirely.
 
   If nothing resolves — no `origin` remote, no `gh` auth, an offline or detached runner — stop here. This is the "inconclusive read" case `## Error Handling` already covers, not a hard crash. Render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {name the specific resolution failure, e.g. "could not resolve this project's integration branch"}`, and skip the rest of this mode's procedure.
@@ -568,7 +568,7 @@ MERGE_BASE=$(git merge-base "$INTEGRATION_BRANCH" HEAD)
 ```
 
   Measuring from the integration branch rather than the GitHub default is what makes blast radius mean the record's own change. Against a branch that diverged long ago, the merge base is ancient and the diff spans every commit since the fork — which reads as an enormous change and returns `needs-human` for a reason that looks legitimate and isn't (#132).
-```
+````
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -623,7 +623,9 @@ git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
 ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
 ```
 
-In each file, add before the block: `Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` first — when set it names the expected fork point directly, replacing the upstream-then-origin/HEAD guess.`
+In each file, add this sentence immediately before the block (a backtick span cannot nest, so it is given here as a blockquote — write it as ordinary prose with the two code spans intact):
+
+> Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` first — when set it names the expected fork point directly, replacing the upstream-then-`origin/HEAD` guess.
 
 - [ ] **Step 2: Verify the snippet runs under bash**
 
@@ -638,7 +640,7 @@ Expected: `set -> [origin/dev]` and `unset -> [fellthrough]`. Verify under `bash
 
 In `skills/init/bootstrap/step-06-worktree-configuration.md`, replace item 4's prompt text with:
 
-```markdown
+````markdown
 4. **Base ref** — see `_shared/worktree-base-ref.md` for why this matters (shared with `build/worktree-setup.md`'s runtime verification of the same setting). Read `settings.json`; if `worktree.baseRef` is unset or `fresh`, surface:
    ```
    Worktree base ref is `{current value or 'unset (default: fresh)'}`. claude-tweaks branches from your current local HEAD — `fresh` can branch from a stale `origin/<default-branch>`. Set `worktree.baseRef: "head"`? (Y/n)
@@ -646,7 +648,7 @@ In `skills/init/bootstrap/step-06-worktree-configuration.md`, replace item 4's p
    **When `integration-branch` is set in `.claude-tweaks/policy.yml` and differs from the repo's GitHub default branch, this stops being a recommendation.** Under `fresh` every task forks from `origin/<GitHub default>` — the wrong branch by construction, on every single run. Say so explicitly rather than asking neutrally: `"This project's integration branch is '{integration}', but the GitHub default is '{default}'. With baseRef 'fresh', every worktree would branch from '{default}'. Setting it to 'head' is required for this project, not optional."` The plugin cannot set this itself — it lives in the harness's settings.json and `EnterWorktree` accepts no base-ref argument — so a declined offer leaves the hole open, with `/claude-tweaks:build`'s own base-ref verification as the only backstop.
 
    On yes, write `{ "worktree": { "baseRef": "head" } }` into `settings.json` (backup first, merge — don't clobber existing keys). In `auto` mode, set it without prompting and log the change.
-```
+````
 
 - [ ] **Step 4: Widen the ratchet to cover the fork-point pattern**
 
