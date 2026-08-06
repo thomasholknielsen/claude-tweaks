@@ -971,6 +971,106 @@ git commit -m "Route producer findings through the learning-routing contract —
 
 ---
 
+### Task 6b: Reachability fixes (from the systematic sweep)
+
+**Files:**
+- Modify: `skills/reflect/SKILL.md`, `skills/wrap-up/SKILL.md`, `skills/wrap-up/config-updates.md`, `skills/wrap-up/skill-curation.md`, `skills/wrap-up/execution-and-verification.md`, `skills/_shared/learning-routing.md`, `skills/feedback/SKILL.md`, `skills/code-health/SKILL.md`, `skills/journey-health/SKILL.md`, `skills/docs-health/SKILL.md`, `skills/harness-health/SKILL.md`, `skills/build/architecture-alignment.md`
+
+**Why this task exists.** A read-only sweep traced every claim the feature makes to the actor that must act on it. Nine gaps of one class: *the citation exists, but not where the decision happens*. Four are Critical — the feature is inert on real paths. Every task's own review passed; the class is invisible to task-scoped review by construction.
+
+- [ ] **Step 1 (F3 + defect #4): Cite the contract where Steps 6 and 7 actually decide**
+
+`skills/wrap-up/SKILL.md`'s Step 6 and Step 7 delegate to lazy-loaded sub-files, and Step 7.10's scope is "not already routed by Steps 6-7.9" — so anything those sub-files collect is outside D4/D5 **by construction**.
+
+In `skills/wrap-up/config-updates.md`, at the head of `### 6.1: CLAUDE.md and Rules`, add:
+
+```
+**Classify before collecting.** Run each candidate through `skills/_shared/learning-routing.md` first. Only a **D1** outcome belongs here. A candidate resolving to D4 or D5 is *not* a CLAUDE.md rule — hand it to Step 7.10 or 7.11 and do not collect it, or Step 7.10's "not already routed by Steps 6-7.9" scope will skip it permanently.
+```
+
+In `skills/wrap-up/skill-curation.md`, at the head of `## 7.1: Gather Seeds`, add:
+
+```
+**Subject check before seeding.** A `review/skill` or `build/skill` ledger entry whose subject is a claude-tweaks skill, contract or CLI — rather than this project's own code — is a **D5** learning, not a project-skill update. Classify via `skills/_shared/learning-routing.md` and hand it to Step 7.11 instead of seeding it here. Seeding it would route it to this project's skill library and Step 7.11 would never see it. Where this project *is* claude-tweaks, the contract's self-reference check collapses D5 and the entry seeds here as usual.
+```
+
+- [ ] **Step 2 (F2): Cite the contract in reflect's shared auto-mode table**
+
+`skills/reflect/SKILL.md` holds the auto-routing table that all three mode files delegate to, and it has no citation — so the three added in Task 3 only cover interactive mode. Immediately above that table, add:
+
+```
+**Classify first.** Route every insight through `skills/_shared/learning-routing.md` before applying any row below. A D4 (memory) or D5 (upstream) outcome is staged for approval and never auto-applied, regardless of what the rows below would otherwise do.
+```
+
+- [ ] **Step 3 (F1): Give 7.10 and 7.11 an interactive/standalone consumer**
+
+Both steps currently surface only at the Review Console, which is skipped in interactive mode and standalone wrap-up. Every sibling staging step names both paths; these name neither.
+
+In `skills/wrap-up/SKILL.md` Steps 7.10 and 7.11, after each staging instruction, add the sibling-matching clause:
+
+```
+Surfaces at the Wrap-Up Review Console (Step 8.6), or — in interactive mode and standalone wrap-up, where Step 8.6 does not run — as its own per-item batch decision presented before Step 9's summary. Standalone wrap-up has no run directory: stage in-memory and present the same per-item decision rather than writing to `staged/`.
+```
+
+- [ ] **Step 4 (F4): Give headless sweeps somewhere to put a D5 finding**
+
+`/claude-tweaks:feedback` Step 7 is an unconditional confirmation gate, and the health sweeps run primarily headless via Routines — so a D5-subject finding is currently removed from local filing *and* cannot be filed upstream. It vanishes. CLAUDE.md forbids that outright: *"Don't silently skip or drop findings — every surfaced item must be explicitly resolved."*
+
+In all four health sweeps, immediately after the subject-check line, add:
+
+```
+**Headless runs.** With no human present, `/claude-tweaks:feedback` cannot clear its confirmation gate. Do not drop the finding: file it locally as an ordinary record labelled `upstream-candidate`, with the body naming the claude-tweaks component and the symptom, so a human can forward it with `/claude-tweaks:feedback` later. Never file it as a defect against this project's own code.
+```
+
+- [ ] **Step 5 (F6): Execute an approved M#/U# exactly once**
+
+Execution is specified twice — the console's `On approval` steps and Step 10's apply list — and both would run. A duplicated `MEMORY.md` index line and a duplicate public issue are the results. Queue writes set the precedent: executed at the console, absent from Step 10's apply list.
+
+In `skills/wrap-up/execution-and-verification.md`, change the two apply-list bullets from performing the actions to **verifying they already happened at the console**, matching how the file treats other console-executed items. Keep both Verify-execution lines. State explicitly that the console executes and Step 10 confirms.
+
+- [ ] **Step 6 (F5): Remove the unbacked retry-queue promise**
+
+`skills/feedback/SKILL.md` promises a retry queue that cannot exist — there is no `bin/feedback.js`, and nothing drains it. Replace that paragraph with:
+
+```
+On failure, do not silently drop the payload. Report the `gh` error verbatim, write the drafted body to the run directory's `staged/` as `wrap-up-upstream-{N}-unfiled.md` when a run directory exists, and tell the user the filing did not happen and the draft is preserved. There is no automatic retry for upstream filings.
+```
+
+Then remove its Anti-Patterns row about dropping a payload on `gh` failure **only if** it names the retry queue; if it states the general principle, leave it. **Do not add or remove any other Anti-Patterns row** — `bin/lib/skill-audit/tests/anti-patterns.test.js` guards the corpus at 352 rows with this skill contributing 7. If your edit changes that count, update the test's two literals in the same commit and show the arithmetic.
+
+- [ ] **Step 7 (F9): Move the subject check above the regressed-reopen block**
+
+In `skills/code-health/SKILL.md` and `skills/journey-health/SKILL.md`, the subject check sits after the unconditional regressed-reopen calls, so a regressed D5-subject finding reopens as a local issue first. Move the subject-check line above that block in both. Verify `code-health/SKILL.md` stays under 40960 bytes — it has roughly 630 bytes of headroom and this is a move, not an addition.
+
+- [ ] **Step 8 (F7 + F8): Close the two restatement gaps**
+
+In `skills/wrap-up/SKILL.md`, extend Step 10's trigger list to include an approved memory write or upstream filing, and extend its restatement of the empty-console conditions to name all three per-item sections, matching `review-console.md`.
+
+- [ ] **Step 9 (F6-adjacent): Correct the contract's own Consumers table**
+
+`skills/_shared/learning-routing.md`'s Consumers table says `/claude-tweaks:review` lens 3a "classifies skill-routed findings" and wrap-up "Steps 6/7 classify before writing". Both are now known false — 3a records and defers, and Steps 6/7 classify only after Step 1 above lands. Reword both rows to describe what the files actually do.
+
+- [ ] **Step 10: Verify**
+
+```bash
+grep -c "learning-routing" skills/wrap-up/config-updates.md skills/wrap-up/skill-curation.md skills/reflect/SKILL.md
+grep -rn "upstream-candidate" skills/
+grep -c "retry-queue\|retry queue" skills/feedback/SKILL.md
+node --test bin/lib/skill-audit/tests/anti-patterns.test.js
+wc -c skills/code-health/SKILL.md
+```
+
+Expected: the first returns non-zero for all three files; `upstream-candidate` appears in all four health sweeps; the retry-queue count in `feedback/SKILL.md` is 0; the anti-patterns test PASSES; `code-health/SKILL.md` under 40960.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add skills/
+git commit -m "Make the routing contract reachable from every producer and mode"
+```
+
+---
+
 ### Task 7: Classifier eval coverage
 
 **Files:**
