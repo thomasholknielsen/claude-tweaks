@@ -130,7 +130,17 @@ New at 4.0.x, absent from every claude-tweaks reference: `context-signals.mjs`, 
 for all three, so a native record runs an HTML rule engine over native code. The likely
 outcome is zero findings — a false pass.
 
-## Part A — the Impeccable contract seam
+## Phase 1 — the CLI contract seam (SHIPPED 2026-08-06)
+
+Delivered by `docs/superpowers/plans/2026-08-06-impeccable-cli-contract.md`. Do not
+decompose this section; it is kept as the record of what was built and why.
+
+One correction the build forced, recorded here because the rest of the design was written
+against the wrong assumption: the gate must classify on the `advisory` boolean the CLI
+stamps on each finding, **not** on `severity`. The two are near-inverted — a finding can
+carry `severity: "warning"` with `advisory: true` (upstream exits 0, non-blocking) or
+`severity: "advisory"` with no flag (upstream exits 2, blocking). Any later phase reasoning
+about finding severity must use the flag.
 
 ### A1 · CLI: upgrade, pin, verify by execution
 
@@ -167,6 +177,11 @@ become live warnings that can fail the gate — the gate working for the first t
 hatch is upstream's own `.impeccable/config.json` `detector.ignoreRules`, plus `--no-advisory`
 and scope filters. Delegating the escape hatch instead of building a parallel one is the
 thesis applied.
+
+## Phase 3 — dispatch and detection
+
+Depends on Phase 2: both items below add a new upstream coupling point, and each must be
+registered in the drift auditor's manifest as it is created rather than retrofitted.
 
 ### A3 · Dispatch: assert the job only where you own the signal
 
@@ -207,7 +222,10 @@ failure degrades to a clean skip, consistent with the wrapper's existing discipl
 path and output shape register in Part C's manifest. Consuming a new upstream contract on
 trust would manufacture tomorrow's drift while fixing today's.
 
-## Part B — capability integration
+## Phase 4 — capability integration
+
+Depends on Phase 3 for B2 specifically: native routing is driven by `setup.platform`, which
+Phase 3's A4 introduces. B1, B3 and B4 have no Phase 3 dependency.
 
 ### B1 · `doctor` into the hygiene path
 
@@ -268,7 +286,11 @@ third-party agent is a delegation, and the wrapper adapts at the boundary rather
 demanding conformance. This needs an explicit exemption paragraph, since the file currently
 reads as universal.
 
-## Part C — the local drift auditor
+## Phase 2 — the local drift auditor
+
+Sections below are numbered by execution order, not file order — Phase 2 appears last in
+this document because it was designed as Part C. Phase 2 ships before Phases 3 and 4 so
+each new coupling point those add is registered in the manifest as it is created.
 
 **Not shipped.** Maintainer-only tooling living in this repo.
 
