@@ -10,15 +10,16 @@ Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a determ
 The wrapper invokes the CLI exactly as:
 
 ```bash
-npx impeccable detect --fast --json <file1> <file2> ... <fileN>
+npx impeccable detect --json <file1> <file2> ... <fileN>
 ```
 
 | Flag | Why |
 |------|-----|
 | `detect` | Subcommand — runs the deterministic anti-pattern scanner |
-| `--fast` | No-op as of CLI 3.x — the detector always full-scans regardless of this flag. Kept in the invocation for now; harmless either way, and removing it is a separate, non-urgent cleanup. |
 | `--json` | Machine-readable output — required for parsing |
 | `<files>` | Space-separated list of files to scan; passed positionally |
+
+`--fast` was removed from this invocation. At the pinned 3.5.0 it is deprecated and ignored, and passing it writes `Note: --fast is deprecated and ignored. The full scan is fast now and runs every rule.` to stderr on every call — noise in a stream the parser reads. At 2.1.8 it was not a no-op at all: it forced regex-only scanning and skipped linked stylesheets entirely, which is the degradation CLI 3.5.0's own release notes describe as turning eighteen findings into one.
 
 ### Arguments resolution
 
@@ -36,13 +37,13 @@ Run the CLI from the project root (the directory containing the spec/CLAUDE.md) 
 
 ### Timeout
 
-Use the Bash tool's default timeout. The CLI is fast (`--fast` flag); a single invocation should complete in well under a minute even for large file lists. If the CLI times out, treat as a transient failure and return:
+Use the Bash tool's default timeout. A single invocation completes in well under a minute even for large file lists. If the CLI times out, treat as a transient failure and return:
 
 ```json
 {
   "mode": "test",
   "skipped": "Impeccable CLI timed out",
-  "install_hint": "Re-run later or invoke manually with `npx impeccable detect --fast --json <files>`"
+  "install_hint": "Re-run later or invoke manually with `npx impeccable detect --json <files>`"
 }
 ```
 
@@ -59,6 +60,7 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
     "name": "AI color palette",
     "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.",
     "severity": "warning",
+    "category": "slop",
     "file": "/project/src/components/Hero.tsx",
     "line": 47,
     "snippet": "from-purple-500 gradient"
@@ -73,7 +75,8 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
 | `antipattern` | string | Yes | Rule identifier (use for de-dup, grouping) |
 | `name` | string | Yes | Short human-readable rule name |
 | `description` | string | Yes | Full explanation of the anti-pattern |
-| `severity` | string | Yes | `warning` (default — most rules) or `advisory` (10 specific rule ids: `repeated-section-kickers`, `numbered-section-markers`, `design-system-color`, `design-system-radius`, `design-system-font-size`, `gpt-thin-border-wide-shadow`, `repeating-stripes-gradient`, `codex-grid-background`, `theater-slop-phrase`, `image-hover-transform`) |
+| `severity` | string | Yes | `warning` or `advisory`. Which rule ids carry which severity is upstream's data and is deliberately not enumerated here — read the field off the output. Enumerating it is what drifted this file three times. |
+| `category` | string | Yes | Rule grouping (e.g. `slop`). Present since at least 3.5.0; useful for dispatch grouping in place of keyword-matching `description`. |
 | `file` | string | Yes | Absolute path (the CLI resolves before scanning) |
 | `line` | integer | Yes | Line number; `0` for file-level findings (the CLI always sets this field, defaulting to `0`) |
 | `snippet` | string | Yes | The matched text/pattern that triggered the finding |
@@ -111,21 +114,10 @@ Malformed output is treated as a skip, not a fail — same rationale as availabi
 ## Sample invocation (canonical)
 
 ```bash
-$ npx impeccable detect --fast --json src/components/Hero.tsx
-[
-  {
-    "antipattern": "ai-color-palette",
-    "name": "AI color palette",
-    "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.",
-    "severity": "warning",
-    "file": "/project/src/components/Hero.tsx",
-    "line": 47,
-    "snippet": "from-purple-500 gradient"
-  }
-]
+$ npx impeccable detect --json src/components/Hero.tsx
 ```
 
-Wrapper returns:
+The CLI's raw stdout for this invocation has the same shape as the sample under "Expected JSON output schema" above — repeating it here added nothing but a second copy to keep in sync, so it isn't restated. What that section doesn't show is what the wrapper hands back after processing the CLI's output:
 
 ```json
 {
@@ -133,7 +125,7 @@ Wrapper returns:
   "result": "fail",
   "files_scanned": 1,
   "findings": [
-    { "antipattern": "ai-color-palette", "name": "AI color palette", "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.", "severity": "warning", "file": "/project/src/components/Hero.tsx", "line": 47, "snippet": "from-purple-500 gradient" }
+    { "antipattern": "ai-color-palette", "name": "AI color palette", "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.", "severity": "warning", "category": "slop", "file": "/project/src/components/Hero.tsx", "line": 47, "snippet": "from-purple-500 gradient" }
   ]
 }
 ```
