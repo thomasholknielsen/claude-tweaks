@@ -1,5 +1,41 @@
 # Changelog
 
+## v6.40.0 — One statement of what the worktree gate covers, pinned to the code (closes #138, #139)
+
+The `worktree.always` gate was widened twice on 2026-07-20 — `c8f929e1` added `git push`
+beside `git commit`, `cab6142b` added Bash `cp`/`mv`/`tee`. Both correct, both tested,
+neither swept the prose. Five skill files went on describing the pre-widening gate, and three
+of them prescribed procedures the widened gate denies:
+
+- `wrap-up/cleanup-procedures.md` claimed a bare `cp` wasn't gated, so every
+  `worktree.always` project silently lost `decisions.md` and `config.yml` at every wrap-up.
+  Issue #32 had *closed* that same data-loss bug by adding the `cp` — its verification never
+  ran under the policy.
+- `wrap-up/review-console.md`'s headless fast-lane auto-merge pushed from the main checkout,
+  where the push is denied and no human is present to see it.
+- `flow/materialize.md` told the pipeline to commit the materialized record on the
+  pre-worktree branch, which cannot execute under the policy at all (#139).
+- `flow/worktree-merge.md` and `_shared/git-discipline.md` both stated flatly that
+  `git push` is never gated.
+
+All five corrected. The durable part is the binding: `pre-tool-use.js` exports a
+`GATE_COVERAGE` constant it actually branches on, `_shared/policy-schema.md` carries the
+single prose statement between marker comments, every other file cites it rather than
+restating it, and `tests/hooks-gate-coverage.test.js` fails when the two diverge. Widening
+the gate again now breaks a test until the canonical block is updated — and one edit
+suffices, because nothing else holds a copy.
+
+Also new: the gate's one path-prefix exemption. File writes under a repo's own
+`.claude-tweaks/pipelines/` are allowed from anywhere, since that directory is plugin-owned,
+gitignored bookkeeping rather than the project work the gate isolates. It applies to
+file-write targets only — a `git commit`/`git push` target is the command's *working
+directory*, so exempting those by prefix would permit any commit issued from inside a run
+dir — and it fails closed on any path it cannot prove.
+
+Found by grepping the *procedure shape* (`git push`, `cp`/`mv`/`tee`), not the keyword:
+`materialize.md` and `review-console.md` never mention the gate, so their defect is silence.
+That sweep turned up the fifth site after four were already known. Recorded as `[IL-93]`.
+
 ## v6.39.4 — The worktree gate stops failing open under load (closes #134)
 
 `bin/lib/hooks/git-exec.js` ran every git query with a fixed 3000 ms budget and a bare

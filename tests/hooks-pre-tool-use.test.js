@@ -473,3 +473,102 @@ test('worktree-required: a compound Bash command checks EVERY cp/mv/tee write ta
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
     'the second cp destination violates worktree.always and must be caught even though the first was compliant');
 });
+
+// --- .claude-tweaks/pipelines/ bookkeeping exemption (#138) ---
+//
+// /wrap-up must copy a run's gitignored audit state (config.yml, decisions.md,
+// events.jsonl, staged/) from the worktree into the main checkout's archive
+// BEFORE `git worktree remove` deletes it. That copy is a plain `cp` into the
+// main checkout, which the gate denied — so every worktree.always project lost
+// decisions.md on every run, silently, because a denied tool call mid-cleanup
+// is not a hard stop.
+
+function archivePathIn(repo, leaf) {
+  return path.join(repo, '.claude-tweaks', 'pipelines', 'archive', 'run-1', leaf);
+}
+
+// The gate reads policy from the TARGET's repo, and a linked worktree only sees
+// a committed policy.yml — so these fixtures commit it before branching.
+function repoWithCommittedPolicy() {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  return repo;
+}
+
+test('worktree-required: a cp into the main checkout\'s .claude-tweaks/pipelines/ is ALLOWED from a worktree (#138)', () => {
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: bashInput(`cp ${path.join(wt, 'decisions.md')} ${archivePathIn(repo, 'decisions.md')}`, wt),
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'pipeline bookkeeping is not the project work this gate isolates');
+});
+
+test('worktree-required: a cp into any OTHER main-checkout path is still denied from the same worktree (#138)', () => {
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: bashInput(`cp ${path.join(wt, 'x.js')} ${path.join(repo, 'src', 'x.js')}`, wt),
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    'the exemption must not widen into a general main-checkout write permit');
+});
+
+test('worktree-required: the exemption is a prefix on pipelines/, not on .claude-tweaks/ (#138)', () => {
+  // policy.yml itself lives in .claude-tweaks/ — a prefix test one segment too
+  // short would let a worktree rewrite the very policy that gates it.
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, '.claude-tweaks', 'policy.yml') } },
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    '.claude-tweaks/policy.yml is not under .claude-tweaks/pipelines/ and must stay gated');
+});
+
+test('worktree-required: git commit/push stay denied even when issued from inside .claude-tweaks/pipelines/ (#138)', () => {
+  // gitTargets yields the command's working DIRECTORY, not a file. Applying the
+  // path-prefix exemption to those targets would let any commit run from a cwd
+  // under .claude-tweaks/pipelines/ — exactly the isolation being enforced.
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const runDir = path.join(repo, '.claude-tweaks', 'pipelines', '2026-08-06T000000-record-1');
+  fs.mkdirSync(runDir, { recursive: true });
+  for (const cmd of ['git commit -m "x"', 'git push origin main']) {
+    const out = pre.run({ input: bashInput(cmd, runDir), runDir: null, runState: null, cwd: runDir });
+    assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+      `${cmd} from inside a run dir must stay denied — the exemption covers file writes only`);
+  }
+});
+
+test('worktree-required: a Write into the main checkout\'s run-dir archive is allowed, same as cp (#138)', () => {
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: { tool_name: 'Write', tool_input: { file_path: archivePathIn(repo, 'config.yml') } },
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'the exemption is about what the path IS, not which tool writes it');
+});
+
+test('isPipelineBookkeeping fails closed on anything it cannot prove (#138)', () => {
+  const repo = '/tmp/some-repo';
+  const good = path.join(repo, '.claude-tweaks', 'pipelines', 'run-1', 'decisions.md');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, good), true, 'the positive case must actually match');
+  // Each of these must be false, or the gate opens on input it never proved.
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, '.claude-tweaks/pipelines/run-1/x'), false, 'relative path is unprovable');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, ''), false, 'empty path');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, null), false, 'null path');
+  assert.strictEqual(pre.isPipelineBookkeeping(null, good), false, 'null repoRoot');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, path.join(repo, '.claude-tweaks', 'pipelines')), false,
+    'the directory itself is not a write target under it');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, '/tmp/other-repo/.claude-tweaks/pipelines/run-1/x'), false,
+    'another repo\'s pipelines dir is not this repo\'s bookkeeping');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, path.join(repo, '.claude-tweaks', 'pipelines-evil', 'x')), false,
+    'sibling directory sharing the prefix string must not match');
+});

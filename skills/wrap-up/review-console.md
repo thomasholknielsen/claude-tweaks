@@ -39,20 +39,54 @@ headless `dispatch` run. Before merging, clear this run's worktree
 assignment the same way `flow/worktree-merge.md`'s reconciliation does
 (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so
 the merge itself, landing in the main checkout, isn't denied as a
-wrong-checkout commit. Then, from the main checkout:
+wrong-checkout commit.
+
+`close-run` satisfies E1 only. Under `worktree.always: true` the separate,
+run-independent policy gate still applies, and it covers `git push` as well as
+`git commit` — so the push below **cannot** run from the main checkout, and
+**must not** be chained onto the merge (the gate inspects the whole command
+string up front, so one compound call is denied entirely and the merge never
+runs either). `git merge` itself is not covered, so it runs in the main
+checkout normally. This is the same two-call shape `dispatch/settle-and-merge.md`
+already uses; see the `worktree.always` coverage block in
+`_shared/policy-schema.md` for what the gate does and does not intercept.
+
+**Shell state does not survive between the two calls** — each Bash invocation
+gets a fresh shell, so a variable assigned in the first is empty in the second.
+Read the two values you need first and substitute them **literally** into the
+second call; do not carry them in shell variables.
 
 ```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
+git -C "$RUN_DIR" rev-parse --show-toplevel      # -> {worktree-path}
+git -C "$RUN_DIR" branch --show-current          # -> {branch}
+gh api "repos/{owner}/{repo}" -q .default_branch # -> {default-branch}
+```
+
+**First call — merge, from the main checkout.** `{default-branch}` is the value
+just read:
+
+```bash
 CURRENT=$(git branch --show-current)
-if [ "$CURRENT" != "$DEFAULT_BRANCH" ]; then
-  echo "Main checkout is on '$CURRENT', not '$DEFAULT_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
+if [ "$CURRENT" != "{default-branch}" ]; then
+  echo "Main checkout is on '$CURRENT', not '{default-branch}' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
-git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
+git merge --no-ff {branch} -m "[fast-lane] {one-line summary}
 
 Fixes #{issue}"
-git push
 ```
+
+**Second call — push, from inside the worktree.** Both placeholders are the
+literal values read above:
+
+```bash
+git -C "{worktree-path}" push origin {default-branch}
+```
+
+Naming the branch explicitly is required, not stylistic: a bare `git push` from
+the worktree would push the *feature* branch, since that is what is checked out
+there. The refs themselves are shared across worktrees, so pushing the default
+branch from inside one publishes the merge the first call just made.
 
 The explicit `--no-ff` guarantees a real merge commit exists even when the
 branch would otherwise fast-forward — this is what the `[fast-lane]` tag
