@@ -27,6 +27,7 @@ Task 3 writes this boundary into `_shared/work-record-config.md` as an explicit 
 - Every skill reference inside actionable instruction text uses the fully-qualified `/claude-tweaks:{skill}` form. Bare `/{skill}` is for descriptive prose only.
 - No emojis in skill files. Use `**(Recommended)**` for emphasis.
 - Never run `npm test` as a background command — it hangs subagents. Run it in the foreground, redirected to a file, then grep the file.
+- **The suite has a known-red baseline of exactly 2 failures, and they are not yours.** Measured on this branch immediately after merging `origin/main` at `3bf55c68`: `# tests 2053`, `# pass 2051`, `# fail 2`. Both are in `tests/changelog-coverage.test.js`: `1 version(s) shipped on origin/main with no CHANGELOG entry: 6.39.0`, and `CHANGELOG entries name versions that never reached the release branch` (orphans `6.41.0 6.40.0 6.39.4 6.39.3 6.39.2 6.38.3`). Both reproduce against `origin/main`'s own CHANGELOG — verified by running `findCoverageGaps` on `git show origin/main:CHANGELOG.md` — so they are upstream, pre-existing, and a sibling worktree (`worktree-impeccable-upstream-contract`) is already fixing them. **Do not fix them, do not renumber anything to satisfy them, and do not report your task green while hiding them.** The passing bar for every task is: `# fail 2`, and both failures are those two. A third failure, or a different one, is yours.
 - All work happens in the existing worktree at `.claude/worktrees/fix-132-routine-branch`. Before any commit, verify `pwd` and `git rev-parse --show-toplevel` both point there.
 - Commit messages reference issues as `refs #N`, never `closes #N`.
 - The four migrating levers keep their exact current defaults: `depth-survey` unset, `creative-survey` unset, `backlog-fetch-limit` `1000`, `promise-register-min-leaves` `4`.
@@ -51,7 +52,7 @@ The producer, its one consumer, and its tests move together — a producer gaini
 
 - [ ] **Step 1: Write the failing tests**
 
-Add these to `tests/policy-schema.test.js`. Do not delete the existing tests yet — Step 3 fixes the two that this change invalidates.
+Add these to `tests/policy-schema.test.js`. Do not touch the existing tests yet — Step 3 handles all five that this change affects (two rewritten, three losing a single assertion line each).
 
 ```js
 test('a recognized key in CLAUDE.md is flagged for migration, not validated', () => {
@@ -214,7 +215,7 @@ Leave the rest of the paragraph (the dedup and `--dry-run` sentences) exactly as
 
 Run: `npm test > /tmp/plan-b-task-1.log 2>&1; echo "exit=$?"`
 Then: `grep -E "^# (fail|pass)" /tmp/plan-b-task-1.log`
-Expected: `exit=0`, `# fail 0`.
+Expected: `exit=1`, `# fail 2` — and both failures are the two known-red changelog ones named in Global Constraints. `exit=1` is the correct result here, not a problem to solve. Any third failure is yours.
 
 ```bash
 git add bin/lib/policy-schema.js tests/policy-schema.test.js skills/harness-health/SKILL.md
@@ -477,7 +478,7 @@ Expected: four table rows, each with `` `policy.yml` `` as its second column, pl
 
 Run: `npm test > /tmp/plan-b-task-3.log 2>&1; echo "exit=$?"`
 Then: `grep -E "^# (fail|pass)" /tmp/plan-b-task-3.log`
-Expected: `exit=0`, `# fail 0`.
+Expected: `exit=1`, `# fail 2` — and both failures are the two known-red changelog ones named in Global Constraints. `exit=1` is the correct result here, not a problem to solve. Any third failure is yours.
 
 ```bash
 git add skills/_shared/policy-schema.md skills/_shared/work-record-config.md skills/_shared/record-queue-fetch.md skills/flow/SKILL.md skills/flow/survey.md skills/backlog/refine-mode.md
@@ -638,7 +639,7 @@ that would have caught Plan A's four broken fenced blocks, one of which silently
 
 Run: `npm test > /tmp/plan-b-task-4.log 2>&1; echo "exit=$?"`
 Then: `grep -E "^# (fail|pass)" /tmp/plan-b-task-4.log`
-Expected: `exit=0`, `# fail 0`.
+Expected: `exit=1`, `# fail 2` — and both failures are the two known-red changelog ones named in Global Constraints. `exit=1` is the correct result here, not a problem to solve. Any third failure is yours.
 
 ```bash
 git add skills/init/update-mode.md
@@ -691,7 +692,9 @@ git worktree list
 
 For each worktree branch that is not this one: `git log --oneline main..<branch> -- .claude-plugin/plugin.json`.
 
-Take the next free **minor** (this is a feature addition). At the time of writing, `origin/main` is `6.42.0`, making `6.43.0` the expected number — but that is a starting hypothesis, not the answer. The commands above are the answer.
+Take the next free **minor** (this is a feature addition). At the time of writing, `origin/main` is `6.43.0` — it shipped `6.42.0` **and then** `6.43.0` during this plan's authoring, which is why the number below is a hypothesis and not a fact: `6.44.0`. The commands above are the answer.
+
+`6.43.0` was already claimed by an unrelated release (`sed -i` worktree-gate coverage, `3bf55c68`) that this branch has merged. If a fourth session ships `6.44.0` while these tasks run, renumber rather than arguing — the number belongs to whatever ships first.
 
 - [ ] **Step 4: Bump and write the CHANGELOG entry in one commit**
 
@@ -734,7 +737,7 @@ git commit -m "Release {version} — policy.yml as the single config home, refs 
 
 Run: `npm test > /tmp/plan-b-final.log 2>&1; echo "exit=$?"`
 Then: `grep -E "^# (fail|pass)" /tmp/plan-b-final.log`
-Expected: `exit=0`, `# fail 0`.
+Expected: `exit=1`, `# fail 2` — and both failures are the two known-red changelog ones named in Global Constraints. `exit=1` is the correct result here, not a problem to solve. Any third failure is yours.
 
 The suite takes minutes, and a parallel session can ship inside that window — which is exactly what happened twice during Plan A. Re-run Step 3's first two commands now. If the number was taken, renumber the bump, the CHANGELOG heading, and re-commit before pushing.
 
