@@ -56,9 +56,10 @@ function safeReal(p) {
 // re-running git-command.js's quote-aware segment/token walk a second time
 // over the same string.
 // `indeterminateTargets` (optional, caller-supplied array) collects paths whose
-// repo status could not be determined — see the branch below. Passed in rather
-// than returned so a deny for one target never discards the warning owed for
-// another in the same call.
+// repo status could not be determined — see the branch below. An out-parameter
+// rather than an extra return field so this function's return shape stays
+// exactly `{}` | `{exit, json}`, leaving runInner's `if (gate.json) return gate`
+// dispatch untouched.
 function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets = []) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
@@ -243,11 +244,17 @@ function run(ctx) {
   const out = runInner(ctx, indeterminateTargets) || {};
   if (!indeterminateTargets.length) return out;
 
+  // Deliberately says the check could not RUN, not that a policy was skipped.
+  // Reaching here means findPolicyFile found a policy.yml somewhere up the
+  // ancestor chain, which is not the same as worktree.always being on for this
+  // repo — that check needs a repoRoot we never obtained. Claiming "the gate was
+  // not applied" would assert a policy applied that may not exist.
   const note =
     `claude-tweaks: could not determine the git repo status of `
     + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
-    + `The worktree.always policy gate was NOT applied to ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'} — `
-    + `allowed rather than denied, per the never-break-a-session rule. If this project requires an isolated worktree, verify manually.`;
+    + `The worktree.always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
+    + `${indeterminateTargets.length > 1 ? 'they were' : 'it was'} allowed rather than denied, per the never-break-a-session rule. `
+    + `If this project requires an isolated worktree, verify manually.`;
 
   const json = { ...(out.json || {}) };
   json.systemMessage = json.systemMessage ? `${json.systemMessage} ${note}` : note;

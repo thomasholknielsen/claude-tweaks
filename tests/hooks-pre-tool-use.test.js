@@ -280,7 +280,12 @@ test('worktree-required: an indeterminate repo status ALLOWS but says so out lou
   // But no longer silent — the whole defect in #134 was that a load spike and a
   // non-repo were byte-identical, so an enforcement gap left no trace at all.
   assert.match(out.json.systemMessage, /could not determine/i);
-  assert.match(out.json.systemMessage, /was NOT applied/);
+  // Says the CHECK could not run — not that a policy was skipped. Reaching this
+  // branch proves only that a policy.yml exists somewhere up the chain, not that
+  // worktree.always is on for this repo (that needs a repoRoot we never got).
+  assert.match(out.json.systemMessage, /check could not run/);
+  assert.doesNotMatch(out.json.systemMessage, /gate was NOT applied/,
+    'must not assert a policy applied that may not exist');
   assert.strictEqual(out.exit, 0, 'every hook path exits 0, warnings included');
 });
 
