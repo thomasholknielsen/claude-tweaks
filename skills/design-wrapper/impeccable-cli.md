@@ -83,33 +83,36 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
 
 ### Severity-to-result mapping
 
-| Findings present | Wrapper result |
-|-------------------|----------------|
+Derive the result from the **parsed findings**, never from the exit code:
+
+| Findings after parsing stdout | Wrapper result |
+|-------------------------------|----------------|
 | None (`[]`) | `pass` |
-| `advisory` only | `pass` (surfaced in output, does not block) |
+| `advisory` only | `pass` (listed in output, does not block) |
 | Any `warning` | `fail` (gate fails, caller blocks pipeline) |
 
 ### Schema version compatibility
 
-The schema above reflects verified live CLI 3.2.1 output and source. The CLI may evolve. Defensive parsing rules:
+The schema above is the pinned CLI version's real, verified output shape — the pin comment and contract statement at the top of this file, proven by `tests/impeccable-cli-contract.test.js`, are the authority on which version; this section does not restate it. The CLI may evolve.
 
-1. **Unknown finding fields** → ignore (do not fail).
-2. **Top-level JSON is an array** → treat directly as the findings list (this is the real, verified shape).
-3. **Top-level JSON is an object exposing a `findings` array** → use `.findings` as the findings list, ignore other top-level fields (forward-compatibility only — not the current real shape, but cheap to keep in case a future CLI version reintroduces a wrapper).
-4. **`severity` not in `{warning, advisory}`** → treat as `warning` (fail-safe — unknown is more serious, not less).
-5. **Exit code 0** → treat as zero findings, regardless of stdout content (the CLI's own "nothing found" signal).
-6. **Exit code 2** → expect a non-empty JSON array on stdout; parse per rules 1-4 above.
-7. **Any other exit code, or stdout that fails to parse as JSON under rule 6** → malformed output; return:
+### Defensive parsing rules
+
+1. **Parse stdout unconditionally.** `--json` writes the findings array to stdout at the pinned version; stderr carries only diagnostics. Never read findings from stderr.
+2. **The exit code is not a findings signal.** It reports whether *non-advisory* findings exist (`main.mjs`: `process.exit(primary.length > 0 ? 2 : 0)`), so an advisory-only scan exits **0 with a non-empty array on stdout**. Treating exit 0 as "no findings" silently discards every advisory result. Exit code distinguishes only ran (0 or 2) from crashed (1, a usage error).
+3. **Unknown finding fields** → ignore. `category` was added this way.
+4. **Top-level JSON is an array** → treat directly as the findings list.
+5. **`severity` missing or outside `{warning, advisory}`** → treat the finding as `advisory` for this run, and surface a contract-breach note naming the observed value. Under a pin, an unrecognized severity is not a fact about the project's code; it is evidence the pin was violated, and failing the user's build on that is the wrong axis. Phase 2's drift auditor is what escalates it.
+6. **Exit code 1, or stdout that does not parse as JSON** → malformed; return the skip object below.
 
 ```json
 {
   "mode": "test",
   "skipped": "Impeccable CLI returned malformed output",
-  "install_hint": "Reinstall: `npm install -g impeccable` and verify with `npx impeccable --version`"
+  "install_hint": "Verify the pin: `npx impeccable --version` should print 3.5.0"
 }
 ```
 
-Malformed output is treated as a skip, not a fail — same rationale as availability check.
+Malformed output is a skip, not a fail — same rationale as the availability check.
 
 ## Sample invocation (canonical)
 
@@ -130,9 +133,9 @@ The CLI's raw stdout for this invocation has the same shape as the sample under 
 }
 ```
 
-**Result rules:** Any `severity: warning` sets `result: fail`. Otherwise `result: pass`. `advisory` findings appear in the findings list but never promote the result. Empty findings (`[]`) is a pass.
+**Result rules:** see the [Severity-to-result mapping](#severity-to-result-mapping) table above — not restated here. This sample has one `warning` finding, so `result` is `fail`.
 
 ## Open items (tracked in parent design doc)
 
-- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. This schema was last re-verified directly against live CLI output and installed package source on 2026-07-20 (CLI 3.2.1) — that pass found the 3.2.0→3.2.1 *patch* bump had silently added a 10th advisory rule id (`design-system-font-size`) to the field-reference table above, proving "major version bump" is not a sufficient re-verification trigger. Re-verify the same way after any future Impeccable CLI version bump — major, minor, or patch — not just major, the way both the 2026-07-07 and 2026-07-20 drifts were caught.
+- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing rules above handle unknown/missing fields, but a genuinely breaking change (e.g. a new required field, or a `severity` value outside `{warning, advisory}`) still needs a version pin bump. This used to rely on a human re-verifying by hand after each bump — a 2026-07-20 pass caught a patch bump that had silently added a new advisory rule id, but the same manual process was written in good faith twice while the actually-installed CLI had drifted further still, because nothing compared the stamp to what was installed (`[IL-89]`, see the pin comment at the top of this file). `tests/impeccable-cli-contract.test.js` now does this mechanically: it replays committed fixtures against whatever CLI is actually installed on every test run, so drift is caught structurally instead of depending on someone remembering to re-verify.
 - **Log path** — the wrapper does not currently log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.
