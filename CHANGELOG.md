@@ -1,5 +1,57 @@
 # Changelog
 
+## v6.39.4 — The worktree gate stops failing open under load (closes #134)
+
+`bin/lib/hooks/git-exec.js` ran every git query with a fixed 3000 ms budget and a bare
+`catch { return null }`. That `null` reached `repoInfo()`, which returned `repoRoot: null`,
+which `pre-tool-use.js` read as `// not a git repo at all -> allow`. The comment named one
+cause. A `rev-parse` that timed out under load was a second, and it landed on the same
+branch — so on a busy machine the `worktree.always` gate silently stopped denying.
+
+This surfaced as `tests/hooks-*` flakiness and was originally filed as a test problem. It
+was not. Four of the reproduced failures are precisely the tests asserting the gate *denies*;
+they failed because it allowed.
+
+Measurement drove the fix rather than intuition. The enforcement-critical `rev-parse`'s
+maximum duration scales monotonically with load — 411 ms idle, 752 ms under one competing
+suite, 1856 ms under three, 2492 ms under 24 workers plus two suites. That last figure is
+83% of the old budget, on a repo whose normal working mode is several parallel worktree
+sessions. Across 1000+ instrumented spawns at every load level there were zero `EAGAIN` and
+zero `ENOMEM`: the OS never declined to fork, so this is latency against a fixed ceiling,
+not resource exhaustion. The clinching datum was a test doing `mkdtemp` + `git init` +
+`git commit` + one `repoInfo` call taking 5904 ms — fixture spawns peak at 2884 ms, and
+2.9 s plus a fully consumed 3.0 s timeout is 5.9 s.
+
+Three changes follow from that:
+
+- **`execGit` became `runGit`**, returning `{ stdout, failure }` where `failure` distinguishes
+  `timeout` / `spawn` / `no-git` from `git-error`. Only the last is an *answer*; the others
+  mean the question went unasked. The rename is load-bearing: with a richer return, a call
+  site left un-migrated would keep parsing and read an always-truthy object as success —
+  failing silently in the dangerous direction (`[IL-31]`). A rename makes any miss a
+  `ReferenceError`. The budget is now 10000 ms, ~4x the measured peak, and it is a ceiling
+  rather than a cost (the normal case is ~45 ms).
+- **`repoInfo` gained a third state.** `indeterminate: true` means `repoRoot: null` carries no
+  information; `indeterminate: false` means git genuinely answered. Two independent routes to
+  a null root — the git failure, and a `safeReal` that throws — now both report it honestly.
+- **The gate still allows on indeterminate, deliberately** — CLAUDE.md's hooks contract is
+  never-break-a-session, and denying on a transient load spike would freeze unattended runs.
+  What changed is that it is no longer *silent*: it emits a `systemMessage` naming the paths it
+  could not check. That warning is attached in a wrapper around `run()` rather than at its
+  dozen return sites, because enumerating termination paths is how the omission in `[IL-14]`
+  happened.
+
+`tests/helpers/git-fixtures.js` also passed no `timeout` at all, making fixture setup
+unbounded by construction; it now carries a 30 s ceiling whose only job is to turn a hang into
+an error that names itself.
+
+The hooks e2e suites stay in `npm test` rather than moving to `perf/` as v6.38.1 did for the
+statusline render budget. That precedent does not transfer: v6.38.1 relocated a *performance*
+assertion, which is what `perf/` is for, whereas these assert behavior. Applying its remedy
+here reflexively would have silenced the flake and left the enforcement gap live and
+undetectable — the tests were not misbehaving, they were correctly reporting a production
+defect.
+
 ## v6.39.3 — Correct the gh-CLI dependency claim; record IL-91
 
 Wrap-up findings from the #129 investigation. No behavior change.
