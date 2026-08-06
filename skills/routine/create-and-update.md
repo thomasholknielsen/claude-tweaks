@@ -55,32 +55,7 @@ On the default forward path — reached before any Customize selection, whether 
 
 Read `schedule-resolution.md` in this skill's directory for 5a-5d — the cron-to-cadence classification table (5a, needed on every path through this step) and the interactive cadence picker (5b-5d, reached only via Step 7's Customize branch here, or directly from UPDATE Step 3).
 
-**Step 5.5 — Resolve the target branch.** The template's `prompt` carries one placeholder, `{{TARGET_BRANCH}}`, which Step 6 substitutes before any `RemoteTrigger` call ever sees it. Resolve `TARGET_BRANCH` here by taking the **first** source below that yields a branch name — once one does, the rest are not consulted:
-
-1. **`--branch <name>`**, if passed. An explicit argument always wins; the only check is that it's non-empty.
-2. **`template.branch`**, if the template sets it. Rare — plugin-shipped templates leave it unset, since a branch name is project-specific (`skills/_shared/routine-template-schema.md` documents why).
-3. **A flat `integration-branch:` line** — the project's own machine-readable answer, and the source that makes an unattended `--defaults` run correct with no human present. Read from `.claude-tweaks/policy.yml` only, not CLAUDE.md — unlike the dual-home levers (`/claude-tweaks:dispatch`'s `work-links`, `dispatch-retry-ceiling`), this key is born policy.yml-only rather than migrated there later: a separate planned change makes `policy.yml` the sole config home for every lever, and this one never had a CLAUDE.md path to retire:
-
-   ```bash
-   INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
-   ```
-
-   The trailing `s/[[:space:]]*#.*$//` comment-strip is deliberate: unlike other flat policy keys, which hold enums and integers nobody annotates, this value is pasted into a checkout instruction, so an inline `# comment` would otherwise become part of the branch name. `bin/lib/policy-schema.js`'s own `parseFlatLines` already strips comments the same way.
-
-4. **A branching model documented in CLAUDE.md prose** (no flat key — just the project describing itself), read only where it states unambiguously which branch day-to-day development targets: "development happens on `dev`", "branch from `dev`, PR into `dev`". A section that merely *names* several branches, or describes a release train without saying where work lands, resolves nothing — fall through to 5 rather than guessing which of the names it listed is the one.
-5. **Git — the current branch, checked against the GitHub default:**
-
-   ```bash
-   git rev-parse --git-dir --git-common-dir
-   git branch --show-current
-   gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || git remote show origin | sed -n '/HEAD branch/s/.*: //p'
-   ```
-
-   - **First, discard the current branch when it isn't a real one.** If the two paths from `git rev-parse` differ, this session is inside a linked worktree (Step 0 will have created one under `worktree.always`), so `git branch --show-current` is a throwaway isolation branch that will not exist by the time the routine fires — never propose it. Fall through to the GitHub default branch alone, and say so on Step 7's preview line rather than presenting it as a considered choice. This is the same worktree detection `[IL-61]` requires for the statusline's project name, and for the same reason: under `worktree.always` the obvious git question returns an answer about the worktree, not about the project.
-   - Both resolve and **match** → use it. Nothing changes behaviorally against the pre-`branch` wording; naming the branch explicitly is still strictly better than making every firing re-derive it.
-   - Both resolve and **differ** → this is exactly the state #132 reports, and neither value is safe to assume silently. Set `TARGET_BRANCH` to the **current** branch as a *proposal*, keep both values in hand, and let Step 7's preview settle it — the user is provisioning from where they work, but a topic branch is the wrong thing to bake into a routine that fires for months. Under `--defaults` there is no preview to settle it, so fall back to the **default** branch instead and print, without stopping: `"Provisioned against '{default}' — this session is on '{current}'. If '{current}' is where development actually happens, set integration-branch: {current} in .claude-tweaks/policy.yml and re-run update <skill>, or re-create with --branch {current}."` A batch caller must never silently pin a branch nobody confirmed.
-   - Only one of the two resolves → use that one.
-6. **Nothing resolved** (no git, no remote, an ambiguous CLAUDE.md) → leave `TARGET_BRANCH` unset. Step 6 substitutes the fallback wording, which is precisely the behavior every template had before this field existed.
+**Step 5.5 — Resolve the target branch.** The template's `prompt` carries one placeholder, `{{TARGET_BRANCH}}`, which Step 6 substitutes before any `RemoteTrigger` call ever sees it. Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`'s Resolution ladder — its rank 2 (`template.branch`) and the `--branch` argument at rank 1 are this skill's own inputs, and its Per-consumer fallback table gives this skill's rank-6 behavior. Do not restate the ladder here.
 
 Keep track of which source won: Step 7's preview names it, and Step 9 writes the resolved value into the instantiated record.
 
