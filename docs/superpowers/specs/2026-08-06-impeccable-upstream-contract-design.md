@@ -332,12 +332,27 @@ situation arose.
 
 ## Open items to resolve during planning
 
-These are unverified and must be settled by execution, not by reading, before the phase that
-depends on them:
+Settled by execution while planning Phase 1, against a sandboxed `impeccable@3.5.0`:
 
-- CLI 3.5.0's actual executed stream, exit code, and field set. Source reading established
-  intent (`main.mjs:424`), not behavior — that distinction is the whole point of this design.
-- `--fast` semantics at 3.5.0.
+- **CLI 3.5.0's executed contract.** A warning finding exits 2 with the JSON array on
+  **stdout** and an empty stderr; a clean scan exits 0 with `[]` on stdout. The stream split
+  is a 2.1.8 defect, already fixed upstream.
+- **A finding carries a `category` field** (e.g. `"slop"`) that `impeccable-cli.md`'s schema
+  table does not document. Harmless under the existing unknown-field rule, and a better
+  dispatch key than keyword-matching `description`.
+- **`--fast` at 3.5.0 is deprecated and ignored**, and writes
+  `Note: --fast is deprecated and ignored. The full scan is fast now and runs every rule.` to
+  stderr on every call. So `impeccable-cli.md:18`'s no-op claim is correct for 3.x — the
+  design's recommendation to drop it stands, now for the stronger reason that keeping it
+  injects noise into a parsed stream.
+
+Still open, to settle before the phase that depends on each:
+
+- **An advisory-only fixture.** Four attempts failed to provoke one at 3.5.0 (short and long
+  em-dash-saturated HTML, a CSS blink keyframe, an em-dash-saturated `.tsx`), including one
+  satisfying `em-dash-overuse`'s documented "8+ em-dashes at ~1 per 500 characters of body
+  text." The advisory-only exit-0 path therefore rests on upstream source, not on a replayable
+  fixture. Phase 1 Task 6 owns this; the parse is written so that being wrong about it is safe.
 - Whether `kicker-above-heading` and `radial-spotlight-glow` are `warning`. Derived from their
   absence in the 4.0.4 advisory partition, not read directly.
 - `context-signals.mjs`'s exact output JSON. Only its header docblock was read.
