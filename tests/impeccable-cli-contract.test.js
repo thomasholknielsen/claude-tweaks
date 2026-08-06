@@ -55,4 +55,15 @@ test('every documented field is present on a finding', { skip }, () => {
   for (const key of ['antipattern', 'name', 'description', 'severity', 'category', 'file', 'line', 'snippet']) {
     assert.ok(key in finding, `field '${key}' missing — impeccable-cli.md's schema table is stale`);
   }
+  // advisory is optional — present only when true — so this must not assert
+  // presence the way the required fields above do.
+  assert.notStrictEqual(finding.advisory, true, 'the warning fixture must not carry advisory === true — this locks the classification axis');
+});
+
+test('an advisory-only finding exits 0 with advisory true on every finding', { skip }, () => {
+  const r = detect('advisory.html');
+  assert.strictEqual(r.code, 0, 'advisory findings must not fail the exit code');
+  const findings = JSON.parse(r.stdout);
+  assert.ok(Array.isArray(findings) && findings.length >= 1, 'stdout must carry a non-empty array');
+  assert.ok(findings.every((f) => f.advisory === true), 'every finding in this fixture must carry advisory === true');
 });
