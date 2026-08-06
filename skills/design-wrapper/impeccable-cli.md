@@ -1,6 +1,7 @@
 # Impeccable CLI — Invocation + JSON Parsing
 
-*Last verified against Impeccable CLI 3.2.1 (2026-07-20), verified directly against live output and the installed package source.*
+<!-- upstream-pin: impeccable-cli@3.5.0 -->
+*Contract pinned to Impeccable CLI 3.5.0 and proven by `tests/impeccable-cli-contract.test.js`, which replays committed fixtures against the installed binary. A prose re-verification pass is not a substitute for running that test: the 3.2.1 stamp this replaces was written in good faith twice while the machine ran 2.1.8, because nothing ever compared the stamp to what was installed (`[IL-89]`).*
 
 Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a deterministic Node binary that scans frontend files for design anti-patterns without LLM cost.
 
