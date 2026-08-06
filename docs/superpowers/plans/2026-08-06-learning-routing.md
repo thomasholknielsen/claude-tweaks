@@ -637,7 +637,8 @@ git commit -m "Route reflect insights through the learning-routing contract — 
 **Files:**
 - Modify: `skills/wrap-up/SKILL.md` (Steps 6 and 7 gate prose; add Steps 7.10 and 7.11; the Step 8.6 console description at line 260 and its read-gate at line 266)
 - Modify: `skills/wrap-up/review-console.md` (line 122's section enumeration; line 123's per-item numbering bullet; line 155's per-item sentence; two new sections after `#### Queue writes`)
-- Modify: `skills/flow/multispec-review-console.md` (the same two sections, aggregated across specs, plus its three "tenth, separate section" references and its per-item prompting rule)
+- Modify: `skills/flow/multispec-review-console.md` (the same two sections, aggregated across specs, plus its three "tenth, separate section" references, its per-item prompting rule, and its approval/override execution steps)
+- Modify: `skills/wrap-up/execution-and-verification.md` (Step 10 must actually perform an approved memory write and upstream filing — it currently mentions neither)
 
 **Interfaces:**
 - Consumes: `skills/_shared/learning-routing.md`; `/claude-tweaks:feedback` (Task 2).
@@ -760,6 +761,28 @@ In `skills/flow/multispec-review-console.md`:
 1. Add `#### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")` and `#### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")` immediately after the existing `#### Queue writes` section, aggregating across every spec's `staged/wrap-up-memory-*.md` and `staged/wrap-up-upstream-*.md` plus the parent run dir's own, using the `M#` / `U#` sequences.
 2. Update the three references describing wrap-up's Queue writes as "a tenth, separate section" / "its tenth, separate section" so they describe all three per-item sections rather than implying Queue writes is the only one.
 3. Extend the per-item prompting rule and its anti-pattern row so `M#` and `U#` items are prompted individually exactly as `Q#` items are — never batched, never grouped under "Approve all", never bulk-resolved across specs.
+
+- [ ] **Step 4d: Close the approve-to-write chain**
+
+Staging and rendering a proposal is worthless if approving it does nothing. The chain is **stage → render → approve → write**, and the last link is missing in three files — the same `[IL-02]` shape as Step 4c, one layer deeper. Every place that spells out a mechanic for `Q#` needs an `M#`/`U#` sibling.
+
+**Execution semantics.** On **Apply** for an `M#` row: write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s Memory write procedure, taking the memory directory from the invoking assistant's own system prompt — never derived. That write lands outside the repository, so it is **not** part of the wrap-up commit. On **Apply** for a `U#` row: invoke `/claude-tweaks:feedback` with the staged body. That skill re-runs its own scrub and confirm gates; this is deliberate, not redundant duplication — see its Component-Skill Contract, which states a pipeline never relaxes them. On **Skip** for either: log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given".
+
+In `skills/wrap-up/review-console.md`:
+
+1. The dry-run bullet (~line 17) says `Q#` items render as "would create: {content}" with the drill skipped. Extend it to `M#` and `U#` — under `--dry-run` a memory file is never written and `/claude-tweaks:feedback` is never invoked.
+2. The per-item prompting paragraphs (~lines 275, 277, 286) name only `Q#`. Extend each to `Q#`/`M#`/`U#`, with headers `"Memory update {M#}"` and `"Upstream feedback {U#}"`.
+3. `## On approval` step 7 handles `Q#` only. Add the `M#` and `U#` execution steps per the semantics above.
+4. `## On override` (~line 306) names only `Q#` as still-prompted-per-item. Extend to all three.
+
+In `skills/flow/multispec-review-console.md` — its prompting rules already cover `M#`/`U#`; only execution is missing:
+
+5. `## On approval` step 2 handles `Q#` only. Add `M#` and `U#`, aggregated across specs, logging declines to the originating spec's `decisions.md`.
+6. `## On override` step 3 names only `Q#`. Extend to all three.
+
+In `skills/wrap-up/execution-and-verification.md` — wrap-up's Step 10 executor, which currently contains no mention of memory, upstream, or feedback:
+
+7. Add both to its apply list and to its Verify-execution checklist, so an approved memory write and an approved upstream filing are actually carried out and confirmed. Note explicitly that the memory write is outside the repo and therefore absent from the commit — the checklist must verify the file exists on disk rather than looking for it in `git status`.
 
 - [ ] **Step 5: Verify the batch-section counts did NOT change**
 
