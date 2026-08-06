@@ -1,0 +1,76 @@
+# tools/upstream-drift/manifest.yml
+#
+# What this repo claims about each upstream dependency, and how to test those
+# claims against the artifact actually installed. Maintainer-only tooling: this
+# directory is never shipped payload, and nothing under bin/ may import from it.
+#
+# The Impeccable plugin and the Impeccable CLI are TWO INDEPENDENT ENTRIES.
+# Conflating them is the documented root cause of the drift that motivated this
+# tool: a pin was maintained for one version line while the other was the thing
+# actually installed, and no check ever compared either against reality.
+#
+# Every `installed-probe` resolves a version FROM THE ARTIFACT ITSELF, never
+# from install metadata, a catalog, or gitCommitSha ([IL-89]).
+
+dependencies:
+  - name: impeccable-cli
+    kind: npm-cli
+    installed-probe:
+      type: command
+      run: "npx --no-install impeccable --version"
+      root: "npm root -g"
+      root-suffix: "impeccable"
+    pinned: "3.5.0"
+    upstream:
+      repo: "pbakaus/impeccable"
+      tag-prefix: "cli-v"
+    contract-paths:
+      - "cli/engine/cli/main.mjs"
+      - "cli/engine/registry/antipatterns.mjs"
+    assertions:
+      - file: "skills/design-wrapper/impeccable-cli.md"
+        claims: "findings JSON is written to stdout, not stderr"
+        upstream-path: "cli/engine/cli/main.mjs"
+        must-match: "process.stdout.write(formatFindings"
+      - file: "skills/design-wrapper/impeccable-cli.md"
+        claims: "a clean scan prints an empty JSON array rather than nothing"
+        upstream-path: "cli/engine/cli/main.mjs"
+        must-match: "process.stdout.write('[]"
+    fixtures:
+      - run: "npx --no-install impeccable detect --json --no-config --no-design-system tests/fixtures/impeccable-cli/warning.html"
+        expect:
+          exit: 2
+          stream: stdout
+          keys: [antipattern, name, description, severity, category, file, line, snippet]
+      - run: "npx --no-install impeccable detect --json --no-config --no-design-system tests/fixtures/impeccable-cli/clean.html"
+        expect:
+          exit: 0
+          stream: stdout
+          keys: []
+
+  - name: impeccable-plugin
+    kind: claude-plugin
+    installed-probe:
+      type: plugin-cache-glob
+      glob: "~/.claude/plugins/cache/*/impeccable/*/.claude-plugin/plugin.json"
+    pinned: "4.0.2"
+    upstream:
+      repo: "pbakaus/impeccable"
+      tag-prefix: "skill-v"
+    contract-paths:
+      - "skills/impeccable/SKILL.md"
+      - "skills/impeccable/scripts/context-signals.mjs"
+    assertions:
+      - file: "skills/design-wrapper/command-map.md"
+        claims: "the plugin exposes a polish command"
+        upstream-path: "skills/impeccable/SKILL.md"
+        must-match: "polish [target]"
+      - file: "skills/design-wrapper/modes/shape.md"
+        claims: "the plugin exposes a shape command taking a topic"
+        upstream-path: "skills/impeccable/SKILL.md"
+        must-match: "shape [feature]"
+      - file: "skills/design-wrapper/modes/live.md"
+        claims: "live mode boots a server and enters a poll loop via scripts/live.mjs"
+        upstream-path: "skills/impeccable/scripts/live.mjs"
+        must-match: "enter the live variant poll loop"
+    fixtures: []

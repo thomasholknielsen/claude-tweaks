@@ -1,0 +1,20 @@
+# tools/upstream-drift/tests/fixtures/minimal-valid.yml
+#
+# Frozen fixture — a single dependency exercising the "empty list is valid,
+# missing key is not" distinction end to end via loadManifest's own file
+# reading path (contract-paths, assertions, and fixtures all present as
+# empty lists).
+
+dependencies:
+  - name: bare-minimum
+    kind: npm-cli
+    installed-probe:
+      type: command
+      run: "true"
+    pinned: "0.0.1"
+    upstream:
+      repo: "example/bare-minimum"
+      tag-prefix: "v"
+    contract-paths: []
+    assertions: []
+    fixtures: []
