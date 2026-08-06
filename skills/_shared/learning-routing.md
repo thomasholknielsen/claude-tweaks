@@ -15,7 +15,7 @@ Routing resolves on an **audience x durability** axis.
 | **D1** | `CLAUDE.md` Don'ts / `.claude/rules/` | this project | highest — every dispatched agent | `wrap-up` Step 6.1 |
 | **D2** | Project skill / doc / ADR / journey | this project | medium — lazy-loaded | `wrap-up` Steps 6.2, 7, 7.7, 7.8 |
 | **D3** | Backlog work record | this project, deferred | none until claimed | `_shared/work-record.md` |
-| **D4** | Memory file | this user, **all** projects | high — every session | this file, "Memory write procedure" |
+| **D4** | Memory file | this user, **all** projects | high — every session | this file, "Memory write procedure (D4)" |
 | **D5** | Upstream issue to `claude-tweaks` | everyone using the plugin | none locally | `/claude-tweaks:feedback` |
 
 ## The classifier
@@ -47,6 +47,11 @@ immediately. A lesson whose natural owner is a dependency outside D5's scope
 already carries that convention, and by rule 7 everywhere else — surfacing as
 "claude-tweaks should carry guidance on X".
 
+A rule-7 gap report always asks claude-tweaks to carry guidance of its own. It
+never asks claude-tweaks to fix a dependency, and it never forwards a complaint
+about one. Filing against the dependency's own repository is a separate act,
+forbidden below.
+
 **Ordering is load-bearing.** D5 is evaluated before D4. When memory is the only
 cross-project store available, every transferable lesson defaults into it; that
 is the failure this ordering exists to prevent.
@@ -65,10 +70,16 @@ When the remote resolves to the claude-tweaks repository itself, D5 collapses �
 re-run the classifier from rule 4, so the lesson becomes an ordinary D1/D2/D3
 outcome. The plugin never files issues against itself through this path.
 
-**Non-claude-tweaks upstream.** A lesson whose owner is a third-party dependency
-(superpowers, an MCP server, another plugin) is **not** a D5 filing. Report it
-to the user, name the owner, and stop. Filing against a repository the user does
-not own is out of this contract's scope.
+**Non-claude-tweaks upstream.** Filing an issue *against* a third-party
+dependency's own repository (superpowers, an MCP server, another plugin) is
+**not** a D5 filing and is out of this contract's scope. Report it to the user,
+name the owner, and stop.
+
+This does not conflict with rule 7. The two describe different targets for the
+same lesson: rule 7 files against **claude-tweaks**, asking it to carry guidance
+it currently lacks — including guidance about using a dependency it already
+wraps. This rule forbids filing against the **dependency itself**. The first is
+in scope; the second never is.
 
 ## Dedup
 
@@ -77,7 +88,8 @@ contract introduces no index.
 
 | Store | Mechanism |
 |---|---|
-| **D1/D2** | `CLAUDE.md` is loaded into every session as project instructions — its `Don't` bullets are already resident. Compare against them directly; no read needed. |
+| **D1** | `CLAUDE.md` is loaded into every session as project instructions — its `Don't` bullets are already resident. Compare against them directly; no read needed. |
+| **D2** | Not resident. Dedup against a read the routing step is already doing: `wrap-up` Step 7.2's domain-overlap skill scan, Step 7.7's doc scan, and Step 7.8's journey-frontmatter overlap each open the candidate target before writing. Compare there — never write a D2 learning without having read the file it lands in. |
 | **D4** | Read `MEMORY.md` in the supplied memory directory — the harness maintains it as a one-line-per-memory index. |
 | **D5** | Content fingerprint plus `gh issue list --search`. See `/claude-tweaks:feedback`. |
 
