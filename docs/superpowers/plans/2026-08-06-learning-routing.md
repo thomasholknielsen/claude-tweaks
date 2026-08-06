@@ -1050,6 +1050,22 @@ In `skills/wrap-up/SKILL.md`, extend Step 10's trigger list to include an approv
 
 `skills/_shared/learning-routing.md`'s Consumers table says `/claude-tweaks:review` lens 3a "classifies skill-routed findings" and wrap-up "Steps 6/7 classify before writing". Both are now known false — 3a records and defers, and Steps 6/7 classify only after Step 1 above lands. Reword both rows to describe what the files actually do.
 
+- [ ] **Step 9b (corrects Step 4 and completes Step 7): De-duplicate the headless clause and fix the third sweep**
+
+Step 4 as written pasted an identical ~390-byte paragraph into all four sweeps — the duplication `[IL-32]` forbids, and the reason `code-health/SKILL.md` reached 40,718 bytes with only 242 left. The four sweeps already carry a one-line citation of the contract's "Subject check (health sweeps)" section, so that section is where the clause belongs; once it is there, the existing citation covers it and the four copies are redundant.
+
+1. In `skills/_shared/learning-routing.md`, append to the "Subject check (health sweeps)" section:
+
+```
+**Headless runs.** With no human present, `/claude-tweaks:feedback` cannot clear its confirmation gate. Do not drop the finding: file it locally as an ordinary record labelled `upstream-candidate`, with the body naming the claude-tweaks component and the symptom, so a human can forward it with `/claude-tweaks:feedback` later. Never file it as a defect against this project's own code.
+```
+
+2. Delete the `**Headless runs.**` paragraph from all four sweeps. Do not replace it — the existing subject-check citation line already resolves to the section that now holds it.
+
+3. Step 7 named only `code-health` and `journey-health`, but `docs-health/SKILL.md` has the identical defect: its subject-check line sits **after** the unconditional `gh issue reopen` block. Move it above that block, as Step 7 did for the other two. Verify `harness-health` as well and report its actual order rather than assuming.
+
+Expected effect: `code-health/SKILL.md` drops back to roughly 40,330 bytes, restoring headroom.
+
 - [ ] **Step 10: Verify**
 
 ```bash
