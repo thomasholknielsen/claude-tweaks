@@ -1,0 +1,73 @@
+name: learning-routing-adversarial-self-reference
+description: >
+  Unlike its sibling (learning-routing-adversarial-named-but-local.yaml),
+  this lesson genuinely clears classifier rule 1 in full: "The wrap-up
+  skill's Review Console renders its sections out of order when two stage
+  files share a number" names a claude-tweaks skill AND describes a defect in
+  its own rendering logic that would hold in any project using the plugin —
+  nothing about it is project-specific. A naive classifier stops there and
+  answers D5 (defect), which is the correct answer for every other project
+  that depends on claude-tweaks as a plugin. It is the wrong answer here,
+  because _shared/learning-routing.md's self-reference check exists for
+  exactly this fixture's situation: before returning a D5 verdict,
+  skills/feedback/SKILL.md Step 3 runs `git remote get-url origin`; when the
+  remote resolves to the claude-tweaks repository itself, D5 collapses and
+  the classifier re-runs from rule 4 — landing on D1, because the plugin
+  never files issues against itself through this path. A classifier that
+  fires rule 1 and never checks self-reference at all files a defect the
+  project should instead hold as its own local record, producing a public
+  issue no maintainer wants a duplicate of.
+
+  KNOWN FIXTURE GAP (verified empirically while writing this scenario, not
+  assumed): the self-reference collapse above depends on `git remote get-url
+  origin` actually resolving to a claude-tweaks-shaped URL inside the fixture
+  repo. evals/fixtures/git-fixtures.js's freshRepo() never configures a git
+  remote, and minimal-node-repo/CLAUDE.md says so explicitly ("Single master
+  branch, no remote configured"). No existing fixture.seed step type can add
+  one either: local-record only writes under specs/, and apply-patch's
+  underlying `git apply` refuses any diff touching .git/ paths outright
+  (confirmed directly: `git apply` on a patch touching .git/config fails with
+  "error: invalid path '.git/config'", exit 128 — not a permissions issue, a
+  hard refusal). So as this scenario stands today, `git remote get-url
+  origin` inside the fixture repo will error with "No such remote 'origin'",
+  the self-reference check has nothing to resolve against, and a real run is
+  expected to report D5, not the D1 asserted below — not because the
+  classifier is broken, but because no fixture in this harness can currently
+  present the precondition this scenario exists to test. The assertion is
+  still written for the intended, correct behavior (D1) rather than quietly
+  matching whatever the incomplete fixture produces today, so a future fix to
+  git-fixtures.js (adding a remote-seeding fixture.seed step) makes this
+  scenario start passing for the right reason instead of needing to be
+  rewritten. Until then, a FAIL here is expected and should not be read as a
+  classifier regression.
+
+  Corpus-coverage note: evals/fixtures/learning-routing-corpus/lessons.json
+  holds 7 lessons total. runner.js has no matrix/loop construct — each
+  scenario file invokes exactly one skill_invocation.prompt once — so each
+  corpus entry needs its own scenario file to actually run. Three of the
+  seven are wired up as of this scenario
+  (learning-routing-classification.yaml for subagent-dispatch-anchor,
+  learning-routing-adversarial-named-but-local.yaml for
+  adversarial-named-but-local, and this file for adversarial-self-reference);
+  the remaining four (brainstorm-style, zsh-parameter-modifier,
+  adversarial-bounded-procedure-not-rule, gap-no-opinion) are deliberately
+  fixture-only right now — recorded and integrity-checked, but exercised by
+  no scenario. That bound is stated here so it reads as a known, visible
+  limit rather than an oversight to whoever extends this suite next.
+fixture:
+  base: minimal-node-repo
+skill_invocation:
+  prompt: >
+    /claude-tweaks:feedback --dry-run "The wrap-up skill's Review Console
+    renders its sections out of order when two stage files share a number."
+assertions:
+  - type: routing-destination-matches
+    expectedDestination: D1
+  # --dry-run must not file. No gh call can succeed here anyway, but a run that
+  # attempts one is a contract violation regardless of the sandbox. Same
+  # ceilings as learning-routing-classification.yaml: identical skill,
+  # identical --dry-run shape, identical fixture base, so no adjustment.
+  - type: tool-count
+    max: 25
+  - type: commit-count
+    max: 2
