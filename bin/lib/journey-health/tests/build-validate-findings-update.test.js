@@ -180,6 +180,72 @@ test('buildValidateFindingsUpdate: a per-journey update and coverageScan set tog
   );
 });
 
+// ─── deletedFileSig, the light tier's Phase 0 acknowledgement (#131) ─────────
+// scope.js's Phase 0 suppresses a repeat deleted-file force-pick by comparing
+// the live missing set against this field, so what this mutator writes is the
+// whole mechanism — an unwritten (or wrongly-cleared) field puts the engine
+// straight back to re-picking one broken journey forever.
+
+test('buildValidateFindingsUpdate: a light-tier update records deletedFileSig alongside the cursor bump', () => {
+  const now = 8_000_000;
+  const next = buildValidateFindingsUpdate(baseCurrent(), {
+    target: 'checkout-flow',
+    tier: 'light',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    deletedFileSig: 'src/checkout/Cart.tsx',
+    now,
+  });
+  assert.deepStrictEqual(next.cursors['checkout-flow'], {
+    lastLightAuditMs: now, lastLightHash: null, deletedFileSig: 'src/checkout/Cart.tsx',
+  });
+});
+
+test('buildValidateFindingsUpdate: deletedFileSig null clears a stale acknowledgement (the file came back)', () => {
+  const current = baseCurrent({
+    cursors: { 'checkout-flow': { lastLightAuditMs: 500, deletedFileSig: 'src/checkout/Cart.tsx' } },
+  });
+  const now = 9_000_000;
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'checkout-flow',
+    tier: 'light',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    deletedFileSig: null,
+    now,
+  });
+  assert.deepStrictEqual(next.cursors['checkout-flow'], { lastLightAuditMs: now, lastLightHash: null });
+});
+
+test('buildValidateFindingsUpdate: an omitted deletedFileSig leaves an existing acknowledgement untouched', () => {
+  const current = baseCurrent({
+    cursors: { 'checkout-flow': { lastLightAuditMs: 500, deletedFileSig: 'src/checkout/Cart.tsx' } },
+  });
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'checkout-flow',
+    tier: 'light',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    now: 10_000_000,
+  });
+  assert.strictEqual(next.cursors['checkout-flow'].deletedFileSig, 'src/checkout/Cart.tsx');
+});
+
+test('buildValidateFindingsUpdate: a deep-tier update never writes deletedFileSig, even when handed one', () => {
+  const next = buildValidateFindingsUpdate(baseCurrent(), {
+    target: 'checkout-flow',
+    tier: 'deep',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    deletedFileSig: 'src/checkout/Cart.tsx',
+    now: 11_000_000,
+  });
+  assert.strictEqual(
+    next.cursors['checkout-flow'].deletedFileSig, undefined,
+    'Phase 0 is light-tier only — a deep audit must not suppress a light force-pick that never happened',
+  );
+});
+
 test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g. retryQueue) untouched', () => {
   const current = baseCurrent({ retryQueue: [{ fingerprint: 'journeyhealth-xyz', attempts: 1 }] });
   const next = buildValidateFindingsUpdate(current, {

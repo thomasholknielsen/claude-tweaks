@@ -105,6 +105,56 @@ test('next-target --budget 2 does not repeat the same deleted-file journey acros
   assert.strictEqual(result.targets.find((t) => t.id === 'checkout-flow').why, 'deleted-file');
 });
 
+// ─── Phase 0 acknowledgement across runs (#131) ─────────────────────────────
+
+test('next-target skips a deleted-file journey whose durable cursor already records that missing set (#131)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow');
+  writeJourney(root, 'signup-flow');
+  fs.rmSync(path.join(root, 'src', 'checkout-flow.tsx'));
+  seedDurableCursors(root, {
+    'checkout-flow': { lastLightAuditMs: Date.now(), deletedFileSig: 'src/checkout-flow.tsx' },
+  });
+  const raw = execFileSync('node', [CLI, 'next-target', '--root', root], { encoding: 'utf8' });
+  const result = JSON.parse(raw);
+  // Pre-fix this was checkout-flow with why: 'deleted-file', on every run forever.
+  assert.strictEqual(result.target.id, 'signup-flow');
+  assert.strictEqual(result.target.why, 'stale');
+});
+
+test('four next-target -> validate-findings cycles against a permanently broken journey audit all four journeys (#131)', () => {
+  const root = tmp();
+  const ids = ['a-flow', 'b-flow', 'c-flow', 'd-flow'];
+  for (const id of ids) writeJourney(root, id);
+  // a-flow's declared file is deleted and never fixed. It sorts first, so
+  // pre-fix Phase 0 returned it on every one of these four runs and the other
+  // three journeys were never audited at all.
+  fs.rmSync(path.join(root, 'src', 'a-flow.tsx'));
+  seedDurableCursors(root, {});
+  // commit-tree (writeDurableState's write path) needs a committer identity.
+  execFileSync('git', ['-C', root, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'test']);
+
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, '[]');
+
+  const audited = [];
+  for (let run = 0; run < ids.length; run++) {
+    const target = JSON.parse(execFileSync('node', [CLI, 'next-target', '--root', root], { encoding: 'utf8' })).target;
+    assert.ok(target, `run ${run} selected nothing at all`);
+    audited.push(target.id);
+    // The real Step 5 light-tier call — the one that records the cursor,
+    // including the deleted-file acknowledgement. It runs even with zero
+    // findings, which is exactly why the acknowledgement lands.
+    execFileSync('node', [
+      CLI, 'validate-findings', findingsFile, '--root', root,
+      '--tier', 'light', '--target', target.id, '--run-id', `run-${run}`,
+    ], { encoding: 'utf8' });
+  }
+
+  assert.deepStrictEqual(audited, ids, 'the rotation must reach every journey, not re-pick the broken one');
+});
+
 test('next-target (default no --target path) fetches durable state exactly once, not twice', () => {
   const root = tmp();
   writeJourney(root, 'checkout-flow');

@@ -14,7 +14,7 @@ const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark'
 const { decide } = require('./lib/journey-health/dedup');
 const { validateFinding } = require('./lib/journey-health/validate-finding');
 const { toIssuePayload } = require('./lib/journey-health/issue-payload');
-const { selectTarget, listJourneys } = require('./lib/journey-health/scope');
+const { selectTarget, listJourneys, currentDeletedFileSignature } = require('./lib/journey-health/scope');
 const { STALE_DAYS_LIGHT } = require('./lib/journey-health/score');
 const { evaluateQaEvidence } = require('./lib/journey-health/qa-evidence');
 
@@ -103,8 +103,10 @@ function cmdNextTarget(args) {
   // budget > 1: pick up to `budget` distinct journeys, simulating post-audit
   // cursor state in-memory between picks (mirrors harness-health's
   // next-target --budget; see bin/lib/health-core/budget.js). alreadyPicked
-  // additionally guards Phase 0 (deleted-file force-select), which ignores
-  // cursors and would otherwise repeat the same pick every slot.
+  // additionally guards Phase 0 (deleted-file force-select): its cross-run
+  // suppression keys off the cursor's deletedFileSig, which only a real
+  // validate-findings run writes, so the simulated patch below would not
+  // stop the same pick repeating on every slot of this batch.
   const alreadyPicked = new Set();
   const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
   const targets = selectBudget(budget, cursors, (c) => selectTarget(root, c, { now, tier, alreadyPicked }), {
@@ -209,8 +211,16 @@ function cmdValidateFindings(args) {
     // mirrors the pattern already hardened in bin/harness-health.js's own writeDurableState call.
     const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
     // Named rather than inlined into the mutator call below, for readability.
+    // deletedFileSig (#131) is recomputed here, from the tree as it stands
+    // once the audit is done, so the cursor records what the audit actually
+    // reported — a journey fixed mid-audit clears its acknowledgement rather
+    // than banking the state that selected it. Light tier only (Phase 0 is
+    // light-only); `undefined` on the deep tier leaves the field alone.
+    const deletedFileSig = args.target && args.tier !== 'deep'
+      ? currentDeletedFileSignature(root, args.target)
+      : undefined;
     const mutatorInput = {
-      target: args.target, tier: args.tier, coverageScan: args.coverageScan, runRecord,
+      target: args.target, tier: args.tier, coverageScan: args.coverageScan, runRecord, deletedFileSig,
     };
     const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
     if (!result.ok) {

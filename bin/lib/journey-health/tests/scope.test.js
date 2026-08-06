@@ -4,7 +4,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { parseJourneyFiles, listJourneys, domainChurn, selectTarget, journeyFileExists } = require('../scope');
+const {
+  parseJourneyFiles, listJourneys, domainChurn, selectTarget, journeyFileExists,
+  missingJourneyFiles, deletedFileSignature, currentDeletedFileSignature,
+} = require('../scope');
+const { buildValidateFindingsUpdate } = require('../cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-scope-')); }
 
@@ -140,6 +144,163 @@ test('selectTarget respects alreadyPicked so Phase 0 does not repeat the same de
   const alreadyPicked = new Set(['checkout-flow']);
   const result = selectTarget(root, cursors, { now, tier: 'light', signals: {}, alreadyPicked });
   assert.strictEqual(result, null);
+});
+
+// ─── Phase 0 acknowledgement, so a broken journey can't pin rotation (#131) ──
+// Phase 0 used to ignore cursors entirely, so a journey with a genuinely
+// deleted `files:` entry was force-picked on EVERY run forever — 16 of 17
+// journeys never audited across ~9 days of daily firings on the reporting
+// repo. The pick is now suppressed once the audit that followed it has
+// recorded that exact missing set on the journey's cursor.
+
+test('deletedFileSignature is null for an empty missing set and order-independent otherwise', () => {
+  assert.strictEqual(deletedFileSignature([]), null);
+  assert.strictEqual(deletedFileSignature(null), null);
+  assert.strictEqual(
+    deletedFileSignature(['src/b.tsx', 'src/a.tsx']),
+    deletedFileSignature(['src/a.tsx', 'src/b.tsx']),
+    'frontmatter reordering alone must not read as a changed missing set',
+  );
+  assert.notStrictEqual(deletedFileSignature(['src/a.tsx']), deletedFileSignature(['src/a.tsx', 'src/b.tsx']));
+});
+
+test('missingJourneyFiles / currentDeletedFileSignature report only what is actually gone', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx', 'src/checkout/Payment.tsx']);
+  assert.strictEqual(currentDeletedFileSignature(root, 'checkout-flow'), null);
+  fs.rmSync(path.join(root, 'src/checkout/Payment.tsx'));
+  assert.deepStrictEqual(
+    missingJourneyFiles(root, ['src/checkout/Cart.tsx', 'src/checkout/Payment.tsx']),
+    ['src/checkout/Payment.tsx'],
+  );
+  assert.strictEqual(currentDeletedFileSignature(root, 'checkout-flow'), 'src/checkout/Payment.tsx');
+  assert.strictEqual(currentDeletedFileSignature(root, 'no-such-journey'), null);
+});
+
+test('a Phase 0 pick carries the deletedFileSig the audit is expected to record', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const now = Date.now();
+  const result = selectTarget(root, { 'checkout-flow': { lastLightAuditMs: now } }, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.why, 'deleted-file');
+  assert.strictEqual(result.deletedFileSig, 'src/checkout/Cart.tsx');
+});
+
+test('selectTarget does not re-force-pick a journey whose cursor already records this exact missing set (#131)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const now = Date.now();
+  const cursors = { 'checkout-flow': { lastLightAuditMs: now, deletedFileSig: 'src/checkout/Cart.tsx' } };
+  // Pre-fix this returned the same 'deleted-file' pick on every call, forever.
+  assert.strictEqual(selectTarget(root, cursors, { now, tier: 'light', signals: {} }), null);
+});
+
+test('an acknowledged-but-still-broken journey is still reachable through the normal staleness rotation', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const now = Date.now();
+  const cursors = {
+    'checkout-flow': { lastLightAuditMs: now - 31 * 86400000, deletedFileSig: 'src/checkout/Cart.tsx' },
+  };
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.id, 'checkout-flow');
+  assert.strictEqual(result.why, 'stale', 'suppression is only of the force-pick, not of the journey itself');
+});
+
+test('selectTarget force-picks again when a second declared file goes missing behind an acknowledged one (#131)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx', 'src/checkout/Payment.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  fs.rmSync(path.join(root, 'src/checkout/Payment.tsx'));
+  const now = Date.now();
+  const cursors = { 'checkout-flow': { lastLightAuditMs: now, deletedFileSig: 'src/checkout/Cart.tsx' } };
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.why, 'deleted-file', 'a new deletion behind a reported one is a new signal');
+  assert.deepStrictEqual(result.missingFiles, ['src/checkout/Cart.tsx', 'src/checkout/Payment.tsx']);
+  assert.strictEqual(result.deletedFileSig, 'src/checkout/Cart.tsx|src/checkout/Payment.tsx');
+});
+
+test('selectTarget force-picks again when the frontmatter is edited to declare a different missing file (#131)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Renamed.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Renamed.tsx'));
+  const now = Date.now();
+  // The cursor acknowledges the OLD path; the frontmatter now names another
+  // one that is also missing — a distinct, unreported finding.
+  const cursors = { 'checkout-flow': { lastLightAuditMs: now, deletedFileSig: 'src/checkout/Cart.tsx' } };
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.why, 'deleted-file');
+  assert.strictEqual(result.deletedFileSig, 'src/checkout/Renamed.tsx');
+});
+
+test('four daily runs against a permanently broken journey audit all four journeys, not the broken one four times (#131)', () => {
+  const root = tmp();
+  const ids = ['a-flow', 'b-flow', 'c-flow', 'd-flow'];
+  for (const id of ids) writeJourney(root, id, [`src/${id}.tsx`]);
+  // a-flow's declared file is deleted and never fixed — the exact shape that
+  // pinned the engine: it sorts first, so pre-fix every run re-picked it.
+  fs.rmSync(path.join(root, 'src', 'a-flow.tsx'));
+
+  // Drives the real run loop: selectTarget, then the same cursor mutator
+  // validate-findings hands to writeDurableState — so this exercises the
+  // producer/consumer pair (scope.js reads what cache.js writes), not
+  // scope.js's own idea of the cursor shape.
+  let state = { cursors: {}, retryQueue: [], runs: [] };
+  const audited = [];
+  const start = Date.now();
+  for (let run = 0; run < ids.length; run++) {
+    const now = start + run * 86400000; // one firing per day
+    const target = selectTarget(root, state.cursors, { now, tier: 'light', signals: {} });
+    assert.ok(target, `run ${run} selected nothing at all`);
+    audited.push({ id: target.id, why: target.why });
+    state = buildValidateFindingsUpdate(state, {
+      target: target.id,
+      tier: 'light',
+      runRecord: { runId: `run-${run}`, runAt: new Date(now).toISOString(), fingerprints: [] },
+      deletedFileSig: currentDeletedFileSignature(root, target.id),
+      now,
+    });
+  }
+
+  assert.deepStrictEqual(audited.map((a) => a.id), ids, 'every journey must get audited across four runs');
+  assert.strictEqual(audited[0].why, 'deleted-file', 'the broken journey is still reported — once');
+  assert.strictEqual(state.cursors['a-flow'].deletedFileSig, 'src/a-flow.tsx');
+  assert.strictEqual(
+    state.cursors['b-flow'].deletedFileSig, undefined,
+    'a healthy journey records no acknowledgement',
+  );
+});
+
+test('fixing the missing file clears the acknowledgement, so a later re-deletion force-picks again (#131)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const now = Date.now();
+
+  let state = {
+    cursors: { 'checkout-flow': { lastLightAuditMs: now, deletedFileSig: 'src/checkout/Cart.tsx' } },
+    retryQueue: [],
+    runs: [],
+  };
+  // The file comes back; the next audit of this journey must drop the stale
+  // acknowledgement rather than leave it banked against a future deletion.
+  fs.mkdirSync(path.join(root, 'src/checkout'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src/checkout/Cart.tsx'), '', 'utf8');
+  state = buildValidateFindingsUpdate(state, {
+    target: 'checkout-flow',
+    tier: 'light',
+    runRecord: { runId: 'run-1', runAt: new Date(now).toISOString(), fingerprints: [] },
+    deletedFileSig: currentDeletedFileSignature(root, 'checkout-flow'),
+    now,
+  });
+  assert.strictEqual(state.cursors['checkout-flow'].deletedFileSig, undefined);
+
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const result = selectTarget(root, state.cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.why, 'deleted-file');
 });
 
 // ─── glob-pattern files: entries (#73) ──────────────────────────────────────

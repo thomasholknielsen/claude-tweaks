@@ -105,6 +105,36 @@ function journeyFileExists(root, relPath) {
   return entries.some((name) => re.test(name));
 }
 
+// ─── deleted-file acknowledgement signature (#131) ──────────────────────────
+// The set of declared `files:` entries that don't exist on disk right now,
+// preserving the frontmatter's own order (the finding text reads better that
+// way); deletedFileSignature is what gets compared, and it sorts.
+function missingJourneyFiles(root, filesFrontmatter) {
+  return (filesFrontmatter || []).filter((relPath) => !journeyFileExists(root, relPath));
+}
+
+// A stable, order-independent identity for one journey's missing-file state,
+// recorded onto that journey's cursor by the audit that follows a Phase 0
+// pick (see buildValidateFindingsUpdate in cache.js) and compared against the
+// live tree by Phase 0 below. null means "nothing missing" — there is no
+// acknowledgement to record, and any previously recorded one is cleared.
+function deletedFileSignature(missingFiles) {
+  if (!missingFiles || missingFiles.length === 0) return null;
+  return [...missingFiles].sort().join('|');
+}
+
+// The signature for one journey id as of the tree right now — recomputed at
+// audit-completion time rather than carried over from the next-target call,
+// so a journey whose frontmatter was fixed (or whose file was restored)
+// during the audit records the corrected state, not the state that selected
+// it. A journey id with no matching file resolves to null, same as one with
+// nothing missing.
+function currentDeletedFileSignature(root, journeyId) {
+  const journey = listJourneys(root).find((j) => j.id === journeyId);
+  if (!journey) return null;
+  return deletedFileSignature(missingJourneyFiles(root, journey.filesFrontmatter));
+}
+
 // ─── selectTarget ────────────────────────────────────────────────────────────
 // opts: { now?: number, tier?: 'light'|'deep', signals?: { [id]: number } }
 // Returns { kind: 'journey', id, path, filesFrontmatter, why: 'stale'|'hotspot', ... } or null.
@@ -118,9 +148,11 @@ function selectTarget(root, cursors, opts = {}) {
   // Within-batch dedup for --budget > 1 callers, Phase 0 only. Phases 1/2
   // already self-exclude a just-picked journey via the cursor bump the
   // --budget loop applies after every pick (daysSince/churn-since-bump both
-  // read as ~0) — Phase 0 ignores cursors entirely (it's a raw existence
-  // check), so it needs its own exclusion signal or it would return the same
-  // deleted-file journey on every remaining slot in the batch.
+  // read as ~0); Phase 0 keys off the deletedFileSig cursor field instead,
+  // which the --budget loop's in-memory patch does not simulate, so it needs
+  // its own within-batch exclusion signal or it would return the same
+  // deleted-file journey on every remaining slot in the batch. This is the
+  // within-run analogue of the cross-run suppression below.
   const alreadyPicked = opts.alreadyPicked || null;
   const staleDays = tier === 'deep' ? STALE_DAYS_DEEP : STALE_DAYS_LIGHT;
   const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
@@ -137,15 +169,30 @@ function selectTarget(root, cursors, opts = {}) {
   // no analogue in the other three engines' Phase 1/2 shape, so it stays
   // here and only calls into the shared core for its own Phase 1/2 once
   // Phase 0 has had its chance to return first.
+  //
+  // Once-per-missing-set, not once-per-run (#131): the force-pick is
+  // suppressed for a journey whose cursor already records THIS EXACT missing
+  // set (`deletedFileSig`, written by the audit that followed the last Phase
+  // 0 pick — see cache.js's buildValidateFindingsUpdate). Without that,
+  // Phase 0 re-picked the same journey on every firing forever, because a
+  // genuinely deleted file stays deleted until a human fixes the frontmatter
+  // — one broken journey starved the entire rotation (observed: 16 of 17
+  // journeys never audited across ~9 days of daily runs), and the repeat pick
+  // was invisible in the issue stream because dedup swallowed the duplicate
+  // finding. Suppression is per missing-set, not per journey, so a NEW
+  // deletion behind an already-reported one still force-picks immediately;
+  // an unfixed one is left to Phase 1's staleness floor, which re-audits it
+  // on the normal 30-day rotation. #73 fixed the adjacent glob false-positive
+  // (journeyFileExists above); this is the real-missing-file case.
   if (tier === 'light') {
     for (const candidate of candidates) {
       if (alreadyPicked && alreadyPicked.has(candidate.id)) continue;
-      const missing = candidate.filesFrontmatter.filter(
-        (relPath) => !journeyFileExists(root, relPath),
-      );
-      if (missing.length > 0) {
-        return { ...candidate, why: 'deleted-file', missingFiles: missing };
-      }
+      const missing = missingJourneyFiles(root, candidate.filesFrontmatter);
+      if (missing.length === 0) continue;
+      const signature = deletedFileSignature(missing);
+      const cursor = cursors ? cursors[candidate.id] : null;
+      if (cursor && cursor.deletedFileSig === signature) continue; // already reported
+      return { ...candidate, why: 'deleted-file', missingFiles: missing, deletedFileSig: signature };
     }
   }
 
@@ -173,4 +220,13 @@ function selectTarget(root, cursors, opts = {}) {
   });
 }
 
-module.exports = { parseJourneyFiles, listJourneys, domainChurn, selectTarget, journeyFileExists };
+module.exports = {
+  parseJourneyFiles,
+  listJourneys,
+  domainChurn,
+  selectTarget,
+  journeyFileExists,
+  missingJourneyFiles,
+  deletedFileSignature,
+  currentDeletedFileSignature,
+};
