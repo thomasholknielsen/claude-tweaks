@@ -314,10 +314,10 @@ Halt before applying. Leave the run directory intact. User resumes with `/claude
 
 ## Empty-console fast path
 
-If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 9 (Present Consolidated Summary).
+If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes, memory updates, or upstream feedback proposals are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 9 (Present Consolidated Summary).
 
 ## Hard requirements
 
-- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
+- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for work-record creation.
+- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing.
