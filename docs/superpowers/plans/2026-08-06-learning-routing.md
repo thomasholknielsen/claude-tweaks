@@ -784,6 +784,24 @@ In `skills/wrap-up/execution-and-verification.md` — wrap-up's Step 10 executor
 
 7. Add both to its apply list and to its Verify-execution checklist, so an approved memory write and an approved upstream filing are actually carried out and confirmed. Note explicitly that the memory write is outside the repo and therefore absent from the commit — the checklist must verify the file exists on disk rather than looking for it in `git status`.
 
+- [ ] **Step 4e: Make the hard requirement cover all three per-item sections**
+
+`skills/flow/multispec-review-console.md`'s Hard requirements already name all three and cite *"`wrap-up/review-console.md`'s three per-item sections"* — but that file's own Hard requirements still name only Queue writes, so the referenced file is weaker than the reference claims. This is the rule that prevents bulk-approving a public filing, so the gap matters.
+
+In `skills/wrap-up/review-console.md`'s `## Hard requirements`, replace:
+
+```
+- **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for work-record creation.
+```
+
+with:
+
+```
+- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing.
+```
+
+In the same section's "MUST present" bullet and in `## Empty-console fast path`, name memory and upstream proposals alongside queue writes. Both are already covered in substance by the `staged/` clause — a staged proposal makes `staged/` non-empty, so the console renders — but the sibling file names them explicitly and the parallelism is what stops a future reader concluding the omission was deliberate.
+
 - [ ] **Step 5: Verify the batch-section counts did NOT change**
 
 Run:
