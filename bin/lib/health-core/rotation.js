@@ -4,9 +4,9 @@
 // health engines' own scope.js files (code-health#selectSlice,
 // harness-health/docs-health/journey-health#selectTarget) — all four
 // independently reimplemented the identical two-phase shape (Phase 1:
-// force-pick anything unaudited past a staleness threshold; Phase 2: among
-// the rest, score and pick the highest, tie-broken by id) before this
-// extraction. Each engine still owns its own candidate-listing and
+// force-pick the candidate most overdue past a staleness threshold; Phase 2:
+// among the rest, score and pick the highest — both tie-broken by id) before
+// this extraction. Each engine still owns its own candidate-listing and
 // churn/score computation — this module only owns the phase mechanics.
 //
 // Deliberately NOT a one-size-fits-all: the four engines differ in real,
@@ -53,6 +53,9 @@ function defaultTieBreakKey(candidate) {
 //                     entirely (the hash-unchanged / zero-churn skip); return
 //                     a number (0 is valid) to include it at that score.
 //   tieBreakKey     - (candidate) => sortable value; defaults to candidate.id.
+//                     Used by BOTH phases — Phase 1 for candidates of equal
+//                     staleness (notably the shared Infinity of every
+//                     never-audited candidate), Phase 2 for equal scores.
 //   buildStaleResult, buildHotspotResult - override the returned shape.
 //
 // Returns the selected candidate (spread + why + engine-chosen extra fields)
@@ -71,13 +74,35 @@ function selectByStaleThenChurn(candidates, cursors, opts) {
 
   if (!candidates || candidates.length === 0) return null;
 
-  // Phase 1: force-pick any candidate unaudited past staleDays.
+  // Phase 1: force-pick the MOST overdue candidate past staleDays.
+  //
+  // Selecting max(daysSince) rather than returning on the first match is what
+  // makes this a rotation at all. First-qualifying-wins starved every
+  // candidate set larger than staleDays (#130): each run advances exactly one
+  // candidate, so coverage marched down the (id-sorted) list one slot per
+  // run — but by run number `staleDays` the head of the list had re-crossed
+  // the threshold and was force-picked again, long before the march reached
+  // the tail. Everything past position ≈ staleDays was permanently
+  // unreachable (measured: ~59% of docs-health's 146 docs at staleDays 60;
+  // >90% of code-health's slices at MAX_STALE_DAYS 30).
+  //
+  // Ties resolve by tieBreakKey, which matters more here than in Phase 2:
+  // every never-audited candidate sits at Infinity, so a fresh repo's whole
+  // pool is one big tie and tieBreakKey alone gives it a stable order.
+  let stalest = null; // { candidate, daysSince, key }
   for (const candidate of candidates) {
     const cursor = cursors[getCursorKey(candidate)];
     const lastAuditedMs = getLastAuditedMs(cursor);
     const daysSince = lastAuditedMs == null ? Infinity : (now - lastAuditedMs) / 86400000;
-    if (daysSince > staleDays) return buildStaleResult(candidate, daysSince);
+    if (!(daysSince > staleDays)) continue; // negated, so a NaN daysSince skips rather than competes
+    const key = tieBreakKey(candidate);
+    if (stalest === null
+      || daysSince > stalest.daysSince
+      || (daysSince === stalest.daysSince && key < stalest.key)) {
+      stalest = { candidate, daysSince, key };
+    }
   }
+  if (stalest) return buildStaleResult(stalest.candidate, stalest.daysSince);
 
   // Phase 2: among non-stale candidates, score and pick the highest.
   const scored = [];

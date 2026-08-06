@@ -257,6 +257,58 @@ test('worktree-required: policy on denies Edit in the main checkout with a corre
   assert.match(spec.permissionDecisionReason, /using-git-worktrees/);
 });
 
+// ─── the indeterminate branch (#134) ───────────────────────────────────────
+//
+// `wtDetect.repoInfo` is looked up off the module object at call time, so
+// replacing the property here reaches the real gate without a production seam.
+test('worktree-required: an indeterminate repo status ALLOWS but says so out loud (#134)', () => {
+  const wtDetect = require('../bin/lib/hooks/worktree-detect');
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const real = wtDetect.repoInfo;
+  wtDetect.repoInfo = () => ({ repoRoot: null, isLinkedWorktree: false, indeterminate: true });
+  let out;
+  try {
+    out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
+  } finally {
+    wtDetect.repoInfo = real;
+  }
+  // Allowed: CLAUDE.md's hooks contract is never-break-a-session, and denying
+  // on a transient load spike would freeze unattended runs.
+  assert.ok(!out.json || !out.json.hookSpecificOutput || out.json.hookSpecificOutput.permissionDecision !== 'deny',
+    'an indeterminate git answer must not produce a deny');
+  // But no longer silent — the whole defect in #134 was that a load spike and a
+  // non-repo were byte-identical, so an enforcement gap left no trace at all.
+  assert.match(out.json.systemMessage, /could not determine/i);
+  // Says the CHECK could not run — not that a policy was skipped. Reaching this
+  // branch proves only that a policy.yml exists somewhere up the chain, not that
+  // worktree.always is on for this repo (that needs a repoRoot we never got).
+  assert.match(out.json.systemMessage, /check could not run/);
+  assert.doesNotMatch(out.json.systemMessage, /gate was NOT applied/,
+    'must not assert a policy applied that may not exist');
+  assert.strictEqual(out.exit, 0, 'every hook path exits 0, warnings included');
+});
+
+test('worktree-required: a DEFINITIVE non-repo answer allows silently, with no warning (#134)', () => {
+  // The control that gives the test above its meaning. Both cases yield
+  // repoRoot: null; only the indeterminate one warns. Without this, a blanket
+  // "always warn on null" implementation would pass the assertion above while
+  // spamming every non-git path in the project.
+  const wtDetect = require('../bin/lib/hooks/worktree-detect');
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const real = wtDetect.repoInfo;
+  wtDetect.repoInfo = () => ({ repoRoot: null, isLinkedWorktree: false, indeterminate: false });
+  let out;
+  try {
+    out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
+  } finally {
+    wtDetect.repoInfo = real;
+  }
+  assert.ok(!out.json || !out.json.systemMessage,
+    'git answering "not a repo" is a real answer — nothing to warn about');
+});
+
 test('worktree-required: policy on allows Edit inside a linked worktree', () => {
   const repo = gitRepoWithCommit();
   withPolicy(repo, 'worktree.always: true\n');
@@ -420,4 +472,103 @@ test('worktree-required: a compound Bash command checks EVERY cp/mv/tee write ta
   });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
     'the second cp destination violates worktree.always and must be caught even though the first was compliant');
+});
+
+// --- .claude-tweaks/pipelines/ bookkeeping exemption (#138) ---
+//
+// /wrap-up must copy a run's gitignored audit state (config.yml, decisions.md,
+// events.jsonl, staged/) from the worktree into the main checkout's archive
+// BEFORE `git worktree remove` deletes it. That copy is a plain `cp` into the
+// main checkout, which the gate denied — so every worktree.always project lost
+// decisions.md on every run, silently, because a denied tool call mid-cleanup
+// is not a hard stop.
+
+function archivePathIn(repo, leaf) {
+  return path.join(repo, '.claude-tweaks', 'pipelines', 'archive', 'run-1', leaf);
+}
+
+// The gate reads policy from the TARGET's repo, and a linked worktree only sees
+// a committed policy.yml — so these fixtures commit it before branching.
+function repoWithCommittedPolicy() {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  return repo;
+}
+
+test('worktree-required: a cp into the main checkout\'s .claude-tweaks/pipelines/ is ALLOWED from a worktree (#138)', () => {
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: bashInput(`cp ${path.join(wt, 'decisions.md')} ${archivePathIn(repo, 'decisions.md')}`, wt),
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'pipeline bookkeeping is not the project work this gate isolates');
+});
+
+test('worktree-required: a cp into any OTHER main-checkout path is still denied from the same worktree (#138)', () => {
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: bashInput(`cp ${path.join(wt, 'x.js')} ${path.join(repo, 'src', 'x.js')}`, wt),
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    'the exemption must not widen into a general main-checkout write permit');
+});
+
+test('worktree-required: the exemption is a prefix on pipelines/, not on .claude-tweaks/ (#138)', () => {
+  // policy.yml itself lives in .claude-tweaks/ — a prefix test one segment too
+  // short would let a worktree rewrite the very policy that gates it.
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, '.claude-tweaks', 'policy.yml') } },
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    '.claude-tweaks/policy.yml is not under .claude-tweaks/pipelines/ and must stay gated');
+});
+
+test('worktree-required: git commit/push stay denied even when issued from inside .claude-tweaks/pipelines/ (#138)', () => {
+  // gitTargets yields the command's working DIRECTORY, not a file. Applying the
+  // path-prefix exemption to those targets would let any commit run from a cwd
+  // under .claude-tweaks/pipelines/ — exactly the isolation being enforced.
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const runDir = path.join(repo, '.claude-tweaks', 'pipelines', '2026-08-06T000000-record-1');
+  fs.mkdirSync(runDir, { recursive: true });
+  for (const cmd of ['git commit -m "x"', 'git push origin main']) {
+    const out = pre.run({ input: bashInput(cmd, runDir), runDir: null, runState: null, cwd: runDir });
+    assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+      `${cmd} from inside a run dir must stay denied — the exemption covers file writes only`);
+  }
+});
+
+test('worktree-required: a Write into the main checkout\'s run-dir archive is allowed, same as cp (#138)', () => {
+  const repo = repoWithCommittedPolicy();
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({
+    input: { tool_name: 'Write', tool_input: { file_path: archivePathIn(repo, 'config.yml') } },
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'the exemption is about what the path IS, not which tool writes it');
+});
+
+test('isPipelineBookkeeping fails closed on anything it cannot prove (#138)', () => {
+  const repo = '/tmp/some-repo';
+  const good = path.join(repo, '.claude-tweaks', 'pipelines', 'run-1', 'decisions.md');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, good), true, 'the positive case must actually match');
+  // Each of these must be false, or the gate opens on input it never proved.
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, '.claude-tweaks/pipelines/run-1/x'), false, 'relative path is unprovable');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, ''), false, 'empty path');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, null), false, 'null path');
+  assert.strictEqual(pre.isPipelineBookkeeping(null, good), false, 'null repoRoot');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, path.join(repo, '.claude-tweaks', 'pipelines')), false,
+    'the directory itself is not a write target under it');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, '/tmp/other-repo/.claude-tweaks/pipelines/run-1/x'), false,
+    'another repo\'s pipelines dir is not this repo\'s bookkeeping');
+  assert.strictEqual(pre.isPipelineBookkeeping(repo, path.join(repo, '.claude-tweaks', 'pipelines-evil', 'x')), false,
+    'sibling directory sharing the prefix string must not match');
 });

@@ -61,18 +61,25 @@ REPO_DIR=$(find "$SEARCH_ROOT" -maxdepth 2 \( -type d -o -type f \) -name .git 2
 
 # Marketplaces referenced below that Claude Code doesn't already know by name — refreshed
 # every run so a later `update` pulls from a current catalog pointer, not a stale local clone.
+# `add` stays best-effort (a duplicate add is the expected no-op on every re-run), but a
+# failed `update` is announced rather than swallowed: `claude plugin update` decides whether
+# a plugin is current by comparing version strings against THIS local catalog and nothing
+# else, so a catalog that failed to refresh makes every "already at the latest version"
+# below true of a stale snapshot and false of reality.
 claude plugin marketplace add thomasholknielsen/claude-tweaks-marketplace 2>/dev/null || true
-claude plugin marketplace update claude-tweaks-marketplace >/dev/null 2>&1 || true
+claude plugin marketplace update claude-tweaks-marketplace \
+  || echo "[claude-cloud-setup] WARNING: catalog refresh failed for claude-tweaks-marketplace — version checks below are measured against whatever catalog this sandbox already had."
 # `claude-plugins-official` (Anthropic's own marketplace) still needs an explicit `add` here:
 # on a fresh cloud sandbox it is not pre-registered at the CLI/runtime level (only this
 # project's own .claude/settings.json schema recognizes it by name with no settings entry),
 # so `update` alone is a silent no-op until `add` has run at least once in this sandbox.
 claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
-claude plugin marketplace update claude-plugins-official >/dev/null 2>&1 || true
+claude plugin marketplace update claude-plugins-official \
+  || echo "[claude-cloud-setup] WARNING: catalog refresh failed for claude-plugins-official — version checks below are measured against whatever catalog this sandbox already had."
 # (one additional `claude plugin marketplace add <org>/<repo> 2>/dev/null || true` line plus
-# a matching `claude plugin marketplace update <name> >/dev/null 2>&1 || true` line per
-# mirrored plugin's marketplace, sourced from that marketplace's `source.repo` field in
-# extraKnownMarketplaces — omit both only for a marketplace already added above)
+# a matching `claude plugin marketplace update <name> || echo "[claude-cloud-setup] WARNING: ..."`
+# line per mirrored plugin's marketplace, sourced from that marketplace's `source.repo` field
+# in extraKnownMarketplaces — omit both only for a marketplace already added above)
 
 # Plugins declared in .claude/settings.json#enabledPlugins. `claude plugin install` is NOT
 # idempotent (errors if the plugin is already present), so try update first and fall back to
@@ -80,11 +87,68 @@ claude plugin marketplace update claude-plugins-official >/dev/null 2>&1 || true
 # Deliberately not silencing update's stderr here: if update fails for a real reason (network,
 # corrupt marketplace cache) rather than "not installed yet," the install fallback's own
 # "already installed" error would otherwise be the only, misleading diagnostic surfaced.
-for spec in claude-tweaks@claude-tweaks-marketplace superpowers@claude-plugins-official; do
+PLUGIN_SPECS="claude-tweaks@claude-tweaks-marketplace superpowers@claude-plugins-official"
+# (one additional spec appended to PLUGIN_SPECS per mirrored plugin, in the same order
+# enabledPlugins lists them — the update-then-install and verify loops both pick it up)
+for spec in $PLUGIN_SPECS; do
   claude plugin update "$spec" --scope project || claude plugin install "$spec" --scope project
 done
-# (one additional spec added to the `for spec in ...` list per mirrored plugin, in the same
-# order enabledPlugins lists them — same update-then-install pattern handles it automatically)
+
+# Verify what landed; do not trust that the loop above landed it. `claude plugin update`
+# compares version strings and never looks inside the cached plugin directory — a sandbox
+# whose plugin directory is older than its own installation record passes the loop with
+# "already at the latest version" and exit 0, which is indistinguishable from success
+# (claude-tweaks #129: a Routine ran a build predating a shipped fix for days, reporting the
+# pre-fix behavior as though it were current). Resolve each plugin's version from the
+# directory a session would actually load, compare it against the catalog, and repair drift.
+claude plugin list --json > /tmp/cc-installed.json 2>/dev/null || echo '[]' > /tmp/cc-installed.json
+claude plugin marketplace list --json > /tmp/cc-marketplaces.json 2>/dev/null || echo '[]' > /tmp/cc-marketplaces.json
+
+for spec in $PLUGIN_SPECS; do
+  VERDICT=$(node -e '
+    const fs = require("fs");
+    const spec = process.argv[1];
+    const [pluginName, marketplaceName] = spec.split("@");
+    const read = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
+
+    // The installed directory decides what a session loads. `claude plugin list`s own
+    // `version` is metadata recorded beside that directory rather than read out of it, and
+    // `installed_plugins.json`s `gitCommitSha` is not refreshed by `claude plugin update`
+    // at all — neither can be trusted to describe the files actually on disk.
+    const entry = (read("/tmp/cc-installed.json") || []).find((p) => p.id === spec);
+    const manifest = entry && read(entry.installPath + "/.claude-plugin/plugin.json");
+    const installed = (manifest && manifest.version) || "none";
+
+    const mkt = (read("/tmp/cc-marketplaces.json") || []).find((m) => m.name === marketplaceName);
+    const catalog = mkt && read(mkt.installLocation + "/.claude-plugin/marketplace.json");
+    const declared = catalog && (catalog.plugins || []).find((p) => p.name === pluginName);
+    // Not every marketplace declares a per-plugin version (claude-plugins-official does not).
+    // An absent declaration is nothing to compare against, not evidence of drift.
+    const expected = (declared && declared.version) || "unversioned";
+
+    const drift = expected !== "unversioned" && installed !== expected;
+    console.log([installed, expected, drift ? "DRIFT" : "ok", (entry && entry.installPath) || "-"].join("\t"));
+  ' "$spec" || true)
+  # `|| true` inside the substitution, because this loop is diagnostic-and-repair, not a
+  # prerequisite: under `set -e` an unreadable manifest would otherwise abort the script
+  # here and take the agent-browser/Chrome install below down with it.
+  if [ -z "$VERDICT" ]; then
+    echo "[claude-cloud-setup] WARNING: could not resolve an installed version for $spec — freshness unverified."
+    continue
+  fi
+
+  INSTALLED=$(printf '%s' "$VERDICT" | cut -f1)
+  EXPECTED=$(printf '%s' "$VERDICT" | cut -f2)
+  STATUS=$(printf '%s' "$VERDICT" | cut -f3)
+  WHERE=$(printf '%s' "$VERDICT" | cut -f4)
+  echo "[claude-cloud-setup] $spec: installed=$INSTALLED catalog=$EXPECTED ($STATUS) at $WHERE"
+
+  if [ "$STATUS" = "DRIFT" ]; then
+    echo "[claude-cloud-setup] DRIFT: $spec resolves v$INSTALLED but the catalog declares v$EXPECTED — reinstalling."
+    claude plugin uninstall "$spec" --scope project || true
+    claude plugin install "$spec" --scope project
+  fi
+done
 
 # agent-browser — required in the cloud sandbox for /browse-dependent skills
 # (/stories, /visual-review, /review, qa-agent, /flow) to work in cloud sessions.
@@ -145,7 +209,11 @@ fi
 chmod +x "${CHROME_DIR}/chrome-linux64/chrome"
 ```
 
-Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on every marketplace-add and marketplace-update line — a duplicate-add or a transient catalog-refresh failure are both expected no-op cases on a re-run. The plugin install-or-update branch and the `npm install -g agent-browser`/Chrome-install lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
+Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on every marketplace-**add** line — a duplicate add is the expected no-op on a re-run. Marketplace-**update** lines are not silenced: they fall through to a `WARNING` echo instead, because a failed catalog refresh is not a harmless no-op here but the precondition that makes the version comparison downstream measure the sandbox against itself. The plugin install-or-update branch and the `npm install -g agent-browser`/Chrome-install lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
+
+**Why the verify loop exists (#129).** `claude plugin update` is a version-string comparison against the local catalog, not a content check — confirmed live by emptying a cached plugin directory of its files and re-running `update`, which reported `already at the latest version` and exit 0 while repairing nothing. Three separate conditions therefore produce an identical, successful-looking log: a catalog that failed to refresh, a plugin directory restored from an older snapshot, and a genuinely current install. The verify loop separates the second from the third, and the un-silenced marketplace `update` separates the first. What none of it covers is the case where this script never runs at all in a given sandbox — that one is caught from the other side, by the resolved-build line every routine prompt now prints at startup (`_shared/routine-template-schema.md`'s standard preamble). The two together are what make a stale sandbox self-identifying instead of merely suspected.
+
+Deliberately **not** added to the generated `## Cloud parity` CLAUDE.md section below: that section is already a large always-loaded block in consuming projects, and the failure it would describe is now announced by the script and the routine themselves, at the moment it happens, to whoever is actually reading the log.
 
 **Residual verification note (#75):** the Chrome-for-Testing download path (`~/.agent-browser/browsers/chrome-{version}/chrome-linux64/chrome`) was derived from `agent-browser doctor`'s confirmed macOS cache layout (`~/.agent-browser/browsers/chrome-{version}/Google Chrome for Testing.app/...`) plus Chrome for Testing's own zip-internal folder naming convention — it has not been exercised against a real Linux cloud sandbox. Verify this path on an actual claude.ai/code sandbox (same repro steps as issue #75) before treating this as fully confirmed; adjust the path if agent-browser's Linux cache layout differs.
 

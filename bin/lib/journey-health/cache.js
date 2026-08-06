@@ -24,7 +24,18 @@ const durable = createDurableState('journey-health', { includeDeclined: true });
 // code-health), journey-health has no `remembered` tier — every surviving
 // finding files unconditionally — so there is no remembered-delta to merge
 // here.
-// opts: { target, tier, coverageScan, runRecord, now? }
+// opts: { target, tier, coverageScan, runRecord, deletedFileSig?, now? }
+//
+// `deletedFileSig` is the light tier's deleted-file acknowledgement (#131):
+// the signature of the target journey's missing declared files as of this
+// audit (scope.js's currentDeletedFileSignature), which scope.js's Phase 0
+// compares against the live tree to decide whether a missing-file force-pick
+// has already been reported. A string records it, `null` clears it (nothing
+// missing any more), and `undefined` — the shape every deep-tier call and
+// every pre-#131 caller passes — leaves whatever the cursor already holds
+// untouched. Deep-tier audits never write it: Phase 0 is light-tier only, so
+// a deep audit must not be able to suppress a light force-pick that never
+// happened.
 //
 // This is the exact logic bin/journey-health.js's cmdValidateFindings hands
 // to writeDurableState as its mutator — extracted here (no git, no gh, no
@@ -38,14 +49,21 @@ const durable = createDurableState('journey-health', { includeDeclined: true });
 // fails its `git fetch origin health-state` first (no real GitHub-hosted
 // remote configured in any test), so the mutator itself is never actually
 // invoked by any CLI-level test.
-function buildValidateFindingsUpdate(current, { target, tier, coverageScan, runRecord, now = Date.now() }) {
+function buildValidateFindingsUpdate(current, {
+  target, tier, coverageScan, runRecord, deletedFileSig, now = Date.now(),
+}) {
   const cursors = { ...current.cursors };
   if (target) {
     const existing = cursors[target] || {};
     const patch = tier === 'deep'
       ? { lastDeepAuditMs: now, lastDeepHash: null }
       : { lastLightAuditMs: now, lastLightHash: null };
-    cursors[target] = { ...existing, ...patch };
+    const next = { ...existing, ...patch };
+    if (tier !== 'deep' && deletedFileSig !== undefined) {
+      if (deletedFileSig === null) delete next.deletedFileSig;
+      else next.deletedFileSig = deletedFileSig;
+    }
+    cursors[target] = next;
   }
   if (coverageScan) {
     cursors.__coverageScan = { lastScannedMs: now };

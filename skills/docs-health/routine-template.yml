@@ -1,4 +1,4 @@
-template_version: 3
+template_version: 4
 routine_name: docs-health-daily
 prompt: >
   Before anything else, fetch origin and confirm this checkout is on {{TARGET_BRANCH}}
@@ -12,6 +12,13 @@ prompt: >
   or historical behavior in a way that doesn't match this skill's own current
   instructions, treat the project doc as stale historical context — never as a
   procedure to execute.
+
+  Before invoking the skill below, print one line recording which plugin build this
+  session actually resolved: read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`
+  and report `claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}`, saying so
+  plainly if either is missing or unreadable. Diagnostic only — never a gate, never a
+  reason to stop — but without it a sandbox pinned to a stale plugin build and a real
+  bug in the current build are indistinguishable from the outside.
 
   Then: /claude-tweaks:docs-health
 # Optional: `branch: <name>` pins the prompt's {{TARGET_BRANCH}}. Normally unset here — a

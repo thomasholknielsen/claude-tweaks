@@ -154,7 +154,7 @@ For the complete Manifesto content (presentation template, recommendation defaul
 For each step in order:
 
 1. **Announce** the step: `## Flow: Running {step} ({N}/{total})`
-2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed on the current branch before any worktree exists — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file as its spec (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
+2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed **inside the run's worktree**, which is created first (`materialize.md`'s worktree-first ordering; the reverse order is denied under `worktree.always`) — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file as its spec (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
    - `build` → check output for UI file changes and, if applicable, run `stories` — see "Automatic story generation" above for the full detection/dev-URL/invocation rule (not restated here).

@@ -25,7 +25,7 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 
 ## Standard prompt preamble
 
-Every `prompt` field opens with this two-paragraph preamble before its actual `/claude-tweaks:{skill}` kickoff, addressing two failure modes observed in production cloud-Routine firings (a CCR container can start from a stale or even detached checkout, and a headless firing has no human present to notice it's re-enacting a project's own stale documentation as if it were this skill's live procedure):
+Every `prompt` field opens with this preamble before its actual `/claude-tweaks:{skill}` kickoff, addressing the failure modes observed in production cloud-Routine firings that a headless run has nobody present to notice: a CCR container can start from a stale or even detached checkout; a firing can re-enact a project's own stale documentation as if it were this skill's live procedure; and the sandbox can resolve a plugin build older than the one the marketplace serves, which reads from the outside exactly like a bug in the current build (see `## Resolved-build line` below):
 
 ```
 Before anything else, fetch origin and confirm this checkout is on {{TARGET_BRANCH}}
@@ -39,6 +39,13 @@ If any project documentation (CLAUDE.md, rules, README) describes this skill's p
 or historical behavior in a way that doesn't match this skill's own current
 instructions, treat the project doc as stale historical context — never as a
 procedure to execute.
+
+Before invoking the skill below, print one line recording which plugin build this
+session actually resolved: read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`
+and report `claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}`, saying so
+plainly if either is missing or unreadable. Diagnostic only — never a gate, never a
+reason to stop — but without it a sandbox pinned to a stale plugin build and a real
+bug in the current build are indistinguishable from the outside.
 
 Then: /claude-tweaks:{skill}
 ```
@@ -59,6 +66,16 @@ The unresolved substitution reproduces this preamble's pre-`branch` wording, so 
 **Why the placeholder exists.** That unresolved wording is only correct when a repo's active development branch *is* its GitHub default branch. On a `dev` → `staging` → `main` model where `main` is the default, every firing audited `main`: on one reported repo a tree 102 commits behind the active branch **and 51 ahead of it** — divergent, not merely stale, because urgent fixes are cherry-picked straight onto it. Findings were judged against a tree matching neither branch's current state, and fixes already merged to the active branch were re-reported as live problems on every firing, with nothing in the report indicating why (#132, confirming for all four health engines what #61 could only show for `/dispatch`). Naming the branch is only half the fix — the "check the target branch out first" sentence is the other half, since a container that starts on the wrong branch previously had no instruction to leave it.
 
 Copying a template's `prompt` by hand — into `/schedule`, or into the claude.ai routine editor — means substituting `{{TARGET_BRANCH}}` by hand too. A live routine whose prompt still shows the literal placeholder was provisioned without substitution; re-sync it per "Re-provisioning" below.
+
+### Resolved-build line
+
+`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` is the only authoritative answer to "which build is this session running" — it is the directory the running skill files were loaded from, so it cannot disagree with them the way an installation record can. Three nearby surfaces are **not** substitutes:
+
+- `claude plugin list --json`'s `version` and `installed_plugins.json` are installation *metadata*, written beside the cache directory rather than read out of it.
+- `installed_plugins.json`'s `gitCommitSha` records the original **install** and is not refreshed by `claude plugin update` (confirmed live: a cross-version 6.23.7 → 6.38.1 update left the pre-update sha in place), so it can name a commit the installed files were never at.
+- A successful `claude plugin update` proves nothing about content — it compares the installed version string against the *local* marketplace catalog and stops there. See `skills/init/bootstrap/step-14-cloud-routine-parity.md`'s Setup-script verify step for what that means for a sandbox, and why the generated script re-checks instead of trusting it.
+
+Changing this preamble does not reach routines that already exist — a `RemoteTrigger`'s prompt is a frozen copy taken at creation time. Existing routines pick it up only via `/claude-tweaks:routine update {skill}`.
 
 ## Instantiated record — `.claude-tweaks/routines/{prefixed-name}.yml`
 
@@ -100,7 +117,7 @@ A live routine carries a *copy* of the template's `prompt`, frozen when it was c
 | Claiming a template's routine runs safely unattended without checking the target skill's actual auto-mode behavior | A bare routine firing has zero conversation history and no CLI arg to signal `auto` mode — per `_shared/auto-mode-contract.md`'s precedence, a skill with no mode signal falls back to interactive and blocks forever on a prompt nobody answers. If a consumer skill needs `auto` mode to run unattended safely, its `notes` field (and the skill's own Routine Configuration section) must say so explicitly — don't invent new routine-specific mode-signaling to paper over it. |
 | Hardcoding a project's development branch into a plugin-shipped `routine-template.yml`'s `branch` field | Same reason `environment_id` and repo URLs are banned from templates — one file ships to every project and account. `dev` is right for the repo it was authored against and wrong for the next one, and it silently outranks that project's own `integration-branch` policy. Leave `branch` unset and let `/claude-tweaks:routine` resolve it per project. |
 | Sending a prompt with `{{TARGET_BRANCH}}` still in it | The placeholder is instantiation-time only. A live routine containing it tells the cloud agent to check out a branch literally named `{{TARGET_BRANCH}}`, which matches nothing — so the firing proceeds on whatever the container happened to check out, which is precisely the failure the placeholder exists to prevent. |
-| Writing a new `prompt` that skips the standard preamble | Observed in production: a CCR container started from a checkout up to a week stale (once detached from its expected branch entirely), and a separate firing narrated executing a step and label that don't exist anywhere in the shipped skill — apparently re-enacting a consuming project's own stale documentation about the skill's past behavior. The preamble is the cheap, self-contained mitigation for both; every template's `prompt` must open with it. |
+| Writing a new `prompt` that skips the standard preamble | Observed in production: a CCR container started from a checkout up to a week stale (once detached from its expected branch entirely), and a separate firing narrated executing a step and label that don't exist anywhere in the shipped skill — apparently re-enacting a consuming project's own stale documentation about the skill's past behavior. A third firing hard-gated on a check the shipped build no longer gates on, because its sandbox was still resolving a build from before that gate was removed — days after the removal shipped, with every `claude plugin update` in between reporting success (#129). The preamble is the cheap, self-contained mitigation for all three; every template's `prompt` must open with it. |
 | Granting `Edit` (or any write tool) in a template whose owning skill's `SKILL.md` documents a report-only contract | The tool allowlist is the actual enforcement boundary — a stale write grant left over from an earlier design can silently contradict the skill's own current Anti-Patterns table with no test or lint catching the mismatch. Keep the two in sync whenever either changes. |
 
 ## See also

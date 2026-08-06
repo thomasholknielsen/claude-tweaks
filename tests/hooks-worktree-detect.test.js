@@ -33,18 +33,21 @@ test('nearestExistingDir: falls back to a filesystem root when no other ancestor
 
 test('repoInfo: main checkout returns its toplevel and isLinkedWorktree: false', () => {
   const dir = gitRepo();
-  assert.deepStrictEqual(repoInfo(dir), { repoRoot: dir, isLinkedWorktree: false });
+  assert.deepStrictEqual(repoInfo(dir), { repoRoot: dir, isLinkedWorktree: false, indeterminate: false });
 });
 
 test('repoInfo: a linked worktree returns its own toplevel and isLinkedWorktree: true', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
-  assert.deepStrictEqual(repoInfo(wt), { repoRoot: wt, isLinkedWorktree: true });
+  assert.deepStrictEqual(repoInfo(wt), { repoRoot: wt, isLinkedWorktree: true, indeterminate: false });
 });
 
-test('repoInfo: non-git directory returns repoRoot: null, isLinkedWorktree: false', () => {
+test('repoInfo: non-git directory returns repoRoot: null as a DEFINITIVE negative, not indeterminate', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-nongit3-'));
-  assert.deepStrictEqual(repoInfo(dir), { repoRoot: null, isLinkedWorktree: false });
+  // git ran and answered "not a git repository". indeterminate MUST be false:
+  // this is the case the worktree gate is entitled to treat as "nothing to
+  // enforce", and conflating it with "git never answered" is #134.
+  assert.deepStrictEqual(repoInfo(dir), { repoRoot: null, isLinkedWorktree: false, indeterminate: false });
 });
 
 test('repoInfo: a submodule is treated as not isolated', () => {
@@ -77,6 +80,31 @@ test('safeReal: returns null (not the raw, unresolved path) when realpathSync fa
   // a directory is torn down between the `git rev-parse` call and this
   // realpath call.
   assert.strictEqual(safeReal('/this/path/should/not/exist/anywhere/xyz'), null);
+});
+
+// ─── the indeterminate third state (#134) ──────────────────────────────────
+//
+// A null repoRoot used to mean two unrelated things. These tests pin the
+// distinction, because the whole enforcement gap depended on it being invisible.
+
+test('repoInfo: a git call that never answers is indeterminate, NOT a negative (#134)', () => {
+  const dir = gitRepo();
+  // A 1ms budget kills even a fast rev-parse, reproducing under load what a
+  // 3000ms budget did at 83% saturation: the question goes unanswered.
+  const info = repoInfo(dir, { timeoutMs: 1 });
+  assert.strictEqual(info.repoRoot, null, 'no answer means no repoRoot to report');
+  assert.strictEqual(info.indeterminate, true,
+    'a timeout must NOT masquerade as "this is not a git repo" — that conflation is #134');
+});
+
+test('repoInfo: the same directory answers definitively when given a normal budget', () => {
+  // Control for the test above: proves the timeout is what produced the
+  // indeterminate verdict, not something intrinsic to the fixture. Without
+  // this, the assertion above would pass against a permanently-broken repoInfo.
+  const dir = gitRepo();
+  const info = repoInfo(dir);
+  assert.strictEqual(info.repoRoot, dir);
+  assert.strictEqual(info.indeterminate, false);
 });
 
 test('findPolicyFile: policy file present several directories up returns that ancestor directory', () => {
