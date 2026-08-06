@@ -25,11 +25,23 @@ function detect(fixture) {
 }
 
 const version = cliVersion();
-const skip = version === null
-  ? 'Impeccable CLI not installed'
-  : version !== PINNED
-    ? `Impeccable CLI ${version} does not match pinned ${PINNED}`
-    : false;
+
+// Absent CLI skips; present-but-off-pin FAILS. A contract probe that silently
+// declines to run reads exactly like one that passed — which is the defect this
+// whole suite exists to catch, so it must not be this suite's own behaviour.
+// Contributors without impeccable installed are unaffected.
+const skip = version === null ? 'Impeccable CLI not installed' : false;
+
+test('the installed CLI matches the pinned version', { skip }, () => {
+  assert.strictEqual(
+    version,
+    PINNED,
+    `Installed Impeccable CLI is ${version}, pinned is ${PINNED}. ` +
+      'Every assertion below describes the pinned version\'s behaviour, so they prove ' +
+      'nothing about this one. Run `npm install -g impeccable@' + PINNED + '`, or ' +
+      're-pin deliberately by re-recording the fixtures against the new version.'
+  );
+});
 
 test('a warning finding exits 2 with JSON on stdout and nothing on stderr', { skip }, () => {
   const r = detect('warning.html');
