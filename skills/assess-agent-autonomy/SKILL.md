@@ -167,9 +167,10 @@ from.
   ran `/flow` and set up the worktree itself, often already knows this value), use it directly:
   `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
 
-  Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`. `--base <ref>` remains
-  rank 1 of that ladder — a caller that already knows the merge base (dispatch's per-group Task
-  agent, which set up the worktree itself) passes it and skips resolution entirely.
+- **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`.
+  `--base <ref>` remains rank 1 of that ladder — a caller that already knows the merge base
+  (dispatch's per-group Task agent, which set up the worktree itself) passes it and skips
+  resolution entirely.
 
   If nothing resolves — no `origin` remote, no `gh` auth, an offline or detached runner — stop
   here. This is the "inconclusive read" case `## Error Handling` already covers, not a hard crash.
