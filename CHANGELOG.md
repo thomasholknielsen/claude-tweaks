@@ -53,6 +53,42 @@ writes a deprecation note into a stream the parser reads), the `category` field 
 the enumerated advisory rule-id list is deleted rather than corrected — enumerating upstream's
 data is what drifted the file three times — and three files that restated the invocation now
 point at the one that owns it.
+## v6.43.0 — `sed -i` no longer walks past the worktree gate (closes #70)
+
+The gate never saw `sed -i` at all. `hooks/hooks.json`'s PreToolUse `Bash` matcher
+fired the hook on nine `if:` predicates — six git forms plus `cp`, `mv`, `tee` — and
+`sed -i 's/x/y/' /abs/path/in/main-checkout/file.js` matched none of them, so the hook
+process never spawned. `fileWriteTargets` was never reached. Anyone starting from the
+module would have found nothing wrong with it.
+
+The result was a silent write to the un-isolated main checkout while the agent believed
+it was working inside its worktree: no deny, no warning, no `events.jsonl` entry.
+
+**Now covered:** `sed -i` / `perl -i` (in-place forms only, including GNU's attached
+suffix `-i.bak`, BSD's separate `-i ''`, and bundled short flags like `-pi`/`-ni`),
+plus `install`, `ln`, `truncate`, and `dd of=`. A read-only `sed -n '…p' file` is not a
+write and stays allowed in the main checkout — that distinction is what keeps ordinary
+inspection working, and it has its own test.
+
+**Still not covered, now with numbers instead of an assertion.** Bare shell redirection
+(`>`, `>>`) has no command word for an if-matcher to key on, so catching it needs an
+unconditional `Bash` matcher that spawns the hook on every Bash call: measured at
+**42.0 ms idle, 67.9 ms under three concurrent test suites**. Declined on that cost.
+`python -c` / `sh -c` / `awk` program strings are not statically analyzable at any cost.
+Both are recorded in `_shared/policy-schema.md`'s coverage block so the next reader
+inherits a measurement rather than a claim.
+
+**The cost this does pay:** an if-matcher keys on a command name, not its flags, so
+`Bash(sed *)` spawns the hook for every `sed` — read-only ones included. Breadth beat
+precision deliberately: `Bash(sed -i*)` would miss `sed -ni`, `sed --in-place`, and
+`perl -pi -e`, reintroducing the exact silent-gap class being closed. A false negative
+here is invisible; 42 ms is not.
+
+New guard: `tests/hooks-gate-coverage.test.js` now asserts every `WRITE_SHAPES` entry has
+a matching `hooks.json` predicate. A parser branch without one is dead code that reads
+exactly like a fix — that asymmetry is what hid this bug. The deny message is also built
+from `GATE_COVERAGE` now rather than spelling the list out, so it cannot describe an old
+reach. 10 new tests, each verified by mutation.
 
 ## v6.42.0 — Routines and merges follow the branch you name, not the GitHub default (closes #132)
 
