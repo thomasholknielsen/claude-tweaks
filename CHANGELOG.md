@@ -6,6 +6,15 @@ marketplace `source` is an unpinned git URL, so an install tracks that tip, and
 every distinct value it reported is a build someone could be running.
 `tests/changelog-coverage.test.js` fails the suite if any of them is missing here.
 
+Which versions those are is **recorded, not inferred** — `docs/shipped-versions.tsv`
+is appended in the same commit as each version bump. It replaced a
+`git rev-list --first-parent` reconstruction that turned out to be unstable rather
+than merely lossy: a branch that merges `main` into itself and is then pushed as
+`main` moves everything `main` carried since the fork point onto the merge's second
+parent, where the walk never looks, so versions *left* the reconstructed set as
+later merges landed (#144). Two releases were written up as never-shipped on that
+evidence before anyone checked it against a source outside this repo's topology.
+
 Two conventions follow from how this repo works, and both are visible below:
 
 - **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
@@ -13,12 +22,51 @@ Two conventions follow from how this repo works, and both are visible below:
   because a concurrent worktree session claimed the number first (`[IL-12]`).
   `main`'s tip never reported the branch number, so the entry lives under the
   build that actually carried it. The original write-up is kept verbatim.
+  Only three entries are genuinely of this kind — v6.3.0, v6.5.0 and v6.25.0.
+  Thirteen more carried the label until v6.45.0 and did not deserve it.
 - **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
   commit history rather than written at release time — the changelog step was
   not part of the release convention until v6.41.0, and 103 of the first 145
   releases went undocumented (`[IL-94]`). They are summaries of what each version
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
+
+## v6.45.0 — Which versions shipped is recorded, not reconstructed (closes #144)
+
+`tests/changelog-coverage.test.js` reconstructed the shipped set by walking
+`git rev-list --first-parent origin/main`. One day after it shipped, `main` was red on it,
+reporting that six entries — including v6.41.0, the release that added the gate — named
+versions that never shipped.
+
+The walk is not lossy. It is **unstable**. A merge's first parent is the branch you were on,
+so when a feature branch merges `main` into itself and is then pushed as `main`, everything
+`main` carried since the fork point moves to the second parent, where the walk never looks.
+Asked from three refs that had each genuinely been `main`'s tip, the same function on the same
+repository gave three non-nested answers: 6.40.0 and 6.41.0 shipped per `65531d88` and absent
+from the tip, 6.39.0 the reverse. Versions *leave* the set as later merges land.
+
+- **`docs/shipped-versions.tsv`** now records the answer directly — appended in the same commit
+  as each version bump, alongside the CHANGELOG entry. `shippedVersions()` reads it and unions
+  the walk in as a supplement, so a release that forgets the append is still caught, and an
+  inverted merge no longer subtracts anything.
+- **Backfilled from two independent sources**: the union of first-parent walks from three known
+  historical tips, plus the marketplace repo's per-commit `plugins[0].version` — a separate
+  repository, one commit per release, written at ship time. The mirror alone accounts for 11
+  versions no walk from any vantage point can see.
+- **13 `### … branch-numbered vX.Y.Z` subsections promoted back to `##` headings.** All 13
+  shipped, and all 13 have marketplace mirror commits proving it. Six were demoted the previous
+  day to make the red gate pass; the other seven were mislabelled by v6.41.0's own backfill.
+  Three entries — v6.3.0, v6.5.0, v6.25.0 — are genuinely branch-numbered and keep the form.
+- **Four releases that had no entry at all** (v6.1.0, v6.14.0, v6.14.1, v6.23.3) written up.
+- **The release-follow-up hook now checks instead of reminding.** It reads the commit's own
+  CHANGELOG and record blobs and names only what is actually outstanding, rather than restating
+  three steps every time — the shape `[IL-94]` records as the one that gets skimmed.
+- **`tests/shipped-record.test.js`** builds the inverting topology as a fixture (branch merges
+  main into itself, renumbers past it, becomes main). The suite had no case where a first-parent
+  chain leaves the branch it started on, which is why this shipped undetected.
+
+Recorded as `[IL-95]`, which also supersedes the closing paragraph of `[IL-94]` — it asserts
+the soundness of exactly the walk this removes.
 
 ## v6.44.0 — The Impeccable design gate can fail again
 
@@ -130,7 +178,7 @@ them as Drifted and `update <skill>` rewrites the live prompt in place;
 `_shared/routine-template-schema.md` documents the case that recourse cannot reach — a routine
 created outside this skill, with no record.
 
-### Every shipped version has a changelog entry, and a gate that keeps it that way — branch-numbered v6.41.0
+## v6.41.0 — Every shipped version has a changelog entry, and a gate that keeps it that way
 
 This file documented 59 of the 145 versions that had shipped. The other 103 —
 whole features, not only patches — had no entry, and 11 entries named versions
@@ -157,6 +205,8 @@ Three changes, of which only the first is enforcement:
   concurrently — this repo's normal mode. The first version of the analysis used
   that wrong walk and disagreed with the right one about 11 versions. On a
   shallow clone the check skips and says so rather than passing silently.
+  (Superseded by v6.45.0: the "right" walk was unsound too, and this backfill
+  mislabelled 7 shipped releases as branch-numbered. See `[IL-95]`.)
 - **`checkPluginVersionBump`** now names the changelog alongside the marketplace
   mirror. It had fired on exactly the right event since 6.12.1 — any commit
   touching `plugin.json` — while mentioning only half of what that event obliges,
@@ -180,7 +230,7 @@ branch number.
 
 Recorded as `[IL-94]`.
 
-### One statement of what the worktree gate covers, pinned to the code (closes #138, #139) — branch-numbered v6.40.0
+## v6.40.0 — One statement of what the worktree gate covers, pinned to the code (closes #138, #139)
 
 The `worktree.always` gate was widened twice on 2026-07-20 — `c8f929e1` added `git push`
 beside `git commit`, `cab6142b` added Bash `cp`/`mv`/`tee`. Both correct, both tested,
@@ -216,7 +266,7 @@ Found by grepping the *procedure shape* (`git push`, `cp`/`mv`/`tee`), not the k
 `materialize.md` and `review-console.md` never mention the gate, so their defect is silence.
 That sweep turned up the fifth site after four were already known. Recorded as `[IL-93]`.
 
-### The worktree gate stops failing open under load (closes #134) — branch-numbered v6.39.4
+## v6.39.4 — The worktree gate stops failing open under load (closes #134)
 
 `bin/lib/hooks/git-exec.js` ran every git query with a fixed 3000 ms budget and a bare
 `catch { return null }`. That `null` reached `repoInfo()`, which returned `repoRoot: null`,
@@ -268,7 +318,7 @@ here reflexively would have silenced the flake and left the enforcement gap live
 undetectable — the tests were not misbehaving, they were correctly reporting a production
 defect.
 
-### Correct the gh-CLI dependency claim; record IL-91 — branch-numbered v6.39.3
+## v6.39.3 — Correct the gh-CLI dependency claim; record IL-91
 
 Wrap-up findings from the #129 investigation. No behavior change.
 
@@ -285,7 +335,7 @@ Wrap-up findings from the #129 investigation. No behavior change.
   `git show` loop over three refs reported zero matches for a string that was plainly present,
   and nearly pinned #129's root cause on the wrong repository.
 
-### One broken journey no longer pins journey-health's rotation (closes #131) — branch-numbered v6.39.2
+## v6.39.2 — One broken journey no longer pins journey-health's rotation (closes #131)
 
 `journey-health`'s Phase 0 force-picks any journey declaring a `files:` path that no longer
 exists — a certain, judgment-free drift signal, and the right thing to surface ahead of
@@ -318,7 +368,7 @@ rotation, and Phase 1 now actually rotates. Neither one alone gives the coverage
 to provide; all 184 journey-health tests were verified green against #130's rewritten
 `rotation.js` before either landed.
 
-### Health rotation reaches past its alphabetical prefix (closes #130) — branch-numbered v6.39.1
+## v6.39.1 — Health rotation reaches past its alphabetical prefix (closes #130)
 
 `health-core/rotation.js`'s Phase 1 returned on the *first* candidate past `staleDays`
 rather than the most overdue one. Since every engine's `scope.js` sorts candidates by id
@@ -385,7 +435,7 @@ behind #129 first concluded `dispatch`'s gate was still wrong.
 - New regression test asserting all six templates' preambles still match the canonical block
   in `_shared/routine-template-schema.md`, and `[IL-89]` recording the general rule.
 
-### journey-health's deleted-file pick fires once per missing set (2026-08-06) — branch-numbered v6.38.3
+## v6.38.3 — journey-health's deleted-file pick fires once per missing set (2026-08-06)
 
 The #131 fix reached `main` under this number and was then renumbered to 6.39.2
 after a collision, so both versions shipped and both carry it. The write-up is
@@ -741,7 +791,7 @@ and silently overrode Step 2's own "substantially editing" qualifier — is repl
 Calibration cases now live in the skill rather than in a design doc, since the
 previous anchor was a design doc and it was pruned.
 
-### Mode-conditional and headless-path content stops loading unconditionally (closes #89, #82; refs #93) — branch-numbered v6.30.0
+## v6.30.0 — Mode-conditional and headless-path content stops loading unconditionally (closes #89, #82; refs #93)
 
 Three independent passes at the same defect: procedure that only one branch of a
 run will ever execute, loaded on every run.
@@ -836,7 +886,7 @@ transcription of issue numbers, titles, or labels. Content is a point-in-time
 snapshot, not a live-refreshing view — the diagram carries a "Generated {timestamp}
 — re-run to refresh" note rather than a client-side data fetch.
 
-### CLAUDE.md context budget: rules and evidence split (closes #95, #102) — branch-numbered v6.26.0
+## v6.26.0 — CLAUDE.md context budget: rules and evidence split (closes #95, #102)
 
 `CLAUDE.md` was 94 KB, and its `## Don'ts` section alone was 53,939 B — 57% of the file. That cost
 is paid per *agent*, not per session: every Task-dispatched subagent inherits the whole file, so a
@@ -935,6 +985,16 @@ plan amendment covering stale Rolling-digest references and an orphaned module.
 
 Retired `/tidy`'s `github-triage` routine variant.
 
+## v6.23.3 — journey-health expands `files:` globs before the deleted-file check (refs #73)
+
+Phase 0's stale-selection heuristic ran a literal `fs.existsSync` against each declared
+`files:` frontmatter entry, so a glob entry (`docs/research/competitors/*.md`) always
+reported "missing" even when it resolved to real files — permanently force-picking that
+journey as deleted-file on every firing. `journeyFileExists` now resolves a final-segment
+wildcard against the directory listing before falling back to the literal check. A wildcard
+outside the final segment stays unsupported and is treated as always-present, rather than
+risking a false "missing".
+
 ## v6.23.2 — /init Update Mode: Routine Drift & Relevance Audit
 
 - `/claude-tweaks:routine` gains `status --all` (bulk drift check across every instantiated
@@ -945,7 +1005,7 @@ Retired `/tidy`'s `github-triage` routine variant.
   owned judgment pass, invoked only by `/init`, surfacing routines whose underlying skill has
   changed enough to warrant a second look).
 
-### durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo — branch-numbered v6.23.1
+## v6.23.1 — durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo
 
 `bin/lib/health-core/durable-state.js`'s `writeState()` shelled out to `gh api` for every
 `health-state` branch write; v6.21.0's documented GitHub-MCP fallback for cloud Routine
@@ -1084,7 +1144,7 @@ a live session and copy-paste-ready manual steps (self-contained, no inline comm
 about surprising-but-correct states). A once-per-session scope-fork checkpoint and task-anchor
 discipline keep a pending verdict from getting silently lost mid-tangent.
 
-### Maturity-aware build & specify discipline — branch-numbered v6.16.3
+## v6.16.3 — Maturity-aware build & specify discipline
 
 Project maturity (greenfield / pre-launch / early-production / established) is now a durable
 `project.maturity` value in `.claude-tweaks/policy.yml`, instead of living only as CLAUDE.md
@@ -1107,6 +1167,19 @@ the journeys evidence checklist (#57).
 
 A wide parallel fix pass over the skill set, plus the shared facet-default shape
 extracted into `facet-shape.js`.
+
+## v6.14.1 — argument-hint reference card sync (2026-07-23)
+
+`skills/help/reference-card.md` still carried the pre-6.14.0 argument grammar for every
+skill. Re-synced all 33 rows against the `argument-hint:` values that had just landed.
+
+## v6.14.0 — `argument-hint` frontmatter on every skill (2026-07-23)
+
+Each `SKILL.md` gained an `argument-hint:` frontmatter field, so typing
+`/claude-tweaks:{skill}` shows its argument grammar as greyed-out placeholder text in the
+terminal. Purely cosmetic — it has no effect on how `$ARGUMENTS` is parsed. The convention
+(derive the hint from the skill's own `## Input` section, always quote the value) is
+recorded in CLAUDE.md.
 
 ## v6.13.0 — Smoke-test follow-through: dispatch diagnostics, audit-log hardening, grant-time disclosure
 
@@ -1195,7 +1268,7 @@ throwaway scaffold and hand off to `live` mode for real side-by-side variant com
 `/build` ever starts, recorded as a `Visual-reference:` body-metadata line. See
 `docs/superpowers/specs/2026-07-19-visual-quality-boost-design.md`.
 
-### /demo session-recall fallback — branch-numbered v6.9.0
+## v6.9.0 — /demo session-recall fallback
 
 `/claude-tweaks:demo` now aggregates a second, independent source alongside `demo:pending`
 records: work done directly in the current conversation with no backing record at all. When
@@ -1246,7 +1319,7 @@ the one path (`/review` outside `full` mode) where one might not have already ru
 `/claude-tweaks:demo`'s verdict prompt reframes around vision/fit ("Does this do what you asked
 for?") and gains an on-demand "Show me live" option for a live look via `agent-browser`.
 
-### Unattended tier: fewer clicks in `auto` mode — branch-numbered v6.4.0
+## v6.4.0 — Unattended tier: fewer clicks in `auto` mode
 
 A new opt-in policy lever, `unattended-tier` (off by default), lets three narrow, low-stakes
 decision points — floor-clearing ledger residue, queue-write record creation, and ops-item
@@ -1264,6 +1337,16 @@ feature does what was asked. `/claude-tweaks:wrap-up` applies `demo:pending` and
 Verification Brief (what changed, why, how to verify) while it still has full build context;
 the new `/claude-tweaks:demo` skill aggregates every pending record — across parallel threads,
 regardless of merge timing — and captures your verdict.
+
+## v6.1.0 — assess-agent-autonomy, and one digest transport (2026-07-15)
+
+- A new `/claude-tweaks:assess-agent-autonomy` skill brings content-aware judgment to
+  `/triage` and `/dispatch`, replacing `tier.js`'s `recommendGrants`/`recommendTier` and the
+  legacy label adapters, which were retired in the same release (skill catalog 29 → 30).
+- The per-skill digest formats were unified into one transport, and the auto-merge-gate and
+  failure-revocation prose was reconciled across the canonical contracts, which had drifted
+  apart between `_shared/` and the skills quoting them.
+- `merge-sensitive-paths` documented, and `harness-health`'s triage description corrected.
 
 ## v6.0.0 — The unified work record
 

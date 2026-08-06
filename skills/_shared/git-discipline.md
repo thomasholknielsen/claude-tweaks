@@ -32,6 +32,17 @@ These apply in ALL modes. They exist because multiple processes may commit to th
 | **Verify commits landed** | Always `git log --oneline -3` after committing. |
 | **Never `--no-verify` / `--no-gpg-sign`** | Skipping hooks or signing bypasses safety the user opted into. If a hook fails, fix the underlying issue. |
 
+## Catching a branch up with `main`
+
+A long-running branch has to be realigned with `main` before it merges (`[IL-20]`), and there are two ways to do it. They are not equivalent, and the difference outlives the branch:
+
+- **Rebase onto `main`**, or merge and then let `main` fast-forward. `main`'s first-parent chain stays a straight line of what it actually carried. **Prefer this.**
+- **Merge `main` into the branch, then push the branch as `main`.** This *inverts* the topology: the resulting merge's first parent is the branch, its second is the old `main`, so everything `main` carried between the fork point and the merge leaves the first-parent chain permanently.
+
+The second form is not wrong as history — nothing is lost, and `git log` still shows every commit. What it destroys is any tool that reads `--first-parent` as "what `main` reported over time", and it destroys it retroactively and invisibly: the same query answers differently before and after, and versions *leave* the reconstructed set as later merges land (#144, `[IL-95]`). Two releases were written up as never-shipped on that evidence.
+
+`docs/shipped-versions.tsv` now records the release history directly, so a single inverted merge no longer loses a version. Prefer the first form anyway — the record survives it, but nothing else that reads first-parent history does, and the inversion is invisible in review.
+
 ## Merge conflict resolution
 
 If you encounter a merge conflict, resolve it — do not reset or discard. Read both sides of the conflict, understand the intent of each change, and produce a merged result that preserves both. After resolving, run verification to confirm the resolution didn't break anything. If the conflict is too complex to resolve confidently, present both versions to the user and ask which to keep.

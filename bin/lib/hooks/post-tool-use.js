@@ -187,6 +187,7 @@ function checkDesignDocWrite(ctx) {
 // misfire with an irrelevant release-follow-up reminder in a completely
 // unrelated plugin repo that happens to have this plugin active.
 const PLUGIN_MANIFEST_PATH = '.claude-plugin/plugin.json';
+const { RECORD_PATH: SHIPPED_RECORD_PATH } = require('../shipped-record');
 
 function checkPluginVersionBump(recentByDir) {
   for (const [dir, commits] of recentByDir) {
@@ -206,14 +207,34 @@ function checkPluginVersionBump(recentByDir) {
         continue;
       }
       if (manifest.name !== 'claude-tweaks') continue;
+
+      // Name only what is actually outstanding. A blanket reminder that repeats
+      // three steps every time is the kind a reader learns to skim — and the
+      // changelog step was skimmed for 103 of 145 releases while a hook fired on
+      // this exact trigger (`[IL-94]`). Both same-commit obligations are
+      // readable from the commit itself, so check them instead of listing them.
+      const version = typeof manifest.version === 'string' ? manifest.version : null;
+      const outstanding = [];
+
+      const { stdout: changelogAtCommit } = runGit(['show', `${commit.hash}:CHANGELOG.md`], dir);
+      if (version && (changelogAtCommit === null || !changelogAtCommit.includes(`## v${version} — `))) {
+        outstanding.push(`CHANGELOG.md needs a "## v${version} — {summary}" entry directly under the "# Changelog" header`);
+      }
+
+      const { stdout: recordAtCommit } = runGit(['show', `${commit.hash}:${SHIPPED_RECORD_PATH}`], dir);
+      if (version && (recordAtCommit === null || !new RegExp(`^${version.replace(/\./g, '\\.')}\t`, 'm').test(recordAtCommit))) {
+        outstanding.push(`${SHIPPED_RECORD_PATH} needs a "${version}\t{YYYY-MM-DD}\trelease" line`);
+      }
+
+      // Unverifiable from here — it lives in a separate repository.
+      outstanding.push("mirror the version into claude-tweaks-marketplace's marketplace.json (plugins[].version)");
+
       return {
         json: {
           systemMessage:
-            'claude-tweaks: this commit touched .claude-plugin/plugin.json (likely a version bump). ' +
-            'Two follow-ups, both from CLAUDE.md\'s "Releasing (two repos)" section: add the ' +
-            "release's CHANGELOG.md entry (\"## v{version} — {summary}\"), and mirror the new " +
-            "version into the claude-tweaks-marketplace repo's marketplace.json " +
-            '(plugins[].version). Then push both repos.',
+            `claude-tweaks: this commit touched ${PLUGIN_MANIFEST_PATH}${version ? ` (now ${version})` : ''}. ` +
+            `Outstanding from CLAUDE.md's "Releasing (two repos)": ${outstanding.join('; ')}. ` +
+            'The first two belong in this commit — amend rather than following up, or the suite goes red.',
         },
       };
     }
