@@ -29,6 +29,7 @@ depends on them.
 | `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as backlog refine's recommendation signal. |
 | `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md` | Design rationale for `merge-check`'s behavior-delta criterion: why the instruction-file floor is defined by role rather than by path, why its escape is framed as a refutation rather than a classification, and why the blast-radius guideline binds only on behavior-carrying diffs. Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the previous anchor was a design doc, and it was pruned. |
 | `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Original design rationale and calibration examples for `ceremony-check`, and for how `/build`/`/wrap-up` consume the `ceremony-profile` lever — amended (not superseded) by the 2026-08-03 design doc above. |
+| `skills/_shared/integration-branch.md` | Resolves the `merge-base` blast radius is measured from in `merge-check`. `--base <ref>` is rank 1 of that ladder. |
 
 ## backlog
 
@@ -62,6 +63,7 @@ depends on them.
 | `/test` | Runs AFTER `/build`. In pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist. Standalone: runs the same checks as `/build` Common Step 5. |
 | `/tidy` | Reviews specs from `/build` for staleness — periodic cleanup complement. |
 | `/superpowers:brainstorming` | Produces the design doc `/build`'s design mode consumes directly. |
+| `skills/_shared/integration-branch.md` | Names the expected fork point when set, replacing the upstream-then-`origin/HEAD` derivation in `worktree-setup.md`. Shared with `/flow`'s `validation.md`, which runs the identical check. |
 
 ## capture
 
@@ -132,6 +134,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/help` | Surfaces the `authorized` and `building` counts on the dashboard (Stage 1). |
+| `skills/_shared/integration-branch.md` | Resolves the auto-merge target and push target. The concurrent-session guard compares the main checkout against this value, not the GitHub default. |
 
 ## docs-health
 
@@ -356,6 +359,7 @@ depends on them.
 | `/flow` | Invoked BY `/flow` as the pipeline's final step; flow waits for `/wrap-up`'s Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/tidy` | `/wrap-up` cleans artifacts for a single spec; `/tidy` does periodic bulk cleanup. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+| `skills/_shared/integration-branch.md` | Resolves the fast-lane merge and push target in the single-record auto-merge gate (Step 8) — the same lever `/dispatch`'s group-scoped auto-merge gate uses. The concurrent-session guard compares the main checkout against this value, not the GitHub default. |
 
 ## Provenance
 

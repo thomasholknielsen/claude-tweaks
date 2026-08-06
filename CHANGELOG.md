@@ -1,40 +1,38 @@
 # Changelog
 
-## v6.39.0 — Routines audit the branch you name, not the GitHub default (closes #132)
+## v6.39.0 — Routines and merges follow the branch you name, not the GitHub default (closes #132)
 
-Every routine template's prompt opened by telling the cloud agent to resolve its target branch
-from `git remote show origin`'s HEAD pointer. That is the GitHub default branch, which on a
-`dev` → `staging` → `main` model is the one branch nobody develops on. On the reported repo it
-was 102 commits behind the active branch **and 51 ahead of it** — divergent rather than merely
-stale, because urgent fixes are cherry-picked straight onto it. Findings were judged against a
-tree matching neither branch, and fixes already merged to the active branch were re-reported as
-live problems on every firing, with nothing in the report explaining why.
+Four places independently resolved "which branch is this project's current state" — which tree a
+routine audits, where a task forks from, where finished work merges, and what a change's blast
+radius is measured against. All four asked GitHub for its default branch. On a `dev` → `staging` →
+`main` model that is the one branch nobody develops on: on the reporting repo it was 102 commits
+behind the active branch **and 51 ahead of it**, divergent rather than merely stale, because urgent
+fixes are cherry-picked straight onto it.
 
-#61 raised this a while back with evidence for `/dispatch` only, and said outright that it could
-not tell whether the health engines were affected. #132 settles it for all four, with cursor
-evidence from the reporting repo: journey-health stayed pinned to a journey whose frontmatter
-declares a missing data file, and that frontmatter entry exists only on the default branch — it
-had already been removed on the active one, where the selector picks a different journey
-entirely.
+They failed differently, and the worst one had never been reported. Auto-merge aborted, which is
+visible. But `merge-check` sizes a record's change by diffing against the merge base with the
+default branch — and against a branch that diverged long ago, that base is ancient, so the diff
+spans every commit since the fork. Blast radius came back enormous, the verdict was `needs-human`,
+and the stated reason was "too many files changed." Auto-merge could never fire on such a repo, and
+the log looked like the gate working correctly.
 
-The preamble now carries a `{{TARGET_BRANCH}}` placeholder that `/claude-tweaks:routine`
-substitutes at instantiation, resolving in precedence order: `--branch`, the template's own
-optional `branch:` field, `integration-branch` in `.claude-tweaks/policy.yml`, a branching model
-documented unambiguously in CLAUDE.md, and finally git — where a current branch that differs
-from the GitHub default is surfaced in the creation preview rather than silently picked. When
-nothing resolves, the substitution reproduces the old wording exactly, so unaffected projects
-see no behavior change. `update` re-resolves too, but with the instantiated record's existing
-`branch` outranking git inference, so a re-sync run from `main` can't quietly re-point a routine
-pinned to `dev`.
+One `integration-branch` key in `.claude-tweaks/policy.yml` now answers all four, resolved through
+`skills/_shared/integration-branch.md`: an explicit argument, then the key, then a branching model
+documented in CLAUDE.md prose, then git — where a current branch differing from the GitHub default
+is surfaced rather than silently picked, and a linked worktree's throwaway branch is never proposed
+at all. Unset reproduces the old behavior per consumer, so a project that sets nothing sees no
+change. A conformance test now fails on any new site that resolves the default branch without
+citing the fragment — the check that would have caught this originally.
 
-Naming the branch was only half of it: the preamble previously told a container that started on
-the wrong branch to fast-forward, never to switch. It now says to check the target branch out.
+Naming the branch was only half of it: the routine preamble previously told a container that
+started on the wrong branch to fast-forward, never to switch. It now says to check the target
+branch out.
 
-Existing live routines hold a frozen copy of the prompt they were created from and do not pick
-this up on their own. Each template's `template_version` is bumped, so
-`/claude-tweaks:routine status --all` reports them as Drifted and `update <skill>` rewrites the
-live prompt in place; `_shared/routine-template-schema.md` documents the case that recourse
-doesn't reach — a routine created outside this skill, which has no record to update.
+Existing live routines hold a frozen copy of their creation-time prompt and do not pick this up on
+their own. Every `template_version` is bumped, so `/claude-tweaks:routine status --all` reports
+them as Drifted and `update <skill>` rewrites the live prompt in place;
+`_shared/routine-template-schema.md` documents the case that recourse cannot reach — a routine
+created outside this skill, with no record.
 
 ## v6.38.1 — Timing budgets leave the correctness suite (closes #107)
 
