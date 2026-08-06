@@ -93,6 +93,7 @@ depends on them.
 | `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them. `refine`'s grant sub-stage is the primary consumer of code-health's `risk:<tier>`/`effort:<tier>` labels: `grant-check` (via `/assess-agent-autonomy`) reads them as one input to its authorization recommendation, not a direct label-driven rule. `/dispatch` (not `triage dispatch`, which no longer exists) then claims each authorized record's file-overlap group and hands it to `/flow` for pure execution. |
 | `/deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `_shared/criteria-architecture-depth.md`. |
 | `/docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. One of the four recurring-sweep siblings; both file born-`ready` findings on the unified work-record contract. |
+| `/feedback` | A finding whose subject is a claude-tweaks skill routes here instead of filing a project issue — `_shared/learning-routing.md`'s "Subject check (health sweeps)" section. |
 | `/harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of code quality. One of the four recurring-sweep siblings; both file born-`ready` findings on the unified work-record contract. |
 | `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6) and shared `_shared/health-state.md` persistence, scoped to `docs/journeys/*.md` for journey accuracy and agent-e2e coverage instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `/review` | `/review` judges diffs reactively; `/code-health` judges latent code proactively on a schedule. Both reuse the same criteria fragments from `skills/_shared/` — see `_shared/criteria-review-quality.md`. |
@@ -141,6 +142,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them. `refine` is the human gate over the `ready` queue: docs-health records feed its grant worklist the same way code-health/harness-health findings do. |
+| `/feedback` | A finding whose subject is a claude-tweaks skill routes here instead of filing a project issue — `_shared/learning-routing.md`'s "Subject check (health sweeps)" section. |
 | `/harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but on a disjoint file set: docs-health's rotation pool only ever walks `docs/`, never harness-health's `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Diátaxis genre-drift + depth-mismatch + findability + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
 | `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6 mirrors this skill's Step 3.5) and `_shared/health-state.md` persistence, scoped to `docs/journeys/*.md` accuracy and agent-e2e coverage instead of `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness. Both file born-`ready` findings on the unified work-record contract. |
 | `/tidy` | `/docs-health` files `docs/**` genre-drift/depth-mismatch/findability/staleness findings as `by:docs-health`-labelled records; `/tidy` Step 4.8 audits them alongside `by:code-health`/`by:harness-health`/`by:journey-health` ones — stale/superseded closed after batch approval, still-valid suggested for `/backlog refine`. |
@@ -150,6 +152,17 @@ depends on them.
 | `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
 | `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 3/Step 6 inline — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
 | `_shared/health-routine-notes.md` | The canonical billing note, shared with `/code-health`, `/harness-health`, and `/journey-health` — and the confidence-floor paragraph, shared with `/harness-health` and `/journey-health` now that all three (plus `/code-health`'s `--min-risk`) have closed the gap it used to describe as open. This skill and `/harness-health` hold sub-threshold findings in a durable `remembered` cache; `/journey-health` drops them for that run instead. |
+
+## feedback
+
+| Target | Relationship |
+|---|---|
+| `/reflect` | `/reflect` classifies every insight through `_shared/learning-routing.md`; those resolving to D5 route to `/feedback`. |
+| `/wrap-up` | Step 7.11 stages one upstream proposal per D5 learning; the Step 8.6 Review Console's `On approval` step invokes `/feedback` per approved row (Step 10 only confirms the filing landed). |
+| `/code-health` | A finding whose subject is a claude-tweaks skill routes to `/feedback` instead of filing a project issue — `_shared/learning-routing.md`'s "Subject check (health sweeps)" section. |
+| `/harness-health` | Same subject check as `/code-health` — plugin-owned findings route to `/feedback` rather than to the project's tracker. |
+| `/journey-health` | Same subject check — routes to `/feedback`. |
+| `/docs-health` | Same subject check — routes to `/feedback`. |
 
 ## flow
 
@@ -166,6 +179,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/backlog` | Feeder — files records born `ready`; `/backlog` never files or closes harness-health issues. `/assess-agent-autonomy`'s `grant-check` mode (invoked from `refine`'s grant sub-stage) reads this skill's finding body directly — including recognizing `harness-health:new-skill` findings from their "New skill candidate" body content, not from a label, since those findings carry no `risk:*`/`effort:*` labels at all. `additive`/`restructural` findings already carry colon-form `risk:*`/`effort:*` labels (this skill's `issue-payload.js` co-emits them alongside the diagnostic label), which grant-check also reads as one input. |
+| `/feedback` | Same subject check as `/code-health` — plugin-owned findings route here rather than to the project's tracker. |
 | `/init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. Update Mode also invokes this skill's `routine-relevance-analysis.md` directly to judge whether a project's instantiated cloud Routines are still relevant given recent skill changes — the only consumer of that file, and the only case where `/init` reaches into a harness-health-owned analysis file outside this skill's own SELECT/JUDGE/FILE pipeline. |
 | `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape and `_shared/health-state.md`'s durable persistence, scoped to `docs/journeys/*.md` accuracy and agent-e2e coverage instead of skill/rule/CLAUDE.md accuracy. harness-health folds its verify gate into Step 3 (JUDGE) rather than a separate numbered step — journey-health's Step 3.6 corresponds to that embedded check, not to harness-health's Step 5, which is GATHER OPEN ISSUES for dedup. |
 | `/specify` | Harness-health findings are pre-specs — a filed `by:harness-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
@@ -203,6 +217,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/backlog` | Feeder — files records born `ready` (spec-shaped, scored) into `refine`'s grant worklist; `/backlog` never files or closes them. |
+| `/feedback` | Same subject check as `/code-health` — plugin-owned findings route here rather than to the project's tracker. |
 | `/review` | Both read `_shared/journey-coverage-check.md`'s coverage computation — `/review`'s lens `3g-cov` stays inline/informational; journey-health's decoupled coverage-scan tier adds cursor-tracking and issue-filing on top. |
 | `/specify` | Journey-health findings are pre-specs — a filed `by:journey-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/tidy` | `/journey-health` files `docs/journeys/*.md` drift and coverage-gap findings as `by:journey-health`-labelled records; `/tidy` Step 4.8 sweeps them alongside `by:code-health`/`by:harness-health`/`by:docs-health` ones with the same stale/superseded triage — stale/superseded closed after batch approval, still-valid suggested for `/backlog refine`. |
@@ -232,6 +247,7 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
+| `/feedback` | Insights classified via `_shared/learning-routing.md` that resolve to D5 route to `/feedback` for upstream filing. |
 | `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
 
 ## research
@@ -357,6 +373,7 @@ depends on them.
 |---|---|
 | `/demo` | `/wrap-up` applies `demo:pending` and posts the Verification Brief (Step 10, `verification-brief.md`) — record mode only, gated on a clean visual-review pass (Step 2.5's safety net). `/demo` later resolves the label to `demo:approved`/`demo:changes-requested` and, on the latter, files a linked follow-up record. |
 | `/dispatch` | Cleanup Section E releases the claim on success using the `CLAIM_RUN_ID` dispatch threads through `/flow` (not `/wrap-up`'s own `PIPELINE_RUN_DIR`) — see the ownership-check procedure in `cleanup-procedures.md`. Dispatch's group-scoped Auto-merge gate then runs its checks against this skill's Review Console output before it would otherwise render. |
+| `/feedback` | Step 7.11 stages one upstream proposal per D5 learning; the Step 8.6 Review Console's `On approval` step invokes `/feedback` per approved row. |
 | `/flow` | Invoked BY `/flow` as the pipeline's final step; flow waits for `/wrap-up`'s Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/tidy` | `/wrap-up` cleans artifacts for a single spec; `/tidy` does periodic bulk cleanup. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
