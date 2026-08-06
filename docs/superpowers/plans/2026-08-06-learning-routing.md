@@ -871,9 +871,11 @@ Expected: no output — that file's carve-out must not name either destination. 
 
 Run:
 ```bash
-awk '/^## What .auto. does NOT silence/,/^## /' skills/_shared/auto-mode-contract.md | grep -ciE "memory file writes|upstream feedback filing"
+awk '/^## What .auto. does NOT silence/{f=1;next} f&&/^## /{f=0} f' skills/_shared/auto-mode-contract.md | grep -ciE "memory file writes|upstream feedback filing"
 ```
 Expected: `2`.
+
+**Do not use an `awk '/start/,/^## /'` range here.** The terminator `/^## /` matches the range's own opening heading, so the range self-closes on its first line and the command reports `0` however correct the file is — a check that examines the wrong thing rather than failing loudly. The form above sets a flag past the heading instead.
 
 - [ ] **Step 5: Commit**
 
