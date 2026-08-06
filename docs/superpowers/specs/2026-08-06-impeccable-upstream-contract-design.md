@@ -224,6 +224,11 @@ thesis applied.
 
 ## Phase 3 — dispatch and detection
 
+**Phase 3: Specified** — decomposed into parent #145 with leaves #146 (context-signals as a
+pinned enrichment layer), #147 (retire the auto-fit and issue-driven dispatch tables), #148
+(sweep the retired vocabulary). Build order #146 → #147 → #148, serial because #146 and #147
+both edit `design-wrapper/SKILL.md` and #148 describes what #147 ships.
+
 Depends on Phase 2: both items below add a new upstream coupling point, and each must be
 registered in the drift auditor's manifest as it is created rather than retrofitted.
 
@@ -315,6 +320,15 @@ register in Phase 2's manifest. Consuming a new upstream contract on trust would
 tomorrow's drift while fixing today's.
 
 ## Phase 4 — capability integration
+
+**Phase 4: Specified** — decomposed into parent #149 with leaves #150 (`doctor` into `/tidy`),
+#151 (native routing), #152 (five-block contract and seed key), #153 (finish-reviewer plus the
+Subagent Contract exemption). #150 → #151 is serial on `design-wrapper/SKILL.md`; #151 also
+waits on #146. #152 and #153 are independent of everything.
+
+Every premise below was re-verified by execution against the **installed 4.0.2** before
+decomposition — `doctor.mjs --json` was run, `new-work.md:69` and
+`agents/impeccable-finish-reviewer.md` were read at the installed path, not at the audited tag.
 
 Depends on Phase 3 for B2 specifically: native routing is driven by `setup.platform`, which
 Phase 3's A4 introduces. B1, B3 and B4 have no Phase 3 dependency.
