@@ -109,8 +109,8 @@ autonomously.
 
 | Signal | Detection | Offer (staged) |
 |---|---|---|
-| `work-backend: github-issues` present but `work-types` and/or `work-links` missing | Absence of `work-types:` / `work-links:` lines alongside a present `work-backend: github-issues` | Run `probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) and offer to write the missing key(s) — `work-types` into CLAUDE.md, `work-links` into `.claude-tweaks/policy.yml` |
-| `work-backend: github-issues` with both `work-types` and `work-links` already present | — | Every full Update-Mode pass re-probes capabilities (`probeCapabilities()`) and offers a patch when the result has drifted from what's recorded (e.g. the org enabled Issue Types since the last run) |
+| `work-backend: github-issues` present but `work-types` and/or `work-links` missing | `work-types:` absent from CLAUDE.md, or `work-links:` absent from `.claude-tweaks/policy.yml`, alongside a present `work-backend: github-issues` in CLAUDE.md. **Look for each key in its own home, not both in CLAUDE.md** — `work-links` moved to `policy.yml` in 6.48.0, so checking CLAUDE.md for it fires on every correctly-configured project forever, and the offer re-writes a key that is already set | Run `probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) and offer to write the missing key(s) — `work-types` into CLAUDE.md, `work-links` into `.claude-tweaks/policy.yml` |
+| `work-backend: github-issues` with `work-types` present in CLAUDE.md and `work-links` present in `.claude-tweaks/policy.yml` | — | Every full Update-Mode pass re-probes capabilities (`probeCapabilities()`) and offers a patch when the result has drifted from what's recorded (e.g. the org enabled Issue Types since the last run) |
 
 `work-backend: local-files` needs no probe on any of these rows — its
 `work-types: labels` / `work-links: body-text` fallback is unconditional, the same
@@ -177,10 +177,21 @@ Work-Record Backend Drift section above states, and for the same reason: CLAUDE.
 edited without the user accepting the specific change. Under `--defaults`, or any invocation with
 no interactive human, present the diff in the report and apply nothing. Remove **only**
 exactly-matched whole lines from CLAUDE.md — never reflow a paragraph, never rewrite a heading,
-never delete a surrounding fenced block even when removing its only line leaves it empty. Append
-to `.claude-tweaks/policy.yml` in `{key}: {value}` form, creating the file if absent. On any
-outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
-`Operational` row.
+never delete a surrounding fenced block even when removing its only line leaves it empty.
+
+Writing to `.claude-tweaks/policy.yml` has two cases, and appending is only correct in one of
+them:
+
+- **Key absent there** (`alsoInPolicy: false`, and the promote case's opposite) — append
+  `{key}: {value}`, creating the file if absent.
+- **Key already present** (`alsoInPolicy: true`, and the user chose to promote the CLAUDE.md
+  value rather than drop it) — **replace that existing line in place.** Do not append: every
+  consumer grep in this codebase reads `| head -1`, so a second line for the same key is
+  inert and the old value silently keeps winning. That turns "promote my setting" into a
+  no-op the user has no way to notice.
+
+On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table
+as an `Operational` row.
 
 ### Maturity Drift
 

@@ -178,7 +178,7 @@ test('unrecognized key -> flagged, does not also appear in invalidValues', () =>
   assert.deepStrictEqual(result.invalidValues, []);
 });
 
-test('invalid value in policy.yml is flagged with source: policy.yml', () => {
+test('invalid value in policy.yml is flagged in invalidValues', () => {
   const repo = tmpRepo();
   writePolicy(repo, 'tidy-aggressiveness: extreme\n');
   const result = auditPolicy(repo);
