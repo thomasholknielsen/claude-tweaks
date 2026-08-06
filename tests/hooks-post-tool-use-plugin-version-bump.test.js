@@ -55,6 +55,61 @@ test('warns when a commit touches .claude-plugin/plugin.json for this project (n
   // passed for months while the message said nothing about the changelog.
   assert.match(out.json.systemMessage, /marketplace/i);
   assert.match(out.json.systemMessage, /CHANGELOG/i);
+  assert.match(out.json.systemMessage, /shipped-versions\.tsv/i);
+});
+
+// Same repo shape, but the release's same-commit obligations can be satisfied
+// selectively — the nudge is only useful if it stops naming what is already done.
+function gitRepoWithRelease({ version = '9.9.9', changelog = null, record = null }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-pvb-rel-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-q', '-m', 'initial'], { env: gitEnv() });
+  fs.mkdirSync(path.join(dir, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claude-tweaks', version }));
+  if (changelog !== null) fs.writeFileSync(path.join(dir, 'CHANGELOG.md'), changelog);
+  if (record !== null) {
+    fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'docs', 'shipped-versions.tsv'), record);
+  }
+  execFileSync('git', ['-C', dir, 'add', '-A'], { env: gitEnv() });
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', `Bump to ${version}`], { env: gitEnv() });
+  return fs.realpathSync(dir);
+}
+
+test('stops naming the CHANGELOG once the same commit carries the entry', () => {
+  const repo = gitRepoWithRelease({ changelog: '# Changelog\n\n## v9.9.9 — did the thing\n\nbody\n' });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.doesNotMatch(msg, /CHANGELOG/i, `still asked for the changelog: ${msg}`);
+  assert.match(msg, /shipped-versions\.tsv/i, 'the record is still outstanding and must still be named');
+});
+
+test('stops naming the record once the same commit carries the line', () => {
+  const repo = gitRepoWithRelease({ record: '# header\n9.9.9\t2026-08-06\trelease\n' });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.doesNotMatch(msg, /shipped-versions\.tsv/i, `still asked for the record: ${msg}`);
+  assert.match(msg, /CHANGELOG/i, 'the changelog is still outstanding and must still be named');
+});
+
+test('a near-miss version in either file does not count as satisfying it', () => {
+  // "9.9.99" contains "9.9.9" as a prefix. A substring test would read both as done.
+  const repo = gitRepoWithRelease({
+    changelog: '# Changelog\n\n## v9.9.99 — a different release\n',
+    record: '# header\n9.9.99\t2026-08-06\trelease\n',
+  });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.match(msg, /CHANGELOG/i);
+  assert.match(msg, /shipped-versions\.tsv/i);
+});
+
+test('the marketplace mirror is always named — it lives in another repo and cannot be checked', () => {
+  const repo = gitRepoWithRelease({
+    changelog: '# Changelog\n\n## v9.9.9 — did the thing\n',
+    record: '# header\n9.9.9\t2026-08-06\trelease\n',
+  });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.match(msg, /marketplace/i);
+  assert.doesNotMatch(msg, /CHANGELOG/i);
+  assert.doesNotMatch(msg, /shipped-versions\.tsv/i);
 });
 
 test('does not warn when plugin.json belongs to a different project', () => {

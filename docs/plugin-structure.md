@@ -22,6 +22,7 @@ perf/                             → Wall-clock timing budgets, run via `npm ru
 evals/                            → Reproducible eval/benchmark harness ("drills") — a separate Node project (own package.json/npm install/tests) that runs real claude-tweaks skills against isolated fixture repos via the Claude Agent SDK and grades cost + quality. Not part of the plugin runtime; see `evals/README.md` for setup, usage, and its safety model
 docs/skill-graph.md               → Every relationship between skills, stated once. Maintainer documentation, deliberately outside PLUGIN_SNAPSHOT_DIRS — replaced the per-skill `## Relationship to Other Skills` tables in v6.34.0 (see docs/decisions/0011-*)
 docs/incident-log.md              → The `[IL-nn]` post-mortems behind CLAUDE.md's Don'ts rules
+docs/shipped-versions.tsv         → Every version that reached main's tip, appended in the same commit as each bump. The authority for "what shipped" — reconstructing it from a git walk is unstable, not merely lossy (`[IL-95]`). Read by bin/lib/shipped-record.js and tests/changelog-coverage.test.js
 docs/decisions/NNNN-*.md          → ADRs — the why behind hard-to-reverse decisions
 README.md                         → User-facing documentation
 LICENSE                           → MIT

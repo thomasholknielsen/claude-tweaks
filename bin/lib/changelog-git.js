@@ -12,8 +12,17 @@
 // way that is easy to miss: it reports the bump commit sitting on a side
 // branch, not the value the tip took when that branch merged. Those disagree
 // whenever two sessions bump concurrently, which is this repo's normal working
-// mode. Only the first-parent chain of the release branch answers "what did an
-// install report", so that is what this walks.
+// mode. Walking the release branch's own first-parent chain is the closer
+// approximation of "what did an install report", so that is what this does.
+//
+// It is only an approximation. The reasoning holds while merges land ONTO the
+// release branch, and not otherwise. When
+// a branch merges main into itself and is then pushed as main, the first-parent
+// chain follows the feature branch and everything main carried since the fork
+// point becomes unreachable from this walk (#144). The walk is therefore no
+// longer the authority for "what shipped" — `shipped-record.js` is, and this
+// supplements it. Union, never replacement: the record can only be short a
+// version somebody forgot to append, and the walk is exactly what catches that.
 
 const { execFileSync, spawnSync } = require('node:child_process');
 
@@ -119,11 +128,31 @@ function shippedVersionRuns(repoRoot, ref) {
   return runs;
 }
 
-// Distinct shipped versions. A version that shipped, was rolled back, and
-// shipped again (6.24.0 did, in July 2026) is one entry's worth of history,
+// Distinct versions this walk can see. A version that shipped, was rolled back,
+// and shipped again (6.24.0 did, in July 2026) is one entry's worth of history,
 // not two, so this dedupes while shippedVersionRuns above keeps both spans.
-function shippedVersions(repoRoot, ref) {
+//
+// Answers only "what is visible from `ref`'s first-parent chain" — which is a
+// smaller and less stable question than "what shipped". Use `shippedVersions`
+// unless you specifically want the walk's own view.
+function walkedVersions(repoRoot, ref) {
   return [...new Set(shippedVersionRuns(repoRoot, ref).map((r) => r.version))];
 }
 
-module.exports = { historyAvailable, resolveRef, shippedVersionRuns, shippedVersions, MANIFEST_PATH };
+// Every version known to have reached main's tip: the recorded answer, plus
+// anything the walk can still see that the record is missing. The record alone
+// would go silently short if a release forgot to append; the walk alone loses
+// versions whenever a merge inverts (#144). Neither can subtract from the other.
+function shippedVersions(repoRoot, ref) {
+  const { recordedVersions } = require('./shipped-record.js');
+  return [...new Set([...recordedVersions(repoRoot), ...walkedVersions(repoRoot, ref)])];
+}
+
+module.exports = {
+  historyAvailable,
+  resolveRef,
+  shippedVersionRuns,
+  walkedVersions,
+  shippedVersions,
+  MANIFEST_PATH,
+};
