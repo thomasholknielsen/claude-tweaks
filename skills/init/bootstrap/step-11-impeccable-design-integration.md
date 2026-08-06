@@ -2,7 +2,7 @@
 
 *Optional Enhancement step — see `SKILL.md`'s `## Input` for when this group is offered or filtered, and `../bootstrap-steps.md` for its ordering and renumbering conventions.*
 
-claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
+claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design Claude Code plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.). Impeccable also publishes a separate deterministic Node CLI (`impeccable detect`) for catching design anti-patterns without LLM cost; it is an independent npm package with its own version line, not something the plugin install provides — see the install step below. The integration is opt-in and only runs on frontend projects.
 
 **Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the
 project root if Phase 0 is being run before Phase 2), using the same trigger-extension
@@ -26,9 +26,9 @@ frontend-facing.
 /reload-plugins
 ```
 
-The Impeccable CLI (`impeccable detect`) ships with the plugin and is invoked via `npx` — no separate install needed.
+The plugin and the CLI are independent artifacts with independent version lines: the three-command sequence above installs only the plugin's LLM-command skills. The CLI (`impeccable detect`, invoked via `npx`) needs its own install — run `npm install -g impeccable` and verify with `npx impeccable --version`. `/claude-tweaks:test`'s design gate depends on this install; `/claude-tweaks:review`'s LLM commands depend only on the plugin above.
 
-Verify by checking that `/impeccable:impeccable` resolves to a skill in the next session. If it does not, the plugin install must complete before downstream features work.
+Verify the plugin install by checking that `/impeccable:impeccable` resolves to a skill in the next session. If it does not, the plugin install must complete before downstream features work.
 
 **For option 1 only — generate design context files.** Run the init interview (interactive, ~5 minutes) and then generate the spec-compliant design document:
 
@@ -65,7 +65,7 @@ The `/claude-tweaks:design-wrapper` wrapper reads this flag as Layer 1 of its de
 
 **Re-run behavior:** When `/init` is re-run on a project where `design-integration: enabled`, offer to re-run `/impeccable:impeccable init` + `document` to refresh `PRODUCT.md` / `DESIGN.md` (the codebase may have evolved since the last run). When the flag is `plugin-only` or `disabled`, offer the upgrade path back to full integration.
 
-**Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
+**Failure handling:** If the plugin install or the CLI install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The two installs are independent, so one can succeed while the other fails (e.g. the plugin installs but `npm install -g impeccable` hits a permissions error); surface exactly which one failed. The wrapper's availability checks gracefully skip when dependencies are absent.
 
 **Automatic design hook (optional, separate offer).** After the install sequence completes for option 1 or 2 (Impeccable is installed either way), offer the automatic detection hook as its own follow-up. This is a materially different kind of decision from the context-file setup above — automatic runtime behavior during editing, not one-time context generation — so it gets its own prompt rather than a fourth item bolted onto the three-option choice above:
 
