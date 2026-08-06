@@ -288,6 +288,10 @@ reads as universal.
 
 ## Phase 2 — the local drift auditor
 
+**Phase 2: Specified** — decomposed into parent #140 with leaves #141 (manifest + deterministic
+checks), #142 (capability-triage skill), #143 (runner, triggers, issue filing). Build order
+#141 → #142 → #143.
+
 Sections below are numbered by execution order, not file order — Phase 2 appears last in
 this document because it was designed as Part C. Phase 2 ships before Phases 3 and 4 so
 each new coupling point those add is registered in the manifest as it is created.
