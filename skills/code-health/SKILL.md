@@ -281,6 +281,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["effort:medium",   "Scoring: moderate change, may span several files"],
 #  ["effort:high",     "Scoring: large change — consider decomposition before building"],
 #  ["ready",           "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+#  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["code-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 

@@ -200,6 +200,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["risk:high",          "Scoring: high blast radius — human review required"],
 #  ["effort:medium",      "Scoring: moderate change, may span several files"],
 #  ["ready",              "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+#  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["journey-health:drift",                "Journey category: the journey file no longer matches the codebase"],
 #  ["journey-health:coverage",             "Journey category: a journey step or story has a coverage gap"],
 #  ["journey-health:regression-suspected", "Journey category: live behavior appears to have regressed"],

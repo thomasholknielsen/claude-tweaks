@@ -240,13 +240,14 @@ STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibili
 ```
 
 The stage file holds the complete proposed memory file plus its `MEMORY.md`
-index line, so the Review Console can show exactly what would be written.
+index line, so the Review Console (or, in interactive mode, `summary-template.md`'s
+Memory updates section) can show exactly what would be written.
 
-Surfaces at the Wrap-Up Review Console (Step 8.6), or — in interactive mode
-and standalone wrap-up, where Step 8.6 does not run — as its own per-item
-batch decision presented before Step 9's summary. Standalone wrap-up has no
-run directory: stage in-memory and present the same per-item decision rather
-than writing to `staged/`.
+**Standalone wrap-up** (no run directory resolves): no Review Console will ever
+read a staged file here — the same reasoning `ledger/resolve-gate.md` applies to
+a standalone ledger item — so skip the `STAGED` line and `staged/` file entirely;
+present the proposal directly in `summary-template.md`'s Memory updates section
+and write the memory file on approval there instead.
 
 **Skip entirely** when the invoking assistant's system prompt states no memory
 directory for this project — D4 is unavailable, and the contract re-runs the
@@ -257,6 +258,8 @@ classifier from rule 4.
 ```
 SCANNED {time} — Step 7.10 memory curation: {N} insights classified, {M} resolved D4, {K} deduped against MEMORY.md. Reversibility: N/A.
 ```
+
+Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it inline.
 
 ## Step 7.11: Upstream feedback (D5)
 
@@ -270,24 +273,25 @@ Otherwise stage one proposal per learning — never file during the run:
 STAGED {time} — Step 7.11: upstream {defect|gap} report proposed for {component}. Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).
 ```
 
-The stage file holds the fully drafted **and already scrubbed** body, so the
-Review Console shows exactly what would be published. Filing happens when the
-item is approved — at the Review Console's `On approval` step (Step 8.6) or
-its per-item batch-decision equivalent below (interactive mode, standalone
-wrap-up) — by invoking `/claude-tweaks:feedback` per approved row. Step 10
-only confirms the filing landed; see `execution-and-verification.md`.
+The stage file holds the fully drafted **and already scrubbed** body. Filing
+happens on approval — at the Review Console's `On approval` step (Step 8.6),
+or, in interactive mode, `summary-template.md`'s Upstream feedback section —
+by invoking `/claude-tweaks:feedback` per approved row. Step 10 only confirms
+the filing landed; see `execution-and-verification.md`.
 
-Surfaces at the Wrap-Up Review Console (Step 8.6), or — in interactive mode
-and standalone wrap-up, where Step 8.6 does not run — as its own per-item
-batch decision presented before Step 9's summary. Standalone wrap-up has no
-run directory: stage in-memory and present the same per-item decision rather
-than writing to `staged/`.
+**Standalone wrap-up** (no run directory resolves): no Review Console will ever
+read a staged file here — the same reasoning `ledger/resolve-gate.md` applies to
+a standalone ledger item — so skip the `STAGED` line and `staged/` file entirely;
+present the proposal directly in `summary-template.md`'s Upstream feedback
+section and invoke `/claude-tweaks:feedback` on approval there instead.
 
 **Mandatory summary**, emitted every run regardless of outcome:
 
 ```
 SCANNED {time} — Step 7.11 upstream feedback: {N} learnings classified, {M} resolved D5 ({D} defect / {G} gap), self-reference: {collapsed|not applicable}. Reversibility: N/A.
 ```
+
+Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it inline.
 
 ## Step 8: Analyze Next Steps (record-based only)
 

@@ -79,6 +79,26 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 If the user chooses to override, let them pick which items to skip or change.
 
+**Memory updates and Upstream feedback — per-item, not part of the batch decision above.** After the cleanup+configuration batch decision resolves, render whichever of the two tables below has at least one row staged by Step 7.10/7.11; omit a table entirely when it has no rows, mirroring `review-console.md`'s shape:
+
+```
+#### Memory updates — REQUIRES PER-ITEM APPROVAL
+
+| M# | Name | Type | Fact | Index line |
+|---|---|---|---|---|
+| M1 | {name} | {type} | {the fact} | {the MEMORY.md line} |
+
+#### Upstream feedback — REQUIRES PER-ITEM APPROVAL
+
+| U# | Kind | Component | Summary |
+|---|---|---|---|
+| U1 | {defect\|gap} | {component} | {one line} |
+```
+
+Each row gets its own `AskUserQuestion` call — never batched together, and never folded into the cleanup+configuration batch choice above. Prompt per item exactly as `review-console.md`'s per-item drill does: `question` is the item's own line, `header` is `"Memory update {M#}"` or `"Upstream feedback {U#}"`, and the three options are `"Apply"`, `"Skip"`, `"Edit"` — none carries `(Recommended)`.
+
+On Apply (or Edit, after modification), the action is performed **here** — Step 10 only verifies it landed, it never performs it (`execution-and-verification.md`). Read the item's content from its staged file when a pipeline run directory exists (`staged/wrap-up-memory-{N}.md` / `staged/wrap-up-upstream-{N}.md`), or from the inline proposal held from Step 7.10/7.11 when this is standalone wrap-up (no `staged/` file — see those steps' standalone branch). Then execute exactly as `review-console.md`'s `On approval` steps 8-9 describe: for an `M#` item, write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)"; for a `U#` item, invoke `/claude-tweaks:feedback` with the already-scrubbed body. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason (or "declined, no reason given") when a pipeline run directory exists; state the decline inline in this summary otherwise.
+
 After presenting the summary, output an explicit closure line:
 
 ```

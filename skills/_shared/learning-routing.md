@@ -160,6 +160,13 @@ claude-tweaks component and the symptom, so a human can forward it with
 `/claude-tweaks:feedback` later. Never file it as a defect against this
 project's own code.
 
+File it **without** the born-`ready` stage label and without `risk:`/`effort:`
+scoring, so it stays a backlog record and never enters
+`/claude-tweaks:dispatch`'s worklist — it is not this project's work to build.
+Label it `upstream-candidate` plus the sweep's own `by:` label, and open the
+body with the claude-tweaks component and symptom so a human can hand it to
+`/claude-tweaks:feedback` unchanged.
+
 ## Consumers
 
 | Consumer | How it uses this file |

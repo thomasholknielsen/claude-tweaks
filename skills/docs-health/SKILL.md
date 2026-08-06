@@ -176,6 +176,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["effort:low",       "Scoring: small, agent-sized change"],
 #  ["effort:high",      "Scoring: large change — consider decomposition before building"],
 #  ["ready",            "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+#  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["docs-health:additive",     "Safe, mechanical patch — additive change with no removed content"],
 #  ["docs-health:restructural", "Structural change requiring human review before applying"],
 #  ["docs-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
