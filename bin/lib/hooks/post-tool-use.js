@@ -272,15 +272,21 @@ function run(ctx) {
     return idx < list.length ? list[idx] : null;
   }
 
-  // E2: commit breadcrumbs (log tier) — gated on a resolved pipeline run, unchanged.
-  if (ctx.runDir && hasCommand) {
+  // E2: commit breadcrumbs (log tier) — scoped to a run this session may write
+  // to, NOT ctx.runDir (#62). This is the breadcrumb that was reported
+  // cross-contaminating: a run's events.jsonl accumulating commits from
+  // completely unrelated worktrees, three of them in one reported case. Under a
+  // guessed attribution the line is tagged so it stays filterable rather than
+  // reading as this run's own work.
+  const ownedRun = ctx.ownedRun || {};
+  if (ownedRun.dir && hasCommand) {
     for (const target of targets) {
       const commit = target.action === 'commit' ? nextCommitFor(target.dir) : null;
-      ctxLib.appendEvent(ctx.runDir, 'commit', {
+      ctxLib.appendEvent(ownedRun.dir, 'commit', {
         action: target.action,
         dir: target.dir,
         hash: commit ? commit.hash : undefined,
-      });
+      }, ownedRun.attribution);
     }
   }
 
