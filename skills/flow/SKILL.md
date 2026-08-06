@@ -108,7 +108,7 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 1. Parse `$ARGUMENTS` — extract record reference(s) (`#N` / `#A,#B`) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, `no-deepen`, `no-creative`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
    1. Explicit mode keyword in `$ARGUMENTS` — `interactive` / `hybrid` / `confirm` / `auto`. (`confirm` means "auto mode, but gate the Manifesto"; see Step 3.)
-   2. `.claude-tweaks/policy.yml` `auto-mode:` setting (CLAUDE.md is also honored for this key) — `default-off` → `interactive`; `default-on` → `auto`.
+   2. `.claude-tweaks/policy.yml` `auto-mode:` setting — `default-off` → `interactive`; `default-on` → `auto`.
    3. **Intrinsic default → `auto`.** Flow's purpose is hands-off automation, so it runs auto unless a param or `auto-mode: default-off` lowers it.
 2. Determine record mode (`#N` / `#A,#B`, or a bare id under `work-backend: local-files`) or topic-resolution mode (name) — per Input resolution above. A path argument is held until Step 2.7 (pre-flight) where it's checked against the design-doc rejection rule.
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:

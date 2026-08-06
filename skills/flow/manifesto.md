@@ -17,7 +17,7 @@ Walk the precedence chain (see `_shared/auto-mode-contract.md`):
 
 1. Explicit CLI args from `$ARGUMENTS` (e.g., `no-polish` sets `polish: skip`)
 2. Pipeline-config file from a previous run that's still active in this session (rare; usually skipped)
-3. Project policy from `.claude-tweaks/policy.yml` (if exists) or CLAUDE.md `auto-mode:` keys
+3. Project policy from `.claude-tweaks/policy.yml` (if exists) `auto-mode:` key
 4. Hardcoded sensible defaults (last resort)
 
 For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
@@ -141,7 +141,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Source | Meaning |
 |---|---|
 | `arg` | Set by an explicit CLI argument in `$ARGUMENTS` |
-| `policy` | From `.claude-tweaks/policy.yml` or CLAUDE.md `auto-mode:` keys |
+| `policy` | From `.claude-tweaks/policy.yml`'s `auto-mode:` key |
 | `default` | Hardcoded sensible default |
 | `header` | Locked by the materialized header (`materialize.md`) — e.g. `surface:`/`design-intent:`/`ceremony:` — or the record body's `Surface:`/`Design-intent:` metadata lines (e.g., `design-intent:` set on every record in the run) |
 

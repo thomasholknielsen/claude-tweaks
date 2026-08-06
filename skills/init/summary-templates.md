@@ -159,7 +159,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |
-| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 17 |
+| Work records | Set work-backend / work-types in CLAUDE.md and work-links in `.claude-tweaks/policy.yml`; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 17 |
 | GitHub remote | Created `{owner}/{name}` ({visibility}) and set as `origin` (only if Step 9 ran and the user confirmed creation) | Step 9 |
 | Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 14 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 15 |
