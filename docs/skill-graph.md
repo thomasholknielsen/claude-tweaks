@@ -29,7 +29,7 @@ depends on them.
 | `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as backlog refine's recommendation signal. |
 | `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md` | Design rationale for `merge-check`'s behavior-delta criterion: why the instruction-file floor is defined by role rather than by path, why its escape is framed as a refutation rather than a classification, and why the blast-radius guideline binds only on behavior-carrying diffs. Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the previous anchor was a design doc, and it was pruned. |
 | `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Original design rationale and calibration examples for `ceremony-check`, and for how `/build`/`/wrap-up` consume the `ceremony-profile` lever — amended (not superseded) by the 2026-08-03 design doc above. |
-| `skills/_shared/integration-branch.md` | Resolves the `merge-base` blast radius is measured from in `merge-check`. `--base <ref>` is rank 1 of that ladder. |
+| `skills/_shared/integration-branch.md` | Resolves the `merge-base` that blast radius is measured from in `merge-check`. `--base <ref>` is rank 1 of that ladder. |
 
 ## backlog
 

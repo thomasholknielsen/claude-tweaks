@@ -24,6 +24,12 @@ at all. Unset reproduces the old behavior per consumer, so a project that sets n
 change. A conformance test now fails on any new site that resolves the default branch without
 citing the fragment — the check that would have caught this originally.
 
+`/claude-tweaks:init` now treats `worktree.baseRef: head` as required, not merely recommended,
+whenever `integration-branch` is set and differs from the repo's GitHub default: under `fresh`,
+every worktree would otherwise fork from the wrong branch by construction. The plugin cannot set
+that value itself — it lives in the harness's `settings.json` — so init states the requirement
+explicitly and asks.
+
 Naming the branch was only half of it: the routine preamble previously told a container that
 started on the wrong branch to fast-forward, never to switch. It now says to check the target
 branch out.
