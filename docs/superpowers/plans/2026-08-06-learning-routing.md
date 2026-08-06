@@ -911,11 +911,19 @@ Do not paste the section's body into any sweep. Do not paraphrase its self-refer
 
 - [ ] **Step 2: Add the contract citation to build Common Step 4.5**
 
-In `skills/build/SKILL.md` Common Step 4.5, add: `Architecture-alignment learnings that outlive this project route via skills/_shared/learning-routing.md rather than defaulting to a ledger entry.`
+In `skills/build/SKILL.md` Common Step 4.5, add: ``Architecture-alignment learnings that outlive this project route via `skills/_shared/learning-routing.md` rather than defaulting to a ledger entry.``
+
+Backtick the path, matching how every other file reference in that file is written. Common Step 4.5 runs in the main thread and reads `architecture-alignment.md` directly, so unlike the review case above this citation does reach the actor that acts on it.
 
 - [ ] **Step 3: Add the contract citation to review lens 3a**
 
-In `skills/review/SKILL.md` lens 3a, add: `Classify skill-routed findings via skills/_shared/learning-routing.md — a finding about a claude-tweaks skill is D5, not a project skill update.`
+In `skills/review/SKILL.md`, near the per-lens severity-floor table, add:
+
+```
+**3a skill-routed entries.** Lens 3a records a `review/skill` ledger entry rather than choosing a destination; `/claude-tweaks:wrap-up` Step 7 classifies it via `skills/_shared/learning-routing.md`, where a finding about a claude-tweaks skill resolves to D5 (upstream) rather than a project skill update. Do not inline this note into the 3a agent prompt — that agent's job is to record, not to route.
+```
+
+**Why the wording matters.** Lens 3a is dispatched as a Task agent (`step3-lens-dispatch.md`), and this project's subagent contract is explicit that an agent sees only what is in its prompt. A routing *instruction* placed in `SKILL.md` would therefore never reach 3a — `[IL-60]` — and would be doubly wrong, since 3a does not route at all. This note is addressed to the main thread and says where 3a's entries actually go.
 
 - [ ] **Step 4: Verify all six files cite the contract**
 
