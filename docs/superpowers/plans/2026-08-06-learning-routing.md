@@ -636,7 +636,8 @@ git commit -m "Route reflect insights through the learning-routing contract — 
 
 **Files:**
 - Modify: `skills/wrap-up/SKILL.md` (Steps 6 and 7 gate prose; add Steps 7.10 and 7.11; the Step 8.6 console description at line 260 and its read-gate at line 266)
-- Modify: `skills/wrap-up/review-console.md` (line 122's section enumeration; line 155's per-item sentence; two new sections after `#### Queue writes`)
+- Modify: `skills/wrap-up/review-console.md` (line 122's section enumeration; line 123's per-item numbering bullet; line 155's per-item sentence; two new sections after `#### Queue writes`)
+- Modify: `skills/flow/multispec-review-console.md` (the same two sections, aggregated across specs, plus its three "tenth, separate section" references and its per-item prompting rule)
 
 **Interfaces:**
 - Consumes: `skills/_shared/learning-routing.md`; `/claude-tweaks:feedback` (Task 2).
@@ -738,6 +739,28 @@ with:
 The named batch sections below resolve via one batch choice. The per-item sections that follow them — Queue writes, Memory updates, Upstream feedback — each require per-item approval, because `_shared/auto-mode-contract.md` lists work-record creation, memory writes, and upstream filing as not silenced by `auto`.
 ```
 
+- [ ] **Step 4b: Give each per-item section its own numbering prefix**
+
+The global `#` sequence belongs to the batch sections — that is why Queue writes uses `Q1`, `Q2`, … instead. A per-item section numbered into the global sequence reads as part of "Approve all", which is exactly the mistake the prefix exists to prevent. Memory updates take `M1`, `M2`, …; Upstream feedback takes `U1`, `U2`, …
+
+In `skills/wrap-up/review-console.md`, change the two new sections' example rows to use `M1` and `U1` rather than `13` and `14`, and rename their leading column header from `#` to `M#` and `U#` respectively.
+
+Then replace the Numbering rules bullet reading `- Queue writes is a tenth, separate section. It uses its own **\`Q\`-prefixed sequence** …` with:
+
+```
+- Three sections sit outside the global sequence because they require per-item approval and are NOT part of the global "Approve all" choice: **Queue writes** (`Q1`, `Q2`, …), **Memory updates** (`M1`, `M2`, …), and **Upstream feedback** (`U1`, `U2`, …). Each uses its own prefixed sequence, and none is ever counted into the nine batch sections above.
+```
+
+- [ ] **Step 4c: Add both sections to the multi-spec console**
+
+**Why this is not optional.** Under a multi-spec `/flow` run, each spec's wrap-up skips its own Review Console (`MULTISPEC_REVIEW_DEFER=1`) and the parent renders one consolidated console from `skills/flow/multispec-review-console.md`. That file enumerates its own fixed section list. Without the two new sections there, every staged memory and upstream proposal in a multi-spec run is **silently dropped** — a cross-file promise with no consumer, which `[IL-02]` forbids in the same change-set that creates the promise.
+
+In `skills/flow/multispec-review-console.md`:
+
+1. Add `#### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")` and `#### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")` immediately after the existing `#### Queue writes` section, aggregating across every spec's `staged/wrap-up-memory-*.md` and `staged/wrap-up-upstream-*.md` plus the parent run dir's own, using the `M#` / `U#` sequences.
+2. Update the three references describing wrap-up's Queue writes as "a tenth, separate section" / "its tenth, separate section" so they describe all three per-item sections rather than implying Queue writes is the only one.
+3. Extend the per-item prompting rule and its anti-pattern row so `M#` and `U#` items are prompted individually exactly as `Q#` items are — never batched, never grouped under "Approve all", never bulk-resolved across specs.
+
 - [ ] **Step 5: Verify the batch-section counts did NOT change**
 
 Run:
@@ -750,11 +773,12 @@ Expected: each returns its one existing line, unchanged. The two new sections ar
 
 - [ ] **Step 6: Verify no stale "tenth section" reference survives**
 
-Run:
+The phrase appears in **both** word orders — "a separate, tenth section" and "a tenth, separate section" — across two files. A grep matching only one order returns clean while four occurrences remain, which is the reworded-restatement failure `[IL-40]` describes. Match the bare word:
+
 ```bash
-grep -rniE "a separate,? tenth section" skills/
+grep -rni "tenth" skills/
 ```
-Expected: no output.
+Expected: no output. Every occurrence must have been generalized by Steps 4, 4b and 4c.
 
 - [ ] **Step 7: Verify both new steps are cited from the console**
 
