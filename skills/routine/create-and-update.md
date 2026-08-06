@@ -59,13 +59,13 @@ Read `schedule-resolution.md` in this skill's directory for 5a-5d — the cron-t
 
 1. **`--branch <name>`**, if passed. An explicit argument always wins; the only check is that it's non-empty.
 2. **`template.branch`**, if the template sets it. Rare — plugin-shipped templates leave it unset, since a branch name is project-specific (`skills/_shared/routine-template-schema.md` documents why).
-3. **A flat `integration-branch:` line** — the project's own machine-readable answer, and the source that makes an unattended `--defaults` run correct with no human present. Read via the same one-grep-both-files idiom every other dual-home lever uses (`/claude-tweaks:dispatch`'s `work-links`, `dispatch-retry-ceiling`):
+3. **A flat `integration-branch:` line** — the project's own machine-readable answer, and the source that makes an unattended `--defaults` run correct with no human present. Read from `.claude-tweaks/policy.yml` only, not CLAUDE.md — unlike the dual-home levers (`/claude-tweaks:dispatch`'s `work-links`, `dispatch-retry-ceiling`), this key is born policy.yml-only rather than migrated there later: a separate planned change makes `policy.yml` the sole config home for every lever, and this one never had a CLAUDE.md path to retire:
 
    ```bash
    INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
    ```
 
-   The trailing `s/[[:space:]]*#.*$//` is the one deviation from that idiom, and it is deliberate: the levers copying it hold enums and integers nobody annotates, while this value is pasted into a checkout instruction, so an inline `# comment` would otherwise become part of the branch name. `bin/lib/policy-schema.js`'s own `parseFlatLines` already strips comments the same way.
+   The trailing `s/[[:space:]]*#.*$//` comment-strip is deliberate: unlike other flat policy keys, which hold enums and integers nobody annotates, this value is pasted into a checkout instruction, so an inline `# comment` would otherwise become part of the branch name. `bin/lib/policy-schema.js`'s own `parseFlatLines` already strips comments the same way.
 
 4. **A branching model documented in CLAUDE.md prose** (no flat key — just the project describing itself), read only where it states unambiguously which branch day-to-day development targets: "development happens on `dev`", "branch from `dev`, PR into `dev`". A section that merely *names* several branches, or describes a release train without saying where work lands, resolves nothing — fall through to 5 rather than guessing which of the names it listed is the one.
 5. **Git — the current branch, checked against the GitHub default:**
