@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive } = require('../scope');
+const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive, sourceFiles } = require('../scope');
 const { MAX_STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-scope-')); }
@@ -726,4 +726,65 @@ test('gitChurn with { recursive: false } counts a commit that touches a direct r
   execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'root-level file']);
   const churn = gitChurn(root, '.', Date.now(), { recursive: false });
   assert.ok(churn >= 1, `expected the root-level commit to be counted, got churn=${churn}`);
+});
+
+// ─── SKIP_DIRS anchoring (#111) ────────────────────────────────────────────
+//
+// sourceFiles excludes SKIP_DIRS by passing find `-not -path "*/<dir>/*"`.
+// find's -path matches the WHOLE path string, so while the start point was
+// absolute, absDir's own ancestors sat in front of every candidate — and a
+// checkout living under any segment named in SKIP_DIRS excluded itself
+// entirely. A linked worktree sits at <repo>/.claude/worktrees/<name>, so every
+// sweep run from one found zero files while still emitting every slice: it
+// judged nothing and filed nothing, and reported success.
+
+// Identical content at each root, so any difference in what is found is
+// attributable to the root's own path and nothing else.
+function checkoutUnder(...ancestorSegments) {
+  const root = path.join(tmp(), ...ancestorSegments);
+  fs.mkdirSync(path.join(root, 'bin', 'nested'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'top.js'), 'const a = 1;\n');
+  fs.writeFileSync(path.join(root, 'bin', 'a.js'), 'const b = 2;\n');
+  fs.writeFileSync(path.join(root, 'bin', 'nested', 'deep.js'), 'const c = 3;\n');
+  fs.writeFileSync(path.join(root, 'node_modules', 'dep.js'), 'const d = 4;\n');
+  return root;
+}
+
+const relFiles = (root) => sourceFiles(root).map((f) => path.relative(root, f)).sort();
+
+// Every ancestor here is a SKIP_DIRS entry. `.claude/worktrees` is the one that
+// bit in production; the others share the exact generated -path shape.
+for (const ancestors of [['.claude', 'worktrees', 'demo'], ['build', 'checkout'], ['node_modules', 'checkout'], ['dist', 'checkout']]) {
+  const label = ancestors.join('/');
+
+  test(`sourceFiles finds the same files from a checkout under ${label} as from a plain root`, () => {
+    const expected = relFiles(checkoutUnder());
+    assert.deepStrictEqual(expected, ['bin/a.js', 'bin/nested/deep.js', 'top.js'], 'baseline fixture changed');
+    assert.deepStrictEqual(relFiles(checkoutUnder(...ancestors)), expected);
+  });
+
+  test(`listSlices emits the same slices from a checkout under ${label}`, () => {
+    const ids = (root) => listSlices(root).map((s) => s.id);
+    // The "." slice is the tell: it exists only when sourceFiles finds a direct
+    // file child, so an ancestor-excluded root drops it without erroring.
+    assert.deepStrictEqual(ids(checkoutUnder()), ['.', 'bin'], 'baseline fixture changed');
+    assert.deepStrictEqual(ids(checkoutUnder(...ancestors)), ['.', 'bin']);
+  });
+}
+
+test('a SKIP_DIRS directory INSIDE the scanned tree is still excluded', () => {
+  // The exclusions must keep meaning what they say — this is what breaks if the
+  // anchoring fix is mistaken for "drop the exclusions".
+  for (const root of [checkoutUnder(), checkoutUnder('.claude', 'worktrees', 'demo')]) {
+    assert.ok(!relFiles(root).some((f) => f.startsWith('node_modules/')), `node_modules leaked into ${root}`);
+  }
+});
+
+test('sourceFiles returns absolute paths regardless of where the root sits', () => {
+  // Callers read these with fs.readFileSync and hash them by path, so a
+  // relative path would fail silently one layer away from the change.
+  for (const root of [checkoutUnder(), checkoutUnder('.claude', 'worktrees', 'demo')]) {
+    for (const f of sourceFiles(root)) assert.ok(path.isAbsolute(f), `not absolute: ${f}`);
+  }
 });

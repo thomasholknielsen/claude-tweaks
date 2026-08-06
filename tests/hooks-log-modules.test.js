@@ -28,7 +28,7 @@ const readEvents = (run) => fs.readFileSync(path.join(run, 'events.jsonl'), 'utf
 test('post-tool-use logs commit breadcrumb with hash', () => {
   const repo = gitRepoWithCommit();
   const run = mkRun();
-  post.run({ input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "x"' }, cwd: repo }, runDir: run, runState: { status: 'active' }, cwd: repo });
+  post.run({ input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "x"' }, cwd: repo }, runDir: run, runState: { status: 'active' }, ownedRun: { dir: run, attribution: 'session' }, cwd: repo });
   const ev = readEvents(run);
   assert.strictEqual(ev[0].type, 'commit');
   assert.strictEqual(ev[0].action, 'commit');
@@ -46,7 +46,7 @@ test('post-tool-use logs a DISTINCT hash for each of two real commits to the sam
 
   post.run({
     input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "a" && git commit --allow-empty -m "b"' }, cwd: repo },
-    runDir: run, runState: { status: 'active' }, cwd: repo,
+    runDir: run, runState: { status: 'active' }, ownedRun: { dir: run, attribution: 'session' }, cwd: repo,
   });
   const ev = readEvents(run);
   assert.strictEqual(ev.length, 2);
@@ -57,9 +57,9 @@ test('post-tool-use logs a DISTINCT hash for each of two real commits to the sam
 
 test('post-tool-use without run dir or without git targets is a no-op', () => {
   const repo = gitRepoWithCommit();
-  assert.deepStrictEqual(post.run({ input: { tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: repo }, runDir: null, runState: null, cwd: repo }), {});
+  assert.deepStrictEqual(post.run({ input: { tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: repo }, runDir: null, runState: null, ownedRun: { dir: null, attribution: null }, cwd: repo }), {});
   const run = mkRun();
-  post.run({ input: { tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }, runDir: run, runState: null, cwd: repo });
+  post.run({ input: { tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: repo });
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
 

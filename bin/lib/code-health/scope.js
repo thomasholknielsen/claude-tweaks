@@ -155,22 +155,31 @@ function sourceFiles(absDir, { recursive = true } = {}) {
   try {
     const excludeArgs = [];
     for (const dir of SKIP_DIRS) {
-      // `*/dir/*` (not `${absDir}/dir/*`) so a skip-directory is excluded
-      // wherever it appears in the subtree, not only as a direct child of
-      // absDir — find's -path matches against the whole path string, so `*`
-      // spans '/' and matches nested occurrences too (e.g. pkg/nested/dir/*).
+      // `*/dir/*` (not `${dir}/*`) so a skip-directory is excluded wherever it
+      // appears in the subtree, not only as a direct child of absDir — find's
+      // -path matches against the whole path string, so `*` spans '/' and
+      // matches nested occurrences too (e.g. pkg/nested/dir/*).
       excludeArgs.push('-not', '-path', `*/${dir}/*`);
     }
     const depthArgs = recursive ? [] : ['-maxdepth', '1'];
+    // Scan `.` with cwd set to absDir, NOT the absolute path. -path matches the
+    // whole path string, so an absolute start point puts absDir's OWN ancestors
+    // in front of every candidate — and a checkout living under any segment
+    // named in SKIP_DIRS then excludes itself entirely. A linked worktree sits
+    // at <repo>/.claude/worktrees/<name>, so every sweep run from one found
+    // zero files while still emitting every slice: judged nothing, filed
+    // nothing, reported success (#111). Relative paths cannot name an ancestor,
+    // which is what makes the exclusions mean what the comment above says.
     const raw = execFileSync(
       'find',
-      [absDir, ...depthArgs, '-type', 'f', ...excludeArgs],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
+      ['.', ...depthArgs, '-type', 'f', ...excludeArgs],
+      { cwd: absDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return raw
       .split('\n')
       .filter(Boolean)
       .filter((f) => SOURCE_EXTS.has(path.extname(f)))
+      .map((f) => path.resolve(absDir, f))
       .sort();
   } catch {
     return [];
@@ -462,4 +471,7 @@ function selectSlice(root, cursors, opts = {}) {
   });
 }
 
-module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive };
+// sourceFiles is exported for tests only — it is the function whose exclusion
+// anchoring caused #111, and asserting on slice ids alone cannot distinguish
+// "found the files" from "emitted an empty slice".
+module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive, sourceFiles };

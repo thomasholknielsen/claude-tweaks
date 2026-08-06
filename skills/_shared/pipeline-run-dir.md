@@ -2,6 +2,8 @@
 
 Operational reference for skills that need to locate the active pipeline run directory. Ownership is split. **This file owns the Resolution order below** — the canonical, complete ordered algorithm for finding the active run, cited by step number from `/capture`, `/tidy`'s `scan-procedures.md`, `flow/materialize.md`, and `_shared/auto-decision-log.md`. `auto-mode-contract.md`'s "Pipeline run directory: location and collision-safety" section owns everything around it — directory structure, collision-safety rationale, cleanup/archival lifecycle, and gitignore treatment — and does not restate the ordering. Consult that section for anything not covered here.
 
+**Not the hook-side algorithm.** Hooks cannot see a skill's spec/topic, so `bin/lib/hooks/context.js`'s `resolveRun` answers a different question with different rules (ownership-scoped, no slug matching — see CLAUDE.md's Hooks section). A change to the order below does not change hook behavior, and vice versa.
+
 ## Resolution order
 
 1. **`PIPELINE_RUN_DIR` env var** — set explicitly by `/flow` when orchestrating. Use this when present (preferred path).
