@@ -475,10 +475,12 @@ stop real work. Moving them is tracked separately.
 The obvious alternation is not enough: `_shared/policy-schema.md`'s two framing sentences say "CLAUDE.md is their only current home" and "CLAUDE.md remains their only home," which no `only —`-style pattern matches. Both greps are required.
 
 ```bash
-grep -rn "CLAUDE\.md only\|CLAUDE\.md also honored\|CLAUDE\.md legacy fallback\|or CLAUDE\.md\|only current home\|remains their only home\|their only home" --include="*.md" skills/
+grep -rn "CLAUDE\.md only —\|CLAUDE\.md also honored\|CLAUDE\.md legacy fallback\|\`policy\.yml\` or CLAUDE\.md\|only current home\|remains their only home\|is their only home" --include="*.md" skills/
 ```
 
-Expected: zero output.
+Expected: zero output (`grep` exits 1).
+
+**The alternation is deliberately narrow.** An earlier draft used a bare `or CLAUDE\.md` branch and a bare `their only home`, and both over-matched: `or CLAUDE\.md` hits every ordinary list disjunction ("`.claude/rules/*.md`, or CLAUDE.md") and even the substring inside "for CLAUDE.md", returning 15 hits that are all prose about auditing or editing CLAUDE.md rather than home claims about a config key. A verification grep that cries wolf gets skimmed, which is worse than one that is slightly too narrow — so each branch here is anchored on punctuation or on a backticked `policy.yml` that only a home claim carries.
 
 ```bash
 grep -rn "survey: off\` in CLAUDE\|limit\` from the project's CLAUDE\|backlog-fetch-limit in CLAUDE" --include="*.md" skills/
