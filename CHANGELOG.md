@@ -31,6 +31,33 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.45.1 — /code-health sees the files again when run from a worktree (closes #111)
+
+`bin/lib/code-health/scope.js`'s `sourceFiles()` excluded `SKIP_DIRS` by passing `find` a
+`-not -path "*/<dir>/*"` argument per entry, against an **absolute** start point. `find`'s
+`-path` matches the whole path string, so the scanned root's own ancestors sat in front of
+every candidate — and a checkout living under any segment named in `SKIP_DIRS` excluded
+itself entirely.
+
+A linked worktree lives at `<repo>/.claude/worktrees/<name>`, and `.claude` is in the list.
+Every sweep run from one found **zero source files while still emitting every slice**: it
+judged nothing, filed nothing, and reported success. Measured on the same commit and repo,
+35 slices / 208+ files / 1.5 MB from the main checkout became 11 slices / 0 files / 0 bytes
+from a worktree.
+
+The scan now runs with `cwd` set to the slice root and a `.` start point, so paths are
+relative and cannot name an ancestor. The exclusions keep the meaning their comment always
+claimed — a skip-directory is excluded wherever it appears *inside* the tree.
+
+- `node_modules`, `dist`, `build`, `coverage`, `.next`, `.turbo` carry the identical shape,
+  so any repo cloned under e.g. `~/build/` was equally invisible. All are covered.
+- Sibling engines are unaffected and were checked rather than assumed: this is the only
+  `find` invocation in `bin/lib/`, and `docs-health`/`harness-health` match directory names
+  through `readdirSync` entries, which are relative by construction.
+- 10 regression tests across four ancestor shapes, each verified by reverting the anchoring
+  and confirming it fails. `sourceFiles` is exported for them — asserting on slice ids alone
+  cannot tell "found the files" from "emitted an empty slice".
+
 ## v6.45.0 — Which versions shipped is recorded, not reconstructed (closes #144)
 
 `tests/changelog-coverage.test.js` reconstructed the shipped set by walking
