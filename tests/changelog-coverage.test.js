@@ -16,7 +16,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { parseChangelogVersions, findHeadingDefects, findCoverageGaps } = require('../bin/lib/changelog.js');
-const { historyAvailable, shippedVersions } = require('../bin/lib/changelog-git.js');
+const { historyAvailable, shippedVersions, walkedVersions } = require('../bin/lib/changelog-git.js');
+const { RECORD_PATH, readShippedRecord, recordedVersions } = require('../bin/lib/shipped-record.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CHANGELOG_PATH = path.join(REPO_ROOT, 'CHANGELOG.md');
@@ -69,7 +70,10 @@ test('every version that shipped on the release branch has a CHANGELOG entry', (
     return;
   }
   const shipped = shippedVersions(REPO_ROOT, availability.ref);
-  assert.ok(shipped.length > 0, `no versions reconstructed from ${availability.ref} — the walk itself is broken`);
+  assert.ok(
+    shipped.length > 0,
+    `no versions resolved from ${RECORD_PATH} or the walk over ${availability.ref} — both sources are broken`,
+  );
 
   const { missing } = findCoverageGaps(shipped, changelog);
   assert.deepStrictEqual(
@@ -97,5 +101,59 @@ test('no CHANGELOG entry names a version that never shipped', () => {
     orphans.filter((v) => v !== manifestVersion),
     [],
     'CHANGELOG entries name versions that never reached the release branch',
+  );
+});
+
+// --- the shipped-versions record (#144) -------------------------------------
+//
+// The record is what makes the two checks above answerable at all. A git walk
+// cannot answer them: see bin/lib/shipped-record.js's header.
+
+test("the manifest's current version is in the shipped-versions record", () => {
+  const recorded = new Set(recordedVersions(REPO_ROOT));
+  assert.ok(
+    recorded.has(manifestVersion),
+    `.claude-plugin/plugin.json is at ${manifestVersion} but ${RECORD_PATH} has no line for it. ` +
+      `Append "${manifestVersion}\t<YYYY-MM-DD>\trelease" in the same commit as the bump — ` +
+      `see CLAUDE.md's "Releasing (two repos)". This is the step that keeps the record from ` +
+      'drifting back into something that has to be inferred.',
+  );
+});
+
+test('the shipped-versions record parses cleanly and lists each version once', () => {
+  const record = readShippedRecord(REPO_ROOT);
+  assert.ok(record.ok, `${RECORD_PATH} is unreadable: ${record.reason}`);
+  assert.deepStrictEqual(
+    record.malformed,
+    [],
+    `Lines that are neither a comment nor "version<TAB>date[<TAB>source]". A dropped line ` +
+      'understates what shipped, which is the failure direction this record exists to remove.',
+  );
+  const counts = new Map();
+  for (const row of record.rows) counts.set(row.version, (counts.get(row.version) || 0) + 1);
+  assert.deepStrictEqual(
+    [...counts.entries()].filter(([, n]) => n > 1).map(([v]) => v),
+    [],
+    'A version is recorded more than once',
+  );
+});
+
+test('the record accounts for every version the git walk can still see', () => {
+  const availability = historyAvailable(REPO_ROOT);
+  if (!availability.ok) {
+    test.skip(`git history unavailable: ${availability.reason}`);
+    return;
+  }
+  // One-directional by design. The walk losing versions the record holds is the
+  // known defect and is fine — that is why the record exists. The walk seeing
+  // one the record does NOT hold means a release skipped the append, and the
+  // record is short by however many more went the same way unnoticed.
+  const recorded = new Set(recordedVersions(REPO_ROOT));
+  const unrecorded = walkedVersions(REPO_ROOT, availability.ref).filter((v) => !recorded.has(v));
+  assert.deepStrictEqual(
+    unrecorded,
+    [],
+    `${availability.ref} reports these versions but ${RECORD_PATH} does not list them: ` +
+      `${unrecorded.join(', ')}. Append them.`,
   );
 });

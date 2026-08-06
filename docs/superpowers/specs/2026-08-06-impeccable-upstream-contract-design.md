@@ -107,11 +107,18 @@ other and rule 5 wins, making the advisory row of the severity table unreachable
 
 ### Command surface
 
-`skill/scripts/command-metadata.json` at 4.0.4 has **23** commands.
-`skills/design-wrapper/SKILL.md:192` says "all 24 Impeccable commands" (`[IL-40]`).
+`skill/scripts/command-metadata.json` at 4.0.4 has **23** commands, and the installed
+`plugin.json`'s own description says 23. `skills/design-wrapper/SKILL.md:203` (Reference
+sub-files) says "all 24 Impeccable commands" (`[IL-40]`), and `command-map.md`'s own table
+has 24 rows.
+
 `craft`'s upstream description is now: *"Deprecated compatibility alias for an ordinary
-Impeccable new-work request. It adds no behavior."* — `command-map.md:40` and `:151` still
-present it as usable.
+Impeccable new-work request. It adds no behavior."* — `command-map.md:40` (its Full command
+map row) and `:147` ("Why this categorization exists") still present it as usable.
+
+Line numbers in this section were re-measured 2026-08-06 after Phase 1 shipped; Phase 1's own
+edits to both files shifted every one of them (`[IL-86]`). Cite the section name alongside
+the number when acting on these.
 
 ### Unused upstream capability
 
@@ -129,6 +136,43 @@ New at 4.0.x, absent from every claude-tweaks reference: `context-signals.mjs`, 
 `design-wrapper/SKILL.md:97` accepts `Surface: web|mobile|desktop` and proceeds identically
 for all three, so a native record runs an HTML rule engine over native code. The likely
 outcome is zero findings — a false pass.
+
+### Executed behavior of `context-signals.mjs` (added 2026-08-06, during Phase 3 planning)
+
+Run against this repo — a markdown-and-Node plugin with no UI whatsoever — from the installed
+4.0.2 at `~/.claude/plugins/cache/impeccable/impeccable/4.0.2/skills/impeccable/scripts/`.
+Exit 0, empty stderr, JSON on stdout. Its full output shape:
+
+```
+setup:     {hasProduct, productPath, hasDesign, designPath, hasCode, platform}
+critique:  {latest: {slug, score, p0, p1, timestamp, file} | null}
+git:       {isRepo, branch, base, changedFiles[], changedCount}
+devServer: {running, ports[]}
+scan:      {targets[], via: 'git-changes'|'source-dir'|'html'|'root'|null}
+```
+
+Confirmed identical at tag `skill-v4.0.4` (path moved to `plugin/skills/impeccable/scripts/`;
+`scanTargets` gains a vendored-path exclusion). Three results contradict this document's
+first draft of A4 and B2, and each is the reason the corresponding section below was rewritten:
+
+1. **No field distinguishes frontend from backend.** The nearest analogue, `scan.targets`,
+   filters changed files through a `SCANNABLE_EXT` set that includes bare `.js` and `.ts` —
+   exactly the extensions `frontend-detection.md`'s negative-cases table excludes on purpose.
+   On this repo it returned four targets, including `tests/impeccable-cli-contract.test.js`.
+   A wrapper that took `scan.targets` as its frontend predicate would dispatch design
+   commands at a Node test file in a repo with no UI.
+2. **`setup.platform` was `null`** despite `PRODUCT.md` being present and found.
+   `extractPlatform` (`context.mjs:943`) reads a literal `Platform` section and accepts only
+   `web` / `ios` / `android` / `adaptive`; everything else, including absence, returns null.
+   Null is therefore the common case, not the exception.
+3. **`devServer.running` was `true`, on port 8080, with no dev server for this project.**
+   Upstream says so itself in `scanTargets`' docblock: *"a probed dev-server port may not
+   even belong to this project."* The probe is a bare TCP connect against seven common ports.
+
+The plugin is also the CLI's situation one layer up: **installed 4.0.2, audited 4.0.4.**
+Phases 3 and 4 consume plugin-side contracts, so they need a plugin-side pin and an
+availability check that compares it — the same seam Phase 1 built for the CLI. Phase 2's
+manifest already provides for two Impeccable entries; this is the second one.
 
 ## Phase 1 — the CLI contract seam (SHIPPED 2026-08-06)
 
@@ -180,22 +224,52 @@ thesis applied.
 
 ## Phase 3 — dispatch and detection
 
+**Phase 3: Specified** — decomposed into parent #145 with leaves #146 (context-signals as a
+pinned enrichment layer), #147 (retire the auto-fit and issue-driven dispatch tables), #148
+(sweep the retired vocabulary). Build order #146 → #147 → #148, serial because #146 and #147
+both edit `design-wrapper/SKILL.md` and #148 describes what #147 ships.
+
 Depends on Phase 2: both items below add a new upstream coupling point, and each must be
 registered in the drift auditor's manifest as it is created rather than retrofitted.
 
 ### A3 · Dispatch: assert the job only where you own the signal
 
 Deleted from `command-map.md`: the auto-fit table, the issue-driven keyword table, and the
-`craft` row. Separately, `design-wrapper/SKILL.md:192`'s "all 24 Impeccable commands" literal
-is replaced by a by-reference description per `[IL-40]`.
+`craft` row. Separately, `design-wrapper/SKILL.md:203`'s "all 24 Impeccable commands" literal
+is replaced by a by-reference description per `[IL-40]` — upstream says 23 and the local
+table has 24 rows, so the literal is both stale and unnecessary.
 
 Kept: intent-driven mapping (`Design-intent:` is creative direction — an orthogonal axis
 upstream does not own) and the survey "would help" criteria (claude-tweaks' own heuristics,
 not a restatement).
 
 Generalized: issue-driven dispatch reads `suggestion` from **every** audit finding.
-`command-map.md:95` already does this for anti-pattern findings and explains why; the four
-fixed rows re-derive by keyword what upstream already computed.
+`command-map.md:91` (the "Anti-Pattern dispatch — suggestion-driven, not fixed" section)
+already does this for anti-pattern findings and explains why; the four fixed rows re-derive
+by keyword what upstream already computed. Note that section's manual-only filter — a
+`suggestion` naming a manual-only command is staged, not dispatched — is the part that must
+survive generalization, not be dropped with the keyword table.
+
+**Blast radius, measured 2026-08-06.** "Auto-fit" and "issue-driven" are not local names —
+they are claude-tweaks' own published vocabulary for how the polish phase works, and A3
+retires both. Every file below states the retiring behavior in its own words, so none is
+reachable by editing `command-map.md` alone, and a keyword grep run *after* the rename finds
+nothing wrong with any of them (`[IL-93]`):
+
+| File | What it asserts |
+|---|---|
+| `design-wrapper/SKILL.md` (Input table; availability table; `polish` mode section; Reference sub-files) | Names all three categories and the `polish`/`clarify`/`harden` triple twice |
+| `design-wrapper/modes/polish.md` | Step 1/2/3 structure is the three categories; carries a worked example that counts them |
+| `design-wrapper/modes/review.md` | Writes the audit cache the issue-driven step consumes |
+| `flow/SKILL.md`, `flow/steps-and-gates.md`, `flow/polish-execution.md` | Restate the triple and the category split in the pipeline's own voice |
+| `_shared/auto-mode-contract.md` | Its polish-phase row explains the auto-decision rationale per category |
+| `ledger/SKILL.md` | `fixed` vs `observation` status keys off "auto-fit successes" |
+| `README.md`, `docs/skill-graph.md`, `docs/getting-started.md`, `docs/plugin-structure.md` | User-facing descriptions of the polish phase |
+
+The A4 correction above shrinks this considerably by comparison: because L3 survives, the
+seven files citing the Layer 3 sniff (`init/bootstrap/step-11`, `step-13`, `init/SKILL.md`,
+`specify/design-pre-steps.md`, `specify/SKILL.md`, `flow/SKILL.md`, `frontend-detection.md`)
+need no sweep at all. Deleting L3 as first drafted would have put all of them in scope too.
 
 **Deliberate limit on job-type inference.** The tempting move is to classify every record as
 blank-slate / new-page / addition / redesign / refinement. That would invent a new
@@ -208,21 +282,53 @@ hand over the record description and let `new-work.md` classify.
 
 ### A4 · Detection
 
+**Corrected 2026-08-06 by execution.** The first draft of this section deleted L3 and named
+`context-signals.mjs` its replacement. The script has no frontend predicate to replace it
+with — see Evidence finding 1. Deleting L3 on that basis would have removed the wrapper's
+only guard against dispatching design commands at backend code, and the replacement would
+have reported this very repo as frontend. L3 stays. What changes is that claude-tweaks stops
+resolving *targets* itself once L3 has answered the one question upstream doesn't answer.
+
 | Layer | Fate |
 |---|---|
+| L0 — `context-signals.mjs` | **New.** Enrichment, gathered first, consumed by the layers below and by Phase 4. Never decides frontend-ness. |
 | L1 — CLAUDE.md `design-integration` kill-switch | Stays. claude-tweaks policy; upstream cannot know it. |
-| L2 — `Surface:` / `Design-intent:` | Demoted from detection to job-description input. |
-| L3 — file-extension sniff | Deleted; replaced by `context-signals.mjs`. |
+| L2 — `Surface:` / `Design-intent:` | Stays as detection, and additionally feeds job description. `Design-intent:` was never a detection input and is untouched. |
+| L3 — file-extension sniff | **Stays.** It is the frontend predicate, and nothing upstream computes one. |
 
-`setup.platform` gates native (feeding B2, closing the false pass). `devServer.running`
-becomes the real `live` gate, replacing "a human must be present."
+What each signal is actually good for:
 
-`context-signals.mjs` sits at a version-pinned path inside the plugin cache. Resolution
-failure degrades to a clean skip, consistent with the wrapper's existing discipline — and its
-path and output shape register in Part C's manifest. Consuming a new upstream contract on
-trust would manufacture tomorrow's drift while fixing today's.
+| Signal | Consumer | Rule |
+|---|---|---|
+| `scan.targets` / `scan.via` | Target resolution, all modes | Replaces the wrapper's own `git diff --name-only` fallback — **after** L3 has ruled the diff frontend. This is the real delegation win: upstream already picks the files its own detector wants. |
+| `setup.platform` | B2 native routing | Authoritative **when non-null**; null falls back to `Surface:` (Evidence finding 2). |
+| `setup.hasProduct` / `hasDesign` | `pre-build`, and B1's `doctor` | Whether Impeccable's own project context exists at all. |
+| `critique.latest` | `review` mode | A cached score with P0/P1 counts, free. |
+| `devServer.running` / `ports` | `live` mode | **Necessary, not sufficient** (Evidence finding 3). `running: false` is a reliable skip; `running: true` does not establish that the port is this project's, so `live`'s human-present requirement stays. |
+
+The asymmetry in that last row is the shape of the whole section: a signal can be trusted to
+veto and not to authorize. Reading `running: true` as an authorization is how "delegate,
+don't restate" turns into "delegate, don't check."
+
+Resolution: glob `~/.claude/plugins/cache/*/impeccable/*/`, read each candidate's
+`.claude-plugin/plugin.json`, and select the directory whose `version` equals the pin.
+That resolves the path and enforces the pin in one step, mirroring Phase 1's CLI check, and
+per `[IL-89]` it reads the artifact rather than install metadata. No match — plugin absent, or
+present at an unpinned version — degrades to a clean skip naming both versions, and L3
+continues to work exactly as it does today. The path, the pin and the output shape all
+register in Phase 2's manifest. Consuming a new upstream contract on trust would manufacture
+tomorrow's drift while fixing today's.
 
 ## Phase 4 — capability integration
+
+**Phase 4: Specified** — decomposed into parent #149 with leaves #150 (`doctor` into `/tidy`),
+#151 (native routing), #152 (five-block contract and seed key), #153 (finish-reviewer plus the
+Subagent Contract exemption). #150 → #151 is serial on `design-wrapper/SKILL.md`; #151 also
+waits on #146. #152 and #153 are independent of everything.
+
+Every premise below was re-verified by execution against the **installed 4.0.2** before
+decomposition — `doctor.mjs --json` was run, `new-work.md:69` and
+`agents/impeccable-finish-reviewer.md` were read at the installed path, not at the audited tag.
 
 Depends on Phase 3 for B2 specifically: native routing is driven by `setup.platform`, which
 Phase 3's A4 introduces. B1, B3 and B4 have no Phase 3 dependency.
@@ -241,18 +347,26 @@ model.
 
 ### B2 · Native track routing
 
-`setup.platform` is authoritative; `Surface:` is a hint.
+`setup.platform` is authoritative **when non-null**. Null is the common case, not the
+exception — it requires a literal `Platform` section in `PRODUCT.md` naming exactly `web`,
+`ios`, `android` or `adaptive`, and this repo's own `PRODUCT.md` yields null (Evidence
+finding 2). So `Surface:` is not a hint that a present authority overrides; it is the
+fallback that carries almost every real record.
 
-| Platform | Path |
-|---|---|
-| `web` | Current path — CLI detect, live, critique/audit |
-| `ios` / `android` / `adaptive` | Native path — no CLI detect, no live; dispatch names the platform and lets upstream route to `adapt.native` / `audit.native` / `ios` / `android` |
+| `setup.platform` | `Surface:` | Path |
+|---|---|---|
+| `web` | any | Current path — CLI detect, live, critique/audit |
+| `ios` / `android` / `adaptive` | any | Native path — no CLI detect, no live; dispatch names the platform and lets upstream route to `adapt.native` / `audit.native` / `ios` / `android` |
+| `null` | `web` / `desktop` / missing | Current path (`desktop` maps to no upstream platform value; treat as `web`) |
+| `null` | `mobile` | Native path, platform unnamed — dispatch says "mobile" and lets upstream ask. `Surface: mobile` is the one existing value that already asserts native, and today it silently takes the web path. |
+
+That last row is the false pass the Evidence section identifies, and it is reachable **today
+without any Impeccable context file at all** — which is precisely why `setup.platform` cannot
+be the sole gate. A design whose only native trigger is a signal that is usually null closes
+the reported hole in the case that already had the answer, and leaves it open everywhere else.
 
 `test` mode on a native surface returns
 `{skipped: "native surface — CLI detector is web-only"}` instead of a false pass.
-
-`Surface: desktop` maps to no upstream platform value; default it to `web` unless
-`setup.platform` says otherwise.
 
 ### B3 · Seed key and the five-block contract
 
@@ -381,9 +495,27 @@ Still open, to settle before the phase that depends on each:
   fixture. Phase 1 Task 6 owns this; the parse is written so that being wrong about it is safe.
 - Whether `kicker-above-heading` and `radial-spotlight-glow` are `warning`. Derived from their
   absence in the 4.0.4 advisory partition, not read directly.
-- `context-signals.mjs`'s exact output JSON. Only its header docblock was read.
-- A robust way to resolve the Impeccable plugin root across installs, for `context-signals.mjs`.
 - superpowers' contract surface. Not audited; only Impeccable was.
+
+Settled by execution while planning Phase 3:
+
+- **`context-signals.mjs`'s exact output JSON** — recorded in Evidence, executed at the
+  installed 4.0.2 and cross-checked against 4.0.4 source. It carries no frontend predicate,
+  which is what forced the A4 and B2 rewrites above.
+- **Resolving the Impeccable plugin root across installs** — glob the plugin cache and select
+  by the `version` field in each candidate's own `.claude-plugin/plugin.json`. See A4.
+
+- **The plugin pin is 4.0.2 — the installed version — and no phase here needs 4.0.4.**
+  Phase 1's answer to the same question was upgrade-then-verify, so this one was checked
+  rather than assumed. Every upstream artifact Phases 3 and 4 consume is present at the
+  installed 4.0.2: `context-signals.mjs`, `reference/routing.md`, `new-work.md`, `doctor.md`,
+  `operate.md`, `craft-floor.md`, the native set (`ios.md`, `android.md`, `adapt.native.md`,
+  `audit.native.md`), and `agents/impeccable-finish-reviewer.md`. The single 4.0.4-only
+  addition is a fourth subagent, `impeccable-documenter`, which nothing in this design uses.
+  Pin to what was executed; Phase 2's `latest ≠ installed` trigger is the mechanism that
+  surfaces 4.0.4 as an upgrade with a capability diff, which is exactly the job it was
+  designed for. Upgrading first would re-open every 4.0.x reading here against a fresh
+  artifact to buy a subagent no phase calls.
 
 ## Non-goals
 
