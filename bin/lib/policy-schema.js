@@ -11,7 +11,7 @@ const POLICY_KEYS = [
   { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched'], default: 'subagent' },
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree' },
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
-  { key: 'routine.branch', type: 'string' },
+  { key: 'integration-branch', type: 'string' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3 },
   { key: 'automerge-max-lines', type: 'integer', default: 40 },

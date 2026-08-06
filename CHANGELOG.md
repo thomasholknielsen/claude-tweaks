@@ -19,7 +19,7 @@ entirely.
 
 The preamble now carries a `{{TARGET_BRANCH}}` placeholder that `/claude-tweaks:routine`
 substitutes at instantiation, resolving in precedence order: `--branch`, the template's own
-optional `branch:` field, `routine.branch` in `.claude-tweaks/policy.yml`, a branching model
+optional `branch:` field, `integration-branch` in `.claude-tweaks/policy.yml`, a branching model
 documented unambiguously in CLAUDE.md, and finally git — where a current branch that differs
 from the GitHub default is surfaced in the creation preview rather than silently picked. When
 nothing resolves, the substitution reproduces the old wording exactly, so unaffected projects

@@ -8,7 +8,7 @@ Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes wi
 
 **Branch check.** Resolve the repo's actual GitHub default branch: when `gh` is available and authenticated, `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; otherwise fall back to `git remote show origin` and read its `HEAD branch:` line (the same two-source lookup `/claude-tweaks:routine`'s CREATE Step 5.5 runs as the last rank of its own branch-resolution precedence). Compare it against the current branch (`git branch --show-current`). If neither source resolves a default branch, skip this check silently rather than guessing — everything below still runs. If they differ, this doesn't block the step, but print this warning before continuing to Detect:
 
-> This project's default branch is '{default}', but you're currently on '{current}'. Cloud sessions check out '{default}' — the plugin declarations and script this step is about to write won't take effect for cloud sessions until this branch merges into '{default}'. Scheduled Routines are pinned separately: each audits the branch it was given at creation time. If '{current}' is where development actually happens, set `routine.branch: {current}` in `.claude-tweaks/policy.yml`, so every routine created or re-synced from here on audits it — existing ones pick it up on `/claude-tweaks:routine update <skill>`.
+> This project's default branch is '{default}', but you're currently on '{current}'. Cloud sessions check out '{default}' — the plugin declarations and script this step is about to write won't take effect for cloud sessions until this branch merges into '{default}'. Scheduled Routines are pinned separately: each audits the branch it was given at creation time. If '{current}' is where development actually happens, set `integration-branch: {current}` in `.claude-tweaks/policy.yml`, so every routine created or re-synced from here on audits it — existing ones pick it up on `/claude-tweaks:routine update <skill>`.
 
 That second half matters because the two are genuinely independent: a routine left unpinned audits '{default}' forever, and on a `dev` → `staging` → `main` model that branch can be simultaneously behind and ahead of the one being developed (#132). This check runs on every invocation of this step, including a re-run where the Idempotency behavior below skips the settings.json portion — the branch can change between runs even when the declared plugins haven't.
 
@@ -167,7 +167,7 @@ under extraKnownMarketplaces).
   repo's actual GitHub default branch) — confirm it's the branch these plugin declarations
   actually landed on, especially if your team develops primarily on a non-default branch.
   Scheduled Routines are pinned independently of that: each audits the branch it was given
-  at creation. If development happens off the default branch, set `routine.branch` in
+  at creation. If development happens off the default branch, set `integration-branch` in
   `.claude-tweaks/policy.yml` — every routine created or re-synced afterwards picks it up.
 - **First exposure:** a plugin newly declared for cloud can show as installed
   (`claude plugin list --json`) while its skills/MCP tools are still uninvocable in that

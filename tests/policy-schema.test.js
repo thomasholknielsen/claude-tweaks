@@ -23,24 +23,32 @@ test('POLICY_KEYS entries are unique', () => {
   assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 32);
 });
 
-test('routine.branch is a recognized string key with no default', () => {
-  const branch = POLICY_KEYS.find((k) => k.key === 'routine.branch');
-  assert.ok(branch, 'routine.branch missing from POLICY_KEYS');
+test('integration-branch is a recognized string key with no default', () => {
+  const branch = POLICY_KEYS.find((k) => k.key === 'integration-branch');
+  assert.ok(branch, 'integration-branch missing from POLICY_KEYS');
   assert.strictEqual(branch.type, 'string');
   assert.strictEqual(branch.default, undefined, 'unset must mean "resolve the default branch per firing"');
 });
 
-test('routine.branch accepts a branch name and flags a whitespace-bearing one', () => {
+test('routine.branch is gone — renamed before it ever shipped, with no alias', () => {
+  assert.strictEqual(
+    POLICY_KEYS.find((k) => k.key === 'routine.branch'),
+    undefined,
+    'routine.branch was renamed in 6.39.0 pre-release; an alias would be a compatibility path with no expiry'
+  );
+});
+
+test('integration-branch accepts a branch name and flags a whitespace-bearing one', () => {
   const ok = tmpRepo();
-  writePolicy(ok, 'routine.branch: dev\n');
+  writePolicy(ok, 'integration-branch: dev\n');
   assert.deepStrictEqual(auditPolicy(ok).invalidValues, []);
   assert.deepStrictEqual(auditPolicy(ok).unrecognizedKeys, []);
 
   const bad = tmpRepo();
-  writePolicy(bad, 'routine.branch: dev branch\n');
+  writePolicy(bad, 'integration-branch: dev branch\n');
   const result = auditPolicy(bad);
   assert.strictEqual(result.invalidValues.length, 1, 'a name git itself would reject must be flagged, like every other typed key');
-  assert.strictEqual(result.invalidValues[0].key, 'routine.branch');
+  assert.strictEqual(result.invalidValues[0].key, 'integration-branch');
   assert.strictEqual(result.invalidValues[0].source, 'policy.yml');
 });
 
