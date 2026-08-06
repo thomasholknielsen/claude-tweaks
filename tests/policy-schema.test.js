@@ -34,7 +34,7 @@ test('routine.branch is gone — renamed before it ever shipped, with no alias',
   assert.strictEqual(
     POLICY_KEYS.find((k) => k.key === 'routine.branch'),
     undefined,
-    'routine.branch was renamed in 6.39.0 pre-release; an alias would be a compatibility path with no expiry'
+    'routine.branch was renamed before it shipped (the work landed as 6.42.0); an alias would be a compatibility path with no expiry'
   );
 });
 

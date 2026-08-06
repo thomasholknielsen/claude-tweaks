@@ -10,7 +10,9 @@ GitHub's default-branch pointer is a *display* fact: which branch the repo opens
 
 Take the **first** source that yields a branch name; once one does, the rest are not consulted.
 
-1. **An explicit argument** — `/claude-tweaks:routine`'s `--branch <name>`, or `/claude-tweaks:assess-agent-autonomy`'s `--base <ref>`. Non-empty is the only check.
+1. **An explicit argument** — `/claude-tweaks:routine`'s `--branch <name>`. Non-empty is the only check.
+
+   `/claude-tweaks:assess-agent-autonomy`'s `--base <ref>` is **not** a rank of this ladder: it names an already-known merge-base *commit*, not a branch, and a caller that passes it short-circuits before this ladder is consulted at all. It is listed here only so the two are not confused — every rank below yields a branch name.
 2. **`skills/{skill}/routine-template.yml`'s `branch:` field** — routine instantiation only; no other consumer has a template. Normally unset (see `_shared/routine-template-schema.md`).
 3. **A flat `integration-branch:` line in `.claude-tweaks/policy.yml`:**
 

@@ -88,7 +88,7 @@ grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 |
 git remote show origin | sed -n '/HEAD branch/s/.*: //p'   # only when the line above came back empty
 ```
 
-The last two commands together resolve `{integration-branch}`: take the `grep`'s output when it is non-empty, otherwise the `git remote show origin` fallback — local repository metadata that works regardless of transport, and this skill's rank-6 behavior per `skills/_shared/integration-branch.md`. See that file for the full precedence, including the explicit-argument and CLAUDE.md ranks this two-command shorthand collapses.
+The last two commands together resolve `{integration-branch}`: take the `grep`'s output when it is non-empty, otherwise the `git remote show origin` fallback — local repository metadata that works regardless of transport, and this skill's rank-6 behavior per `skills/_shared/integration-branch.md`. See that file for the full precedence, including the explicit-argument and CLAUDE.md ranks this two-command shorthand collapses. It also deliberately skips that ladder's git-inference rank, which would consider the branch the main checkout currently has checked out — the one value this procedure must never trust, since a concurrent session switching it underfoot is exactly what the guard below exists to catch.
 
 **First call — merge, from the main checkout.** `{integration-branch}` and `{branch}` are the values just read:
 

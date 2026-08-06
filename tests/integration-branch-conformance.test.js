@@ -14,7 +14,10 @@ const FRAGMENT = '_shared/integration-branch.md';
 //   teaches, so it is the single likeliest thing a future author copies.
 //   `$DEFAULT_BRANCH` is the case variant that once shipped a stale reference past
 //   a case-sensitive check, caught only because a human happened to read the line.
-const RESOLVER = /default_branch|defaultBranchRef|\$DEFAULT_BRANCH|remote show origin|refs\/remotes\/origin\/HEAD/;
+//   Bare `origin/HEAD` is the short form of the same derivation — `git rev-parse
+//   --abbrev-ref origin/HEAD` resolves the default branch without ever spelling out
+//   the full ref path, and passed this check silently until it was probed.
+const RESOLVER = /default_branch|defaultBranchRef|\$DEFAULT_BRANCH|remote show origin|origin\/HEAD/;
 
 // Any file naming the GitHub default branch is answering "which branch is this
 // project's current state" — unless it is on this list, which states why not.
@@ -25,7 +28,6 @@ const ALLOWLIST = new Map([
   ['_shared/issue-claims.md', 'claim refs need any always-present base SHA; the default branch is arbitrary but reliable, not a statement about where work lands'],
   ['_shared/routine-template-schema.md', 'quotes the unresolved fallback wording verbatim as documentation of what gets substituted'],
   ['dispatch/SKILL.md', 'same claim-ref base SHA as _shared/issue-claims.md'],
-  ['init/bootstrap/step-14-cloud-routine-parity.md', 'genuinely about the GitHub default branch — cloud sessions check out the environment branch, which is a different fact'],
 ]);
 
 function walk(dir, acc = []) {

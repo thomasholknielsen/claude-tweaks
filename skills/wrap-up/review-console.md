@@ -53,7 +53,7 @@ already uses; see the `worktree.always` coverage block in
 
 **Shell state does not survive between the two calls** — each Bash invocation
 gets a fresh shell, so a variable assigned in the first is empty in the second.
-Read the two values you need first and substitute them **literally** into the
+Read the values you need first and substitute them **literally** into the
 second call; do not carry them in shell variables.
 
 ```bash
@@ -66,7 +66,10 @@ gh api "repos/{owner}/{repo}" -q .default_branch # only when the line above came
 The third and fourth commands together resolve `{integration-branch}` — the branch
 this project integrates work into, which is not always the GitHub default (see
 `skills/_shared/integration-branch.md` for the full precedence, including the CLAUDE.md
-and explicit-argument ranks this two-command shorthand collapses). Take the `grep`'s
+and explicit-argument ranks this two-command shorthand collapses — and its git-inference
+rank, deliberately skipped here, which would consider whatever branch the main checkout
+currently has checked out; a concurrent session switching that is precisely what the guard
+below catches). Take the `grep`'s
 output when it is non-empty; otherwise fall back to `gh api`. Substituting the wrong one
 here merges into a branch nobody develops on (#132).
 

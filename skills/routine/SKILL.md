@@ -48,7 +48,7 @@ Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status`), then read e
 | Mode | Read | Covers |
 |---|---|---|
 | `create <skill>` | `create-and-update.md` | CREATE Steps 0-9. Its Step 3 idempotency check routes to UPDATE automatically — same file, no second read. |
-| `update <skill>` | `create-and-update.md` | UPDATE Steps 0-7. UPDATE reuses CREATE's Steps 1, 2, 4, and 6 by name, which is why the two modes share one file rather than splitting into two that would each read the other. |
+| `update <skill>` | `create-and-update.md` | UPDATE Steps 0-7. UPDATE reuses CREATE's Steps 1, 2, 4, 5.5, and 6 by name, which is why the two modes share one file rather than splitting into two that would each read the other. |
 | `status <skill>` / `status --all` | `status.md` | STATUS Steps 1-3.5, including the `--all` bulk-enumeration branch. Needs nothing from CREATE or UPDATE. |
 
 `create` and `update` additionally read `schedule-resolution.md` for CREATE Step 5's sub-steps (5a's cron-to-cadence classification, 5b-5d's interactive picker). `update --defaults` skips schedule re-resolution entirely and never reads it; `status` never reaches it at all.

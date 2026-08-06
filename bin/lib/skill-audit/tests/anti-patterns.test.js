@@ -145,7 +145,7 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   merge base — both are present at the base and absent from the upstream
   //   side, so they were deleted by the purge, not lost in conflict resolution.
   //
-  //   345 -> 347, v6.39.0 (#132). Two rows ADDED to routine/SKILL.md, none
+  //   345 -> 347, v6.42.0 (#132). Two rows ADDED to routine/SKILL.md, none
   //   evicted: "Letting a routine's target branch default to the repo's GitHub
   //   default..." and "Editing a `routine-template.yml` without bumping its
   //   `template_version`". Confirmed additive for this corpus: `git diff --

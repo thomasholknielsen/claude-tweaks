@@ -172,7 +172,8 @@ from.
   `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
 
 - **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`.
-  `--base <ref>` remains rank 1 of that ladder — a caller that already knows the merge base
+  `--base <ref>` short-circuits that ladder entirely rather than being a rank of it — it names a
+  merge-base commit, not a branch, so a caller that already knows the merge base
   (dispatch's per-group Task agent, which set up the worktree itself) passes it and skips
   resolution entirely.
 

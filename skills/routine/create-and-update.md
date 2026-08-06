@@ -1,7 +1,7 @@
 # Routine — CREATE and UPDATE
 
 Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `create` or
-`update`. The two modes share one file because UPDATE reuses five of CREATE's steps by name —
+`update`. The two modes share one file because UPDATE reuses several of CREATE's steps by name —
 template load (Step 1), repo URL + `PREFIXED_NAME` derivation (Step 2), environment resolution
 (Step 4), body assembly (Step 6), and Step 7's review-gate standard — so splitting them would make
 an `update` run read CREATE's file anyway. `status` needs none of this and reads `status.md`
