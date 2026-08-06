@@ -257,6 +257,53 @@ test('worktree-required: policy on denies Edit in the main checkout with a corre
   assert.match(spec.permissionDecisionReason, /using-git-worktrees/);
 });
 
+// ─── the indeterminate branch (#134) ───────────────────────────────────────
+//
+// `wtDetect.repoInfo` is looked up off the module object at call time, so
+// replacing the property here reaches the real gate without a production seam.
+test('worktree-required: an indeterminate repo status ALLOWS but says so out loud (#134)', () => {
+  const wtDetect = require('../bin/lib/hooks/worktree-detect');
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const real = wtDetect.repoInfo;
+  wtDetect.repoInfo = () => ({ repoRoot: null, isLinkedWorktree: false, indeterminate: true });
+  let out;
+  try {
+    out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
+  } finally {
+    wtDetect.repoInfo = real;
+  }
+  // Allowed: CLAUDE.md's hooks contract is never-break-a-session, and denying
+  // on a transient load spike would freeze unattended runs.
+  assert.ok(!out.json || !out.json.hookSpecificOutput || out.json.hookSpecificOutput.permissionDecision !== 'deny',
+    'an indeterminate git answer must not produce a deny');
+  // But no longer silent — the whole defect in #134 was that a load spike and a
+  // non-repo were byte-identical, so an enforcement gap left no trace at all.
+  assert.match(out.json.systemMessage, /could not determine/i);
+  assert.match(out.json.systemMessage, /was NOT applied/);
+  assert.strictEqual(out.exit, 0, 'every hook path exits 0, warnings included');
+});
+
+test('worktree-required: a DEFINITIVE non-repo answer allows silently, with no warning (#134)', () => {
+  // The control that gives the test above its meaning. Both cases yield
+  // repoRoot: null; only the indeterminate one warns. Without this, a blanket
+  // "always warn on null" implementation would pass the assertion above while
+  // spamming every non-git path in the project.
+  const wtDetect = require('../bin/lib/hooks/worktree-detect');
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const real = wtDetect.repoInfo;
+  wtDetect.repoInfo = () => ({ repoRoot: null, isLinkedWorktree: false, indeterminate: false });
+  let out;
+  try {
+    out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
+  } finally {
+    wtDetect.repoInfo = real;
+  }
+  assert.ok(!out.json || !out.json.systemMessage,
+    'git answering "not a repo" is a real answer — nothing to warn about');
+});
+
 test('worktree-required: policy on allows Edit inside a linked worktree', () => {
   const repo = gitRepoWithCommit();
   withPolicy(repo, 'worktree.always: true\n');

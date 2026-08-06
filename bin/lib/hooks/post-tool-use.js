@@ -2,7 +2,12 @@
 'use strict';
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
-const { execGit } = require('./git-exec');
+// These three call sites are informational (commit breadcrumbs, plugin-version
+// detection), not policy decisions — every failure kind resolves to "skip this
+// check" identically, so they read `.stdout` and ignore `.failure`. The
+// indeterminate/definitive distinction runGit now draws matters only where a
+// gate acts on the answer (worktree-detect -> pre-tool-use's worktree gate).
+const { runGit } = require('./git-exec');
 const { ISSUE_REF_SOURCE } = require('../issue-branch-tracking');
 
 // Field/record separators for recentCommits' combined --format string below.
@@ -23,7 +28,7 @@ const REC_SEP = '\x1e';
 // each entry `{ hash, ts, message }` (ts null if unparseable).
 function recentCommits(dir, count) {
   if (count <= 0) return [];
-  const out = execGit(['log', '-n', String(count), `--format=%h${FIELD_SEP}%ct${FIELD_SEP}%B${REC_SEP}`], dir);
+  const { stdout: out } = runGit(['log', '-n', String(count), `--format=%h${FIELD_SEP}%ct${FIELD_SEP}%B${REC_SEP}`], dir);
   if (out === null) return [];
   return out
     .split(REC_SEP)
@@ -183,9 +188,9 @@ function checkPluginVersionBump(recentByDir) {
       // HEAD left over from a `git commit` that never actually landed.
       if (commit.ts === null || Math.abs(Date.now() / 1000 - commit.ts) > COMMIT_FRESHNESS_WINDOW_SECONDS) continue;
       if (!commit.hash) continue;
-      const changedFiles = execGit(['diff-tree', '--no-commit-id', '--name-only', '-r', commit.hash], dir);
+      const { stdout: changedFiles } = runGit(['diff-tree', '--no-commit-id', '--name-only', '-r', commit.hash], dir);
       if (changedFiles === null || !changedFiles.split('\n').includes(PLUGIN_MANIFEST_PATH)) continue;
-      const manifestAtCommit = execGit(['show', `${commit.hash}:${PLUGIN_MANIFEST_PATH}`], dir);
+      const { stdout: manifestAtCommit } = runGit(['show', `${commit.hash}:${PLUGIN_MANIFEST_PATH}`], dir);
       if (manifestAtCommit === null) continue;
       let manifest;
       try {

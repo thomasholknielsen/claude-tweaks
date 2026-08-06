@@ -28,14 +28,18 @@ const { gitTargets, fileWriteTargets } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
-const { execGit } = require('./git-exec');
+const { runGit } = require('./git-exec');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
 }
 
+// Kept returning `string | null` — E1's own callers below compare toplevels for
+// a PROVABLE mismatch and already resolve any falsy value to allow, so the
+// indeterminate/negative distinction that repoInfo now draws would change no
+// decision here. (The worktree gate is the caller that needed it.)
 function toplevel(dir) {
-  return execGit(['rev-parse', '--show-toplevel'], dir);
+  return runGit(['rev-parse', '--show-toplevel'], dir).stdout;
 }
 
 function safeReal(p) {
@@ -51,7 +55,11 @@ function safeReal(p) {
 // gitTargets() parse of the command with its own later E1 loop instead of
 // re-running git-command.js's quote-aware segment/token walk a second time
 // over the same string.
-function checkWorktreeRequired(ctx, precomputedGitTargets) {
+// `indeterminateTargets` (optional, caller-supplied array) collects paths whose
+// repo status could not be determined — see the branch below. Passed in rather
+// than returned so a deny for one target never discards the warning owed for
+// another in the same call.
+function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets = []) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
   let targetPaths = [];
@@ -98,8 +106,25 @@ function checkWorktreeRequired(ctx, precomputedGitTargets) {
     // repo (e.g. a submodule) that never opted in itself.
     if (!wtDetect.findPolicyFile(targetPath)) continue;
 
-    const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(targetPath);
-    if (!repoRoot) continue; // not a git repo at all -> allow
+    const { repoRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(targetPath);
+    // TWO different conditions reach a null repoRoot, and they are not the same
+    // fact (#134):
+    //   indeterminate: false -> git ran and said "not a git repository". A real
+    //     answer, and nothing to enforce: allow, silently, as before.
+    //   indeterminate: true  -> git never answered (timed out under load, the
+    //     fork was refused, git is missing, or realpath on its answer failed).
+    //     We do not know whether this path is a repo, let alone whether it opted
+    //     into the policy.
+    // We still ALLOW the indeterminate case: CLAUDE.md's hooks contract is
+    // "never break a session" and "ambiguity resolves to allow", and denying on
+    // a transient load spike would freeze unattended runs. What changes is that
+    // it is no longer SILENT — before, a load spike and a non-repo produced
+    // byte-identical behavior, so an enforcement gap left no trace anywhere.
+    if (indeterminate) {
+      indeterminateTargets.push(targetPath);
+      continue;
+    }
+    if (!repoRoot) continue; // git answered: not a git repo at all -> allow
     if (!policy.isWorktreeAlwaysOn(repoRoot)) continue;
     if (isLinkedWorktree) continue;
 
@@ -122,7 +147,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets) {
   return {};
 }
 
-function run(ctx) {
+function runInner(ctx, indeterminateTargets) {
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
   // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
@@ -130,7 +155,7 @@ function run(ctx) {
   // invocation was pure repeated work.
   const commandGitTargets = command ? gitTargets(command, ctx.cwd) : null;
 
-  const gate = checkWorktreeRequired(ctx, commandGitTargets);
+  const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
   if (gate.json) return gate;
 
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
@@ -204,6 +229,31 @@ function run(ctx) {
     };
   }
   return {};
+}
+
+// Attaching the worktree-gate's indeterminate warning is done HERE, once, on
+// whatever runInner returned — not at runInner's own return sites. runInner has
+// a dozen of them and grows more over time; enumerating them to add the message
+// is the exact shape `[IL-14]` records (an enumeration silently misses a path,
+// and no test notices because the omission is invisible). This wrapper states
+// the unconditional rule instead: every outcome, deny or allow, carries the
+// warning if one was collected.
+function run(ctx) {
+  const indeterminateTargets = [];
+  const out = runInner(ctx, indeterminateTargets) || {};
+  if (!indeterminateTargets.length) return out;
+
+  const note =
+    `claude-tweaks: could not determine the git repo status of `
+    + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
+    + `The worktree.always policy gate was NOT applied to ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'} — `
+    + `allowed rather than denied, per the never-break-a-session rule. If this project requires an isolated worktree, verify manually.`;
+
+  const json = { ...(out.json || {}) };
+  json.systemMessage = json.systemMessage ? `${json.systemMessage} ${note}` : note;
+  // exit stays 0 on every path, deny included — the deny signal is the stdout
+  // JSON's permissionDecision, never the exit code (see this file's header).
+  return { ...out, exit: 0, json };
 }
 
 module.exports = { run };

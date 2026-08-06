@@ -1,25 +1,85 @@
 // bin/lib/hooks/git-exec.js — the one execFileSync('git', ...) spawn wrapper
 // shared by every hooks/ module that needs to ask git a question (
 // worktree-detect.js, pre-tool-use.js, post-tool-use.js). Previously
-// hand-copied verbatim in each of those files; a future fix to the shared
-// contract (e.g. widening the 3000ms timeout after a real timeout incident,
-// or capturing stderr for debugging a hook failure) now only needs to land
-// once instead of being hunted down in every copy.
+// hand-copied verbatim in each of those files; a fix to the shared contract
+// now only needs to land once instead of being hunted down in every copy.
 'use strict';
 const { execFileSync } = require('child_process');
 
-// Runs `git -C <cwd> <args>`, returning trimmed stdout, or null on any
-// failure (non-git dir, git not installed, timeout, non-zero exit, ...).
-// Ambiguity resolves to null so every caller's own "cannot prove -> allow"
-// fail-open logic sees a consistent falsy signal.
-function execGit(args, cwd) {
+// Budget for one git query, sized from measurement rather than intuition (#134).
+//
+// The previous value was 3000ms. Measuring the enforcement-critical call
+// (worktree-detect's four-flag `rev-parse`) against real machine load showed
+// that budget has no headroom on a repo whose normal working mode is several
+// parallel worktree sessions — maximum observed duration was 411ms idle,
+// 752ms under one competing test suite, 1856ms under three, and 2492ms under
+// 24 workers plus two suites: 83% of the old budget. The timeout demonstrably
+// fired in practice.
+//
+// 10000ms is ~4x the worst duration observed at peak contention. It is a
+// CEILING, not a cost — the normal case is ~45ms, and the ceiling only binds
+// when git is already pathologically slow. In that situation the alternative
+// to waiting is worse than waiting: a timeout here resolves to "cannot
+// determine", and pre-tool-use's worktree gate then allows a write it would
+// otherwise have denied, silently disabling a policy the user opted into.
+const DEFAULT_TIMEOUT_MS = 10000;
+
+// Failure kinds. Only `git-error` is a real ANSWER from git (it ran and exited
+// non-zero — e.g. "not a git repository"); every other kind means the question
+// was never answered at all. A caller making a policy decision must tell these
+// apart: treating "I could not ask" as "the answer is no" is exactly the
+// conflation that let the worktree gate stop enforcing under load (#134).
+const FAILURE = {
+  TIMEOUT: 'timeout',       // budget blown — indeterminate
+  SPAWN: 'spawn',           // OS refused the fork (EAGAIN/ENOMEM/...) — indeterminate
+  NO_GIT: 'no-git',         // git not installed / not on PATH — indeterminate
+  GIT_ERROR: 'git-error',   // git ran and exited non-zero — a definitive answer
+};
+
+const INDETERMINATE = new Set([FAILURE.TIMEOUT, FAILURE.SPAWN, FAILURE.NO_GIT]);
+
+// True when `failure` means the question went unanswered, rather than answered
+// in the negative. `null` (success) is not indeterminate.
+function isIndeterminate(failure) {
+  return INDETERMINATE.has(failure);
+}
+
+function classify(err) {
+  // execFileSync signals a timeout kill via `killed`/`signal` and, depending on
+  // platform and Node version, an ETIMEDOUT code — check all three rather than
+  // relying on any one being present.
+  if (err.code === 'ETIMEDOUT' || err.killed === true || err.signal === 'SIGTERM') return FAILURE.TIMEOUT;
+  if (err.code === 'EAGAIN' || err.code === 'ENOMEM' || err.code === 'EMFILE' || err.code === 'ENFILE') {
+    return FAILURE.SPAWN;
+  }
+  if (err.code === 'ENOENT') return FAILURE.NO_GIT;
+  return FAILURE.GIT_ERROR;
+}
+
+// Runs `git -C <cwd> <args>`.
+//
+// Returns { stdout, failure }:
+//   - success -> { stdout: '<trimmed stdout>', failure: null }
+//   - failure -> { stdout: null, failure: one of FAILURE.* }
+//
+// Always an object, never null. The function is deliberately no longer named
+// `execGit`: the old name returned `string | null`, so a call site left
+// un-migrated would keep parsing and read the always-truthy result object as
+// success — failing in the dangerous direction, silently (the hazard `[IL-31]`
+// records). A rename turns every missed call site into a ReferenceError.
+//
+// opts.timeoutMs overrides the budget; tests use it to force the timeout branch
+// deterministically. Production callers omit it.
+function runGit(args, cwd, opts = {}) {
+  const timeout = opts.timeoutMs != null ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
   try {
-    return execFileSync('git', ['-C', cwd, ...args], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000,
-    }).trim();
-  } catch {
-    return null;
+    const stdout = execFileSync('git', ['-C', cwd, ...args], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout,
+    });
+    return { stdout: stdout.trim(), failure: null };
+  } catch (err) {
+    return { stdout: null, failure: classify(err) };
   }
 }
 
-module.exports = { execGit };
+module.exports = { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS };
