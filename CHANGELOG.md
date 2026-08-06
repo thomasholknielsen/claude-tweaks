@@ -1,5 +1,22 @@
 # Changelog
 
+## v6.39.3 — Correct the gh-CLI dependency claim; record IL-91
+
+Wrap-up findings from the #129 investigation. No behavior change.
+
+- **The Stack table called `gh` "required" whenever `work-backend: github-issues` is active.**
+  That has been overstated since 6.24.0: `_shared/github-write-transport.md` maps the whole
+  work-record CRUD surface (list-by-label, create, edit/label, comment, close) onto GitHub MCP
+  equivalents, and `_shared/issue-claims.md`'s file-blob claim lock stands in for the ref-level
+  one. Narrowed to "default transport, not a hard requirement," naming the MCP path. The row
+  mattered because it told a reader that a `gh`-less environment cannot do this work — which is
+  precisely the cloud-sandbox shape #129 is about, and it had been wrong since the release whose
+  absence caused #129's symptom.
+- **`[IL-91]`** — in zsh, `"$ref:path"` applies the `:s` parameter-expansion modifier and
+  silently mangles the ref; with `2>/dev/null` the command returns empty rather than erroring. A
+  `git show` loop over three refs reported zero matches for a string that was plainly present,
+  and nearly pinned #129's root cause on the wrong repository.
+
 ## v6.39.2 — One broken journey no longer pins journey-health's rotation (closes #131)
 
 `journey-health`'s Phase 0 force-picks any journey declaring a `files:` path that no longer
