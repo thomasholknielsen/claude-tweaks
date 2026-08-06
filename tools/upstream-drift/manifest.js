@@ -12,8 +12,6 @@
 
 const fs = require('fs');
 
-// ─── scalar helpers ─────────────────────────────────────────────────────
-
 // YAML indicator characters this subset does not implement (block scalars,
 // anchors/aliases, tags, directives, explicit keys). A bare scalar starting
 // with one of these would otherwise silently parse as a literal string
@@ -24,51 +22,82 @@ const RESERVED_BARE_LEADERS = new Set(['|', '>', '&', '*', '!', '%', '@', '`', '
 
 const BARE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-function parseDoubleQuoted(text, lineNo) {
-  let out = '';
-  let i = 1;
-  let closed = false;
-  for (; i < text.length; i++) {
+// ─── quote-aware scanning ───────────────────────────────────────────────
+
+// Yields [index, char] for every character of `text` that sits OUTSIDE a
+// quoted scalar; quoted runs are skipped whole, respecting \" and \\ inside
+// double quotes and '' inside single quotes. Callers use this to find
+// structural characters (':', '#', ',', brackets) without re-parsing quotes.
+function* outsideQuotes(text) {
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === '\\') {
-      const next = text[i + 1];
-      if (next === '"') {
-        out += '"';
-        i++;
-        continue;
-      }
-      if (next === '\\') {
-        out += '\\';
-        i++;
-        continue;
-      }
-      throw new Error(`Unsupported YAML at line ${lineNo}: unsupported escape sequence '\\${next}' in double-quoted scalar (only \\" and \\\\ are supported)`);
+    if (quote === '"') {
+      if (ch === '\\') i++;
+      else if (ch === '"') quote = null;
+      continue;
     }
-    if (ch === '"') {
-      closed = true;
-      i++;
-      break;
+    if (quote === "'") {
+      if (ch === "'") {
+        if (text[i + 1] === "'") i++;
+        else quote = null;
+      }
+      continue;
     }
-    out += ch;
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    yield [i, ch];
   }
-  if (!closed) {
-    throw new Error(`Unsupported YAML at line ${lineNo}: unterminated double-quoted scalar`);
-  }
-  const trailing = text.slice(i).trim();
-  if (trailing !== '') {
-    throw new Error(`Unsupported YAML at line ${lineNo}: unexpected content after quoted scalar: '${trailing}'`);
-  }
-  return out;
 }
 
-function parseSingleQuoted(text, lineNo) {
+// Finds the first ':' outside any quoted scalar that is immediately
+// followed by a space or end-of-string — the key/value separator shape
+// this subset requires ("key: value" or "key:" with nothing after).
+// Returns {key, valueText} or null if no such colon exists.
+function splitKeyValue(content) {
+  for (const [i, ch] of outsideQuotes(content)) {
+    if (ch !== ':') continue;
+    const next = content[i + 1];
+    if (next === undefined || next === ' ') {
+      return { key: content.slice(0, i).trim(), valueText: content.slice(i + 1).trim() };
+    }
+  }
+  return null;
+}
+
+function stripCommentAndTrim(rest) {
+  for (const [i, ch] of outsideQuotes(rest)) {
+    if (ch === '#') return rest.slice(0, i).trimEnd();
+  }
+  return rest.trimEnd();
+}
+
+// ─── scalars ─────────────────────────────────────────────────────────────
+
+// `text` starts with its quote character. Returns the unescaped contents;
+// throws if the scalar is unterminated or if anything follows the closer.
+function parseQuoted(text, lineNo) {
+  const quote = text[0];
   let out = '';
   let i = 1;
   let closed = false;
+
   for (; i < text.length; i++) {
     const ch = text[i];
-    if (ch === "'") {
-      if (text[i + 1] === "'") {
+    if (quote === '"' && ch === '\\') {
+      const next = text[i + 1];
+      if (next !== '"' && next !== '\\') {
+        throw new Error(`Unsupported YAML at line ${lineNo}: unsupported escape sequence '\\${next}' in double-quoted scalar (only \\" and \\\\ are supported)`);
+      }
+      out += next;
+      i++;
+      continue;
+    }
+    if (ch === quote) {
+      // '' inside a single-quoted scalar is an escaped quote, not the closer.
+      if (quote === "'" && text[i + 1] === "'") {
         out += "'";
         i++;
         continue;
@@ -79,8 +108,9 @@ function parseSingleQuoted(text, lineNo) {
     }
     out += ch;
   }
+
   if (!closed) {
-    throw new Error(`Unsupported YAML at line ${lineNo}: unterminated single-quoted scalar`);
+    throw new Error(`Unsupported YAML at line ${lineNo}: unterminated ${quote === '"' ? 'double' : 'single'}-quoted scalar`);
   }
   const trailing = text.slice(i).trim();
   if (trailing !== '') {
@@ -92,8 +122,7 @@ function parseSingleQuoted(text, lineNo) {
 // text is already trimmed. Quoted values are ALWAYS strings; bare true/false
 // are booleans; bare integers are numbers; everything else bare is a string.
 function parseScalar(text, lineNo) {
-  if (text[0] === '"') return parseDoubleQuoted(text, lineNo);
-  if (text[0] === "'") return parseSingleQuoted(text, lineNo);
+  if (text[0] === '"' || text[0] === "'") return parseQuoted(text, lineNo);
   if (RESERVED_BARE_LEADERS.has(text[0])) {
     throw new Error(`Unsupported YAML at line ${lineNo}: unsupported construct starting with '${text[0]}' (not in the supported subset)`);
   }
@@ -103,234 +132,81 @@ function parseScalar(text, lineNo) {
   return text;
 }
 
-// ─── quote-aware scanning ───────────────────────────────────────────────
-// Shared low-level scan pattern: walk a string tracking whether we're
-// inside a single- or double-quoted run (respecting \" \\ in double quotes
-// and '' as an escaped quote in single quotes), so callers can find
-// structural characters (':', '#', ',', brackets) that are outside any
-// quoted scalar without re-parsing the quotes themselves.
+// ─── flow collections ───────────────────────────────────────────────────
 
-// Finds the first ':' outside any quoted scalar that is immediately
-// followed by a space or end-of-string — the key/value separator shape
-// this subset requires ("key: value" or "key:" with nothing after).
-// Returns {key, valueText} or null if no such colon exists.
-function splitKeyValue(content) {
-  let quote = null;
-  for (let i = 0; i < content.length; i++) {
-    const ch = content[i];
-    if (quote) {
-      if (quote === '"') {
-        if (ch === '\\') {
-          i++;
-          continue;
-        }
-        if (ch === '"') quote = null;
-      } else {
-        if (ch === "'") {
-          if (content[i + 1] === "'") {
-            i++;
-            continue;
-          }
-          quote = null;
-        }
-      }
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === ':') {
-      const next = content[i + 1];
-      if (next === undefined || next === ' ') {
-        return { key: content.slice(0, i).trim(), valueText: content.slice(i + 1).trim() };
-      }
-    }
-  }
-  return null;
-}
-
-function stripCommentAndTrim(rest) {
-  let quote = null;
-  let cutAt = -1;
-  for (let i = 0; i < rest.length; i++) {
-    const ch = rest[i];
-    if (quote) {
-      if (quote === '"') {
-        if (ch === '\\') {
-          i++;
-          continue;
-        }
-        if (ch === '"') quote = null;
-      } else {
-        if (ch === "'") {
-          if (rest[i + 1] === "'") {
-            i++;
-            continue;
-          }
-          quote = null;
-        }
-      }
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === '#') {
-      cutAt = i;
-      break;
-    }
-  }
-  const content = cutAt === -1 ? rest : rest.slice(0, cutAt);
-  return content.replace(/\s+$/, '');
-}
-
-// Finds the index of the closing bracket matching the opening bracket at
-// text[openIdx] ('{' or '['), tracking nested brackets and quoted scalars.
-function findMatchingBracket(text, openIdx, lineNo) {
-  const openChar = text[openIdx];
-  const closeChar = openChar === '{' ? '}' : ']';
-  const stack = [closeChar];
-  let quote = null;
-  for (let i = openIdx + 1; i < text.length; i++) {
-    const ch = text[i];
-    if (quote) {
-      if (quote === '"') {
-        if (ch === '\\') {
-          i++;
-          continue;
-        }
-        if (ch === '"') quote = null;
-      } else {
-        if (ch === "'") {
-          if (text[i + 1] === "'") {
-            i++;
-            continue;
-          }
-          quote = null;
-        }
-      }
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === '{') {
-      stack.push('}');
-      continue;
-    }
-    if (ch === '[') {
-      stack.push(']');
-      continue;
-    }
-    if (ch === '}' || ch === ']') {
-      const expected = stack.pop();
-      if (expected !== ch) {
-        throw new Error(`Unsupported YAML at line ${lineNo}: mismatched '${ch}' in flow collection`);
-      }
-      if (stack.length === 0) return i;
-      continue;
-    }
-  }
-  throw new Error(`Unsupported YAML at line ${lineNo}: unterminated flow collection (missing closing '${closeChar}')`);
-}
-
-// Splits str (the interior of a flow collection, brackets already
-// stripped) on commas that sit outside any nested bracket and outside any
-// quoted scalar. Returns an array of trimmed substrings.
-function splitTopLevelCommas(str, lineNo) {
+// Splits the flow collection opening at text[0] ('{' or '[') into its
+// top-level comma-separated parts (trimmed), skipping nested collections and
+// quoted scalars, and reports the index of its closing bracket. An empty
+// collection yields no parts.
+function splitFlowCollection(text, lineNo) {
+  const closers = [];
   const parts = [];
-  const depthStack = [];
-  let quote = null;
-  let start = 0;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (quote) {
-      if (quote === '"') {
-        if (ch === '\\') {
-          i++;
-          continue;
-        }
-        if (ch === '"') quote = null;
-      } else {
-        if (ch === "'") {
-          if (str[i + 1] === "'") {
-            i++;
-            continue;
-          }
-          quote = null;
-        }
-      }
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === '{') {
-      depthStack.push('}');
-      continue;
-    }
-    if (ch === '[') {
-      depthStack.push(']');
-      continue;
-    }
-    if (ch === '}' || ch === ']') {
-      const expected = depthStack.pop();
-      if (expected !== ch) {
+  let start = 1;
+  let end = -1;
+
+  for (const [i, ch] of outsideQuotes(text)) {
+    if (ch === '{' || ch === '[') {
+      closers.push(ch === '{' ? '}' : ']');
+    } else if (ch === '}' || ch === ']') {
+      if (closers.pop() !== ch) {
         throw new Error(`Unsupported YAML at line ${lineNo}: mismatched '${ch}' in flow collection`);
       }
-      continue;
-    }
-    if (ch === ',' && depthStack.length === 0) {
-      parts.push(str.slice(start, i));
+      if (closers.length === 0) {
+        end = i;
+        break;
+      }
+    } else if (ch === ',' && closers.length === 1) {
+      parts.push(text.slice(start, i));
       start = i + 1;
     }
   }
-  parts.push(str.slice(start));
-  return parts.map((p) => p.trim());
-}
 
-function parseFlowElementValue(text, lineNo) {
-  if (text[0] === '{' || text[0] === '[') return parseFlowCollection(text, lineNo);
-  return parseScalar(text, lineNo);
+  if (end === -1) {
+    throw new Error(`Unsupported YAML at line ${lineNo}: unterminated flow collection (missing closing '${text[0] === '{' ? '}' : ']'}')`);
+  }
+  if (text.slice(1, end).trim() === '') return { parts: [], end };
+  parts.push(text.slice(start, end));
+  return { parts: parts.map((p) => p.trim()), end };
 }
 
 // text is trimmed and starts with '{' or '['.
 function parseFlowCollection(text, lineNo) {
-  const closeIdx = findMatchingBracket(text, 0, lineNo);
-  const trailing = text.slice(closeIdx + 1).trim();
+  const { parts, end } = splitFlowCollection(text, lineNo);
+  const trailing = text.slice(end + 1).trim();
   if (trailing !== '') {
     throw new Error(`Unsupported YAML at line ${lineNo}: unexpected content after flow collection: '${trailing}'`);
   }
-  const inner = text.slice(1, closeIdx).trim();
-  if (text[0] === '{') {
-    if (inner === '') return {};
-    const obj = {};
-    for (const part of splitTopLevelCommas(inner, lineNo)) {
+
+  if (text[0] === '[') {
+    return parts.map((part) => {
       if (part === '') {
-        throw new Error(`Unsupported YAML at line ${lineNo}: empty entry in flow map`);
+        throw new Error(`Unsupported YAML at line ${lineNo}: empty element in flow sequence`);
       }
-      const split = splitKeyValue(part);
-      if (!split || !BARE_KEY_PATTERN.test(split.key)) {
-        throw new Error(`Unsupported YAML at line ${lineNo}: expected 'key: value' in flow map entry '${part}'`);
-      }
-      if (split.valueText === '') {
-        throw new Error(`Unsupported YAML at line ${lineNo}: flow map key '${split.key}' has no value`);
-      }
-      obj[split.key] = parseFlowElementValue(split.valueText, lineNo);
-    }
-    return obj;
+      return parseInlineValue(part, lineNo);
+    });
   }
-  if (inner === '') return [];
-  return splitTopLevelCommas(inner, lineNo).map((part) => {
+
+  const obj = {};
+  for (const part of parts) {
     if (part === '') {
-      throw new Error(`Unsupported YAML at line ${lineNo}: empty element in flow sequence`);
+      throw new Error(`Unsupported YAML at line ${lineNo}: empty entry in flow map`);
     }
-    return parseFlowElementValue(part, lineNo);
-  });
+    const split = splitKeyValue(part);
+    if (!split || !BARE_KEY_PATTERN.test(split.key)) {
+      throw new Error(`Unsupported YAML at line ${lineNo}: expected 'key: value' in flow map entry '${part}'`);
+    }
+    if (split.valueText === '') {
+      throw new Error(`Unsupported YAML at line ${lineNo}: flow map key '${split.key}' has no value`);
+    }
+    obj[split.key] = parseInlineValue(split.valueText, lineNo);
+  }
+  return obj;
+}
+
+// A value that fits entirely on one line: a flow collection or a scalar.
+function parseInlineValue(text, lineNo) {
+  if (text[0] === '{' || text[0] === '[') return parseFlowCollection(text, lineNo);
+  return parseScalar(text, lineNo);
 }
 
 // ─── line preprocessing ─────────────────────────────────────────────────
@@ -358,20 +234,14 @@ function isSequenceItem(content) {
 }
 
 // Dispatches a required value: '' (nothing after the key/dash on its own
-// line) means the value is a nested block on more-indented following
-// lines; a flow-bracket leader means a flow collection; anything else is a
-// scalar. parentIndent is the indent level the nested block must exceed.
-function parseValue(valueText, line, parentIndent, lines, pos) {
-  if (valueText === '') {
-    if (pos.i < lines.length && lines[pos.i].indent > parentIndent) {
-      return parseBlock(lines, pos, lines[pos.i].indent);
-    }
-    throw new Error(`Unsupported YAML at line ${line.lineNo}: missing value with no nested block following`);
+// line) means the value is a nested block on more-indented following lines.
+// parentIndent is the indent level that nested block must exceed.
+function parseValue(valueText, lineNo, parentIndent, lines, pos) {
+  if (valueText !== '') return parseInlineValue(valueText, lineNo);
+  if (pos.i < lines.length && lines[pos.i].indent > parentIndent) {
+    return parseBlock(lines, pos, lines[pos.i].indent);
   }
-  if (valueText[0] === '{' || valueText[0] === '[') {
-    return parseFlowCollection(valueText, line.lineNo);
-  }
-  return parseScalar(valueText, line.lineNo);
+  throw new Error(`Unsupported YAML at line ${lineNo}: missing value with no nested block following`);
 }
 
 function parseMapBody(lines, pos, indent) {
@@ -387,7 +257,7 @@ function parseMapBody(lines, pos, indent) {
       throw new Error(`Unsupported YAML at line ${line.lineNo}: invalid key '${split.key}'`);
     }
     pos.i++;
-    result[split.key] = parseValue(split.valueText, line, indent, lines, pos);
+    result[split.key] = parseValue(split.valueText, line.lineNo, indent, lines, pos);
   }
   return result;
 }
@@ -396,32 +266,26 @@ function parseSequence(lines, pos, indent) {
   const result = [];
   while (pos.i < lines.length && lines[pos.i].indent === indent) {
     const line = lines[pos.i];
-    const content = line.content;
-    if (!isSequenceItem(content)) break;
+    if (!isSequenceItem(line.content)) break;
 
+    // Skip the dash and its padding; whatever follows is the item itself.
     let k = 1;
-    while (k < content.length && content[k] === ' ') k++;
-    const itemRest = content.slice(k);
-    const itemIndentAbsolute = indent + k;
+    while (k < line.content.length && line.content[k] === ' ') k++;
+    const itemRest = line.content.slice(k);
+    const keyIndent = indent + k;
     pos.i++;
 
-    let value;
-    if (itemRest === '') {
-      value = parseValue('', line, indent, lines, pos);
-    } else if (itemRest[0] === '"' || itemRest[0] === "'" || itemRest[0] === '{' || itemRest[0] === '[') {
-      value = parseValue(itemRest, line, indent, lines, pos);
+    // "- key: value" opens a map whose remaining keys align with that key's
+    // own column. Anything else — including a quoted or flow-bracketed item,
+    // neither of which yields a bare key — is a plain value.
+    const split = splitKeyValue(itemRest);
+    if (split && BARE_KEY_PATTERN.test(split.key)) {
+      const item = { [split.key]: parseValue(split.valueText, line.lineNo, keyIndent, lines, pos) };
+      Object.assign(item, parseMapBody(lines, pos, keyIndent));
+      result.push(item);
     } else {
-      const split = splitKeyValue(itemRest);
-      if (split && BARE_KEY_PATTERN.test(split.key)) {
-        const obj = {};
-        obj[split.key] = parseValue(split.valueText, line, itemIndentAbsolute, lines, pos);
-        Object.assign(obj, parseMapBody(lines, pos, itemIndentAbsolute));
-        value = obj;
-      } else {
-        value = parseValue(itemRest, line, indent, lines, pos);
-      }
+      result.push(parseValue(itemRest, line.lineNo, indent, lines, pos));
     }
-    result.push(value);
   }
   return result;
 }
@@ -431,8 +295,7 @@ function parseBlock(lines, pos, indent) {
   if (isSequenceItem(line.content)) {
     return parseSequence(lines, pos, indent);
   }
-  const split = splitKeyValue(line.content);
-  if (!split) {
+  if (!splitKeyValue(line.content)) {
     throw new Error(`Unsupported YAML at line ${line.lineNo}: expected a block sequence ('- item') or a mapping key ('key: value')`);
   }
   return parseMapBody(lines, pos, indent);
@@ -441,12 +304,10 @@ function parseBlock(lines, pos, indent) {
 // ─── public API ──────────────────────────────────────────────────────────
 
 function parseManifest(text) {
-  const rawLines = text.split('\n');
-  const lines = [];
-  for (let idx = 0; idx < rawLines.length; idx++) {
-    const processed = processLine(rawLines[idx], idx + 1);
-    if (processed) lines.push(processed);
-  }
+  const lines = text
+    .split('\n')
+    .map((rawLine, idx) => processLine(rawLine, idx + 1))
+    .filter(Boolean);
   if (lines.length === 0) return {};
 
   const pos = { i: 0 };
@@ -467,6 +328,21 @@ function isPlainObject(v) {
 
 function hasKey(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+// Returns dep[key] when it is present and a list, else null after recording
+// why. An empty list is a valid, distinct value — never conflated with
+// missing — so callers must test for null, not falsiness.
+function requireList(dep, key, label, errors) {
+  if (!hasKey(dep, key)) {
+    errors.push(`Dependency ${label}: missing required key '${key}'`);
+    return null;
+  }
+  if (!Array.isArray(dep[key])) {
+    errors.push(`Dependency ${label}: '${key}' must be a list`);
+    return null;
+  }
+  return dep[key];
 }
 
 function validateManifest(obj) {
@@ -492,14 +368,12 @@ function validateManifest(obj) {
   const seenNames = new Set();
 
   obj.dependencies.forEach((dep, idx) => {
-    const label = isPlainObject(dep) && isNonEmptyString(dep.name) ? dep.name : `dependencies[${idx}]`;
-
     if (!isPlainObject(dep)) {
-      errors.push(`Dependency ${label}: entry must be a map`);
+      errors.push(`Dependency dependencies[${idx}]: entry must be a map`);
       return;
     }
+    const label = isNonEmptyString(dep.name) ? dep.name : `dependencies[${idx}]`;
 
-    // name
     if (!isNonEmptyString(dep.name)) {
       errors.push(`Dependency ${label}: missing or empty required key 'name'`);
     } else if (seenNames.has(dep.name)) {
@@ -508,12 +382,10 @@ function validateManifest(obj) {
       seenNames.add(dep.name);
     }
 
-    // kind
     if (!isNonEmptyString(dep.kind)) {
       errors.push(`Dependency ${label}: missing or empty required key 'kind'`);
     }
 
-    // installed-probe
     if (!isPlainObject(dep['installed-probe'])) {
       errors.push(`Dependency ${label}: missing or invalid required key 'installed-probe' (must be a map)`);
     } else {
@@ -533,12 +405,10 @@ function validateManifest(obj) {
       }
     }
 
-    // pinned
     if (!isNonEmptyString(dep.pinned)) {
       errors.push(`Dependency ${label}: missing or empty required key 'pinned'`);
     }
 
-    // upstream
     if (!isPlainObject(dep.upstream)) {
       errors.push(`Dependency ${label}: missing or invalid required key 'upstream' (must be a map)`);
     } else {
@@ -550,26 +420,18 @@ function validateManifest(obj) {
       }
     }
 
-    // contract-paths
-    if (!hasKey(dep, 'contract-paths')) {
-      errors.push(`Dependency ${label}: missing required key 'contract-paths'`);
-    } else if (!Array.isArray(dep['contract-paths'])) {
-      errors.push(`Dependency ${label}: 'contract-paths' must be a list`);
-    } else {
-      dep['contract-paths'].forEach((p, i) => {
+    const contractPaths = requireList(dep, 'contract-paths', label, errors);
+    if (contractPaths !== null) {
+      contractPaths.forEach((p, i) => {
         if (typeof p !== 'string') {
           errors.push(`Dependency ${label}: 'contract-paths[${i}]' must be a string`);
         }
       });
     }
 
-    // assertions
-    if (!hasKey(dep, 'assertions')) {
-      errors.push(`Dependency ${label}: missing required key 'assertions'`);
-    } else if (!Array.isArray(dep.assertions)) {
-      errors.push(`Dependency ${label}: 'assertions' must be a list`);
-    } else {
-      dep.assertions.forEach((a, i) => {
+    const assertions = requireList(dep, 'assertions', label, errors);
+    if (assertions !== null) {
+      assertions.forEach((a, i) => {
         if (!isPlainObject(a)) {
           errors.push(`Dependency ${label}: 'assertions[${i}]' must be a map`);
           return;
@@ -582,13 +444,9 @@ function validateManifest(obj) {
       });
     }
 
-    // fixtures
-    if (!hasKey(dep, 'fixtures')) {
-      errors.push(`Dependency ${label}: missing required key 'fixtures'`);
-    } else if (!Array.isArray(dep.fixtures)) {
-      errors.push(`Dependency ${label}: 'fixtures' must be a list`);
-    } else {
-      dep.fixtures.forEach((f, i) => {
+    const fixtures = requireList(dep, 'fixtures', label, errors);
+    if (fixtures !== null) {
+      fixtures.forEach((f, i) => {
         if (!isPlainObject(f)) {
           errors.push(`Dependency ${label}: 'fixtures[${i}]' must be a map`);
           return;
@@ -598,24 +456,24 @@ function validateManifest(obj) {
         }
         if (!isPlainObject(f.expect)) {
           errors.push(`Dependency ${label}: 'fixtures[${i}].expect' is required and must be a map`);
+          return;
+        }
+        if (typeof f.expect.exit !== 'number') {
+          errors.push(`Dependency ${label}: 'fixtures[${i}].expect.exit' must be a number`);
+        }
+        if (f.expect.stream !== 'stdout' && f.expect.stream !== 'stderr') {
+          errors.push(`Dependency ${label}: 'fixtures[${i}].expect.stream' must be exactly 'stdout' or 'stderr'`);
+        }
+        if (!hasKey(f.expect, 'keys')) {
+          errors.push(`Dependency ${label}: 'fixtures[${i}].expect.keys' is required`);
+        } else if (!Array.isArray(f.expect.keys)) {
+          errors.push(`Dependency ${label}: 'fixtures[${i}].expect.keys' must be a list`);
         } else {
-          if (typeof f.expect.exit !== 'number') {
-            errors.push(`Dependency ${label}: 'fixtures[${i}].expect.exit' must be a number`);
-          }
-          if (f.expect.stream !== 'stdout' && f.expect.stream !== 'stderr') {
-            errors.push(`Dependency ${label}: 'fixtures[${i}].expect.stream' must be exactly 'stdout' or 'stderr'`);
-          }
-          if (!hasKey(f.expect, 'keys')) {
-            errors.push(`Dependency ${label}: 'fixtures[${i}].expect.keys' is required`);
-          } else if (!Array.isArray(f.expect.keys)) {
-            errors.push(`Dependency ${label}: 'fixtures[${i}].expect.keys' must be a list`);
-          } else {
-            f.expect.keys.forEach((k, ki) => {
-              if (typeof k !== 'string') {
-                errors.push(`Dependency ${label}: 'fixtures[${i}].expect.keys[${ki}]' must be a string`);
-              }
-            });
-          }
+          f.expect.keys.forEach((k, ki) => {
+            if (typeof k !== 'string') {
+              errors.push(`Dependency ${label}: 'fixtures[${i}].expect.keys[${ki}]' must be a string`);
+            }
+          });
         }
       });
     }
