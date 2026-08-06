@@ -190,8 +190,13 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
           hookEventName: 'PreToolUse',
           permissionDecision: 'deny',
           permissionDecisionReason:
-            `claude-tweaks: this project requires an isolated worktree for Edit/Write/NotebookEdit, ` +
-            `git commit/push, and Bash cp/mv/tee writes (not every possible Bash write shape — see CLAUDE.md) ` +
+            // Derived from GATE_COVERAGE rather than spelled out, so widening
+            // the gate can never leave this message describing the old reach
+            // — the failure this whole binding exists to prevent (#70, #138).
+            `claude-tweaks: this project requires an isolated worktree for ` +
+            `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
+            `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
+            `see _shared/policy-schema.md's worktree.always coverage block) ` +
             `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
             `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
             `then retry this edit inside the new worktree.`,

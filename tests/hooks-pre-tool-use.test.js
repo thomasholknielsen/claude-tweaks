@@ -572,3 +572,117 @@ test('isPipelineBookkeeping fails closed on anything it cannot prove (#138)', ()
   assert.strictEqual(pre.isPipelineBookkeeping(repo, path.join(repo, '.claude-tweaks', 'pipelines-evil', 'x')), false,
     'sibling directory sharing the prefix string must not match');
 });
+
+// --- named Bash write shapes beyond cp/mv/tee (#70) ---
+//
+// `sed -i /abs/path/in/main-checkout/file` used to reach the main checkout
+// silently: hooks.json never spawned the hook for it, so fileWriteTargets was
+// never consulted. The deny direction is the point — but so is NOT denying a
+// read, since `sed -n` against the main checkout has to keep working.
+
+function policedRepo() {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  return repo;
+}
+const decisionOf = (out) => (out.json ? out.json.hookSpecificOutput.permissionDecision : 'allow');
+
+test('worktree-required: sed -i against the main checkout is denied (#70)', () => {
+  const repo = policedRepo();
+  for (const cmd of [
+    `sed -i 's/x/y/' ${path.join(repo, 'a.js')}`,
+    `sed -i.bak -e 's/x/y/' ${path.join(repo, 'a.js')}`,
+    `sed -i '' -e 's/x/y/' ${path.join(repo, 'a.js')}`, // BSD: suffix is a separate arg
+    `sed -ni 's/x/y/p' ${path.join(repo, 'a.js')}`, // bundled short flags
+  ]) {
+    const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+    assert.strictEqual(decisionOf(out), 'deny', `must deny: ${cmd}`);
+  }
+});
+
+test('worktree-required: a READ-only sed against the main checkout stays allowed (#70)', () => {
+  const repo = policedRepo();
+  for (const cmd of [
+    `sed -n '1,5p' ${path.join(repo, 'a.js')}`,
+    `sed 's/x/y/' ${path.join(repo, 'a.js')}`,
+    `sed -e 's/x/y/' ${path.join(repo, 'a.js')}`,
+  ]) {
+    const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+    assert.deepStrictEqual(out, {}, `must allow (no in-place flag): ${cmd}`);
+  }
+});
+
+test('worktree-required: perl -i against the main checkout is denied, -I is not in-place (#70)', () => {
+  const repo = policedRepo();
+  const denied = pre.run({
+    input: bashInput(`perl -pi -e 's/x/y/' ${path.join(repo, 'a.js')}`, '/tmp'),
+    runDir: null, runState: null, cwd: '/tmp',
+  });
+  assert.strictEqual(decisionOf(denied), 'deny', 'perl -pi is an in-place edit');
+  // -Idir contains an 'i' but is an include path, not --in-place. Treating it
+  // as in-place would deny an ordinary read-only perl invocation.
+  const allowed = pre.run({
+    input: bashInput(`perl -Ilib -e 'print 1' ${path.join(repo, 'a.js')}`, '/tmp'),
+    runDir: null, runState: null, cwd: '/tmp',
+  });
+  assert.deepStrictEqual(allowed, {}, 'perl -Ilib must not be read as in-place');
+});
+
+test('worktree-required: install/ln/truncate/dd against the main checkout are denied (#70)', () => {
+  const repo = policedRepo();
+  for (const cmd of [
+    `install -m 644 /tmp/src ${path.join(repo, 'a.js')}`,
+    `install -d ${path.join(repo, 'newdir')}`,
+    `ln -sf /tmp/src ${path.join(repo, 'link.js')}`,
+    `truncate -s 0 ${path.join(repo, 'a.js')}`,
+    `dd if=/dev/zero of=${path.join(repo, 'a.js')}`,
+  ]) {
+    const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+    assert.strictEqual(decisionOf(out), 'deny', `must deny: ${cmd}`);
+  }
+});
+
+test('worktree-required: the new shapes are allowed inside a worktree and under pipelines/ (#70)', () => {
+  const repo = policedRepo();
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  const wt = linkedWorktreeOf(repo);
+  const inWorktree = pre.run({
+    input: bashInput(`sed -i 's/x/y/' ${path.join(wt, 'a.js')}`, wt),
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.deepStrictEqual(inWorktree, {}, 'editing inside the worktree is the whole point of the policy');
+  // #138's exemption must apply to the new shapes too, not just cp/mv/tee.
+  const inPipelines = pre.run({
+    input: bashInput(`sed -i 's/x/y/' ${path.join(repo, '.claude-tweaks', 'pipelines', 'archive', 'r', 'decisions.md')}`, wt),
+    runDir: null, runState: null, cwd: wt,
+  });
+  assert.deepStrictEqual(inPipelines, {}, 'pipeline bookkeeping stays exempt for every write shape');
+});
+
+test('worktree-required: an unprovable target on a new shape fabricates nothing (#70)', () => {
+  // Fails closed the same direction as cp/mv/tee: a path this cannot resolve
+  // yields no target rather than a guess. [IL-50] — "looks like its sibling"
+  // is not "fails like its sibling".
+  const repo = policedRepo();
+  for (const cmd of [
+    'sed -i \'s/x/y/\' "$SOME_VAR"',
+    'sed -i \'s/x/y/\' ~/elsewhere.js',
+    'truncate -s 0 "$F"',
+    'dd if=/dev/zero of="$OUT"',
+    'ln -sf /tmp/src "$DEST"',
+  ]) {
+    const out = pre.run({ input: bashInput(cmd, repo), runDir: null, runState: null, cwd: repo });
+    assert.deepStrictEqual(out, {}, `must not fabricate a target from: ${cmd}`);
+  }
+});
+
+test('worktree-required: an unexpanded glob still resolves against the cwd and is denied (#70)', () => {
+  // Not a fabricated target: the hook sees the raw command string, and
+  // `sed -i ... *.js` run from the main checkout really does write there.
+  // The literal `repo/*.js` never exists, but repoInfo walks up to the
+  // nearest existing directory, so the repo still resolves correctly.
+  const repo = policedRepo();
+  const out = pre.run({ input: bashInput("sed -i 's/x/y/' *.js", repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(out), 'deny', 'a glob rooted in the main checkout writes to the main checkout');
+});

@@ -82,6 +82,35 @@ test('every GATE_COVERAGE field is load-bearing, not a parallel hand-kept list',
     'GATE_COVERAGE.bashWriteShapes must BE git-command.js\'s list, not a copy of it');
 });
 
+test('every WRITE_SHAPES entry has a matching hooks.json if-matcher (#70)', () => {
+  // The hook is a PreToolUse command gated by `if:` predicates. A shape the
+  // parser handles but no predicate names is DEAD CODE — the hook process
+  // never spawns for it — and it reads exactly like working coverage. That is
+  // how `sed -i` bypassed the gate for months while fileWriteTargets looked
+  // fine. Assert the two lists agree in both directions.
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const bashPre = hooks.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashPre, 'PreToolUse must carry a Bash matcher group');
+
+  const matched = new Set();
+  for (const h of bashPre.hooks) {
+    if (!h.if) {
+      // A predicate-less entry fires on every Bash call — that is the
+      // unconditional matcher policy-schema.md declines on measured cost.
+      // If one is ever added deliberately, this test needs rewriting, not
+      // deleting.
+      assert.fail('PreToolUse Bash carries an unconditional hook — see the measured cost in policy-schema.md');
+    }
+    const m = /^Bash\(([^ )*]+)/.exec(h.if);
+    if (m) matched.add(m[1]);
+  }
+
+  for (const shape of WRITE_SHAPES) {
+    assert.ok(matched.has(shape),
+      `WRITE_SHAPES includes '${shape}' but hooks/hooks.json has no Bash(${shape} *) predicate — the hook never spawns, so the parser branch is dead code`);
+  }
+});
+
 test('an unlisted Bash write shape is genuinely not detected', () => {
   // Proves the WRITE_SHAPES guard above is doing work rather than sitting
   // upstream of branches that would have matched anyway.
