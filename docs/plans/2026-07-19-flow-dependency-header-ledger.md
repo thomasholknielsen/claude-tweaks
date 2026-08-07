@@ -1,6 +1,0 @@
-# Open Items — #14: /specify writes blocked-by:, /flow's multi-spec ordering reads depends-on:
-
-| # | Phase | Item | Status | Resolution |
-|---|-------|------|--------|------------|
-| 1 | test | `tests/statusline.test.js` "render under 750ms (best of 3, absorbs load contention)" failed at 798ms under full-suite load contention (unrelated to this change — statusline.js untouched); re-ran in isolation and passed at 392ms | observation | Pre-existing flaky perf-timing test, confirmed unrelated by isolated re-run |
-| 2 | test | Acceptance Criteria 1-3 (end-to-end dependency detection/reordering/cycle detection with real records) require a live nested `/specify` + `/flow #A,#B` run — not exercised inside this same build to avoid a recursive pipeline-within-pipeline. Verified instead by hand-tracing a concrete scenario (#101 `Blocked by #100`, user order `#101,#100` → DAG → topological `#100,#101` → auto-reorder) against the literal edited text in `multi-spec.md`/`materialize.md`; traced correctly for body-text, local-files, and native `work-links` cases. | accepted | Markdown-procedure correctness verified via scenario trace, not live execution — reason: avoiding a recursive pipeline run inside this build; AC5 (stale caveat grep) verified directly and passes |
