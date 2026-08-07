@@ -67,7 +67,7 @@ LICENSE                           → MIT
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/health-core/tests/ AND bin/lib/docs-health/tests/ AND bin/lib/record-graph/tests/ AND bin/lib/skill-audit/tests/ AND bin/lib/init/tests/
+npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/health-core/tests/ AND bin/lib/docs-health/tests/ AND bin/lib/record-graph/tests/ AND bin/lib/skill-audit/tests/ AND bin/lib/init/tests/ AND bin/lib/wrap-up/tests/
 node --test bin/lib/code-health/tests/*.test.js   # Code-health unit suite only
 node bin/code-health.js <cmd>             # Code-health CLI — run with no args for its subcommand list
 node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
@@ -80,7 +80,7 @@ node --test bin/lib/record-graph/tests/*.test.js   # Record-graph unit suite onl
 node bin/record-graph.js render <faceted-json-path> --format <d2|svg> --work-links <native|body-text> [--fetch-limit N] [--generated-at ISO8601] [--out path]   # Record-graph CLI — render is its only command
 node --test bin/lib/init/tests/*.test.js   # Init CLAUDE.md-conformance unit suite only
 node --test bin/lib/wrap-up/tests/*.test.js   # Wrap-up unit suite only
-node bin/wrap-up-state.js --since <base-sha|iso-datetime> [--json]   # Wrap-up-state CLI — emits the /wrap-up State block and in-scope history ops, read from git rather than recalled
+node bin/wrap-up-state.js --since <base-sha> [--json]   # Wrap-up-state CLI — emits the /wrap-up State block and in-scope history ops, read from git rather than recalled
 npm run test:perf                               # Timing budgets in perf/ — NOT part of `npm test`; run alone, without a competing suite
 cd evals && npm install && node --test tests/   # Eval harness's own free unit suite — NOT included in root `npm test` (separate package.json/node_modules)
 cd evals && node runner.js run <scenario>       # Runs a real scenario against the live Claude Agent SDK — costs real tokens/dollars, see evals/README.md

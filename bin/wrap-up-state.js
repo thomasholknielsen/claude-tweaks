@@ -32,16 +32,17 @@ function git(args, cwd) {
 function main() {
   const { since, json } = parseArgs(process.argv.slice(2));
   if (!since) {
-    process.stderr.write('usage: wrap-up-state.js --since <base-sha|iso-datetime> [--json]\n');
+    process.stderr.write('usage: wrap-up-state.js --since <base-sha> [--json]\n');
     process.exit(2);
   }
   const cwd = process.cwd();
 
-  // Resolve the boundary to a datetime for --since, and echo the base back so a
-  // wrong base is visible in the rendered block rather than silently narrowing
-  // the window. A bare date would land on 1970-01-01 for a zero timestamp and
-  // return nothing in positive-UTC-offset zones, so always pass a full ISO
-  // 8601 datetime to git.
+  // `since` is a commit-ish (a base sha). Resolve it TO a full ISO 8601
+  // datetime for git reflog's --since=, and echo the base back so a wrong base
+  // is visible in the rendered block rather than silently narrowing the
+  // window. A bare date would land on 1970-01-01 for a zero timestamp and
+  // return nothing in positive-UTC-offset zones, so this resolution — not a
+  // raw date string — is what reflog's --since= is always given.
   const sinceDate = git(['show', '-s', '--format=%cI', since], cwd) || since;
 
   const state = readState({ cwd, since });
