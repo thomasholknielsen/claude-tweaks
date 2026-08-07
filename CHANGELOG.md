@@ -15,7 +15,7 @@ parent, where the walk never looks, so versions *left* the reconstructed set as
 later merges landed (#144). Two releases were written up as never-shipped on that
 evidence before anyone checked it against a source outside this repo's topology.
 
-Two conventions follow from how this repo works, and both are visible below:
+Three conventions follow from how this repo works, and all are visible below:
 
 - **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
   developed and written up under one number but reached users under another,
@@ -24,12 +24,66 @@ Two conventions follow from how this repo works, and both are visible below:
   build that actually carried it. The original write-up is kept verbatim.
   Only three entries are genuinely of this kind — v6.3.0, v6.5.0 and v6.25.0.
   Thirteen more carried the label until v6.45.0 and did not deserve it.
+- **A `###` subsection labelled "also carried in this build"** documents work that
+  reached users under a version whose own entry describes something else. The record
+  landed on `main` without bumping, so the build that carried it was already numbered
+  for other work, and the release step that would have written it up never ran
+  (`[IL-12]`). These are backfilled after the fact — labelled, rather than folded into
+  the surrounding entry, so nothing here is mistaken for a contemporaneous release
+  note. Distinct from the branch-numbered case above: there the write-up existed and
+  the number moved; here the number was right and the write-up was missing.
 - **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
   commit history rather than written at release time — the changelog step was
   not part of the release convention until v6.41.0, and 103 of the first 145
   releases went undocumented (`[IL-94]`). They are summaries of what each version
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
+
+## v6.56.0 — the retired polish vocabulary leaves the files that restated it
+
+The last leaf of the Impeccable upstream-contract program's Phase 3 (#148). #147 changed
+how `/claude-tweaks:design-wrapper` dispatches during the polish phase; this release
+makes the rest of the repo stop describing the old way.
+
+"Auto-fit" and "issue-driven" were never internal names local to `command-map.md` —
+they were this plugin's published vocabulary for the polish phase, restated in their
+own words across `/flow`, `/ledger`, `_shared/auto-mode-contract.md`, `README.md` and
+the user-facing docs. None of those files appeared in #147's diff, and a keyword grep
+for the *new* vocabulary finds nothing wrong with any of them, because they never used
+the new words. Their claims were true when written and went quietly stale (`[IL-93]`).
+
+| Was | Is |
+|---|---|
+| Auto-fit (polish phase) | **Refinement set** |
+| Issue-driven | **Suggestion-driven** — reads each `audit` finding's own `suggestion` field instead of keyword-matching four fixed categories |
+| Intent-driven | unchanged |
+
+**Two things the sweep found that the record specifying it did not know about.**
+
+#147 shipped a fourth term the record's replacement table never listed: **Phase-fixed**,
+covering the pre-spec (`/specify` shape) and review-phase (`/review` critique + audit)
+rows that were also called auto-fit. Renaming only the polish row would have orphaned
+the other two. The authority for a sweep like this is the landed diff, never the
+specifying record.
+
+`skills/flow/polish-execution.md` consumed only one of the two `staged_suggestions`
+kinds. #147 added an `unclassified` kind for a finding carrying no usable `suggestion`,
+and `modes/polish.md`'s output contract requires consumers to branch on `kind` — this
+one did not, so an unclassified observation would reach `{run-dir}/staged/` labelled as
+a manual-only *command* that no finding ever named. Fixed here rather than deferred,
+because that wrong label is what a human reads at the Wrap-Up Review Console.
+
+Also restated against signals that still exist: `/ledger`'s `design`-phase row keyed
+`fixed` off "auto-fit successes", a category that no longer exists, and now keys `fixed`
+off a `commands_invoked` entry and `observation` off a `staged_suggestions` entry.
+`_shared/auto-mode-contract.md`'s polish row keeps its `AUTO` classification and now
+names the staging path it previously left out.
+
+Deliberately not swept: `CHANGELOG.md`, `docs/superpowers/**`, and one audit-trail
+comment in `bin/lib/skill-audit/tests/anti-patterns.test.js` that records *what #147
+retired*. Rewriting a historical note about a removal to use the post-removal names
+would falsify it (`[IL-28]`). `docs/plugin-structure.md`, which the record listed as
+needing a sweep, already carried the new vocabulary and needed no edit.
 
 ## v6.55.0 — the finishing review runs at code-review time, and third-party agents are exempt by structure
 
@@ -375,6 +429,41 @@ The four health-sweep `skill-md` tests asserted the prefixed name through an
 unanchored `/name:\s*claude-tweaks:{skill}/`. They now assert `/^name: {skill}$/m`,
 which actually fails on the doubled form.
 
+### also carried in this build
+
+Three records from the Impeccable upstream-contract program landed while `main`'s tip
+still read 6.50.1, each without a bump of its own. Backfilled during #148's wrap-up.
+
+**#146 — `/claude-tweaks:design-wrapper` gained a plugin contract seam.** Mirroring the
+CLI seam Phase 1 built: resolve the installed Impeccable **plugin**, compare it to a
+recorded pin, execute `context-signals.mjs`, and consume its signals as an enrichment
+layer beneath the existing detection layers. New `skills/design-wrapper/impeccable-plugin.md`
+carries the pin comment, the resolution procedure, the executed output shape and the
+per-signal trust rules; `tests/impeccable-plugin-contract.test.js` probes it with the
+same skip/fail asymmetry as the CLI test — skips when absent, **fails** at a version
+other than the pin, because a probe that silently declines to run reads exactly like
+one that passed. Layer 3 survives unchanged as the frontend predicate: nothing upstream
+computes one, so the enrichment sits beneath it rather than replacing it.
+
+**#147 — the auto-fit and issue-driven dispatch tables were retired.** Two tables in
+`command-map.md` re-derived by keyword what Impeccable's `audit` already states. They
+are replaced by the suggestion-driven model the file's own Anti-Pattern section already
+precedented: every finding carries a `suggestion` field naming its own remediation, and
+the wrapper dispatches what the finding names rather than matching four fixed category
+keywords — keywords that never matched upstream's documented Category enum anyway. A
+finding whose `suggestion` names a manual-only command is staged, not run; a finding
+with no usable `suggestion` is staged as an unclassified observation carrying its
+id/category/description, never keyword-mapped and never dropped. The published
+vocabulary this renamed is swept out of the rest of the repo in v6.56.0 (#148).
+
+**#143 — the upstream-drift auditor became runnable.** `tools/upstream-drift/run.js`
+reads the manifest, runs the deterministic checks, hands their output plus the
+contract-path diff to the judge, and files deduplicated `by:upstream-drift` issues. Its
+trigger model is where this auditor departs from the four shipped health sweeps: those
+rotate through targets on a cursor because there is always more repo to audit, whereas
+here there is nothing to look at until a version changes and everything to look at the
+moment one does.
+
 ## v6.50.0 — Closed records reach an explicit acceptance disposition
 
 Work records were closing with no acceptance verdict at all, and nothing noticed.
@@ -411,6 +500,22 @@ component touched." Any path prefix broad enough to catch `src/services/payments
 also catches `src/components/Button.tsx`, and the errors are asymmetric: a missed
 match costs a wasted browser walk, while a wrong match silently skips acceptance —
 the exact failure this release exists to close.
+
+### also carried in this build
+
+**#142 — the upstream-drift capability-triage skill.** Landed while `main`'s tip still
+read 6.50.0, without a bump of its own. Backfilled during #148's wrap-up.
+
+A project-local skill (`.claude/skills/upstream-drift/`) that reads the deterministic
+checks' output, then diffs an upstream dependency's contract paths between the installed
+and latest tags to triage **new capability** — upstream surface this repo could use but
+does not know exists. This half is what the deterministic checks structurally cannot do:
+every assertion tests a claim someone already wrote down, and new capability has nothing
+to assert against. In the audit that motivated the design, source diffing found the
+contract drift, while only a human-style read of the upstream file tree found
+`context-signals.mjs`, `doctor`, and an entire iOS/Android track — none of which any
+assertion could have surfaced. The skill never edits anything, including the
+dependencies themselves.
 
 ## v6.49.0 — One classifier decides where a learning goes
 

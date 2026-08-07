@@ -208,6 +208,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
   //   alone.
   //
+  //   358 -> 359, wrap-up of the #163/#164 fix (6.51.1). One row ADDED to
+  //   routine/SKILL.md: "Editing the canonical preamble in
+  //   `_shared/routine-template-schema.md` and treating the suite's green as
+  //   confirmation". The adjacent row it sits under covers editing a single
+  //   template; neither covered the shared preamble, whose edit obligates all
+  //   six templates plus six `template_version` bumps —
+  //   tests/routine-template-schema.test.js enforces the byte-identical
+  //   fan-out but only asserts `template_version` is a positive integer, never
+  //   that it incremented. No row evicted: `git diff -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty for this change set. Net +1.
+  //
   //   358 -> 361, Impeccable's direction contract at the acceptance gate (#152).
   //   Three rows ADDED to demo/SKILL.md, none evicted, all guarding the new
   //   `### The design contract this was built against` section in Step 2:
@@ -258,5 +269,18 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   design-wrapper/modes/review.md this wave; mode sub-files carry no
   //   Anti-Patterns table and this parser only reads `skills/*/SKILL.md`, so
   //   that lane cannot move this number without touching a SKILL.md itself.
-  assert.strictEqual(total, 370);
+  //
+  //   370 -> 371, merge of origin/main into the #163/#164 wrap-up branch. The
+  //   two entries above are the two sides of that merge, both measured against
+  //   the same 358 base: this branch added 1 (routine), upstream added 12
+  //   across 6.52.0-6.55.0. Neither side's own literal is correct afterward —
+  //   359 and 370 each omit the other's contribution, and because both sides
+  //   moved the SAME line from the SAME base, git surfaced this as a conflict
+  //   only in the comment block; had the two totals happened to coincide it
+  //   would have merged silently at the wrong value, which is exactly [IL-99].
+  //   371 was read off the parser run against the merged working tree, not
+  //   computed as 370 + 1 — the arithmetic agreeing is a check, not the
+  //   evidence. `git diff --diff-filter=M -- 'skills/*/SKILL.md' |
+  //   grep -cE '^-\|'` returns 0 across the merge, so nothing was evicted.
+  assert.strictEqual(total, 371);
 });
