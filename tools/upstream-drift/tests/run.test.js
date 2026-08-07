@@ -483,6 +483,70 @@ test('the runner defines no rotation cursor (AC1: version-driven triggers only)'
   assert.doesNotMatch(src, /selectTarget|selectBudget/, 'no rotation selection');
 });
 
+// ─── malformed input to validate-findings ────────────────────────────────
+
+test('validateFinding: rejects a finding that cannot name both versions (AC5)', () => {
+  const { validateFinding } = require('../run');
+  const good = buildFindings(greenEvaluation({ latest: '4.0.4' }))[0];
+  assert.strictEqual(validateFinding(good).ok, true);
+
+  const noVersions = { ...good, versions: { from: '4.0.2' } };
+  const result = validateFinding(noVersions);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => /versions/.test(e)));
+});
+
+test('validateFinding: rejects an unknown kind rather than crashing on the title template', () => {
+  const { validateFinding } = require('../run');
+  const good = buildFindings(greenEvaluation({ latest: '4.0.4' }))[0];
+  const result = validateFinding({ ...good, kind: 'invented-kind' });
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => /unknown kind/.test(e)));
+});
+
+test('validateFinding: rejects a finding with no fingerprint', () => {
+  const { validateFinding } = require('../run');
+  const good = buildFindings(greenEvaluation({ latest: '4.0.4' }))[0];
+  // Without an id, decide() sees no match and files it as brand new on every
+  // single run — the exact duplicate-spam AC4 exists to prevent.
+  const { id, ...noId } = good;
+  assert.strictEqual(validateFinding(noId).ok, false);
+});
+
+test('validate-findings: a malformed entry is dropped, and the valid ones still file', () => {
+  const root = tmpDir();
+  const { cmdValidateFindings } = require('../run');
+  const good = buildFindings(greenEvaluation({ latest: '4.0.4' }))[0];
+  const findingsPath = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsPath, JSON.stringify([{ kind: 'nonsense' }, good]));
+
+  let out = '';
+  cmdValidateFindings({ _: ['validate-findings', findingsPath], root, dryRun: true }, { write: (s) => { out += s; } });
+  const payloads = JSON.parse(out);
+  assert.strictEqual(payloads.length, 1, 'one bad entry must not fail the whole run');
+  assert.strictEqual(payloads[0].fingerprint, good.id);
+});
+
+// ─── the upgrade predicate has exactly one definition ────────────────────
+
+test('hasUpgrade: due, findings, and the due-report all agree on the same predicate', () => {
+  const { hasUpgrade } = require('../run');
+  const behind = greenEvaluation({ latest: '4.0.4' });
+  const level = greenEvaluation({ latest: '4.0.2' });
+  const absent = greenEvaluation({ latest: '4.0.4', resolvedInstalled: null, installed: [] });
+
+  assert.strictEqual(hasUpgrade(behind), true);
+  assert.strictEqual(hasUpgrade(level), false);
+  assert.strictEqual(hasUpgrade(absent), false, 'no upgrade path from a missing artifact');
+
+  // The agreement itself is the point: a `due` report that disagrees with the
+  // findings it precedes is worse than either being wrong alone.
+  for (const ev of [behind, level, absent]) {
+    const hasUpgradeFinding = buildFindings(ev).some((f) => f.kind === 'upgrade-available');
+    assert.strictEqual(hasUpgradeFinding, hasUpgrade(ev), 'buildFindings must match hasUpgrade');
+  }
+});
+
 // ─── AC7: the one-way import boundary ────────────────────────────────────
 
 test('nothing under bin/ imports from tools/ (AC7)', () => {

@@ -201,15 +201,28 @@ function evaluate(entry, options = {}) {
   return evaluation;
 }
 
+// Whether upstream has published something newer than the running artifact.
+//
+// Extracted rather than inlined at its three call sites (isDue, buildFindings,
+// cmdDue's reason list) because all three must agree: a `due` report that
+// disagrees with the findings it precedes is worse than either being wrong on
+// its own. `resolvedInstalled` is required — "you could upgrade from nothing"
+// is noise, and checkVersion already reported the absence.
+function hasUpgrade(evaluation) {
+  return Boolean(
+    evaluation.latest
+    && evaluation.resolvedInstalled
+    && compareVersions(evaluation.latest, evaluation.resolvedInstalled) > 0,
+  );
+}
+
 // The trigger model, in one place. A dependency is due when a version moved
 // or a claim stopped holding — never on elapsed time.
 function isDue(evaluation) {
   if (evaluation.version.status !== 'ok') return true;
   if (evaluation.assertions.status === 'drift') return true;
   if (evaluation.fixtures.status === 'mismatch') return true;
-  if (evaluation.latest && evaluation.resolvedInstalled
-      && compareVersions(evaluation.latest, evaluation.resolvedInstalled) > 0) return true;
-  return false;
+  return hasUpgrade(evaluation);
 }
 
 // ─── findings ────────────────────────────────────────────────────────────
@@ -321,10 +334,8 @@ function buildFindings(evaluation) {
   }
 
   // --- upgrade ---------------------------------------------------------
-  // Not a defect, and deliberately not filed like one. An artifact that is
-  // absent gets no upgrade finding: "you could upgrade from nothing" is
-  // noise, and checkVersion already said the useful thing.
-  if (latest && resolvedInstalled && compareVersions(latest, resolvedInstalled) > 0) {
+  // Not a defect, and deliberately not filed like one.
+  if (hasUpgrade(evaluation)) {
     findings.push(makeFinding({
       kind: 'upgrade-available',
       cls: 'upgrade',
@@ -352,6 +363,31 @@ const TITLES = {
   'fixture-breach': (f) => `${f.dep}: recorded runtime contract no longer replays`,
   'upgrade-available': (f) => `${f.dep}: ${f.versions.to} is available (installed ${f.versions.from})`,
 };
+
+// `validate-findings` reads a findings file off disk, so its input is not
+// guaranteed to be something buildFindings produced — it can be hand-edited,
+// truncated, or left over from an older schema. Every field toIssuePayload
+// dereferences is checked here, because the alternative is a TypeError deep
+// inside a title template that reads like a crash rather than a bad input.
+// Mirrors the drop-with-diagnostic posture of the four shipped sweeps'
+// validate-finding rather than failing the whole run on one bad entry.
+function validateFinding(f) {
+  const errors = [];
+  if (!f || typeof f !== 'object') return { ok: false, errors: ['not an object'] };
+  if (!f.id) errors.push('missing id (fingerprint)');
+  if (!TITLES[f.kind]) errors.push(`unknown kind "${f.kind}"`);
+  if (!f.dep) errors.push('missing dep');
+  if (!f.subject) errors.push('missing subject');
+  if (!f.detail) errors.push('missing detail');
+  if (!SEVERITY.includes(f.severity)) errors.push(`unknown severity "${f.severity}"`);
+  if (f.class !== 'drift' && f.class !== 'upgrade') errors.push(`unknown class "${f.class}"`);
+  if (!f.versions || !f.versions.from || !f.versions.to) {
+    // AC5 lives or dies here: a finding that cannot name both versions is not
+    // publishable, because a reader cannot tell a stale one from a fresh one.
+    errors.push('missing versions.from/versions.to');
+  }
+  return errors.length === 0 ? { ok: true, value: f } : { ok: false, errors };
+}
 
 // The fingerprint is embedded in the body, not merely carried alongside it.
 // dedup's issue index is rebuilt by reading filed issues back off GitHub, so
@@ -464,7 +500,7 @@ function cmdDue(args, io = {}) {
       e.version.status === 'absent' && 'not installed',
       e.assertions.status === 'drift' && 'an assertion no longer resolves',
       e.fixtures.status === 'mismatch' && 'a fixture replay no longer matches',
-      e.latest && e.resolvedInstalled && compareVersions(e.latest, e.resolvedInstalled) > 0 && 'an upgrade is available',
+      hasUpgrade(e) && 'an upgrade is available',
     ].filter(Boolean),
   }));
   write(JSON.stringify({ due: report.filter((r) => r.due).length, dependencies: report }, null, 2) + '\n');
@@ -507,8 +543,20 @@ function cmdValidateFindings(args, io = {}) {
     process.exit(1);
   }
 
+  const survivors = [];
+  for (const f of raw) {
+    const v = validateFinding(f);
+    if (!v.ok) {
+      process.stderr.write(
+        `[${TOOL_NAME}] validate-findings: dropped finding for "${(f && f.dep) || '?'}": ${v.errors.join('; ')}\n`,
+      );
+      continue;
+    }
+    survivors.push(v.value);
+  }
+
   const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
-  const { payloads, decisions, cache } = dedupeFindings(raw, issueIndex, readCache(root));
+  const { payloads, decisions, cache } = dedupeFindings(survivors, issueIndex, readCache(root));
 
   // The only write this command performs, and --dry-run gates it. A dry run
   // that still records fingerprints as `staged` would make the NEXT real run
@@ -518,7 +566,7 @@ function cmdValidateFindings(args, io = {}) {
   write(JSON.stringify(payloads, null, 2) + '\n');
   const suppressed = decisions.filter((d) => d.action === 'skip' || d.action === 'suppress').length;
   process.stderr.write(
-    `[${TOOL_NAME}] validate-findings: ${raw.length} finding(s), ${payloads.length} payload(s) after dedup`
+    `[${TOOL_NAME}] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup`
     + `${suppressed ? `, ${suppressed} already filed or suppressed` : ''}`
     + `${args.dryRun ? ' (dry run — no cache written, no issue touched)' : ''}\n`,
   );
@@ -534,8 +582,8 @@ function main(argv) {
   process.stderr.write(
     'usage: run.js <command> [options]\n'
     + 'commands:\n'
-    + '  due               [--dep <name>] [--offline] [--latest-tag <dep>=<tag>]\n'
-    + '  findings          [--dep <name>] [--offline] [--latest-tag <dep>=<tag>]\n'
+    + '  due               [--dep <name>] [--offline] [--latest-tag <dep>=<tag>] [--manifest <path>]\n'
+    + '  findings          [--dep <name>] [--offline] [--latest-tag <dep>=<tag>] [--manifest <path>]\n'
     + '  validate-findings <findings.json> [--root <dir>] [--issues <file>] [--dry-run]\n'
     + '\n'
     + `Filed issues carry the "${LABEL}" label; create it once with:\n`
@@ -553,7 +601,9 @@ module.exports = {
   resolveLatest,
   evaluate,
   isDue,
+  hasUpgrade,
   buildFindings,
+  validateFinding,
   toIssuePayload,
   dedupeFindings,
   cmdDue,
