@@ -10,8 +10,17 @@ const ACCEPTANCE_BY_LABEL = [
   ['demo:pending', 'pending'],
 ];
 
-// Paths with no interactive verification surface. Mirrors the classification in
-// skills/wrap-up/verification-brief.md Step 2.
+// Paths with no interactive verification surface. This module is the source of that
+// classification — skills/wrap-up/verification-brief.md Step 2, skills/demo/SKILL.md Step 1,
+// and _shared/github-pr-scan.md's acceptance-gap scope all call in rather than restate it.
+//
+// Deliberately absent: "backend code with no route/component/page touched." That category is
+// not decidable from a path list. In the layouts this runs against, UI and backend share a
+// root (`src/`, `lib/`, `app/`), so any prefix broad enough to catch `src/services/pay.ts`
+// also catches `src/components/Button.tsx`. Anything unmatched below falls through to
+// `interactive` — that costs a browser walk which finds nothing, whereas a wrong
+// non-interactive match skips acceptance verification silently. That asymmetry is why the
+// category stays out rather than being half-covered by prefixes.
 const NON_INTERACTIVE = [
   /^docs\//,
   /^\.claude/,

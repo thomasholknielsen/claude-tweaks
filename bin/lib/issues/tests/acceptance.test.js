@@ -43,6 +43,23 @@ test('verificationSurface is interactive when any path is a UI surface', () => {
   assert.equal(verificationSurface(['docs/a.md', 'src/components/Button.tsx']), 'interactive');
 });
 
+// The classifier deliberately carries no "backend code with no route/component/page"
+// category — see the NON_INTERACTIVE comment in acceptance.js. These pin the boundary so a
+// later prefix (`^src/`, `^lib/`, `^app/`) cannot be added without confronting the UI cases
+// it would silently reclassify.
+test('backend-looking project paths still classify as interactive', () => {
+  assert.equal(verificationSurface(['docs/a.md', 'src/services/payments.ts']), 'interactive');
+  assert.equal(verificationSurface(['app/api/orders/route.ts']), 'interactive');
+  assert.equal(verificationSurface(['lib/db/client.ts']), 'interactive');
+  assert.equal(verificationSurface(['internal/billing/charge.go']), 'interactive');
+});
+
+test('a backend prefix would have to reclassify these UI paths to work', () => {
+  assert.equal(verificationSurface(['src/components/Button.tsx']), 'interactive');
+  assert.equal(verificationSurface(['lib/ui/Modal.svelte']), 'interactive');
+  assert.equal(verificationSurface(['app/dashboard/page.tsx']), 'interactive');
+});
+
 test('verificationSurface defaults to non-interactive for an empty path list', () => {
   assert.equal(verificationSurface([]), 'non-interactive');
   assert.equal(verificationSurface(undefined), 'non-interactive');
