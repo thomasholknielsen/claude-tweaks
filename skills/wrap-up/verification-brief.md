@@ -11,6 +11,11 @@ run for it.
 alongside, Steps 1-4 below — when this record has a resolvable parent. A decomposed leaf never
 carries its own `demo:pending`; the family's parent carries one gate for all of them.
 
+**Fail open on every `gh` call in this section.** If `gh` is unavailable, unauthenticated, the
+repo has no GitHub remote, or any family-gate `gh` call below fails, skip the family-gate
+procedure entirely, fall back to today's behavior (apply `demo:pending` to this record itself
+via Steps 1-4 below), and never block the wrap-up.
+
 ### Resolve the parent
 
 Resolve the leaf's parent the same way `/claude-tweaks:review` Step 1.6 does
@@ -103,7 +108,8 @@ already names the entry point inline within Confirmed.
 
 ### Apply the gate
 
-`work-backend: github-issues`:
+`work-backend: github-issues` — write the rendered template composed above (**Compose the
+parent brief**) to `/tmp/parent-verification-brief.md`, then:
 
 ```bash
 gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
@@ -115,11 +121,13 @@ reader never sees `demo:pending` without a brief already attached.
 
 `work-backend: local-files` — append the brief to the parent record's own body and set
 `facets.acceptance = 'pending'` on the parent, the same write Step 4 below performs for a
-non-decomposed record, applied to the parent's file instead of this leaf's. `parentPath` is the
-`.path` field of the parent's own record — a combined open+closed `queryRecords('specs', {})` /
-`queryRecords('specs', { closed: true })` listing (the parent itself carries no `facets.parent`,
-so this is a fresh query, not the leaf listing above), filtered to the entry whose
-`.id === PARENT_ID`:
+non-decomposed record, applied to the parent's file instead of this leaf's. `parentBriefTemplate`
+below is the same rendered template from **Compose the parent brief**, above — no separate write
+to a temp file is needed for this backend, since the write below embeds it directly.
+`parentPath` is the `.path` field of the parent's own record — a combined open+closed
+`queryRecords('specs', {})` / `queryRecords('specs', { closed: true })` listing (the parent
+itself carries no `facets.parent`, so this is a fresh query, not the leaf listing above),
+filtered to the entry whose `.id === PARENT_ID`:
 
 ```js
 const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
