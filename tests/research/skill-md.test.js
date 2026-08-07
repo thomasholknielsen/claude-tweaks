@@ -289,11 +289,12 @@ test('source-registry.md routes a question to every source that could falsify it
   const body = readSourceRegistry();
   assert.match(
     body,
-    /every\s+source\s+that\s+could\s+falsify/i,
-    'must state the route-to-all rule, not a pick-one rule',
+    /goes\s+to\s+\*\*every\s+source\s+that\s+could\s+falsify/i,
+    'must state the route-to-all rule as the rule, not merely mention the phrase',
   );
-  // Anchored: "multiple" and "default" both appear elsewhere in the file, so a bare
-  // presence check would pass on prose saying the opposite ([IL-78]).
+  // Both assertions bind the full claim structure, not a keyword. Inversion-tested:
+  // rewording to "the single best source" / "a single source per question is the
+  // normal case" fails both ([IL-78]).
   assert.match(
     body,
     /multiple\s+sources\s+per\s+question\s+is\s+the\s+(?:normal|default)\s+case/i,

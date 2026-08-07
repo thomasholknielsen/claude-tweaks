@@ -71,11 +71,14 @@ could return a contradicting answer. Two consequences follow:
 - **Disagreement is the most valuable outcome.** When `repo-prose` says one thing and `codebase`
   says another, the design question is settled less by which is right than by the fact that the two
   have drifted — that is a finding in its own right, and it is reported as one rather than resolved
-  silently in favour of whichever source is easier to trust.
+  silently in favor of whichever source is easier to trust.
 
-`human` is the exception to the fan-out: routing there **terminates** the question (see The human
-terminator). When a question routes to `human` and to other sources, run the others — their
-verdicts are what the human will need in order to answer.
+`human` is the exception to the fan-out, and it is **exclusive**. A question only a human can
+settle is by definition one no source can falsify, so it never appears in the same routing as a
+falsifiable source (see The human terminator). If a question looks like it routes both to `human`
+and to a falsifiable source, it is two questions wearing one sentence: split it, route each half on
+its own terms, and let the falsifiable half's verdicts stand as context the human reads before
+answering the other half.
 
 ### Absence is a finding
 
