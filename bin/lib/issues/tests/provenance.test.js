@@ -169,16 +169,91 @@ test('comma inside parentheses does NOT truncate the clause', () => {
   assert.notEqual(a.source, b.source);
 });
 
-// Fix 3: Blind slice can cause false merges; cap should return 'unstructured'
-test('a source exceeding 60 chars becomes "unstructured" to prevent false merges', () => {
+// Fix 3: Blind slice can cause false merges; cap should return '<unstructured>'
+test('a source exceeding 60 chars becomes "<unstructured>" to prevent false merges', () => {
   // A context that is still over 60 chars after truncation is not a structured
-  // origin—it is freeform prose. Return 'unstructured' rather than truncate it
+  // origin—it is freeform prose. Return '<unstructured>' rather than truncate it
   // blindly, which would merge two different long contexts if they share a
-  // 60-char prefix.
+  // 60-char prefix. Angle brackets make this sentinel unforgeable.
   const veryLong = 'this is an extremely long side-effect context that nobody should ever write because it defeats the trust table';
   const source = resolveProvenance({
     labels: [],
     body: 'Origin: ' + veryLong
   }).source;
-  assert.equal(source, 'unstructured');
+  assert.equal(source, '<unstructured>');
+});
+
+// Fix Round 2, Finding A: Negative depth corrupts bracket tracking
+test('unmatched closing bracket early on does NOT corrupt nested brackets later', () => {
+  // An unmatched ')' should not drive depth negative, which would corrupt the
+  // tracking of a subsequent well-formed '(...)' pair. Both records should stay
+  // distinct despite sharing a prefix.
+  const a = resolveProvenance({
+    labels: [],
+    body: 'Origin: a) (b, c), d'
+  });
+  const b = resolveProvenance({
+    labels: [],
+    body: 'Origin: a) (b, x), y'
+  });
+  // Both should capture the full '(b, ...)' unit, not truncate at the comma.
+  assert.equal(a.source, 'a) (b, c)');
+  assert.equal(b.source, 'a) (b, x)');
+  // They are distinct, not merged.
+  assert.notEqual(a.source, b.source);
+});
+
+test('unbalanced opening bracket is tolerated (prose artifact)', () => {
+  // Text like "a (b, c" with unclosed paren should not crash; the bracket never
+  // closes, so the comma never reads as depth-zero. This is defensive.
+  const source = resolveProvenance({
+    labels: [],
+    body: 'Origin: a (b, c'
+  }).source;
+  // No truncation should occur; returns the full text.
+  assert.equal(source, 'a (b, c');
+});
+
+test('unbalanced closing bracket at line start is tolerated', () => {
+  // Text like ") b, c" should not crash. The closing bracket floors at depth zero.
+  const source = resolveProvenance({
+    labels: [],
+    body: 'Origin: ) b, c'
+  }).source;
+  // Should truncate at the comma after "b", which is at depth zero.
+  assert.equal(source, ') b');
+});
+
+// Fix Round 2, Finding B: '<unstructured>' sentinel is unforgeable
+test('a genuine Origin line reading "unstructured" does NOT collide with overflow', () => {
+  // A real Origin body line that is exactly the word "unstructured" should not
+  // be confused with the sentinel that indicates overflow. They must be distinct.
+  const genuine = resolveProvenance({
+    labels: [],
+    body: 'Origin: unstructured'
+  }).source;
+  const overflow = resolveProvenance({
+    labels: [],
+    body: 'Origin: ' + 'x'.repeat(70)
+  }).source;
+  // The genuine one is normalized to lowercase 'unstructured' (19 chars, under cap).
+  assert.equal(genuine, 'unstructured');
+  // The overflow one becomes the sentinel '<unstructured>'.
+  assert.equal(overflow, '<unstructured>');
+  // They are distinct.
+  assert.notEqual(genuine, overflow);
+});
+
+// Untested behavior change: reordering means trailing source inside clause is stripped
+test('a "from #N" reference inside a clause boundary is stripped, not preserved', () => {
+  // Reordering (truncate first, then strip) means that "captured from #42, ..."
+  // truncates at the comma first, yielding "captured from #42", which then has
+  // the "from #42" stripped, leaving just "captured". This is the intended
+  // direction (normalizing away per-record references), but was not explicitly
+  // tested until now.
+  const source = resolveProvenance({
+    labels: [],
+    body: 'Origin: captured from #42, more details here'
+  }).source;
+  assert.equal(source, 'captured');
 });

@@ -19,11 +19,18 @@ const ORIGIN_LINE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
 const TRAILING_SOURCE = /\s+from\s+(#\d+|session recall)$/i;
 
 const MAX_SOURCE_LENGTH = 60;
+// Sentinel for unstructured overflow. Angle brackets cannot appear in normalized
+// prose (lowercased), so this is unforgeable — a real Origin line reading
+// exactly "<unstructured>" would be extremely unusual, and normalizing any such
+// genuine context to this sentinel is the correct behavior.
+const UNSTRUCTURED_SENTINEL = '<unstructured>';
 
 // Truncate at the first clause boundary (comma or period at bracket depth zero,
 // followed by whitespace or end-of-string) to normalize legacy records that
 // differ only in trailing details (e.g., "captured 2026-06-14" vs "2026-06-13").
 // Must NOT truncate at punctuation inside parentheses or other brackets.
+// Stray closing brackets are inert — floor the depth counter at zero so an
+// unmatched ')' cannot corrupt the depth state of a subsequent '(...)' pair.
 function truncateAtClauseBoundary(source) {
   let depth = 0;
   for (let i = 0; i < source.length; i++) {
@@ -31,7 +38,7 @@ function truncateAtClauseBoundary(source) {
     if (ch === '(' || ch === '[' || ch === '{') {
       depth++;
     } else if (ch === ')' || ch === ']' || ch === '}') {
-      depth--;
+      depth = Math.max(0, depth - 1);
     } else if (depth === 0 && (ch === ',' || ch === '.')) {
       // Check if followed by whitespace or end-of-string
       const nextChar = i + 1 < source.length ? source[i + 1] : ' ';
@@ -60,11 +67,11 @@ function resolveProvenance({ labels, body } = {}) {
     // Then strip the trailing source reference.
     source = source.replace(TRAILING_SOURCE, '').trim();
     // Lowercase and check length. If still exceeds MAX_SOURCE_LENGTH, it is not
-    // a structured context — resolve to the literal 'unstructured' to avoid
-    // false merges of unrelated long contexts sharing a prefix.
+    // a structured context — resolve to UNSTRUCTURED_SENTINEL to avoid false
+    // merges of unrelated long contexts sharing a prefix.
     source = source.toLowerCase();
     if (source.length > MAX_SOURCE_LENGTH) {
-      source = 'unstructured';
+      source = UNSTRUCTURED_SENTINEL;
     }
     if (source) return { kind: 'side-effect', source };
   }
