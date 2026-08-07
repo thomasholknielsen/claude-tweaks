@@ -43,6 +43,39 @@ Three conventions follow from how this repo works, and all are visible below:
 
 - **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
 
+## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
+
+Seven citations across six live skill files pointed at
+`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`, deleted under
+ADR-0007. Every agent reading those skills was sent to a file that does not exist (closes
+#114). `docs/skill-graph.md` cited it too, as live rationale — that one was in neither the
+record's list nor its historical-exclusion list.
+
+**Nothing was blanket-repointed at the amending doc**, which is the obvious fix and the wrong
+one. `2026-07-20-lifecycle-ceremony-tiering-design.md` *references* the escape hatch but never
+defines it — it says those parts "still apply as written", pointing back at the deleted file.
+Repointing there would have produced a second dangling pointer that reads as fixed.
+
+So each site was resolved by what it actually cited:
+
+- **Behavior** now points at the skill that implements it — the ceremony escape hatch is
+  `wrap-up/SKILL.md` Step 3.5, the `ceremony-check` contract is
+  `assess-agent-autonomy/SKILL.md`'s own mode section.
+- **Rationale** was restated inline where it was short enough to carry — why `/reflect`'s light
+  mode keeps Near-misses and Fresh-start and drops the rest: those two can still produce the
+  Safety regression finding the escape hatch keys on, and the others are narrative.
+- **Lever definitions** point at `_shared/policy-schema.md`.
+
+This follows a precedent already sitting one row above the replaced `skill-graph.md` entry:
+*"Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the
+previous anchor was a design doc, and it was pruned."* Anchoring live prose to a dated design
+doc is the defect, not the particular doc that got deleted.
+
+References remaining in `docs/superpowers/plans/`, `CHANGELOG.md`, and the amending design doc
+are historical record and stay. The amending doc's own stale citations are flagged at the live
+pointer in `skill-graph.md` rather than rewritten in place — a dated design doc says what was
+true when it was written.
+
 ## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
 
 `/claude-tweaks:specify` cuts a design along layer lines, which produces a serial chain
