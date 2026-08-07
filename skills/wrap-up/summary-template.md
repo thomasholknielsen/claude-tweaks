@@ -1,59 +1,158 @@
 # Step 9 — Consolidated Summary Template and Batch Decision
 
-Loaded by `/claude-tweaks:wrap-up` Step 9, which always runs. Holds the render template for the wrap-up summary, the conditional batch-decision block (presented only when Step 8.6's Review Console did not run), and the closure lines for record mode and the legacy spec-file alias.
+Loaded by `/claude-tweaks:wrap-up` Step 9, which always runs. Holds the render template for the wrap-up summary, its conversation-mode variant, the conditional batch-decision block (presented only when Step 8.6's Review Console did not run), and the closure lines for record mode and the legacy spec-file alias.
 
 References inside the blocks below to "this file" and to a `## Next Actions` section "below" resolve to `SKILL.md`, not to this file.
 
 **Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
 
 ```
-## Wrap-Up: Record #{n} — {title}
-{Origin: {origin} — the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
+## Wrap-Up: {Record #{n} — {title}   |   {topic}}
+{Origin: {origin} — record mode only; the materialized header's origin field:
+by:code-health / by:harness-health / by:journey-health / by:docs-health /
+by:capture / by:dispatch, or "human" when absent. Omit entirely in
+conversation mode and for legacy spec-file-mode runs.}
 
-### Reflection Insights
-1. {insight} → {destination}
-(or: No significant insights.)
+### State
 
-### Implementation Status
-- {section}: {status}
-Overall: {X}% complete
+Render VERBATIM from the helper — do not compose these facts from memory:
 
-### Cleanup Actions (planned in Step 5; executed in Step 10)
-See `cleanup-procedures.md` for the canonical cleanup list. Render only rows whose Condition holds (e.g., no worktree, no design caches). Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred in `cleanup-procedures.md` are skipped here too.
-- [ ] Leftover work: {recommendation}
+    node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
-### Configuration Updates (from Step 6)
-| # | Type | Target | Change |
-|---|------|--------|--------|
-| 1 | {doc/claude.md/rule/adr/docs-health-issue} | {target} | {what to add/change} |
-| 2 | ... | ... | ... |
-(or: No configuration updates needed.)
+Resolve `{base}` — a commit-ish, never a date — by the first rule that applies.
+`{integration-branch}` is the branch this project integrates work into, resolved
+via `skills/_shared/integration-branch.md`'s canonical ladder — not always the
+GitHub default branch that fragment's git-inference rank would otherwise settle
+on:
 
-### Manual Steps Required
-| # | What | Where | Status |
-|---|------|-------|--------|
-| 1 | {description} | {source} | Filed as #{n} |
-(or: No manual steps — nothing to do outside the codebase.)
+1. `git merge-base HEAD {integration-branch}` when HEAD is not on the
+   integration branch. The branch's whole life is the work, so this is immune
+   to how often the session pushed.
+2. `git merge-base HEAD @{u}` when HEAD IS on the integration branch and it has
+   an upstream — the base is the last commit the remote has, so the window is
+   exactly what has not been pushed.
+3. `HEAD` otherwise. The window is empty and renders as `0 commits`, which is a
+   visible, checkable answer rather than a silent guess.
 
-> Complete these after merging. Each row is a real, trackable record (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in this transcript.
+The helper echoes the base back on the `Scope` line, so a wrong one shows up in
+the output instead of silently narrowing the window.
 
-### Skill Updates
-Resolved in Step 7 — {N} updates applied, {M} staged, {K} new-skill candidates ({proposed}/{declined}); {R} skills read, gap detection: {found/not found}. See `decisions.md` for the full `SCANNED` summary line.
+Then append, in record mode only:
+
+Record    #{n} — {closes via merge | closed | open}
+Ledger    {n} items, {n} open   |   none
 
 ### Actions Performed
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| Operational | Closed record #{n} via merge (`Fixes #{n}`) — no local file to delete | `{hash}` |
+| History | {op} {target} — {one line} | `{hash}` |
+| Implemented | {what was built} | `{hash}` |
+| Operational | Closed record #{n} via merge (`Fixes #{n}`) | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
-| Operational | Deleted ledger | — |
-| Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
 | Operational | Removed worktree `{path}`, deleted branch `{branch}` | — |
 | Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
 
-Generate from: cleanup actions in Step 10, config/skill updates applied, ledger items resolved in Step 8.5, and, when present, the run dir's `events.jsonl` (hook-recorded commit breadcrumbs — hash reflects HEAD at hook time, not verified against commit success — and contract violations).
+Generate from: the helper's History ops (every row it reports gets a `History`
+row — that is the whole point of reading them), cleanup actions in Step 10,
+config/skill updates applied, ledger items resolved in Step 8.5, and the run
+dir's `events.jsonl` when present (hook-recorded commit breadcrumbs — the hash
+reflects HEAD at hook time and is NOT verified against commit success — and
+contract violations).
 
-(Next Actions are rendered as a top-level section after Step 10 — see `## Next Actions` below. Do NOT render them here in the per-spec summary template.)
+Omit the table entirely when no autonomous action was performed. Never fold a
+history operation into `Operational` — that type means cleanup, and burying a
+rebase there is the failure this row type exists to prevent.
+
+### Decisions
+
+**Needs your call ({n})** — items whose answer changes what happens:
+
+| # | Destination | What |
+|---|-------------|------|
+| 1 | {destination} | {one line} |
+
+Destinations are NAMED, never coded. `_shared/learning-routing.md`'s D1-D5 are
+internal classifier vocabulary and must not reach the reader:
+
+| Internal | Rendered |
+|---|---|
+| D1 | `CLAUDE.md Don'ts`, or the specific `.claude/rules/` file |
+| D2 | the actual path — `docs/x.md`, `skills/y/SKILL.md` |
+| D3 | `Backlog record` |
+| D4 | `Memory` |
+| D5 | `Upstream issue` |
+
+Generate from: Step 4's routed leftover sections, Step 6 and Step 7.9
+configuration proposals not yet approved, Steps 7 / 7.7 / 7.8's staged updates,
+and any staged `Q#` / `M#` / `U#` proposal. In record mode a Partial
+implementation status from Step 2 lands here too — as the specific sections that
+remain, never as a percentage.
+
+**Will do ({n})** — {one line each}. When Step 8.6's Review Console ran, these
+were approved there; state them as settled. When it did NOT run (interactive
+mode, standalone wrap-up, the empty-console fast path), the Conditional batch
+decision below is where they are actually decided — render them here as a
+preview of that table, never as already-settled.
+
+Render cleanup rows from `cleanup-procedures.md`'s canonical list, filtered by
+Condition. Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred there are
+skipped here too.
+
+### Manual Steps Required
+| # | What | Where | Status |
+|---|------|-------|--------|
+| 1 | {description} | {source} | Filed as #{n} |
+(or omit the section entirely — nothing to do outside the codebase.)
+
+> Complete these after merging. Each row is a real, trackable record
+> (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in
+> this transcript.
+
+### Evidence
+
+Reflection — {insights, near-misses, tradeoffs accepted}. Do NOT restate an
+insight that already became a Decisions row; name the row instead.
+
+Scans — Step 7 {result} · 7.7 {result} · 7.8 {result} · 7.9 {result} ·
+7.10 {result}. Full `SCANNED` lines in `decisions.md`.
+
+Skill updates — {N} applied, {M} staged, {K} new-skill candidates
+({proposed}/{declined}); {R} skills read, gap detection: {found/not found}.
+
+(Next Actions are rendered as a top-level section after Step 10 — see
+`## Next Actions` in SKILL.md. Do NOT render them here.)
+```
+
+**Conversation mode.** When no materialized header exists for this run
+(`SKILL.md`'s Conversation-based row), render the SAME four-part shape with the
+record-keyed pieces dropped: the `## Wrap-Up:` heading takes the work's topic
+instead of `Record #{n} — {title}`; the `Origin:` line, the `Record` and
+`Ledger` State lines, and any `Operational` row about closing a record or
+deleting plans are all omitted. State, Actions Performed, Decisions, and
+Evidence render identically to record mode — the closure line does not.
+
+This variant is not optional. Its absence is what caused a conversation-based
+run to compose its report from the steps it had just executed, surfacing
+internal step numbers and route codes and reporting a rebase inside a table
+cell's rationale column.
+
+Close conversation mode with this line instead of the record-mode archival
+line below. State what this run's Step 5 cleanup-gate check actually found —
+never assume the negative default: a conversation-based run CAN carry a
+ledger, a worktree, and a run directory (`SKILL.md`'s cleanup-gate note), and
+a design-mode build's plan and design doc are deliberately kept in place
+rather than deleted (`[IL-36]`), so "deleted" is not the only disposition a
+found plan or ledger can have:
+
+```
+Work wrapped up. This run closed no record. {Measured plans/ledger clause —
+"It had no plans or ledger to delete" when Step 5 found neither; otherwise
+name what this run had and its actual disposition, e.g. "Its plan under
+docs/superpowers/plans/{file} and SDD ledger were resolved during cleanup"
+when deleted, or "Its plan under docs/superpowers/plans/{file} remains in
+place — kept, not deleted, for a design-mode build" when kept}. What it
+leaves behind is the code and the learnings above.
 ```
 
 **Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:

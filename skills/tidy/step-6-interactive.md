@@ -62,5 +62,5 @@ Immediately after presenting the report above, call `AskUserQuestion`:
 
 If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's built-in `Other` field.
 
-Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy taxonomy are included for visibility but require no mutation. Only items with an active recommendation (delete, defer, absorb, promote, sync, fix) are executed.
+Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy taxonomy are included for visibility but require no mutation. Only items with an active recommendation (delete, defer, absorb, promote, sync, fix, close, resolve, capture, open family gate) are executed — every mutating entry in `SKILL.md`'s Action Vocabulary table, not a fixed subset of it.
 

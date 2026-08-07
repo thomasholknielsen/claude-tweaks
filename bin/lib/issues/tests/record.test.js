@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
-  buildNativeDependencyQuery, hasOpenNativeBlocker,
+  buildNativeDependencyQuery, hasOpenNativeBlocker, parseFamilyLeaves,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -446,4 +446,21 @@ test('specShapedBody throws on a missing or empty section', () => {
   assert.throws(() => specShapedBody({ header: 'h', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
   assert.throws(() => specShapedBody({ header: 'h', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
   assert.throws(() => specShapedBody({ header: 'h', currentState: [], deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
+});
+
+test('parseFamilyLeaves reads a parent task list', () => {
+  const body = 'Design summary\n\n- [ ] #46\n- [x] #47\n- [ ] #48\n';
+  assert.deepEqual(parseFamilyLeaves(body), [46, 47, 48]);
+});
+
+test('parseFamilyLeaves ignores mid-line mentions and dedupes', () => {
+  // Mirrors parseDependencies: only a line-anchored entry declares a leaf.
+  const body = 'see - [ ] #99 inline\n- [ ] #46\n- [ ] #46\n';
+  assert.deepEqual(parseFamilyLeaves(body), [46]);
+});
+
+test('parseFamilyLeaves returns empty for absent or non-string bodies', () => {
+  assert.deepEqual(parseFamilyLeaves(''), []);
+  assert.deepEqual(parseFamilyLeaves(undefined), []);
+  assert.deepEqual(parseFamilyLeaves('no task list here'), []);
 });

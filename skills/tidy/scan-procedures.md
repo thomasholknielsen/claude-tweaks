@@ -48,6 +48,8 @@ come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buck
 | Review | Keep (unless clearly stale) |
 | Stale | Delete or Promote |
 
+**Decomposition parents are exempt — always `Keep`, at every age.** A record carrying `family:parent` (`github-issues`) or `facets.familyParent === true` (`local-files`) is `isBacklog` by construction and forever: `/claude-tweaks:specify` never gives a parent a stage label and nothing ever promotes one, so every live parent crosses the staleness threshold and lands on `Delete or Promote` while its family is still being built — and `Delete` here is `gh issue close --reason "not planned"`, which destroys the family's only acceptance checkpoint. Leaves landing weeks apart is the dominant workflow, so a parent going stale mid-family is the common case, not the edge one. Give the row the reason inline (`Keep — decomposition parent, gated by Step 4.8's family-gate scope, not by staleness`) rather than dropping it silently, so a reader sees why one stale-looking record is being left alone. Step 4.8's `[family-gate]` scope is what acts on parents; this shape must not race it with a contradictory recommendation for the same record.
+
 → Collect each as: `[backlog] {title} — {age} — {recommendation}`
 
 ### Shape 2 — parked trigger met
@@ -274,17 +276,20 @@ way.
 
 ## Step 4.8: Audit GitHub PRs and Issues
 
-Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** scope. The dispatcher inlines both scope sections (the `repo-wide` findings table and the `acceptance-gap` procedure), the Detection Ladder, and the Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** and **`family-gate`** scopes. The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `family-gate` procedure), the Detection Ladder, and the Output Contract into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `family-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero leaves from every parent, so every leaf re-enters `acceptance-gap` as a false row and `family-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
 The `acceptance-gap` scope finds closed records with no acceptance label at all — a different gap than the `acceptance-queue` scope `/help` Stage 4.7 uses, which only sees records already flagged `demo:pending`. Its recommendation is always "run `/claude-tweaks:demo #{n}`" — never one of the Action Vocabulary's atomic actions, since disposing a closed record is a judgment call for a human, not this step.
 
-GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. The `acceptance-gap` finding is staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan.md`'s `acceptance-gap` scope for why.
+The `family-gate` scope finds decomposition families whose every leaf has closed but whose parent carries no acceptance disposition — the backstop for a family that missed `/claude-tweaks:wrap-up`'s eager gate (a leaf closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches that eager path). Unlike `acceptance-gap`, its recommendation **is** one of the Action Vocabulary's atomic actions — `Open family gate` — which composes and posts the parent's Verification Brief and applies `demo:pending`, reusing `wrap-up/verification-brief.md`'s Family-Gate Procedure rather than a second copy of that logic (`tidy/actions-github-issues.md`'s `## Open family gate`). It never applies `demo:approved`/`demo:changes-requested` — that verdict stays exclusively `/claude-tweaks:demo`'s job, so the finding still ends with "then run `/claude-tweaks:demo #{n}`" even once approved.
+
+GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. `acceptance-gap` findings are staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan.md`'s `acceptance-gap` scope for why. `family-gate`'s `Open family gate` action is staged the same way too, at every aggressiveness level: it posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan.md`'s `family-gate` scope and `tidy/step-6-auto.md`'s Open family gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
+→ Collect each as: `[family-gate] #{n}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #{n}`
 
 ## Step 4.9: Audit Impeccable Design Record
 
@@ -383,7 +388,7 @@ Patterns and health observations are informational — they surface systemic iss
 
 | Collection prefix | Renders in Step 6 table | Notes |
 |---|---|---|
-| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
+| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[family-gate]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
 | `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
 | `[doctor]` | Design Record Drift table | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** the Actions table, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
 | `[health]` | Summary section | Project-level observations. |

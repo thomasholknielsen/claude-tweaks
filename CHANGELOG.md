@@ -39,7 +39,7 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.59.2 — /claude-tweaks:routine reads its records from the branch they live on
+## v6.61.1 — /claude-tweaks:routine reads its records from the branch they live on
 
 `.claude-tweaks/routines/*.yml` is a committed artifact, but all three of `/claude-tweaks:routine`'s
 modes read it straight from the working checkout with no fetch. A checkout behind its integration
@@ -69,6 +69,73 @@ behind, with nothing in `git status` indicating it.
 
 Distinct from #11 (the cloud sandbox's checkout at firing time) and #132 (which branch a routine
 audits); this is the local skill invocation reading stale project state.
+
+## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
+
+`/claude-tweaks:specify` cuts a design along layer lines, which produces a serial chain
+of leaves where no single leaf is demoable and every failure lands on the seam *between*
+them — the one place per-leaf review cannot see by construction. The record that should
+have held the family-level verdict, the parent, held nothing: it sat in a double blind
+spot, invisible to `/help` Stage 4.7 (which needs `demo:pending`, and parents never
+reached `/wrap-up` to get it) and to `/tidy` Step 4.8 (whose `needsBackstop` requires
+`CLOSED`, and nothing anywhere closed a parent).
+
+- **The parent now carries one gate for the whole family.** A leaf with a resolvable
+  parent no longer receives its own `demo:pending`; when the last leaf closes,
+  `/claude-tweaks:wrap-up` composes the parent's Verification Brief — one item per
+  `## Cross-Spec Promises` row, plus a walkthrough of the feature's primary path — and
+  applies `demo:pending`. `/claude-tweaks:demo` resolves the verdict and, on approve,
+  **closes the parent**, which nothing in the system previously ever did.
+- **A backstop for the families the eager path misses.** `/claude-tweaks:tidy` gains a
+  `family-gate` scope and an `Open family gate` action: a leaf closed via `auto:merge`,
+  by hand, or by a dispatch that ended early never runs `/wrap-up`, so the sweep finds
+  complete-but-un-gated families and opens the gate. The gate is opened, never resolved
+  — the disposition stays staged and human-only at every `tidy-aggressiveness` tier,
+  because the auto-mode contract forbids unattended API writes.
+- **The family is the unit of evidence, not just of acceptance.** `needsBackstop` and
+  `trustRows` both gained an explicit-boolean `hasParent` check, so a decomposed family
+  contributes one graded record — its parent — rather than N un-dispositioned leaves.
+  Without it, seven unexamined leaves plus one approved parent would have satisfied the
+  trust table's sample floor on the strength of a single click.
+- Parents become enumerable via a `family:parent` label (`github-issues`) and a
+  `familyParent` facet (`local-files`); `bin/lib/issues/record.js` gains
+  `parseFamilyLeaves`, and `bin/lib/issues/acceptance.js` gains `familyGateState`.
+
+This narrows v6.50.0's guarantee deliberately: every closed record **that is not a
+decomposed leaf**, plus every completed family, reaches an explicit disposition. The
+unit moves from record to family; silence is still not a valid outcome for a family.
+
+The branch's own history is the argument for the feature. Its whole-branch review caught
+a defect that existed in neither side alone — v6.57.1 added two callers of
+`verification-brief.md` that bypass Step 10, where the leaf-skip condition lived, so
+merging upstream would have reinstated per-leaf labeling and silently defeated the
+design. The condition now lives in that procedure's own header, where every caller
+inherits it (`[IL-02]`).
+
+## v6.60.0 — the wrap-up report states what is true of the repository, not what the run remembers
+
+`skills/wrap-up/summary-template.md` rendered exactly one shape, keyed to `## Wrap-Up: Record #{n}`.
+`SKILL.md` declares two modes and told conversation-based runs only what to *skip*, never what their
+summary looks like — so a run with no record had no template to follow and composed its report from
+the steps it had just executed. That is why one read as a step log: internal `D1`-`D5` route codes as
+a table column, five lines of scan telemetry at the same weight as the one scan that found something,
+decisions mixed with settled cleanup, a `git rebase` disclosed inside a table cell's rationale column,
+and the fact that the commit had never left the machine arriving as a postscript below the table.
+
+- **New `bin/wrap-up-state.js` + `bin/lib/wrap-up/`** — reads branch, commit count, and pushed-vs-unpushed
+  from git, and classifies `git reflog` into report-worthy history operations (a rebase collapses to one
+  row; `reset` always reports, since reflog cannot distinguish `--hard` from `--soft`; fast-forward merges
+  drop). Every field is present even when unknown, because a field that disappears reads as an absent fact
+  rather than an unknown one — the mechanism behind the original "it landed."
+- **The report is now State / Actions Performed / Decisions / Evidence.** State is rendered from the helper
+  rather than composed; a new `History` action type carries git operations that were previously disclosed,
+  if at all, as a rationale for something else. Route codes never reach the reader — destinations are named.
+  Full `SCANNED` lines stay in `decisions.md`; the summary carries a one-line roll-up.
+- **A conversation-mode variant**, which is the gap that caused all of the above.
+- Scope base resolves against the **integration branch** (`_shared/integration-branch.md`'s ladder), not
+  GitHub's default-branch pointer — the display-fact distinction `[IL-91]`'s neighbours already record.
+
+`skills/wrap-up/SKILL.md` shrank while the feature grew.
 
 ## v6.59.1 — two rules from the framing-gate build, where a written instruction outran its mechanism
 
