@@ -196,7 +196,11 @@ Don't resolve a merge conflict against an upstream *structural* refactor (a file
 
 ## IL-45 — ExitWorktree's commit-count refusal
 
-Don't take `ExitWorktree`'s commit-count refusal ("N commits... discard permanently") at face value when the worktree branch was already merged/fast-forwarded into `main` — the check counts commits against the branch's original fork point, not `main`'s current tip, so it warns even when nothing would actually be lost. Verify `git rev-parse HEAD` is identical on both the worktree branch and `main` before overriding with `discard_changes: true`.
+Don't take `ExitWorktree`'s commit-count refusal ("N commits... discard permanently") at face value when the worktree branch was already integrated into `main` — the check counts commits against the branch's original fork point, not `main`'s current tip, so it warns even when nothing would actually be lost.
+
+**Verify by content, not by SHA.** The obvious check — "is `git rev-parse HEAD` identical on both?" — only passes when the branch was fast-forwarded or merged with a merge commit. Under `gh pr merge --rebase` (or `--squash`), integration *rewrites* the commits: the branch and `main` hold byte-identical content under permanently different hashes, so a SHA-identity check can never pass, however cleanly the branch landed. That is the dangerous direction to fail in — a reader following it literally must either refuse to clean up (orphaned worktrees accumulate) or skip verification entirely, losing the protection this entry exists to provide. This repo's merge convention favors rebase, so it is the common case here, not an edge case.
+
+Compare content instead: `git diff <branch> <default-branch>` returning no output means nothing would be lost, whichever strategy integrated it. `git rev-parse <branch>^{tree}` against `git rev-parse <default-branch>^{tree}` is the same check as a single comparison. Bit PR #103, where `git log main..<branch>` reported 1 "unmerged" commit and the SHAs differed, while `git diff <branch> main -- <the changed files>` returned nothing at all.
 
 ## IL-46 — Gitignored scratch files destroyed by worktree cleanup
 
