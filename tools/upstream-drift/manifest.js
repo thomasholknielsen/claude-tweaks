@@ -67,9 +67,13 @@ function splitKeyValue(content) {
   return null;
 }
 
+// A '#' only opens a comment when it sits at the start of the (already
+// indent-stripped) line or is preceded by whitespace — matching real YAML.
+// A '#' glued to the preceding character (e.g. `3.5.0#build123`) is an
+// ordinary character of the scalar, not a comment leader.
 function stripCommentAndTrim(rest) {
   for (const [i, ch] of outsideQuotes(rest)) {
-    if (ch === '#') return rest.slice(0, i).trimEnd();
+    if (ch === '#' && (i === 0 || /\s/.test(rest[i - 1]))) return rest.slice(0, i).trimEnd();
   }
   return rest.trimEnd();
 }
@@ -119,13 +123,33 @@ function parseQuoted(text, lineNo) {
   return out;
 }
 
-// text is already trimmed. Quoted values are ALWAYS strings; bare true/false
-// are booleans; bare integers are numbers; everything else bare is a string.
+// True when `text` (already known to be a BARE, unquoted scalar) contains a
+// further outside-quote ': ' — the same shape splitKeyValue treats as a
+// key/value separator. A bare scalar containing one (e.g. `npx thing: do
+// stuff`) is exactly the case real YAML parsers raise a hard error on rather
+// than silently swallowing the rest of the line into the value.
+function hasAmbiguousColon(text) {
+  for (const [i, ch] of outsideQuotes(text)) {
+    if (ch !== ':') continue;
+    const next = text[i + 1];
+    if (next === undefined || next === ' ') return true;
+  }
+  return false;
+}
+
+// text is already trimmed. Quoted values are ALWAYS strings; bare
+// null/Null/NULL/~ are JavaScript null (matching real YAML — a quoted
+// "null" stays the string "null"); bare true/false are booleans; bare
+// integers are numbers; everything else bare is a string.
 function parseScalar(text, lineNo) {
   if (text[0] === '"' || text[0] === "'") return parseQuoted(text, lineNo);
   if (RESERVED_BARE_LEADERS.has(text[0])) {
     throw new Error(`Unsupported YAML at line ${lineNo}: unsupported construct starting with '${text[0]}' (not in the supported subset)`);
   }
+  if (hasAmbiguousColon(text)) {
+    throw new Error(`Unsupported YAML at line ${lineNo}: unquoted value '${text}' contains ': ' outside any quotes — quote the value to disambiguate it from a key/value separator`);
+  }
+  if (text === 'null' || text === 'Null' || text === 'NULL' || text === '~') return null;
   if (text === 'true') return true;
   if (text === 'false') return false;
   if (/^-?\d+$/.test(text)) return Number(text);
@@ -234,14 +258,16 @@ function isSequenceItem(content) {
 }
 
 // Dispatches a required value: '' (nothing after the key/dash on its own
-// line) means the value is a nested block on more-indented following lines.
-// parentIndent is the indent level that nested block must exceed.
+// line) means either a nested block on more-indented following lines, or —
+// when no such block follows — an explicit null, matching real YAML's
+// treatment of `key:` with nothing after it. parentIndent is the indent
+// level a nested block must exceed.
 function parseValue(valueText, lineNo, parentIndent, lines, pos) {
   if (valueText !== '') return parseInlineValue(valueText, lineNo);
   if (pos.i < lines.length && lines[pos.i].indent > parentIndent) {
     return parseBlock(lines, pos, lines[pos.i].indent);
   }
-  throw new Error(`Unsupported YAML at line ${lineNo}: missing value with no nested block following`);
+  return null;
 }
 
 function parseMapBody(lines, pos, indent) {

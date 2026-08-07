@@ -294,3 +294,183 @@ test('checks.js never calls console.* — rendering belongs to a later module', 
   const source = fs.readFileSync(path.join(__dirname, '..', 'checks.js'), 'utf8');
   assert.ok(!/console\s*\./.test(source), 'checks.js must not call any console.* method');
 });
+
+// ─── C1: expect.stream is matched EXACTLY, never falls back to stdout ───
+
+test('C1: expect.stream "Stderr" (wrong case) with the payload actually on stdout is a mismatch naming the bad value, not a silent stdout fallback', () => {
+  const entry = {
+    name: 'impeccable-cli',
+    fixtures: [
+      { run: 'node -e "process.stdout.write(JSON.stringify([{a:1}]))"', expect: { exit: 0, stream: 'Stderr', keys: ['a'] } },
+    ],
+  };
+  const result = replayFixtures(entry);
+  assert.strictEqual(result.status, 'mismatch');
+  assert.strictEqual(result.results[0].status, 'mismatch');
+  assert.ok(result.results[0].detail.includes('Stderr'), `detail must name the bad value, got: ${result.results[0].detail}`);
+});
+
+test('C1: expect.stream "stderr " (trailing space) is a mismatch, not treated as valid stderr', () => {
+  const entry = {
+    name: 'impeccable-cli',
+    fixtures: [
+      { run: 'node -e "process.stderr.write(JSON.stringify([{a:1}]));process.exit(0)"', expect: { exit: 0, stream: 'stderr ', keys: ['a'] } },
+    ],
+  };
+  const result = replayFixtures(entry);
+  assert.strictEqual(result.status, 'mismatch');
+  assert.ok(result.results[0].detail.includes('stderr '), `detail must name the bad value, got: ${result.results[0].detail}`);
+});
+
+// ─── C2: version comparison normalizes a single leading v/V ────────────
+
+test('C2: a probe reporting "v3.5.0" against pinned "3.5.0" is ok, not a false breach', () => {
+  const entry = {
+    name: 'impeccable-cli',
+    pinned: '3.5.0',
+    'installed-probe': { type: 'command', run: 'irrelevant --version' },
+  };
+  const result = checkVersion(entry, { runCommand: () => 'v3.5.0' });
+  assert.strictEqual(result.status, 'ok');
+  // The ORIGINAL, un-normalized string is preserved in `installed` and `detail`.
+  assert.deepStrictEqual(result.installed, ['v3.5.0']);
+  assert.ok(result.detail.includes('v3.5.0'), `detail must keep the original value, got: ${result.detail}`);
+});
+
+test('C2: a pinned value with a leading "V" matches an installed value with no leading v', () => {
+  const entry = {
+    name: 'impeccable-cli',
+    pinned: 'V3.5.0',
+    'installed-probe': { type: 'command', run: 'irrelevant --version' },
+  };
+  const result = checkVersion(entry, { runCommand: () => '3.5.0' });
+  assert.strictEqual(result.status, 'ok');
+  assert.strictEqual(result.pinned, 'V3.5.0', 'pinned must stay un-normalized in the result');
+});
+
+test('C2: a genuinely different version (beyond the leading v/V) still breaches', () => {
+  const entry = {
+    name: 'impeccable-cli',
+    pinned: '3.5.0',
+    'installed-probe': { type: 'command', run: 'irrelevant --version' },
+  };
+  const result = checkVersion(entry, { runCommand: () => 'v2.1.8' });
+  assert.strictEqual(result.status, 'breach');
+});
+
+// ─── C3: checkAssertions inspects EVERY matching root, not just the first ─
+
+test('C3: a second installed candidate at the pinned version whose content has drifted is inspected, not skipped', () => {
+  const combined = tmpDir();
+  // Two plugin-cache-glob candidates, both reporting the pinned version.
+  writePluginCacheCandidate(combined, 'slotA', '3.5.0', '3.5.0');
+  writePluginCacheCandidate(combined, 'slotB', '3.5.0', '3.5.0');
+  // resolveRoots resolves each candidate's root as two path segments up from
+  // its own plugin.json — i.e. <combined>/<slot>/impeccable/3.5.0.
+  writeFile(combined, 'slotA/impeccable/3.5.0/skills/impeccable/SKILL.md', 'Commands include: polish [target]\n');
+  // slotB is missing the cited literal entirely — the drift this test proves gets caught.
+  writeFile(combined, 'slotB/impeccable/3.5.0/skills/impeccable/SKILL.md', 'Commands include: something else entirely\n');
+
+  const entry = {
+    name: 'impeccable-plugin',
+    pinned: '3.5.0',
+    'installed-probe': { type: 'plugin-cache-glob', glob: globFor(combined) },
+    assertions: [
+      { file: 'a.md', claims: 'exposes a polish command', 'upstream-path': 'skills/impeccable/SKILL.md', 'must-match': 'polish [target]' },
+    ],
+  };
+
+  const result = checkAssertions(entry);
+  assert.notStrictEqual(result.status, 'ok', 'a drifted second root must not be reported as ok');
+  assert.strictEqual(result.results[0].status, 'unmatched');
+  // Both roots were inspected — the array is not silently collapsed to one.
+  assert.strictEqual(result.results[0].roots.length, 2);
+  assert.ok(result.results[0].roots.some((r) => r.status === 'ok'));
+  assert.ok(result.results[0].roots.some((r) => r.status === 'unmatched'));
+});
+
+test('C3: options.root, when given, still means exactly one root', () => {
+  const root = tmpDir();
+  writeFile(root, 'a.mjs', 'the literal');
+  const entry = {
+    name: 'impeccable-cli',
+    assertions: [{ file: 'x.md', claims: 'y', 'upstream-path': 'a.mjs', 'must-match': 'the literal' }],
+  };
+  const result = checkAssertions(entry, { root });
+  assert.strictEqual(result.results[0].status, 'ok');
+  assert.strictEqual(result.results[0].roots.length, 1);
+});
+
+// ─── C4: a plugin.json with a malformed version is surfaced, not "absent" ─
+
+test('C4: a sole candidate whose plugin.json has a NUMBER version is coerced to its string form and reported as breach, not absent', () => {
+  const root = tmpDir();
+  writeFile(root, path.join('slotA', 'impeccable', '3.5', '.claude-plugin', 'plugin.json'), JSON.stringify({ version: 3.5 }));
+  const entry = {
+    name: 'impeccable-plugin',
+    pinned: '3.5.0',
+    'installed-probe': { type: 'plugin-cache-glob', glob: globFor(root) },
+  };
+  const result = checkVersion(entry);
+  assert.notStrictEqual(result.status, 'absent');
+  assert.strictEqual(result.status, 'breach');
+  assert.deepStrictEqual(result.installed, ['3.5']);
+});
+
+test('C4: a candidate whose plugin.json has an unusable (non-string, non-number) version is surfaced as malformed, not silently dropped', () => {
+  const root = tmpDir();
+  writeFile(root, path.join('slotA', 'impeccable', 'x', '.claude-plugin', 'plugin.json'), JSON.stringify({ version: { weird: true } }));
+  const entry = {
+    name: 'impeccable-plugin',
+    pinned: '3.5.0',
+    'installed-probe': { type: 'plugin-cache-glob', glob: globFor(root) },
+  };
+  const result = checkVersion(entry);
+  assert.strictEqual(result.status, 'absent');
+  assert.strictEqual(result.installed.length, 0);
+  assert.strictEqual(result.malformed.length, 1, 'the malformed candidate must be surfaced, not discarded');
+  assert.ok(result.detail.includes('unusable'), `detail must mention the malformed candidate, got: ${result.detail}`);
+});
+
+// ─── C6: an unreadable candidate directory surfaces distinctly from absent ─
+
+test('C6: a candidate directory that exists but cannot be read (EACCES) surfaces an inspection failure distinct from "nothing installed"', (t) => {
+  if (process.platform === 'win32') {
+    t.skip('chmod-based permission denial is not meaningful on win32');
+    return;
+  }
+  if (process.getuid && process.getuid() === 0) {
+    t.skip('running as root bypasses directory permission checks');
+    return;
+  }
+  const root = tmpDir();
+  const lockedDir = path.join(root, 'locked');
+  fs.mkdirSync(lockedDir);
+  fs.chmodSync(lockedDir, 0o000);
+
+  try {
+    const entry = {
+      name: 'impeccable-plugin',
+      pinned: '3.5.0',
+      'installed-probe': { type: 'plugin-cache-glob', glob: path.join(lockedDir, '*', 'impeccable', '*', '.claude-plugin', 'plugin.json') },
+    };
+    const result = checkVersion(entry);
+    assert.strictEqual(result.status, 'absent');
+    assert.strictEqual(result.inspectionFailures.length, 1, 'a permission-denied directory must surface as an inspection failure');
+    assert.ok(result.detail.includes('could not be inspected') || result.detail.includes('inspected'), `detail must mention the inspection failure, got: ${result.detail}`);
+  } finally {
+    fs.chmodSync(lockedDir, 0o755);
+  }
+});
+
+test('C6: a candidate directory that genuinely does not exist (ENOENT) is NOT reported as an inspection failure', () => {
+  const root = tmpDir();
+  const entry = {
+    name: 'impeccable-plugin',
+    pinned: '3.5.0',
+    'installed-probe': { type: 'plugin-cache-glob', glob: globFor(root) }, // 'root/*' does not exist at all
+  };
+  const result = checkVersion(entry);
+  assert.strictEqual(result.status, 'absent');
+  assert.deepStrictEqual(result.inspectionFailures, [], 'a genuinely missing directory is "nothing there", not an inspection failure');
+});

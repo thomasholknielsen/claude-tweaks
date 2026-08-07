@@ -341,3 +341,64 @@ test('an unknown installed-probe.type produces a validation error', () => {
   const errors = validateManifest({ dependencies: [dep] });
   assert.ok(errors.some((e) => e.includes('installed-probe.type')));
 });
+
+// ─── P1: bare null/Null/NULL/~ and an empty value parse as JS null ─────
+
+test('P1: bare null, Null, NULL, and ~ all parse as JavaScript null, not the string "null"', () => {
+  assert.deepStrictEqual(parseManifest('pinned: null\n'), { pinned: null });
+  assert.deepStrictEqual(parseManifest('pinned: Null\n'), { pinned: null });
+  assert.deepStrictEqual(parseManifest('pinned: NULL\n'), { pinned: null });
+  assert.deepStrictEqual(parseManifest('pinned: ~\n'), { pinned: null });
+});
+
+test('P1: a quoted "null" stays the literal string, never JavaScript null', () => {
+  const result = parseManifest('pinned: "null"\n');
+  assert.strictEqual(result.pinned, 'null');
+  assert.notStrictEqual(result.pinned, null);
+});
+
+test('P1: a key with nothing after it (no nested block following) parses as JavaScript null', () => {
+  assert.deepStrictEqual(parseManifest('pinned:\n'), { pinned: null });
+});
+
+test('P1: validateManifest rejects a null pinned value via its existing non-empty-string check', () => {
+  const dep = validDependency();
+  dep.pinned = null;
+  const errors = validateManifest({ dependencies: [dep] });
+  assert.ok(errors.some((e) => e.includes('sample-cli') && e.includes("'pinned'")));
+});
+
+// ─── P2: '#' only starts a comment at line-start or after whitespace ───
+
+test('P2: a # glued to the preceding character is part of the value, not a comment', () => {
+  assert.deepStrictEqual(parseManifest('pinned: 3.5.0#build123\n'), { pinned: '3.5.0#build123' });
+});
+
+test('P2: a # preceded by whitespace still starts a real comment', () => {
+  assert.deepStrictEqual(parseManifest('pinned: 3.5.0 # a real comment\n'), { pinned: '3.5.0' });
+});
+
+// ─── P3: a bare scalar with a further outside-quote ": " throws ────────
+
+test('P3: a bare scalar containing a further outside-quote ": " throws, naming the line', () => {
+  const text = 'run: npx thing: do stuff\n';
+  assert.throws(() => parseManifest(text), (err) => {
+    assert.match(err.message, /line 1/);
+    assert.match(err.message, /quote/i);
+    return true;
+  });
+});
+
+test('P3: quoted values containing colons are unaffected, and the real manifest.yml still loads', () => {
+  const text = 'claims: "findings JSON is written to stdout, not stderr"\n';
+  assert.deepStrictEqual(parseManifest(text), {
+    claims: 'findings JSON is written to stdout, not stderr',
+  });
+
+  const realManifestPath = path.join(__dirname, '..', 'manifest.yml');
+  const result = loadManifest(realManifestPath);
+  assert.deepStrictEqual(
+    result.dependencies.map((d) => d.name),
+    ['impeccable-cli', 'impeccable-plugin'],
+  );
+});

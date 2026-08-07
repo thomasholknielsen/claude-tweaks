@@ -48,75 +48,120 @@ function defaultReadJson(filePath) {
 // with `*` standing in for exactly one path segment (see manifest.yml's
 // `~/.claude/plugins/cache/*/impeccable/*/.claude-plugin/plugin.json`), so a
 // small readdirSync recursion covers it without pulling in a glob library.
-function expandGlobSegments(baseDir, segments) {
+//
+// `failures` accumulates directories that exist but could not be read
+// (EACCES, EPERM, ...) — distinct from a directory that legitimately does
+// not exist (ENOENT), which is an ordinary "nothing here" outcome, not a
+// failure to inspect. An installed-but-unreadable artifact must not read
+// identically to nothing installed, so callers get both the paths that DID
+// expand and the paths that COULD NOT be inspected.
+function expandGlobSegments(baseDir, segments, failures) {
   if (segments.length === 0) return [baseDir];
   const [seg, ...rest] = segments;
   if (seg === '*') {
     let entries;
     try {
       entries = fs.readdirSync(baseDir, { withFileTypes: true });
-    } catch {
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        failures.push({ path: baseDir, code: err.code, detail: `${baseDir}: could not be inspected (${err.code}): ${err.message}` });
+      }
       return [];
     }
-    return entries.flatMap((entry) => expandGlobSegments(path.join(baseDir, entry.name), rest));
+    return entries.flatMap((entry) => expandGlobSegments(path.join(baseDir, entry.name), rest, failures));
   }
   const candidate = path.join(baseDir, seg);
   if (!fs.existsSync(candidate)) return [];
-  return rest.length === 0 ? [candidate] : expandGlobSegments(candidate, rest);
+  return rest.length === 0 ? [candidate] : expandGlobSegments(candidate, rest, failures);
 }
 
+// Returns {paths, failures} — paths that matched the glob, and directories
+// along the way that existed but could not be read (see expandGlobSegments).
 function expandGlob(globPattern) {
   const pattern = globPattern.startsWith('~') ? path.join(os.homedir(), globPattern.slice(1)) : globPattern;
   const baseDir = path.isAbsolute(pattern) ? path.parse(pattern).root : '.';
-  return expandGlobSegments(baseDir, pattern.split('/').filter(Boolean));
+  const failures = [];
+  const paths = expandGlobSegments(baseDir, pattern.split('/').filter(Boolean), failures);
+  return { paths, failures };
 }
 
 // Every plugin-cache-glob candidate paired with the version its OWN
 // plugin.json reports — never the directory name a candidate happens to sit
 // under. Directory names are not a reliable source of the version; only the
 // file's own `version` field is (a stale or mislabeled cache directory is
-// exactly the kind of drift this tool exists to catch, not reproduce).
+// exactly the kind of drift this tool exists to catch, not reproduce). A
+// candidate whose plugin.json exists but carries no usable string `version`
+// (missing, wrong type, empty) is never silently dropped: a faithful number
+// is coerced to its string form, and anything else is surfaced as
+// `malformed` rather than made to look like "nothing installed". Returns
+// {candidates, failures} — failures are the unreadable directories from
+// expandGlob, passed through unchanged.
 function resolveGlobCandidates(entry, options) {
   const probe = entry['installed-probe'] || {};
-  if (probe.type !== 'plugin-cache-glob' || !probe.glob) return [];
+  if (probe.type !== 'plugin-cache-glob' || !probe.glob) return { candidates: [], failures: [] };
   const readJson = options.readJson || defaultReadJson;
+  const { paths, failures } = expandGlob(probe.glob);
   const candidates = [];
-  for (const candidatePath of expandGlob(probe.glob)) {
+  for (const candidatePath of paths) {
     const parsed = readJson(candidatePath);
-    if (parsed && typeof parsed.version === 'string' && parsed.version) {
+    if (!parsed) continue;
+    if (typeof parsed.version === 'string' && parsed.version) {
       candidates.push({ path: candidatePath, version: parsed.version });
+    } else if (typeof parsed.version === 'number' && Number.isFinite(parsed.version)) {
+      candidates.push({ path: candidatePath, version: String(parsed.version) });
+    } else {
+      candidates.push({
+        path: candidatePath,
+        malformed: true,
+        detail: `${candidatePath}: plugin.json has no usable string 'version' field (got ${JSON.stringify(parsed.version)})`,
+      });
     }
   }
-  return candidates;
+  return { candidates, failures };
 }
 
 // Where checkAssertions should look for contract-paths / upstream-path
-// values. `options.root` always wins (tests use this to bypass real probes
-// entirely). Otherwise derived from the same probe the version check uses:
-// a `command` probe joins `root`'s own output with `root-suffix`; a
+// values — plural, because more than one installed copy can legitimately
+// exist side by side. `options.root` always wins outright and means exactly
+// one root (tests use this to bypass real probes entirely). Otherwise
+// derived from the same probe the version check uses: a `command` probe
+// joins `root`'s own output with `root-suffix` (always exactly one root); a
 // `plugin-cache-glob` probe resolves to the directory that CONTAINS the
-// `.claude-plugin` directory of whichever candidate's version equals
+// `.claude-plugin` directory of EVERY candidate whose version equals
 // `pinned` — i.e. the plugin's own source root, two path segments up from
-// its plugin.json.
-function resolveRoot(entry, options) {
-  if (options.root) return options.root;
+// its plugin.json, for each matching candidate. A malformed candidate (see
+// resolveGlobCandidates) never has a usable `version`, so it can never
+// equal `pinned` and is never included here.
+function resolveRoots(entry, options) {
+  if (options.root) return [{ root: options.root }];
   const probe = entry['installed-probe'] || {};
   const runCommand = options.runCommand || defaultRunCommand;
   if (probe.type === 'command') {
-    if (!probe.root) return null;
+    if (!probe.root) return [];
     const rootOut = runCommand(probe.root);
-    if (!rootOut) return null;
+    if (!rootOut) return [];
     const suffix = probe['root-suffix'] || '';
-    return suffix ? path.join(rootOut, suffix) : rootOut;
+    return [{ root: suffix ? path.join(rootOut, suffix) : rootOut }];
   }
   if (probe.type === 'plugin-cache-glob') {
-    const match = resolveGlobCandidates(entry, options).find((c) => c.version === entry.pinned);
-    return match ? path.dirname(path.dirname(match.path)) : null;
+    const { candidates } = resolveGlobCandidates(entry, options);
+    return candidates
+      .filter((c) => !c.malformed && c.version === entry.pinned)
+      .map((c) => ({ root: path.dirname(path.dirname(c.path)) }));
   }
-  return null;
+  return [];
 }
 
 // ─── checkVersion ───────────────────────────────────────────────────────────
+
+// A single leading 'v'/'V' is stripped for COMPARISON purposes only (a
+// probe reporting "v3.5.0" against a pinned "3.5.0" is the same version, not
+// a breach) — the returned `installed` array and `detail` always carry the
+// original, un-normalized strings the probe actually reported. No other
+// semver normalization is attempted.
+function normalizeVersionForCompare(v) {
+  return typeof v === 'string' && (v[0] === 'v' || v[0] === 'V') ? v.slice(1) : v;
+}
 
 // `installed` is always an array: a plugin-cache-glob probe can legitimately
 // resolve several installed versions side by side (two cached copies on one
@@ -125,25 +170,42 @@ function resolveRoot(entry, options) {
 // present, but none of its version(s) equal `pinned`) are kept distinct on
 // purpose — absent is not this repo's problem, a wrong-version install is a
 // contract breach, and collapsing the two would misreport which is which.
+// `status` stays one of exactly these three values; a malformed
+// plugin.json (present but no usable version) or a directory that could not
+// be inspected (EACCES) are surfaced via the separate `malformed` /
+// `inspectionFailures` arrays and an enriched `detail`, never via a fourth
+// status value.
 function checkVersion(entry, options = {}) {
   const { name, pinned } = entry;
   const probe = entry['installed-probe'] || {};
   const runCommand = options.runCommand || defaultRunCommand;
 
   let installed = [];
+  let malformed = [];
+  let inspectionFailures = [];
   if (probe.type === 'command' && probe.run) {
     const version = runCommand(probe.run);
     if (version) installed = [version];
   } else if (probe.type === 'plugin-cache-glob') {
-    installed = resolveGlobCandidates(entry, options).map((c) => c.version);
+    const { candidates, failures } = resolveGlobCandidates(entry, options);
+    installed = candidates.filter((c) => !c.malformed).map((c) => c.version);
+    malformed = candidates.filter((c) => c.malformed).map((c) => ({ path: c.path, detail: c.detail }));
+    inspectionFailures = failures.map((f) => ({ path: f.path, detail: f.detail }));
   }
 
-  const base = { check: 'version', name, installed, pinned };
+  const base = { check: 'version', name, installed, pinned, malformed, inspectionFailures };
+  const normalizedPinned = normalizeVersionForCompare(pinned);
+  const matched = installed.some((v) => normalizeVersionForCompare(v) === normalizedPinned);
+
   if (installed.length === 0) {
-    return { ...base, status: 'absent', detail: `${name}: not installed — probe found no artifact` };
+    const notes = [];
+    if (malformed.length > 0) notes.push(`${malformed.length} candidate(s) had an unusable version field`);
+    if (inspectionFailures.length > 0) notes.push(`${inspectionFailures.length} path(s) could not be inspected`);
+    const suffix = notes.length > 0 ? ` (${notes.join('; ')})` : '';
+    return { ...base, status: 'absent', detail: `${name}: not installed — probe found no artifact${suffix}` };
   }
   const found = `installed version(s) [${installed.join(', ')}]`;
-  if (installed.includes(pinned)) {
+  if (matched) {
     return { ...base, status: 'ok', detail: `${name}: ${found} include pinned ${pinned}` };
   }
   return { ...base, status: 'breach', detail: `${name}: ${found} do not include pinned ${pinned}` };
@@ -155,12 +217,21 @@ function checkVersion(entry, options = {}) {
 // (String.prototype.includes) — never a regex. A cited literal such as
 // Impeccable's own `polish [target]` help text contains regex metacharacters;
 // treating it as a pattern would either match the wrong thing or throw.
+//
+// Evaluated against EVERY root resolveRoots() returns, not just the first:
+// a plugin-cache-glob probe can legitimately resolve more than one
+// installed copy at the pinned version, and a second copy whose upstream
+// content has drifted is a real finding, not one this function may skip
+// because an earlier copy looked fine. An assertion's top-level `status` is
+// the worst outcome across all its roots ('missing-file' beats 'unmatched'
+// beats 'ok'); the per-root detail is never collapsed away — it survives in
+// `roots` so a caller can report exactly which root failed and how.
 function checkAssertions(entry, options = {}) {
   const { name } = entry;
   const assertions = entry.assertions || [];
-  const root = resolveRoot(entry, options);
+  const roots = resolveRoots(entry, options);
 
-  if (root === null) {
+  if (roots.length === 0) {
     // An unresolvable root means the artifact is absent, not that its
     // assertions failed. Reporting these as failures would manufacture a
     // finding this repo has no evidence for — checkVersion already owns
@@ -177,21 +248,30 @@ function checkAssertions(entry, options = {}) {
   const results = assertions.map((assertion) => {
     const upstreamPath = assertion['upstream-path'];
     const mustMatch = assertion['must-match'];
-    const fullPath = path.join(root, upstreamPath);
     const base = { file: assertion.file, claims: assertion.claims, upstreamPath };
 
-    let content;
-    try {
-      content = fs.readFileSync(fullPath, 'utf8');
-    } catch (err) {
-      const reason = err.code === 'ENOENT' ? 'does not exist' : `could not be read: ${err.message}`;
-      return { ...base, status: 'missing-file', detail: `${fullPath} ${reason}` };
-    }
+    const perRoot = roots.map(({ root }) => {
+      const fullPath = path.join(root, upstreamPath);
+      let content;
+      try {
+        content = fs.readFileSync(fullPath, 'utf8');
+      } catch (err) {
+        const reason = err.code === 'ENOENT' ? 'does not exist' : `could not be read: ${err.message}`;
+        return { root, fullPath, status: 'missing-file', detail: `${fullPath} ${reason}` };
+      }
+      if (!content.includes(mustMatch)) {
+        return { root, fullPath, status: 'unmatched', detail: `${fullPath} no longer contains "${mustMatch}"` };
+      }
+      return { root, fullPath, status: 'ok', detail: `${fullPath} still contains "${mustMatch}"` };
+    });
 
-    if (!content.includes(mustMatch)) {
-      return { ...base, status: 'unmatched', detail: `${fullPath} no longer contains "${mustMatch}"` };
+    const failing = perRoot.filter((r) => r.status !== 'ok');
+    if (failing.length === 0) {
+      return { ...base, status: 'ok', detail: perRoot[0].detail, roots: perRoot };
     }
-    return { ...base, status: 'ok', detail: `${fullPath} still contains "${mustMatch}"` };
+    const status = failing.some((r) => r.status === 'missing-file') ? 'missing-file' : 'unmatched';
+    const detail = failing.map((r) => r.detail).join('; ');
+    return { ...base, status, detail, roots: perRoot };
   });
 
   const status = results.every((r) => r.status === 'ok') ? 'ok' : 'drift';
@@ -225,11 +305,20 @@ function checkOneFixture(fixture, cwd, runFixture) {
     return { run: fixture.run, status: 'mismatch', detail, observed };
   }
 
+  // expect.stream must be EXACTLY 'stdout' or 'stderr'. Falling back to
+  // stdout for any other value (a typo'd case, stray whitespace, an absent
+  // field) would silently validate the wrong stream — precisely the
+  // stdout/stderr blindness this function exists to catch. This check does
+  // not depend on the manifest having already been validated.
+  if (expect.stream !== 'stdout' && expect.stream !== 'stderr') {
+    return mismatch(`expect.stream must be exactly 'stdout' or 'stderr', got ${JSON.stringify(expect.stream)}`);
+  }
+
   if (result.status !== expect.exit) {
     return mismatch(`expected exit ${expect.exit}, observed exit ${result.status}`);
   }
 
-  const wanted = expect.stream === 'stderr' ? 'stderr' : 'stdout';
+  const wanted = expect.stream;
   const other = wanted === 'stderr' ? 'stdout' : 'stderr';
 
   const parsed = tryParseJson(streams[wanted].trim());
