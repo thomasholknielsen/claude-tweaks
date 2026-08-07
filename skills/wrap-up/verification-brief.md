@@ -5,6 +5,126 @@ posting the Verification Brief. Record mode only (a materialized header exists f
 per Step 1) — conversation-based work has no work record to label, so this procedure does not
 run for it.
 
+## Family-Gate Procedure (parent-linked leaves)
+
+`execution-and-verification.md`'s Acceptance labeling bullet routes here — in place of, not
+alongside, Steps 1-4 below — when this record has a resolvable parent. A decomposed leaf never
+carries its own `demo:pending`; the family's parent carries one gate for all of them.
+
+### Resolve the parent
+
+Resolve the leaf's parent the same way `/claude-tweaks:review` Step 1.6 does
+(`skills/review/SKILL.md:147-154`): `work-backend: local-files` — `facets.parent`;
+`work-backend: github-issues` + `work-links: native` — the sub-issue relationship queried
+from this leaf's own side; `work-backend: github-issues` + `work-links: body-text` — the
+`Parent: #N` line in this leaf's own body.
+
+**No parent resolvable** (a record human-filed or `/capture`d directly, not produced by a
+`/specify` decomposition) — skip this section entirely: fall through to Steps 1-4 below and
+apply `demo:pending` to this record itself, exactly as today.
+
+### Enumerate the family's leaves
+
+With a parent resolved (`$PARENT_NUM`), enumerate the family's leaves from the **parent**
+side, never from a leaf-side scan — a leaf-side lookup works under one `work-links` mode and
+silently returns nothing under the other (`[IL-64]`):
+
+```bash
+# work-links: native
+gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues" --jq '.[].number'
+
+# work-links: body-text — parse the parent's own task list
+gh issue view $PARENT_NUM --json body -q .body > /tmp/wrapup-parent-body.md
+node -e "
+  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const fs = require('fs');
+  console.log(JSON.stringify(parseFamilyLeaves(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
+"
+```
+
+`work-backend: local-files` — the parent body carries no task list (`specify/record-creation.md`'s
+local-files branch writes only `facets.parent` on each leaf, never a checklist on the parent), so
+query the reverse relationship instead — every record whose own `facets.parent` matches, open and
+closed alike (the same two-call merge `specify/record-creation.md:35` already uses):
+
+```js
+const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const leafRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
+const leaves = leafRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' }));
+```
+
+For each leaf number resolved above (`work-backend: github-issues`), fetch its current state
+(`gh issue view {n} --json state -q .state`) to build the `leaves` array
+`familyGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads.
+
+### Self-inclusion rule
+
+1. The record `/wrap-up` is closing counts as `CLOSED` when building the `leaves` array,
+   regardless of what `gh` reports for it. `/wrap-up` evaluates the gate while closing that
+   very leaf, so reading its live state makes the last leaf always evaluate `incomplete` and
+   the gate never fires.
+
+This is the `[IL-65]` failure mode: a same-function self-inconsistency that no test catches,
+because the symptom is a silent no-op.
+
+### Evaluate the gate
+
+Call `familyGateState({ leaves, parentLabels })`, where `parentLabels` is the parent's current
+labels (`work-backend: github-issues`) or, under `work-backend: local-files`, the one-element
+translation of its `facets.acceptance` (`parent.facets.acceptance ? ['demo:' + parent.facets.acceptance] : []`):
+
+- `incomplete` — a sibling leaf is still open. No-op; this leaf's own closing proceeds with no
+  acceptance labeling of any kind, neither its own nor the parent's.
+- `gated` or `resolved` — the parent already carries a `demo:*` disposition. No-op.
+- `due` — every leaf is closed and the parent carries no disposition yet. Compose and apply the
+  parent brief below.
+
+### Compose the parent brief
+
+A parent brief consists of:
+
+1. One verification item per `## Cross-Spec Promises` row on the parent, phrased as the claim
+   to confirm — e.g. `F1: #48 assumed #46 exposes getStatus() — confirm it does.` Rows still
+   `open` are included and marked unverified; they **do not** block the gate from opening. The
+   register is deliberately not a hard gate anywhere (`skills/review/SKILL.md:173-175`).
+2. One walkthrough of the feature's primary path across the assembled leaves. For this repo the
+   runnable unit is a skill invocation, not a deploy — name the invocation and the observable
+   outcome.
+
+Where no register exists (below `promise-register-min-leaves`, default `4`, or
+`work-backend: local-files`), part 2 alone is the brief.
+
+Render the same `## Verification Brief` template Step 4 below renders, with: **The ask** — the
+parent's own design summary (problem, chosen approach — `_shared/work-record.md`'s
+Decomposition rules); **What shipped** — one-paragraph summary of what was delivered across the
+assembled leaves; **Confirmed** — parts 1 and 2 above, in place of Step 4's testable/non-testable
+branches. Omit **See it yourself** and **Verify it yourself (manual)** — part 2's walkthrough
+already names the entry point inline within Confirmed.
+
+### Apply the gate
+
+`work-backend: github-issues`:
+
+```bash
+gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
+gh issue edit $PARENT_NUM --add-label demo:pending
+```
+
+Post the brief **before** adding the label — matching Step 4 below's existing invariant that a
+reader never sees `demo:pending` without a brief already attached.
+
+`work-backend: local-files` — append the brief to the parent record's own body and set
+`facets.acceptance = 'pending'` on the parent, the same write Step 4 below performs for a
+non-decomposed record, applied to the parent's file instead of this leaf's:
+
+```js
+const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const parentRecord = readRecord(parentPath);
+parentRecord.facets.acceptance = 'pending';
+parentRecord.body = parentRecord.body + '\n\n' + parentBriefTemplate;
+writeRecord(parentPath, parentRecord);
+```
+
 ## Step 1: Bootstrap the Acceptance labels
 
 Run the check-then-create loop from `_shared/label-bootstrap.md` with:
