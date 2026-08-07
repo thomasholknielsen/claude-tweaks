@@ -83,6 +83,15 @@ be judged on. It stays on the row because it says something real about a class's
 — a class that files a lot of work nobody wants is worth seeing — but treating it as a quality
 failure would be a category error, and with no time window in this table an unrecoverable one.
 
+It does still count toward `total`, and therefore toward `MIN_SAMPLES`. That is the exact inverse
+of its old effect: a declined record used to hard-block `clean`, and now it helps a cell reach the
+size floor while contributing no evidence at all. `MIN_VERDICTS` is what stops that mattering —
+the evidence floor is counted on dispositions alone, so a cell of 5 approvals and 35 declines
+grades on those 5 — but it grades at 12% coverage, and the Coverage column is the only place a
+reader sees that. Read the two columns together; a `clean` verdict sitting on low coverage and a
+high Not Planned count is a class whose work is mostly being turned away, not one that is mostly
+succeeding.
+
 **Row count is bounded in practice, not by the taxonomy.** The `producer:*`, `human:*`, and
 `unstructured:*` provenances are enumerable (`record.js`'s `ORIGINS`, plus two singletons) and the
 risk band is binary, but `side-effect:{source}` is free text derived from a record's `Origin:`
@@ -109,8 +118,8 @@ classes, {M} closed records, {approved} approved, {changesRequested} changes-req
 the row count, `{M}` the sum of every row's `total`, and `{approved}`/`{changesRequested}` the
 sums of those two columns across all rows. **Compute all four — none of them is a literal.** A
 cell can read `insufficient-evidence` on either floor alone — `total` under `trust.js`'s
-`MIN_SAMPLES`, or `dispositioned` under its `MIN_VERDICTS` — whatever its dispositions say, so
-real approvals and rejections can already exist under this collapse; printing a hard-coded zero
+`MIN_SAMPLES` however good its dispositions look, or `dispositioned` under its `MIN_VERDICTS` —
+so real approvals and rejections can already exist under this collapse; printing a hard-coded zero
 would erase the first acceptance evidence the repo ever produces, which is the single thing
 `autonomy: supervised` exists to let the operator watch.
 
