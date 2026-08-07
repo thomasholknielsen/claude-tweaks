@@ -99,7 +99,11 @@ test('verify-mode.md documents the no-brief path so skipping /challenge does not
   // [IL-66]: tolerate both the hyphenated "No-brief case" heading and the prose
   // "a record with no brief" — the phrase appears in both shapes in the file.
   assert.match(body, /no[\s-]brief/i, 'must name the no-brief case');
-  assert.match(body, /candidate/i, 'must say candidates are generated from the topic directly');
+  assert.match(
+    body,
+    /generate\s+the\s+candidate\s+set\s+from\s+the\s+topic/i,
+    'must say the candidate set is generated from the topic directly',
+  );
 });
 
 test('verify-mode.md resolves the bare-verify ambiguity by presenting a choice', () => {
