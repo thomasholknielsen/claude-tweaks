@@ -31,6 +31,43 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.50.0 — Closed records reach an explicit acceptance disposition
+
+Work records were closing with no acceptance verdict at all, and nothing noticed.
+`demo:pending` had been applied 11 times ever — all closed still carrying it, none
+since 2026-07-23 — while `demo:approved` and `demo:changes-requested` did not exist
+in the repository, because `/claude-tweaks:demo` had never once run to resolution.
+Zero of ten sampled recently-closed records carried a Verification Brief.
+
+The cause is structural, not neglect. `/claude-tweaks:wrap-up`'s acceptance labeling
+is gated on record mode, but most work here is fixed ad hoc in a session and closed
+by a `Fixes #N` commit, which never materializes a run header — so the step never
+fires. The heavy pipeline is instrumented; the lane that carries most of the work
+is not.
+
+- `bin/lib/issues/acceptance.js` is the single classifier for acceptance state and
+  verification surface — `dispositionState`, `verificationSurface`, `needsBackstop`.
+  `wrap-up/verification-brief.md`'s inline path-pattern list is retired in favor of
+  calling it, so the classification exists in one place.
+- `/claude-tweaks:tidy` Step 4.8 gains an `acceptance-gap` scope
+  (`_shared/github-pr-scan.md`) that finds closed records carrying no `demo:*` label.
+  Findings are `info` and always staged, never auto-applied: whether shipped work
+  solved its problem is a judgment `auto` does not silence.
+- `/claude-tweaks:demo` can now act on those findings. Given `#N` with no
+  `demo:pending`, it recovers the record's closing commit from git history and
+  composes a Verification Brief from the commit message and its changed paths,
+  falling back to session-recall only when no closing commit exists. The brief is
+  labeled a reconstruction and never claims verification nobody performed.
+- Records with no interactive UI surface — nearly all of this repository — get
+  manual verification steps instead of silently losing their verification path,
+  on both the record-backed and session-recall entry points (closes #135).
+
+The classifier deliberately does not try to detect "backend code with no route or
+component touched." Any path prefix broad enough to catch `src/services/payments.ts`
+also catches `src/components/Button.tsx`, and the errors are asymmetric: a missed
+match costs a wasted browser walk, while a wrong match silently skips acceptance —
+the exact failure this release exists to close.
+
 ## v6.49.0 — One classifier decides where a learning goes
 
 Learnings had five possible destinations, three writers, and nothing deciding
