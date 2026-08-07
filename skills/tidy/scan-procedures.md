@@ -295,6 +295,52 @@ GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only 
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
 
+## Step 4.9: Audit Impeccable Design Record
+
+Main thread, parallel with the agent batch — like Steps 4 and 4.6, this is one Skill-tool call that shells out to a JSON-emitting script, and dispatching it as an agent would pay the full inherited `CLAUDE.md` cost to run it.
+
+Invoke `/claude-tweaks:design-wrapper doctor --source tidy` via the Skill tool. It takes **no target**: `doctor` audits the project's own Impeccable artifacts (`PRODUCT.md`, `DESIGN.md` + sidecar, `.impeccable/config.json`, surface briefs, the design hook), not a diff. `--source tidy` is unconditional — /tidy is standalone-only and never has a `$PIPELINE_RUN_DIR` to forward (see `design-wrapper/SKILL.md`'s Component-Skill Contract).
+
+### Degrade silently
+
+**On `{skipped: ...}`, collect nothing and render nothing.** No row, no "unavailable" note, no info line in the Summary. /tidy runs on every project and most have no Impeccable context at all — a scan step that reports its own absence every run trains users to skim past the report. This is the one step whose skip is invisible; every other step's fail-open surfaces an info row.
+
+### The finding schema
+
+`skills/design-wrapper/modes/doctor.md` **owns** the schema — its `## Finding schema` section is the single source of truth for the six fields, their types, and the three severity values. Read it there; do not restate it here. Two properties matter for the mapping below and are easy to get wrong:
+
+- `path` is **nullable**, and when present may be a **comma-joined list** of paths rather than one path.
+- `artifact` is always present but is a human label, not always a filename (`hook manifest`, `live state`, `surface brief`).
+
+### Mapping to the report table
+
+Each finding becomes one Template A row, read through this skill's own column semantics (`SKILL.md`'s "Tidy-specific column semantics"):
+
+| Column | Value |
+|---|---|
+| `Severity` | Tidy's own urgency scale, mapped from `severity` per the table below |
+| `Path:Line` | The finding's `path`; when `path` is `null`, fall back to `artifact` — never render an empty cell |
+| `Finding` | `[doctor] {id} ({severity}) — {summary}` |
+| `Evidence` | The finding's `fix` text, verbatim |
+
+Upstream's `route`/`mention`/`auto` is preserved **verbatim inside the `Finding` cell**. That is deliberate: upstream's `--fix` boundary is defined in terms of those exact strings, so the tidy-severity value is a display convenience and never the authority.
+
+| `severity` | Tidy severity | Why |
+|---|---|---|
+| `route` | `medium` | Needs a real Impeccable command to resolve — the same urgency tier as Promote/Absorb/Defer. |
+| `auto` | `low` | A mechanical migration with no judgment in it — "routine cleanup" exactly. |
+| `mention` | `info` | Worth saying; no action strictly required. |
+
+This ordering puts `auto` above `mention`, inverting upstream's `route`/`mention`/`auto` display order. That order is a reading order for upstream's own text renderer, not a ranking: an `auto` finding is a concrete, safe, ready-to-apply fix being deliberately withheld, which is more actionable than an informational `mention`. Both keep their upstream word in the `Finding` cell, so nothing is lost either way.
+
+### Nothing here is ever applied
+
+These rows are **surface-or-suppress**, not apply-or-skip. This step edits no project file under any condition: `route` and `mention` findings have no mechanical fix by construction, and `auto` findings are staged proposals carrying their own `fix` text — applying them means `doctor.mjs --fix`, which rewrites `PRODUCT.md` and is the user's call, per `_shared/auto-mode-contract.md`'s staging model. The Step 6 decision is only whether the row is worth showing.
+
+That is why `[doctor]` routes to its own report section and **not** the Actions table: every row in the Actions table carries a recommendation from the Action Vocabulary, and every one of those mutates something.
+
+→ Collect each as: `[doctor] {id} ({severity}) — {summary} — {fix}`
+
 ## Step 5: Record Sizing Review
 
 For `ready` records not yet claimed — `facets.bot.inProgress === false` (from Step 1's already-fetched facets under `work-backend: github-issues`; every `ready` local record qualifies, since the local driver carries no bot state) — fetch each body and check sizing:
@@ -348,4 +394,5 @@ Patterns and health observations are informational — they surface systemic iss
 |---|---|---|
 | `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
 | `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
+| `[doctor]` | Design Record Drift table | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** the Actions table, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
 | `[health]` | Summary section | Project-level observations. |

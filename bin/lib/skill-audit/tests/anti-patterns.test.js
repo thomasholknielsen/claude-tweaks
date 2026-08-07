@@ -218,11 +218,31 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   `git diff origin/main -- 'skills/*/SKILL.md' | grep -E '^-\|'` is empty,
   //   and the same diff's `^\+\|` lines are exactly these three. Net +3.
   //
-  //   Note for whoever merges the next concurrent pair: this counter is the
-  //   `[IL-99]` hazard by construction. Two branches each adding rows raise it
-  //   from the same base, so both write a literal that merges without conflict
-  //   and is wrong for the union. Re-derive from the parser after any merge
-  //   that touches a second branch's SKILL.md tables — never trust the merged
-  //   literal, and never trust arithmetic over these comment blocks alone.
-  assert.strictEqual(total, 361);
+  //   358 -> 362, `doctor` mode routing Impeccable's design-record findings
+  //   into /tidy (#150). Four rows ADDED to design-wrapper/SKILL.md, none
+  //   evicted: "Passing `--fix` to `doctor.mjs`", "Passing any flag but
+  //   `--json` to `doctor.mjs`", "Collapsing `route`/`mention`/`auto` into
+  //   claude-tweaks' severity words in the wrapper's return", and "Running
+  //   Layer 3's file sniff before `doctor`". Verified rather than assumed, in
+  //   both directions: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty, and the same diff's `^\+\|` lines are these
+  //   four plus four Input/availability/Next-Actions rows this parser does not
+  //   read. The concurrent merge from origin/main that landed in the same
+  //   branch added no table rows at all (checked separately, since the 356 ->
+  //   358 entry above records what happens when a merge's contribution is
+  //   assumed to be zero without looking). Net +4.
+  //
+  //   -> 365, merge of #150 into #152. The two entries above are the two sides
+  //   of that merge, both measured against the same 358 base: #150 added 4
+  //   (design-wrapper's doctor rows), #152 added 3 (demo's direction-contract
+  //   rows). 358 + 4 + 3 = 365. This is `[IL-99]` firing exactly as recorded:
+  //   `.claude-plugin/plugin.json` had no textual conflict at all — both
+  //   branches independently bumped to 6.52.0, so the field resolved to the
+  //   same string either way and only the two comment blocks here conflicted,
+  //   which is what surfaced the collision. Neither side's literal is correct
+  //   after the merge (361 and 362 each omit the other's rows), so this number
+  //   was re-derived by RUNNING the parser on the merged tree, not by adding
+  //   these comment blocks together — the arithmetic agreeing is a coincidence
+  //   worth having but not the evidence.
+  assert.strictEqual(total, 365);
 });
