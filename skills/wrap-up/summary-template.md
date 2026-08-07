@@ -20,15 +20,16 @@ Render VERBATIM from the helper — do not compose these facts from memory:
     node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
 Resolve `{base}` — a commit-ish, never a date — by the first rule that applies.
-`{default-branch}` is the repository's default branch, resolvable via
-`git symbolic-ref --short refs/remotes/origin/HEAD` with `main` as the
-fallback:
+`{integration-branch}` is the branch this project integrates work into, resolved
+via `skills/_shared/integration-branch.md`'s canonical ladder — not always the
+GitHub default branch that fragment's git-inference rank would otherwise settle
+on:
 
-1. `git merge-base HEAD {default-branch}` when HEAD is not on the default
-   branch. The branch's whole life is the work, so this is immune to how often
-   the session pushed.
-2. `git merge-base HEAD @{u}` when HEAD IS on the default branch and it has an
-   upstream — the base is the last commit the remote has, so the window is
+1. `git merge-base HEAD {integration-branch}` when HEAD is not on the
+   integration branch. The branch's whole life is the work, so this is immune
+   to how often the session pushed.
+2. `git merge-base HEAD @{u}` when HEAD IS on the integration branch and it has
+   an upstream — the base is the last commit the remote has, so the window is
    exactly what has not been pushed.
 3. `HEAD` otherwise. The window is empty and renders as `0 commits`, which is a
    visible, checkable answer rather than a silent guess.
