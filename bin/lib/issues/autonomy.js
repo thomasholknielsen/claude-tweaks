@@ -26,6 +26,16 @@ const CEILINGS = ['supervised', 'trusted', 'unattended'];
 // what is being tested.
 const GRADABLE_KINDS = new Set(['producer', 'side-effect', 'human']);
 
+// Of those, the ones that describe work an AGENT filed. Born-`ready` authorizes
+// an agent to file spec-shaped, so a class whose records a human filed has no
+// agent whose filing could be authorized — its verdict says something real about
+// how that work turned out, but nothing about an agent's filing discipline.
+// Granting on it would license agent filings using evidence generated entirely by
+// human ones, and it is not a corner case: `human:human|elevated` (50 records) and
+// `human:human|low` (40) are this repo's two largest cells and the first likely to
+// clear both floors.
+const AGENT_FILED_KINDS = new Set(['producer', 'side-effect']);
+
 function isCeiling(value) {
   return typeof value === 'string' && CEILINGS.includes(value);
 }
@@ -73,16 +83,25 @@ function permittedGrants(input) {
   // At `trusted`, a class that has earned it may file spec-shaped work directly
   // as `ready`. That skips /claude-tweaks:specify, not the grant: `ready` asserts
   // shape, and _shared/work-record.md's human gate at /claude-tweaks:backlog
-  // refine still stands between `ready` and any autonomous build.
-  const bornReady = atLeast(tier, 'trusted');
+  // refine still stands between `ready` and any autonomous build. Agent-filed
+  // classes only — see AGENT_FILED_KINDS.
+  const bornReady = atLeast(tier, 'trusted') && AGENT_FILED_KINDS.has(row.kind);
+  if (!bornReady) {
+    return DENY(`class ${row.kind} is human-filed — born-ready authorizes an agent's filing, and there is no agent filing here`);
+  }
 
   // `auto:build` is the actual authorization, and originating one from machinery
   // contradicts work-record.md's standing invariant that auto:* labels are only
-  // ever added by an interactive human session — an invariant with a live eval
-  // asserting it (evals/scenarios/backlog-refine-permission-matrix-compliance.yaml).
-  // The tier is defined so the ceiling is complete; the grant path stays behind
-  // its own opt-in until that invariant is deliberately amended, and reaching the
-  // top tier is never by itself that amendment.
+  // ever added by an interactive human session. That invariant was written after
+  // a real run treated a low-risk, well-scoped, `ready` record as license to run
+  // a full build-to-close lifecycle on its own judgment
+  // (evals/scenarios/backlog-refine-permission-matrix-compliance.yaml exists
+  // because of it, though what that scenario can actually assert is the
+  // local-files boundary — its own description says the grant path is untestable
+  // in the sandbox, so it is the incident and not the eval that carries the
+  // weight here). The tier is defined so the ceiling is complete; the grant path
+  // stays behind its own opt-in until that invariant is deliberately amended, and
+  // reaching the top tier is never by itself that amendment.
   if (!atLeast(tier, 'unattended')) {
     return { bornReady, bornAuthorized: false, reason: `class is clean and the ceiling is ${tier}` };
   }

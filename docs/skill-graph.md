@@ -73,7 +73,8 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — or, under `autonomy: trusted`+, born-`ready` when their provenance class carries a `clean` trust verdict (`_shared/autonomy-ceiling.md`); `overview` mode surveys and prioritizes them. |
+| `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — or, under `autonomy: trusted`+, born-`ready` when `producer:capture` carries a `clean` trust verdict; `overview` mode surveys and prioritizes them. |
+| `_shared/autonomy-ceiling.md` | The one actor the ceiling's born-`ready` tier covers. `/capture` resolves it through `permittedGrants` — never from the policy value alone, since the class verdict is half the condition — and files with `ready` already applied when both hold. Inert at `supervised`, the default. |
 | `/challenge` | Debiases backlog records before `/superpowers:brainstorming` — `/help` flags candidates. |
 | `/code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |

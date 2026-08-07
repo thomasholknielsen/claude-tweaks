@@ -117,6 +117,6 @@ Call `AskUserQuestion`:
 | Skipping the backlog scan | Stale backlog records create noise and slow the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented backlog records bypass the debiasing step |
 | Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — deleting, promoting, absorbing, or deferring records means handing off to `/claude-tweaks:tidy`, never an ad-hoc walkthrough |
-| Deriving a recommendation, grant, or "next step" from the Trust Table's verdicts | Stage 4.8 reports what evidence exists; the `autonomy` policy lever has no consumer yet, so nothing in this skill may act on a `clean`/`mixed`/`insufficient-evidence` verdict |
+| Deriving a recommendation, grant, or "next step" from the Trust Table's verdicts | Stage 4.8 reports what evidence exists. The `autonomy` ceiling does have consumers now (`/claude-tweaks:capture`, `/claude-tweaks:backlog refine`), and this skill is deliberately not one of them — a dashboard reports, so nothing here may act on a `clean`/`mixed`/`insufficient-evidence` verdict |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.

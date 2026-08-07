@@ -73,16 +73,49 @@ test('a kind this module does not recognize is denied, not permitted', () => {
   }
 });
 
-test('every kind provenance.js actually emits is classified, none silently denied', () => {
-  // Control for the allowlist: it must not be so tight that it denies a real
-  // class. These four are provenance.js's complete output set — three gradable,
-  // one pinned — so a change there that this module has not been taught about
-  // fails here rather than in production.
-  const gradable = ['producer', 'side-effect', 'human'];
-  for (const kind of gradable) {
+test('a human-filed class earns nothing, however clean and however high the ceiling', () => {
+  // Born-ready authorizes an AGENT's filing to skip /claude-tweaks:specify. A
+  // human-filed class has no agent filing to authorize, so its verdict — however
+  // good — is evidence about the wrong thing. This is not hypothetical: on this
+  // repo `human:human` is the largest provenance by a wide margin and the first
+  // that will clear both floors, so a governor that graded it would fire here
+  // first and on the weakest possible justification.
+  const humanRow = { ...cleanRow, kind: 'human', provenance: 'human:human' };
+  for (const ceiling of ['trusted', 'unattended']) {
+    for (const optIn of [undefined, true]) {
+      const result = permittedGrants({ ceiling, row: humanRow, grantOriginationEnabled: optIn });
+      assert.equal(result.bornReady, false, `${ceiling}/${optIn}`);
+      assert.equal(result.bornAuthorized, false, `${ceiling}/${optIn}`);
+      assert.match(result.reason, /human-filed/);
+    }
+  }
+});
+
+test('agent-filed classes are exactly producer and side-effect', () => {
+  // Control for the test above — the exclusion must not be so wide that it also
+  // denies the two kinds the tier exists to serve.
+  for (const kind of ['producer', 'side-effect']) {
     assert.equal(permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind } }).bornReady, true, kind);
   }
-  assert.equal(permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'unstructured' } }).bornReady, false);
+});
+
+test('every kind provenance.js emits is classified, and denials are distinguishable', () => {
+  // Control for the allowlist: it must not be so tight that it denies a real
+  // class, and the two reasons for denying must not blur together. These four
+  // are provenance.js's complete output set, and they fall into three buckets —
+  // grantable, gradable-but-human-filed, and structurally unclassifiable — so a
+  // change there this module has not been taught about fails here, not in
+  // production.
+  assert.equal(permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'producer' } }).bornReady, true);
+  assert.equal(permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'side-effect' } }).bornReady, true);
+
+  const human = permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'human' } });
+  assert.equal(human.bornReady, false);
+  assert.match(human.reason, /human-filed/, 'a real class denied for whose filing it is');
+
+  const unstructured = permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'unstructured' } });
+  assert.equal(unstructured.bornReady, false);
+  assert.match(unstructured.reason, /unclassifiable/, 'not a class at all — a different denial');
 });
 
 test('a missing or malformed row is denied, not defaulted', () => {

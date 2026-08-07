@@ -3,7 +3,16 @@
 Single source of truth for the `autonomy` policy lever (`supervised` default | `trusted` |
 `unattended`). Referenced, not restated, by every consumer: `_shared/work-record.md` (permission
 matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (never-reversible list),
-`_shared/policy-schema.md` (lever table), `backlog/refine-mode.md` (Step 3 trust signal, Step 3.6).
+`_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception), and
+`backlog/refine-mode.md` (Step 3.6).
+
+**Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** The other
+residue producers — `/claude-tweaks:wrap-up` leftovers, `/claude-tweaks:reflect` routing,
+`/claude-tweaks:demo` follow-ups, all of which resolve to `side-effect:*` classes — keep the
+`Never` columns their own permission-matrix rows state, whatever this lever is set to. Widening it
+to one of them means editing that actor's row deliberately. `/claude-tweaks:backlog refine`
+consumes the ceiling but grants nothing from it: it renders an advisory column and inherits
+whichever records arrived born-`ready`.
 
 Two modules implement it. `bin/lib/issues/autonomy.js` resolves the ceiling and maps
 `(ceiling, trust row)` to a permission set; `bin/lib/issues/trust.js` supplies the evidence those
@@ -14,7 +23,7 @@ rows carry. Neither applies a label — they answer whether a caller may, and th
 | Ceiling | Unlocks — only for classes that have earned it |
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
-| `trusted` | Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. |
+| `trusted` | Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. |
 | `unattended` | Everything `trusted` allows, plus machine-originated `auto:build`. **That half is shut behind its own opt-in** — see below. |
 
 ## Ceiling, not level
@@ -44,11 +53,16 @@ resolves to the default rather than to the tier it resembles.
 
 A class earns nothing unless `permittedGrants` says so, which requires **all** of:
 
-- The class's `kind` is one `bin/lib/issues/autonomy.js` recognizes — `producer`, `side-effect`, or
-  `human`. This is an allowlist, so any kind it has not been taught denies. `unstructured` is
-  `provenance.js` reporting it could not reduce those records to a class at all; a bucket whose
-  only shared property is that nobody knows what is in it has no coherent class to earn trust for,
-  and `trust.js` pins its verdict independently so neither module can open it alone.
+- The class's `kind` is one `bin/lib/issues/autonomy.js` recognizes as a class at all — `producer`,
+  `side-effect`, or `human`. This is an allowlist, so any kind it has not been taught denies.
+  `unstructured` is `provenance.js` reporting it could not reduce those records to a class;
+  a bucket whose only shared property is that nobody knows what is in it has no coherent class to
+  earn trust for, and `trust.js` pins its verdict independently so neither module can open it alone.
+- The class is **agent-filed** — `producer` or `side-effect`. `human` is a real class and grades
+  normally in the table, but born-`ready` authorizes an *agent's* filing, and a human-filed class
+  has no agent filing to authorize; granting on it would license agent filings from evidence that
+  humans generated. This is the load-bearing half of the check rather than a corner case:
+  `human:human` is this repo's largest provenance and the first that will clear both floors.
 - The class's verdict is `clean`. That in turn requires `total >= MIN_SAMPLES`, **and**
   `dispositioned >= MIN_VERDICTS` — a floor counted on real acceptance verdicts, not on how many
   records the class has closed — **and** no `changes-requested` and no corrective follow-ups. A
@@ -69,10 +83,13 @@ one flag-back.
 
 `auto:build` **is** the authorization. Originating one from machinery contradicts the standing
 invariant in `_shared/work-record.md`'s Grant semantics — that `auto:*` labels are only ever added
-by an interactive human session — and that invariant is not merely documented: it has a live eval
-asserting it (`evals/scenarios/backlog-refine-permission-matrix-compliance.yaml`), written after a
+by an interactive human session — and that invariant is not theoretical: it was written after a
 real run treated a low-risk, well-scoped, `ready` record as license to run a full build-to-close
-lifecycle on its own judgment.
+lifecycle on its own judgment. `evals/scenarios/backlog-refine-permission-matrix-compliance.yaml`
+exists because of that incident, though what it can actually assert is narrower — its own
+description states the grant path is untestable in the sandbox (no live `gh`, network blocked), so
+it pins the `local-files` boundary rather than the grant invariant itself. The incident is the
+evidence; the eval is a partial guard on it.
 
 So reaching the top tier is **not by itself** an amendment of that invariant. Machine-originated
 grants need a second, explicit opt-in beyond setting `autonomy: unattended`

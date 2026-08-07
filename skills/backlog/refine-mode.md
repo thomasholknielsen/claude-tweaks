@@ -133,8 +133,16 @@ continue."
 Resolve the `autonomy` ceiling and this run's trust table once, before rendering Step 4's table.
 Fetch the records per `_shared/trust-table.md`'s Fetch section (including its
 `backlog-fetch-limit` resolution and its truncation warning), then look up each worklist record's
-class. Read `autonomy` from `.claude-tweaks/policy.yml` and export it as `AUTONOMY_CEILING` first;
-leave it unset when the key is absent, which resolves to `supervised`.
+class.
+
+Read `autonomy` from `.claude-tweaks/policy.yml` and **substitute its literal value** for
+`{resolved-ceiling}` below — `supervised` when the key is absent. Do **not** `export` it in an
+earlier Bash call and read `process.env` here: shell environment does not survive between Bash
+calls and never reaches a subagent, so that expansion always resolves empty and this block would
+report `supervised` on a repo configured for `trusted`. It is the same hazard, and the same fix,
+as the `backlog-fetch-limit` substitution in the Fetch section this step already cites. The
+failure is quiet and in the safe direction, which is exactly why it needs stating: nothing errors,
+the console simply renders a false claim about live policy.
 
 ```bash
 node -e "
@@ -144,7 +152,7 @@ node -e "
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
   const rows = new Map(trustRows(issues).map((r) => [r.key, r]));
-  const ceiling = resolveCeiling({ policy: process.env.AUTONOMY_CEILING });
+  const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const out = {};
   for (const issue of issues.filter((i) => i.state === 'OPEN')) {
     const { kind, source } = resolveProvenance({ labels: issue.labels, body: issue.body });
@@ -225,15 +233,32 @@ born-`ready` by this path and this step does nothing.
 |---|---|---|---|---|---|---|---|---|
 | 1 | #123: {title} | priority | by:code-health | (none) | priority:high | — | quick? (guess) | {synthesis rationale} |
 | 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | — | {synthesis rationale} |
-| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | producer:capture/low — clean, 62% coverage | — | {grant-check RATIONALE} |
-| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | human/elevated — insufficient evidence | — | Prior failure — human judgment required, not a mechanical replay |
+| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | producer:capture / low — clean, 62% coverage | — | {grant-check RATIONALE} |
+| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | producer:harness-health / elevated — insufficient-evidence | — | Prior failure — human judgment required, not a mechanical replay |
 ```
 
-The `Trust` column renders `{provenance}/{band} — {verdict}` from `/tmp/backlog-refine-trust.json`,
-adding `, {coverage}% coverage` when the verdict is `clean` or `mixed`, and `no cell yet` when the
-record's class has no closed records at all. Populate it for `grant`-type rows only; `priority` and
-`related` rows render `—`. Omit the column entirely under `work-backend: local-files`, where the
-grant sub-stage does not run.
+The `Trust` column renders `{provenance} / {band} — {verdict}` from
+`/tmp/backlog-refine-trust.json`, adding `, {coverage}% coverage` when the verdict is `clean` or
+`mixed`. `{provenance}` is the row's full `kind:source` pair (`producer:capture`,
+`side-effect:wrap-up leftover`, `human:human`) and `{verdict}` is the literal module value
+(`clean` / `mixed` / `insufficient-evidence`) — do not shorten either, since a record's `by:*`
+label and its resolved provenance must be readable as the same fact side by side with the Origin
+column.
+
+Two absences render differently and must not be conflated: `no cell yet` when the class exists but
+has closed no records, and `not fetched` when the record is missing from
+`/tmp/backlog-refine-trust.json` entirely. The second is reachable — Step 1's worklist is
+`--state open` while the trust fetch is `--state all` against the same `backlog-fetch-limit`, so a
+long history can push an old open record out of the trust fetch while it stays in the worklist. A
+blank cell there would read as "no evidence" when the truth is "not looked at."
+
+Append the resolved ceiling once, below the table rather than per row, as: "Autonomy ceiling:
+`{ceiling}`. {reason for the first grant row, verbatim from `permittedGrants`}." At `supervised`
+that reads "trust is recorded and displayed, never acted on", which is the honest description of
+what every verdict above is doing.
+
+Populate the column for `grant`-type rows only; `priority` and `related` rows render `—`. Omit it
+entirely under `work-backend: local-files`, where the grant sub-stage does not run.
 
 **The `Trust` column is advisory and is never the reason a row is recommended.** It describes how
 the record's *class* has historically turned out; the Recommended column comes from a content-aware

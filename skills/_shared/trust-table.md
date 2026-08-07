@@ -1,19 +1,20 @@
 # Trust Table — Shared Procedure
 
 Single source of truth for rendering `bin/lib/issues/trust.js`'s per-class trust table. Consumed
-by `/claude-tweaks:help` (`status-scan.md` Stage 4.8) and `/claude-tweaks:backlog overview`
-(`overview-mode.md` Step 1.5). Subagents cannot read this file — `/help`'s dispatcher inlines this
-file's Fetch and Render sections into Stage 4.8's agent prompt, the same pattern already used for
-`_shared/github-pr-scan.md`.
+by `/claude-tweaks:help` (`status-scan.md` Stage 4.8), `/claude-tweaks:backlog overview`
+(`overview-mode.md` Step 1.5), and `/claude-tweaks:backlog refine` (`refine-mode.md` Step 3, which
+reuses the Fetch section for its advisory Trust column). Subagents cannot read this file —
+`/help`'s dispatcher inlines this file's Fetch and Render sections into Stage 4.8's agent prompt,
+the same pattern already used for `_shared/github-pr-scan.md`.
 
 **Read-only, and read-only for a reason.** This procedure reports what evidence exists and
 nothing else — it never grants a label, changes a label, merges anything, or recommends an
 autonomous action. `_shared/policy-schema.md`'s `autonomy` lever (default `supervised`) is the
-only thing that will ever act on this table's verdicts, and nothing reads that lever yet
-(`trusted`/`unattended` are declared, not wired — Phase 3 of
-`docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md`). Do not attach a "next step"
-suggestion to a verdict here — that is exactly the mid-flow autonomy this phase withholds on
-purpose.
+only thing that acts on this table's verdicts, and it does so through
+`bin/lib/issues/autonomy.js` in its own consumers — `_shared/autonomy-ceiling.md` names them —
+never here. **Rendering and acting stay separate surfaces on purpose:** do not attach a "next
+step" suggestion to a verdict in this table, whatever the ceiling is set to. That is exactly the
+mid-flow autonomy the bookend architecture withholds.
 
 **Omit entirely under `work-backend: local-files`.** `demo:approved`/`demo:changes-requested` are
 GitHub Issue labels this table reads directly; there is no local-record equivalent to fetch.

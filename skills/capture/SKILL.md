@@ -48,7 +48,14 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
-Apply `by:capture` and the Type expression and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, stage, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and only `/claude-tweaks:tidy` and `/claude-tweaks:specify` move a record along it).
+Apply `by:capture` and the Type expression and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated exception below.
+
+**One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
+`producer:capture` class carries a `clean` trust verdict, a fresh capture files with `ready`
+already applied — see `_shared/autonomy-ceiling.md`. Resolve it via
+`bin/lib/issues/autonomy.js`'s `permittedGrants`; never infer it from the policy value alone,
+since the verdict is half the condition. At `supervised`, the default and the state of any repo
+that has not opted in, this never fires and the paragraph above holds unchanged.
 
 **When `work-backend: github-issues`:**
 
