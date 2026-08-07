@@ -283,14 +283,17 @@ way.
 
 ## Step 4.8: Audit GitHub PRs and Issues
 
-Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** scope. The dispatcher inlines both scope sections (the `repo-wide` findings table and the `acceptance-gap` procedure), the Detection Ladder, and the Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
-GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
+The `acceptance-gap` scope finds closed records with no acceptance label at all — a different gap than the `acceptance-queue` scope `/help` Stage 4.7 uses, which only sees records already flagged `demo:pending`. Its recommendation is always "run `/claude-tweaks:demo #{n}`" — never one of the Action Vocabulary's atomic actions, since disposing a closed record is a judgment call for a human, not this step.
+
+GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. The `acceptance-gap` finding is staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan.md`'s `acceptance-gap` scope for why.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
+→ Collect each as: `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
 
 ## Step 5: Record Sizing Review
 
@@ -343,6 +346,6 @@ Patterns and health observations are informational — they surface systemic iss
 
 | Collection prefix | Renders in Step 6 table | Notes |
 |---|---|---|
-| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
+| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
 | `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
 | `[health]` | Summary section | Project-level observations. |

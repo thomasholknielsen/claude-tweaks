@@ -345,6 +345,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/capture` | Feeds the backlog records `/tidy` audits. |
+| `/demo` | Step 4.8's `acceptance-gap` scope (`_shared/github-pr-scan.md`) finds closed records with no acceptance label via `needsBackstop` (`bin/lib/issues/acceptance.js`) and recommends `/claude-tweaks:demo #{n}` at severity `info` — staged, never auto-applied at any aggressiveness tier, since disposing a closed record is a human judgment call the auto-mode contract keeps off the silenced list. Those records are by construction other sessions' work, so `/demo`'s Step 1 reconstructs their brief from the closing commit (`git log --grep` over `origin/main` + `HEAD`) rather than from session recall, which would have nothing to recall. |
 | `/dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s periodic sweep rather than a console dispatch renders itself. |
 | `/help` | `/help` suggests `/tidy` when maintenance signals are detected; both read the same work-record queue via `parseRecordFacets`. |
 
@@ -379,7 +380,7 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `/demo` | `/wrap-up` applies `demo:pending` and posts the Verification Brief (Step 10, `verification-brief.md`) — record mode only, gated on a clean visual-review pass (Step 2.5's safety net). `/demo` later resolves the label to `demo:approved`/`demo:changes-requested` and, on the latter, files a linked follow-up record. |
+| `/demo` | `/wrap-up` applies `demo:pending` and posts the Verification Brief (Step 10, `verification-brief.md`) — record mode only. Step 2.5's visual-review safety-net gate applies to testable records; Step 2's `verificationSurface` classifier (`bin/lib/issues/acceptance.js`, shared with `/tidy`'s `acceptance-gap` scope) instead composes concrete manual verification steps for a non-testable record, rendered as `### Verify it yourself (manual)` in place of `### See it yourself`. `/demo` later resolves the label to `demo:approved`/`demo:changes-requested` — walking those manual steps directly when present, on every one of its entry points (`#N`, closing-commit reconstruction, session-recall), instead of opening a browser session — and, on the session-recall one, files a linked follow-up record. |
 | `/dispatch` | Cleanup Section E releases the claim on success using the `CLAIM_RUN_ID` dispatch threads through `/flow` (not `/wrap-up`'s own `PIPELINE_RUN_DIR`) — see the ownership-check procedure in `cleanup-procedures.md`. Dispatch's group-scoped Auto-merge gate then runs its checks against this skill's Review Console output before it would otherwise render. |
 | `/feedback` | Step 7.11 stages one upstream proposal per D5 learning; the Step 8.6 Review Console's `On approval` step invokes `/feedback` per approved row. |
 | `/flow` | Invoked BY `/flow` as the pipeline's final step; flow waits for `/wrap-up`'s Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
