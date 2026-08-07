@@ -171,9 +171,8 @@ decomposition time (`spec-template.md`). No parent resolvable (a record human-fi
    same as any other review-driven change to the record under review).
 
 Both writes are additive to the parent's body/comments only — never touch a sibling leaf's body
-from this step, and never block the review's own PASS/BLOCKED verdict on anything found here (see
-`docs/superpowers/specs/2026-07-15-cross-spec-promise-tracking-design.md`'s Non-Goals: not a hard
-gate anywhere).
+from this step, and never block the review's own PASS/BLOCKED verdict on anything found here — the
+register is deliberately not a hard gate anywhere.
 
 ## Step 2: Identify What Changed
 

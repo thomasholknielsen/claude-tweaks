@@ -212,10 +212,8 @@ A decomposition of `>= promise-register-min-leaves` leaves (Config keys, below) 
 maintained by `/claude-tweaks:review`'s Step 1.6 on every parent-linked leaf's own review — not
 gated on the leaves being built together in one multi-spec `/flow` batch, since the dominant
 workflow dispatches leaves independently, possibly weeks apart. This formalizes the ad hoc
-"promise register" pattern from the spec 13-23 build (see
-`docs/superpowers/specs/2026-07-15-cross-spec-promise-tracking-design.md`), which caught 3 real
-cross-spec breaks but previously lived in a gitignored pipeline directory and died with the run
-that created it.
+"promise register" pattern from the spec 13-23 build, which caught 3 real cross-spec breaks but
+previously lived in a gitignored pipeline directory and died with the run that created it.
 
 **The register** lives on the parent as two GitHub primitives, not a new file: a
 `## Cross-Spec Promises` table in the body (current-state truth, edited in place) and issue

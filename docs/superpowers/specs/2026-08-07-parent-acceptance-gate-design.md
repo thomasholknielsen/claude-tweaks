@@ -49,7 +49,7 @@ commits stale.
 | Nothing closes a parent | No match repo-wide for a parent-closing path |
 | Promise register threshold | `promise-register-min-leaves`, default `4` — `bin/lib/policy-schema.js:37` |
 | Register is github-issues only | Permanent `local-files` exclusion — `skills/specify/record-creation.md:225` |
-| Register is not a hard gate | `skills/review/SKILL.md:173-176` (which attributes it to a design doc retired in `652a97c4` — that path no longer resolves) |
+| Register is not a hard gate | `skills/review/SKILL.md:173-175` |
 | Trust cells count all closed records | `bin/lib/issues/trust.js:106`, `:135` |
 | Trust verdict floor | `total >= MIN_SAMPLES (8) && dispositioned >= 1` — `bin/lib/issues/trust.js:159` |
 
@@ -183,7 +183,7 @@ Two parts:
 
 Rows still `open` at gate time appear as **unverified items**. They do not block the gate
 from opening. This is deliberate and preserves the register's stated Non-Goal — that it is
-"not a hard gate anywhere" (`skills/review/SKILL.md:173-176`) — the register informs the
+"not a hard gate anywhere" (`skills/review/SKILL.md:173-175`) — the register informs the
 human, and the human is the gate. Where no register exists (below `promise-register-min-leaves`,
 or `work-backend: local-files`), the walkthrough alone is the brief.
 
