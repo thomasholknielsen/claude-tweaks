@@ -31,6 +31,39 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.48.1 — /init stops writing work-links to the file nothing reads
+
+v6.48.0 moved every `work-links` **reader** to `.claude-tweaks/policy.yml` and left the
+**writer** behind. `/claude-tweaks:init` bootstrap Step 17b probes the org's Issue
+capabilities and wrote both `work-types` and `work-links` "beside the flag" in CLAUDE.md —
+so on a newly bootstrapped project in an org with sub-issues and dependencies enabled, the
+probe returned `native`, recorded it where nothing looks, and every consumer fell back to
+`body-text`. Parent links landed as body-text task lists instead of sub-issue relationships,
+with nothing objecting. The next `/claude-tweaks:init --update` would then flag the key
+`/init` had just written as Config Home Drift: the skill fighting its own output on every
+cycle.
+
+Found by the whole-branch review, which is the only pass that could have found it — the
+writer and the readers are in different files, and each task's own diff was self-consistent.
+The scope list that kept Step 17b out of the migration excluded it for naming `work-backend`;
+nobody noticed the same file writes `work-links` fifty lines further down.
+
+- Step 17b now splits the write: `work-types` to CLAUDE.md, `work-links` to
+  `.claude-tweaks/policy.yml`, with the failure mode stated inline so the next editor sees why.
+- `_shared/auto-mode-contract.md`'s **skill-integration template** — the block skills are told
+  to copy when implementing an auto branch — still read project policy from CLAUDE.md. Its
+  descriptive twin three sections up was fixed in 6.48.0; the prescriptive copy, the one that
+  actually gets copied, was not.
+- The auto-FORBIDDEN list now names `policy.yml`'s keys, not just CLAUDE.md's. The old wording
+  stayed literally true while its subject moved out from under it, so nothing contradicted it.
+- Update Mode's Work-Record Backend Drift row looked for `work-links` in CLAUDE.md, which
+  after 6.48.0 fires on every correctly-configured project, forever.
+- The Config Home Drift "promote the CLAUDE.md value" remedy appended to `policy.yml` even
+  when the key was already present. Consumers read `| head -1`, so the append was inert and the
+  old value silently kept winning — a no-op the user had no way to notice. It now replaces
+  in place.
+- Root `CLAUDE.md` still said project policy lives "in CLAUDE.md or `.claude-tweaks/policy.yml`".
+
 ## v6.48.0 — policy.yml is the single home for project config
 
 `.claude-tweaks/policy.yml` is now the only file claude-tweaks reads for config keys.

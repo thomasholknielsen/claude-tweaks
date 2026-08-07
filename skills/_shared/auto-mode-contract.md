@@ -131,7 +131,9 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - `git push` to shared branches
 - Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when `unattended-tier` is on (see `_shared/unattended-tier.md`)
 - Network calls beyond reads (no API writes, no message sends)
-- Modifying CLAUDE.md project-policy values
+- Modifying project-policy values — `.claude-tweaks/policy.yml`'s keys, and the
+  work-record keys still resident in CLAUDE.md (`work-backend`, `work-types`,
+  `record-staleness-weeks`)
 - Deleting specs
 
 ## What `auto` silences
@@ -231,7 +233,7 @@ When a skill has a historical mid-flow stop, rewrite it like this:
 
 **Auto mode:**
 1. Read pipeline config from `{run-dir}/config.yml` (resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`) for `{policy-key}` → if set, apply.
-2. Else read project policy from CLAUDE.md → if set, apply.
+2. Else read project policy from `.claude-tweaks/policy.yml` → if set, apply.
 3. Else apply skill default: `{skill-default-value}`.
 4. Log to auto-decision log (append under `## /{skill}` heading in `{run-dir}/decisions.md`):
    `- AUTO {HH:MM:SS} — {step name}: applied {value}. Reason: {policy-source}. Reversibility: {high|med|low}.`
