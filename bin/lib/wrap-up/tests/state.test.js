@@ -47,6 +47,15 @@ test('readState marks a detached HEAD rather than reporting an empty branch name
   assert.strictEqual(s.detachedAt, 'deadbee');
 });
 
+test('readState reports pushed as null when an upstream resolves but the ahead/behind read fails', () => {
+  const responses = { ...ON_BRANCH_UNPUSHED };
+  delete responses['rev-list --left-right --count @{u}...HEAD'];
+  const s = readState({ cwd: '/repo', since: 'a1b2c3d', run: stubRunner(responses) });
+  assert.strictEqual(s.upstream, 'origin/dev');
+  assert.strictEqual(s.ahead, null);
+  assert.strictEqual(s.pushed, null);
+});
+
 test('readState reports no upstream as unpushed rather than as unknown', () => {
   const responses = { ...ON_BRANCH_UNPUSHED };
   delete responses['rev-parse --abbrev-ref --symbolic-full-name @{u}'];

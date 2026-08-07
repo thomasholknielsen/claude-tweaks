@@ -19,6 +19,10 @@ Render VERBATIM from the helper — do not compose these facts from memory:
 
     node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
+If the helper exits non-zero, `{base}` was not a resolvable commit-ish —
+re-derive it by the rule below and retry once. If it still fails, render the
+State block's fields as `unknown` and say so; never omit the block.
+
 Resolve `{base}` — a commit-ish, never a date — by the first rule that applies.
 `{integration-branch}` is the branch this project integrates work into, resolved
 via `skills/_shared/integration-branch.md`'s canonical ladder — not always the
@@ -206,10 +210,14 @@ Each row gets its own `AskUserQuestion` call — never batched together, and nev
 
 On Apply (or Edit, after modification), the action is performed **here** — Step 10 only verifies it landed, it never performs it (`execution-and-verification.md`). Read the item's content from its staged file when a pipeline run directory exists (`staged/ledger-record-{slug}.md` and the other `Title:`-headed files above for `Q#`; `staged/wrap-up-memory-{N}.md` / `staged/wrap-up-upstream-{N}.md` for `M#` / `U#`), or from the inline proposal held from Step 7.10/7.11 when this is standalone wrap-up (no `staged/` file — see those steps' standalone branch). Then execute exactly as `review-console.md`'s `On approval` steps 7-9 describe: for a `Q#` item, create the record via `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body back out of the staged file; for an `M#` item, write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)"; for a `U#` item, invoke `/claude-tweaks:feedback` with the already-scrubbed body. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason (or "declined, no reason given") when a pipeline run directory exists; state the decline inline in this summary otherwise.
 
-After presenting the summary, output an explicit closure line:
+After presenting the summary, output an explicit closure line. State what this
+run's Step 5 cleanup-gate check actually found — never assume the default
+"deleted": a design-mode build's plan and design doc are deliberately kept in
+place rather than deleted (`[IL-36]`), so "deleted" is not the only
+disposition a found plan or ledger can have:
 
 ```
-Work archived. Record #{n} closes via this merge (or the wrap-up commit, in current-branch mode); its plans and ledger have been deleted. The code and learnings remain.
+Work archived. Record #{n} closes via this merge (or the wrap-up commit, in current-branch mode); {Measured plans/ledger clause — "it had no plans or ledger to delete" when Step 5 found neither; otherwise name what this run had and its actual disposition, e.g. "its plan under docs/superpowers/plans/{file} and SDD ledger were resolved during cleanup" when deleted, or "its plan under docs/superpowers/plans/{file} remains in place — kept, not deleted, for a design-mode build" when kept}. The code and learnings remain.
 ```
 
 This signals clearly that the lifecycle is complete — there's nothing left to do for this spec.
