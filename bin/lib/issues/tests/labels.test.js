@@ -34,10 +34,11 @@ test('error message names the label', () => {
 });
 
 test('framing:baked is bootstrappable with a description within the cap', () => {
-  const payload = ensureLabelPayload(
-    'framing:baked',
-    'Framing: this record names a solution that was never traded off'
-  );
+  // Read the description from the canonical fence (see canonicalLabelsFromBootstrapDoc
+  // below) instead of hand-copying it, so a future edit to that source that pushes the
+  // description over the cap fails here rather than drifting silently.
+  const [, description] = canonicalLabelsFromBootstrapDoc().find(([name]) => name === 'framing:baked');
+  const payload = ensureLabelPayload('framing:baked', description);
   assert.strictEqual(payload.name, 'framing:baked');
   assert.ok(payload.description.length <= 100);
 });

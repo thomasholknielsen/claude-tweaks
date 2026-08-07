@@ -138,7 +138,7 @@ node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-leaf-pa
 
 Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`effort:{tier}`/`ceremony:{tier}` pair in use, plus `framing:baked` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
-**`work-backend: github-issues`** — same Type expression branch as the parent. The `--label` flags below are exactly the payload's `.labels`: `recordPayload` emits `risk:{tier}`, `effort:{tier}`, `ceremony:{tier}`, `ready`, no `by:*` label because no `origin` was passed — a decomposition is human-shaped work, not a health-skill filing — and `framing:baked` only when called with `framing: true`:
+**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `framing` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `effort:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `framing:baked` is added separately, below the create blocks, once the Framing verdict is known:
 
 ```bash
 # work-types: native

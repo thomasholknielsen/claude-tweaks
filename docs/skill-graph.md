@@ -87,7 +87,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/specify` | Only caller — invokes `framing-check` inline (not a Task dispatch) from both record-creation paths (`shaping-mode.md`'s single-record path, `record-creation.md`'s per-leaf loop), immediately alongside the existing `ceremony-check` call. `--lens` is never called by a pipeline orchestrator; it is human-invoked only. Reciprocal of `/specify`'s own `/challenge` row. |
-| `_shared/work-record.md` | Taxonomy home for the `framing:baked` label a `solution-baked` verdict stamps on the record, and for the stage vocabulary (backlog / parked / ready) `framing-check` reads over. |
+| `_shared/work-record.md` | Taxonomy home for the `framing:baked` label a `solution-baked` verdict stamps on the record — `framing-check` itself reads no stage; it does no fetch and works only from the body the caller already holds in memory (`challenge/SKILL.md`'s Step 1: Gather). |
 
 ## code-health
 

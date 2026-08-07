@@ -67,7 +67,7 @@ Materialize the record into a spec-shaped build file via `skills/flow/materializ
 
 ### Spec Step 2: Check for Existing Plan
 
-Search `docs/superpowers/plans/` for a plan matching this spec (by number, topic, or date) — this is where `/superpowers:writing-plans` actually writes execution plans (see Spec Step 3 below); `docs/plans/` holds claude-tweaks pipeline state (briefs, ledger, audit caches), not plans.
+Search `docs/superpowers/plans/` for a plan matching this spec (by number, topic, or date) — this is where `/superpowers:writing-plans` actually writes execution plans (see Spec Step 3 below); `docs/plans/` holds claude-tweaks pipeline state (ledger, audit caches), not plans.
 
 #### If a plan exists:
 

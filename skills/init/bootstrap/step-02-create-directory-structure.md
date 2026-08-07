@@ -9,7 +9,7 @@ specs/                      → Work records when work-backend: local-files (fla
 docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
 docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
 docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)
-docs/plans/                 → Claude-tweaks pipeline state (briefs, ledger, audit/recommendations caches)
+docs/plans/                 → Claude-tweaks pipeline state (ledger, audit/recommendations caches)
 docs/journeys/              → User and developer journey files (created by /journeys, tested by /visual-review)
 .claude/skills/             → Skill files (should already exist if this skill is running)
 ```

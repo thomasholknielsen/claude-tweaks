@@ -24,7 +24,7 @@ Not for: producing a standalone document, dispatching subagents, or gating anyth
 
 The two forms are mutually exclusive. `framing-check` takes no further arguments — its input is the record body the caller already holds in memory.
 
-For `--lens`, resolve the target the same way `/claude-tweaks:capture` does (see its Backend Selection): a `#{n}` reference fetches via `gh issue view {n} --json title,body` under `work-backend: github-issues`, or via `local-store.js`'s `readRecord` under `work-backend: local-files`. A topic or problem statement is used as given.
+For `--lens`, resolve the target the same way `/claude-tweaks:capture` does (see its Backend Selection): a `#{n}` reference fetches via `gh issue view {n} --json title,body` under `work-backend: github-issues`, or, under `work-backend: local-files`, glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`). A topic or problem statement is used as given.
 
 ## Mode: framing-check
 
