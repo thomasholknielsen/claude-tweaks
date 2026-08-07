@@ -55,15 +55,29 @@ node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/
 node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-parent-payload.json','utf8')).body)" > /tmp/specify-parent-body.md
 ```
 
-`recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready` — the only label that can ever apply is `type:feature`, and only under `work-types: labels`; bootstrap it first (per `_shared/label-bootstrap.md`, `LABELS_JSON = [["type:feature", "Type: new capability or enhancement"]]`, the pair from `record.js`'s `TYPE_LABELS`). The `{design-doc-slug}:parent` fingerprint rides in the body as the standard marker — every machine-filed record carries one (`_shared/work-record.md`), and it's what the Idempotency map above keys the parent's resume on.
+`recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready`. Two
+labels can still land on it, both applied directly via `gh issue create --label` rather than
+through the payload: `type:feature` — only under `work-types: labels` — and `family:parent`,
+unconditionally, regardless of `work-types`. `family:parent` is what makes a parent enumerable
+at all: the `{design-doc-slug}:parent` fingerprint is a body marker reachable only through `gh
+issue list --search`, which this step's "Resuming after a partial run" note (below) says to
+never fall back to — without a label, a `/claude-tweaks:tidy` sweep has no way to find a family
+whose gate was never applied
+(`_shared/github-pr-scan.md`'s `family-gate` scope). Bootstrap both before the create (per
+`_shared/label-bootstrap.md`): `family:parent` always, `type:feature` only under `work-types:
+labels` — `LABELS_JSON = [["family:parent", "Structure: decomposition parent — carries the
+family's acceptance gate"], ["type:feature", "Type: new capability or enhancement"]]` (the
+`type:feature` pair from `record.js`'s `TYPE_LABELS`). The `{design-doc-slug}:parent`
+fingerprint rides in the body as the standard marker — every machine-filed record carries one
+(`_shared/work-record.md`), and it's what the Idempotency map above keys the parent's resume on.
 
 **`work-backend: github-issues`** — the Type expression branch (`_shared/work-record-config.md`, the config-key table's canonical home; read `work-types` once, never re-probe mid-flow):
 
 ```bash
 # work-types: native
-PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --type feature)
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --type feature --label family:parent)
 # work-types: labels
-PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --label type:feature)
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --label type:feature --label family:parent)
 
 PARENT_NUM=$(basename "$PARENT_URL")
 ```
@@ -79,9 +93,17 @@ PARENT_ID=$(node -e "const fs=require('fs');
     : [];
   const slug=deriveSlug(process.argv[1], existingSlugs);
   const body=fs.readFileSync('/tmp/specify-parent-body.md', 'utf8');
-  const record=createRecord(dir, { slug, title: process.argv[1], body, facets: { type: 'feature' } });
+  const record=createRecord(dir, { slug, title: process.argv[1], body, facets: { type: 'feature', familyParent: true } });
   console.log(record.id)" "$PARENT_TITLE")
 ```
+
+`familyParent: true` is the local-files parity for the `family:parent` label above — the same
+queryable-parent problem, solved the same way, on the backend where there is no label at all.
+`bin/lib/issues/local-store.js` serializes it as a `family-parent: true` frontmatter line and
+parses it back into `facets.familyParent`; no leaf ever carries it (a leaf's own `createRecord`
+call below never sets this key, so it stays at its `false` default). `/claude-tweaks:demo`'s
+Approve step (`demo/SKILL.md`) reads it to decide whether to close the parent record once its
+family is accepted.
 
 `$PARENT_NUM` / `$PARENT_ID` is now captured — every leaf below links back to it.
 

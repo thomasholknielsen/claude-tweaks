@@ -37,7 +37,11 @@ framing note; `demo:approved`/`demo:changes-requested` are a `github-issues` con
 nothing to fetch.)*
 
 Render `bin/lib/issues/trust.js`'s per-class trust table per `_shared/trust-table.md`'s Fetch and
-Render sections, verbatim. This step reports what evidence exists and nothing else — it never
+Render sections, verbatim — including the Fetch section's `work-links` resolution sub-section,
+which decides which of the two family-parent branches to run (skipping it and taking the
+first-listed `body-text` branch on a `native` repo silently returns zero leaves, and every
+decomposed leaf re-enters `cell.total` as ungraded evidence). This step reports what evidence
+exists and nothing else — it never
 grants, changes a label, merges anything, or recommends an autonomous action. It runs once per
 invocation, independent of which lens (or none) was requested below, since it is a repo-wide
 finding rather than a lens-scoped view.

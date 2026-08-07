@@ -102,7 +102,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 (main thread, parallel with the agent batch) | `docs/REGISTRY.md` | `[registry]` |
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
-| 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope), plus closed records with no acceptance disposition per that file's `acceptance-gap` scope | `[pr]`, `[gh-issue]`, `[acceptance-gap]` |
+| 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope), plus closed records with no acceptance disposition per that file's `acceptance-gap` scope, plus decomposition families complete but ungated per that file's `family-gate` scope | `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[family-gate]` |
 | 4.9 (main thread, parallel with the agent batch) | `/claude-tweaks:design-wrapper doctor --source tidy` — the project's own Impeccable artifacts | `[doctor]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |
 | 5.5 (parallel, independent of every other step) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
@@ -115,9 +115,9 @@ There is no Step 2 — it merged into Step 1 (see Scope Selection above). The re
 
 Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., deleting a backlog record without creating the destination artifact).
 
-**Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), and remove an orphaned `bot:in-progress` (Step 4.7's backstop). Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
+**Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), remove an orphaned `bot:in-progress` (Step 4.7's backstop), and add `demo:pending` (Open family gate action — `work-backend: github-issues` only). Never `demo:approved`/`demo:changes-requested` — those stay `/claude-tweaks:demo`'s job, always human-verdict-gated. Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
 
-**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
+**Backend probe.** Five actions read `work-backend` before executing: three vary by driver behavior (`Delete`, `Defer`, `Absorb` — both `actions-*.md` files carry a matching section), and two exist on `work-backend: github-issues` only, with no `local-files` counterpart at all (`Sync to GitHub`, `Open family gate`). Read `work-backend` first (per `_shared/work-record.md`'s Config keys table), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
 
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
@@ -127,11 +127,12 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 | **Promote** | Ready for `/claude-tweaks:specify` | No mutation on either backend — the record already exists and is the durable pointer; recommend `/claude-tweaks:specify {ref}` directly (`#{n}` under `github-issues`, the bare id under `local-files`). `/specify`'s Shaping mode removes `parked` (if present) and stamps `ready` on the record in place — see `_shared/work-record.md` and `specify/SKILL.md`'s Shaping mode; there is no separate entry to delete. If a record is re-parked after promotion (a later `/tidy` Defer) and still gets dispatched, `/flow`'s materialization step stamps `parked-at-shaping: true` on the build-time header (`flow/materialize.md`), and `/wrap-up`'s Section E restores `parked` on an abandoned outcome — Step 4.7's backstop (`scan-procedures.md`) catches a restoration that silently failed. | No — record unchanged, mutation deferred to `/specify` |
 | **Keep** | No action needed | None | No |
 | **Sync to GitHub** | A local record carries `unsynced: true` while `work-backend: github-issues` — mirror it to an issue now | `work-backend: github-issues` only — see `actions-github-issues.md`'s `## Sync to GitHub`. Has no `local-files` counterpart | Yes — moves to GitHub, local file deleted |
+| **Open family gate** | A decomposition family is complete (every leaf closed) but its parent carries no acceptance disposition yet — compose and post the parent's Verification Brief, then apply `demo:pending` | `work-backend: github-issues` only — see `actions-github-issues.md`'s `## Open family gate`, which reuses `wrap-up/verification-brief.md`'s Family-Gate Procedure. Has no `local-files` counterpart (`_shared/github-pr-scan.md`'s `family-gate` scope only ever scans `github-issues`) | No — adds a comment and a label; never closes the parent |
 | **Close (GitHub)** | Open PR or issue is stale or superseded — close it upstream | (1) Comment on the PR/issue explaining why (the comment is the audit trail — never close silently), (2) `gh pr close {n}` / `gh issue close {n}` | N/A — GitHub state |
 | **Resolve thread** | Review-thread concern was addressed by a later commit | GraphQL `resolveReviewThread` mutation — only with commit evidence (a commit touching the flagged lines) | N/A — GitHub state |
 | **Capture** | PR feedback or GitHub issue needs local follow-up | Files a new backlog record (no stage label / no `stage:` facet) via `/claude-tweaks:capture`'s own write path, referencing the PR/thread/issue URL | No — creates a backlog record |
 
-`Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `work-backend` — they behave identically on both drivers.
+`Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `work-backend` — they behave identically on both drivers. `Open family gate` is the exception among these last four: it is GitHub-specific by construction, not merely "unaffected."
 
 ### Why "Promote" keeps the record in place
 
@@ -185,6 +186,7 @@ After all actions are applied, verify every decision was fully executed. Present
 - [x] Captured: "{title}" — new backlog record with source URL (PR/thread/issue link)
 - [x] Closed (GitHub): PR #{n} / issue #{n} — explanatory comment posted, state re-queried as `CLOSED` (`gh pr view {n} --json state` / `gh issue view {n} --json state`)
 - [x] Resolved thread: PR #{n} — thread re-queried as `isResolved: true`
+- [x] Opened family gate: "{title}" — parent #{n} carries a brief comment headed `## Verification Brief` (the template's own first line) and `demo:pending` in its labels, both re-queried (`gh issue view {n} --json labels,comments`); comment present before label, per the invariant
 - [ ] FAILED: "{title}" — {what went wrong}
 ```
 

@@ -398,4 +398,4 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | Proposing generic skill updates with no concrete anchor | Every update must trace to a ledger entry, a reflection insight, or a changed-file observation — unanchored ones read as hallucinated |
 | Mixing skill updates into the doc/CLAUDE.md batch table | They require full file reads and Update Mode patches — own decision table in Step 7 |
 | Writing an ADR for every decision | ADRs are valuable because rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so; zero per wrap-up is normal |
-| Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — triviality gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step |
+| Treating `demo:pending` as optional for "trivial" record-mode work | Triviality is not an exemption — it gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step. The one record class that *does* skip its own label is a leaf with a resolvable parent, and that is the gate moving to the family's parent, not going away |

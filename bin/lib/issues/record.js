@@ -45,6 +45,10 @@ const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-finge
 // Line-anchored 'Blocked by #N' dependency declarations (multiline).
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
 
+// Parent task-list entries (work-links: body-text), written by /specify as
+// '- [ ] #{leafNum}' and checked off over time — both box states count.
+const FAMILY_LEAF_RE = /^- \[[ xX]\] #(\d+)\b/gm;
+
 // Line-anchored 'Blocked by #N: {text}' assumption declarations (multiline) —
 // a separate, additive sibling to DEP_RE/parseDependencies below, never a
 // modification of either. DEP_RE already stops matching at the number, so a
@@ -267,6 +271,24 @@ function parseDependencies(body) {
   return result;
 }
 
+// parent body -> deduped array of leaf issue numbers from its task list, in order
+// of first appearance. Mid-line occurrences don't count, exactly as with DEP_RE.
+// Under work-links: native the parent body carries no task list at all — that
+// caller reads sub_issues from the API and never calls this.
+function parseFamilyLeaves(body) {
+  if (typeof body !== 'string' || !body) return [];
+  const seen = new Set();
+  const result = [];
+  for (const match of body.matchAll(FAMILY_LEAF_RE)) {
+    const n = Number(match[1]);
+    if (!seen.has(n)) {
+      seen.add(n);
+      result.push(n);
+    }
+  }
+  return result;
+}
+
 // candidate issue numbers -> one batched, aliased GraphQL query requesting each
 // candidate's native blockedBy connection (work-links: native). GraphQL aliases
 // can't start with a digit, hence the 'i' prefix. Returns null for an empty or
@@ -345,5 +367,5 @@ module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
-  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock,
+  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseFamilyLeaves,
 };
