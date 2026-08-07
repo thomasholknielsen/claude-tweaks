@@ -125,6 +125,15 @@ Expected: FAIL — `Cannot find module '../provenance.js'`
 
 - [ ] **Step 3: Write the implementation**
 
+> **Superseded — do not re-derive from the block below.** The scaffold here is the version this
+> plan was written with. The shipped module went through three fix rounds during execution and
+> now differs materially: it truncates at clause boundaries with bracket-depth tracking, strips
+> the trailing source *after* truncating rather than before, and returns a **fourth** kind
+> (`unstructured`) for over-long contexts instead of encoding overflow in the `source` string.
+> Each of those closed a demonstrated false merge in the trust key. Read
+> `bin/lib/issues/provenance.js` as the source of truth; the block below is kept only as the
+> record of what was planned.
+
 Create `bin/lib/issues/provenance.js`:
 
 ```js
