@@ -36,7 +36,7 @@ test('error message names the label', () => {
 test('framing:baked is bootstrappable with a description within the cap', () => {
   const payload = ensureLabelPayload(
     'framing:baked',
-    'Framing: record names a solution that was never traded off'
+    'Framing: this record names a solution that was never traded off'
   );
   assert.strictEqual(payload.name, 'framing:baked');
   assert.ok(payload.description.length <= 100);
