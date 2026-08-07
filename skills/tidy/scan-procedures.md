@@ -147,6 +147,11 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
 
+A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
+is using it. `SessionStart`'s reaper (`bin/lib/hooks/worktree-reap.js`) already removes
+locked worktrees whose owning process is gone, so anything still locked at `/tidy` time is
+either in use or unrecognized — surface it as `locked — manual review required`.
+
 ## Step 4.6: Audit Doc Registry
 
 Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
