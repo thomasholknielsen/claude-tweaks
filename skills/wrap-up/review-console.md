@@ -36,7 +36,10 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
 Step 10, which is where acceptance labeling normally happens, so this branch must perform it
 itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
-Step 10 would. That file owns the routing: a record with a resolvable parent goes to its
+Step 10 would. This short-circuit closes exactly one record, so pass that record's own number as
+`$CLOSING_LEAVES` — the one-element closing-leaf set that file's **Self-inclusion rule** reads
+(`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
+file owns the routing: a record with a resolvable parent goes to its
 Family-Gate Procedure (the family's parent gets the one gate; this leaf gets none), and
 everything else goes through its Steps 1-4 — bootstrap, testability, the Step 2.5 safety-net
 gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record

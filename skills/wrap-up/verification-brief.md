@@ -15,7 +15,7 @@ wrong by omission). Four call sites exist today:
 |---|---|
 | `/claude-tweaks:wrap-up` Step 10's Acceptance-labeling bullet (`wrap-up/execution-and-verification.md`) | one **leaf**, mid-close |
 | `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | one **leaf**, mid-close |
-| `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | one **leaf** per group member, mid-close |
+| `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | one **leaf** per group member, mid-close — plus the group's whole closing-leaf set (see the Self-inclusion rule) |
 | `/claude-tweaks:tidy`'s `Open family gate` action (`tidy/actions-github-issues.md`) | a **parent** number (`$PARENT_NUM`) directly |
 
 **Whatever invoked this file: if the record in hand has a resolvable parent, run the
@@ -47,8 +47,10 @@ Every step from **Enumerate the family's leaves** onward is shared, unchanged, b
 - **Leaf-side entry** — the three mid-close callers in the Routing table above
   (`/claude-tweaks:wrap-up` Step 10, `/claude-tweaks:wrap-up`'s auto-merge short-circuit, and
   `/claude-tweaks:dispatch`'s group auto-merge gate, the last running this procedure once per
-  group member). Each arrives holding a **leaf** number. Run every section below in order,
-  starting with **Resolve the parent**.
+  group member). Each arrives holding a **leaf** number, plus `$CLOSING_LEAVES` — the set of
+  leaf numbers its own run is closing, which the **Self-inclusion rule** below reads (one
+  element for both wrap-up entries; the whole group for the dispatch gate). Run every section
+  below in order, starting with **Resolve the parent**.
 - **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open family gate` action** (`tidy/actions-github-issues.md`,
   executed on approving a `[family-gate]` finding from `_shared/github-pr-scan.md`'s
   `family-gate` scope) — arrives already holding the **parent** number directly (`$PARENT_NUM`),
@@ -174,10 +176,34 @@ gh issue view $PARENT_NUM --json labels -q '[.labels[].name]'
 **Leaf-side entries only** — see "Two entry shapes" above. The parent-side entry never has a
 leaf mid-close, so every leaf's live state is read as-is, with no special-casing.
 
-1. The leaf this run is closing counts as `CLOSED` when building the `leaves` array,
-   regardless of what `gh` reports for it. Every leaf-side caller evaluates the gate while
-   closing that very leaf, so reading its live state makes the last leaf always evaluate
-   `incomplete` and the gate never fires.
+**Every leaf number in `$CLOSING_LEAVES` counts as `CLOSED`** when building the `leaves` array,
+regardless of what `gh` reports for it. `$CLOSING_LEAVES` is the set of leaves *this run* is
+closing, supplied by the caller. Every leaf-side caller evaluates the gate while its own leaves
+are still open — all three label **before** the close lands — so reading their live state makes
+a family's last leaves always evaluate `incomplete` and the gate never fires.
+
+The set overrides state; it never adds leaves. Only members of `$CLOSING_LEAVES` that the
+family enumeration above already returned are affected — a member belonging to a different
+family, or to no family at all, is simply irrelevant to this family's `leaves` array.
+
+**Sizing the set to the run, not to the invocation.** There is one path here, not two: the
+single-leaf case is the one-element set.
+
+| Leaf-side caller | `$CLOSING_LEAVES` |
+|---|---|
+| `/claude-tweaks:wrap-up` Step 10 (`wrap-up/execution-and-verification.md`) | the one leaf this run is closing |
+| `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | the one leaf this run is closing |
+| `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | **every** member of the group, on every one of its per-member invocations — that gate's single merge carries one `Fixes #{issue}` line per record, so the whole group closes together |
+
+The two wrap-up entries close exactly one record per run, so their set has exactly one member —
+the leaf in hand — and this rule reduces to "the leaf being closed counts as `CLOSED`". For the
+group gate the set's size is the difference between the eager gate firing and not existing at
+all: count only the leaf in hand and a group holding two or more leaves of one family evaluates
+`incomplete` on every one of them, labeling nothing — not the leaves, not the parent.
+
+**The gate still fires once per family.** The group gate's later invocations for the same
+family re-fetch the parent's labels (**Enumerate the family's leaves** above does this
+per invocation), read `gated`, and no-op — one brief and one `demo:pending`, never a second.
 
 This is the `[IL-65]` failure mode: a same-function self-inconsistency that no test catches,
 because the symptom is a silent no-op.
