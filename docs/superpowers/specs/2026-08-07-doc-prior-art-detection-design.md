@@ -254,12 +254,18 @@ with. Depends on Phase 1's contract existing; nothing in Phase 1 depends on it.
 
 ### Consumers verified unaffected
 
-`decision-records.md`'s four consumers, checked individually:
+`decision-records.md` has **three** consumers, checked individually:
 
-- `/challenge` — tags `[ADR-candidate]` in the brief, never writes.
 - `/deepen` — tags `[ADR-candidate]` at Step 4, never writes.
 - `/init` — Phase 1 does not touch it; Phase 2 adds a read-only audit.
 - `/wrap-up` — the only writer; carries the substance.
+
+**Not four.** The issue and this design's first draft both said four, counting
+`/claude-tweaks:challenge`. It was removed as a consumer upstream while this spec was being
+written: `challenge/SKILL.md` no longer mentions `[ADR-candidate]` at all, and
+`decision-records.md`'s own header and who-reads-who-writes table dropped its rows. Anything
+downstream still assuming a `/challenge`-tagged ADR candidate reaches Step 6.2 is assuming a
+producer that no longer exists.
 
 ## Not doing
 
