@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:demo
-description: Use when you want a human verdict — approve or request changes — on one built thing: this same conversation's own unrecorded work, or a specific `#N` record already marked demo:pending. The durable acceptance gate distinct from tests passing (/test) and code-quality review (/review); discovery of what's outstanding across the backlog is /help's job (Stage 4.7), not this skill's. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall.
+description: Use when you want a human verdict — approve or request changes — on one built thing: this same conversation's own unrecorded work, or a specific `#N` record, whether it is marked demo:pending or was closed with no disposition at all. The durable acceptance gate distinct from tests passing (/test) and code-quality review (/review); discovery of what's outstanding across the backlog is /help's job (Stage 4.7), not this skill's. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
 argument-hint: "[#N]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
@@ -28,17 +28,19 @@ the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list li
 
 - You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
 - `/claude-tweaks:help`'s dashboard told you a specific `#N` is awaiting sign-off (Stage 4.7) — including an autonomously `auto:merge`'d record already closed — and you want to walk through that one record now.
+- `/claude-tweaks:tidy`'s `acceptance-gap` rows (Step 4.8) named an `#N` that closed with no disposition at all — no brief, no label, and typically no session anywhere that remembers it. Step 1 reconstructs one from the closing commit.
 - You keep having to ask "how do I test this" days after a build finished — this skill surfaces the brief `/wrap-up` already wrote at build time, so you never re-derive it.
-- Some of what you're reviewing has no interactive surface at all (docs, config, a backend refactor) — this skill still gives it a lightweight human look, just not a click-through.
+- Some of what you're reviewing has no interactive surface at all (docs, config, a harness or skill file) — this skill still gives it a lightweight human look, just not a click-through.
 
 Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help`'s job — Stage 4.7 lists every `#N`), merging or opening PRs (`/superpowers:finishing-a-development-branch`'s job), re-running mechanical checks (`/test`'s job), or code-quality judgment (`/review`'s job). `/demo` only ever resolves the Acceptance axis, one item at a time.
 
 ## Input
 
 `$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
-`#N` resolves that single record's Verification Brief, falling back to session-recall scoped to
-that `#N` when no `demo:pending` label exists on it (Step 1). Never sweeps the backlog —
-`/claude-tweaks:help` (Stage 4.7) is where the full outstanding list lives.
+`#N` resolves that single record's Verification Brief, falling back — when no `demo:pending`
+label exists on it — first to the record's closing commit in git history, then to session-recall
+scoped to that `#N` (Step 1). Never sweeps the backlog — `/claude-tweaks:help` (Stage 4.7) is
+where the full outstanding list lives.
 
 ## Step 1: Resolve the one item
 
@@ -59,20 +61,25 @@ it yourself` or `### Verify it yourself (manual)`):
   manual checks), described plainly, including what wasn't checked — not a checklist pretending
   completeness.
 - **See it yourself, or Verify it yourself (manual)** — mutually exclusive, at most one, never
-  both. Recall which paths this unit of work actually touched this session — unlike the
+  both. First recall which paths this unit of work actually touched this session — unlike the
   record-backed path there is no `{base}...HEAD` range to diff here (session-recall work rarely
   sits on a dedicated branch, and may be interleaved with unrelated commits in the same session),
   so this path list comes from the session's own memory of what it edited or created, not a git
-  command. Run that recalled list through the same classifier `verification-brief.md` Step 2
+  command.
+
+  **If that recall yields no path list** — nothing was touched, or recall can't confidently name
+  what was — omit both sections entirely and skip the classification below. Do not call the
+  classifier on an empty or invented list: it answers `non-interactive` for an empty one, which
+  would render an empty **Verify it yourself (manual)** section instead of no section at all.
+  This is the same omission rule that already applied to "See it yourself" alone.
+
+  **With a path list in hand**, run it through the same classifier `verification-brief.md` Step 2
   uses — `verificationSurface` (`bin/lib/issues/acceptance.js`) — rather than re-deriving which
   categories count as non-interactive. `interactive` — render **See it yourself**, an entry
   point, only if one was actually exercised/known this session. `non-interactive` — render
   **Verify it yourself (manual)** instead, composed the same way `verification-brief.md` Step 2
   does for a non-testable record: concrete commands, file paths, or behavior actually run or
-  checked this session, not a generic checklist. Neither can be resolved — nothing was touched,
-  or recall can't confidently produce a path list — omit the section entirely, the same omission
-  rule that already applied to "See it yourself" alone. Do not invent a path list to force a
-  classification when recall genuinely has none.
+  checked this session, not a generic checklist.
 
 This path has no fetch step — there is no comment or record body to read from. A fresh `/demo`
 session with no memory of any unrecorded work naturally finds nothing here; that's expected, not
@@ -97,43 +104,92 @@ comment containing `## Verification Brief` (`gh issue view {n} --json comments -
 '.comments[-1].body'` if only one build/demo cycle occurred; otherwise search all comments for
 the last one containing that heading). Go straight to Step 2 with it.
 
-If the result does **not** carry `demo:pending` (e.g. it was built via a path that skipped
-`/wrap-up`'s Step 10), fall back to session-recall for this specific `#N`: does this conversation
-have memory of building and/or verifying it? If yes, compose a Verification Brief exactly as the
+If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
+and closed by a `Fixes #N` commit, never reaching `/wrap-up`'s Step 10), recover that **closing
+commit** before reaching for session recall. This is the population `/claude-tweaks:tidy`'s
+`acceptance-gap` scope surfaces, and it is by construction *other* sessions' work — recall will
+have nothing, but the commit that closed the record is still on disk:
+
+```bash
+git log -i -E --grep='(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#{n}([^0-9]|$)' \
+  --max-count=1 --format='%H' origin/main HEAD
+```
+
+Search `origin/main` and `HEAD` together, and nothing wider. A closing keyword only closes a
+record once its commit reaches the **default branch**, so that ref is where the closure actually
+happened; `HEAD` additionally covers a close made on the current branch that has not been pushed
+yet. `--all` would sweep abandoned and unmerged branches, whose commits closed nothing — a brief
+built from one of those would describe work that never shipped. Substitute the repo's own default
+branch when it is not `main`, drop `origin/` when there is no remote, and `git fetch origin` first
+if the remote-tracking ref may be behind. The `([^0-9]|$)` tail is what keeps `#14` from matching
+`#141`.
+
+**Found** — one command reads both halves of the brief:
+
+```bash
+git show --name-only --first-parent --format='%H%n%s%n%n%b' {sha}
+```
+
+(`--first-parent` so a merge commit lists its files rather than nothing.) Compose the brief in the
+same shape as the no-arguments path, sourced like this:
+
+- **The ask** — the record's own title and body, from the `gh issue view` above. The commit
+  subject says what shipped, not what was asked for.
+- **What shipped** — the commit subject and body, plus its changed-path list.
+- **Confirmed** — this brief is a **reconstruction**: it was composed after the fact from a
+  commit, by an agent that did not watch the work run. Open the section by saying exactly that,
+  then report only what the commit itself evidences — verification its own message claims, and
+  the test files in its path list. Assert nothing past that boundary. The standing `### Confirmed`
+  rule binds harder here, not less: describe what was actually verified, including what wasn't
+  checked, never a checklist pretending completeness.
+- **See it yourself / Verify it yourself (manual)** — run the commit's changed-path list through
+  `verificationSurface` (`bin/lib/issues/acceptance.js`) and render whichever section it selects,
+  exactly as the no-arguments path does. That list is a real `git` result here, so the
+  "recall can't produce a path list" omission case does not arise.
+
+Go to Step 2 with it.
+
+**Not found** — fall back to session-recall for this specific `#N`: does this conversation have
+memory of building and/or verifying it? If yes, compose a Verification Brief exactly as the
 no-arguments path does above, scoped to this one record, and go straight to Step 2. If this
-session has no memory of it either, report plainly: "`#N` has no Verification Brief and this
-session has no memory of it — nothing to show." and stop.
+session has no memory of it either, report plainly: "`#N` has no Verification Brief, no closing
+commit in git history, and no memory in this session — nothing to show." and stop.
 
 **`work-backend: local-files`:** `readRecord(filePath)` for the single record
 (`bin/lib/issues/local-store.js`); the Verification Brief is the record's own `## Verification
-Brief` body section. Same `demo:pending`-then-session-recall fallback order as above, keyed on
-`facets.acceptance === 'pending'` instead of the label.
+Brief` body section. Same `demo:pending` → closing-commit → session-recall fallback order as
+above, keyed on `facets.acceptance === 'pending'` instead of the label. The closing-commit step is
+identical — it reads git, not the backend, so a local record closed by a `Fixes #N` commit
+reconstructs the same way.
 
 ## Step 2: Per-item walkthrough
 
 Render this record's full Verification Brief (The ask / What shipped / Confirmed / See it
 yourself — or Verify it yourself (manual) for a non-testable record — evidence the human can
 judge, not a checklist to complete). Label-backed entries were
-fetched per `verification-brief.md`'s digest template in Step 1's `#N` lookup; session-recall
-entries were composed directly from recall, also in Step 1's no-arguments path — both render
-identically here. Then call `AskUserQuestion` with `question`: `"Does {title} do what you asked
+fetched per `verification-brief.md`'s digest template in Step 1's `#N` lookup; closing-commit
+reconstructions and session-recall entries were composed directly, in Step 1's `#N` and
+no-arguments paths respectively — all three render identically here, and a reconstruction says so
+in its own `### Confirmed` section rather than being flagged separately at this point. Then call
+`AskUserQuestion` with `question`: `"Does {title} do what you asked
 for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
-- Option 2 (when the brief's "See it yourself" entry point resolved and browser tools are available, or the brief carries `### Verify it yourself (manual)`) — `label`: `"See it yourself"`, `description`: `"Check this before deciding"`
+- Option 2 — the label names the section it actually walks: `"See it yourself"` when the brief's `### See it yourself` entry point resolved and browser tools are available, `"Verify it yourself"` when the brief carries `### Verify it yourself (manual)`. Offer it under either condition, never both labels at once; `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
 - Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
-### "See it yourself": pre-flight, then live or manual
+### Option 2 ("See it yourself" / "Verify it yourself"): pre-flight, then live or manual
 
 **Non-interactive record** (the brief carries `### Verify it yourself (manual)` instead of
-`### See it yourself` — `verificationSurface` classified this record's changed paths as having no
-interactive surface, per `verification-brief.md`'s Step 2): skip the browser pre-flight below
-entirely — there is no dev server or page to reach. Walk the brief's manual steps with the user
-directly, one at a time — the command, file path, or behavior to check, and what to expect. After
-the human finishes, re-render this record's `AskUserQuestion` with only Approve / Request changes
-/ Skip for now (the manual walk already happened — don't offer "See it yourself" twice for the
-same record).
+`### See it yourself` — `verificationSurface` classified the changed paths as having no
+interactive surface, per whichever path composed this brief: `verification-brief.md`'s Step 2 for
+a label-backed record, Step 1's own classification for a session-recall or closing-commit entry):
+skip the browser pre-flight below entirely — there is no dev server or page to reach. Walk the
+brief's manual steps with the user directly, one at a time — the command, file path, or behavior
+to check, and what to expect. After the human finishes, re-render this record's
+`AskUserQuestion` with only Approve / Request changes / Skip for now (the manual walk already
+happened — don't offer "Verify it yourself" twice for the same record).
 
 **Interactive record:** picking this option never hands over untested instructions. First, run a
 pre-flight check:
@@ -223,7 +279,7 @@ record left mid-decision and unmentioned.
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
 the first swap this run.
 
-- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`).
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant.
 - **Request changes** — prompt for a short reason inline, then:
   1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
@@ -289,7 +345,8 @@ always renders.
 | Pattern | Why It Fails |
 |---------|-------------|
 | Handing over "Give me the steps" instructions without running the pre-flight first | The human becomes the integration test, hitting port collisions and broken auth one round-trip at a time |
-| Re-deriving "how do I test this" from the diff | The Verification Brief already has it — `/wrap-up` wrote it at build time with full context |
+| Re-deriving "how do I test this" from the diff when a brief already exists | `/wrap-up` wrote it at build time with full context — Step 1's closing-commit reconstruction is the fallback for records that never got a brief, not a substitute for reading one |
+| Writing a reconstruction's `### Confirmed` as though someone watched the work | A closing commit evidences what shipped, not that anyone checked it — name the reconstruction and stop at what the commit itself shows |
 | Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
 | Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
 | Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief pairs the diff/rationale with concrete manual verification steps, not just "review the diff" |

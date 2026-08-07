@@ -172,5 +172,13 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   (feedback's 7 minus its 1 removed). 345 + 2 + 6 = 353. Neither side's own
   //   total is correct after the merge — 347 and 351 each omit the other's
   //   additions — so this number is derived from both, not picked from one.
-  assert.strictEqual(total, 353);
+  //
+  //   353 -> 354, acceptance-disposition backstop. One row ADDED to demo/
+  //   SKILL.md: "Writing a reconstruction's `### Confirmed` as though someone
+  //   watched the work", guarding the new closing-commit brief path. The same
+  //   change set rewords demo's "Re-deriving 'how do I test this' from the
+  //   diff" row to "...when a brief already exists" — a reword, not an
+  //   eviction: `git diff -- 'skills/*/SKILL.md' | grep -E '^-\|'` returns that
+  //   one line and its replacement is present in the same table. Net +1.
+  assert.strictEqual(total, 354);
 });
