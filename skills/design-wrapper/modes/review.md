@@ -31,6 +31,18 @@ Invoke via the Skill tool:
 - `/impeccable:impeccable critique <files>` — qualitative critique
 - `/impeccable:impeccable audit <files>` — heuristic audit pass
 
+### Step 3.5: Read Impeccable's own cached critique (Layer 0, when signals resolved)
+
+When Layer 0 resolved (see `../impeccable-plugin.md`) and `critique.latest` is non-null, carry it into the return as `prior_critique` — Impeccable's own most recent cached critique of this project, with its score and P0/P1 counts, free (the signals call already read it; no command runs).
+
+It is **advisory context only**:
+
+- It never replaces the live `critique` run in Step 3. A cached score describes whatever was critiqued last, which is not necessarily the diff under review — that is exactly why Step 3 still runs.
+- It never changes `result`, which stays `advisory` regardless.
+- It is **not** merged into `score_trend`. That series is this wrapper's own, written by Step 4.5 from parsed report totals on a known `/40` and `/20` scale; `critique.latest.score` comes from Impeccable's `.impeccable/critique/` frontmatter, a different producer whose scale this contract does not pin. Folding one into the other would manufacture a delta between two numbers that were never on the same axis.
+
+When Layer 0 did not resolve, or resolved with `critique.latest: null`, omit `prior_critique` from the return entirely — the same convention Step 4.5 uses for an unparseable score. Both cases mean "no cached critique to report," and neither is an error.
+
 ### Step 4: Normalize findings
 
 Parse each output into a normalized findings list:
@@ -103,9 +115,12 @@ If the cache write fails (disk full, permission denied), surface the failure as 
   "score_trend": {
     "critique": { "current": 32, "max": 40, "previous": 28, "delta": 4 },
     "audit": { "current": 16, "max": 20, "previous": null, "delta": null }
-  }
+  },
+  "prior_critique": { "slug": "dashboard", "score": 78, "p0": 1, "p1": 4, "timestamp": "...", "file": ".impeccable/critique/..." }
 }
 ```
+
+`prior_critique` is built from Step 3.5 and is omitted entirely when Layer 0 did not resolve or reported `critique.latest: null`. It is passed through verbatim from `gatherSignals()` — see `../impeccable-plugin.md`'s field reference for its shape and for the fields that can be `null`. Its `score` is on Impeccable's own scale, deliberately not the `/40` of `score_trend.critique`.
 
 `score_trend` is built from Step 4.5. A score type's key (`critique` or `audit`) is omitted entirely from `score_trend` if that command's Total row didn't parse this run (Step 4). If **neither** score parsed, omit `score_trend` entirely from the output — same pattern as other inapplicable fields elsewhere in this contract.
 
