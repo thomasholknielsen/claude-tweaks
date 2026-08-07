@@ -21,6 +21,7 @@ const LABELS = {
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
+  FRAMING_BAKED: 'framing:baked',
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
