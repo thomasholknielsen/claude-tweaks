@@ -115,7 +115,11 @@ test('verify-mode.md resolves the bare-verify ambiguity by presenting a choice',
 test('verify-mode.md states that verify is not reachable from /flow', () => {
   const body = readVerifyMode();
   assert.match(body, /\/claude-tweaks:flow|\/flow/, 'must name /flow');
-  assert.match(body, /not\s+reachable/i, 'must state the resolved decision explicitly');
+  assert.match(
+    body,
+    /not\s+reachable[\s\S]{0,80}flow/i,
+    'must tie "not reachable" to /flow specifically, not merely contain the phrase',
+  );
 });
 
 test('SKILL.md argument-hint accepts the verify mode', () => {
@@ -132,6 +136,13 @@ test('SKILL.md ## Input documents both the bare-topic and verify forms', () => {
   const input = body.slice(start, end);
   assert.match(input, /verify/, '## Input must document the verify form');
   assert.match(input, /topic/i, '## Input must still document the bare-topic form');
+  // The two assertions above pass even on an inverted ## Input that says a leading
+  // `verify` token is NOT accepted — verified. This one anchors the grammar itself.
+  assert.match(
+    input,
+    /first\s+token[\s\S]{0,200}verify/i,
+    '## Input must key the verify form on the first token',
+  );
 });
 
 test('SKILL.md references verify-mode.md by a stub naming the file', () => {

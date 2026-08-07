@@ -138,13 +138,35 @@ Verify mode introduces **no new mid-flow stop**. The Mode Picker's interactive p
 whenever `auto` is active or `$PIPELINE_RUN_DIR` is set, exactly as the bare-topic path already
 does; the resolved tier is logged rather than asked.
 
-The bare-`verify` ambiguity above is not an exception to this. Verify mode is not reachable from
-`/claude-tweaks:flow` (see Lifecycle position), so no orchestrator invokes it and there is
-normally no run to stop mid-flow — the ambiguity arises only in a direct human invocation, where
-presenting the choice is the correct behavior. In the residual case where a run directory resolves
-anyway (`auto` active, or `$PIPELINE_RUN_DIR` exported by hand), do not prompt: take the
-Recommended option — verify mode — and log it as `AUTO`, per `skills/_shared/auto-mode-contract.md`'s
-"if the skill defines a default, take it". A logged, reversible default surfaced at the Review
-Console is not a silent assumption.
+The bare-`verify` ambiguity above is not an exception to this, but it does need its own rule.
+`verify` is not reachable from `/claude-tweaks:flow` (see Lifecycle position), so no orchestrator
+invokes it as a pipeline step — but a run directory can still resolve here, because
+`/claude-tweaks:capture`, `/claude-tweaks:challenge`, and `/claude-tweaks:specify` all set
+`$PIPELINE_RUN_DIR` when they invoke this skill (see `SKILL.md`'s Component-Skill Contract), and
+`_shared/pipeline-run-dir.md`'s most-recent-matching-directory fallback can resolve one with no
+orchestrator at all.
+
+- **No run directory resolves** — a direct human invocation. Present the choice above. This is the
+  normal case.
+- **A run directory resolves** — do not prompt, and do not guess a target. A bare `verify` carries
+  no brief, no record, and no topic, so the missing input is a *target*, not a mode: picking either
+  reading still leaves nothing to research. Log `NEEDS_CONTEXT` to the run's `decisions.md` per
+  `skills/_shared/auto-mode-contract.md` ("if the skill genuinely needs information not in the
+  Config Manifesto, it logs `NEEDS_CONTEXT` … and surfaces it at the Review Console"), report the
+  missing target, and stop this skill — not the pipeline. A hard gate is permitted here where a
+  prompt is not.
 
 Every verdict writes one `decisions.md` line, in the same entry schema a filter drop uses.
+
+## Output
+
+Verify mode writes no dated report directory. `SKILL.md`'s Workflow Steps 2 and 6 — which
+construct `{root}/[YYYY-MM-DD]-[topic-slug]/` and write `report.md` — are exactly the steps it
+routes around, so `--output=<path>` has nothing to override here. `--engine=auto|inline` does not
+apply either: a falsifiable question is settled by the source registry, not by `/deep-research` or
+the inline WebSearch method.
+
+| Output | Destination |
+|---|---|
+| One line per filter drop, and one per verdict | The run's `decisions.md` (see Logging a drop) |
+| The verdicts themselves | Written back into the brief's assumption lines — **record #178's deliverable, not built yet.** Until it lands, verify mode reports verdicts inline to its caller and they are not persisted. |

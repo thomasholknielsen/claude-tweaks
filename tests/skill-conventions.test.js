@@ -80,7 +80,7 @@ test('no YOU ARE HERE marker survives in the 11 rewritten skills', () => {
 test('the 22 untouched skills keep their diagrams', () => {
   const untouched = skillNames().filter((n) => !LINEAR_DIAGRAM_SKILLS.includes(n));
   assert.strictEqual(untouched.length, 22);
-  for (const name of ['code-health', 'browse', 'help', 'dispatch']) {
+  for (const name of ['code-health', 'browse', 'help', 'dispatch', 'research']) {
     const lines = read(name).split('\n');
     const h1 = lines.findIndex((l) => /^# /.test(l));
     const fence = lines.findIndex((l, i) => i > h1 && /^```/.test(l));

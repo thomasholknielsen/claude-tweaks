@@ -36,8 +36,8 @@ report under `.claude-tweaks/research/`.
   - **`verify [brief-path|#N]`** — verification mode. Grounds a design before it is written by
     answering the questions a brief surfaced. Read `verify-mode.md` in this skill's directory for
     the full procedure: input resolution, the consequence filter, question-shape routing, and
-    auto-mode behavior. The flags below apply, but `--mode=` bounds survey breadth only — see that
-    file.
+    auto-mode behavior. Of the flags below, only `--mode=` applies, and it bounds
+    survey breadth only — see that file.
   - **`<topic>`** — the default web-survey mode, unchanged. If empty, ask the user for the topic
     before proceeding.
 - Mode is selected via a single numbered-options prompt (see Mode Picker). **`standard` is the recommended default** — it balances depth and runtime.
@@ -62,9 +62,9 @@ Then proceed with the selected mode.
 ## Workflow
 
 1. **Resolve the input.** When the first token of `$ARGUMENTS` is `verify`, read `verify-mode.md`
-   in this skill's directory and follow it instead of Steps 2-7 below — it owns its own output
-   contract. Otherwise resolve topic + depth tier from `$ARGUMENTS` (or the Mode Picker) and
-   continue at Step 2 with today's behavior.
+   in this skill's directory and follow it instead of Steps 2-7 below — it defines its own output,
+   which is not this skill's dated report directory. Otherwise resolve topic + depth tier from
+   `$ARGUMENTS` (or the Mode Picker) and continue at Step 2 with today's behavior.
 2. **Construct the output directory:** `{root}/[YYYY-MM-DD]-[topic-slug]/`, where `{root}` is `{cwd}/.claude-tweaks/research/` unless `--output=<path>` overrides it (the dated subdirectory is still appended beneath the override). Derive `topic-slug` by lowercasing the topic, collapsing runs of non-alphanumeric characters to a single hyphen, trimming leading/trailing hyphens, and truncating to 60 characters. If the resulting directory already exists (an identical topic re-run the same day), append a numeric suffix (`-2`, `-3`, ...) instead of overwriting the earlier report. Create the directory before researching.
 3. **Availability pre-check (built-in path).** Skip this step entirely when `--engine=inline` was passed — go straight to Step 5. Otherwise decide whether the built-in `/deep-research` Dynamic Workflow is usable:
 
