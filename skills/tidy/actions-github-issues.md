@@ -1,8 +1,10 @@
 # Tidy — Action Execution (`work-backend: github-issues`)
 
-The four actions whose execution diverges by backend, for the `github-issues` driver;
-`actions-local-files.md` is its twin. Everything else stays inline in `SKILL.md`'s Action Vocabulary
-table. Each action is atomic — complete all its steps or none.
+The actions documented here for the `github-issues` driver: three whose execution diverges by
+backend (`Delete`, `Defer`, `Absorb` — `actions-local-files.md` is their twin) plus two that
+exist only on this backend, with no `local-files` counterpart at all (`Open family gate`,
+`Sync to GitHub`). Everything else stays inline in `SKILL.md`'s Action Vocabulary table. Each
+action is atomic — complete all its steps or none.
 
 ## Delete
 
@@ -17,6 +19,30 @@ This is a multi-step GitHub-side sequence with no local file involved — if a l
 ## Absorb
 
 Continuing from the shared step (1) in `SKILL.md`'s table: (2) comment naming the target (`Absorbed into #{M}.`), (3) `gh issue close {n} --reason "not planned"`.
+
+## Open family gate
+
+This action exists only on this backend — `_shared/github-pr-scan.md`'s `family-gate` scope,
+which produces the `[family-gate]` findings this action resolves, only ever scans
+`work-backend: github-issues` (see that scope's own note on why local-files coverage isn't
+folded in there).
+
+Approving a `[family-gate]` finding runs `wrap-up/verification-brief.md`'s Family-Gate
+Procedure from **Enumerate the family's leaves** onward, using the `/claude-tweaks:tidy` entry
+point that section documents (`$PARENT_NUM` is already known from the scan; re-fetch leaf state
+and the parent's labels fresh, and re-run **Evaluate the gate** — do not reuse the scan's own
+snapshot, since time has passed since Step 4.8 ran). If the re-verified gate no longer reads
+`due` (another process already gated the family, or a leaf reopened), this is a silent no-op —
+skip it, don't error, and don't recommend `/claude-tweaks:demo #{n}` for it in the applied-report
+either. If it still reads `due`, compose the parent brief and apply the gate exactly as that
+procedure's own **Compose the parent brief** and **Apply the gate** sections describe — posting
+the brief comment before adding `demo:pending`, matching that same invariant.
+
+This action never applies `demo:approved` or `demo:changes-requested` — those two labels stay
+exclusively `/claude-tweaks:demo`'s job, applied only after an explicit human verdict. Opening
+the gate is a mechanical, reversible precondition for that verdict, not the verdict itself; see
+`_shared/github-pr-scan.md`'s `family-gate` scope for why this distinction is what keeps this
+action outside the auto-mode contract's disposition-staging rule.
 
 ## Sync to GitHub
 

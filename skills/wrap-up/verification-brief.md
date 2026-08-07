@@ -11,12 +11,38 @@ run for it.
 alongside, Steps 1-4 below — when this record has a resolvable parent. A decomposed leaf never
 carries its own `demo:pending`; the family's parent carries one gate for all of them.
 
+### Two entry points
+
+This procedure has two callers. Every step from **Enumerate the family's leaves** onward is
+shared, unchanged, by both — only how the caller arrives at `$PARENT_NUM` differs:
+
+- **`/wrap-up`** (this file's own caller, above) — arrives holding a **leaf** number, mid-close.
+  Run every section below in order, starting with **Resolve the parent**.
+- **`/claude-tweaks:tidy`'s `Open family gate` action** (`tidy/actions-github-issues.md`,
+  executed on approving a `[family-gate]` finding from `_shared/github-pr-scan.md`'s
+  `family-gate` scope) — arrives already holding the **parent** number directly (`$PARENT_NUM`),
+  read straight from its own `family:parent`-labeled scan. Skip **Resolve the parent** and
+  **Self-inclusion rule** below entirely — there is no leaf mid-close in this entry, so nothing
+  needs resolving or self-inclusion special-casing. Start at **Enumerate the family's leaves**,
+  but re-fetch every leaf's state and the parent's labels fresh rather than reusing the scan's own
+  snapshot, and re-run **Evaluate the gate** before composing anything — time has passed since the
+  scan ran (`/tidy`'s Step 6 approval is never instantaneous with its Step 4.8 scan), and another
+  process (a concurrent `/wrap-up` gating the same family, or a leaf reopening) may already have
+  changed the outcome. `work-backend: github-issues` only — `_shared/github-pr-scan.md`'s
+  `family-gate` scope's own population is github-issues-only, so this entry never needs the
+  `local-files` branches below.
+
 **Fail open on every `gh` call in this section.** If `gh` is unavailable, unauthenticated, the
-repo has no GitHub remote, or any family-gate `gh` call below fails, skip the family-gate
-procedure entirely, fall back to today's behavior (apply `demo:pending` to this record itself
-via Steps 1-4 below), and never block the wrap-up.
+repo has no GitHub remote, or any family-gate `gh` call below fails: the **`/wrap-up`** entry
+skips the family-gate procedure entirely and falls back to today's behavior (apply `demo:pending`
+to this record itself via Steps 1-4 below) — never blocking the wrap-up. The **`/tidy`** entry
+skips this one family for this run, leaving its `[family-gate]` finding surfaced and unmutated —
+never failing the whole `/tidy` run over one family's `gh` call.
 
 ### Resolve the parent
+
+**`/wrap-up` entry only** — see "Two entry points" above. `/tidy`'s entry already holds
+`$PARENT_NUM` and skips straight to "Enumerate the family's leaves" below.
 
 Resolve the leaf's parent the same way `/claude-tweaks:review` Step 1.6 does
 (`skills/review/SKILL.md:147-154`): `work-backend: local-files` — `facets.parent`;
@@ -63,6 +89,9 @@ For each leaf number resolved above (`work-backend: github-issues`), fetch its c
 `familyGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads.
 
 ### Self-inclusion rule
+
+**`/wrap-up` entry only** — see "Two entry points" above. `/tidy`'s entry never has a leaf
+mid-close, so every leaf's live state is read as-is, with no special-casing.
 
 1. The record `/wrap-up` is closing counts as `CLOSED` when building the `leaves` array,
    regardless of what `gh` reports for it. `/wrap-up` evaluates the gate while closing that

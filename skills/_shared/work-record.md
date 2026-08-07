@@ -97,7 +97,7 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`effort:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
 | **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready` |
-| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*` |
+| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open family gate action, `work-backend: github-issues` only — reuses `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |
 | **Executors** (`/flow`, `/build`) | nothing | nothing | `auto:*`, `ready` |
 | **`/wrap-up`** | `demo:pending` | `bot:in-progress` (claim release) | `auto:*`, `ready`, `demo:approved`, `demo:changes-requested` |
 | **`/demo`** | `demo:approved`, `demo:changes-requested` | `demo:pending` (on resolution) | `auto:*`, `ready`, `bot:*`, adding `demo:pending` itself |
@@ -138,7 +138,15 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   driver, which has no comment mechanism — a `## Verification Brief` body section) with what
   changed, why, and how to verify it. This happens **regardless of merge timing** — an
   `auto:merge`'d record still gets `demo:pending` on its now-closed issue, enabling retrospective
-  sign-off.
+  sign-off. For a decomposition family, this is one gate on the **parent**, applied once every
+  leaf is closed — never on individual leaves (`wrap-up/verification-brief.md`'s Family-Gate
+  Procedure).
+- `/claude-tweaks:tidy`'s `Open family gate` action is the backstop for the same write, on
+  `work-backend: github-issues` only: when a family's last leaf closes without ever reaching
+  `/claude-tweaks:wrap-up` (`auto:merge`, a hand-close, a dispatch run that ended early),
+  `/tidy`'s `family-gate` scope (`_shared/github-pr-scan.md`) finds the un-gated parent and, once
+  approved, applies `demo:pending` the same way — reusing the identical Family-Gate Procedure
+  rather than a second copy of it.
 - `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
   record's brief per invocation (open or closed) and resolves the label to `demo:approved` or
   `demo:changes-requested` — `/claude-tweaks:help` (Stage 4.7) is the sole discovery surface for

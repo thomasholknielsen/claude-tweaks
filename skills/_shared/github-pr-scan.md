@@ -283,15 +283,25 @@ node -e "
   const families = require('/tmp/tidy-families.json'); // [{number, title, leaves, parentLabels}]
   families
     .filter(f => familyGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
-    .forEach(f => console.log('[family-gate] #' + f.number + ': ' + f.title + ' — family complete, no acceptance disposition — recommend /claude-tweaks:demo #' + f.number));
+    .forEach(f => console.log('[family-gate] #' + f.number + ': ' + f.title + ' — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #' + f.number));
 "
 ```
 
-Un-gated families are **staged, never auto-applied**, regardless of `tidy-aggressiveness` — the
-same rule `acceptance-gap` carries, and the same reason: applying a disposition is a judgment
-about whether shipped work actually solved the problem — not a mechanical cleanup — and
-`_shared/auto-mode-contract.md` places that kind of work-record judgment outside what `auto`
-silences. Do not fold this finding into any auto-apply tier.
+Un-gated families recommend the `Open family gate` action (`tidy/SKILL.md`'s Action Vocabulary,
+executed via `tidy/actions-github-issues.md`'s `## Open family gate`) — never applied without
+going through `/tidy`'s own Step 6 approval first, whether that's a human explicitly approving
+the batch report (interactive mode) or, in auto mode, whatever `tidy-aggressiveness` tier
+`step-6-auto.md`'s Open family gate row resolves to. **This is narrower staging than
+`acceptance-gap` carries, not the same rule**: `Open family gate` composes and posts the
+parent's Verification Brief and applies `demo:pending` — opening the gate, not resolving it.
+`_shared/auto-mode-contract.md`'s disposition-staging floor governs `demo:approved` /
+`demo:changes-requested`, the human judgment about whether shipped work actually solved the
+problem; opening the gate is a mechanical, fully reversible precondition to that judgment, the
+same one `/claude-tweaks:wrap-up` already applies with zero staging whenever its own eager path
+fires. This scope, and the `Open family gate` action it feeds, never write `demo:approved` or
+`demo:changes-requested` under any circumstance — that verdict stays exclusively
+`/claude-tweaks:demo`'s job, which is why the recommendation always still ends with "then
+`/claude-tweaks:demo #{n}`" even once the gate is open.
 
 Emit `[family-gate]` rows per the Output Contract, at severity `info` — the same severity
 `acceptance-gap` uses and for the same reason: `/claude-tweaks:tidy` runs this scope in the same
@@ -307,7 +317,7 @@ Two collection prefixes for PR/code-health/harness-health/journey-health/docs-he
 - `[gh-issue]` — code-health/harness-health/journey-health/docs-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 - `[queue]` — grant-queue metrics (item 8 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
 - `[acceptance-gap]` — closed records with no acceptance disposition (`acceptance-gap` scope above): `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
-- `[family-gate]` — decomposition families with every leaf closed and no acceptance disposition on the parent (`family-gate` scope above): `[family-gate] #{n}: {title} — family complete, no acceptance disposition — recommend /claude-tweaks:demo #{n}`
+- `[family-gate]` — decomposition families with every leaf closed and no acceptance disposition on the parent (`family-gate` scope above): `[family-gate] #{n}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #{n}`
 
 Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
 

@@ -1,7 +1,9 @@
 # Tidy — Action Execution (`work-backend: local-files`)
 
 The three actions whose execution diverges by backend, for the `local-files` driver;
-`actions-github-issues.md` is its twin (and owns `Sync to GitHub`, which has no counterpart here).
+`actions-github-issues.md` is its twin (and additionally owns `Sync to GitHub` and
+`Open family gate`, neither of which has a counterpart here — `family-gate` findings are
+`work-backend: github-issues`-only by construction, `_shared/github-pr-scan.md`'s own scope).
 Everything else stays inline in `SKILL.md`'s Action Vocabulary table. Each action is atomic —
 complete all its steps or none.
 
