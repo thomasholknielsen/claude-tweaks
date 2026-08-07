@@ -142,3 +142,23 @@ test('SKILL.md references verify-mode.md by a stub naming the file', () => {
     'must use the canonical sub-file stub wording',
   );
 });
+
+test('verify-mode.md states the consequence filter as a two-outcome question', () => {
+  const body = readVerifyMode();
+  assert.match(body, /would\s+the\s+design\s+change/i, 'must state the filter question verbatim');
+  // Anchored, not a bare /drop/i: "drop" appears ~11 times in the finished file, so the
+  // bare form survives this row being reworded to "Drop it silently." — the exact opposite
+  // of the requirement. Verified to discriminate during plan authoring ([IL-78]).
+  assert.match(
+    body,
+    /drop\s+it,?\s+and\s+log\s+the\s+drop/i,
+    'must state that the drop outcome is logged, not silent',
+  );
+});
+
+test('verify-mode.md logs every filter drop to decisions.md in the shared entry format', () => {
+  const body = readVerifyMode();
+  assert.match(body, /decisions\.md/, 'must name decisions.md');
+  assert.match(body, /auto-decision-log\.md/, 'must cite the canonical line format');
+  assert.match(body, /Reversibility:/, 'must quote the entry schema');
+});
