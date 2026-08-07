@@ -2,6 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const wtDetect = require('./worktree-detect');
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch { return ''; }
@@ -32,7 +33,16 @@ const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
 // genuinely need the whole list (pre-tool-use's other-worktrees scan)
 // exhaust it via listRunDirsWithState below, which is unchanged in output.
 function* iterRunDirsWithState(cwd) {
-  const base = path.join(cwd || process.cwd(), '.claude-tweaks', 'pipelines');
+  // Anchored to the MAIN checkout, not raw cwd. A run dir created inside a
+  // linked worktree was previously invisible from the main checkout and vice
+  // versa, which is why a worktree could hold the only copy of decisions.md /
+  // staged/ and why E1 fell open for commits issued from a worktree carrying
+  // no .claude-tweaks/. One anchor means every session resolves the same run
+  // set. Falls back to cwd when the main checkout can't be determined — that
+  // is the pre-anchoring behavior, so an unknown answer changes nothing.
+  const start = cwd || process.cwd();
+  const root = wtDetect.mainCheckoutRoot(start) || start;
+  const base = path.join(root, '.claude-tweaks', 'pipelines');
   let entries;
   try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return; }
   const names = entries
