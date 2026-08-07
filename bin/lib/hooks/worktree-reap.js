@@ -15,7 +15,10 @@
 // That format belongs to a tool this plugin neither owns nor version-pins, so
 // it is parsed defensively and tested against a frozen fixture, never live
 // output: if it changes shape, pid comes back null and nothing is reaped.
+const fs = require('fs');
+const path = require('path');
 const { runGit } = require('./git-exec');
+const { mainCheckoutRoot, safeReal } = require('./worktree-detect');
 
 const PID_RE = /\(pid\s+(\d+)\b/;
 
@@ -88,4 +91,65 @@ function isContentIdentical(repoRoot, branch, integration) {
   return stdout.trim() === '';
 }
 
-module.exports = { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical };
+// Anything still present in the worktree that git does not already have a
+// copy of elsewhere. --ignored is the point: [IL-46]'s actual incident was a
+// gitignored scratch file holding a decision nobody had recorded anywhere
+// else, and merge status is silent about it. Phase 1 moved claude-tweaks' own
+// run state out of the worktree; this catches everyone else's.
+function hasLocalOnlyContent(wtPath) {
+  const { stdout, failure } = runGit(['status', '--porcelain', '--ignored'], wtPath);
+  if (failure) return true; // can't tell -> assume yes
+  return stdout.trim() !== '';
+}
+
+function reapWorktrees({ cwd, integration, dryRun = false } = {}) {
+  const reaped = [];
+  const skipped = [];
+  const root = mainCheckoutRoot(cwd || process.cwd());
+  if (!root) return { reaped, skipped };
+
+  const { stdout, failure } = runGit(['worktree', 'list', '--porcelain'], root);
+  if (failure) return { reaped, skipped };
+
+  const here = safeReal(cwd || process.cwd());
+  for (const wt of parseWorktreeList(stdout)) {
+    const real = safeReal(wt.path);
+    if (!real || real === root || wt.bare) continue;      // never the main checkout
+    if (here && (here === real || here.startsWith(real + path.sep))) continue; // never our own ground
+
+    const verdict = lockVerdict(wt);
+    if (verdict !== 'free' && verdict !== 'orphaned') {
+      skipped.push({ path: real, reason: verdict === 'in-use' ? 'in use by a live session' : 'lock reason unrecognized' });
+      continue;
+    }
+    if (!isContentIdentical(root, wt.branch, integration)) {
+      skipped.push({ path: real, reason: 'not merged into ' + integration });
+      continue;
+    }
+    if (hasLocalOnlyContent(real)) {
+      skipped.push({ path: real, reason: 'holds local content that exists nowhere else' });
+      continue;
+    }
+    if (dryRun) { reaped.push(real); continue; }
+
+    if (verdict === 'orphaned') runGit(['worktree', 'unlock', real], root);
+    const rm = runGit(['worktree', 'remove', real], root);
+    if (rm.failure) { skipped.push({ path: real, reason: 'removal failed' }); continue; }
+    reaped.push(real);
+  }
+  return { reaped, skipped };
+}
+
+// The repository's own current branch, used only when policy names no
+// integration branch. Returns null when git doesn't answer, which the caller
+// treats as "cannot determine" and skips reaping entirely — reaping against a
+// guessed branch is how a worktree gets removed for being "merged" into
+// something it was never headed for.
+function defaultBranchOf(repoRoot) {
+  if (!repoRoot) return null;
+  const { stdout, failure } = runGit(['symbolic-ref', '--short', 'HEAD'], repoRoot);
+  if (failure || !stdout) return null;
+  return stdout.trim() || null;
+}
+
+module.exports = { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical, reapWorktrees, defaultBranchOf };

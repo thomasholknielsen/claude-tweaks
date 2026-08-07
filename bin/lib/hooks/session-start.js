@@ -7,6 +7,7 @@ const deps = require('../deps');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
+const reaper = require('./worktree-reap');
 
 const MAX_REPORTED = 3;
 
@@ -30,6 +31,53 @@ function run(ctx) {
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
           lines.join('\n') +
           `\nReview {run}/decisions.md and staged/ to resume, or close a finished run with: node "${pluginRoot}/bin/hooks.js" close-run --run <dir>`,
+      );
+    }
+  } catch { /* best-effort */ }
+  try {
+    // mainCheckoutRoot, not repoInfo().repoRoot: from inside a linked
+    // worktree, repoInfo() resolves to that worktree's OWN toplevel, and its
+    // HEAD is the very feature branch this session is standing on — comparing
+    // siblings against that instead of the shared trunk is how a sibling
+    // worktree gets reaped for matching this branch, not for being merged.
+    // mainCheckoutRoot always resolves the one shared checkout regardless of
+    // which worktree the session started in (same root reapWorktrees itself
+    // computes internally), so policy lookup and the HEAD fallback below both
+    // land on the real repository, not the caller's local vantage point.
+    const repoRoot = wtDetect.mainCheckoutRoot(ctx.cwd);
+    // policy.yml's integration-branch when set; otherwise the repository's own
+    // HEAD branch. Never hardcode `main` — this plugin runs against projects
+    // using a dev -> staging -> main model, where main is the one branch
+    // nothing should be measured against (_shared/integration-branch.md).
+    const integration =
+      (repoRoot && policy.readIntegrationBranch(repoRoot)) || reaper.defaultBranchOf(repoRoot);
+    if (!integration) throw new Error('no integration branch');
+    const { reaped, skipped } = reaper.reapWorktrees({ cwd: ctx.cwd, integration });
+    // log tier (CLAUDE.md Hooks: block/warn/inform/log) — write to
+    // ctx.ownedRun, NOT ctx.runDir. runDir is the enforcement-scoped "newest
+    // non-terminal run regardless of owner"; ownedRun is the narrower run
+    // this session may actually write to (#62). post-tool-use.js's E2
+    // commit-breadcrumb block follows the identical pattern.
+    const ownedRun = ctx.ownedRun || {};
+    if (ownedRun.dir) {
+      for (const p of reaped) {
+        ctxLib.appendEvent(ownedRun.dir, 'worktree-reaped', { path: p, integration }, ownedRun.attribution);
+      }
+      for (const s of skipped) {
+        ctxLib.appendEvent(ownedRun.dir, 'worktree-reap-skipped', { path: s.path, reason: s.reason, integration }, ownedRun.attribution);
+      }
+    }
+    if (reaped.length) {
+      parts.push(
+        `claude-tweaks: removed ${reaped.length} finished worktree(s) whose work is already in ${integration}:\n` +
+          reaped.map((p) => `- ${path.basename(p)}`).join('\n'),
+      );
+    }
+    const notable = skipped.filter((s) => s.reason !== 'in use by a live session');
+    if (notable.length) {
+      parts.push(
+        'claude-tweaks: worktree(s) left in place:\n' +
+          notable.map((s) => `- ${path.basename(s.path)} — ${s.reason}`).join('\n'),
       );
     }
   } catch { /* best-effort */ }

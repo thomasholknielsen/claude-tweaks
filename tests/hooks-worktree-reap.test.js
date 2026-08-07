@@ -1,11 +1,11 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical } = require('../bin/lib/hooks/worktree-reap');
+const { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical, reapWorktrees } = require('../bin/lib/hooks/worktree-reap');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { gitRepo } = require('./helpers/git-fixtures');
+const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 // gitRepo() runs a bare `git init`, so the initial branch is whatever the
 // machine's init.defaultBranch says — `main` on some, `master` on others.
@@ -154,4 +154,61 @@ test('isContentIdentical: a rebase-rewritten branch is still identical (the ance
 test('isContentIdentical: an unresolvable branch is not identical', () => {
   const main = gitRepo();
   assert.strictEqual(isContentIdentical(main, 'no-such-branch', defaultBranch(main)), false);
+});
+
+test('reapWorktrees: removes a merged, clean, unlocked linked worktree', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = linkedWorktreeOf(main);
+  const before = fs.existsSync(wt);
+  assert.strictEqual(before, true);
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  // linkedWorktreeOf() already returns fs.realpathSync(wt), so `wt` is
+  // already canonical here — re-resolving it via realpathSync would throw
+  // ENOENT, since reapWorktrees() has already deleted the directory by now.
+  assert.deepStrictEqual(res.reaped, [wt]);
+  assert.strictEqual(fs.existsSync(wt), false);
+});
+
+test('reapWorktrees: never removes the main checkout', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.ok(!res.reaped.includes(fs.realpathSync(main)));
+});
+
+test('reapWorktrees: skips a worktree holding unmerged commits', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = linkedWorktreeOf(main);
+  fs.writeFileSync(path.join(wt, 'x.txt'), 'x');
+  execFileSync('git', ['add', 'x.txt'], { cwd: wt });
+  execFileSync('git', ['commit', '-q', '-m', 'unmerged'], { cwd: wt });
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, []);
+  assert.strictEqual(fs.existsSync(wt), true);
+  assert.match(res.skipped.find((s) => s.path === fs.realpathSync(wt)).reason, /not merged/);
+});
+
+test('reapWorktrees: skips a worktree carrying untracked or ignored content', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = linkedWorktreeOf(main);
+  fs.writeFileSync(path.join(wt, 'scratch-notes.md'), 'decision pending');
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, []);
+  assert.strictEqual(fs.existsSync(wt), true);
+  assert.match(res.skipped.find((s) => s.path === fs.realpathSync(wt)).reason, /local content/);
+});
+
+test('reapWorktrees: never removes the worktree the caller is standing in', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = linkedWorktreeOf(main);
+  const res = reapWorktrees({ cwd: wt, integration: base });
+  assert.deepStrictEqual(res.reaped, []);
+  assert.strictEqual(fs.existsSync(wt), true);
 });
