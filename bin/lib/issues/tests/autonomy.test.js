@@ -107,6 +107,39 @@ test('unattended permits born-authorized only on an explicit second opt-in', () 
   assert.equal(withOptIn.bornAuthorized, true);
 });
 
+test('the opt-in is the literal boolean true, and nothing merely truthy', () => {
+  // This is the whole of the safety predicate: `grantOriginationEnabled !== true`
+  // is what stands between a config value and machinery originating auto:build.
+  // Without this test the check can be relaxed to `!grantOriginationEnabled` and
+  // the suite stays green — verified by hand-reverting it, which is the only way
+  // to know a check discriminates. A caller reading 'true' or 1 out of parsed YAML
+  // must not clear this gate by accident.
+  for (const value of ['true', 1, {}, [], 'yes', 'on', -1]) {
+    const result = permittedGrants({ ceiling: 'unattended', row: cleanRow, grantOriginationEnabled: value });
+    assert.equal(result.bornAuthorized, false, `${JSON.stringify(value)} must not clear the opt-in`);
+  }
+});
+
+test('permittedGrants validates its own ceiling rather than relying on indexOf', () => {
+  // Denying an unrecognized ceiling must be deliberate, not a side effect of
+  // CEILINGS.indexOf(garbage) being -1. Reverting isCeiling to `ceiling || ...`
+  // also leaves the suite green without this.
+  for (const ceiling of ['yolo', 'UNATTENDED', ' unattended ', 42, null, ['unattended']]) {
+    const result = permittedGrants({ ceiling, row: cleanRow, grantOriginationEnabled: true });
+    assert.equal(result.bornReady, false, `ceiling ${JSON.stringify(ceiling)} must fall back to supervised`);
+    assert.equal(result.bornAuthorized, false, `ceiling ${JSON.stringify(ceiling)} must fall back to supervised`);
+  }
+});
+
+test('permittedGrants survives a null argument the way resolveCeiling does', () => {
+  // Default parameters fire only on undefined, so `= {}` left null throwing while
+  // the sibling function returned a value. Two functions in one module should not
+  // disagree about robustness — a caller sweeping records would crash mid-run.
+  assert.equal(permittedGrants(null).bornReady, false);
+  assert.equal(permittedGrants(undefined).bornReady, false);
+  assert.equal(permittedGrants().bornReady, false);
+});
+
 test('the second opt-in cannot raise a lower ceiling', () => {
   for (const ceiling of ['supervised', 'trusted']) {
     const result = permittedGrants({ ceiling, row: cleanRow, grantOriginationEnabled: true });

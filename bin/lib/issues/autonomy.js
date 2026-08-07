@@ -50,7 +50,11 @@ const DENY = (reason) => ({ bornReady: false, bornAuthorized: false, reason });
 
 // `row` is one of trustRows()'s rows. `grantOriginationEnabled` is the separate,
 // explicit opt-in described below — never inferred from the ceiling.
-function permittedGrants({ ceiling, row, grantOriginationEnabled } = {}) {
+function permittedGrants(input) {
+  // `|| {}` rather than a default parameter: defaults fire only on `undefined`,
+  // so `= {}` left an explicit null throwing while resolveCeiling(null) returned
+  // a value. A caller sweeping a record list should not crash on one bad entry.
+  const { ceiling, row, grantOriginationEnabled } = input || {};
   const tier = isCeiling(ceiling) ? ceiling : 'supervised';
 
   if (!row || typeof row !== 'object' || typeof row.verdict !== 'string' || typeof row.kind !== 'string') {
