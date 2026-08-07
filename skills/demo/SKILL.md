@@ -219,9 +219,17 @@ Omit the line entirely when neither source has one — upstream carries a seed k
 seed dealt stagings,"* so a contract without one is complete, not truncated.
 
 **When no contract resolves,** render nothing — no heading, no empty section, no "not found" note.
-This includes the malformed case, which that procedure already collapses into absence. Most records
-have no design contract and never will; a placeholder on every one of them would be noise, and a
-half-rendered contract would be worse, because it reads as complete.
+Most records have no design contract and never will; a placeholder on every one of them would be
+noise.
+
+**The malformed case is the one exception, and only barely.** The section is still omitted entirely
+— never a heading with only the blocks that parsed, since a half-rendered contract reads as complete
+— but that procedure requires the downgrade leave a trace, and `/demo` is standalone-only, so there
+is no `$PIPELINE_RUN_DIR` and no `decisions.md` to write it to. Say it instead in **one plain line**
+above the verdict, naming the file and which labels were found. Without it, an upstream block rename
+is indistinguishable from a record that simply never had a contract — which is exactly the silent
+failure the drift assertions in `tools/upstream-drift/manifest.yml` exist to catch, and this line is
+what makes it visible to the one human already looking at this build.
 
 This section never becomes a reason to block, and it is never audited here. Whether the render
 actually honors the contract is `impeccable-finish-reviewer`'s job upstream — this skill puts the
@@ -414,3 +422,4 @@ always renders.
 | Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |
 | Summarizing, re-wording, or reordering the direction contract's five blocks | The blocks are the pre-build promise the human is checking the result against; a paraphrase is one more reading of the result, which is exactly the circularity this section exists to break |
 | Rendering the design-contract heading when no contract resolved, or with only the blocks that parsed | Most records have no contract — an empty section is noise on all of them, and a partial one is worse, because it reads as complete (`_shared/design-contract.md` collapses malformed into absent for this reason) |
+| Dropping a malformed contract silently because the section is omitted either way | Omitting the section is right; omitting the *trace* is not. `/demo` has no run dir to log to, so its one plain line is the only place an upstream block rename becomes visible instead of looking like a record that never had a contract |

@@ -207,5 +207,22 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the same base — while the two comment blocks did conflict. Correct total
   //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
   //   alone.
-  assert.strictEqual(total, 358);
+  //
+  //   358 -> 361, Impeccable's direction contract at the acceptance gate (#152).
+  //   Three rows ADDED to demo/SKILL.md, none evicted, all guarding the new
+  //   `### The design contract this was built against` section in Step 2:
+  //   "Summarizing, re-wording, or reordering the direction contract's five
+  //   blocks", "Rendering the design-contract heading when no contract resolved,
+  //   or with only the blocks that parsed", and "Dropping a malformed contract
+  //   silently because the section is omitted either way". Verified:
+  //   `git diff origin/main -- 'skills/*/SKILL.md' | grep -E '^-\|'` is empty,
+  //   and the same diff's `^\+\|` lines are exactly these three. Net +3.
+  //
+  //   Note for whoever merges the next concurrent pair: this counter is the
+  //   `[IL-99]` hazard by construction. Two branches each adding rows raise it
+  //   from the same base, so both write a literal that merges without conflict
+  //   and is wrong for the union. Re-derive from the parser after any merge
+  //   that touches a second branch's SKILL.md tables — never trust the merged
+  //   literal, and never trust arithmetic over these comment blocks alone.
+  assert.strictEqual(total, 361);
 });
