@@ -4,7 +4,7 @@ Wrap-Up Step 7. Analyze whether project skills need updating, and whether the wo
 
 **Core principle: this step *generates* candidates from the work itself — it does not merely filter whatever upstream producers tagged.** Ledger entries and reflection insights are **seeds** that focus the analysis, not the gate that decides whether it runs. Even with zero seeds, the independent scan (7.2) inspects the skills whose domain overlaps the changed files, and gap detection looks for reusable patterns no skill covers.
 
-**Fast-lane narrows breadth, never gates existence.** Under `ceremony-profile: fast-lane` (`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`), 7.2's independent scan still always runs regardless of seeds — only its cap shrinks (top ~2 instead of top ~5, see 7.2 below). This is a deliberate, narrow exception to the cap number, not a reopening of the seed-gating question this principle exists to close.
+**Fast-lane narrows breadth, never gates existence.** Under `ceremony-profile: fast-lane` (the lever is defined in `_shared/policy-schema.md`; its rationale is `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`), 7.2's independent scan still always runs regardless of seeds — only its cap shrinks (top ~2 instead of top ~5, see 7.2 below). This is a deliberate, narrow exception to the cap number, not a reopening of the seed-gating question this principle exists to close.
 
 ## 7.1: Gather Seeds
 
