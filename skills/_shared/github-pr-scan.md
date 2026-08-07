@@ -149,7 +149,7 @@ Finds closed records that carry no acceptance label at all — the case `accepta
 cannot see, since that scope only lists records already flagged `demo:pending`. A record closed
 without ever receiving a `demo:*` label is invisible to `acceptance-queue` and would otherwise
 disappear from the backlog with no disposition on record. Classification is entirely
-`needsBackstop`'s (`bin/lib/issues/acceptance.js`, Task 1) — this scope does not reimplement the
+`needsBackstop`'s (`bin/lib/issues/acceptance.js`) — this scope does not reimplement the
 label taxonomy; see that module or `_shared/work-record.md` for what the labels mean.
 
 Record set: closed records from the last 30 days. The `date` fallback covers both platforms this
@@ -178,7 +178,14 @@ solved the problem — not a mechanical cleanup — and `_shared/auto-mode-contr
 kind of work-record judgment outside what `auto` silences. Do not fold this finding into any
 auto-apply tier.
 
-Emit `[acceptance-gap]` rows per the Output Contract.
+Emit `[acceptance-gap]` rows per the Output Contract, at severity `info` — not `medium`, and
+not `low`. This is the one finding in this file whose row count is a standing backlog rather
+than a defect count: on a repo that closes records ad hoc it returns a three-digit set on every
+run, indefinitely. `/claude-tweaks:tidy` runs this scope in the same agent as `repo-wide`
+(`tidy/scan-procedures.md` Step 4.8) under one 15-row, highest-severity-first cap, so any tier
+above `info` would permanently evict every actionable `repo-wide` finding beneath it. `info` is
+also where its behavioural sibling already sits — "Open PR awaiting review", the other
+no-mutation, always-surfaced row (`tidy/step-6-auto.md`).
 
 ## Output Contract
 
@@ -202,6 +209,6 @@ Severity mapping (Template A Severity column):
 | Merged/closed PR with local branch/worktree remnants | medium |
 | Code-health/harness-health/journey-health/docs-health issue stale/superseded | medium |
 | Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:backlog refine` | low |
-| Closed record with no acceptance disposition (`acceptance-gap` scope) | medium |
 | Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
+| Closed record with no acceptance disposition (`acceptance-gap` scope) | info |
 | Fresh draft PR / no PR / scan skipped | info |
