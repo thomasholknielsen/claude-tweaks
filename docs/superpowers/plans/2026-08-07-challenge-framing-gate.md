@@ -539,6 +539,18 @@ Immediately after the existing Ceremony bullet at `:104`, add:
 **Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this leaf's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `framing:baked` on the leaf and fold the RATIONALE's named assumptions into that leaf's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Leaves have no `## Original request` block, so the composed body is the whole input here.
 ```
 
+- [ ] **Step 3.5: Make the write mechanisms actually carry the label**
+
+An earlier draft of this task stopped at inserting prose, which left the instruction inert — `shaping-mode.md`'s two concrete write mechanisms never mentioned `framing:baked`, so nothing stamped it. `[IL-02]`: a promise with no consumer acting on it.
+
+In `skills/specify/shaping-mode.md`'s `### Compose-then-write-once` section:
+
+- Add `--add-label "framing:baked" \` to the `gh issue edit {n}` block, after the `ceremony:{tier}` line.
+- Extend the "Omit ..." sentence below the block. **The omit rule differs from every other family and must be stated as its own clause:** risk/effort/ceremony are omitted when *already stamped*; `framing:baked` is omitted when the *verdict was `open`*. Absence is the clean state, so it is never stamped on `open`.
+- In the `work-backend: local-files` paragraph, add `facets.framing` to the filled-facets list, noting explicitly that unlike `facets.ceremony` (which always gets a value on first shaping) it is written **only** on a `solution-baked` verdict and left absent otherwise. There is no `framing:open` value.
+
+Leave the `writeRecord` code block itself alone — it takes a generic `$FACETS_JSON` and needs no change. `record-creation.md` needs no equivalent edit: leaves are created via `gh issue create`, a different call path already covered by that file's own Framing paragraph.
+
 - [ ] **Step 4: Verify both call sites reference the label and the mode correctly**
 
 ```bash
