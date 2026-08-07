@@ -31,6 +31,61 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.55.0 — the finishing review runs at code-review time, and third-party agents are exempt by structure
+
+Two changes with one root, landed together because they pull on the same paragraphs
+(#153, absorbing #124).
+
+**`/claude-tweaks:review`'s design pass now dispatches `impeccable-finish-reviewer`** —
+Impeccable's own shipped reviewer — whenever the changed artifact carries a direction
+contract. v6.53.0 taught this repo to *find* that contract; it deliberately judges
+nothing about it, because the block labels are upstream's and so are the criteria for
+a good one. This release hands the found contract to the agent upstream wrote to audit
+a render against it (`design-wrapper/modes/review.md` Step 3.7). No contract, no
+dispatch — most reviews are not of design work.
+
+Three things that were easy to get wrong, and are specified rather than left to
+judgment:
+
+- **Availability is checked at the agent level.** The existing precondition resolves
+  `/impeccable:impeccable*`, a Skill-tool surface that proves the plugin is installed
+  and says nothing about which agents it ships. Agents are added and removed between
+  versions of one plugin, so the check resolves the agent's own definition file under
+  the pinned plugin root. Absent, the pass degrades to the existing critique + audit
+  path and never hard-fails.
+- **The output is adapted at the boundary, not passed through.** Upstream returns four
+  named sections (`persistence` / `ceiling` / `material_fixes` / `keep`); Step 4 maps
+  them into this wrapper's existing finding shape under a new `source: "finish-review"`.
+  Severities are assigned by the wrapper rather than invented from a fix's rank, and
+  `keep` travels as a constraint on the other findings rather than being filed as one
+  nobody should "resolve".
+- **A dispatch that failed is not a review that passed.** With no status line to route
+  on, unavailable / failed / empty / unparseable are kept apart, and none of them may
+  report a clean design review. Only a parsed reply with no material fixes may say the
+  render met its contract.
+
+**Third-party agents are now explicitly exempt from the Subagent Contract**, on a
+structural condition: the agent's definition lives outside this plugin's `agents/`
+directory. Read as universal — which is how it read — that contract made the dispatch
+above look non-compliant, and the next person to notice would have "fixed" it by
+wrapping someone else's agent in a shim forcing it to speak our protocol, which means
+paraphrasing its output into a shape it never promised. The exemption releases the
+agent and binds the caller: normalize at the boundary, check agent-level availability,
+and handle the outcomes the status line would have carried. A claude-tweaks-authored
+agent is never exempt, however awkward its output is to parse.
+
+**The contract's own rationale is reframed as dispatch correctness** (#124, absorbed
+here). It read as a token-saving measure, down to an unmeasured "cuts output by 60-80%"
+claim. Its load-bearing value is correctness: a clean room is what makes N agents
+independent evidence rather than N echoes, the status line stops a failed dispatch
+aggregating as a clean result, and the templates keep aggregation mechanical rather
+than paraphrased. Cost is acknowledged as a side effect, never the justification. The
+two changes had to land together — an exemption arguing "the contract buys dispatch
+correctness" while the surrounding prose still called it a cost optimization would
+leave the file arguing against itself. `tests/subagent-contract-clauses.test.js` fails
+if either clause later goes missing from either file, because "read #124 before
+editing" protects only the person who reads it.
+
 ## v6.54.0 — native surfaces stop being graded by a web-only detector
 
 `/claude-tweaks:design-wrapper` accepted `Surface: web | mobile | desktop` and then
