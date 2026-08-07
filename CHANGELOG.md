@@ -31,6 +31,51 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.56.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
+
+Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that
+nothing acted on; this release wires the `autonomy` policy lever to it, and hardens the
+verdict first, because the shipped rule was not sound enough for a machine to read.
+
+**The verdict now floors on verdicts, not records.** The old rule graded a cell on
+`total >= MIN_SAMPLES` plus a *single* disposition. Measured against this repo, one
+`demo:approved` on a 40-record class produced `verdict: clean` — fine for a table a human
+reads beside the counts, a live grant once a governor reads it alone. A second floor,
+`MIN_VERDICTS` (5), now counts the acceptance verdicts inside a cell rather than the
+records. `notPlanned` also leaves the clean test: a record closed `NOT_PLANNED` was
+declined, so no work product exists to judge, and with no time window in the table it was
+pinning two of this repo's four real classes to `mixed` permanently. Both counts are still
+rendered, and a new Coverage column says what fraction of a class was ever verified.
+
+**`bin/lib/issues/autonomy.js`** resolves the ceiling (CLI arg > run config > project
+policy > `supervised`) and maps `(ceiling, trust row)` to a permission set. Unrecognized
+input always fails toward less autonomy: an unknown ceiling falls back to `supervised`, and
+gradable kinds are an allowlist rather than a denylist naming `unstructured` — a denylist
+granted to every kind it had not been taught, including a case-variant `PRODUCER`.
+
+**`trusted` unlocks born-`ready` for `/claude-tweaks:capture`**, and only when
+`producer:capture` carries a `clean` verdict. That skips `/claude-tweaks:specify`, never the
+human grant gate — `ready` asserts shape, and `/claude-tweaks:backlog refine` re-derives
+shape from the body before granting anyway. Human-filed classes are excluded by
+construction: born-`ready` authorizes an *agent's* filing, and `human:human` is this repo's
+largest provenance, so a governor that graded it would have fired there first on the weakest
+possible justification.
+
+**`unattended` is defined and shut.** Its machine-originated grant contradicts the standing
+invariant that `auto:*` labels come only from an interactive human session — an invariant
+written after a real run treated a low-risk `ready` record as license to run a full
+build-to-close lifecycle. Reaching the top tier is not by itself an amendment of that, so
+the grant path sits behind a second explicit opt-in that nothing sets.
+
+`/claude-tweaks:backlog refine` gains an advisory `Trust` column beside its existing
+recommendation, which it never drives — a class's history is not evidence about this
+record's shape, and on a repo that has not run `/claude-tweaks:demo` every cell reads
+`insufficient evidence`, which must not become a de facto freeze on granting.
+
+Inert on arrival, deliberately: every trust cell in this repo still reads
+`insufficient-evidence` with zero acceptance verdicts. The ceiling exists so that nothing
+can exceed it later.
+
 ## v6.54.0 — native surfaces stop being graded by a web-only detector
 
 `/claude-tweaks:design-wrapper` accepted `Surface: web | mobile | desktop` and then
