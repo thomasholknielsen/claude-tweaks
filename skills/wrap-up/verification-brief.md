@@ -154,8 +154,31 @@ The same pair Step 1 below bootstraps for the default (non-family-gate) path —
 runs **in place of, not alongside** Step 1 (see the top of this section), so on a repo where
 every `demo:pending` application has ever gone through this procedure, the label may not exist
 yet at all. Both entry points need this: `/wrap-up`'s own eager path skips Step 1 exactly the
-same way `/tidy`'s does. Then write the rendered template composed above (**Compose the parent
-brief**) to `/tmp/parent-verification-brief.md`, then:
+same way `/tidy`'s does.
+
+**Then check whether a brief is already posted, before posting one** — and, when re-entering for
+a family that may already be partially applied, before even composing it above. A gate whose
+comment landed but whose label add failed still reads `due`, so `/tidy`'s `Open family gate`
+action re-enters this section for that family on every future run. Fetch the parent's comments
+(`gh issue view $PARENT_NUM --json comments`, the same lookup `/claude-tweaks:demo`'s Step 1
+already does) and test whether **any** of them contains a `## Verification Brief` heading — every
+comment on the parent, not just the most recent one, which a human reply or a bot notification
+will routinely have displaced (this population is long-lived open records that other people
+comment on, so a most-recent-only test reports "no brief" on a parent that plainly has one, and
+posts a duplicate).
+
+If a brief is already present, the recovery is to **skip the comment entirely and apply only the
+missing label**:
+
+```bash
+gh issue edit $PARENT_NUM --add-label demo:pending
+```
+
+That completes the gate — the rest of this subsection is already done for that parent. Never
+blindly re-post.
+
+Otherwise write the rendered template composed above (**Compose the parent brief**) to
+`/tmp/parent-verification-brief.md`, then:
 
 ```bash
 gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
@@ -169,13 +192,8 @@ reader never sees `demo:pending` without a brief already attached.
 posts and the label add then fails (a transient `gh` error; the bootstrap above should make a
 missing-label failure specifically impossible), report exactly which step failed — don't assume
 all-or-nothing, the same rule `tidy/actions-github-issues.md`'s `Defer` action states for its own
-multi-step sequence. This matters more for the `/tidy` entry than for `/wrap-up`'s: `/tidy`'s
-`Open family gate` action re-evaluates the same family on every future `/tidy` run while the gate
-stays `due` (the label add never landed, so nothing marks it gated), so a caller re-entering this
-section for a family it may have already partially applied must check whether the parent's last
-comment already carries a `## Verification Brief` heading (`gh issue view $PARENT_NUM --json
-comments`, the same lookup `/claude-tweaks:demo`'s Step 1 already does) before composing and
-posting a second one — never blindly re-post.
+multi-step sequence. The already-posted-brief check above is the recovery path out of exactly that
+state: the next entry finds the brief, skips the comment, and adds the label alone.
 
 `work-backend: local-files` — append the brief to the parent record's own body and set
 `facets.acceptance = 'pending'` on the parent, the same write Step 4 below performs for a

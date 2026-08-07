@@ -38,11 +38,21 @@ either. If it still reads `due`, compose the parent brief and apply the gate exa
 procedure's own **Compose the parent brief** and **Apply the gate** sections describe — posting
 the brief comment before adding `demo:pending`, matching that same invariant.
 
+This action is **staged, never auto-applied, at every aggressiveness tier** in auto mode
+(`step-6-auto.md`'s `Open family gate` row reads `Stage`/`Stage`/`Stage`) — it runs only after
+`/tidy`'s own Step 6 batch approval, exactly like the other outward-facing GitHub mutations in
+that table. Posting a comment and adding a label is an outward-facing GitHub API write, and
+`_shared/auto-mode-contract.md` puts that out of auto-resolution's reach twice over: its
+reversibility floor requires `high` — "undoable via file edit or `git revert`" — and its
+never-reversible list separately forbids "network calls beyond reads (no API writes, no message
+sends)" at every tier regardless of mode. Neither bar is clearable by this write, however
+mechanical or precondition-only it is. `_shared/github-pr-scan.md`'s `family-gate` scope states
+the same reasoning at the scope level.
+
 This action never applies `demo:approved` or `demo:changes-requested` — those two labels stay
 exclusively `/claude-tweaks:demo`'s job, applied only after an explicit human verdict. Opening
-the gate is a mechanical, reversible precondition for that verdict, not the verdict itself; see
-`_shared/github-pr-scan.md`'s `family-gate` scope for why this distinction is what keeps this
-action outside the auto-mode contract's disposition-staging rule.
+the gate is the precondition for that verdict, not the verdict itself, which is why the
+recommendation still ends with `/claude-tweaks:demo #{n}` even once the gate is open.
 
 ## Sync to GitHub
 
