@@ -99,20 +99,31 @@ Brief` body section. Same `demo:pending`-then-session-recall fallback order as a
 ## Step 2: Per-item walkthrough
 
 Render this record's full Verification Brief (The ask / What shipped / Confirmed / See it
-yourself — evidence the human can judge, not a checklist to complete). Label-backed entries were
+yourself — or Verify it yourself (manual) for a non-testable record — evidence the human can
+judge, not a checklist to complete). Label-backed entries were
 fetched per `verification-brief.md`'s digest template in Step 1's `#N` lookup; session-recall
 entries were composed directly from recall, also in Step 1's no-arguments path — both render
 identically here. Then call `AskUserQuestion` with `question`: `"Does {title} do what you asked
 for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
-- Option 2 (only when the brief's "See it yourself" entry point resolved and browser tools are available) — `label`: `"See it yourself"`, `description`: `"Check this before deciding"`
+- Option 2 (when the brief's "See it yourself" entry point resolved and browser tools are available, or the brief carries `### Verify it yourself (manual)`) — `label`: `"See it yourself"`, `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
 - Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
 ### "See it yourself": pre-flight, then live or manual
 
-Picking this option never hands over untested instructions. First, run a pre-flight check:
+**Non-interactive record** (the brief carries `### Verify it yourself (manual)` instead of
+`### See it yourself` — `verificationSurface` classified this record's changed paths as having no
+interactive surface, per `verification-brief.md`'s Step 2): skip the browser pre-flight below
+entirely — there is no dev server or page to reach. Walk the brief's manual steps with the user
+directly, one at a time — the command, file path, or behavior to check, and what to expect. After
+the human finishes, re-render this record's `AskUserQuestion` with only Approve / Request changes
+/ Skip for now (the manual walk already happened — don't offer "See it yourself" twice for the
+same record).
+
+**Interactive record:** picking this option never hands over untested instructions. First, run a
+pre-flight check:
 
 1. Resolve a working dev server via `dev-url-detection.md`'s existing procedure — already
    project-agnostic (port probing, `CLAUDE.md`/`package.json` command detection, worktree
@@ -268,7 +279,7 @@ always renders.
 | Re-deriving "how do I test this" from the diff | The Verification Brief already has it — `/wrap-up` wrote it at build time with full context |
 | Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
 | Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
-| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief reframes the ask as "review the diff/rationale" |
+| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief pairs the diff/rationale with concrete manual verification steps, not just "review the diff" |
 | Debugging or fixing an application bug a pre-flight check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
 | Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it as `/browse` requires, right after the human looks, before re-rendering the verdict |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
