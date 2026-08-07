@@ -1,7 +1,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache } = require('../mark');
+const {
+  makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache, mergeWontfixIntoDeclined,
+} = require('../mark');
 
 // Regression: cmdMark used to be duplicated near-verbatim across
 // harness-health.js, journey-health.js, and docs-health.js (code-health.js
@@ -209,4 +211,61 @@ test('mergeDeclinedIntoCache: does not mutate the original cache object', () => 
   const cache = {};
   mergeDeclinedIntoCache(cache, { 'skill-ffff0006': { lastSeenMs: 3 } });
   assert.deepStrictEqual(cache, {}, 'the input cache object must not be mutated in place');
+});
+
+// mergeWontfixIntoDeclined — the durable half of the gh-absent wontfix fix.
+// A run that CAN read the issue index hands its label readings forward so a
+// later index-less firing still suppresses them.
+
+test('mergeWontfixIntoDeclined: records a label-suppressed fingerprint with wontfix-label provenance', () => {
+  const next = mergeWontfixIntoDeclined({}, ['skill-aaaa0001'], { now: 100 });
+  assert.deepStrictEqual(next['skill-aaaa0001'], { lastSeenMs: 100, origin: 'wontfix-label' });
+});
+
+test('mergeWontfixIntoDeclined: the recorded entry is readable by mergeDeclinedIntoCache, so dedup suppresses on a later index-less run', () => {
+  // The whole point of the durable write: prove the two halves compose.
+  const declined = mergeWontfixIntoDeclined({}, ['skill-aaaa0001'], { now: 100 });
+  const merged = mergeDeclinedIntoCache({}, declined);
+  assert.deepStrictEqual(merged['skill-aaaa0001'], { status: 'declined', lastSeenMs: 100 });
+});
+
+test('mergeWontfixIntoDeclined: first write wins — an existing human `mark ... declined` entry is never overwritten', () => {
+  const existing = { 'skill-bbbb0002': { lastSeenMs: 1 } };
+  const next = mergeWontfixIntoDeclined(existing, ['skill-bbbb0002'], { now: 999 });
+  assert.deepStrictEqual(
+    next['skill-bbbb0002'],
+    { lastSeenMs: 1 },
+    'the human mark is the stronger statement — no clobber, no origin tag grafted onto it',
+  );
+});
+
+test('mergeWontfixIntoDeclined: preserves unrelated existing declined entries', () => {
+  const existing = { 'skill-cccc0003': { lastSeenMs: 5 } };
+  const next = mergeWontfixIntoDeclined(existing, ['skill-dddd0004'], { now: 7 });
+  assert.deepStrictEqual(next['skill-cccc0003'], { lastSeenMs: 5 });
+  assert.deepStrictEqual(next['skill-dddd0004'], { lastSeenMs: 7, origin: 'wontfix-label' });
+});
+
+test('mergeWontfixIntoDeclined: an empty or absent fingerprint list is a no-op', () => {
+  const existing = { 'skill-eeee0005': { lastSeenMs: 2 } };
+  assert.deepStrictEqual(mergeWontfixIntoDeclined(existing, []), existing);
+  assert.deepStrictEqual(mergeWontfixIntoDeclined(existing, undefined), existing);
+});
+
+test('mergeWontfixIntoDeclined: an absent current declined slice is treated as empty', () => {
+  // journey-health's durable state carries `declined` only because it opts in;
+  // a first-ever write must not throw on undefined.
+  const next = mergeWontfixIntoDeclined(undefined, ['skill-ffff0006'], { now: 3 });
+  assert.deepStrictEqual(next, { 'skill-ffff0006': { lastSeenMs: 3, origin: 'wontfix-label' } });
+});
+
+test('mergeWontfixIntoDeclined: does not mutate the original declined object', () => {
+  const declined = {};
+  mergeWontfixIntoDeclined(declined, ['skill-aaaa0007'], { now: 1 });
+  assert.deepStrictEqual(declined, {}, 'the input declined object must not be mutated in place');
+});
+
+test('mergeWontfixIntoDeclined: skips falsy fingerprints rather than recording an empty key', () => {
+  const next = mergeWontfixIntoDeclined({}, [null, undefined, '', 'skill-aaaa0008'], { now: 4 });
+  assert.deepStrictEqual(Object.keys(next), ['skill-aaaa0008']);
 });
