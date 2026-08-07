@@ -2,7 +2,7 @@
 name: upstream-drift
 description: Use when you want to check whether this repo's claims about an upstream dependency still hold, and what upstream surface has appeared that this repo does not know exists. Reads the deterministic checks in tools/upstream-drift/, then diffs a dependency's contract subtree between the installed and latest tags to triage new capability. Never edits anything. Keywords - upstream drift, dependency drift, contract breach, capability triage, new capability, Impeccable, pin, manifest.
 argument-hint: "[--dep <name>] [--latest-tag <tag>] [--drift-only|--capability-only] [--json]"
-allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
+allowed-tools: Read, Grep, Glob, Bash, Task, AskUserQuestion
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -21,6 +21,8 @@ tools/upstream-drift/manifest.yml
 ```
 
 **Lifecycle:** utility, no fixed position. Runs standalone today; `#143` will add the runner, version-driven triggers, and issue filing that make it schedulable.
+
+`allowed-tools` is declared to **restrict**, per CLAUDE.md: `Edit` and `Write` are deliberately absent, which is what makes "never edits anything" a contract rather than a promise. `Task` is present because Step 2 dispatches — a declared set that omits a tool the skill actually uses is a bug, not a tighter restriction.
 
 **Not shipped.** This is maintainer-only tooling. It lives under `.claude/skills/` — a project-local skill, loaded only when working in this repo, never for plugin consumers. It is deliberately **not** under `skills/`, which is the plugin's shipped payload. For the same reason its frontmatter `name` is the bare `upstream-drift` rather than CLAUDE.md's `claude-tweaks:{skill}` form: that namespace belongs to the shipped plugin, and claiming it here would imply this skill ships. The deviation is intentional, not drift.
 
