@@ -31,6 +31,59 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.54.0 — native surfaces stop being graded by a web-only detector
+
+`/claude-tweaks:design-wrapper` accepted `Surface: web | mobile | desktop` and then
+proceeded identically for all three. A record declaring `mobile` therefore ran the
+bundled HTML rule engine over native app code. The likely outcome was zero findings
+— reported as a pass, meaning nothing. A gate that cannot fail is not a gate, and
+this was that defect on the surface axis rather than the CLI-contract axis where it
+was last found.
+
+Upstream states the constraint itself, in its own `reference/routing.md`: *"`live`
+and the bundled `detect.mjs` are web-only."* This release acts on it.
+
+**Track resolution** now sits between Layers 2 and 3 and runs for every mode.
+`setup.platform` crossed with the record's `Surface:` line resolves to exactly one
+of `web` / `ios` / `android` / `adaptive` — one decision, not an exemption bolted
+after a web-path return. `test` and `live`, the two web-only surfaces, skip
+explicitly on the native track; `test` returns `{skipped: "native surface — CLI
+detector is web-only"}` and can no longer return `pass` there. Every other mode
+dispatches with the platform named, having first read that platform's own upstream
+reference (`ios.md`, `android.md`, or **both** for `adaptive` — there is no
+`reference/adaptive.md`, so the obvious `reference/{platform}.md` template is wrong
+for exactly the value this wrapper infers most often).
+
+Three resolutions worth stating, because each is a judgment rather than a lookup:
+
+- **`platform: null` + `Surface: mobile` infers `adaptive`.** `null` is the common
+  case by construction — `extractPlatform` returns it for a missing `Platform`
+  section, for prose, and for any unrecognized value — so a design whose only native
+  trigger were a non-null platform would close the reported hole in the one case that
+  already had an answer. Upstream has no unnamed-native track to route to, and a bare
+  `mobile` names neither platform, which is the same statement upstream's own
+  resolver collapses `ios, android` into `adaptive` for. Recorded as inferred, never
+  as declared; the correction path is a `Platform` section in `PRODUCT.md`.
+- **`desktop` takes the web path**, on the stated assumption that desktop surfaces
+  here are HTML-based. Upstream's enum has no desktop value, so a genuinely native
+  desktop surface takes the web path too — a known, accepted limitation, not an
+  oversight.
+- **A `setup.platform` / `Surface:` disagreement is recorded, not applied silently.**
+  `setup.platform` wins, and `surface_track_override` names both values and which
+  one did. A stale `PRODUCT.md` must not quietly overrule a record's own declaration.
+
+Layer 3 keeps running on the web track unchanged, and on the native track whenever
+no `Surface:` was declared — so a native project's backend-only diff still skips
+rather than being widened onto the design path. It is skipped only when the record
+declared a native surface, because its trigger table holds no native extension and
+would return `non-frontend (sniff)` on exactly the records this routing exists to
+serve.
+
+Web-surface behavior is unchanged. The native track's detail — the reference
+mapping, the reasoning behind the two inferred rows, and a four-row routing
+walkthrough — lives in the new `design-wrapper/native-routing.md`, loaded only when
+the track resolves native.
+
 ## v6.53.0 — Impeccable's direction contract reaches the human acceptance gate
 
 `/claude-tweaks:demo` is the human sign-off gate, and until now it had nothing
