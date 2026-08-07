@@ -11,12 +11,17 @@ unexpressible.
 ## Lifecycle position
 
 ```
-/claude-tweaks:challenge → [ /claude-tweaks:research verify ] → /superpowers:brainstorming
+[ /claude-tweaks:research verify ] → /superpowers:brainstorming → /claude-tweaks:specify
 ```
 
-`/claude-tweaks:challenge` opens a loop: it surfaces assumptions and open questions, and then
-nothing checks them. Verify mode closes it — the questions get answered against real sources
-before brainstorming commits to a design.
+Verify mode runs **before** a design is written, not after. A design session that starts from
+unchecked assumptions bakes them in, and the cheapest moment to discover a premise is wrong is
+before anything rests on it. Verify mode answers the claims a design would stand on — against this
+repository, its history, its dependencies, and the web — and hands brainstorming a grounded
+starting point instead of a guessed one.
+
+It is human-invoked, or reached from `/claude-tweaks:specify`'s prior-art lookup. Nothing invokes
+it automatically.
 
 ### Not reachable from `/claude-tweaks:flow`
 
@@ -31,9 +36,15 @@ there is structurally too late to change it, so `verify` is deliberately **not r
 
 | Input | Resolution |
 |---|---|
-| A brief path (`docs/plans/{YYYY-MM-DD}-{topic}-brief.md`) | Read `### Key Assumptions Surfaced` and `### Open Questions for Brainstorming`. Each entry becomes one candidate question. |
-| A record reference (`#N`) | Resolve the record, then look for a brief for its topic. Found — read it as above. Not found — fall to the no-brief case below. |
-| Neither (a bare topic, or a record with no brief) | **No-brief case.** Generate the candidate set from the topic directly: enumerate the claims the design would rest on if written today. Skipping `/claude-tweaks:challenge` must not skip grounding. |
+| A brief path — any document that already enumerates assumptions or open questions | Read its assumption and open-question entries; each becomes one candidate question. No skill currently produces such a brief (see below), so this path serves a hand-written note or a legacy artifact. |
+| A record reference (`#N`) | Resolve the record and enumerate the claims its stated approach rests on. If a brief happens to exist for its topic, read that too. |
+| Neither — a bare topic | **No-brief case.** Generate the candidate set from the topic directly: enumerate the claims the design would rest on if written today. |
+
+**The no-brief case is the normal one.** Nothing upstream hands verify mode a ready-made list of
+assumptions to check: `/claude-tweaks:challenge` was reshaped into a framing-check component and a
+debiasing-lens escape hatch, and no longer produces a Brainstorming Brief. Verify mode therefore
+generates its own candidates in most runs, and the brief-path row above is an accommodation, not
+the expected input.
 
 The candidate set is the input to the consequence filter below. It is never researched as-is.
 
@@ -142,7 +153,7 @@ does; the resolved tier is logged rather than asked.
 The bare-`verify` ambiguity above is not an exception to this, but it does need its own rule.
 `verify` is not reachable from `/claude-tweaks:flow` (see Lifecycle position), so no orchestrator
 invokes it as a pipeline step — but a run directory can still resolve here, because
-`/claude-tweaks:capture`, `/claude-tweaks:challenge`, and `/claude-tweaks:specify` all set
+`/claude-tweaks:capture` and `/claude-tweaks:specify` both set
 `$PIPELINE_RUN_DIR` when they invoke this skill (see `SKILL.md`'s Component-Skill Contract), and
 `_shared/pipeline-run-dir.md`'s most-recent-matching-directory fallback can resolve one with no
 orchestrator at all.
@@ -170,4 +181,4 @@ the inline WebSearch method.
 | Output | Destination |
 |---|---|
 | One line per filter drop, and one per verdict | The run's `decisions.md` (see Logging a drop) |
-| The verdicts themselves | Written back into the brief's assumption lines — **record #178's deliverable, not built yet.** Until it lands, verify mode reports verdicts inline to its caller and they are not persisted. |
+| The verdicts themselves | Reported inline to the caller. **They are not persisted anywhere, and no record currently owns making them so.** A write-back was scoped as #178, against `/claude-tweaks:challenge`'s Brainstorming Brief; that brief no longer exists and the record was closed as obsolete. Durable verification provenance needs a fresh record shaped against whatever artifact should carry it. |
