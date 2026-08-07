@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - **Work from the worktree.** Every task runs in `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/challenge-framing-gate` on branch `worktree-challenge-framing-gate`. Never `cd` to the main checkout. Begin every task by confirming `pwd` and `git rev-parse --show-toplevel` agree.
-- **Every task ends green.** Run `npm test` before each commit. A task that leaves the suite red is not complete.
+- **Every task ends green — but run the *targeted* suite, not `npm test`.** The full suite takes **over 15 minutes** here, which exceeds a subagent's practical patience and will stall the task rather than verify it. Each task below names the specific suite(s) covering its change. Run those. The full `npm test` runs exactly once, at the final whole-branch review.
+- **Never pipe a long test run into `tail`/`grep`.** Redirect to a file first, then read the file: `node --test <suite> > /tmp/t.log 2>&1; echo "exit=$?"` then read `/tmp/t.log`. Piping directly can hide the real failure or trigger a silent re-run.
 - **Task ordering is load-bearing.** Task 1 deletes tests that assert on the design Task 2 removes. Reversing them leaves the suite red at the end of Task 2.
 - **No emojis in skill files.** Use `**(Recommended)**` bold text for emphasis (CLAUDE.md).
 - **Skill cross-references in actionable instruction text** use the fully-qualified `/claude-tweaks:{skill}` form. Bare `/{skill}` is for descriptive prose only.
