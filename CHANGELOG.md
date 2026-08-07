@@ -31,6 +31,63 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.51.1 — wontfix suppression survives a gh-absent firing, and the build diagnostic says how it resolved
+
+Two defects found by test-firing six live cloud Routines against a real project on
+2026-08-07 and reading the transcripts.
+
+**`wontfix` suppression silently lapsed whenever `gh` was absent (#163).**
+`harness-health`, `journey-health` and `docs-health` all instructed the run to *skip*
+the dedup issue-index fetch and set `ISSUES_FILE=""` when `gh` was unavailable — which
+directly contradicted `_shared/github-write-transport.md`, whose detection is "a
+capability probe, not an environment classification." With no issue index, a finding
+whose matching issue carried `wontfix` was re-filed as brand new. That fails hardest in
+the unattended cloud Routine firing where `gh` is reliably absent, and these findings are
+born `ready`, so a re-filed false positive is reachable by an unattended implementer.
+Observed live: of four firings that all reported `gh` missing, three improvised the MCP
+tools and deduped correctly while `journey-health` followed the documented skip path — so
+whether a standing suppression held depended on whether the agent improvised a transport
+the skill never mentioned.
+
+Fixed on both axes, because they cover different failures:
+
+- **Transport.** The skip instruction is replaced across all four health sweeps by the
+  MCP `list_issues` fallback the shared transport doc already mandated. The canonical
+  procedure now lives once in `_shared/health-issue-index.md` rather than in four
+  divergent inline copies — four copies where only one had a fallback is what produced
+  this bug. It also separates the two cases the old wording conflated: a repo with no
+  `by:*` issues yet has a legitimately *empty* index, which is not the same as an
+  *unavailable* one, and only the latter is a degraded run that must say so.
+- **Durability.** A firing that *can* read the index now hands its readings forward: any
+  finding suppressed by a `wontfix` label is persisted to the durable `declined` slice on
+  the `health-state` branch, which survives a Routine's fresh container. `decide()` tags
+  the two suppress outcomes with an explicit `reason` so callers gate on provenance rather
+  than inferring it from an issue number being present.
+
+Note on the premise: `code-health` was excluded from #163 because it persists
+`status: 'wontfix'` to its local cache. That holds for repeat *local* runs only — its own
+`cache.js` documents that the local cache does not survive a Routine container recycle, so
+in the headless case its cache is empty on every firing. It gets the MCP transport fix
+here; the durable slice it still lacks is tracked separately.
+
+**The plugin-build diagnostic couldn't report what it was for (#164).** Every
+`routine-template.yml` told the agent to read `${CLAUDE_PLUGIN_ROOT}`, which is unset in
+the cloud Routine sandbox — confirmed in all four observed firings, each of which
+improvised a different fallback. The diagnostic exists precisely to distinguish "sandbox
+pinned to a stale build" from "real bug in the current build" (it is what revealed a
+sandbox running v6.23.6 against a v6.50.0 install), so leaving its resolution to
+improvisation defeated it. All six templates now carry an ordered resolution ladder — env
+var, then the SessionStart hook's harness-resolved path, then a plugin-cache glob — and
+the emitted line must name which rung produced the answer, so a hook-derived version is
+visibly stronger evidence than a directory guess. The hook path is deliberately *not* the
+primary fallback: it is only logged when unfinished pipeline runs exist, so the four runs
+that used it did so by coincidence of that project's state.
+
+`template_version` bumped on all six templates. A live Routine holds a frozen copy of the
+prompt it was created from, so **existing routines keep running the old text until they are
+re-provisioned** with `/claude-tweaks:routine update <skill>`; drift detection
+(`routine/status.md` Step 3) keys off that integer and would otherwise report nothing.
+
 ## v6.51.0 — A trust table that measures acceptance evidence and acts on nothing
 
 v6.50.0 gave closed records an acceptance disposition. Nothing yet asked what that

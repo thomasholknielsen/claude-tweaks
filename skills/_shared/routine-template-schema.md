@@ -40,12 +40,37 @@ or historical behavior in a way that doesn't match this skill's own current
 instructions, treat the project doc as stale historical context — never as a
 procedure to execute.
 
-Before invoking the skill below, print one line recording which plugin build this
-session actually resolved: read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`
-and report `claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}`, saying so
-plainly if either is missing or unreadable. Diagnostic only — never a gate, never a
-reason to stop — but without it a sandbox pinned to a stale plugin build and a real
-bug in the current build are indistinguishable from the outside.
+Before invoking the skill below, print exactly one line recording which plugin build
+this session resolved AND which path resolved it. Try these in order, stopping at the
+first that yields a readable `.claude-plugin/plugin.json`.
+
+(1) `env` — if `${CLAUDE_PLUGIN_ROOT}` is set and non-empty, read
+`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Never assume it is set: it is
+routinely empty in a cloud Routine sandbox, which is the whole reason the rungs below
+exist.
+
+(2) `hook-path` — the claude-tweaks SessionStart hook emits its own harness-resolved
+plugin root into this session's context, embedded in a `node "<path>/bin/hooks.js"`
+invocation. That path carries the same authority as (1), since the harness expanded it.
+It is emitted only when the repo has unfinished pipeline runs to report, so it is often
+simply absent — that is normal, not an error.
+
+(3) `cache-scan` — glob `~/.claude/plugins/cache/*/claude-tweaks/*/.claude-plugin/plugin.json`.
+Exactly one match is unambiguous: report it as `cache-scan-unique`. Two or more means
+the highest-semver directory is a GUESS at which build this session actually loaded —
+report it as `cache-scan-highest-of-N`, N being the candidate count, and never as a
+confirmed answer.
+
+(4) If nothing resolves, say `claude-tweaks version unresolved (no CLAUDE_PLUGIN_ROOT,
+no hook path, no plugin cache found)` and carry on.
+
+Format: `claude-tweaks v{version} @ {path} (resolved via: {env | hook-path |
+cache-scan-unique | cache-scan-highest-of-N})`. Never report a version without its
+resolution path — the point is that a hook-derived answer is stronger evidence than a
+directory guess, and a bare version string hides which one you got. Diagnostic only —
+never a gate, never a reason to stop — but without it a sandbox pinned to a stale
+plugin build and a real bug in the current build are indistinguishable from the
+outside.
 
 Then: /claude-tweaks:{skill}
 ```

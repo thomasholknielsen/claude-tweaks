@@ -200,7 +200,7 @@ function cmdValidateFindings(args) {
   // not just on the same-container run `mark` itself was tested against.
   const readCacheWithDeclined = (r) => mergeDeclinedIntoCache(readCache(r), readDurableState(r).declined || {});
 
-  const { cache, payloads, seen } = dedupAndDispatch({
+  const { cache, payloads, seen, wontfixSuppressed } = dedupAndDispatch({
     root, issuesPath: args.issues, toolName: TOOL_NAME, survivors: filtered, readCache: readCacheWithDeclined, decide, toIssuePayload,
   });
 
@@ -221,6 +221,7 @@ function cmdValidateFindings(args) {
       : undefined;
     const mutatorInput = {
       target: args.target, tier: args.tier, coverageScan: args.coverageScan, runRecord, deletedFileSig,
+      wontfixSuppressed,
     };
     const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
     if (!result.ok) {

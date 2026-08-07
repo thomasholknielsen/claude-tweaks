@@ -81,9 +81,11 @@ Collect existing `by:code-health`-labelled issues so the engine can skip/reopen/
 gh issue list --label by:code-health --state all --json number,state,labels,body --limit 500 > /tmp/code-health-issues-raw.json
 ```
 
-Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Write to `/tmp/code-health-open.json`. If `gh` is unavailable or the repo has no `by:code-health` issues, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Write to `/tmp/code-health-open.json`.
 
-A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache, so the decision survives even on a later run where `gh` is unavailable and this issue index can't be rebuilt.
+**Transport and outcomes:** apply `_shared/health-issue-index.md` with `{SKILL}` = `code-health`, `{ISSUES_FILE}` = `/tmp/code-health-open.json`. `gh` absent means rebuild the index via MCP `list_issues`, never skip; `ISSUES_FILE=""` is only for "no transport reaches GitHub", and is reported.
+
+A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache — which a Routine's fresh container recreates empty, so it covers repeat *local* runs only. The MCP transport above covers the headless path.
 
 **Step 3 — READ THE SLICE.**
 
