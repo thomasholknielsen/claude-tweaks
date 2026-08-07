@@ -39,6 +39,7 @@ depends on them.
 | `/flow` | Indirect only, via `/dispatch`. `refine` is the human gate upstream of `/dispatch`: it grants `auto:build`/`auto:merge` on records `/flow` may later build and (with `auto:merge`) merge. `/backlog` never invokes `/flow`, and never selects, filters, sorts, or claims records. |
 | `/help` | Surfaces `refine`'s pending-authorization count on its dashboard; shares `bin/lib/issues/ranking.js`'s `rankNextToBuild` with `overview`'s recommendation section. |
 | `/tidy` | Folds `unsynced: true` local fallback records into its survey — surfacing, and for the priority axis the apply path via the local-files fallback branch; `/tidy`'s Shape 3 owns the actual sync-to-GitHub action. `/tidy`'s Shape 4/5 findings (unscored `ready`, `bot:blocked`) surface the same facts `refine`'s grant sweep would encounter — proactive hygiene, not a new redundancy. |
+| `bin/lib/issues/trust.js` | `overview`'s Step 1.5 renders `trustRows`' per-`(provenance × risk band)` cell table via `skills/_shared/trust-table.md`'s shared Fetch/Render procedure — read-only, omitted entirely under `work-backend: local-files` since `demo:*` labels are a `github-issues` concept. Never grants, changes a label, or attaches a recommendation to a verdict. |
 | `_shared/issue-claims.md` | Defines the claim protocol `/dispatch` uses after `refine` grants — `/backlog` itself never claims. |
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface `refine`'s pending-authorization count elsewhere. |
 
@@ -200,6 +201,7 @@ depends on them.
 |---|---|
 | `/ledger` | Utility skill — `/help` lists it in the utility skills table. Does not scan ledger files or surface open items on the dashboard; the resolve gate (`/ledger resolve`, run by `/wrap-up` Step 8.5 or `/flow` Step 5) is what actually catches unresolved items. |
 | `/version` | `/version` prints the installed plugin version; `/help` surfaces version-aware command syntax and points at `/version` for the canonical answer. |
+| `bin/lib/issues/trust.js` | Stage 4.8 dispatches a Task agent that renders `trustRows`' table via `skills/_shared/trust-table.md`'s Fetch/Render sections, inlined into the agent prompt since subagents cannot read that file directly. Display-only — Stage 7's Maintenance Signals derivation explicitly excludes it by name, and it feeds no recommendation. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to `/help` (e.g. if a future status scan ever auto-resolves recommendations). |
 | `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). `/help` has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
 
