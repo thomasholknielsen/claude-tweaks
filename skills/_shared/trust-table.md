@@ -101,8 +101,9 @@ ever produces, which is the single thing `autonomy: supervised` exists to let th
 
 Append the sentence "Every closed record's acceptance disposition is still unknown." only when
 `{approved}` and `{changesRequested}` are both `0`. When any collapsed row is an `unstructured:*`
-one, append instead — or additionally — "{K} of those classes are unclassifiable and will never
-reach a verdict." A pinned row cannot lift the collapse by itself, so it would otherwise stay
-invisible for as long as every other cell is small, which is exactly while it is accumulating.
+one, also append "{K} of those classes are unclassifiable and will never reach a verdict," where
+`{K}` is the count of collapsed rows whose `kind` is `unstructured`. A pinned row cannot lift the
+collapse by itself, so it would otherwise stay invisible for as long as every other cell is small,
+which is exactly while it is accumulating.
 
 Render the full table as soon as at least one row's Verdict is `clean` or `mixed`.

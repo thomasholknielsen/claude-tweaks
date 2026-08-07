@@ -44,12 +44,16 @@ evidence at all, and now it says so measurably instead of silently.
 - `bin/lib/issues/provenance.js` resolves a record's origin to one of four kinds —
   `producer` (a `by:*`-labelled health-sweep filing), `side-effect` (an unlabelled
   `Origin:` body line from another skill's flow), `unstructured` (an Origin line too
-  long to classify reliably), or `human` (neither signal — absence is the signal).
+  long to classify reliably, or one that normalizes to empty — the latter was added
+  in the fix wave to stop such records from falsely merging into `human`), or `human`
+  (neither signal — absence is the signal).
 - `bin/lib/issues/trust.js` groups closed records into `(provenance × risk band)`
-  cells and assigns each a verdict — `insufficient-evidence` below an 8-sample floor,
-  `clean` or `mixed` above it. Undispositioned is never hidden or folded into another
-  column: it is the count of how blind the system currently is, and today it is every
-  cell's largest number.
+  cells and assigns each a verdict — `unstructured` cells are pinned to
+  `insufficient-evidence` at every sample count, since a bucket defined by "could not
+  be classified" has no coherent class to earn trust for; every other cell reads
+  `insufficient-evidence` below an 8-sample floor and `clean` or `mixed` above it.
+  Undispositioned is never hidden or folded into another column: it is the count of
+  how blind the system currently is, and today it is every cell's largest number.
 - `skills/_shared/trust-table.md` is the one fetch/render procedure both consuming
   skills inline rather than duplicate — `/help` Stage 4.8 (subagents cannot read the
   file directly, so its Fetch/Render sections are inlined into the dispatch prompt)
