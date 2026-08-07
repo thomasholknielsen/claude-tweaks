@@ -71,7 +71,14 @@ test('verify-mode.md documents the no-brief path so skipping /challenge does not
   // [IL-66]: tolerate both the hyphenated "No-brief case" heading and the prose
   // "a record with no brief" — the phrase appears in both shapes in the file.
   assert.match(body, /no[\s-]brief/i, 'must name the no-brief case');
-  assert.match(body, /candidate/i, 'must say candidates are generated from the topic directly');
+  // Anchored, not a bare /candidate/i: "candidate" appears 3 times in the finished
+  // file, so the bare form survives this sentence being reworded to "from the record"
+  // instead of "from the topic" ([IL-78]).
+  assert.match(
+    body,
+    /generate\s+the\s+candidate\s+set\s+from\s+the\s+topic/i,
+    'must say the candidate set is generated from the topic directly',
+  );
 });
 
 test('verify-mode.md resolves the bare-verify ambiguity by presenting a choice', () => {
@@ -275,7 +282,14 @@ Append to `tests/research/skill-md.test.js`:
 test('verify-mode.md states the consequence filter as a two-outcome question', () => {
   const body = readVerifyMode();
   assert.match(body, /would\s+the\s+design\s+change/i, 'must state the filter question verbatim');
-  assert.match(body, /drop/i, 'must state the drop outcome');
+  // Anchored, not a bare /drop/i: "drop" appears ~11 times in the finished file, so the
+  // bare form survives this row being reworded to "Drop it silently." — the exact opposite
+  // of the requirement. Verified to discriminate during plan authoring ([IL-78]).
+  assert.match(
+    body,
+    /drop\s+it,?\s+and\s+log\s+the\s+drop/i,
+    'must state that the drop outcome is logged, not silent',
+  );
 });
 
 test('verify-mode.md logs every filter drop to decisions.md in the shared entry format', () => {
