@@ -115,7 +115,11 @@ reader never sees `demo:pending` without a brief already attached.
 
 `work-backend: local-files` — append the brief to the parent record's own body and set
 `facets.acceptance = 'pending'` on the parent, the same write Step 4 below performs for a
-non-decomposed record, applied to the parent's file instead of this leaf's:
+non-decomposed record, applied to the parent's file instead of this leaf's. `parentPath` is the
+`.path` field of the parent's own record — a combined open+closed `queryRecords('specs', {})` /
+`queryRecords('specs', { closed: true })` listing (the parent itself carries no `facets.parent`,
+so this is a fresh query, not the leaf listing above), filtered to the entry whose
+`.id === PARENT_ID`:
 
 ```js
 const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
