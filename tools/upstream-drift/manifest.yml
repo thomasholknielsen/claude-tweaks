@@ -60,6 +60,8 @@ dependencies:
     contract-paths:
       - "skills/impeccable/SKILL.md"
       - "skills/impeccable/scripts/context-signals.mjs"
+      - "skills/impeccable/reference/new-work.md"
+      - "agents/impeccable-finish-reviewer.md"
     assertions:
       - file: "skills/design-wrapper/command-map.md"
         claims: "the plugin exposes a polish command"
@@ -85,4 +87,21 @@ dependencies:
         claims: "scan.targets filters on scannability, not frontend-ness — bare .js and .ts are in SCANNABLE_EXT, which is why Layer 3 cannot be retired"
         upstream-path: "skills/impeccable/scripts/context-signals.mjs"
         must-match: "'.jsx', '.tsx', '.js', '.ts', '.vue', '.svelte', '.astro',"
+      # The direction contract. _shared/design-contract.md hard-codes the five block
+      # labels and nothing else about upstream's contract, so a rename upstream must
+      # surface as drift here — otherwise the parse quietly stops matching and /demo
+      # renders an empty brief, which is indistinguishable from a record that simply
+      # never had a contract.
+      - file: "skills/_shared/design-contract.md"
+        claims: "the direction contract lives in the built artifact's opening comment, not in a repo file at a fixed path"
+        upstream-path: "skills/impeccable/reference/new-work.md"
+        must-match: "as a contract in the artifact's opening comment"
+      - file: "skills/_shared/design-contract.md"
+        claims: "the contract's five block labels are exactly THESIS, OWN-WORLD, STORY, FIRST VIEWPORT, FORM"
+        upstream-path: "agents/impeccable-finish-reviewer.md"
+        must-match: "(THESIS, OWN-WORLD, STORY, FIRST VIEWPORT, FORM)"
+      - file: "skills/_shared/design-contract.md"
+        claims: "the FORM block carries the seed key, and only when the seed dealt stagings — so its absence is normal, not drift"
+        upstream-path: "skills/impeccable/reference/new-work.md"
+        must-match: "the seed key the script printed"
     fixtures: []

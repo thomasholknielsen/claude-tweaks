@@ -1,14 +1,18 @@
 # Design Mode — review
 
-Invoked via `/claude-tweaks:design-wrapper review <spec>`. Returns `{mode, result: "advisory", files_scanned, findings, score_trend}` or `{mode, skipped, ...}` to caller. Also writes an audit cache that `polish` mode consumes, and appends to a persistent design-score history log.
+Invoked via `/claude-tweaks:design-wrapper review <spec>`. Returns `{mode, result: "advisory", files_scanned, findings, score_trend}` or `{mode, skipped, ...}` to caller. Also writes an audit cache that `polish` mode consumes, appends to a persistent design-score history log, and — when the built artifact carries one — records the Impeccable direction contract's seed key onto the work record (Step 3.6) and dispatches upstream's own finishing-review agent against that contract (Step 3.7).
 
 ## When this runs
 
-Called by `/claude-tweaks:review` during code review. Runs `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files. Findings appear in the review summary as advisory (never auto-applied).
+Called by `/claude-tweaks:review` during code review. Runs `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files, and — when the built artifact carries a direction contract — additionally dispatches Impeccable's own `impeccable-finish-reviewer` agent (Step 3.7). Findings appear in the review summary as advisory (never auto-applied).
 
 ## Preconditions
 
 Run the universal preconditions from `../SKILL.md` (Layers 1+2+3 and availability for the Impeccable plugin — verified by `/impeccable:impeccable*` skill resolution).
+
+That check covers the **Skill-tool commands only**. Step 3.7 dispatches an *agent* (a `subagent_type`),
+a different invocation surface with its own availability check: a resolvable `/impeccable:impeccable*`
+proves the plugin is installed and says nothing about which agents that plugin ships.
 
 ## Procedure
 
@@ -43,13 +47,137 @@ It is **advisory context only**:
 
 When Layer 0 did not resolve, or resolved with `critique.latest: null`, omit `prior_critique` from the return entirely — the same convention Step 4.5 uses for an unparseable score. Both cases mean "no cached critique to report," and neither is an error.
 
+### Step 3.6: Read the direction contract and record its seed key
+
+This is the one point in the pipeline where a **built artifact** and its **work record** are both in
+hand. Impeccable writes a direction contract into the opening comment of what it builds, before the
+code; the seed key in that contract is the only thing that makes a build's direction reproducible,
+since Impeccable 4.x is deliberately non-deterministic by dice. Nothing recovers it later — by the
+time anyone asks, the artifact exists and the intent behind it is only inferable from the result.
+
+Run the locate-and-parse procedure in `../../_shared/design-contract.md` over the **file list Step 2
+already resolved**. Do not discover files again, and do not widen the list — a contract outside the
+changed set belongs to work this review is not looking at.
+
+That procedure returns one of three outcomes and this step handles each:
+
+- **No contract** — the ordinary case. Do nothing at all: no record write, no log line, nothing
+  added to the return. Most reviews are not of design work.
+- **Malformed** — do not write anything to the record, and log the `SCANNED` entry that procedure
+  specifies. A partial contract must never become a partial `Design-seed:`.
+- **Contract found** — continue below.
+
+**Resolve the record.** The seed belongs on the work record, not in a cache. Read `record:` from the
+materialized header of `<spec>` (`{run-dir}/work/{n}-spec.md`, or its `spec-{N}/` equivalent —
+`skills/flow/materialize.md` owns that format). If `<spec>` is not a materialized record file — a
+path-driven or standalone `/claude-tweaks:review` with no record behind it — there is no record to
+write to: skip the write, carry the contract into the return, and stop here. That is not a failure;
+it is a review of work that no record is tracking.
+
+**Write `Design-seed:` onto the record body.** Only when the parse produced a seed. Re-fetch the
+body immediately before writing rather than reusing one fetched earlier in this run — a record's
+body is shared mutable state that `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, or a concurrent
+session can have changed since. Then insert or update the line inside the body's **leading metadata
+block** (before the first blank line), beside `Surface:`/`Design-intent:`, per
+`skills/specify/spec-template.md`:
+
+- **`work-backend: github-issues`** — read-modify-write the body through
+  `../../_shared/github-write-transport.md` (which routes around an absent `gh`), preserving every
+  other byte of the body.
+- **`work-backend: local-files`** — `readRecord`/`writeRecord` (`bin/lib/issues/local-store.js`).
+
+Three rules on the write itself:
+
+1. **Never write the line empty.** No seed means no line — the contract-without-a-seed case is legal
+   upstream ("when the seed dealt stagings"), and an empty `Design-seed:` would be indistinguishable
+   from a parse that silently failed.
+2. **A differing existing value is overwritten, not duplicated**, and the overwrite is logged with
+   both values. A re-roll legitimately changes the seed, so the newest build's key is the true one —
+   but two records of one field is how a reproduction attempt picks the wrong die.
+3. **An identical existing value is not rewritten at all** — no API call, no log entry. Re-running
+   `/claude-tweaks:review` on an unchanged build must not churn the record.
+
+Log one `AUTO` entry to `{run-dir}/decisions.md` (`../../_shared/auto-decision-log.md`) for a write,
+naming the record, the artifact the contract came from, and the seed. Reversibility is high: the
+line is one edit to a record body.
+
+**Never gate on any of this.** A failed record write, an absent record, an unreadable artifact — each
+degrades to "no seed recorded" and the review continues. This step is provenance capture; it has no
+opinion on the review verdict and can never change `result`, which stays `advisory`.
+
+### Step 3.7: Dispatch upstream's finishing review (only when a contract was found)
+
+Impeccable ships a reviewer for exactly this question — does the render keep the promises the
+direction contract made? Upstream spawns it at the end of its own build; this step spawns it again at
+**code-review** time, over the diff under review, which is a different moment and a different file
+set. It is the one place this repo asks anything to *judge* a direction contract:
+`../../_shared/design-contract.md` is deliberately structural and judges nothing.
+
+**Gate.** Run this step **only** when Step 3.6's parse returned **Contract found**. No-contract and
+Malformed both skip it silently — no dispatch, no finding, no extra log line (Malformed already wrote
+its `SCANNED` entry in Step 3.6). That parse is the detection signal; this step never re-derives it
+and never applies a looser test of its own.
+
+**Availability, at the agent level.** The Preconditions check resolves *skill* commands and does not
+answer this. Resolve the plugin with `resolveImpeccablePlugin({searchRoot})`
+(`../impeccable-plugin.md`), then check that `{root}/agents/impeccable-finish-reviewer.md` exists —
+the same derive-your-own-path-from-`root` pattern `doctor` mode uses for its script. Agents are added
+and removed between versions of one plugin (`impeccable-documenter` exists at 4.0.4 and not at the
+pinned 4.0.2), so plugin presence proves nothing about this agent.
+
+If the resolver returns `null` or the agent file is absent, **skip and continue**: the critique + audit
+path from Step 3 stands on its own and the review proceeds normally. This is never a hard failure. Log
+one `SCANNED` entry naming the missing agent — "a contract existed and nothing could review the render
+against it" is a different state from "no contract," and only the log tells them apart.
+
+**Dispatch.** One `Task()` call, `subagent_type: impeccable-finish-reviewer`. Do **not** pass
+`isolation: "worktree"` — this mode routinely runs inside a worktree already set up for the task, and a
+second one orphans everything written into it. Do not override the model: the agent declares
+`model: inherit` along with its own effort and turn budget, and those are upstream's calls.
+
+This agent is **exempt from the Subagent Contract's agent-side protocol** — its definition ships
+outside this plugin's `agents/` directory, which is the whole of the condition
+(`../../_shared/subagent-output-contract.md`, "Exemption: third-party agents"). Do not ask it for a
+`DONE` status line, do not inline Template A, and do not re-prompt it for format. It has its own output
+contract; this step adapts to that contract instead of overwriting it.
+
+The dispatcher's side still binds. Send only:
+
+1. **The artifact path(s)** — Step 2's resolved file list, absolute, with the file Step 3.6 found the
+   contract in named first. Never the conversation, never this mode's own findings so far.
+2. **The direction contract** — the five blocks from Step 3.6's parse, verbatim. Its input contract
+   asks for them by name and it cannot re-derive them.
+3. **The detector findings already in hand** — Step 3's `audit` output. Upstream tells this agent not
+   to run a second detector pass, so withholding what we already ran is what makes it run one.
+4. **`PRODUCT.md` / `DESIGN.md` paths**, when Layer 0 resolved them (`setup.hasProduct` /
+   `setup.hasDesign`), since its first check is persistence. Omit the line when Layer 0 did not
+   resolve — omitting is honest; guessing a path is not.
+
+Working-directory discipline applies as to any dispatch: the agent runs `Read`/`Bash`/`Glob`/`Grep`, so
+substitute the **resolved absolute** repository path into the prompt before dispatching, never an
+unexpanded placeholder.
+
+**The four outcomes this step must tell apart.** The exemption removes the status line, so the caller
+carries what that line would have routed. None of these may be reported as a clean design review:
+
+| Outcome | How it looks | What this step does |
+|---|---|---|
+| **Unavailable** | Resolver returned `null`, or no agent file | Skip; `SCANNED` log; omit `finish_review` from the return |
+| **Failed** | The dispatch errored, or the agent returned nothing | `finish_review: {ran: true, parsed: false, reason}`; no findings; `SCANNED` log |
+| **Unparseable** | A reply yielding none of the four sections | Same as Failed. Do **not** mine prose for something finding-shaped |
+| **Parsed** | The four sections are present | Adapt per Step 4 |
+
+A parsed reply with an empty `material_fixes` list is a real, clean result and is reported as one —
+that is the only case that may say the render met its contract. Absence of output is not absence of
+findings, and the distinction lives in `parsed`, never in the finding count.
+
 ### Step 4: Normalize findings
 
 Parse each output into a normalized findings list:
 
 ```json
 {
-  "source": "critique" | "audit",
+  "source": "critique" | "audit" | "finish-review",
   "file": "...",
   "category": "...",
   "severity": "info" | "warning" | "error",
@@ -57,6 +185,39 @@ Parse each output into a normalized findings list:
   "suggestion": "..."
 }
 ```
+
+**Adapting the finishing review (Step 3.7).** Its output contract is four named sections rather than a
+findings table — `persistence`, `ceiling`, `material_fixes`, `keep` — so the mapping is stated here
+rather than left to be inferred:
+
+| Section | Becomes | `category` | `severity` |
+|---|---|---|---|
+| `persistence`, when it fails | One finding per missing or mismatched file | `persistence` | `error` |
+| `ceiling`, when it is not `"reached"` | One finding naming the unused native devices | `ceiling` | `info` |
+| `material_fixes` | One finding each, **in the order given** | `contract` | `warning` |
+| `keep` | Not a finding — see below | — | — |
+
+Three rules on this mapping:
+
+- **`severity` is assigned, not parsed.** Upstream emits no severity scale. These three values are this
+  wrapper's, chosen so the enum `/review` already maps (`info` → low, `warning` → medium, `error` →
+  high) keeps working. Do not manufacture a gradient from a fix's rank: `material_fixes` is ordered
+  most material first, and that ordering is preserved as **array order** in `findings`, which is the
+  whole of what upstream promised.
+- **`suggestion` is `null`.** The field exists to name an Impeccable command for `polish` mode to
+  dispatch, and the finishing review names none. `null` rather than omitted, for the reason Step 5
+  gives.
+- **`file`** is whichever file the section names; when a fix names none, attribute it to the artifact
+  Step 3.6 found the contract in.
+
+**`keep` is not a finding, and must not be dropped.** It is one line naming what must *not* be diluted
+while fixing — a constraint on the other findings rather than an issue of its own. Filing it as a
+finding would invite someone to "resolve" it; discarding it strips the fixes of the one thing keeping
+them from flattening the design. It travels in the return as `finish_review.keep`, and the Design
+Quality section renders it above the findings it qualifies.
+
+`result` stays `advisory` whatever comes back. An `error`-severity persistence finding is advisory like
+every other design finding — this mode gates nothing, exactly as Step 3.6 does not.
 
 Also extract each command's Total score from its report text, independently of findings parsing:
 
@@ -85,7 +246,7 @@ If a command's output has no matching Total row (malformed report, drifted forma
 
 ### Step 5: Write audit findings cache for polish mode
 
-Persist the **audit findings only** (not critique) to a JSON file alongside the ledger:
+Persist the **audit findings only** (not critique, not the finishing review) to a JSON file alongside the ledger. The widened `source` union from Step 4 deliberately stops here: `polish` mode dispatches a cached finding by the command its `suggestion` names, and a `finish-review` finding names none, so admitting one would only add an unclassified observation to the cache. Filter by `source === "audit"`, never by "everything that isn't critique."
 
 - **Primary path:** `docs/plans/YYYY-MM-DD-{feature}-audit.json` (matches the ledger filename `docs/plans/YYYY-MM-DD-{feature}-ledger.md`).
 - **Fallback (review invoked outside a flow context):** derive from the spec slug — `docs/plans/audit-{spec-slug}.json`.
@@ -121,9 +282,27 @@ If the cache write fails (disk full, permission denied), surface the failure as 
     "critique": { "current": 32, "max": 40, "previous": 28, "delta": 4 },
     "audit": { "current": 16, "max": 20, "previous": null, "delta": null }
   },
-  "prior_critique": { "slug": "dashboard", "score": 78, "p0": 1, "p1": 4, "timestamp": "...", "file": ".impeccable/critique/..." }
+  "prior_critique": { "slug": "dashboard", "score": 78, "p0": 1, "p1": 4, "timestamp": "...", "file": ".impeccable/critique/..." },
+  "design_contract": { "found": true, "file": "src/routes/+page.svelte", "seed": "a1b2c3d4", "recorded_on": 152 },
+  "finish_review": { "ran": true, "parsed": true, "keep": "The masthead's asymmetry — do not centre it while fixing spacing." }
 }
 ```
+
+`finish_review` is built from Step 3.7 and is **omitted entirely** when that step did not run — no
+contract found, or the agent unavailable — the same omission convention `design_contract` and
+`prior_critique` use. When the step *did* run it is always present, including on the Failed and
+Unparseable outcomes, where `parsed: false` and a `reason` carry why. That is the field a caller reads
+to learn that an absence of contract findings is an absence of *evidence* rather than a clean bill;
+without it, the two are indistinguishable in `findings`. `keep` is present only on a parsed reply that
+carried the section.
+
+`design_contract` is built from Step 3.6 and is **omitted entirely** whenever that step's parse
+returned No-contract or Malformed — the two cases are one absence to a caller, and neither is an
+error. `seed` is omitted when the contract carried none; `recorded_on` is omitted when there was no
+record to write to, or when the value was already present and unchanged. The `blocks` themselves are
+deliberately **not** in the return: `/claude-tweaks:demo` re-reads them from the shipped artifact at
+acceptance time (`../../_shared/design-contract.md`), so passing a copy through here would create a
+second, staler source of the same text.
 
 `prior_critique` is built from Step 3.5 and is omitted entirely when Layer 0 did not resolve or reported `critique.latest: null`. It is passed through verbatim from `gatherSignals()` — see `../impeccable-plugin.md`'s field reference for its shape and for the fields that can be `null`. Its `score` is on Impeccable's own scale, deliberately not the `/40` of `score_trend.critique`.
 
