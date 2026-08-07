@@ -82,16 +82,20 @@ answering the other half.
 
 ### Absence is a finding
 
-A source that returns nothing has answered. Report it — "no precedent exists" — never omit it. This
-binds hardest on `history` and `telemetry`, where "we have never done this before" is frequently the
-single most design-changing thing a run surfaces. A silently-absent result is indistinguishable from
-a lookup that failed, and silence cannot be found by keyword search later.
+A source that returns nothing has answered. Report it — never omit it. Which outcome that answer
+takes depends on what the claim asserted, not on absence itself (see the dispatch prompt's absence
+rule): "no precedent exists" verifies an absence-shaped claim, but the identical empty result
+falsifies a presence-shaped claim like "X already handles Y". This binds hardest on `history` and
+`telemetry`, where "we have never done this before" is frequently the single most design-changing
+thing a run surfaces. A silently-absent result is indistinguishable from a lookup that failed, and
+silence cannot be found by keyword search later.
 
 ## The verdict
 
 Each dispatched source agent returns exactly one verdict:
 
 ```
+claim:      {the specific proposition you checked, stated so it can be true or false}
 outcome:    verified | falsified | unverified
 source:     runtime | codebase | repo-prose | tests | history | telemetry | deps | web
 confidence: high | medium
@@ -99,10 +103,13 @@ provenance: {file:line, command + exit status, URL, or record ref}
 checked-at: {sha}
 ```
 
+- **`claim`** — the proposition the outcome refers to, written so it can be true or false. Without
+  it `verified` is unreadable: a caller cannot tell whether the source confirmed presence or
+  confirmed absence, and those are opposite answers to the same question.
 - **`outcome`** — `falsified` is the valuable one. It is not a failure of the research; it is the
   research working. `unverified` means the source ran and could not settle the claim either way,
-  which is distinct from the source finding nothing (see Absence is a finding — that is a
-  `verified` outcome for the claim "no precedent exists").
+  which is distinct from the source finding nothing — which outcome an empty result takes depends
+  on what the claim asserted (see the dispatch prompt's absence rule).
 - **`source`** — the registry row that produced it. `human` never appears here: it dispatches no
   agent and therefore returns no verdict.
 - **`confidence`** — the tier from that source's registry row, not a per-run judgment. **Confidence
@@ -147,20 +154,25 @@ Report one of these as your FIRST line, alone:
 DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
 
 OUTPUT FORMAT (required):
-Then return ONLY these five lines, no preamble and no narration:
+Then return ONLY these six lines, no preamble and no narration:
 
+claim:      {the specific proposition you checked, stated so it can be true or false}
 outcome:    verified | falsified | unverified
 source:     {the one source you were assigned}
 confidence: high | medium
 provenance: {file:line, or command + exit status, or URL, or record ref}
 checked-at: {output of `git rev-parse HEAD`}
 
-If your source returns nothing, that is an answer, not a failure: report
-outcome: verified with provenance naming what you searched and the literal
-finding "no precedent exists". Never omit an empty result.
+If your source returns nothing, that is an answer, not a failure — but map it
+to the outcome your claim actually takes. If your claim asserted something is
+present ("X handles Y", "this is covered"), finding nothing FALSIFIES it:
+report outcome: falsified. If your claim asserted absence ("no precedent
+exists", "nothing depends on this"), finding nothing VERIFIES it: report
+outcome: verified. Either way state the claim in the claim: line and name
+what you searched in provenance. Never omit an empty result.
 
 If you cannot reach your source at all, report BLOCKED and say what you tried,
-in place of the five-line block.
+in place of the six-line block.
 Do not guess, and do not substitute a different source.
 ```
 

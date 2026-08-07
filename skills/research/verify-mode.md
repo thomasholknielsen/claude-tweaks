@@ -20,8 +20,7 @@ before anything rests on it. Verify mode answers the claims a design would stand
 repository, its history, its dependencies, and the web — and hands brainstorming a grounded
 starting point instead of a guessed one.
 
-It is human-invoked, or reached from `/claude-tweaks:specify`'s prior-art lookup. Nothing invokes
-it automatically.
+It is human-invoked. Nothing invokes it automatically.
 
 ### Not reachable from `/claude-tweaks:flow`
 
@@ -106,6 +105,12 @@ A drop is `AUTO`, never `STAGED` or `KEPT-PROMPT`: the filter acted, and the log
 stays auditable. Dropping silently is forbidden — an unlogged drop is indistinguishable from a
 question nobody thought of.
 
+**When no run directory resolves** — the normal case for a direct human invocation — there is no
+`decisions.md` to append to, and `/claude-tweaks:research` is not on the standalone-auto allowlist
+in `skills/_shared/pipeline-run-dir.md`, so it may not create one. Report the drops inline in the
+run's own output instead, in the same one-line-per-drop shape. The requirement is that a drop is
+never silent; the log file is where that lands when a run exists, not the only place it may land.
+
 ## Question shape: falsifiable vs. unfalsifiable
 
 Every surviving question is classified by shape before it is researched, because the two shapes
@@ -114,7 +119,14 @@ return different things.
 | Shape | Meaning | Routes to | Returns |
 |---|---|---|---|
 | **Falsifiable** | A specific source could show the claim is wrong — "does `X` already handle `Y`?", "is this file loaded at startup?" | The source registry | A **verdict** |
+| **Human-only** | No source settles it because the answer is intent, priority, or an unstated constraint — "which of these matters more to us?" | The registry's human terminator | A **question for the user**, not a verdict |
 | **Unfalsifiable** | No single source settles it — "how do other tools approach this?", "what are the tradeoffs here?" | Survey | A **landscape** |
+
+The third row is not a weaker form of the second. An unfalsifiable question has an answer out in
+the world that a survey can approximate; a human-only question has an answer only in someone's
+head, and surveying for it produces a confident landscape about the wrong thing. When a question
+could be read either way, ask whether any amount of reading would settle it — if not, it is
+human-only.
 
 The registry itself — every source, what each can falsify, its confidence tier, and how it is
 read — lives in `source-registry.md` in this skill's directory, along with the routing rules, the
@@ -152,9 +164,7 @@ does; the resolved tier is logged rather than asked.
 
 The bare-`verify` ambiguity above is not an exception to this, but it does need its own rule.
 `verify` is not reachable from `/claude-tweaks:flow` (see Lifecycle position), so no orchestrator
-invokes it as a pipeline step — but a run directory can still resolve here, because
-`/claude-tweaks:capture` and `/claude-tweaks:specify` both set
-`$PIPELINE_RUN_DIR` when they invoke this skill (see `SKILL.md`'s Component-Skill Contract), and
+invokes it as a pipeline step — but a run directory can still resolve here:
 `_shared/pipeline-run-dir.md`'s most-recent-matching-directory fallback can resolve one with no
 orchestrator at all.
 
@@ -163,10 +173,10 @@ orchestrator at all.
 - **A run directory resolves** — do not prompt, and do not guess a target. A bare `verify` carries
   no brief, no record, and no topic, so the missing input is a *target*, not a mode: picking either
   reading still leaves nothing to research. Log `NEEDS_CONTEXT` to the run's `decisions.md` per
-  `skills/_shared/auto-mode-contract.md` ("if the skill genuinely needs information not in the
-  Config Manifesto, it logs `NEEDS_CONTEXT` … and surfaces it at the Review Console"), report the
-  missing target, and stop this skill — not the pipeline. A hard gate is permitted here where a
-  prompt is not.
+  `skills/_shared/auto-mode-contract.md` — "if the skill genuinely needs information not in the
+  Config Manifesto, it logs `NEEDS_CONTEXT` to the auto-decision log and surfaces it at the Review
+  Console — it does not stop mid-flow" — and return with no verdicts. Returning empty is not a
+  gate: the pipeline continues, and the missing target surfaces at the Review Console.
 
 Every verdict writes one `decisions.md` line, in the same entry schema a filter drop uses.
 
@@ -180,5 +190,6 @@ the inline WebSearch method.
 
 | Output | Destination |
 |---|---|
-| One line per filter drop, and one per verdict | The run's `decisions.md` (see Logging a drop) |
+| One line per filter drop, and one per verdict | The run's `decisions.md` when one resolves, inline in the run output otherwise (see Logging a drop) |
 | The verdicts themselves | Reported inline to the caller. **They are not persisted anywhere, and no record currently owns making them so.** A write-back was scoped as #178, against `/claude-tweaks:challenge`'s Brainstorming Brief; that brief no longer exists and the record was closed as obsolete. Durable verification provenance needs a fresh record shaped against whatever artifact should carry it. |
+| The landscape, for unfalsifiable questions | Reported inline to the caller alongside the verdicts. Not persisted anywhere — same as the verdicts above. |

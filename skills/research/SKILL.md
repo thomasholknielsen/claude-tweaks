@@ -34,7 +34,7 @@ report under `.claude-tweaks/research/`.
 
 - `$ARGUMENTS` takes one of two forms, distinguished by its **first token**:
   - **`verify [brief-path|#N]`** — verification mode. Grounds a design before it is written by
-    answering the questions a brief surfaced. Read `verify-mode.md` in this skill's directory for
+    answering the claims the design would rest on. Read `verify-mode.md` in this skill's directory for
     the full procedure: input resolution, the consequence filter, question-shape routing, and
     auto-mode behavior. Of the flags below, only `--mode=` applies, and it bounds
     survey breadth only — see that file.

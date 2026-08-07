@@ -119,8 +119,11 @@ test('verify-mode.md documents the no-brief path so skipping /challenge does not
 
 test('verify-mode.md resolves the bare-verify ambiguity by presenting a choice', () => {
   const body = readVerifyMode();
-  assert.match(body, /ambiguous|ambiguity/i, 'must name the bare-verify ambiguity');
-  assert.match(body, /AskUserQuestion/, 'must resolve it by presenting a choice, not by assuming');
+  assert.match(
+    body,
+    /ambiguous[\s\S]{0,300}AskUserQuestion/i,
+    'must resolve the bare-verify ambiguity by presenting a choice, not merely mention both',
+  );
 });
 
 test('verify-mode.md states that verify is not reachable from /flow', () => {
@@ -338,9 +341,11 @@ test('source-registry.md dispatch inlines a literal output template', () => {
 test('source-registry.md dispatch uses Form B and the four-value status line', () => {
   const body = readSourceRegistry();
   assert.match(body, /Parallel execution:/, 'must carry the Form B parallel-execution directive');
-  assert.match(body, /DONE_WITH_CONCERNS/, 'must inline the four-value status line');
-  assert.match(body, /NEEDS_CONTEXT/);
-  assert.match(body, /BLOCKED/);
+  assert.match(
+    body,
+    /DONE\s*\|\s*DONE_WITH_CONCERNS\s*\|\s*NEEDS_CONTEXT\s*\|\s*BLOCKED/,
+    'must inline the four-value status line, not merely mention BLOCKED',
+  );
 });
 
 test('source-registry.md dispatch states the agents are read-only with no git access', () => {
