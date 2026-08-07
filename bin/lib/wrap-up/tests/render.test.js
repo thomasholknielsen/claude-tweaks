@@ -67,3 +67,19 @@ test('renderState singularises one commit and pluralises the rest', () => {
   assert.match(one, /1 commit,/);
   assert.match(two, /2 commits,/);
 });
+
+test('renderState reports an attached branch with no upstream as UNPUSHED rather than unknown', () => {
+  const out = renderState({
+    state: { ...UNPUSHED, upstream: null, ahead: null, commitsInScope: 3 },
+    ops: [], since: 'a1b2c3d', sinceDate: '2026-08-07 09:14',
+  });
+  assert.match(out, /Branch\s+main — 3 commits, UNPUSHED \(no upstream\)/);
+});
+
+test('renderState keeps commit count and push status on a detached HEAD, where commits are reachable from no ref', () => {
+  const out = renderState({
+    state: { ...UNPUSHED, branch: null, detachedAt: 'deadbee', upstream: null, commitsInScope: 3 },
+    ops: [], since: 'a1b2c3d', sinceDate: '2026-08-07 09:14',
+  });
+  assert.match(out, /Branch\s+detached at deadbee — 3 commits, UNPUSHED/);
+});

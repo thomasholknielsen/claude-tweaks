@@ -14,14 +14,17 @@ function field(label, value) {
 
 function branchValue(s) {
   if (!s || !s.isRepo) return UNKNOWN;
-  if (!s.branch && s.detachedAt) return `detached at ${s.detachedAt}`;
-  if (!s.branch) return UNKNOWN;
+  // Detached HEAD takes the same commits + push suffix as a branch: it is the
+  // state where commits are reachable from no ref at all, so it is the LAST
+  // place to omit how many there are and whether they left the machine.
+  const head = s.branch ? s.branch : (s.detachedAt ? `detached at ${s.detachedAt}` : null);
+  if (!head) return UNKNOWN;
   const n = s.commitsInScope;
   const commits = n === null || n === undefined ? `${UNKNOWN} commits` : `${n} commit${n === 1 ? '' : 's'}`;
-  if (!s.upstream) return `${s.branch} — ${commits}, UNPUSHED (no upstream)`;
+  if (!s.upstream) return `${head} — ${commits}, UNPUSHED (no upstream)`;
   return s.pushed
-    ? `${s.branch} — ${commits}, pushed to ${s.upstream}`
-    : `${s.branch} — ${commits}, UNPUSHED (${s.upstream})`;
+    ? `${head} — ${commits}, pushed to ${s.upstream}`
+    : `${head} — ${commits}, UNPUSHED (${s.upstream})`;
 }
 
 function renderState({ state, ops, since, sinceDate } = {}) {
