@@ -104,6 +104,11 @@ comment containing `## Verification Brief` (`gh issue view {n} --json comments -
 '.comments[-1].body'` if only one build/demo cycle occurred; otherwise search all comments for
 the last one containing that heading). Go straight to Step 2 with it.
 
+This `#N` may itself be a decomposition parent gated by `/wrap-up`'s family-gate procedure
+(`wrap-up/verification-brief.md`) rather than a single build, in which case its Verification
+Brief covers the whole family's primary path rather than one diff, but resolves and renders
+through this same branch exactly like any other label-backed entry.
+
 If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
 and closed by a `Fixes #N` commit, never reaching `/wrap-up`'s Step 10), recover that **closing
 commit** before reaching for session recall. This is the population `/claude-tweaks:tidy`'s
@@ -345,9 +350,9 @@ record left mid-decision and unmentioned.
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
 the first swap this run.
 
-- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant.
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a record carrying `family:parent`, follow it with `gh issue close {n} --reason completed`: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the family was ever accepted.
 - **Request changes** — prompt for a short reason inline, then:
-  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`.
+  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`. For a record carrying `family:parent`, nothing further follows this — the parent stays open, since a changes-requested verdict means the family's work is not done.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
      spec-shaped), Type `bug` by default (override to `feature`/`task` when the reason clearly
      describes new scope, not a defect), no `by:*` label — instead a body line
