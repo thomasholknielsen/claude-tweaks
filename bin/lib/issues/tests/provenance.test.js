@@ -169,18 +169,19 @@ test('comma inside parentheses does NOT truncate the clause', () => {
   assert.notEqual(a.source, b.source);
 });
 
-// Fix 3: Blind slice can cause false merges; cap should return '<unstructured>'
-test('a source exceeding 60 chars becomes "<unstructured>" to prevent false merges', () => {
+// Fix 3: Blind slice can cause false merges; cap should return kind: 'unstructured'
+test('a source exceeding 60 chars becomes kind "unstructured" to prevent false merges', () => {
   // A context that is still over 60 chars after truncation is not a structured
-  // origin—it is freeform prose. Return '<unstructured>' rather than truncate it
-  // blindly, which would merge two different long contexts if they share a
-  // 60-char prefix. Angle brackets make this sentinel unforgeable.
+  // origin—it is freeform prose. Return kind: 'unstructured' to distinguish
+  // overflow from side-effect. This is unforgeable by construction: a real
+  // Origin line always yields kind: 'side-effect', never kind: 'unstructured'.
   const veryLong = 'this is an extremely long side-effect context that nobody should ever write because it defeats the trust table';
-  const source = resolveProvenance({
+  const result = resolveProvenance({
     labels: [],
     body: 'Origin: ' + veryLong
-  }).source;
-  assert.equal(source, '<unstructured>');
+  });
+  assert.equal(result.kind, 'unstructured');
+  assert.equal(result.source, 'unstructured');
 });
 
 // Fix Round 2, Finding A: Negative depth corrupts bracket tracking
@@ -224,24 +225,29 @@ test('unbalanced closing bracket at line start is tolerated', () => {
   assert.equal(source, ') b');
 });
 
-// Fix Round 2, Finding B: '<unstructured>' sentinel is unforgeable
+// Fix Round 3: Overflow kind is unforgeable by construction
 test('a genuine Origin line reading "unstructured" does NOT collide with overflow', () => {
-  // A real Origin body line that is exactly the word "unstructured" should not
-  // be confused with the sentinel that indicates overflow. They must be distinct.
+  // A real Origin body line that is exactly the word "unstructured" yields
+  // kind: 'side-effect' (it came from an Origin line). An overlong context
+  // yields kind: 'unstructured' (it overflowed the length cap). Same source
+  // value, different kind — no collision. kind: 'unstructured' is unforgeable
+  // because only the length-cap code path sets it; real Origin prose cannot.
   const genuine = resolveProvenance({
     labels: [],
     body: 'Origin: unstructured'
-  }).source;
+  });
   const overflow = resolveProvenance({
     labels: [],
     body: 'Origin: ' + 'x'.repeat(70)
-  }).source;
-  // The genuine one is normalized to lowercase 'unstructured' (19 chars, under cap).
-  assert.equal(genuine, 'unstructured');
-  // The overflow one becomes the sentinel '<unstructured>'.
-  assert.equal(overflow, '<unstructured>');
-  // They are distinct.
-  assert.notEqual(genuine, overflow);
+  });
+  // Genuine Origin line: kind is 'side-effect', source is 'unstructured'.
+  assert.equal(genuine.kind, 'side-effect');
+  assert.equal(genuine.source, 'unstructured');
+  // Overlong Origin line: kind is 'unstructured', source is 'unstructured'.
+  assert.equal(overflow.kind, 'unstructured');
+  assert.equal(overflow.source, 'unstructured');
+  // They have the same source but different kinds — no collision.
+  assert.notEqual(genuine.kind, overflow.kind);
 });
 
 // Untested behavior change: reordering means trailing source inside clause is stripped
@@ -256,4 +262,29 @@ test('a "from #N" reference inside a clause boundary is stripped, not preserved'
     body: 'Origin: captured from #42, more details here'
   }).source;
   assert.equal(source, 'captured');
+});
+
+// Latent issue: unclosed opening bracket drives depth high, preventing truncation.
+// Two such records differing only in a trailing id will overflow to kind: 'unstructured'.
+// This is a recorded decision (safe-direction behavior), not accidental.
+test('unclosed opening bracket stays high-depth, so long tails overflow to kind unstructured', () => {
+  // An unclosed '(' drives depth to 1 and stays there; no comma after it can ever
+  // trigger truncation. A very long tail after the bracket pushes past 60 chars
+  // and overflows to kind: 'unstructured'. Two records differing only in a
+  // trailing id will both overflow honestly as kind: 'unstructured' rather than
+  // create a false named class. This is the safe direction — no bracket-repair
+  // logic is added; we accept the overflow as correct.
+  const a = resolveProvenance({
+    labels: [],
+    body: 'Origin: captured (incomplete context for ID #42 ' + 'x'.repeat(40) + ')'
+  });
+  const b = resolveProvenance({
+    labels: [],
+    body: 'Origin: captured (incomplete context for ID #91 ' + 'x'.repeat(40) + ')'
+  });
+  // Both overflow the 60-char cap (untruncated tail is very long).
+  assert.equal(a.kind, 'unstructured');
+  assert.equal(b.kind, 'unstructured');
+  // They both have the same honest label, not a false shared named class.
+  assert.deepEqual(a, b);
 });

@@ -1,10 +1,18 @@
 'use strict';
 
-// The Origin axis has three states (see skills/_shared/work-record.md):
+// The Origin axis has four states (see skills/_shared/work-record.md):
 //   producer    — one of record.js's ORIGINS, carried as a by:* label
 //   side-effect — a record created by another skill's flow, carried as an
 //                 `Origin: {context}` body line with deliberately no label
+//   unstructured — an Origin line whose normalized text exceeds MAX_SOURCE_LENGTH;
+//                 indicates overflow that cannot be reliably classified
 //   human       — neither signal; absence IS the signal
+//
+// IMPORTANT: Consumers must key on both `kind` AND `source` together to build
+// trust tables (e.g., `kind:source`). The `kind` field disambiguates the
+// provenance axis; the `source` field identifies the trust class within that kind.
+// A real Origin line can never produce `kind: 'unstructured'` by text alone.
+//
 // This module reads that axis. It never writes one, and never extends ORIGINS.
 const { ORIGINS } = require('./record.js');
 
@@ -19,11 +27,6 @@ const ORIGIN_LINE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
 const TRAILING_SOURCE = /\s+from\s+(#\d+|session recall)$/i;
 
 const MAX_SOURCE_LENGTH = 60;
-// Sentinel for unstructured overflow. Angle brackets cannot appear in normalized
-// prose (lowercased), so this is unforgeable — a real Origin line reading
-// exactly "<unstructured>" would be extremely unusual, and normalizing any such
-// genuine context to this sentinel is the correct behavior.
-const UNSTRUCTURED_SENTINEL = '<unstructured>';
 
 // Truncate at the first clause boundary (comma or period at bracket depth zero,
 // followed by whitespace or end-of-string) to normalize legacy records that
@@ -66,12 +69,12 @@ function resolveProvenance({ labels, body } = {}) {
     let source = truncateAtClauseBoundary(line[1]).trim();
     // Then strip the trailing source reference.
     source = source.replace(TRAILING_SOURCE, '').trim();
-    // Lowercase and check length. If still exceeds MAX_SOURCE_LENGTH, it is not
-    // a structured context — resolve to UNSTRUCTURED_SENTINEL to avoid false
-    // merges of unrelated long contexts sharing a prefix.
+    // Lowercase and check length. If still exceeds MAX_SOURCE_LENGTH, return
+    // kind: 'unstructured' to distinguish overflow from structured contexts.
+    // A real Origin line always yields kind: 'side-effect', so they cannot collide.
     source = source.toLowerCase();
     if (source.length > MAX_SOURCE_LENGTH) {
-      source = UNSTRUCTURED_SENTINEL;
+      return { kind: 'unstructured', source: 'unstructured' };
     }
     if (source) return { kind: 'side-effect', source };
   }
