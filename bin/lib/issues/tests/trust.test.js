@@ -16,6 +16,12 @@ test('an unscored record is elevated, never low', () => {
   assert.equal(riskBand(undefined), 'elevated');
 });
 
+test('conflicting risk labels resolve to elevated, not low', () => {
+  // Conflicting evidence gets the same conservative default as absent evidence.
+  assert.equal(riskBand(['risk:low', 'risk:high']), 'elevated');
+  assert.equal(riskBand(['risk:high', 'risk:low']), 'elevated');
+});
+
 test('rows key on provenance and band together', () => {
   const rows = trustRows([
     { number: 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
@@ -59,6 +65,29 @@ test('a follow-up record counts against the record it names', () => {
   ]);
   const capture = rows.find((r) => r.key === 'producer:capture|low');
   assert.equal(capture.followUps, 1);
+});
+
+test('a follow-up record still counts despite trailing punctuation after #N', () => {
+  for (const suffix of ['.', ',', ')']) {
+    const rows = trustRows([
+      { number: 7, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
+      { number: 8, labels: [], body: `Origin: demo changes-requested from #7${suffix}`, state: 'OPEN' },
+    ]);
+    const capture = rows.find((r) => r.key === 'producer:capture|low');
+    assert.equal(capture.followUps, 1, `suffix ${JSON.stringify(suffix)} should still count`);
+  }
+});
+
+test('a follow-up reference to #71 counts against #71, not #7', () => {
+  const rows = trustRows([
+    { number: 7, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
+    { number: 71, labels: ['by:docs-health', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
+    { number: 8, labels: [], body: 'Origin: demo changes-requested from #71', state: 'OPEN' },
+  ]);
+  const capture = rows.find((r) => r.key === 'producer:capture|low');
+  const docsHealth = rows.find((r) => r.key === 'producer:docs-health|low');
+  assert.equal(capture.followUps, 0);
+  assert.equal(docsHealth.followUps, 1);
 });
 
 test('NOT_PLANNED is tallied as its own negative-ish signal', () => {

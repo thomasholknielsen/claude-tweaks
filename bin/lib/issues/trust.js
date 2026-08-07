@@ -17,26 +17,47 @@ const MIN_SAMPLES = 8;
 const RISK_LABEL_RE = /^risk:(.+)$/;
 
 // Absence of a risk score is not evidence of safety — an unscored record
-// bands as 'elevated', never 'low'.
+// bands as 'elevated', never 'low'. Conflicting evidence gets the same
+// conservative default: any non-'low' risk label disqualifies 'low', even if
+// a 'risk:low' label is also present. The taxonomy caps one risk label per
+// record (record.js), so this defends an invariant rather than expecting a
+// real violation — but the failure direction still matters, and 'elevated'
+// is the safe one.
 function riskBand(labels) {
   const names = Array.isArray(labels) ? labels : [];
+  let sawLow = false;
   for (const name of names) {
     const match = RISK_LABEL_RE.exec(name);
-    if (match && match[1] === 'low') return 'low';
+    if (!match) continue;
+    if (match[1] !== 'low') return 'elevated';
+    sawLow = true;
   }
-  return 'elevated';
+  return sawLow ? 'low' : 'elevated';
 }
 
 // A follow-up record's Origin line names the record it corrects, e.g.
 // "Origin: demo changes-requested from #7". Parsed BEFORE resolveProvenance
 // normalizes the body — the normalizer strips exactly this trailing clause.
-// [ \t]* (not \s*) anchors the end-of-line boundary, matching provenance.js's
-// own ORIGIN_LINE convention — \s* would also match '\n' under the 'm' flag
-// and could let the match creep past the intended line.
-const ORIGIN_FOLLOWUP_RE = /^Origin:.*\bfrom[ \t]+#(\d+)[ \t]*$/m;
+//
+// Capture-then-normalize, same strategy as provenance.js's own ORIGIN_LINE +
+// TRAILING_SOURCE pair: match the whole line first, then extract '#N' from
+// the captured text, rather than hard-anchoring '#(\d+)' straight to the
+// line's end. A single hard-anchored pattern breaks on any trailing
+// punctuation after the digits (e.g. "from #7." never matches "from #7$"),
+// which silently drops a real Origin-line variant and undercounts followUps
+// — a negative signal, so undercounting it can falsely flip a cell's verdict
+// from 'mixed' to 'clean'. Trailing punctuation is stripped before the '#N'
+// match is attempted; the digits themselves are never touched, so '#71'
+// still can never resolve to target 7.
+const ORIGIN_LINE_RE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
+const TRAILING_PUNCTUATION_RE = /[.,;:)\]]+$/;
+const FOLLOWUP_TAIL_RE = /\bfrom[ \t]+#(\d+)$/i;
 
 function followUpTarget(body) {
-  const match = ORIGIN_FOLLOWUP_RE.exec(typeof body === 'string' ? body : '');
+  const line = ORIGIN_LINE_RE.exec(typeof body === 'string' ? body : '');
+  if (!line) return null;
+  const trimmed = line[1].replace(TRAILING_PUNCTUATION_RE, '');
+  const match = FOLLOWUP_TAIL_RE.exec(trimmed);
   return match ? Number(match[1]) : null;
 }
 
