@@ -52,10 +52,43 @@ Apply `by:capture` and the Type expression and nothing else — that is the whol
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
 `producer:capture` class carries a `clean` trust verdict, a fresh capture files with `ready`
-already applied — see `_shared/autonomy-ceiling.md`. Resolve it via
-`bin/lib/issues/autonomy.js`'s `permittedGrants`; never infer it from the policy value alone,
-since the verdict is half the condition. At `supervised`, the default and the state of any repo
-that has not opted in, this never fires and the paragraph above holds unchanged.
+already applied — see `_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of
+any repo that has not opted in, this never fires and the paragraph above holds unchanged.
+
+Resolve it as a **single decision, before filing**, and only under `work-backend: github-issues`
+(the trust table reads `demo:*` labels, which do not exist on the `local-files` driver). Read
+`autonomy` from `.claude-tweaks/policy.yml` and substitute its literal value for
+`{resolved-ceiling}` — `supervised` when the key is absent. When it resolves to `supervised`, skip
+this block entirely rather than fetching anything.
+
+```bash
+gh issue list --state all --json number,labels,body,state,stateReason --limit 1000 > /tmp/capture-trust-records.json
+```
+
+```bash
+node -e "
+  const root = process.env.CLAUDE_PLUGIN_ROOT;
+  const { trustRows } = require(root + '/bin/lib/issues/trust.js');
+  const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
+  const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  // This skill's own class. A fresh capture carries by:capture and no risk
+  // score, and riskBand() bands an unscored record 'elevated' — so that is the
+  // cell the record about to be filed will land in, and the only one that may
+  // authorize it. Never read producer:capture|low here: it is a different class
+  // with different evidence.
+  const row = trustRows(issues).find((r) => r.key === 'producer:capture|elevated');
+  const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
+  const { bornReady, reason } = permittedGrants({ ceiling, row });
+  console.log(JSON.stringify({ bornReady, reason, verdict: row ? row.verdict : 'no-cell' }));
+"
+```
+
+Add `ready` to the label set below **only** when `bornReady` is `true`, and log one
+`decisions.md` line in `_shared/autonomy-ceiling.md`'s Logging shape when you do. Never infer the
+answer from the policy value alone — the class verdict is half the condition, and on a repo with
+no acceptance evidence `bornReady` is `false` at every ceiling. If the `gh` call or the node block
+fails for any reason, file without `ready`: this path fails toward the default, never toward the
+grant.
 
 **When `work-backend: github-issues`:**
 

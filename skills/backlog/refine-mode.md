@@ -210,10 +210,10 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 ## Step 3.6: Ceiling-authorized born-ready (`autonomy: trusted`+)
 
 The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
-on what is recommended for them once here. At `trusted` or higher, an agent-filed record whose
-provenance class carries a `clean` verdict files with `ready` already applied (see
-`_shared/autonomy-ceiling.md`), so it appears in Step 1's fetch without having passed
-`/claude-tweaks:specify`.
+on what is recommended for them once here. At `trusted` or higher, a record `/claude-tweaks:capture`
+filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied (see
+`_shared/autonomy-ceiling.md`, which names `/claude-tweaks:capture` as the only actor this covers
+today), so it appears in Step 1's fetch without having passed `/claude-tweaks:specify`.
 
 Those records are not exempt from anything here. Step 3.5's body-shape re-verification is exactly
 the check that catches a born-`ready` record whose body is not actually spec-shaped, and it runs on
@@ -245,17 +245,22 @@ The `Trust` column renders `{provenance} / {band} — {verdict}` from
 label and its resolved provenance must be readable as the same fact side by side with the Origin
 column.
 
-Two absences render differently and must not be conflated: `no cell yet` when the class exists but
-has closed no records, and `not fetched` when the record is missing from
-`/tmp/backlog-refine-trust.json` entirely. The second is reachable — Step 1's worklist is
-`--state open` while the trust fetch is `--state all` against the same `backlog-fetch-limit`, so a
-long history can push an old open record out of the trust fetch while it stays in the worklist. A
-blank cell there would read as "no evidence" when the truth is "not looked at."
+Two absences render differently and must not be conflated: `no cell yet` when the record's class
+has closed no records (the script emits `no-cell` for this — the one place a value is deliberately
+reworded for the reader, because `no-cell` beside real verdicts reads like a fourth verdict), and
+`not fetched` when the record is missing from `/tmp/backlog-refine-trust.json` entirely. The
+second is reachable — Step 1's worklist is `--state open` while the trust fetch is `--state all`
+against the same `backlog-fetch-limit`, so a long history can push an old open record out of the
+trust fetch while it stays in the worklist. A blank cell there would read as "no evidence" when
+the truth is "not looked at."
 
-Append the resolved ceiling once, below the table rather than per row, as: "Autonomy ceiling:
-`{ceiling}`. {reason for the first grant row, verbatim from `permittedGrants`}." At `supervised`
-that reads "trust is recorded and displayed, never acted on", which is the honest description of
-what every verdict above is doing.
+Append the resolved ceiling once, below the table rather than per row: "Autonomy ceiling:
+`{ceiling}` — {what that ceiling does}." Take the phrasing from `_shared/autonomy-ceiling.md`'s
+tier table, **not** from a `reason` string in the JSON. Those are per-record — a denial can name
+one record's kind or verdict — and printing one under the whole table states a single record's
+disposition as if it were the ceiling's. At `supervised`, the only value this footer will report
+on a repo that has not opted in, it reads "trust is recorded and displayed, never acted on", which
+is the honest description of what every verdict above is doing.
 
 Populate the column for `grant`-type rows only; `priority` and `related` rows render `—`. Omit it
 entirely under `work-backend: local-files`, where the grant sub-stage does not run.
