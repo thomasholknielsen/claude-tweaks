@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:visualize
+name: visualize
 description: Use when you want a themed, project-local visual diagram — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, pyramid, or a live diagram of this project's own open work-record queue — generated as self-contained HTML+SVG and styled from the project's own DESIGN.md tokens. Works standalone or as a soft-hook suggestion from /journeys, /specify, and /review.
 argument-hint: "<architecture|flowchart|sequence|state|er|timeline|swimlane|quadrant|nested|tree|org-chart|layers|venn|pyramid|record-graph> [topic] [--source <caller>] [--ephemeral]"
 ---

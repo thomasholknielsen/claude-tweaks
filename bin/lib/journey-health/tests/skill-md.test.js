@@ -18,7 +18,7 @@ test('exists', () => {
 });
 
 test('frontmatter declares the canonical name', () => {
-  assert.match(read(), /name:\s*claude-tweaks:journey-health/);
+  assert.match(read(), /^name: journey-health$/m);
 });
 
 registerInteractionStyleTest(test, assert, read);

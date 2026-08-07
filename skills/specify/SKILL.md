@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:specify
+name: specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
 argument-hint: "<#N|record-id|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra>] [--granularity <fine|standard|coarse>]"
 ---

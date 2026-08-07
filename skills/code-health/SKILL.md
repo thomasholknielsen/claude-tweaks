@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:code-health
+name: code-health
 description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - code-health, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
 argument-hint: "[--area <path>] [--budget <n>] [--min-risk low|medium|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion

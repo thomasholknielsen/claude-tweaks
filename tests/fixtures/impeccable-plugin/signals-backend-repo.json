@@ -1,0 +1,41 @@
+{
+  "setup": {
+    "hasProduct": true,
+    "productPath": "PRODUCT.md",
+    "hasDesign": true,
+    "designPath": "DESIGN.md",
+    "hasCode": true,
+    "platform": null
+  },
+  "critique": {
+    "latest": null
+  },
+  "git": {
+    "isRepo": true,
+    "branch": "feature",
+    "base": "main",
+    "changedFiles": [
+      "bin/hooks.js",
+      "bin/lib/policy.js",
+      "docs/notes.md",
+      "tests/hooks-dispatcher.test.js",
+      "tests/impeccable-cli-contract.test.js"
+    ],
+    "changedCount": 5
+  },
+  "devServer": {
+    "running": true,
+    "ports": [
+      8080
+    ]
+  },
+  "scan": {
+    "targets": [
+      "bin/hooks.js",
+      "bin/lib/policy.js",
+      "tests/hooks-dispatcher.test.js",
+      "tests/impeccable-cli-contract.test.js"
+    ],
+    "via": "git-changes"
+  }
+}

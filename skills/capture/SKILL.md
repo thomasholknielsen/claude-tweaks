@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:capture
+name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
 argument-hint: '<idea text> [--route=challenge|brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task]'
 ---

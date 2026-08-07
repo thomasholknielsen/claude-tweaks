@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:challenge
+name: challenge
 description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes a backlog record or topic and produces a debiased problem framing.
 argument-hint: "[quick|--lens=<n[,n...]>] <#n|topic|problem statement>"
 ---

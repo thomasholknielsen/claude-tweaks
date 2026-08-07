@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:visual-review
+name: visual-review
 description: Use when you want to visually review a running application in the browser — inspect UI quality, walk user journeys, discover undocumented journeys, or generate creative improvement ideas. Works standalone or as a step within /claude-tweaks:review.
 argument-hint: "[<url>|journey:<name>|discover [--budget <n>]|--mode=recommendation] [--source <parent-skill>]"
 ---

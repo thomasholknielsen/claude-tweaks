@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:assess-agent-autonomy
+name: assess-agent-autonomy
 description: Use when backlog refine or dispatch need a content-aware trust verdict instead of a mechanical label lookup, or when specify's record-creation step needs a content-aware ceremony-depth verdict — grant-check informs backlog refine's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow's materialize step falls back to it only for records that never went through specify). Inline helper, never invoked directly by a human. Keywords - autonomy, trust, judgment, grant recommendation, auto-merge, blast radius, failure classification, ceremony profile, fast-lane.
 argument-hint: "<grant-check|merge-check|failure-check|ceremony-check> [#<n>] [--base <ref>]"
 ---

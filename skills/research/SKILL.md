@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:research
+name: research
 description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, adversarial multi-verifier refutation pass). Delegates to Claude Code's built-in /deep-research when available; falls back to an inline method otherwise. Keywords - research, deep research, web research, sources, citations, literature review.
 argument-hint: "<topic> [--mode=quick|standard|deep|ultradeep] [--engine=auto|inline] [--output=<path>]"
 ---
