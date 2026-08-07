@@ -1,292 +1,147 @@
 ---
 name: challenge
-description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes a backlog record or topic and produces a debiased problem framing.
-argument-hint: "[quick|--lens=<n[,n...]>] <#n|topic|problem statement>"
+description: Use when /claude-tweaks:specify needs a content-aware verdict on whether a record bakes in its own solution, or when you want to stress-test a problem framing yourself through a named debiasing lens. Keywords - framing, debias, assumptions, solution-baked, reframe, lens.
+argument-hint: "framing-check | --lens=<n[,n...]> <#n|topic|problem statement>"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
+# Challenge — Framing Verdicts and Debiasing Lenses
 
-# Challenge — Cognitive Debiasing Partner
+Two-mode skill. `framing-check` is an inline component mode that judges whether a work record bakes in its own solution. `--lens` is a human-invoked escape hatch that applies a named debiasing lens to a problem you want stress-tested.
 
-Pre-brainstorming debiasing to ensure you're solving the right problem before investing time exploring solutions. Part of the workflow lifecycle:
-
-Lifecycle: `/claude-tweaks:capture` → **`/claude-tweaks:challenge`** → `/superpowers:brainstorming`
-
-## Overview
-
-**You are not a helpful assistant right now. You are a skeptical thinking partner whose job is to question the user's framing, not optimize within it.**
-
-The user is about to invest significant time brainstorming and specifying a feature or change. Before that happens, surface the blind spots in how the problem is framed — not by telling them they're wrong, but by opening up the problem space they've unconsciously narrowed.
-
-> **HARD-GATE:** Do NOT accept the user's problem statement at face value. Do NOT jump to solutions. Do NOT brainstorm within their existing frame. Your entire purpose is to challenge the frame itself before any brainstorming begins.
+Lifecycle: `/claude-tweaks:capture` → `/claude-tweaks:specify` [ **framing-check** ] → `/claude-tweaks:build`
 
 ## When to Use
 
-- A backlog record bakes in a specific solution (e.g., "Add Redis caching" instead of "Improve response times")
-- User is about to brainstorm something they feel strongly about — strong conviction often masks unexamined assumptions
-- User has been going back and forth on something without resolution
-- User's framing contains strong assumptions in the phrasing
-- User asks for a "sanity check" or "fresh perspective"
-- `/claude-tweaks:help` flags a backlog record with baked-in assumptions
+- **`framing-check`** — `/claude-tweaks:specify` is shaping a record and needs a framing verdict alongside its `ceremony-check` call. Never invoked directly by a human.
+- **`--lens=<n[,n...]>`** — you want a specific debiasing perspective on a problem, before or during brainstorming. Invoked directly by a human, never by a pipeline.
 
-### When to Skip
-
-Not every backlog record needs debiasing. Skip when:
-
-- The problem is clear and well-scoped (e.g., "Add dark mode toggle to settings page")
-- The item is a straightforward technical task with no ambiguity
-- The user has already explored the problem space thoroughly
+Not for: producing a standalone document, dispatching subagents, or gating anything. This skill renders a verdict or a perspective; callers act on it.
 
 ## Input
 
-`$ARGUMENTS` = a backlog record reference (e.g., `#42`), a topic about to be brainstormed, or a problem statement — optionally preceded by `quick` or `--lens=<n[,n...]>`.
+`$ARGUMENTS` is either the literal `framing-check`, or `--lens=<n[,n...]>` followed by a work record reference (`#42`), a topic, or a problem statement.
 
-### Mode detection:
+The two forms are mutually exclusive. `framing-check` takes no further arguments — its input is the record body the caller already holds in memory.
 
-| Trigger | Mode | Lenses run |
-|---|---|---|
-| `quick` keyword in `$ARGUMENTS` (e.g., `/challenge quick meal planning`) | Quick | Lens 1 (Surface Hidden Assumptions) + Lens 7 (The Meta-Question) — two lens proposers instead of seven |
-| `--lens=<n[,n...]>` flag (e.g., `/challenge --lens=3,5 meal planning`) | Targeted | Exactly the lens(es) named, by number (1-7) — bypasses the quick/full binary. Use to re-examine specific lenses after an earlier pass, or to dispatch a single lens directly (see Next Actions Option 2, "Re-examine"). |
-| No `quick` keyword or `--lens` flag | Full | All applicable lenses (default) |
+For `--lens`, resolve the target the same way `/claude-tweaks:capture` does (see its Backend Selection): a `#{n}` reference fetches via `gh issue view {n} --json title,body` under `work-backend: github-issues`, or via `local-store.js`'s `readRecord` under `work-backend: local-files`. A topic or problem statement is used as given.
 
-`quick` and `--lens` are mutually exclusive. If both are present in `$ARGUMENTS`, `--lens` takes precedence and note this to the user before dispatching.
+## Mode: framing-check
 
-### Resolve the input:
+**Called from:** `/claude-tweaks:specify`'s two record-creation paths — `shaping-mode.md`'s single-record path and `record-creation.md`'s per-leaf loop — immediately alongside the existing `ceremony-check` invocation. Every record, every run, no pre-filtering.
 
-Driver selection (GitHub vs. local-files) follows the same `work-backend` CLAUDE.md flag as `/claude-tweaks:capture`'s Backend Selection.
+Invoked inline via the `Skill` tool, not as a Task-agent dispatch. The caller already holds the body; a subagent would only pay to re-derive it.
 
-1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or the record file via `local-store.js`'s `readRecord` (local-files driver; a bare `{n}` resolves to the `specs/{n}-*.md` glob match before `readRecord(path)` is called) and use the record's title + body as the problem statement
-2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement
-3. **No arguments** — ask the user what they want to challenge
+### Step 1: Gather
 
-## Auto-mode
+No fetch. Read what the caller already has in memory:
 
-`/claude-tweaks:challenge`'s **Listen** (Step 1) and **Reflect-back** (Step 2) steps are NOT silenced in `auto` mode (see `_shared/auto-mode-contract.md`) — they're the user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers and the aggregator run autonomously per Mode 4 (Layered MoA) of the multi-agent coordination primitive — there is no per-lens user prompt cycle.
+- The composed record body — `## Current State`, `## Deliverables`, `## Acceptance Criteria`.
+- In shaping mode, the preserved `## Original request` block. This is the un-reframed source text and is the stronger framing signal, because shaping may already have laundered solution-baked phrasing into neutral spec prose. Judge both; weight the original request higher where they disagree.
 
-## Work Record Output Handling
+### Step 2: Judge
 
-When the input is a **work record reference** (e.g., `#42`), `/challenge` does not post back to the record or edit its body — no step in the Process (Steps 1-5) writes to the record itself, on either driver. The debiasing findings live only in the saved Brainstorming Brief in `docs/plans/`, which feeds into downstream `/superpowers:brainstorming` and `/claude-tweaks:specify` as usual — `/claude-tweaks:specify` is what carries the surfaced assumptions and constraints back into the record when it writes the spec's Gotchas section (see "Save the Brief" below).
+Render `solution-baked` when the record's content shows any of:
+
+- The Deliverables name a specific technology, library, vendor, or mechanism as the thing to build, while the Current State cites no measurement, profile, benchmark, or observed symptom that selects it over alternatives.
+- The stated problem is a restatement of its own solution — "we need X" where X is the deliverable.
+- The Acceptance Criteria can be satisfied by exactly one implementation, and the record never says why the alternatives lost.
+
+Naming a solution is not itself the defect. A record that names a technology **and** justifies it from observed evidence is `open`. What makes a framing baked is a solution that was never traded off.
+
+**Ambiguity resolves to `open`.** This is deliberately the opposite direction from `/claude-tweaks:assess-agent-autonomy`'s four modes, which resolve toward more caution. Here, more caution would mean manufacturing doubt about a framing that holds — see this skill's Anti-Patterns table. A missed flag costs nothing; a false flag trains the reader to ignore the column. Do not "align" this with its sibling modes.
+
+### Step 3: Render
+
+Output ONLY these two lines, no preamble:
+
+```
+FRAMING: open | solution-baked
+RATIONALE: {one paragraph naming the specific content signal the verdict is based on}
+```
+
+On `solution-baked`, the RATIONALE must name the assumptions the caller is to write into `## Gotchas` — state each as a claim plus its validation status, e.g. "assumes read volume is the bottleneck (unvalidated — no profile cited)".
+
+## Mode: --lens
+
+Applies the named lens(es) from The Debiasing Lenses below to the resolved target, **in the main thread with no subagent dispatch**, and returns the perspective in conversation. Writes no file.
+
+Multiple lenses (`--lens=3,5`) run in sequence and are returned as separate labelled sections — there is no synthesis or aggregation step.
 
 ## The Debiasing Lenses
 
-The seven lenses below define the debiasing perspectives. Under the MoA process (see Process section below), each applicable lens becomes a **parallel proposer** that reads the problem statement once and surfaces what its lens uniquely reveals. The proposer prompts inline the lens question verbatim from each section. Lenses are not run sequentially in dialog with the user; they run in parallel, and a single aggregator round synthesises their outputs into the Brainstorming Brief.
+Seven lenses, addressed by number in `--lens`. `framing-check` does not use these directly; its Step 2 signals are derived from lenses 1 and 7.
 
 ### Lens 1: Surface Hidden Assumptions
 
 **Bias targeted:** Premise control, anchoring
 
-Ask: *"What must be true for your current framing to make sense?"*
+Ask: *"What must be true for your current framing to make sense?"* Identify 2-3 assumptions embedded in the question, present them back explicitly, and ask which have been verified versus taken for granted.
 
-- Identify 2-3 assumptions embedded in the user's question
-- Present them back explicitly — the user often doesn't realize they're assumptions
-- Ask which ones they've actually verified vs. taken for granted
-
-**Example:** User asks "Should we use Redis or Memcached for caching?" — the hidden assumption is that they need a caching layer at all.
+**Example:** "Should we use Redis or Memcached?" embeds the assumption that a caching layer is needed at all.
 
 ### Lens 2: Invert the Question
 
 **Bias targeted:** Confirmation bias (Popper's falsification)
 
-Ask: *"How would someone who disagrees with you frame this problem?"*
-
-- Restate the problem from the opposite perspective
-- What would a critic say the *real* problem is?
-- What evidence would disprove the user's current hypothesis?
+Ask: *"How would someone who disagrees frame this?"* Restate the problem from the opposite perspective. What would a critic say the real problem is? What evidence would disprove the current hypothesis?
 
 ### Lens 3: Zoom Out One Level
 
 **Bias targeted:** Symptom-fixing, functional fixedness (Senge's systems thinking)
 
-Ask: *"Is this the problem, or a symptom of a bigger problem?"*
-
-- Place the problem in its larger system context
-- Is the user solving at the right level of abstraction?
-- What pattern does this problem fit into?
+Ask: *"Is this the problem, or a symptom of a bigger one?"* Place it in its larger system context. Is this the right level of abstraction? What pattern does it fit?
 
 ### Lens 4: Outsider Lens
 
 **Bias targeted:** Cognitive entrenchment, expertise blindness (Scott Page's diversity bonus)
 
-Ask: *"How would someone from a completely different background see this?"*
-
-- Apply 2-3 perspectives from outside the user's domain
-- An economist, a psychologist, a first-time user, a child — pick whoever creates the most productive contrast
-- What would they find obvious that the user can't see?
+Ask: *"How would someone from a completely different background see this?"* Apply 2-3 outside perspectives — an economist, a psychologist, a first-time user — whichever creates the most productive contrast. What would they find obvious?
 
 ### Lens 5: Pre-Mortem
 
 **Bias targeted:** Overoptimism, planning fallacy (Klein's pre-mortem)
 
-Ask: *"Imagine it's 6 months from now and this approach has completely failed. What went wrong?"*
-
-- Generate 3-5 specific failure scenarios
-- Which failures are the user most likely to dismiss as unlikely?
-- Those dismissed scenarios are often the actual risks
+Ask: *"It is 6 months on and this failed completely. What went wrong?"* Generate 3-5 specific failure scenarios. Which are most likely to be dismissed as improbable? Those are usually the real risks.
 
 ### Lens 6: Temporal Distance
 
 **Bias targeted:** Reactive thinking, emotional proximity (Construal Level Theory)
 
-Ask: *"How would you think about this if you were advising someone else in 2 years?"*
-
-- Create psychological distance from the immediate pressure
-- What would the user think was important vs. noise?
-- What decision would they wish they'd made?
+Ask: *"How would you advise someone else on this in 2 years?"* Create psychological distance from immediate pressure. What is important versus noise? What decision would they wish they had made?
 
 ### Lens 7: The Meta-Question
 
 **Bias targeted:** Question substitution, framing effects
 
-Ask: *"Is this even the right question to ask?"*
-
-- After all lenses, synthesize: has the problem itself changed?
-- Propose an alternative framing if one has emerged
-- This is often the most valuable output of the entire process
-
----
-
-## Process
-
-The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-agent-coordination.md`) — parallel lens proposers, then one sequential aggregator (see Auto-mode above).
-
-1. **Listen** — Let the user explain their problem fully. Do not interrupt. (Protected — see Auto-mode above.)
-
-2. **Reflect back** — Summarize what you heard in 2-3 sentences. Ask if that's accurate. If the user disagrees, fix the summary via dialog before dispatching proposers — do not pre-dispatch and then dialog. (Also protected — see Auto-mode above.)
-
-3. **Dispatch proposers (parallel).** Dispatch one proposer per applicable lens via the Subagent Contract.
-
-> **Parallel execution:** Dispatch the applicable lens proposers as parallel Task agents — each runs independently and returns a free-form 2-4 paragraph debiasing perspective. Assemble outputs after all agents complete.
->
-> **Contract:** Each agent follows the Subagent Contract — minimal input (problem statement + reflected summary + work record context + the lens question), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — proposers debias the framing, they do not act on the problem.
->
-> **Mode 4 proposer prompt skeleton (inline verbatim per proposer, replacing `{Lens N}` with the matching section above):**
->
-> ```
-> Task scope: Apply the {Lens N name} lens to the problem statement below.
-> Lens instruction: {full content of the Lens N section, verbatim}
-> Output: A debiasing perspective focused on this lens only. Surface assumptions, blind spots, or framings that this lens uniquely reveals. Do not write a brief — that's the aggregator's job. Format: free-form 2-4 paragraphs.
-> Constraint: Read-only. Do not act on the problem; only debias the framing.
->
-> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
->
-> Original problem statement: {problem from Step 1}
-> Reflected summary: {summary from Step 2}
-> Work record context (if applicable): {work record details}
->
-> [Use: Standard model — MoA proposer.]
-> ```
-
-   - **Full mode:** Dispatch all 7 lens proposers in parallel. The aggregator will deweight any irrelevant proposer outputs during synthesis — do NOT pre-filter lenses for "relevance," dispatch all 7.
-   - **Quick mode:** Dispatch 2 lens proposers in parallel — Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Aggregation still runs.
-   - **Targeted mode (`--lens=<n[,n...]>`):** Dispatch exactly the lens proposer(s) named, in parallel. Aggregation still runs, over just those outputs. Use this to re-run a first pass's most interesting lens(es) without paying for the other 5-6, or to check a single lens on its own.
-
-4. **Dispatch aggregator (sequential).** Exactly 1 aggregator agent receives all proposer outputs verbatim. Inline the verbatim Mode 4 aggregator instruction template:
->
-> ```
-> Task scope: Read N candidate responses below. Identify what each captures that the others miss. Produce a single output that incorporates the strongest elements of each. Do not list which proposer contributed which idea. Do not produce an analysis of the proposers.
->
-> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
->
-> Original problem statement: {problem from Step 1}
-> Reflected summary: {summary from Step 2}
-> Work record context (if applicable): {work record details}
->
-> Proposer outputs (N total):
-> --- Proposer 1 ({Lens 1 name}) ---
-> {proposer 1 output verbatim}
-> --- Proposer 2 ({Lens 2 name}) ---
-> {proposer 2 output verbatim}
-> ... (repeat for all proposers)
->
-> Output: The Brainstorming Brief — use the exact section list and ordering documented in the "Output: Brainstorming Brief" section below in this SKILL.md (single source of truth — copy that section's headings verbatim into the proposer output).
->
-> Constraint: Read-only synthesis. Do not write to disk — return the brief content; the dispatcher saves it.
->
-> [Use: Capable model — MoA aggregator. Synthesis is judgment-heavy.]
-> ```
-
-   Aggregator tier: **Capable** (Opus). Do not downgrade to Standard — synthesis quality is the entire reason `/challenge` exists, and the Subagent Contract recommends Capable for "design synthesis, UX analysis, ambiguous calibration."
-
-5. **Save the brief.** Write the aggregator's output to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` using the schema in the Output section below (no schema drift). If a pipeline run directory is resolved (`$PIPELINE_RUN_DIR` set, or the most-recent-matching-directory fallback in `_shared/pipeline-run-dir.md` resolves one), append exactly ONE `AUTO` entry to `decisions.md` per MoA invocation:
-   ```
-   - AUTO {HH:MM:SS} — MoA: applied {N} proposers + 1 aggregator on {topic|record #{N}}. Aggregator tier: Capable.
-   ```
-   Do NOT log per-proposer dispatches separately — the MoA invocation is a single coordination event. When no pipeline run directory is resolved — the common case for a direct standalone invocation, since `/claude-tweaks:challenge` is not on `_shared/pipeline-run-dir.md`'s standalone-auto allowlist — skip the `decisions.md` write entirely; there is no run dir to write to and no Review Console will read it.
-
-After Step 5, run the Brief Self-Review pass below.
-
----
-
-## Output: Brainstorming Brief
-
-The output is structured to feed directly into `/superpowers:brainstorming` as a debiased problem statement:
-
-```markdown
-## Brainstorming Brief: {topic}
-
-### Original Framing
-{The user's original problem statement or work record}
-
-### Reframed Problem
-{The new framing that emerged from the lenses — this becomes the input for brainstorming}
-
-### Key Assumptions Surfaced
-- {Assumption 1 — verified/unverified}
-- {Assumption 2 — verified/unverified}
-
-### Blind Spots Identified
-- {Bias or blind spot that was operating}
-
-### Constraints to Carry Forward
-{Non-negotiable constraints that brainstorming should respect — things that survived the debiasing process}
-{Tag any constraint that encodes a hard-to-reverse, non-obvious, genuinely-traded-off decision with `[ADR-candidate]` — `/claude-tweaks:wrap-up` Step 6.2 runs the ADR gate on these and records the survivors as ADRs. Do not write the ADR here; the decision isn't final pre-brainstorm.}
-
-### Open Questions for Brainstorming
-- {Question 1 — something the lenses surfaced that brainstorming should explore}
-- {Question 2}
-```
-
-### Save the Brief
-
-Save the brief to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` so it survives across sessions. This file is:
-
-- **Read by** `/superpowers:brainstorming` as input context
-- **Read by** `/claude-tweaks:specify` when writing specs (ensures assumptions and constraints reach the spec's Gotchas section)
-- **Deleted by** `/claude-tweaks:specify` Step 7 (alongside the design doc — both are consumed artifacts)
-
-### Brief Self-Review
-
-Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no separate pass.
-
-1. **Assumption check** — every assumption named in the brief should be either declared *validated* (with the evidence that made you confident) or declared *unvalidated* (with the test that would resolve it). Hedged language like "probably true" is a placeholder; replace it with one or the other. If an assumption is left *unvalidated* and resolving it needs evidence beyond this conversation (market data, prior art, published benchmarks), this is the trigger for `/claude-tweaks:research`: note it as an Open Question and, if time allows before handoff, invoke `/claude-tweaks:research quick {the assumption as a question}` and fold the finding back into the assumption's status. Otherwise leave it as an open question for the user to research before or during brainstorming.
-2. **Constraint vs. preference** — are listed constraints actually non-negotiable, or did a preference get promoted to a constraint during the lenses? If brainstorming could legitimately propose an alternative that violates the "constraint", it's a preference — relabel it.
-3. **Reframe coherence** — does the reframed problem statement still match what the user originally wanted to do? Major reframes are fine; *unrecognizable* reframes mean the lenses overcorrected. If so, soften back toward the original.
-4. **Open question quality** — every open question should be answerable. "What should we do?" is too vague; "Should we support multi-tenant from day one, or single-tenant first?" is actionable. Rewrite vague ones.
+Ask: *"Is this even the right question?"* Has the problem itself changed? Propose an alternative framing if one has emerged. Often the most valuable output.
 
 ## Next Actions
 
-After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed. Call `AskUserQuestion`:
+Rendered only for `--lens` invocations (see Component-Skill Contract). Call `AskUserQuestion`:
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Brainstorm (Recommended)"`, `description`: `"/superpowers:brainstorming — explore solutions for the reframed problem. After brainstorm produces the design doc, run /claude-tweaks:specify next (not /superpowers:writing-plans — specify handles decomposition into agent-sized specs before planning)"`
-- Option 2 — `label`: `"Re-examine"`, `description`: `"/claude-tweaks:challenge --lens=<n[,n...]> {topic|#N} — revisit specific lens(es) (e.g. --lens=3,5) without re-running the full 7-lens dispatch"`
-- Option 3 — `label`: `"Save and resume later"`, `description`: `"Keep the brief on disk; pick up at brainstorming when ready"`
+- Option 1 — `label`: `"Brainstorm (Recommended)"`, `description`: `"/superpowers:brainstorming — explore solutions for the reframed problem, then /claude-tweaks:specify to decompose the resulting design doc"`
+- Option 2 — `label`: `"Another lens"`, `description`: `"/claude-tweaks:challenge --lens=<n[,n...]> {topic|#N} — apply a different lens to the same problem"`
+- Option 3 — `label`: `"Specify now"`, `description`: `"/claude-tweaks:specify {ref} — shape this record into spec shape; framing-check runs automatically as part of it"`
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:challenge` is running inside a pipeline (invoked by `/claude-tweaks:capture` when a backlog record is routed via `--route=challenge`, or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as documented above.
+`framing-check` is **always** a component mode — invoked only by `/claude-tweaks:specify`, never by a human, and never renders `## Next Actions`.
 
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
+`--lens` is **always** human-invoked and always renders `## Next Actions`. No pipeline orchestrator calls it.
+
+The mode word in `$ARGUMENTS` is therefore the detection signal, and it is unambiguous — `$PIPELINE_RUN_DIR` is not consulted.
 
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---|---|
-| Agreeing with the user's framing | Defeats the purpose |
-| Offering solutions during lenses | Premature closure shuts down reframing — solutions belong in brainstorming |
-| Running all 7 lenses mechanically | Some problems only need 2-3 lenses |
-| Being adversarial rather than curious | The goal is insight, not winning |
-| Softening challenges with "maybe" | Be direct — the user opted into this |
-| Bracketing a challenge with flattery — a "great question" opener or a "your instinct is good" closer | Praise signals agreement and blunts the challenge before it lands |
-| Inventing a flaw to look rigorous when the framing holds | Say so plainly when the lenses surface nothing — manufactured doubt is as useless as false agreement |
-| Skipping /claude-tweaks:challenge for "obvious" features | Obvious features often have the strongest hidden assumptions |
+| Inventing a flaw to look rigorous when the framing holds | Manufactured doubt is as useless as false agreement — and here it trains the reader to ignore the verdict entirely. |
+| Rendering `solution-baked` because the record names a technology | Naming a solution is not the defect; naming one that was never traded off is. Check for cited evidence first. |
+| Resolving `framing-check` ambiguity toward `solution-baked` "to be conservative" | Inverted from this skill's siblings on purpose — see Step 2. Caution here means *not* flagging. |
+| Dispatching `framing-check` as a Task agent | The caller already holds the body inline; a subagent only pays to re-derive it. |
+| Writing a file, a brief, or a `decisions.md` entry from either mode | This skill renders a verdict or a perspective. Persistence is the caller's job. |
+| Running `--lens` inside a pipeline | `--lens` is human-only. A pipeline that wants a framing judgment calls `framing-check`. |
+| Offering solutions while applying a lens | Premature closure shuts down reframing — solutions belong in brainstorming. |
+| Bracketing a challenge with flattery | Praise signals agreement and blunts the challenge before it lands. |
