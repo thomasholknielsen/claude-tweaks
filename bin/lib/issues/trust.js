@@ -30,7 +30,10 @@ function riskBand(labels) {
 // A follow-up record's Origin line names the record it corrects, e.g.
 // "Origin: demo changes-requested from #7". Parsed BEFORE resolveProvenance
 // normalizes the body — the normalizer strips exactly this trailing clause.
-const ORIGIN_FOLLOWUP_RE = /^Origin:.*\bfrom\s+#(\d+)\s*$/m;
+// [ \t]* (not \s*) anchors the end-of-line boundary, matching provenance.js's
+// own ORIGIN_LINE convention — \s* would also match '\n' under the 'm' flag
+// and could let the match creep past the intended line.
+const ORIGIN_FOLLOWUP_RE = /^Origin:.*\bfrom[ \t]+#(\d+)[ \t]*$/m;
 
 function followUpTarget(body) {
   const match = ORIGIN_FOLLOWUP_RE.exec(typeof body === 'string' ? body : '');
