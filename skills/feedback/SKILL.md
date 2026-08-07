@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:feedback
+name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than in this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files it as a GitHub issue against thomasholknielsen/claude-tweaks after an explicit scrub and confirmation.
 argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run]"
 ---

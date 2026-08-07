@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:dispatch
+name: dispatch
 description: Use when you want to claim and build already-authorized GitHub work records — the queue consumer between the human gate and the executor. Bare picklist, next for the headless routine unit, or #N direct; claims the whole file-overlap group, hands off to /flow, and settles the result. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine.
 argument-hint: "[next|#N[,#M...]] [--claim-only] [--concurrent <n>] [--priority high|medium|low]"
 ---

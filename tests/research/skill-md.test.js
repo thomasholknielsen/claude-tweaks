@@ -28,7 +28,7 @@ test('SKILL.md exists', () => {
 test('SKILL.md frontmatter has required fields', () => {
   const fm = parseFrontmatter(readSkill());
   assert.ok(fm, 'frontmatter block missing');
-  assert.strictEqual(fm.name, 'claude-tweaks:research');
+  assert.strictEqual(fm.name, 'research');
   assert.ok(fm.description && fm.description.length > 20, 'description must be present and substantive');
   assert.match(fm.description, /research/i, 'description must mention research');
 });

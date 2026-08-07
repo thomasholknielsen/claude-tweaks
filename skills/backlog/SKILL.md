@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:backlog
+name: backlog
 description: Use when you want to sweep the open work-record backlog and ensure records carry the right priority/Related/grant labels (refine mode), or get a distribution overview and a recommendation for what to build next (overview mode). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next.
 argument-hint: "[refine|overview] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
 ---

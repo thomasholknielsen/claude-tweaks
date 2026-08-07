@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:routine
+name: routine
 description: Use when you want to create, update, or check the status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a versioned, project-agnostic routine template (e.g. code-health's) into a live, account-and-project-specific scheduled routine via the RemoteTrigger API. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
 argument-hint: "<create|update|status> <skill>|--all [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
 ---

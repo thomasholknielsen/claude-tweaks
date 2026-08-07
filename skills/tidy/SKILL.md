@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:tidy
+name: tidy
 description: Use when the backlog needs hygiene — review stale backlog records, parked-trigger wakes, unsynced local records, and orphaned plans/worktrees
 argument-hint: "[--scope=<name>[,<name>...]] [--dry-run]"
 ---

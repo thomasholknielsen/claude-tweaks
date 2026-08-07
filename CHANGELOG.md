@@ -31,6 +31,31 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.50.1 — Skill frontmatter stops double-prefixing the plugin namespace
+
+Every `SKILL.md` carried the plugin name inside its own `name:` field
+(`name: claude-tweaks:wrap-up`). The harness prepends the plugin namespace on top
+of whatever `name:` holds, so all 33 skills rendered in the command list as
+`/claude-tweaks:claude-tweaks:wrap-up`.
+
+The prefix arrived in `e9d5cb4a` ("Prefix all skill names and cross-references with
+claude-tweaks:"), a sweep that was right about **cross-references in prose** —
+`/review` → `/claude-tweaks:review`, still required — and over-reached into the
+frontmatter, where the namespacing is the harness's job. Skills originally shipped
+bare, as `name: wrap-up`. `04a63c4f` later codified the accident as a CLAUDE.md
+convention, which is what held it in place across 33 skills and five test assertions.
+
+`name:` is now the bare skill name everywhere. Nothing else moves: the resolved name
+stays `claude-tweaks:{skill}` — the same shape `superpowers:brainstorming` resolves
+through, from `name: brainstorming` — so every `/claude-tweaks:{skill}` reference in
+skill bodies remains correct and is untouched. This repo's own `agents/qa-agent.md`
+was already bare and had always rendered correctly; that within-plugin contrast is
+what identified the cause.
+
+The four health-sweep `skill-md` tests asserted the prefixed name through an
+unanchored `/name:\s*claude-tweaks:{skill}/`. They now assert `/^name: {skill}$/m`,
+which actually fails on the doubled form.
+
 ## v6.50.0 — Closed records reach an explicit acceptance disposition
 
 Work records were closing with no acceptance verdict at all, and nothing noticed.
@@ -225,6 +250,35 @@ claimed — a skip-directory is excluded wherever it appears *inside* the tree.
 - 10 regression tests across four ancestor shapes, each verified by reverting the anchoring
   and confirming it fails. `sourceFiles` is exported for them — asserting on slice ids alone
   cannot tell "found the files" from "emitted an empty slice".
+
+## v6.46.0 — One classifier decides where a learning goes
+
+Learnings had five possible destinations, three writers, and nothing deciding
+between them. Two of the five — a memory file, and the plugin's own issue
+tracker — had no writer at all, so any lesson that outlived the current project
+either landed in whichever store the producing skill happened to name, or
+nowhere.
+
+`skills/_shared/learning-routing.md` is now the single source of truth: an
+ordered, first-match-wins classifier over D1 (CLAUDE.md Don'ts), D2 (project
+skills and docs), D3 (work records), D4 (memory) and D5 (upstream). Producers —
+`/claude-tweaks:reflect`, `/claude-tweaks:review`, `/claude-tweaks:build`, and
+the four health sweeps — cite it instead of carrying their own destination
+tables, which retires `reflect`'s row routing "a fundamentally better approach
+exists" to both a skill update and a memory file, the mechanism that put the
+same lesson in two stores in different words.
+
+`/claude-tweaks:feedback` is the new D5 writer, filing defect and gap reports
+against the plugin itself with an unconditional scrub gate and an explicit
+confirmation in every mode, including `--dry-run`. `/claude-tweaks:wrap-up`
+Steps 7.10 and 7.11 stage memory and upstream proposals to two new per-item
+Review Console sections; `auto` silences neither.
+
+> Restored in 6.50.1. This entry and its `docs/shipped-versions.tsv` row shipped
+> in `707c89c2` and were both lost in a later merge — `main` carried 6.46.0 at its
+> tip across two commits with no record of it, which is the gap
+> `tests/changelog-coverage.test.js` went red on. The text above is `707c89c2`'s
+> verbatim.
 
 ## v6.45.0 — Which versions shipped is recorded, not reconstructed (closes #144)
 

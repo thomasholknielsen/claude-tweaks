@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:test
+name: test
 description: Use when you need to run verification checks (types, lint, tests) or validate QA stories — the mechanical "does it work?" gate.
 argument-hint: "[types|lint|unit|integration|e2e|affected|qa|all|skip-qa|<path>] [tag=<tag>] [story=<name>] [retry=<path>] [journey=<name>] [dir=<path>] [priority=<level>] [max_parallel=N] [timeout=<ms>] [headless]"
 ---

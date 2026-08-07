@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:help
+name: help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
 argument-hint: "[status|commands|<topic>] [--budget <n>]"
 ---

@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:harness-health
+name: harness-health
 description: Use when you want to check whether a project's harness documentation — `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md — still accurately describes the codebase, still conforms to its own origin template, and still follows best practices for getting the harness to perform well; or find a reusable pattern with no skill covering it. Runs standalone or on a schedule via a Routine. Never edits code — only harness documentation. Keywords - harness health, skill health, skill drift, rule drift, CLAUDE.md drift, best practice, template conformance, new-skill gap, scheduled, routine.
 argument-hint: "[--target <id>] [--kind skill|rule|claude-md|design-artifact|memory] [--memory-dir <path>] [--budget <n>] [--min-confidence low|med|high] [--force-gap-scan] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion

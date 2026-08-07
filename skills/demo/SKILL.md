@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:demo
+name: demo
 description: Use when you want a human verdict — approve or request changes — on one built thing: this same conversation's own unrecorded work, or a specific `#N` record, whether it is marked demo:pending or was closed with no disposition at all. The durable acceptance gate distinct from tests passing (/test) and code-quality review (/review); discovery of what's outstanding across the backlog is /help's job (Stage 4.7), not this skill's. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
 argument-hint: "[#N]"
 ---

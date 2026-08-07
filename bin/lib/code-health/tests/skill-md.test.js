@@ -14,7 +14,7 @@ const SKILL = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'code-he
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('frontmatter declares the canonical name', () => {
-  assert.match(read(), /name:\s*claude-tweaks:code-health/);
+  assert.match(read(), /^name: code-health$/m);
 });
 
 registerInteractionStyleTest(test, assert, read);
