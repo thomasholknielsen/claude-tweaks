@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines the Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines the Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`family-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
 
 Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — `gh`'s implicit default is 30, which silently truncates instead of erroring. A result count landing exactly at the stated limit means the scan may be incomplete; treat that as a signal to narrow the query (a tighter label/state filter) or re-run with a higher `--limit`, not as a final count.
 
@@ -187,14 +187,127 @@ above `info` would permanently evict every actionable `repo-wide` finding beneat
 also where its behavioural sibling already sits — "Open PR awaiting review", the other
 no-mutation, always-surfaced row (`tidy/step-6-auto.md`).
 
+## Scope: `family-gate` (consumed by /tidy Step 4.8)
+
+Finds decomposition families whose every leaf has closed but whose parent carries no
+acceptance disposition yet — the population `/claude-tweaks:wrap-up`'s own family-gate
+procedure (`wrap-up/verification-brief.md`) applies eagerly when it closes a family's last leaf.
+A leaf closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches
+that eager path at all, so its family's gate never fires on its own; this scope is the backstop
+sweep that catches it later. Classification is entirely `familyGateState`'s
+(`bin/lib/issues/acceptance.js`) — this scope does not reimplement the gate logic, and leaf
+enumeration reuses the same parent-side resolution `wrap-up/verification-brief.md`'s
+family-gate procedure already documents rather than inventing a second one.
+
+Record set: open records carrying `family:parent` (`/claude-tweaks:specify` labels every
+decomposition parent this way — see `specify/record-creation.md`'s Parent record section),
+plus every issue's current state, fetched once:
+
+```bash
+gh issue list --label family:parent --state open --json number,title,body,labels --limit 200 \
+  > /tmp/tidy-family-parents.json
+
+gh issue list --state all --json number,state --limit 500 \
+  > /tmp/tidy-all-issue-states.json
+```
+
+For each parent, enumerate its leaves from the **parent** side — never the leaf side, which
+works under one `work-links` mode and silently returns nothing under the other (`[IL-64]`).
+Leaf **state** is read from the state map just fetched above in both branches below, never from
+a leaf's own `state` field wherever one happens to already be present in a response — GitHub's
+REST responses (the `sub_issues` endpoint included) report lowercase `open`/`closed`, while
+`familyGateState` and the state map both use the `gh issue list --json state` uppercase
+`OPEN`/`CLOSED` form; reading from one source only avoids a silent casing mismatch. A leaf
+number absent from the state map (the `--limit 500` fetch above truncated before reaching it)
+defaults to `OPEN`, the fail-safe direction — an unresolved leaf must never let a family read
+as `due` (mirrors `familyGateState`'s own "never reports `due` for a family with no discoverable
+leaves" rule).
+
+**`work-links: body-text`** — every parent's task list is already in hand from the first fetch
+above; no further `gh` calls:
+
+```bash
+node -e "
+  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const fs = require('fs');
+  const parents = require('/tmp/tidy-family-parents.json');
+  const stateOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, i.state]));
+  const families = parents.map(p => ({
+    number: p.number,
+    title: p.title,
+    parentLabels: p.labels.map(l => l.name),
+    leaves: parseFamilyLeaves(p.body).map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
+  }));
+  fs.writeFileSync('/tmp/tidy-families.json', JSON.stringify(families));
+"
+```
+
+**`work-links: native`** — the parent body carries no task list, so leaf numbers come from the
+sub-issues API instead, one call per parent (exactly `wrap-up/verification-brief.md`'s own
+native command, `gh api repos/{owner}/{repo}/issues/{n}/sub_issues --jq '.[].number'`, run once
+per parent in the fetched set — each result appended as one JSON line rather than assembled by
+hand, so no shell-side JSON construction is needed):
+
+```bash
+: > /tmp/tidy-family-leaves.jsonl
+node -e "require('/tmp/tidy-family-parents.json').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, leafNumbers: [.[].number]}" \
+    >> /tmp/tidy-family-leaves.jsonl
+done
+
+node -e "
+  const fs = require('fs');
+  const parents = require('/tmp/tidy-family-parents.json');
+  const stateOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, i.state]));
+  const byNumber = new Map(parents.map(p => [p.number, p]));
+  const leafRows = fs.readFileSync('/tmp/tidy-family-leaves.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+  const families = leafRows.map(({ number, leafNumbers }) => {
+    const p = byNumber.get(number);
+    return {
+      number,
+      title: p.title,
+      parentLabels: p.labels.map(l => l.name),
+      leaves: leafNumbers.map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
+    };
+  });
+  fs.writeFileSync('/tmp/tidy-families.json', JSON.stringify(families));
+"
+```
+
+With `/tmp/tidy-families.json` assembled by whichever branch above applies, filter to families
+whose gate is due:
+
+```bash
+node -e "
+  const { familyGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const families = require('/tmp/tidy-families.json'); // [{number, title, leaves, parentLabels}]
+  families
+    .filter(f => familyGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
+    .forEach(f => console.log('[family-gate] #' + f.number + ': ' + f.title + ' — family complete, no acceptance disposition — recommend /claude-tweaks:demo #' + f.number));
+"
+```
+
+Un-gated families are **staged, never auto-applied**, regardless of `tidy-aggressiveness` — the
+same rule `acceptance-gap` carries, and the same reason: applying a disposition is a judgment
+about whether shipped work actually solved the problem — not a mechanical cleanup — and
+`_shared/auto-mode-contract.md` places that kind of work-record judgment outside what `auto`
+silences. Do not fold this finding into any auto-apply tier.
+
+Emit `[family-gate]` rows per the Output Contract, at severity `info` — the same severity
+`acceptance-gap` uses and for the same reason: `/claude-tweaks:tidy` runs this scope in the same
+agent as `repo-wide` and `acceptance-gap` under one 15-row, highest-severity-first cap
+(`tidy/scan-procedures.md` Step 4.8), and this can be a standing backlog on a repo with several
+open decompositions, not a one-off defect count.
+
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records), and one un-dispositioned-closed-record prefix (`acceptance-gap` scope only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records), one un-dispositioned-closed-record prefix (`acceptance-gap` scope only), and one un-gated-family prefix (`family-gate` scope only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 - `[gh-issue]` — code-health/harness-health/journey-health/docs-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 - `[queue]` — grant-queue metrics (item 8 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
 - `[acceptance-gap]` — closed records with no acceptance disposition (`acceptance-gap` scope above): `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
+- `[family-gate]` — decomposition families with every leaf closed and no acceptance disposition on the parent (`family-gate` scope above): `[family-gate] #{n}: {title} — family complete, no acceptance disposition — recommend /claude-tweaks:demo #{n}`
 
 Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
 
@@ -211,4 +324,5 @@ Severity mapping (Template A Severity column):
 | Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:backlog refine` | low |
 | Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
 | Closed record with no acceptance disposition (`acceptance-gap` scope) | info |
+| Decomposition family complete with no acceptance disposition (`family-gate` scope) | info |
 | Fresh draft PR / no PR / scan skipped | info |

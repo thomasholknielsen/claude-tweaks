@@ -5,9 +5,9 @@
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
 // risk, effort, ceremony, priority, stage, grants{build,merge}, bot{inProgress,
-// blocked}, acceptance — plus type, parent, blockedBy, unsynced, closed, closedAt);
-// the github driver's callers get type/parent/blockedBy from the issue JSON itself,
-// not from labels. No network calls.
+// blocked}, acceptance — plus type, parent, familyParent, blockedBy, unsynced, closed,
+// closedAt); the github driver's callers get type/parent/blockedBy from the issue JSON
+// itself, not from labels. No network calls.
 'use strict';
 
 const fs = require('fs');
@@ -30,14 +30,23 @@ const GRANT_KEYS = ['build', 'merge'];
 // `bot` is always this value: the local driver carries no bot state.
 // Shared-key defaults come from facet-shape.js's sharedFacetDefaults() —
 // record.js's parseRecordFacets builds on the same shape. The keys below the
-// spread (type/parent/blockedBy/unsynced/closed/closedAt) are local-files-only
-// and have no analog in the GitHub label-derived shape; add a new shared facet
-// key to facet-shape.js, not independently here.
+// spread (type/parent/familyParent/blockedBy/unsynced/closed/closedAt) are
+// local-files-only and have no analog in the GitHub label-derived shape; add a
+// new shared facet key to facet-shape.js, not independently here.
+//
+// familyParent is the local-files parity for the GitHub `family:parent` label
+// (`specify/record-creation.md`'s Parent record section): true only on a
+// decomposition parent, never on a leaf. It is what makes a local-files parent
+// queryable at all — the alternative, the `{design-doc-slug}:parent` body
+// fingerprint, is reachable only by reading every record body, which this
+// driver's callers deliberately avoid (see record-creation.md's Idempotency
+// section for why the same reasoning applies on the GitHub side).
 function defaultFacets() {
   return {
     type: null,
     ...sharedFacetDefaults(),
     parent: null,
+    familyParent: false,
     blockedBy: [],
     unsynced: false,
     closed: false,
@@ -102,6 +111,7 @@ function parseFrontmatterLines(fmLines) {
       continue;
     }
     if ((m = /^parent:\s*(\d+)$/.exec(line))) { facets.parent = Number(m[1]); continue; }
+    if ((m = /^family-parent:\s*(true|false)$/.exec(line))) { facets.familyParent = m[1] === 'true'; continue; }
     if ((m = /^blocked-by:\s*\[(.*)\]$/.exec(line))) {
       facets.blockedBy = parseBracketList(m[1]).map(Number);
       continue;
@@ -147,8 +157,9 @@ function readRecord(filePath) {
 
 // facets -> frontmatter lines, omitting every key at its default/absent value:
 // no 'stage: backlog', no empty 'grants: []', no 'unsynced: false', no 'parent'
-// when null, no 'blocked-by' when empty. `bot` is never written — it isn't a
-// file-backed facet for the local driver. Array syntax is exactly '[a, b]'.
+// when null, no 'family-parent' when false, no 'blocked-by' when empty. `bot` is
+// never written — it isn't a file-backed facet for the local driver. Array
+// syntax is exactly '[a, b]'.
 function serializeFrontmatter(facets) {
   const lines = [];
   if (facets.type) lines.push(`type: ${facets.type}`);
@@ -166,6 +177,7 @@ function serializeFrontmatter(facets) {
   if (grantNames.length > 0) lines.push(`grants: [${grantNames.join(', ')}]`);
 
   if (facets.parent !== null && facets.parent !== undefined) lines.push(`parent: ${facets.parent}`);
+  if (facets.familyParent) lines.push('family-parent: true');
 
   const blockedBy = facets.blockedBy || [];
   if (blockedBy.length > 0) lines.push(`blocked-by: [${blockedBy.join(', ')}]`);
