@@ -116,6 +116,24 @@ test('recordPayload emits labels in order: by:*, risk:*, effort:*, ceremony:*, r
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
+test('recordPayload emits framing:baked when framing is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true });
+  assert.ok(result.labels.includes('framing:baked'));
+});
+
+test('recordPayload emits no framing:baked label when framing is omitted', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('framing:baked'));
+});
+
+test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+  const result = recordPayload({
+    title: 't', body: 'b', type: 'task', origin: 'capture',
+    risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+  });
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+});
+
 // AC 2 — dual-marker extraction
 
 test('extractFingerprint reads the legacy code-health-fingerprint marker', () => {
