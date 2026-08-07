@@ -82,8 +82,10 @@ Run these before dispatching to any active mode. Which layers each mode actually
 - `pre-build` runs all three detection layers and the LLM availability check — it touches Impeccable references but does not modify code.
 - `polish` runs all three detection layers and the LLM availability check; on a successful precondition pass, it consumes audit findings written by `review` mode (see `modes/polish.md`).
 - `survey` runs Layer 1 (kill-switch) and Layer 3 (file-extension sniff). Layer 2 applies only when a `<spec>` is resolvable from the file list (caller may pass it explicitly). Survey does not require Impeccable's LLM commands or CLI — it is a heuristic analysis local to the wrapper that *recommends* Impeccable commands. The availability check is informational only (an unavailable Impeccable surfaces in the recommendations as "install Impeccable to apply").
-- `doctor` runs **Layer 1 only**, plus its own availability and project-context checks. Layers 2 and 3 are structurally inapplicable, not merely skipped: `doctor` receives no spec (so there is no `Surface:` line to read) and no file list (so there is nothing to sniff). Layer 3 in particular would be actively wrong here — `/tidy` typically runs on a clean tree, so a diff-based frontend sniff would skip `doctor` on exactly the runs it exists to serve. Its four own skip conditions are in `modes/doctor.md`.
+- `doctor` runs **Layer 1 only**, plus its own availability and project-context checks. Layers 2 and 3 are structurally inapplicable, not merely skipped: `doctor` receives no spec (so there is no `Surface:` line to read) and no file list (so there is nothing to sniff). Layer 3 in particular would be actively wrong here — `/tidy` typically runs on a clean tree, so a diff-based frontend sniff would skip `doctor` on exactly the runs it exists to serve. Its four own skip conditions are in `modes/doctor.md`. Track resolution still resolves a track for it, but **no `doctor` outcome depends on which one** — `doctor.mjs` audits `PRODUCT.md`, `DESIGN.md`, and the project's other Impeccable artifacts, none of which are web-only. Do not add a native skip here.
 - `reset-recommendations` runs no preconditions — it is a cache-management utility, not a mode that invokes Impeccable.
+
+Track resolution (below) runs for **every** mode, whichever of Layers 1-3 that mode runs — it is not a layer and gates nothing. A mode that skips Layer 2 resolves its track with no `Surface:` value.
 
 ### Step 1: Detection (Layer 0 enrichment, then 3 decision layers in order)
 
@@ -112,17 +114,49 @@ When the mode received a spec number or path, read the record's `Surface:` body-
 
 | Value | Behavior |
 |-------|----------|
-| `web`, `mobile`, `desktop` | Proceed to Layer 3 (sniff still confirms changed files; legacy `frontend` reads as `web`) |
+| `web`, `mobile`, `desktop` | Continue to track resolution (legacy `frontend` reads as `web`) |
 | `backend`, `infra` | Return `{skipped: "non-frontend spec (surface declared)"}` |
-| *(missing)* | Fall through to Layer 3 |
+| *(missing)* | Continue to track resolution |
 
-`/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new leaf record. Pre-v4.5 specs lack the field; absent values are normal and gracefully fall through to Layer 3.
+`/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new leaf record. Pre-v4.5 specs lack the field; absent values are normal and are handled by track resolution and Layer 3 below.
+
+**Track resolution — web or native (between Layers 2 and 3; runs for every mode):**
+
+Layers 1-3 answer *whether* to dispatch; this answers *which track*. It is **one decision** — nothing below selects the web path before this table has run, so there is no earlier return for a native exemption to be bolted after (`[IL-83]`). Two inputs: Layer 0's `setup.platform`, and the record's `Surface:` line (absent whenever the mode received no spec). `setup.platform` is `null` whenever Layer 0 degraded at all, so the table is reachable with **no Impeccable installed and no `PRODUCT.md` present** — the case it mainly exists to serve.
+
+| `setup.platform` | `Surface:` | Track | Platform named to upstream |
+|---|---|---|---|
+| `web` | any | web | — |
+| `ios` / `android` / `adaptive` | any | **native** | that value |
+| `null` | `web`, `desktop`, *(missing)* | web | — |
+| `null` | `mobile` | **native** | `adaptive`, **inferred** |
+
+`setup.platform`'s value domain is closed to those four values plus `null` by `extractPlatform`'s own implementation (see `impeccable-plugin.md`), and Layer 2 has already returned a skip for `backend` / `infra`, so every reachable combination has a row. There is no "otherwise" case to write. `null` + `mobile` infers `adaptive` because upstream has no unnamed-native track; `desktop` takes the web path because upstream's enum has no desktop value. Both are reasoned resolutions rather than placeholders — the arguments are in `native-routing.md`.
+
+**Disagreement is recorded, never silent.** When `setup.platform` is non-null and `Surface:` implies the other track — `platform: web` against an explicit `Surface: mobile` is the case that matters — `setup.platform` wins per the table, and the return carries `surface_track_override` naming both values and which won. A stale or wrong `PRODUCT.md` must not quietly overrule a record's own declaration without leaving a trace. When `$PIPELINE_RUN_DIR` is set, write the same one-liner to the run's `decisions.md` per `_shared/auto-decision-log.md`.
+
+**Two modes are web-only and skip on the native track.** The constraint is upstream's own, stated in its `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only."*
+
+| Mode | Native-track outcome |
+|---|---|
+| `test` | `{skipped: "native surface — CLI detector is web-only"}`, never `pass` — see `modes/test.md` |
+| `live` | Skipped — see `modes/live.md` |
+
+Every other mode dispatches on the native track with the platform named, after reading that platform's own upstream reference. **When the track resolves native, read `native-routing.md` in this skill's directory** — the reference mapping, the dispatch rule, and the reasoning behind the table's two inferred rows all live there, and a web-track run never needs any of it.
 
 **Layer 3 — File-extension sniff (fallback):**
 
 Inspect the files in the mode's target list (or the resolved `git diff` set). If any file matches a frontend trigger extension or path pattern, treat as frontend. If zero files match, return `{skipped: "non-frontend (sniff)"}`.
 
 For the trigger extensions and path patterns, read `frontend-detection.md` in this skill's directory.
+
+Layer 3's trigger table is web-only by construction — no native extension appears in it, so a SwiftUI or Compose diff matches nothing there. On the native track it is therefore a fallback only, and only when nothing was declared:
+
+| Track | `Surface:` | Layer 3 |
+|---|---|---|
+| web | any | Runs, exactly as it always has |
+| native | declared | **Skipped** — a web-only sniff cannot rule on native code, and running it would return `non-frontend (sniff)` on exactly the records native routing exists to serve |
+| native | *(missing)* | Runs. A match admits; zero matches skips as today, so a native project's backend-only diff is not widened onto the design path |
 
 ### Step 2: Availability check
 
@@ -236,6 +270,13 @@ Callers must handle both. Skips are not failures — they are valid outcomes tha
 
 `platform` is the only Layer 0 signal in the return today. The rest stay contract-only in `impeccable-plugin.md` until the record that consumes each one adds its field — surfacing a signal no caller reads is how a field's shape drifts before it has a single user to keep it honest.
 
+**Both shapes also carry `surface_track`** — the *resolved* track from the track-resolution table above, which is a different value from `platform` rather than a restatement of it:
+
+| Field | Values | Read by |
+|---|---|---|
+| `surface_track` | `web` \| `ios` \| `android` \| `adaptive` | This skill — it derives `test`'s and `live`'s native skip reasons and names the platform on native dispatch. `platform: null` + `Surface: mobile` resolves to `adaptive` here while `platform` stays `null`; the two never collapse into one field. |
+| `surface_track_override` | string, **only when `setup.platform` and `Surface:` implied different tracks** | The human, via whatever report the caller renders. Names both values and which won. Absent means they agreed or only one was present — never "the check didn't run." |
+
 See `_shared/design-wrapper-handling.md` for the canonical caller-side contract — the full return-shape categories (`ok` / `pass` / `advisory` / `fail` / `skipped` / `deferred`) and the "why skips don't fail" rationale shared by every caller of this wrapper.
 
 ## Reference sub-files
@@ -245,6 +286,7 @@ Lazy-load these only when needed for the active mode:
 - `modes/{name}.md` — One file per mode named in the Input table (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`, `doctor`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format). `modes/doctor.md` additionally owns `doctor`'s finding schema — `skills/tidy/scan-procedures.md` references it rather than restating it.
 - `command-map.md` — Single source of truth for dispatch: the per-command categorization (phase-fixed / refinement set / suggestion-driven / intent-driven / manual-only / never) covering every Impeccable command the wrapper knows about, plus the survey "would help" criteria → command mapping. Its Full command map table is the count — do not restate one here.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
+- `native-routing.md` — Everything downstream of a **native** track result: the platform → upstream-reference mapping, the dispatch rule, the reasoning behind the track table's two inferred rows (`null` + `mobile` → `adaptive`; `desktop` → web), and the four-row routing walkthrough. Loaded only when track resolution returns `ios` / `android` / `adaptive` — a web-track run never needs it.
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules. Pins the **CLI**.
 - `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (used by both Layer 0 and `doctor`, with a per-consumer script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
 
@@ -300,6 +342,11 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Passing any flag but `--json` to `doctor.mjs` | Its argument parser is strict — an unrecognized argument exits 1 with a usage error, turning a supported invocation into a spurious execution-failure skip. |
 | Collapsing `route`/`mention`/`auto` into claude-tweaks' severity words in the wrapper's return | Upstream's `--fix` boundary is defined in terms of those exact strings. `/tidy` maps them for display only, and keeps the original verbatim in the row it renders. |
 | Running Layer 3's file sniff before `doctor` | `doctor` audits project artifacts, not a diff. `/tidy` usually runs on a clean tree, so the sniff would skip it on exactly the runs it exists to serve. |
+| Running the Impeccable CLI or `live` on a native surface | Both are web-only, upstream's own constraint in `reference/routing.md`. An HTML rule engine over SwiftUI or Compose finds nothing it knows how to look for. |
+| Returning `pass` from `test` mode on a native surface | `skipped` is the only honest outcome. A detector that never applied reporting a pass is a gate that cannot fail — the same defect the CLI gate was rewritten to remove, on a different axis. |
+| Dispatching native work without naming `ios`, `android`, or `adaptive` | Upstream has no unnamed-native track — `adapt.native.md` and `audit.native.md` each require one of the three. A sentinel or empty value has nothing to route to. |
+| Letting `setup.platform` silently overrule an explicit `Surface:` | A stale `PRODUCT.md` would redirect a record's declared surface with no trace. The override wins, and is named in `surface_track_override` and in the run's `decisions.md`. |
+| Running Layer 3's web-only sniff against a declared native surface | Its trigger table holds no native extension, so it returns `non-frontend (sniff)` on exactly the records native routing exists to serve. |
 | Caching availability results across sessions on disk | In-memory per session — never write the marker to `~/.claude-tweaks/` (harness-owned runtime state) |
 | Writing audit / recommendations / declined caches to `~/.claude-tweaks/` | Harness-owned. All three live beside the ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit\|recommendations\|declined}.json`. |
 | Calling `/impeccable:impeccable` without first checking availability | The Skill tool errors if the plugin isn't installed — check first and skip cleanly |

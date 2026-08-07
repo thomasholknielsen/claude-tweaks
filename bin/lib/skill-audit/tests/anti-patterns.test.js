@@ -244,5 +244,19 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   was re-derived by RUNNING the parser on the merged tree, not by adding
   //   these comment blocks together — the arithmetic agreeing is a coincidence
   //   worth having but not the evidence.
-  assert.strictEqual(total, 365);
+  //   365 -> 370, native surface routing (#151). Five rows ADDED to design-
+  //   wrapper/SKILL.md, none evicted, all guarding the new web-vs-native track
+  //   resolution: "Running the Impeccable CLI or `live` on a native surface",
+  //   "Returning `pass` from `test` mode on a native surface", "Dispatching
+  //   native work without naming `ios`, `android`, or `adaptive`", "Letting
+  //   `setup.platform` silently overrule an explicit `Surface:`", and "Running
+  //   Layer 3's web-only sniff against a declared native surface". Verified in
+  //   both directions: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty, and 370 was read off the parser run against the
+  //   working tree, not computed as 365 + 5 — the arithmetic agreeing is a
+  //   check, not the evidence (`[IL-99]`). A concurrent lane is editing
+  //   design-wrapper/modes/review.md this wave; mode sub-files carry no
+  //   Anti-Patterns table and this parser only reads `skills/*/SKILL.md`, so
+  //   that lane cannot move this number without touching a SKILL.md itself.
+  assert.strictEqual(total, 370);
 });
