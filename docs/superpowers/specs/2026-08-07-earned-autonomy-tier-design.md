@@ -98,11 +98,18 @@ The record is the store.
 
 - `/claude-tweaks:demo` writes a verdict label (`demo:approved` / `demo:changes-requested`) plus one
   structured evidence block as a record comment.
-- Provenance is a `by:*` label stamped at file time.
-- The trust table is **derived on demand** from closed records and cached disposably under
-  `.claude-tweaks/`.
+- Provenance is **read, not stamped**. *(Revised before Phase 1B — see 1.1.)* The original text
+  said "a `by:*` label stamped at file time," which describes only the machine-producer case. A
+  side-effect record records provenance as an `Origin: {context}` body line and a human-filed one
+  by absence; both are deliberate, and neither ever grows a label.
+- The trust table is **derived on demand** from closed records, and **nothing is cached**.
+  *(Revised at Phase 2.)* The original text called for a disposable cache under
+  `.claude-tweaks/`; Phase 2 shipped without one, on the same reasoning that dissolved the
+  backfill step below — a computation that already reads the full history window has nothing for
+  a cache to save it.
 - Survival signal comes from a sweep over recently-closed records, folded into
-  `/claude-tweaks:tidy`'s existing `--scope=github` rolling digest.
+  `/claude-tweaks:tidy`'s existing `--scope=github` rolling digest. **Phase 3, not Phase 2** — see
+  the Phase 2 section.
 
 **Rejected — outcome branch.** An append-only `outcomes.jsonl` on a `health-state`-style branch
 gives richer schema and cheap reads, but creates a second source of truth about a record and
@@ -133,33 +140,70 @@ existing levers — it constrains them.
 
 ### Trust unit: provenance × risk band
 
-Trust is attributed to `(by:{source}, risk-band)` — roughly 12–16 cells at ~10 samples per cell per
-month. Thin, so the controller uses a conservative prior and requires a minimum sample count before
-a cell may move off `supervised` behavior.
+Trust is attributed to `(provenance, risk-band)`, where provenance is 1.1's resolved
+`kind:source` pair and **not** the `by:*` label alone — keying on the label would give every
+side-effect and human-filed record the same empty key. Roughly 12–16 cells at ~10 samples per
+cell per month. Thin, so the controller uses a conservative prior and requires a minimum sample
+count before a cell may move off `supervised` behavior.
 
 Provenance was chosen over change-shape (needs a new classifier, and mispredicting is exactly the
 harmful case), over ceremony × facets (learns whether `ceremony-check` is calibrated — a proxy, not
 the thing), and over a single global level (converges fastest but lets trust earned on 40 clean doc
 sweeps authorize the first logic change).
 
-### Bootstrap: backfill the prior
+### Bootstrap: backfill the prior — dissolved
 
-Starting every cell at zero puts human cost at maximum on day one — exactly when the practice gets
-abandoned, which is what already happened to `demo:pending`. Instead, seed priors from the 109
-records closed in the last 30 days: provenance inferred heuristically from record bodies and
-authorship, survival computed directly (reverted? follow-up record filed against the same paths?
-tests broken after?). `supervised` mode then has something real to show on its first run.
+*(Revised before Phase 2. Kept so the concern is not re-raised as a gap.)* The worry was real:
+starting every cell at zero puts human cost at maximum on day one — exactly when the practice gets
+abandoned, which is what already happened to `demo:pending`. The original answer was a seeding
+step over the records closed in the last 30 days.
+
+No seeding step exists, and none is needed. Because the table derives on demand from closed
+records rather than accumulating incrementally, every computation already reads the full history
+window: the first run is as populated as the hundredth. The storage decision dissolved the
+problem rather than a migration solving it — see Phase 2's own bullet.
 
 ## Phase 1 — Instrument the light lane
 
 Pure telemetry. No behavior changes, nothing is trusted yet. Everything downstream reads this.
 
-### 1.1 Provenance stamping
+### 1.1 Provenance is already recorded — build a reader, not a writer
 
-Add `by:{source}` at every record-creation site — `/capture`, `/wrap-up` leftover routing,
-`/reflect` tangential-idea routing, `/review` findings, and the four health skills (whose
-`by:{self}` is already specified in `_shared/work-record.md` but emits no label in practice).
-Bootstrap the labels through the existing `_shared/label-bootstrap.md` check-then-create loop.
+*Revised before Phase 1B. The original text called for adding `by:{source}` at every
+record-creation site, on the premise that `_shared/work-record.md` specified the labels but
+nothing emitted them. That premise was wrong.*
+
+Provenance is fully implemented and deliberate. `bin/lib/issues/record.js` defines
+`ORIGINS = ['code-health', 'harness-health', 'journey-health', 'docs-health', 'capture',
+'dispatch']`, and `recordPayload({origin})` emits `by:{origin}`. All four health skills stamp it
+through their `issue-payload.js` modules; `/capture` and `/dispatch` stamp their own.
+
+`_shared/work-record.md`'s Origin axis defines **three** states, not one:
+
+| State | How it is recorded | Examples |
+|---|---|---|
+| Machine producer | `by:*` label (the six in `ORIGINS`) | health sweeps, `/capture`, `/dispatch` |
+| Side-effect of another skill | `Origin: {context}` **body line**, deliberately no label | `Origin: wrap-up leftover from #42`, `Origin: ledger resolve gate`, `Origin: demo changes-requested from #17`, `Origin: /init skill scoring (Phase 4)` |
+| Human-filed | neither — **absence is the signal** | a record opened directly on GitHub |
+
+Only `by:capture` exists as a label in this repo because the health sweeps have not filed here,
+not because emission is missing.
+
+**Consequence:** Phase 1B writes no new labels and changes no filing site. It adds a
+**provenance resolver** (`bin/lib/issues/provenance.js`) that maps a record (labels + body) to one
+of the three states, so the trust table has a key. Changing the taxonomy would mean overriding a
+documented decision for no gain, since all three states are already distinguishable.
+
+**The resolver emits four `kind` values, not three.** Alongside `producer` / `side-effect` /
+`human`, it emits `unstructured` for an `Origin:` line it cannot reduce to a class — text still
+over its length cap after normalization (`source: 'unstructured'`), or text that normalizes to
+nothing (`source: 'empty-origin'`). That fourth value is a classifier artifact, not a taxonomy
+state: `_shared/work-record.md`'s Origin axis still defines exactly three. **A later phase
+switching over three kinds drops `unstructured` on the floor**, and it is not a rare bucket —
+every unrecognized `Origin:` shape lands there. `trust.js` pins any `unstructured` cell's verdict
+to `insufficient-evidence` at every sample count for exactly this reason: a bucket defined by
+"could not be classified" has no coherent class to grant autonomy to. Any consumer must handle
+the fourth value explicitly and must never grade it.
 
 ### 1.2 Attribution — derived from git, not breadcrumbed
 
@@ -209,15 +253,36 @@ the row remains only so the measured-state finding is not mistaken for a defect 
 
 ### Phase 1 exit criteria
 
-Every closed record carries a provenance label and an explicit acceptance disposition. No trust is
-computed and no behavior changes.
+*(Revised — the original read "Every closed record carries a provenance label and an explicit
+acceptance disposition," which 1.1's own revision made unreachable fifty lines above. Phase 1B
+writes no labels and changes no filing site, so a side-effect record never grows one and a
+human-filed record's provenance **is** the absence of one. The criterion was never met and by
+design cannot be; on this repo most closed records resolve to `human:human` precisely that way.)*
+
+Every closed record **resolves** to a provenance state — including by absence, which is a real
+resolution and not a gap — and reaches an explicit acceptance disposition. No trust is computed
+and no behavior changes.
+
+The acceptance half is the only half that requires work: it is 1.3's job, and it is the half that
+is genuinely unmet today. Provenance needs a reader, not a backfill.
 
 ## Phase 2 — The memory
 
-- Trust table `(provenance × risk band)` derived on demand from closed records; cached disposably
-  under `.claude-tweaks/`, regenerable, never authoritative.
-- Survival sweep folded into `/claude-tweaks:tidy --scope=github`'s existing rolling digest.
-- Backfill priors from the 109 recently-closed records.
+- Trust table `(provenance × risk band)` derived on demand from closed records, **with no cache**.
+  *(Revised at Phase 2.)* The original text called for a disposable cache under `.claude-tweaks/`;
+  what shipped writes nothing durable at all — each render is one `gh issue list --state all` call
+  piped straight through `bin/lib/issues/trust.js`. Bullet 3 below already reasons from this
+  no-cache decision. Nothing regenerates, because nothing was generated.
+- ~~Survival sweep folded into `/claude-tweaks:tidy --scope=github`'s existing rolling digest.~~
+  **Moved to Phase 3.** Phase 2's plan puts git-derived survival signals (revert detection,
+  path-overlap follow-ups) out of scope: every signal it does ship comes from the one `gh` call
+  above, and a git walk is a later slice. If it turns out to be needed it is a Phase 3 input, not
+  a Phase 2 gap.
+- Backfill is **not a separate feature**. *(Revised before Phase 2.)* Because the architecture
+  derives the table on demand from closed records rather than accumulating it incrementally,
+  every computation already reads the full history window. There is nothing to seed — the first
+  run is as populated as the hundredth. The bootstrap problem the original design worried about
+  is dissolved by the storage decision, not solved by a migration step.
 - `autonomy: supervised` ships here. Trust is computed and **displayed** — in `/claude-tweaks:help`'s
   dashboard and `/claude-tweaks:backlog overview` — and never acted on. The operator watches the
   table be right before anything reads it.
@@ -231,6 +296,13 @@ computed and no behavior changes.
 - Amend the auto-mode contract's never-reversible list to cover the grant. Record creation already
   has this carve-out shape via `unattended-tier`, which is the precedent to follow.
 - Trust-driven batched grant console in `/claude-tweaks:backlog refine`.
+- Survival sweep, **if** the Phase 2 signals prove too thin to grant on — moved here from Phase 2,
+  which shipped only the signals one `gh` call yields (the trust table's own columns) and
+  deliberately started no git walk. Scope would be revert detection and path-overlap follow-ups
+  over recently-closed records, folded into `/claude-tweaks:tidy --scope=github`'s existing
+  rolling digest.
+- Handle the resolver's fourth `kind`. `unstructured` is not a taxonomy state and must never be
+  graded (see 1.1) — a consumer switching over three kinds silently drops it.
 
 First phase that changes behavior.
 

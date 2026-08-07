@@ -42,6 +42,8 @@ On `{skipped}` (Impeccable not installed, design integration disabled): note the
 
 Runs only when Step 2.5b's shape pre-step actually produced a confirmed brief (option 1 was taken and Impeccable's own brief-confirmation exchange completed) — skip entirely if Step 2.5b was skipped, auto-ran, or returned `{skipped}`. **No auto-mode branch** — this step requires a human in a browser by construction (same reason `/impeccable:impeccable live` itself has no non-interactive mode); auto-mode design docs proceed straight from the text brief.
 
+**Skip entirely for a native surface** — `Surface: mobile`, or any surface where the project's `PRODUCT.md` declares a `Platform` of `ios` / `android` / `adaptive`. Both halves of this step are web-only: the scaffold it writes is a static HTML file, and `live` refuses the native track outright (`design-wrapper/modes/live.md` Step 1.5). Proceed to Step 2.5c with no `Visual-reference:` line, exactly as option 2 does. This step is where the check belongs, because it is the only point in the chain that knows the surface before the scaffold gets written — `live` mode itself never receives a `Surface:` line to read.
+
 Offer once, as its own message:
 
 **Call `AskUserQuestion`:**

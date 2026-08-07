@@ -1,6 +1,7 @@
 'use strict';
 const { createCache } = require('../health-core/cache');
 const { createDurableState } = require('../health-core/durable-state');
+const { mergeWontfixIntoDeclined } = require('../health-core/mark');
 
 // Local, gitignored: cache.json only (rebuildable-from-issues dedup state).
 // Canonical path: <root>/.claude-tweaks/docs-health/cache.json
@@ -36,7 +37,13 @@ const durable = createDurableState('docs-health', { includeRemembered: true, inc
 // see that file's header comment for the full rationale (the check must be
 // evaluated against `current.remembered`, the freshest state
 // writeDurableState's CAS loop just fetched, not a caller-side snapshot).
-function buildValidateFindingsUpdate(current, { target, runRecord, rememberCandidates, now = Date.now() }) {
+// wontfixSuppressed: [fingerprint] — findings suppressed this run because
+// their matching issue carried the `wontfix` label. Folded into the durable
+// `declined` slice so the suppression outlives the issue index it was read
+// from; see health-core/mark.js's mergeWontfixIntoDeclined.
+function buildValidateFindingsUpdate(current, {
+  target, runRecord, rememberCandidates, wontfixSuppressed, now = Date.now(),
+}) {
   const cursors = { ...current.cursors };
   if (target) {
     cursors[`doc:${target}`] = { lastAuditedMs: now };
@@ -47,7 +54,13 @@ function buildValidateFindingsUpdate(current, { target, runRecord, rememberCandi
       remembered[id] = { status: 'remembered', issue: null, confidence };
     }
   }
-  return { ...current, cursors, remembered, runs: [...current.runs, runRecord] };
+  return {
+    ...current,
+    cursors,
+    remembered,
+    declined: mergeWontfixIntoDeclined(current.declined, wontfixSuppressed, { now }),
+    runs: [...current.runs, runRecord],
+  };
 }
 
 module.exports = {

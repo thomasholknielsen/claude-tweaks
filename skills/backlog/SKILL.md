@@ -90,3 +90,4 @@ If situational filtering leaves only one option (a bare run that surfaced nothin
 | Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |
 | Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | `/claude-tweaks:tidy`'s job (Shape 3) — this skill tags them and in `refine` may apply `priority:*` via the local-files fallback, never mirroring to GitHub |
 | Claiming or building a record from this skill | Out of scope — `/claude-tweaks:dispatch`'s job |
+| Deriving a grant, priority bump, or "next step" from `overview` mode's Trust Table | Read-only reporting — the `autonomy` policy lever has no consumer yet, so no verdict in that table may inform a `refine`-mode decision |

@@ -78,6 +78,49 @@ test('dedupAndDispatch returns seen as the Set of every processed fingerprint, i
   assert.strictEqual(result.payloads.length, 1);
 });
 
+test('dedupAndDispatch collects a wontfix-label suppression into wontfixSuppressed', () => {
+  const { readCache, toIssuePayload } = makeDeps();
+  const result = dedupAndDispatch({
+    root: '/r', toolName: 't', survivors: [{ id: 'f1' }], readCache,
+    decide: () => ({ action: 'suppress', issue: 7, reason: 'wontfix-label' }), toIssuePayload,
+  });
+  assert.deepStrictEqual(result.payloads, []);
+  assert.deepStrictEqual(result.wontfixSuppressed, ['f1']);
+});
+
+test('dedupAndDispatch does NOT collect a declined suppression into wontfixSuppressed', () => {
+  // A `declined` suppression already lives durably (it is read back out of the
+  // health-state branch), so re-persisting it would be a pointless write. Only
+  // the label reading — which exists nowhere but the live issue index — needs
+  // the hand-off.
+  const { readCache, toIssuePayload } = makeDeps();
+  const result = dedupAndDispatch({
+    root: '/r', toolName: 't', survivors: [{ id: 'f1' }], readCache,
+    decide: () => ({ action: 'suppress', reason: 'declined' }), toIssuePayload,
+  });
+  assert.deepStrictEqual(result.wontfixSuppressed, []);
+});
+
+test('dedupAndDispatch gates wontfixSuppressed on the explicit reason, not on the presence of an issue number', () => {
+  // Guards against re-deriving provenance from `issue` being truthy — a
+  // suppress carrying an issue number but no reason must not be persisted.
+  const { readCache, toIssuePayload } = makeDeps();
+  const result = dedupAndDispatch({
+    root: '/r', toolName: 't', survivors: [{ id: 'f1' }], readCache,
+    decide: () => ({ action: 'suppress', issue: 7 }), toIssuePayload,
+  });
+  assert.deepStrictEqual(result.wontfixSuppressed, []);
+});
+
+test('dedupAndDispatch returns an empty wontfixSuppressed when nothing was suppressed by label', () => {
+  const { readCache, toIssuePayload } = makeDeps();
+  const result = dedupAndDispatch({
+    root: '/r', toolName: 't', survivors: [{ id: 'f1' }], readCache,
+    decide: () => ({ action: 'file' }), toIssuePayload,
+  });
+  assert.deepStrictEqual(result.wontfixSuppressed, []);
+});
+
 test('dedupAndDispatch passes issuesPath and toolName through to loadIssueIndex (a malformed --issues file degrades gracefully)', () => {
   const { readCache, toIssuePayload } = makeDeps();
   // loadIssueIndex (bin/lib/health-core/issue-index.js) already degrades a

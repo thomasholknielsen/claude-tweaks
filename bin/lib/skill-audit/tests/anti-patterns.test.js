@@ -180,5 +180,83 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   diff" row to "...when a brief already exists" — a reword, not an
   //   eviction: `git diff -- 'skills/*/SKILL.md' | grep -E '^-\|'` returns that
   //   one line and its replacement is present in the same table. Net +1.
-  assert.strictEqual(total, 354);
+  //
+  //   354 -> 356, supervised trust table (Task 3). Two rows ADDED, none
+  //   evicted: help/SKILL.md gains "Deriving a recommendation, grant, or 'next
+  //   step' from the Trust Table's verdicts" (guards Stage 4.8's read-only
+  //   contract) and backlog/SKILL.md gains "Deriving a grant, priority bump,
+  //   or 'next step' from `overview` mode's Trust Table" (guards the same
+  //   contract for `/backlog overview`'s new Step 1.5). Verified:
+  //   `git diff -- 'skills/*/SKILL.md' | grep -E '^-\|'` is empty; the same
+  //   diff's `^\+\|` lines are exactly these two new rows. Net +2.
+  //
+  //   356 -> 358, retirement of design-wrapper's auto-fit / issue-driven
+  //   dispatch tables (#147). Two rows ADDED to design-wrapper/SKILL.md, both
+  //   guarding the suggestion-driven model that replaced the keyword tables:
+  //   "Deriving a polish command from a finding's `category`, `rule`, or
+  //   `description`" and "Dropping an audit finding that has no `suggestion`".
+  //   The same change set rewords that table's "Running `polish` when the audit
+  //   cache is absent" row to name the new vocabulary — a reword, not an
+  //   eviction: its replacement is present in the same table. The other `-|`
+  //   lines in this change set are Input/Flags/availability rows, which this
+  //   parser does not read. Net +2.
+  //
+  //   Both change sets above landed concurrently and each moved this number
+  //   354 -> 356 independently, adding a DIFFERENT pair of rows. The counter
+  //   therefore merged without conflict at the wrong value — same literal from
+  //   the same base — while the two comment blocks did conflict. Correct total
+  //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
+  //   alone.
+  //
+  //   358 -> 361, Impeccable's direction contract at the acceptance gate (#152).
+  //   Three rows ADDED to demo/SKILL.md, none evicted, all guarding the new
+  //   `### The design contract this was built against` section in Step 2:
+  //   "Summarizing, re-wording, or reordering the direction contract's five
+  //   blocks", "Rendering the design-contract heading when no contract resolved,
+  //   or with only the blocks that parsed", and "Dropping a malformed contract
+  //   silently because the section is omitted either way". Verified:
+  //   `git diff origin/main -- 'skills/*/SKILL.md' | grep -E '^-\|'` is empty,
+  //   and the same diff's `^\+\|` lines are exactly these three. Net +3.
+  //
+  //   358 -> 362, `doctor` mode routing Impeccable's design-record findings
+  //   into /tidy (#150). Four rows ADDED to design-wrapper/SKILL.md, none
+  //   evicted: "Passing `--fix` to `doctor.mjs`", "Passing any flag but
+  //   `--json` to `doctor.mjs`", "Collapsing `route`/`mention`/`auto` into
+  //   claude-tweaks' severity words in the wrapper's return", and "Running
+  //   Layer 3's file sniff before `doctor`". Verified rather than assumed, in
+  //   both directions: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty, and the same diff's `^\+\|` lines are these
+  //   four plus four Input/availability/Next-Actions rows this parser does not
+  //   read. The concurrent merge from origin/main that landed in the same
+  //   branch added no table rows at all (checked separately, since the 356 ->
+  //   358 entry above records what happens when a merge's contribution is
+  //   assumed to be zero without looking). Net +4.
+  //
+  //   -> 365, merge of #150 into #152. The two entries above are the two sides
+  //   of that merge, both measured against the same 358 base: #150 added 4
+  //   (design-wrapper's doctor rows), #152 added 3 (demo's direction-contract
+  //   rows). 358 + 4 + 3 = 365. This is `[IL-99]` firing exactly as recorded:
+  //   `.claude-plugin/plugin.json` had no textual conflict at all — both
+  //   branches independently bumped to 6.52.0, so the field resolved to the
+  //   same string either way and only the two comment blocks here conflicted,
+  //   which is what surfaced the collision. Neither side's literal is correct
+  //   after the merge (361 and 362 each omit the other's rows), so this number
+  //   was re-derived by RUNNING the parser on the merged tree, not by adding
+  //   these comment blocks together — the arithmetic agreeing is a coincidence
+  //   worth having but not the evidence.
+  //   365 -> 370, native surface routing (#151). Five rows ADDED to design-
+  //   wrapper/SKILL.md, none evicted, all guarding the new web-vs-native track
+  //   resolution: "Running the Impeccable CLI or `live` on a native surface",
+  //   "Returning `pass` from `test` mode on a native surface", "Dispatching
+  //   native work without naming `ios`, `android`, or `adaptive`", "Letting
+  //   `setup.platform` silently overrule an explicit `Surface:`", and "Running
+  //   Layer 3's web-only sniff against a declared native surface". Verified in
+  //   both directions: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty, and 370 was read off the parser run against the
+  //   working tree, not computed as 365 + 5 — the arithmetic agreeing is a
+  //   check, not the evidence (`[IL-99]`). A concurrent lane is editing
+  //   design-wrapper/modes/review.md this wave; mode sub-files carry no
+  //   Anti-Patterns table and this parser only reads `skills/*/SKILL.md`, so
+  //   that lane cannot move this number without touching a SKILL.md itself.
+  assert.strictEqual(total, 370);
 });

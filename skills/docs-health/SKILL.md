@@ -112,9 +112,11 @@ Before fingerprinting and dedup, re-examine each finding and ask: is it real (do
 gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > /tmp/docs-health-issues-raw.json
 ```
 
-Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/lib/issues/record.js`): the `<!-- work-fingerprint: docshealth-XXXXXXXX -->` marker. Build an array of `{ number, state, labels, fingerprint }` objects and write to `/tmp/docs-health-issues.json`. If `gh` is unavailable or the repo has no `by:docs-health` issues yet, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/lib/issues/record.js`): the `<!-- work-fingerprint: docshealth-XXXXXXXX -->` marker. Build an array of `{ number, state, labels, fingerprint }` objects and write to `/tmp/docs-health-issues.json`.
 
-A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row).
+**Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `docs-health` and `{ISSUES_FILE}` = `/tmp/docs-health-issues.json`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:docs-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
+
+A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). It also persists that fingerprint to the durable `declined` slice on the `health-state` branch, so the suppression survives a later firing that cannot rebuild this index at all — the local `cache.json` is no help there, since a scheduled Routine's fresh container starts with an empty one.
 
 **Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
 

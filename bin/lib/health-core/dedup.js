@@ -39,11 +39,22 @@
 // would otherwise silently reappear on the next firing. Omitting this
 // parameter preserves this function's pre-existing cache-only behavior
 // exactly (backward compatible with every existing caller).
+//
+// `reason` on the two suppress outcomes is an EXPLICIT provenance tag, not a
+// field callers should infer from the presence of `issue`. Only the
+// wontfix-label branch is worth persisting durably (it is a fresh reading of
+// live GitHub state that a later index-less firing cannot reconstruct); the
+// durable/cache `declined` branches are already durable by construction, so
+// re-persisting them would be a no-op write. Callers gate on
+// `reason === 'wontfix-label'` — see validate-findings-dispatch.js's
+// wontfixSuppressed collection.
 function decide(finding, issueIndex, cache, durableDeclined) {
   const fp = finding.id;
   const match = issueIndex && fp && issueIndex[fp];
   if (match) {
-    if ((match.labels || []).includes('wontfix')) return { action: 'suppress', issue: match.number };
+    if ((match.labels || []).includes('wontfix')) {
+      return { action: 'suppress', issue: match.number, reason: 'wontfix-label' };
+    }
     // gh's real API returns state as uppercase 'OPEN'/'CLOSED' (confirmed
     // live: `gh issue list --json number,state,title`), not lowercase —
     // record.js's hasOpenNativeBlocker already checks GraphQL state this
@@ -57,9 +68,9 @@ function decide(finding, issueIndex, cache, durableDeclined) {
     }
     return { action: 'skip', issue: match.number };
   }
-  if (durableDeclined && fp && durableDeclined[fp]) return { action: 'suppress' };
+  if (durableDeclined && fp && durableDeclined[fp]) return { action: 'suppress', reason: 'declined' };
   const cached = cache && fp && cache[fp];
-  if (cached && cached.status === 'declined') return { action: 'suppress' };
+  if (cached && cached.status === 'declined') return { action: 'suppress', reason: 'declined' };
   if (cached && cached.status === 'staged') return { action: 'skip' };
   if (cached && cached.status === 'regressed') return { action: 'skip', issue: cached.issue };
   return { action: 'file' };

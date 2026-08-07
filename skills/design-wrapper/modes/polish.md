@@ -6,11 +6,11 @@ Invoked via `/claude-tweaks:design-wrapper polish <spec> [--dry-run]`. Returns `
 
 Called by `/claude-tweaks:flow` in the polish phase between review and wrap-up. Dispatches three categories in order:
 
-1. **Auto-fit** — always when frontend (`polish` / `clarify` / `harden`)
-2. **Issue-driven** — only when the audit cache has matching categories (`typeset` / `layout` / `adapt` / `optimize`)
+1. **Refinement set** — always when frontend (`polish` / `clarify` / `harden`)
+2. **Suggestion-driven** — only when the audit cache holds findings, and each finding's own `suggestion` field names the command
 3. **Intent-driven** — only when the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20) declares matching values (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard`)
 
-The full dispatch tables for each category live in `../command-map.md`.
+The full dispatch rules for each category live in `../command-map.md`.
 
 ## Preconditions
 
@@ -36,10 +36,10 @@ Cache resolution:
 
 - If a ledger file exists for this spec, derive the date+feature prefix from the ledger filename and use the matching `-audit.json` sibling.
 - Otherwise, glob `docs/plans/*-audit.json` and `docs/plans/audit-*.json`, pick the most recently modified file matching the spec slug.
-- If no cache file is found, proceed without issue-driven dispatch — only auto-fit commands run.
-- If the cache exists but is older than the most recent commit on the spec's branch, treat as stale and skip issue-driven dispatch (the audit no longer reflects current code).
+- If no cache file is found, proceed without suggestion-driven dispatch — only the refinement set and intent dispatch run.
+- If the cache exists but is older than the most recent commit on the spec's branch, treat as stale and skip suggestion-driven dispatch (the audit no longer reflects current code).
 
-### Step 4: Auto-fit dispatch (always invoked when frontend)
+### Step 4: Refinement-set dispatch (always invoked when frontend)
 
 Invoke each via the Skill tool, in order:
 
@@ -47,15 +47,27 @@ Invoke each via the Skill tool, in order:
 - `/impeccable:impeccable clarify <files>` — UX copy improvement
 - `/impeccable:impeccable harden <files>` — error handling, i18n, edge cases
 
+**Job-statement suffix.** All three targets carry a fixed job-statement suffix appended after the file list — see `../command-map.md`'s `### Step 1 — Refinement set` section for the exact text and the reason it is not job-type inference. It is not optional, does not vary by record, and is appended on every refinement-set dispatch, exactly as `animate`'s Frequency Gate suffix is.
+
 **File-target convention:** The wrapper passes the file list as a single space-separated argument. If a command rejects multi-file input, the wrapper falls back to looping per file and records the per-command preference once per session in the in-memory marker (same marker pattern as the availability skip de-dupe). Do not surface the looping as a finding — it is a normalization detail, not user-facing behavior. The canonical per-command argument shape is documented alongside each command in `../command-map.md`.
 
-### Step 5: Issue-driven dispatch (only when audit flagged matching category)
+### Step 5: Suggestion-driven dispatch (only when the audit cache holds findings)
 
-Read the audit findings from Step 3. For each category match, invoke the corresponding command per `../command-map.md` Step 2 table. Match by checking the audit finding's `category` or `rule` field (case-insensitive substring match against the category keywords).
+Read the audit findings from Step 3. Every finding carries its own `suggestion` field naming the command that remediates it — `audit` writes one on each issue it reports. Dispatch what the finding names. Do not derive a command from the finding's `category`, `rule`, or `description` text; the wrapper does no keyword matching of any kind here.
 
-**Anti-Pattern category is suggestion-driven.** When a finding's category matches `anti-pattern`/`ai slop`/`ai-generated`/`generic` (per `../command-map.md`'s "Anti-Pattern dispatch" section), read that finding's `suggestion` field instead of using a fixed command. If the named command is one of the manual-only commands (see `../command-map.md`'s Full command map table for current membership), do not dispatch it — instead append one entry to `staged_suggestions` (see Output to caller below), which `/claude-tweaks:flow`'s polish-phase execution writes to `{run-dir}/staged/` and logs to `decisions.md` so the user sees it at the Wrap-Up Review Console rather than the pipeline applying it silently. Otherwise dispatch the named command normally, same as the fixed-category rows.
+For each finding, in cache order:
 
-When the audit produces multiple matches for the same category **and the same resolved command** (fixed rows: always the same command per category; Anti-Pattern row: same `suggestion` value across findings), dispatch the command once with the union of affected files. When Anti-Pattern findings within one run name different commands, dispatch each named command once, each with the union of files whose findings named it.
+1. **Resolve the `suggestion`.** Normalize it to a bare command name (upstream writes it as `/impeccable <command>`), then look it up in `../command-map.md`'s Full command map table.
+
+2. **Manual-only → stage.** If the named command is one of the manual-only commands (see `../command-map.md`'s Full command map table for current membership), do not dispatch it. Append one `kind: "manual-only"` entry to `staged_suggestions` (see Output to caller below), which `/claude-tweaks:flow`'s polish-phase execution writes to `{run-dir}/staged/` and logs to `decisions.md`, so the user sees it at the Wrap-Up Review Console rather than the pipeline applying an aggressive creative change silently.
+
+3. **No usable `suggestion` → stage as an unclassified observation.** If the field is absent, `null`, empty, or resolves to nothing in that table, append one `kind: "unclassified"` entry to `staged_suggestions` carrying the finding's `id` and `category` verbatim, plus its `message` as the entry's `description`. (The cache field is `message`; the staged field is `description` — see `review.md`'s Step 5 cache shape, which is the producer of both.) Never fall back to keyword-mapping the finding onto a command — that is the mechanism this step replaced — and never drop it silently. It reaches the Review Console as an observation for a human to route.
+
+4. **Anything else → dispatch normally.**
+
+**Batching, across all findings regardless of category.** When several findings name the **same** command, dispatch it once with the union of their affected files, de-duplicated. When findings name **different** commands, dispatch each named command once, each scoped to the union of the files whose findings named it. Staged entries follow the same union rule per command; an unclassified entry is never merged with another, since it names no command to merge on.
+
+**`category` selects no command.** It travels as metadata on staged entries so a human can group related findings at the Review Console, and it populates the `trigger` field of a dispatched entry (`audit:{category}`) for the audit trail. It never picks the command.
 
 ### Step 6: Intent-driven dispatch
 
@@ -63,7 +75,7 @@ Read `Design-intent:` from the record's body-metadata line (lifted into the mate
 
 **Multi-intent ordering.** When the user declared comma-separated intents (e.g., `design-intent: bold, delightful`), invoke commands in the order declared. The fixed `delight` → `animate` pairing for `delightful` is preserved even when interleaved with other intents — treat `delightful` as a single dispatch unit that produces two commands. The wrapper does not run a re-verify cycle between intent commands; the polish phase as a whole shares a single re-verify cycle (capped by `/flow`'s polish phase, see flow's polish-phase decision tree).
 
-**Frequency Gate guardrail.** The `animate` command's target argument always carries a fixed Frequency Gate guardrail suffix, appended after the file list — see `../command-map.md`'s `### Step 3 — Intent-driven` section for the exact text and rationale. Do not treat `animate`'s target as a bare file list when reasoning about this dispatch; the suffix is not optional and is not gated by audit findings or `design-intent` value.
+**Frequency Gate guardrail.** The `animate` command's target argument always carries a fixed Frequency Gate guardrail suffix, appended after the file list — see `../command-map.md`'s `### Step 3 — Intent-driven` section for the exact text and rationale. Do not treat `animate`'s target as a bare file list when reasoning about this dispatch; the suffix is not optional and is not gated by audit findings or `design-intent` value. It applies to a Step 5 dispatch of `animate` too, now that a finding's `suggestion` can name it — `animate` is in the palette `audit` draws its suggestions from.
 
 **Manual-only commands.** The manual-only commands (see `../command-map.md`'s Full command map table for current membership) are not intent-driven in this phase — they surface via `survey` mode recommendations only (`extract`'s additional discoverability channel is noted on its row in `../command-map.md`). Do not auto-dispatch them from `polish`.
 
@@ -71,17 +83,19 @@ Read `Design-intent:` from the record's body-metadata line (lifted into the mate
 
 ### Step 7: Build `decision_summary`
 
-When `commands_invoked` is non-empty, build a single-sentence summary for the caller to log to the auto-decision log: `"Dispatched {N} Impeccable commands on {M} files — {category list}."` where `N` is the total count of entries in `commands_invoked`, `M` is the count of unique files across all invoked commands, and `{category list}` is built by grouping `commands_invoked` entries by their `category` field, semicolon-separated, in the order auto-fit, issue-driven, intent-driven — skip any category with zero entries:
+When `commands_invoked` is non-empty, build a single-sentence summary for the caller to log to the auto-decision log: `"Dispatched {N} Impeccable commands on {M} files — {category list}."` where `N` is the total count of entries in `commands_invoked`, `M` is the count of unique files across all invoked commands, and `{category list}` is built by grouping `commands_invoked` entries by their `category` field, semicolon-separated, in the order refinement-set, suggestion-driven, intent-driven — skip any category with zero entries:
 
-- **auto-fit** clause: `auto-fit: {comma-separated command names}` (no trigger — auto-fit never has one)
-- **issue-driven** clause: `issue-driven: {command} ({trigger})` per distinct command, comma-separated within the clause when more than one dispatched
-- **intent-driven** clause: same shape as issue-driven — `intent-driven: {command} ({trigger})`, comma-separated within the clause when more than one dispatched
+- **refinement-set** clause: `refinement-set: {comma-separated command names}` (no trigger — the refinement set never has one)
+- **suggestion-driven** clause: `suggestion-driven: {command} ({trigger})` per distinct command, comma-separated within the clause when more than one dispatched
+- **intent-driven** clause: same shape as suggestion-driven — `intent-driven: {command} ({trigger})`, comma-separated within the clause when more than one dispatched
 
-Worked example — 3 auto-fit commands (`polish`, `clarify`, `harden`), 1 issue-driven (`typeset`, triggered by `audit:typography`), 1 intent-driven (`bolder`, triggered by `intent:bold`), across 3 files:
+Worked example — the 3 refinement-set commands (`polish`, `clarify`, `harden`), 1 suggestion-driven (`typeset`, from a finding whose `suggestion` named it, `category: typography`), 1 intent-driven (`bolder`, triggered by `intent:bold`), across 3 files:
 
 ```
-Dispatched 5 Impeccable commands on 3 files — auto-fit: polish, clarify, harden; issue-driven: typeset (audit:typography); intent-driven: bolder (intent:bold).
+Dispatched 5 Impeccable commands on 3 files — refinement-set: polish, clarify, harden; suggestion-driven: typeset (audit:typography); intent-driven: bolder (intent:bold).
 ```
+
+Staged entries are **not** counted in `N` and do not appear in the category list — nothing was dispatched. They are logged separately by the caller as `STAGED` entries.
 
 When `commands_invoked` is empty, do not build `decision_summary` — omit the field entirely from the output.
 
@@ -96,24 +110,32 @@ When the caller passes `--dry-run`, run Steps 1-7 exactly as above to compute th
   "mode": "polish",
   "result": "ok",
   "commands_invoked": [
-    { "command": "/impeccable:impeccable polish", "files": ["..."], "category": "auto-fit" },
-    { "command": "/impeccable:impeccable typeset", "files": ["..."], "category": "issue-driven", "trigger": "audit:typography" },
-    { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "issue-driven", "trigger": "audit:anti-pattern" },
+    { "command": "/impeccable:impeccable polish", "files": ["..."], "category": "refinement-set" },
+    { "command": "/impeccable:impeccable typeset", "files": ["..."], "category": "suggestion-driven", "trigger": "audit:typography" },
+    { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "suggestion-driven", "trigger": "audit:slop" },
     { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "intent-driven", "trigger": "intent:bold" },
     { "command": "/impeccable:impeccable delight", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" },
     { "command": "/impeccable:impeccable animate", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" }
   ],
   "staged_suggestions": [
-    { "command": "/impeccable:impeccable overdrive", "files": ["..."], "trigger": "audit:anti-pattern" }
+    { "kind": "manual-only", "command": "/impeccable:impeccable overdrive", "files": ["..."], "trigger": "audit:slop" },
+    { "kind": "unclassified", "id": "<finding id>", "category": "slop", "description": "<finding description>", "files": ["..."], "trigger": "audit:slop" }
   ],
   "files_modified": [ "<path>", ... ],
-  "decision_summary": "Dispatched 6 Impeccable commands on 3 files — auto-fit: polish; issue-driven: typeset (audit:typography), bolder (audit:anti-pattern); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful)."
+  "decision_summary": "Dispatched 6 Impeccable commands on 3 files — refinement-set: polish; suggestion-driven: typeset (audit:typography), bolder (audit:slop); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful)."
 }
 ```
 
-`staged_suggestions` is an array with the same per-entry shape as `commands_invoked` minus `category` (staged entries never ran, so a dispatch category doesn't apply) — omit the field entirely when empty, same convention as `decision_summary`.
+`staged_suggestions` is an array of entries that were **not** dispatched — omit the field entirely when empty, same convention as `decision_summary`. Every entry carries `kind`, `files`, and `trigger`; `kind` discriminates the two reasons an entry is staged rather than run, and consumers must branch on it:
 
-Or, when no commands ran (skip from preconditions, or zero files in scope, or no findings + no auto-fit applicable):
+| `kind` | Also carries | Meaning |
+|--------|--------------|---------|
+| `manual-only` | `command` | A finding's `suggestion` named a manual-only command. There is a command to run; the wrapper declined to run it automatically. |
+| `unclassified` | `id`, `category`, `description` | The finding had no usable `suggestion`. There is **no** command — the entry is an observation for a human to route. |
+
+An `unclassified` entry has no `command` field at all, by construction: inventing one is the keyword-mapping this mode retired. A consumer that renders staged entries must not assume `command` is present — `skills/flow/polish-execution.md`'s `{command} {files} — ...` template predates the `unclassified` kind and needs the branch added. That is tracked as part of the cross-skill sweep in record #148; until it lands, an `unclassified` entry still reaches `{run-dir}/staged/` and `decisions.md`, but renders with an empty command slot.
+
+Or, when no commands ran (skip from preconditions, or zero files in scope, or no findings + no refinement set applicable):
 
 ```json
 {
@@ -121,7 +143,7 @@ Or, when no commands ran (skip from preconditions, or zero files in scope, or no
   "result": "ok",
   "commands_invoked": [],
   "files_modified": [],
-  "note": "Auto-fit ran with zero net changes" | "No frontend files in scope"
+  "note": "Refinement set ran with zero net changes" | "No frontend files in scope"
 }
 ```
 

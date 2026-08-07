@@ -14,11 +14,22 @@ const { loadIssueIndex } = require('./issue-index');
 //
 // opts: { root, issuesPath, toolName, survivors } — survivors is the
 // caller's own array of already-validated, fingerprinted findings.
-// Returns { cache, payloads, seen } — cache is the mutated in-memory cache
-// object (the caller still owns persisting it via its own writeCache),
-// payloads is the array of issue payloads to emit, and seen is the Set of
-// fingerprints processed this run (for the run-record's `fingerprints`
-// field).
+// Returns { cache, payloads, seen, wontfixSuppressed } — cache is the mutated
+// in-memory cache object (the caller still owns persisting it via its own
+// writeCache), payloads is the array of issue payloads to emit, seen is the
+// Set of fingerprints processed this run (for the run-record's `fingerprints`
+// field), and wontfixSuppressed is the array of fingerprints suppressed this
+// run because their matching GitHub issue carries the `wontfix` label.
+//
+// wontfixSuppressed exists because the issue index is the ONLY place that
+// reading lives, and it is exactly what a `gh`-absent (or GitHub-unreachable)
+// firing cannot rebuild. A run that does have the index therefore has to hand
+// the decision forward: the caller persists these fingerprints into the
+// durable `declined` slice on the health-state branch, which does survive a
+// scheduled Routine firing's fresh container (the local gitignored cache does
+// not — see health-core/cache.js's header). Without this hand-off, a standing
+// `wontfix` decision silently lapses the moment a firing can't reach GitHub,
+// and the suppressed finding is re-filed as brand new.
 function dedupAndDispatch({
   root, issuesPath, toolName, survivors, readCache, decide, toIssuePayload,
 }) {
@@ -26,12 +37,17 @@ function dedupAndDispatch({
   const issueIndex = loadIssueIndex(issuesPath, toolName);
   const payloads = [];
   const seen = new Set();
+  const wontfixSuppressed = [];
   for (const finding of survivors) {
     if (seen.has(finding.id)) continue;
     seen.add(finding.id);
 
     const decision = decide(finding, issueIndex, cache);
-    if (decision.action === 'skip' || decision.action === 'suppress') continue;
+    if (decision.action === 'suppress') {
+      if (decision.reason === 'wontfix-label') wontfixSuppressed.push(finding.id);
+      continue;
+    }
+    if (decision.action === 'skip') continue;
 
     if (decision.action === 'file' || decision.action === 'reopen') {
       cache[finding.id] = decision.action === 'reopen'
@@ -40,7 +56,7 @@ function dedupAndDispatch({
       payloads.push(toIssuePayload(finding));
     }
   }
-  return { cache, payloads, seen };
+  return { cache, payloads, seen, wontfixSuppressed };
 }
 
 module.exports = { dedupAndDispatch };

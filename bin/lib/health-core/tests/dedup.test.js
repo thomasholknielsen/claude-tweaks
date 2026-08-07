@@ -14,12 +14,31 @@ test('decide skips when an open issue already matches the fingerprint', () => {
 
 test('decide suppresses when the matching issue is labelled wontfix', () => {
   const issueIndex = { 'x-abc': { number: 5, state: 'open', labels: ['wontfix'] } };
-  assert.deepStrictEqual(decide({ id: 'x-abc' }, issueIndex, {}), { action: 'suppress', issue: 5 });
+  assert.deepStrictEqual(
+    decide({ id: 'x-abc' }, issueIndex, {}),
+    { action: 'suppress', issue: 5, reason: 'wontfix-label' },
+  );
+});
+
+test('decide tags a label-derived suppression `wontfix-label` so callers can persist it durably', () => {
+  // This reading exists nowhere but the live issue index. Callers key the
+  // durable hand-off on this tag — see validate-findings-dispatch.js.
+  const issueIndex = { 'x-abc': { number: 5, state: 'open', labels: ['wontfix'] } };
+  assert.strictEqual(decide({ id: 'x-abc' }, issueIndex, {}).reason, 'wontfix-label');
 });
 
 test('decide suppresses a finding the local cache marked declined', () => {
   const cache = { 'x-abc': { status: 'declined' } };
-  assert.deepStrictEqual(decide({ id: 'x-abc' }, {}, cache), { action: 'suppress' });
+  assert.deepStrictEqual(decide({ id: 'x-abc' }, {}, cache), { action: 'suppress', reason: 'declined' });
+});
+
+test('decide tags a cache/durable declined suppression `declined`, NOT `wontfix-label`', () => {
+  // Mis-tagging here would make every already-durable suppression re-persist
+  // itself on every run — harmless but pure write churn against a CAS branch
+  // four engines share.
+  const cache = { 'x-abc': { status: 'declined' } };
+  assert.strictEqual(decide({ id: 'x-abc' }, {}, cache).reason, 'declined');
+  assert.strictEqual(decide({ id: 'x-abc' }, {}, {}, { 'x-abc': { lastSeenMs: 1 } }).reason, 'declined');
 });
 
 test('decide skips a finding the local cache marked staged', () => {
@@ -54,7 +73,10 @@ test('decide skips (does not reopen) an open match using the real uppercase "OPE
 
 test('decide still suppresses a closed match that carries wontfix (reopen never overrides a standing wontfix)', () => {
   const issueIndex = { 'x-abc': { number: 5, state: 'closed', labels: ['wontfix'] } };
-  assert.deepStrictEqual(decide({ id: 'x-abc' }, issueIndex, {}), { action: 'suppress', issue: 5 });
+  assert.deepStrictEqual(
+    decide({ id: 'x-abc' }, issueIndex, {}),
+    { action: 'suppress', issue: 5, reason: 'wontfix-label' },
+  );
 });
 
 test('decide skips (not files a duplicate) a finding the local cache marked regressed, when the run falls back to cache-only dedup', () => {
@@ -69,7 +91,19 @@ test('decide suppresses a finding present in the durable declined map, even with
   // never had access to an earlier interactive session's local cache.json —
   // the whole reason durableDeclined exists.
   const durableDeclined = { 'x-abc': { lastSeenMs: 1000 } };
-  assert.deepStrictEqual(decide({ id: 'x-abc' }, {}, {}, durableDeclined), { action: 'suppress' });
+  assert.deepStrictEqual(
+    decide({ id: 'x-abc' }, {}, {}, durableDeclined),
+    { action: 'suppress', reason: 'declined' },
+  );
+});
+
+test('decide suppresses a durable entry written by an earlier run\'s wontfix-label hand-off, with no issue index present', () => {
+  // The end-to-end shape of the gh-absent fix: an earlier firing read the
+  // `wontfix` label off the live index and persisted it; this firing has no
+  // index at all (gh absent, MCP unavailable, GitHub unreachable) and must
+  // still suppress rather than re-file.
+  const durableDeclined = { 'x-abc': { lastSeenMs: 1000, origin: 'wontfix-label' } };
+  assert.strictEqual(decide({ id: 'x-abc' }, {}, {}, durableDeclined).action, 'suppress');
 });
 
 test('decide ignores durableDeclined entries for a different fingerprint', () => {
