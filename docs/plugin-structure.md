@@ -17,6 +17,7 @@ bin/hooks.js                      → Hook dispatcher (one entry point for all h
 bin/                              → Node executables (statusline, deps check)
 bin/lib/                          → Shared Node helpers (color, deps, coordination, issue claims + ingestion, policy). Multi-file modules live directly at bin/lib/{name}/ (e.g. bin/lib/issues/, bin/lib/hooks/, bin/lib/health-core/) — flat sibling directories, NOT a nested _shared/ wrapper. That convention is specific to skills/_shared/; don't assume it applies here.
 bin/lib/skill-audit/              → Corpus measurement and guards for the shipped skill payload: the 40 KB per-file ceiling, Anti-Pattern row preservation, identifier loss, and the four bloat signals. Called at runtime by harness-health's evidence pre-check 9; its tests are what stop the payload regrowing after the v6.34-6.37 cleanup
+bin/lib/wrap-up/                  → Deterministic git-fact readers for the wrap-up State block: reflog.js classifies `git reflog` history into report-worthy ops (rebase, reset, cherry-pick, revert, amend, merge, push), state.js reads branch/upstream/ahead-behind/pushed/linked-worktree facts, render.js renders the block. Consumed by bin/wrap-up-state.js so the report reads repository facts from git instead of reconstructing them from memory — the motivating failure this closes was a report claiming work had landed when it had only been committed locally
 tests/                            → Node test files (node --test runner)
 perf/                             → Wall-clock timing budgets, run via `npm run test:perf`. Deliberately outside `npm test`: a timing assertion cannot be deterministic in a suite that routinely runs while sibling worktrees run their own, and a flaky failure there trains readers to dismiss real ones (issue #107)
 evals/                            → Reproducible eval/benchmark harness ("drills") — a separate Node project (own package.json/npm install/tests) that runs real claude-tweaks skills against isolated fixture repos via the Claude Agent SDK and grades cost + quality. Not part of the plugin runtime; see `evals/README.md` for setup, usage, and its safety model
@@ -78,6 +79,8 @@ node bin/docs-health.js <cmd>        # Docs-health CLI — run with no args for 
 node --test bin/lib/record-graph/tests/*.test.js   # Record-graph unit suite only
 node bin/record-graph.js render <faceted-json-path> --format <d2|svg> --work-links <native|body-text> [--fetch-limit N] [--generated-at ISO8601] [--out path]   # Record-graph CLI — render is its only command
 node --test bin/lib/init/tests/*.test.js   # Init CLAUDE.md-conformance unit suite only
+node --test bin/lib/wrap-up/tests/*.test.js   # Wrap-up unit suite only
+node bin/wrap-up-state.js --since <base-sha|iso-datetime> [--json]   # Wrap-up-state CLI — emits the /wrap-up State block and in-scope history ops, read from git rather than recalled
 npm run test:perf                               # Timing budgets in perf/ — NOT part of `npm test`; run alone, without a competing suite
 cd evals && npm install && node --test tests/   # Eval harness's own free unit suite — NOT included in root `npm test` (separate package.json/node_modules)
 cd evals && node runner.js run <scenario>       # Runs a real scenario against the live Claude Agent SDK — costs real tokens/dollars, see evals/README.md
