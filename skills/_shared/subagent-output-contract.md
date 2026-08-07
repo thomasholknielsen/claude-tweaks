@@ -90,7 +90,7 @@ Match the model to the work. Specify the tier in the `Task()` dispatch.
 |---|---|---|
 | **Fast** (Haiku) | Mechanical: file location, pattern grep, structured extraction, single-file checks | `/journeys` per-journey extraction, `/stories` per-flow probe, `/test` parallel scouts, `/review` lens 3a (convention check), lens 3f (test quality on isolated files) |
 | **Standard** (Sonnet) | Integration: multi-file analysis, cross-cutting findings, format-sensitive transforms | `/review` lenses 3b-3e (security, errors, perf, architecture), `/browse` agents, `/tidy` reviewers |
-| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/challenge` Mode 4 aggregator (Layered MoA), `/specify` red-team synthesis |
+| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/specify` red-team synthesis |
 
 Default to the cheapest model that can do the job. Upgrade explicitly when the agent comes back `BLOCKED` for reasoning reasons (not for context reasons).
 
@@ -148,7 +148,7 @@ Maximum 200 tokens total.
 
 ## Not every consumer uses A/B/C
 
-`/challenge`'s per-lens proposers follow this contract's input discipline, status-line protocol, and model-tier selection, but their output is a free-form 2-4 paragraph debiasing perspective (per `challenge/SKILL.md` Process Step 3), not Template A/B/C — the aggregator (Layered MoA, Step 4) synthesizes prose perspectives, not structured findings/locations/yes-no answers. When a dispatch's output genuinely doesn't fit A/B/C, define the format explicitly in the dispatch prompt rather than forcing it into one of the three.
+When a dispatch's output genuinely doesn't fit A/B/C, define the format explicitly in the dispatch prompt rather than forcing it into one of the three.
 
 ## Exemption: third-party agents
 
@@ -225,4 +225,4 @@ The blockquote above is the dispatch-site directive; the fenced block is what ea
 
 ## Related primitives
 
-- `skills/_shared/multi-agent-coordination.md` — inter-agent coordination patterns (Reproduction, Debate, Multi-persona red-team, Layered MoA) that compose with these templates.
+- `skills/_shared/multi-agent-coordination.md` — inter-agent coordination patterns (Reproduction, Debate, Multi-persona red-team) that compose with these templates.
