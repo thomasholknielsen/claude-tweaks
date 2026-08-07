@@ -1,15 +1,15 @@
 # Command Map — Impeccable Commands by Category
 
-Reference table for every Impeccable command, categorized by how the wrapper dispatches it. Five dispatch categories (auto-fit / issue-driven / intent-driven / manual-only / never), all active.
+Reference table for every Impeccable command, categorized by how the wrapper dispatches it. Every category in the table below is active.
 
 ## Categories
 
 | Category | Meaning |
 |----------|---------|
-| **Auto-fit (pre-spec)** | Run automatically before a spec is decomposed, when frontend is detected (`/specify` shape pre-step) |
-| **Auto-fit (polish phase)** | Run automatically in the polish phase whenever frontend is detected (`/flow` polish) |
-| **Auto-fit (review phase)** | Run automatically during review whenever frontend is detected (`/review`) |
-| **Issue-driven** | Run only when the audit pass flagged a matching issue (`/flow` polish) |
+| **Phase-fixed (pre-spec)** | Run automatically before a spec is decomposed, when frontend is detected (`/specify` shape pre-step) |
+| **Refinement set (polish phase)** | Run automatically in the polish phase whenever frontend is detected (`/flow` polish). Each dispatch carries the job-statement suffix — see "Step 1 — Refinement set" below. |
+| **Phase-fixed (review phase)** | Run automatically during review whenever frontend is detected (`/review`) |
+| **Suggestion-driven** | Run when an `audit` finding's own `suggestion` field names them (`/flow` polish) |
 | **Intent-driven** | Run only when the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20) declares a matching intent (`/flow` polish) |
 | **Manual-only** | Surfaced as `survey` recommendations; never auto-dispatched. Aggressive creative drift makes them user-discretion. |
 | **Never (in flow)** | Available only as standalone manual commands; never auto-invoked by the wrapper |
@@ -18,16 +18,16 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 
 | Impeccable command | Category | When wrapper invokes |
 |--------------------|----------|----------------------|
-| `shape` | Auto-fit (pre-spec) | `/specify` shape pre-step (`shape` mode) |
-| `polish` | Auto-fit (polish phase) | `/flow` polish, always when frontend |
-| `clarify` | Auto-fit (polish phase) | `/flow` polish, always when frontend |
-| `harden` | Auto-fit (polish phase) | `/flow` polish, always when frontend |
-| `critique` | Auto-fit (review phase) | `/review` (`review` mode) |
-| `audit` | Auto-fit (review phase) | `/review` (`review` mode) |
-| `typeset` | Issue-driven | Only when `audit` flagged a matching typography issue |
-| `layout` | Issue-driven | Only when `audit` flagged a matching layout issue |
-| `adapt` | Issue-driven | Only when `audit` flagged a matching responsive issue |
-| `optimize` | Issue-driven | Only when `audit` flagged a matching performance issue |
+| `shape` | Phase-fixed (pre-spec) | `/specify` shape pre-step (`shape` mode) |
+| `polish` | Refinement set (polish phase) | `/flow` polish, always when frontend |
+| `clarify` | Refinement set (polish phase) | `/flow` polish, always when frontend |
+| `harden` | Refinement set (polish phase) | `/flow` polish, always when frontend |
+| `critique` | Phase-fixed (review phase) | `/review` (`review` mode) |
+| `audit` | Phase-fixed (review phase) | `/review` (`review` mode) |
+| `typeset` | Suggestion-driven | Only when an `audit` finding's `suggestion` names it |
+| `layout` | Suggestion-driven | Only when an `audit` finding's `suggestion` names it |
+| `adapt` | Suggestion-driven | Only when an `audit` finding's `suggestion` names it |
+| `optimize` | Suggestion-driven | Only when an `audit` finding's `suggestion` names it |
 | `bolder` | Intent-driven | When `design-intent: bold` is declared |
 | `quieter` | Intent-driven | When `design-intent: quiet` is declared |
 | `distill` | Intent-driven | When `design-intent: minimal` is declared (intent-only to avoid conflict with `/simplify`) |
@@ -37,11 +37,14 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 | `colorize` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `overdrive` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `extract` | Manual-only | Not auto-dispatched by this wrapper — surfaced as a `survey` recommendation, and also by `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan (same Design Quality category recurring across 3+ specs) |
-| `craft` | Never (in flow) | Manual standalone only |
 | `init` | Never (in flow) | Runs once via `/init` Impeccable setup phase (formerly `teach`, now a deprecated alias); never auto from `/flow` |
 | `document` | Never (in flow) | Manual standalone only |
 | `live` | Never (in flow) | Manual standalone only |
 | `hooks` | Never (in flow) | Manual — one-time per-worktree consent toggle (`hooks on\|off\|status`); never auto-invoked. See `skills/build/worktree-setup.md` for the per-worktree consent note. |
+
+**The Suggestion-driven label marks a command's only automatic path, not the limit of what a `suggestion` can reach.** An `audit` finding may name any command in this table, and the wrapper dispatches whatever it names — including a command whose row here reads Intent-driven. The label identifies the commands that have no *other* automatic route into a dispatch. The Manual-only rows are the sole commands a `suggestion` cannot auto-dispatch; a finding naming one of those is staged instead (see "Step 2 — Suggestion-driven" below).
+
+Upstream's `craft` is absent from this table deliberately, not by oversight: at the pinned version it is a deprecated compatibility alias for an ordinary Impeccable new-work request and adds no behavior of its own, so the wrapper has nothing to categorize. Do not re-add a row for it while that remains upstream's description.
 
 ## Review dispatch — what the wrapper invokes in `review` mode
 
@@ -56,13 +59,13 @@ The wrapper's `test` mode (Phase 1) invokes the deterministic CLI exactly as spe
 
 The CLI is not part of the LLM command map — it's a separate Node binary. See `impeccable-cli.md` for invocation details.
 
-## Polish-mode dispatch — auto-fit + issue-driven + intent-driven
+## Polish-mode dispatch — refinement set + suggestion-driven + intent-driven
 
 The `polish` mode is the only wrapper mode that modifies code. Its dispatch logic:
 
-### Step 1 — Auto-fit (always invoked when frontend)
+### Step 1 — Refinement set (always invoked when frontend)
 
-Run unconditionally on the changed UI files:
+Run on the changed UI files every polish phase:
 
 | Command | Purpose |
 |---------|---------|
@@ -70,27 +73,29 @@ Run unconditionally on the changed UI files:
 | `/impeccable:impeccable clarify <files>` | UX copy improvement |
 | `/impeccable:impeccable harden <files>` | Error handling, i18n, edge cases |
 
-These three are deterministic enough that running them on every frontend polish phase is net-positive. They never depend on audit signal.
+These three are deterministic enough that running them on every frontend polish phase is net-positive, and they never depend on audit signal. What they are **not** is an open-ended restyling sweep. Every refinement-set dispatch appends a fixed job-statement suffix to the target argument, after the file list — the same mechanism as the `animate` Frequency Gate below:
 
-### Step 2 — Issue-driven (only when audit flagged matching category)
+> "This is a scoped refinement of already-built, already-reviewed code — not a new-work, redesign, or visual-identity request. Improve what is already here on its own terms: anything you add must inherit the surrounding file's existing tokens, component patterns, and conventions rather than replace them. Do not introduce a new visual direction, restyle code the change under review did not touch, or widen scope beyond the files named above."
 
-Read the audit findings cache written by `review` mode (`docs/plans/...-audit.json`). For each finding, derive the category and dispatch the matching command. Categories use case-insensitive substring matching against the audit finding's `category` or `rule` field — when no audit cache exists, this step is a no-op (degrade gracefully to auto-fit-only).
+**Why the suffix is not the job-type inference this wrapper rejects.** It is a fixed constant about a *pipeline phase*, not a per-record lookup over a job-type enum: the polish phase runs only after `/review` has passed on already-built code, so every invocation of it is definitionally a scoped refinement. The wrapper reads nothing about the record to decide the suffix, and there is no branch in which it is varied or omitted.
 
-| Audit category keyword (substring match) | Command dispatched |
-|------------------------------------------|---------------------|
-| `typography`, `font`, `text-hierarchy`, `headings` | `/impeccable:impeccable typeset <files>` |
-| `spacing`, `layout`, `grid`, `padding`, `margin`, `whitespace` | `/impeccable:impeccable layout <files>` |
-| `responsive`, `breakpoint`, `mobile`, `tablet`, `viewport`, `adaptive` | `/impeccable:impeccable adapt <files>` |
-| `performance`, `bundle`, `render`, `slow`, `lazy-load`, `lcp`, `cls` | `/impeccable:impeccable optimize <files>` |
-| `anti-pattern`, `ai slop`, `ai-generated`, `generic` | *suggestion-driven — see "Anti-Pattern dispatch" below, not a fixed command* |
+### Step 2 — Suggestion-driven (driven by each audit finding's own `suggestion`)
 
-When multiple findings match the same category, the wrapper dispatches the command **once** with the union of affected files (de-duplicated). When findings span multiple categories, dispatch each command separately.
+Read the audit findings cache written by `review` mode (`docs/plans/...-audit.json`). When no audit cache exists, this step is a no-op — Step 1 and Step 3 still run.
 
-### Anti-Pattern dispatch — suggestion-driven, not fixed
+Impeccable's `audit` names its own best-fit remediation on **every** finding it reports: `audit.md`'s per-issue template carries a **Suggested command** field drawn from the full command palette. The wrapper reads that field and dispatches the command it names. It derives a command from nothing else — not the finding's `category`, not its `rule`, not keyword-matching its `description`.
 
-Unlike the four fixed-command rows above, an `anti-pattern`/`ai slop`/`ai-generated`/`generic` category match does not dispatch one hardcoded command. Impeccable's own `audit` command already tags every Anti-Patterns-dimension finding with a `suggestion` field naming its own best-fit remediation (see `audit.md`'s "Suggested command" convention — drawn from the full command palette, not limited to typeset/layout/adapt/optimize). Read that finding's `suggestion` field and dispatch the named command directly, subject to one filter: if the named command is one of the manual-only commands (see the Full command map table above for current membership), do not dispatch it — instead stage it (see `modes/polish.md` Step 5) so the user still sees it without the pipeline silently applying an aggressive creative change. Any other named command (most commonly `bolder`, sometimes `delight` or `typeset`) dispatches normally, exactly like the four fixed rows above.
+The rules below govern the dispatch. They apply to **every** finding, whatever its category:
 
-When multiple Anti-Pattern findings in one run name the **same** suggested command, dispatch it once with the union of affected files — same rule as the fixed rows. When they name **different** commands (e.g. one finding suggests `bolder`, another suggests `delight`), dispatch each named command once, each scoped to the union of files whose findings named it.
+1. **Manual-only findings are staged, not dispatched.** If the `suggestion` names one of the manual-only commands (see the Full command map table above for current membership), do not dispatch it. Append it to `staged_suggestions` instead (see `modes/polish.md` Step 5), so the user still sees it at the Wrap-Up Review Console without the pipeline silently applying an aggressive creative change. Any other named command dispatches normally.
+
+2. **Same command, one dispatch, union of files.** When several findings name the **same** command, dispatch it once with the union of the affected files, de-duplicated.
+
+3. **Different commands, one dispatch each, scoped to their own findings.** When findings name **different** commands (e.g. one suggests `bolder`, another `delight`), dispatch each named command once, each scoped to the union of the files whose findings named it.
+
+4. **A finding with no usable `suggestion` is staged as an unclassified observation.** When the field is absent, empty, or names something that is not a command in the Full command map table, append an entry to `staged_suggestions` carrying the finding's `id`, `category`, and `description` (see `modes/polish.md`'s Output to caller for the entry shape) and log it to the decision log. It is **never** mapped to a command by keyword — that is the mechanism this section replaced, and reintroducing it here under another name would defeat the change — and it is never silently dropped.
+
+**`category` is not a dispatch key.** A finding's `category` field (e.g. `slop`, per `impeccable-cli.md`'s schema table) is better than keyword-matching `description`, but only inside the keyword-matching model this section removed. It carries through as metadata on a staged entry so a human can group related findings at the Review Console. It selects no command.
 
 ### Step 3 — Intent-driven
 
@@ -107,7 +112,7 @@ Read `Design-intent:` from the record's body-metadata line (lifted into the mate
 
 **Multi-intent ordering.** When multiple intents dispatch, run them in the order declared by the user. The pairing for `delightful` (`delight` first, then `animate`) is fixed — `delight` adds personality content (empty states, microcopy), `animate` adds motion to the interactions; reversing them risks animating placeholder content. The intent dispatches share the polish phase's single re-verify cap (one re-verify cycle per `/flow` run regardless of how many intent commands ran).
 
-**Frequency Gate guardrail (`animate` only).** Every `animate` dispatch — currently the `design-intent: delightful` path, and any future auto-fit or issue-driven dispatch of `animate` should this wrapper ever add one — appends a fixed guidance suffix to the target argument, after the file list:
+**Frequency Gate guardrail (`animate` only).** Every `animate` dispatch — the `design-intent: delightful` path, and equally a suggestion-driven dispatch when an audit finding's `suggestion` names `animate` — appends a fixed guidance suffix to the target argument, after the file list:
 
 > "Apply a frequency gate before animating: keyboard-initiated actions and actions triggered 100+ times per day get no animation (instant state change only); daily/occasional actions get subtle, fast motion; rare (monthly-or-less) actions may receive expressive motion. Decide whether to animate first, using this gate — then apply your own duration/easing rules."
 
@@ -141,7 +146,8 @@ Each observation maps to one creative command:
 
 ## Why this categorization exists
 
-- **Auto-fit** commands are deterministic enough that always running them on frontend code is net-positive.
-- **Issue-driven** commands are too noisy to run unconditionally — only run when there's a matching audit signal.
+- **Phase-fixed** commands are deterministic enough that always running them at their phase is net-positive.
+- The **refinement set** is the polish phase's phase-fixed membership, named separately because its dispatches carry the job-statement suffix that keeps them scoped to refinement.
+- **Suggestion-driven** commands are too noisy to run unconditionally — they run only when an audit finding names them, and the finding names them itself rather than the wrapper re-deriving a command from the finding's text.
 - **Intent-driven** commands are creative direction — running them without explicit intent produces non-deterministic creative drift across runs.
-- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`craft`, `document`, `live`).
+- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`document`, `live`, `hooks`).
