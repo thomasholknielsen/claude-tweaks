@@ -14,6 +14,18 @@ const { dispositionState } = require('./acceptance.js');
 // conservative, and Phase 3 is where it earns or loses its keep.
 const MIN_SAMPLES = 8;
 
+// provenance.js's `unstructured` kind is not a trust class — it is that
+// module's classifier saying "this record's Origin line could not be reduced
+// to a class at all" (overflow past its length cap, or text that normalizes to
+// nothing). A bucket whose only shared property is that nobody knows what is
+// in it has no coherent class to earn trust *for*, so it is pinned to
+// 'insufficient-evidence' at any sample count. Grading it would let Phase 3
+// grant autonomy to an unclassifiable group the moment the bucket happened to
+// cross MIN_SAMPLES — and it does accumulate: it is where every unrecognized
+// Origin shape lands. Structurally ungradable, not merely short of evidence;
+// `_shared/trust-table.md`'s Render section says so on the rendered row.
+const UNGRADABLE_KIND = 'unstructured';
+
 const RISK_LABEL_RE = /^risk:(.+)$/;
 
 // Absence of a risk score is not evidence of safety — an unscored record
@@ -35,9 +47,10 @@ function riskBand(labels) {
   return sawLow ? 'low' : 'elevated';
 }
 
-// A follow-up record's Origin line names the record it corrects, e.g.
-// "Origin: demo changes-requested from #7". Parsed BEFORE resolveProvenance
-// normalizes the body — the normalizer strips exactly this trailing clause.
+// A side-effect record's Origin line can name the record it descends from,
+// e.g. "Origin: demo changes-requested from #7" (which of those descents count
+// as follow-ups is decided below). Parsed BEFORE resolveProvenance normalizes
+// the body — the normalizer strips exactly this trailing clause.
 //
 // Capture-then-normalize, same strategy as provenance.js's own ORIGIN_LINE +
 // TRAILING_SOURCE pair: match the whole line first, then extract '#N' from
@@ -53,12 +66,39 @@ const ORIGIN_LINE_RE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
 const TRAILING_PUNCTUATION_RE = /[.,;:)\]]+$/;
 const FOLLOWUP_TAIL_RE = /\bfrom[ \t]+#(\d+)$/i;
 
-function followUpTarget(body) {
+// `Origin: ... from #N` is the shape of a record that names another record —
+// but naming one is not the same as correcting it, and the rendered
+// "Follow-ups" column means specifically "this work generated corrective
+// work". Three `from #N` contexts are emitted today and only one is corrective:
+//
+//   demo changes-requested — a rejected verdict's linked gap record
+//                            (`demo/SKILL.md` Step 3). Corrective; counts.
+//   demo scope-fork        — new scope the human raised mid-demo.
+//                            `demo/SKILL.md`'s scope-fork checkpoint states
+//                            outright that this "isn't a changes-requested
+//                            verdict, so it needs its own provenance marker" —
+//                            the marker exists precisely so it is not read as
+//                            a negative signal. Does not count.
+//   wrap-up leftover       — routine carry-over of work a run could not finish
+//                            (`wrap-up/leftover-routing.md`). Does not count.
+//
+// A denylist, not an allowlist, and deliberately so: undercounting follow-ups
+// is the unsafe direction — a missed one flips a cell from 'mixed' to 'clean'
+// — so a `from #N` context nobody has taught this module about is treated as
+// corrective until it is listed here. Matched exactly rather than by prefix,
+// for the same reason: a context carrying extra text is one this list does not
+// actually describe, so it counts.
+const NON_CORRECTIVE_ORIGINS = new Set(['demo scope-fork', 'wrap-up leftover']);
+
+function correctiveFollowUpTarget(body) {
   const line = ORIGIN_LINE_RE.exec(typeof body === 'string' ? body : '');
   if (!line) return null;
   const trimmed = line[1].replace(TRAILING_PUNCTUATION_RE, '');
   const match = FOLLOWUP_TAIL_RE.exec(trimmed);
-  return match ? Number(match[1]) : null;
+  if (!match) return null;
+  const context = trimmed.slice(0, match.index).trim().toLowerCase();
+  if (NON_CORRECTIVE_ORIGINS.has(context)) return null;
+  return Number(match[1]);
 }
 
 function trustRows(records) {
@@ -79,6 +119,7 @@ function trustRows(records) {
     if (!cell) {
       cell = {
         key,
+        kind,
         provenance: `${kind}:${source}`,
         band,
         total: 0,
@@ -106,7 +147,7 @@ function trustRows(records) {
   // follow-up is evidence about the closed record it names, even though the
   // follow-up itself never forms a cell of its own.
   for (const record of all) {
-    const target = followUpTarget(record.body);
+    const target = correctiveFollowUpTarget(record.body);
     if (target === null) continue;
     const cell = cellByNumber.get(target);
     if (cell) cell.followUps += 1;
@@ -115,7 +156,7 @@ function trustRows(records) {
   const rows = Array.from(cells.values()).map((cell) => {
     const dispositioned = cell.approved + cell.changesRequested;
     let verdict = 'insufficient-evidence';
-    if (cell.total >= MIN_SAMPLES && dispositioned >= 1) {
+    if (cell.kind !== UNGRADABLE_KIND && cell.total >= MIN_SAMPLES && dispositioned >= 1) {
       const clean = cell.changesRequested === 0 && cell.followUps === 0 && cell.notPlanned === 0;
       verdict = clean ? 'clean' : 'mixed';
     }

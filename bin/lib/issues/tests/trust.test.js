@@ -90,6 +90,90 @@ test('a follow-up reference to #71 counts against #71, not #7', () => {
   assert.equal(docsHealth.followUps, 1);
 });
 
+test('only corrective Origin markers count as follow-ups', () => {
+  // The Follow-ups column means "this work generated corrective work". Of the
+  // three `... from #N` markers emitted today, only changes-requested is that.
+  const cases = [
+    ['demo changes-requested', 1],
+    ['demo scope-fork', 0],
+    ['wrap-up leftover', 0],
+  ];
+  for (const [context, expected] of cases) {
+    const rows = trustRows([
+      { number: 7, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
+      { number: 8, labels: [], body: `Origin: ${context} from #7`, state: 'OPEN' },
+    ]);
+    const capture = rows.find((r) => r.key === 'producer:capture|low');
+    assert.equal(capture.followUps, expected, `"${context}" should contribute ${expected}`);
+  }
+});
+
+test('a scope-fork alone leaves a cell clean; a changes-requested does not', () => {
+  // The verdict consequence of the rule above: one miscounted scope-fork is
+  // enough to force a whole cell from 'clean' to 'mixed'.
+  const closed = Array.from({ length: MIN_SAMPLES }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+  }));
+  const scopeFork = trustRows([
+    ...closed,
+    { number: 100, labels: [], body: 'Origin: demo scope-fork from #1', state: 'OPEN' },
+  ]);
+  assert.equal(scopeFork[0].verdict, 'clean');
+
+  const changesRequested = trustRows([
+    ...closed,
+    { number: 100, labels: [], body: 'Origin: demo changes-requested from #1', state: 'OPEN' },
+  ]);
+  assert.equal(changesRequested[0].verdict, 'mixed');
+});
+
+test('an unrecognized "from #N" context still counts as a follow-up', () => {
+  // Denylist, not allowlist: undercounting follow-ups flips a cell from
+  // 'mixed' to 'clean', so an unknown marker is treated as corrective.
+  const rows = trustRows([
+    { number: 7, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
+    { number: 8, labels: [], body: 'Origin: some future corrective flow from #7', state: 'OPEN' },
+  ]);
+  assert.equal(rows.find((r) => r.key === 'producer:capture|low').followUps, 1);
+});
+
+test('the unstructured cell is ungradable at any sample count', () => {
+  // A bucket defined by "these records could not be classified" has no
+  // coherent class to earn trust for. Well past MIN_SAMPLES, fully
+  // dispositioned, and clean on every negative signal — still ungradable.
+  const overlong = 'Origin: ' + 'x'.repeat(80);
+  const many = Array.from({ length: MIN_SAMPLES + 4 }, (_, i) => ({
+    number: i + 1, labels: ['risk:low', 'demo:approved'], body: overlong, state: 'CLOSED',
+  }));
+  const rows = trustRows(many);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].provenance, 'unstructured:unstructured');
+  assert.equal(rows[0].total, MIN_SAMPLES + 4);
+  assert.equal(rows[0].approved, MIN_SAMPLES + 4);
+  assert.equal(rows[0].changesRequested, 0);
+  assert.equal(rows[0].followUps, 0);
+  assert.equal(rows[0].notPlanned, 0);
+  assert.equal(rows[0].verdict, 'insufficient-evidence');
+});
+
+test('an identically-shaped classified cell does grade — the pin is the kind, not the shape', () => {
+  // Control for the test above: same counts, same signals, real provenance.
+  // Without this, "insufficient-evidence" could be coming from anything.
+  const many = Array.from({ length: MIN_SAMPLES + 4 }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+  }));
+  assert.equal(trustRows(many)[0].verdict, 'clean');
+});
+
+test('the empty-origin cell is ungradable too — same kind, same pin', () => {
+  const many = Array.from({ length: MIN_SAMPLES + 4 }, (_, i) => ({
+    number: i + 1, labels: ['risk:low', 'demo:approved'], body: 'Origin: .', state: 'CLOSED',
+  }));
+  const rows = trustRows(many);
+  assert.equal(rows[0].provenance, 'unstructured:empty-origin');
+  assert.equal(rows[0].verdict, 'insufficient-evidence');
+});
+
 test('NOT_PLANNED is tallied as its own negative-ish signal', () => {
   const rows = trustRows([
     { number: 1, labels: ['by:capture', 'risk:low'], body: '', state: 'CLOSED', stateReason: 'NOT_PLANNED' },

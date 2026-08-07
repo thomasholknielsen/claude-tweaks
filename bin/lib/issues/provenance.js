@@ -1,25 +1,38 @@
 'use strict';
 
-// The Origin axis has four states (see skills/_shared/work-record.md):
+// The Origin axis has three states (see skills/_shared/work-record.md):
 //   producer    — one of record.js's ORIGINS, carried as a by:* label
 //   side-effect — a record created by another skill's flow, carried as an
 //                 `Origin: {context}` body line with deliberately no label
-//   unstructured — an Origin line whose normalized text exceeds MAX_SOURCE_LENGTH;
-//                 indicates overflow that cannot be reliably classified
 //   human       — neither signal; absence IS the signal
+//
+// This module resolves a record to one of those three, and emits a fourth
+// `kind` of its own for the cases it cannot:
+//   unstructured — NOT a taxonomy state. This classifier's own artifact for an
+//                 Origin line it could not reduce to a class: text still over
+//                 MAX_SOURCE_LENGTH after normalization (source
+//                 'unstructured'), or text that normalizes to nothing at all
+//                 (source 'empty-origin'). Nothing coherent is inside it, so
+//                 consumers must never grade it — see trust.js's
+//                 UNGRADABLE_KIND.
 //
 // IMPORTANT: Consumers must key on both `kind` AND `source` together to build
 // trust tables (e.g., `kind:source`). The `kind` field disambiguates the
 // provenance axis; the `source` field identifies the trust class within that kind.
-// A real Origin line can never produce `kind: 'unstructured'` by text alone.
+// Keying on both is also what keeps the classifier's own bucket unforgeable: a
+// genuine `Origin: unstructured` body line resolves to `side-effect:unstructured`,
+// never to this module's `unstructured:unstructured`.
 //
 // This module reads that axis. It never writes one, and never extends ORIGINS.
 const { ORIGINS } = require('./record.js');
 
 const BY_LABEL = /^by:(.+)$/;
 // Anchored to line start so prose describing the convention is not mistaken
-// for a provenance claim.
-const ORIGIN_LINE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
+// for a provenance claim. The capture is `.*?`, not `.+?`, so a bare `Origin:`
+// line with nothing after it still enters the branch below and resolves to the
+// ungradable bucket — an empty marker is malformed provenance, not the absent
+// marker that means human-filed.
+const ORIGIN_LINE = /^Origin:[ \t]*(.*?)[ \t]*$/m;
 // A trailing source reference makes the context per-record unique, which would
 // explode the class count and give every cell a sample size of one. This is
 // stripped AFTER clause truncation so that trailing punctuation doesn't defeat
@@ -77,6 +90,14 @@ function resolveProvenance({ labels, body } = {}) {
       return { kind: 'unstructured', source: 'unstructured' };
     }
     if (source) return { kind: 'side-effect', source };
+    // An Origin line that normalizes to nothing ("Origin: .", "Origin:   ") is
+    // a malformed provenance marker, not an absent one. Falling through to
+    // human:human would merge it into a real trust class — a false merge, the
+    // strictly worse direction: a false split only delays one class's verdict,
+    // while a merge makes a real class's verdict wrong. Resolve it to the
+    // ungradable bucket instead, under its own source so the operator can see
+    // which defect produced it.
+    return { kind: 'unstructured', source: 'empty-origin' };
   }
 
   return { kind: 'human', source: 'human' };

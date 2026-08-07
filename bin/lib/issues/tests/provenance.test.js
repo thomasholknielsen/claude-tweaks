@@ -250,6 +250,50 @@ test('a genuine Origin line reading "unstructured" does NOT collide with overflo
   assert.notEqual(genuine.kind, overflow.kind);
 });
 
+// An Origin line that normalizes to nothing must not merge into a real class.
+test('an Origin line that normalizes to empty is ungradable, never human', () => {
+  // "Origin: ." truncates at the leading period and leaves nothing. Resolving
+  // that to human:human would be a false MERGE into a real trust class — the
+  // strictly worse direction. It resolves to the classifier's own bucket.
+  for (const body of ['Origin: .', 'Origin: ,', 'Origin: . more text here', 'Origin:   ']) {
+    assert.deepEqual(
+      resolveProvenance({ labels: [], body }),
+      { kind: 'unstructured', source: 'empty-origin' },
+      `${JSON.stringify(body)} must not resolve to a real class`
+    );
+  }
+});
+
+test('a bare "Origin:" line is malformed provenance, not absent provenance', () => {
+  // Same hazard as above, reached through the line regex rather than through
+  // normalization: an Origin marker with no context at all is not the absence
+  // of a marker, which is what human:human means.
+  assert.deepEqual(
+    resolveProvenance({ labels: [], body: 'Origin:\n\nSome description.' }),
+    { kind: 'unstructured', source: 'empty-origin' }
+  );
+});
+
+test('the empty-origin bucket is unforgeable by a genuine Origin line', () => {
+  // A real body line reading "Origin: empty-origin" is a side-effect class,
+  // keyed 'side-effect:empty-origin' — distinct from the classifier's own
+  // 'unstructured:empty-origin'. Same collision argument as the overflow case.
+  const genuine = resolveProvenance({ labels: [], body: 'Origin: empty-origin' });
+  assert.equal(genuine.kind, 'side-effect');
+  assert.equal(genuine.source, 'empty-origin');
+});
+
+test('"Origin: from #42" is a per-record split, not a merge into a real class', () => {
+  // TRAILING_SOURCE requires whitespace before "from", so a bare leading
+  // "from #42" is not stripped and this resolves to its own single-sample
+  // side-effect class. That is a false SPLIT — the safe direction, and it can
+  // never reach MIN_SAMPLES — so the normalizer is deliberately left alone
+  // here. Pinned so the behavior is visible rather than assumed.
+  const result = resolveProvenance({ labels: [], body: 'Origin: from #42' });
+  assert.equal(result.kind, 'side-effect');
+  assert.notEqual(result.source, 'human');
+});
+
 // Untested behavior change: reordering means trailing source inside clause is stripped
 test('a "from #N" reference inside a clause boundary is stripped, not preserved', () => {
   // Reordering (truncate first, then strip) means that "captured from #42, ..."
