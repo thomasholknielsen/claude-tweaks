@@ -36,6 +36,7 @@ function main() {
     process.exit(2);
   }
   const cwd = process.cwd();
+  const state = readState({ cwd, since });
 
   // `since` is a commit-ish (a base sha). Resolve it TO a full ISO 8601
   // datetime for git reflog's --since=, and echo the base back so a wrong base
@@ -43,15 +44,33 @@ function main() {
   // window. A bare date would land on 1970-01-01 for a zero timestamp and
   // return nothing in positive-UTC-offset zones, so this resolution — not a
   // raw date string — is what reflog's --since= is always given.
-  const sinceDate = git(['show', '-s', '--format=%cI', since], cwd) || since;
-
-  const state = readState({ cwd, since });
+  //
+  // Outside a git repository there is nothing to resolve against, and the
+  // whole State block already degrades to `unknown` — that stays exit 0.
+  // Inside a repository, an unresolvable `since` IS a malformed invocation
+  // under the base-sha-only contract: falling back to the raw string hands
+  // git reflog's --since= a value it cannot parse either, which exits 0 with
+  // an empty window — indistinguishable from "no history operations
+  // occurred." Error loudly instead of reproducing [IL-47].
+  let sinceDate = since;
+  if (state.isRepo) {
+    sinceDate = git(['show', '-s', '--format=%cI', since], cwd);
+    if (!sinceDate) {
+      process.stderr.write(`wrap-up-state.js: --since value is not a resolvable commit-ish: ${since}\n`);
+      process.exit(2);
+    }
+  }
   const head = git(['reflog', '--date=iso', `--since=${sinceDate}`], cwd) || '';
   const upstreamRef = state.upstream;
   const remote = upstreamRef
     ? git(['reflog', 'show', upstreamRef, '--date=iso', `--since=${sinceDate}`], cwd) || ''
     : '';
-  const ops = [...historyOps(head), ...historyOps(remote)];
+  // Concatenating the two reflogs (HEAD's and, when it exists, the upstream's)
+  // is non-monotonic whenever both contribute — sort newest-first so the
+  // rendered date column reads as a single timeline rather than two
+  // interleaved ones.
+  const ops = [...historyOps(head), ...historyOps(remote)]
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (json) {
     process.stdout.write(`${JSON.stringify({ state, ops, since, sinceDate }, null, 2)}\n`);

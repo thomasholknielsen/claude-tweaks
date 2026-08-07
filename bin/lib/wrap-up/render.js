@@ -37,7 +37,7 @@ function renderState({ state, ops, since, sinceDate } = {}) {
   if (list.length) {
     lines.push('');
     lines.push(`History ops in window (${list.length})`);
-    for (const o of list) lines.push(`  ${String(o.op).padEnd(12)}${o.sha}  ${o.date}`);
+    for (const o of list) lines.push(`  ${String(o.op).padEnd(12)}${o.sha}  ${o.date}  ${o.message || ''}`);
   }
   return lines.join('\n');
 }

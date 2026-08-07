@@ -1,7 +1,7 @@
 // bin/lib/wrap-up/tests/cli.test.js — the CLI's own composition: argument
-// parsing, the --since resolution and its fallback, and the local+remote reflog
-// join. None of that is reachable from the three module suites, which each feed
-// their unit hand-made inputs.
+// parsing, the --since resolution and its error path, and the local+remote
+// reflog join. None of that is reachable from the three module suites, which
+// each feed their unit hand-made inputs.
 //
 // These assertions are deliberately STRUCTURAL — line presence, exit codes,
 // JSON shape, and the echoed boundary. Asserting a history-derived value (a
@@ -53,10 +53,11 @@ test('--json emits a parseable object carrying state, ops, since and sinceDate',
   assert.ok(typeof o.sinceDate === 'string' && o.sinceDate.length > 0);
 });
 
-test('an unresolvable --since still exits 0 and echoes the boundary back so it is visible', () => {
+test('an unresolvable --since inside a repository exits 2 and names the bad value', () => {
   const r = run(['--since', 'not-a-real-ref']);
-  assert.strictEqual(r.status, 0);
-  assert.match(r.stdout, /Scope\s+since not-a-real-ref/);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /not-a-real-ref/);
+  assert.strictEqual(r.stdout, '');
 });
 
 test('outside a git repository the fields render unknown and the exit stays 0', () => {

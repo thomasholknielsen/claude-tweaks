@@ -56,6 +56,7 @@ test('renderState lists history ops one per line and omits the section when ther
   });
   assert.match(withOps, /History ops in window \(1\)/);
   assert.match(withOps, /rebase\s+d4e5f6a/);
+  assert.match(withOps, /rebase \(finish\): returning to refs\/heads\/main/);
 
   const withoutOps = renderState({ state: UNPUSHED, ops: [], since: 'a', sinceDate: 'd' });
   assert.doesNotMatch(withoutOps, /History ops in window/);

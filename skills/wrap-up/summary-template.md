@@ -19,13 +19,17 @@ Render VERBATIM from the helper — do not compose these facts from memory:
 
     node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
-Resolve `{base}` — a commit-ish, never a date — by the first rule that applies:
+Resolve `{base}` — a commit-ish, never a date — by the first rule that applies.
+`{default-branch}` is the repository's default branch, resolvable via
+`git symbolic-ref --short refs/remotes/origin/HEAD` with `main` as the
+fallback:
 
-1. `git merge-base HEAD @{u}` when the branch has an upstream. This covers work
-   committed straight onto a tracking branch: the base is the last commit the
-   remote has, so the window is exactly what has not been pushed.
-2. `git merge-base HEAD {default-branch}` when there is no upstream and HEAD is
-   not on the default branch — the usual worktree case.
+1. `git merge-base HEAD {default-branch}` when HEAD is not on the default
+   branch. The branch's whole life is the work, so this is immune to how often
+   the session pushed.
+2. `git merge-base HEAD @{u}` when HEAD IS on the default branch and it has an
+   upstream — the base is the last commit the remote has, so the window is
+   exactly what has not been pushed.
 3. `HEAD` otherwise. The window is empty and renders as `0 commits`, which is a
    visible, checkable answer rather than a silent guess.
 
@@ -133,11 +137,21 @@ internal step numbers and route codes and reporting a rebase inside a table
 cell's rationale column.
 
 Close conversation mode with this line instead of the record-mode archival
-line below:
+line below. State what this run's Step 5 cleanup-gate check actually found —
+never assume the negative default: a conversation-based run CAN carry a
+ledger, a worktree, and a run directory (`SKILL.md`'s cleanup-gate note), and
+a design-mode build's plan and design doc are deliberately kept in place
+rather than deleted (`[IL-36]`), so "deleted" is not the only disposition a
+found plan or ledger can have:
 
 ```
-Work wrapped up. This run closed no record and had no plans or ledger to delete —
-what it leaves behind is the code and the learnings above.
+Work wrapped up. This run closed no record. {Measured plans/ledger clause —
+"It had no plans or ledger to delete" when Step 5 found neither; otherwise
+name what this run had and its actual disposition, e.g. "Its plan under
+docs/superpowers/plans/{file} and SDD ledger were resolved during cleanup"
+when deleted, or "Its plan under docs/superpowers/plans/{file} remains in
+place — kept, not deleted, for a design-mode build" when kept}. What it
+leaves behind is the code and the learnings above.
 ```
 
 **Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
