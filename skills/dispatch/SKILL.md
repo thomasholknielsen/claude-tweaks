@@ -49,7 +49,7 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 | `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic ref, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
-| `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit CLAUDE.md/policy.yml. Highest-precedence per `_shared/auto-mode-contract.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
+| `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-contract.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
 
 ## Preflight
@@ -98,7 +98,7 @@ if [ "$QUEUE_RAW_COUNT" -ge 500 ]; then
   echo "Warning: the auto:build queue pull returned exactly the --limit cap (500) — this repo may have more open auto:build records than fetched. gh issue list returns newest-first, so any records beyond the cap are the OLDEST same-priority ones, exactly what next's own oldest-first tie-break (Step 3) exists to surface first. Consider raising the cap, or filing this as a signal to re-triage the queue down." >&2
 fi
 gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-numbers.json
-WORK_LINKS=$(grep -E "^work-links:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//')
+WORK_LINKS=$(grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//')
 node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/dispatch-queue-raw.json');
@@ -341,7 +341,7 @@ A headless (Routine-fired) firing's report has nobody live to read it — the du
 
 ## Configuration
 
-These four rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
+These four rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from `.claude-tweaks/policy.yml`:
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -350,7 +350,7 @@ These four rows mirror `_shared/work-record-config.md`'s canonical key table (wh
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
 
-**Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to CLAUDE.md/`policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-contract.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
+**Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-contract.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 
 ## Routine Configuration
 

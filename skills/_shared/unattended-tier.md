@@ -29,7 +29,7 @@ Same resolution order as every other lever in `_shared/auto-mode-contract.md`:
 
 1. Explicit CLI arg
 2. `config.yml` (this run's Manifesto answer)
-3. CLAUDE.md / `.claude-tweaks/policy.yml` project default
+3. `.claude-tweaks/policy.yml` project default
 4. Skill default: `off`
 
 ## Floor rule

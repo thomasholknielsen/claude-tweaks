@@ -222,8 +222,8 @@ independent of the `$MERGE_BASE`/diff-derivation chain above (see the parallel-e
 can be issued as a concurrent tool call:
 
 ```bash
-grep -E "^merge-sensitive-paths:|^automerge-max-lines:|^automerge-max-files:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null
-MERGE_SENSITIVE_PATHS_CSV=$(grep -E "^merge-sensitive-paths:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/^[^:]*: *//')
+grep -E "^merge-sensitive-paths:|^automerge-max-lines:|^automerge-max-files:" .claude-tweaks/policy.yml 2>/dev/null
+MERGE_SENSITIVE_PATHS_CSV=$(grep -E "^merge-sensitive-paths:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*#.*$//')
 ```
 
 `merge-sensitive-paths` is a single line, comma-separated glob list (e.g.

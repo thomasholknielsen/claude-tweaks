@@ -38,12 +38,12 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 
 | Mode | When set | Behavior |
 |---|---|---|
-| `auto` | **`/flow`'s default**; also explicit `auto` arg or `auto-mode: default-on` in CLAUDE.md | Bookend architecture with the begin stop as a **read-only FYI** (Manifesto displays, does not gate) — so the only user-facing stop is the end Review Console. Pure automation in the middle. HARD-GATEs and mandatory user-input items still fire. |
+| `auto` | **`/flow`'s default**; also explicit `auto` arg or `auto-mode: default-on` in `.claude-tweaks/policy.yml` | Bookend architecture with the begin stop as a **read-only FYI** (Manifesto displays, does not gate) — so the only user-facing stop is the end Review Console. Pure automation in the middle. HARD-GATEs and mandatory user-input items still fire. |
 | `confirm` | Explicit `confirm` arg | Same as `auto`, but the begin stop is a real **approval gate** (Approve all / Override / Cancel). After approval, the rest of the pipeline runs as `auto`. |
 | `hybrid` | Explicit `hybrid` arg | Begin stop is an approval gate; downstream skills also auto-resolve only when reversibility:high AND confidence:high AND severity ≤ low — everything else asks. Review Console still runs at end. |
-| `interactive` | Explicit `interactive` arg, or `auto-mode: default-off` in CLAUDE.md | No Manifesto presented; skills present each decision in-flow as the standalone skills do. |
+| `interactive` | Explicit `interactive` arg, or `auto-mode: default-off` in `.claude-tweaks/policy.yml` | No Manifesto presented; skills present each decision in-flow as the standalone skills do. |
 
-**Default note:** `/flow` defaults to `auto` (its purpose is hands-off automation). Standalone skills invoked outside `/flow` with no mode signal fall back to `interactive`. The `auto-mode:` CLAUDE.md flag lowers (`default-off` → interactive) or confirms (`default-on` → auto) the default; an explicit mode arg always wins.
+**Default note:** `/flow` defaults to `auto` (its purpose is hands-off automation). Standalone skills invoked outside `/flow` with no mode signal fall back to `interactive`. The `auto-mode:` key in `.claude-tweaks/policy.yml` lowers (`default-off` → interactive) or confirms (`default-on` → auto) the default; an explicit mode arg always wins.
 
 ## Decision precedence
 
@@ -51,7 +51,7 @@ When multiple sources can dictate a choice, highest wins:
 
 1. **Explicit CLI arg** — `/flow 42 auto no-polish` always wins for that invocation
 2. **Pipeline config** — answers from the Config Manifesto (`config.yml` in the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`)
-3. **Project policy** — defaults in `CLAUDE.md` (e.g., `scope-creep: add-to-plan`)
+3. **Project policy** — defaults in `.claude-tweaks/policy.yml` (e.g., `scope-creep: add-to-plan`)
 4. **Skill default** — the skill's fallback behavior when nothing above is set
 
 When in doubt: ask once at the Config Manifesto, then never again for the rest of the pipeline.
@@ -131,7 +131,9 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - `git push` to shared branches
 - Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when `unattended-tier` is on (see `_shared/unattended-tier.md`)
 - Network calls beyond reads (no API writes, no message sends)
-- Modifying CLAUDE.md project-policy values
+- Modifying project-policy values — `.claude-tweaks/policy.yml`'s keys, and the
+  work-record keys still resident in CLAUDE.md (`work-backend`, `work-types`,
+  `record-staleness-weeks`)
 - Deleting specs
 
 ## What `auto` silences
@@ -233,7 +235,7 @@ When a skill has a historical mid-flow stop, rewrite it like this:
 
 **Auto mode:**
 1. Read pipeline config from `{run-dir}/config.yml` (resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`) for `{policy-key}` → if set, apply.
-2. Else read project policy from CLAUDE.md → if set, apply.
+2. Else read project policy from `.claude-tweaks/policy.yml` → if set, apply.
 3. Else apply skill default: `{skill-default-value}`.
 4. Log to auto-decision log (append under `## /{skill}` heading in `{run-dir}/decisions.md`):
    `- AUTO {HH:MM:SS} — {step name}: applied {value}. Reason: {policy-source}. Reversibility: {high|med|low}.`

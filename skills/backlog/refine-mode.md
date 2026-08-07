@@ -42,7 +42,7 @@ node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/backlog-refine-ready.json');
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + issues.length + ' ready-labeled issues (backlog-fetch-limit) — there may be more. See CLAUDE.md.');
+    console.error('WARNING: fetched exactly ' + issues.length + ' ready-labeled issues (backlog-fetch-limit) — there may be more. See .claude-tweaks/policy.yml.');
   }
   const originFilter = process.env.BACKLOG_ORIGIN || '';
   let rows = issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }));
