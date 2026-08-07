@@ -207,5 +207,16 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the same base — while the two comment blocks did conflict. Correct total
   //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
   //   alone.
-  assert.strictEqual(total, 358);
+  //
+  //   358 -> 359, the autonomy governor (Phase 3). One row ADDED to backlog/
+  //   SKILL.md: "Treating `refine`'s `Trust` column as the reason to grant, or
+  //   withholding a grant because a class reads `insufficient evidence`". The
+  //   same change set rewords two existing rows in that table rather than
+  //   evicting them — the machinery-originates-no-grant row, which now names the
+  //   autonomy ceiling's shut-by-default exception, and the overview Trust Table
+  //   row, whose old rationale ("the `autonomy` policy lever has no consumer
+  //   yet") this phase made false. Verified: `git diff -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` returns exactly those two lines and both replacements are
+  //   present in the same table. Measured with the parser, not derived. Net +1.
+  assert.strictEqual(total, 359);
 });

@@ -41,6 +41,8 @@ depends on them.
 | `/tidy` | Folds `unsynced: true` local fallback records into its survey — surfacing, and for the priority axis the apply path via the local-files fallback branch; `/tidy`'s Shape 3 owns the actual sync-to-GitHub action. `/tidy`'s Shape 4/5 findings (unscored `ready`, `bot:blocked`) surface the same facts `refine`'s grant sweep would encounter — proactive hygiene, not a new redundancy. |
 | `bin/lib/issues/trust.js` | `overview`'s Step 1.5 renders `trustRows`' per-`(provenance × risk band)` cell table via `skills/_shared/trust-table.md`'s shared Fetch/Render procedure — read-only, omitted entirely under `work-backend: local-files` since `demo:*` labels are a `github-issues` concept. Never grants, changes a label, or attaches a recommendation to a verdict. |
 | `_shared/issue-claims.md` | Defines the claim protocol `/dispatch` uses after `refine` grants — `/backlog` itself never claims. |
+| `_shared/autonomy-ceiling.md` | The `autonomy` lever's contract. Its only effect on this skill is which records arrive born-`ready` at `trusted`+ (`refine-mode.md` Step 3.6); it never changes what `refine` recommends for a record already in the worklist. |
+| `_shared/trust-table.md` | Supplies `refine`'s advisory `Trust` column (Step 3) and `overview`'s read-only trust table (Step 1.5). Both are reporting surfaces — no verdict in either may originate a grant. |
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface `refine`'s pending-authorization count elsewhere. |
 
 ## browse

@@ -128,6 +128,48 @@ If `remaining > 0` (from the `fresh` budget slice), state it plainly in the repo
 more ready records awaiting grant-check exist beyond this run's `--budget {N}` — re-run to
 continue."
 
+### Trust signal (advisory, `github-issues` only)
+
+Resolve the `autonomy` ceiling and this run's trust table once, before rendering Step 4's table.
+Fetch the records per `_shared/trust-table.md`'s Fetch section (including its
+`backlog-fetch-limit` resolution and its truncation warning), then look up each worklist record's
+class. Read `autonomy` from `.claude-tweaks/policy.yml` and export it as `AUTONOMY_CEILING` first;
+leave it unset when the key is absent, which resolves to `supervised`.
+
+```bash
+node -e "
+  const root = process.env.CLAUDE_PLUGIN_ROOT;
+  const { trustRows, riskBand } = require(root + '/bin/lib/issues/trust.js');
+  const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
+  const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
+  const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  const rows = new Map(trustRows(issues).map((r) => [r.key, r]));
+  const ceiling = resolveCeiling({ policy: process.env.AUTONOMY_CEILING });
+  const out = {};
+  for (const issue of issues.filter((i) => i.state === 'OPEN')) {
+    const { kind, source } = resolveProvenance({ labels: issue.labels, body: issue.body });
+    const row = rows.get(kind + ':' + source + '|' + riskBand(issue.labels));
+    const permitted = permittedGrants({ ceiling, row });
+    out[issue.number] = {
+      ceiling,
+      provenance: row ? row.provenance : kind + ':' + source,
+      band: riskBand(issue.labels),
+      verdict: row ? row.verdict : 'no-cell',
+      coverage: row ? row.coverage : null,
+      bornReady: permitted.bornReady,
+      reason: permitted.reason,
+    };
+  }
+  console.log(JSON.stringify(out));
+" > /tmp/backlog-refine-trust.json
+```
+
+**This signal never changes what the gate recommends.** `/claude-tweaks:assess-agent-autonomy`'s
+`grant-check` remains the sole source of the Recommended column — it reads *this record's* content,
+where trust describes *this record's class*, and a class verdict is not evidence about a specific
+record's shape. Trust rides along as context for the human making the batch decision. The one thing
+the ceiling does change is described in Step 3.6.
+
 ## Step 3.5: Body-shape re-verification (before granting)
 
 For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at `/tmp/assess-grant-{n}.json`; reuse it instead of a second API round-trip).
@@ -157,18 +199,47 @@ node -e "console.log(\`Flagged back by /claude-tweaks:backlog refine: body is no
 
 Report every downgrade to the user before proceeding — a silent downgrade would look like the grant simply never happened.
 
+## Step 3.6: Ceiling-authorized born-ready (`autonomy: trusted`+)
+
+The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
+on what is recommended for them once here. At `trusted` or higher, an agent-filed record whose
+provenance class carries a `clean` verdict files with `ready` already applied (see
+`_shared/autonomy-ceiling.md`), so it appears in Step 1's fetch without having passed
+`/claude-tweaks:specify`.
+
+Those records are not exempt from anything here. Step 3.5's body-shape re-verification is exactly
+the check that catches a born-`ready` record whose body is not actually spec-shaped, and it runs on
+them unchanged — `_shared/work-record.md`'s "labels are projection, not truth" rule is what makes
+the born-`ready` grant safe to give, because this gate re-derives shape rather than trusting the
+label.
+
+At `supervised` — the default, and the state of any repo that has not opted in — no record is ever
+born-`ready` by this path and this step does nothing.
+
 ## Step 4: Unified table
 
 ```markdown
 ### Backlog Refine — {N} suggested label changes
 
-| # | Record | Type | Origin | Current | Recommended | Suggested Tier | Rationale |
-|---|---|---|---|---|---|---|---|
-| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | quick? (guess) | {synthesis rationale} |
-| 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | {synthesis rationale} |
-| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | — | {grant-check RATIONALE} |
-| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | — | Prior failure — human judgment required, not a mechanical replay |
+| # | Record | Type | Origin | Current | Recommended | Trust | Suggested Tier | Rationale |
+|---|---|---|---|---|---|---|---|---|
+| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | — | quick? (guess) | {synthesis rationale} |
+| 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | — | {synthesis rationale} |
+| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | producer:capture/low — clean, 62% coverage | — | {grant-check RATIONALE} |
+| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | human/elevated — insufficient evidence | — | Prior failure — human judgment required, not a mechanical replay |
 ```
+
+The `Trust` column renders `{provenance}/{band} — {verdict}` from `/tmp/backlog-refine-trust.json`,
+adding `, {coverage}% coverage` when the verdict is `clean` or `mixed`, and `no cell yet` when the
+record's class has no closed records at all. Populate it for `grant`-type rows only; `priority` and
+`related` rows render `—`. Omit the column entirely under `work-backend: local-files`, where the
+grant sub-stage does not run.
+
+**The `Trust` column is advisory and is never the reason a row is recommended.** It describes how
+the record's *class* has historically turned out; the Recommended column comes from a content-aware
+read of *this record*. A class with no evidence is the normal state, not a warning: on a repo that
+has not been running `/claude-tweaks:demo`, every cell reads `insufficient evidence`, and the
+column's only job there is to make that visible at the moment a human is granting anyway.
 
 The `Type` column (`priority`/`related`/`grant`) is what keeps grant rows visually distinguishable within the single table — a human scanning it can still see at a glance which rows are security-relevant, even though there is only one confirm gate for the whole batch. For 10 or more rows, lead with a one-line count summary before the table (e.g. "18 suggestions: 6 priority, 3 related, 7 grants, 2 re-authorizations") so the human sees the batch's shape before the row detail.
 
