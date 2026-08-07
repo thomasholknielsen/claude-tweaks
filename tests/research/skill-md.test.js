@@ -168,6 +168,14 @@ test('verify-mode.md routes unfalsifiable questions to survey and bounds tiers t
   assert.match(body, /unfalsifiable/i, 'must name the unfalsifiable shape');
   assert.match(body, /ultradeep/, 'must name the existing depth tiers');
   assert.match(body, /bounds?\s+survey\s+breadth\s+only/i, 'tiers must bound survey breadth only');
+  // Anchors the two terms together so a swapped routing table fails. The three
+  // assertions above all pass on an inverted table — verified. Gap is 160, not
+  // 120: the real row is 118 chars wide and 120 leaves no margin ([IL-78]).
+  assert.match(
+    body,
+    /unfalsifiable[\s\S]{0,160}(?:survey|landscape)/i,
+    'must route unfalsifiable questions to survey, not merely mention both words',
+  );
 });
 
 test('verify-mode.md states that absence is a finding', () => {

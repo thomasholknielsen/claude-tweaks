@@ -136,8 +136,15 @@ Survey depth resolves through the standard chain in `skills/_shared/auto-mode-co
 
 Verify mode introduces **no new mid-flow stop**. The Mode Picker's interactive prompt is skipped
 whenever `auto` is active or `$PIPELINE_RUN_DIR` is set, exactly as the bare-topic path already
-does; the resolved tier is logged rather than asked. The one exception is the bare-`verify`
-ambiguity above, which is an unparseable-input condition rather than a policy decision — there is
-no value to resolve from the chain, so there is nothing for `auto` to silence.
+does; the resolved tier is logged rather than asked.
+
+The bare-`verify` ambiguity above is not an exception to this. Verify mode is not reachable from
+`/claude-tweaks:flow` (see Lifecycle position), so no orchestrator invokes it and there is
+normally no run to stop mid-flow — the ambiguity arises only in a direct human invocation, where
+presenting the choice is the correct behavior. In the residual case where a run directory resolves
+anyway (`auto` active, or `$PIPELINE_RUN_DIR` exported by hand), do not prompt: take the
+Recommended option — verify mode — and log it as `AUTO`, per `skills/_shared/auto-mode-contract.md`'s
+"if the skill defines a default, take it". A logged, reversible default surfaced at the Review
+Console is not a silent assumption.
 
 Every verdict writes one `decisions.md` line, in the same entry schema a filter drop uses.
