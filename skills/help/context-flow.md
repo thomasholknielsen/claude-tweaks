@@ -7,7 +7,7 @@ How data and context pass between skills in the workflow lifecycle.
 Skills communicate through **files on disk** — not through session state, environment variables, or in-memory data. Each skill reads artifacts produced by upstream skills and writes artifacts consumed by downstream skills.
 
 This design means:
-- **Context survives across sessions** — you can run `/capture` today and `/challenge` tomorrow
+- **Context survives across sessions** — you can run `/capture` today and `/specify` tomorrow
 - **Context is inspectable** — artifacts are markdown files you can read and edit
 - **Context is explicit** — if a skill needs input, it reads a specific file
 
@@ -22,12 +22,12 @@ Codebase                     ──→ Findings cache               ──→ Wo
 ```
 
 ```
-Backlog record         ──→ Brief               ──→ Design Doc          ──→ Ready record(s)    ──→ Code + Journey
-GitHub issue/local file    docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  GitHub issue/local file   src/ + docs/journeys/
-  /capture               /challenge              /superpowers:brainstorming            /specify              /build
-                                                                         ↓                     ↓
-                                                                   (deletes brief           Blocked items → new
-                                                                    + design doc)           backlog record (/capture)
+Backlog record         ──→ Design Doc          ──→ Ready record(s)    ──→ Code + Journey
+GitHub issue/local file    docs/superpowers/specs/*-design.md  GitHub issue/local file   src/ + docs/journeys/
+  /capture               /superpowers:brainstorming            /specify              /build
+                                                 ↓                     ↓
+                                           (deletes design doc)     Blocked items → new
+                                                                    backlog record (/capture)
 ```
 
 Between shaping and build, two utility skills act on the record with no fixed lifecycle position of their own — `/claude-tweaks:backlog` (`refine` mode grants `auto:build`/`auto:merge`) and `/claude-tweaks:dispatch` (claims the authorized record's file-overlap group and hands it to `/claude-tweaks:flow`). See the Work Records section of `README.md` and `_shared/work-record.md` for the full grant/claim contract.
@@ -51,9 +51,8 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `health-state` branch `code-health/cursors.json` (per-area sweep state, see `_shared/health-state.md`), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status, local-only), `health-state` branch `code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`) and `code-health/runs.json` (run history for churn tracking, capped at 90 records) — both durable, see `_shared/health-state.md`, a work record (GitHub issue via `gh issue create`, or local `specs/{id}-{slug}.md`) born `ready` (durable sink) | — |
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, CLAUDE.md (incl. `work-backend` under `## Work records`), `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | A backlog work record — GitHub issue (`by:capture` label, no stage label) or local `specs/{id}-{slug}.md` file, per `work-backend` | — |
-| `/challenge` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/plans/*-brief.md` | — |
-| `/superpowers:brainstorming` | `docs/plans/*-brief.md` | `docs/superpowers/specs/*-design.md` | — |
-| `/specify` | Shaping mode: a work record reference. Decomposition mode: `*-design.md`, `*-brief.md`, plus every open record (queried live — there is no separate index to read) | Shaping mode: shapes the record in place (`ready` + scoring). Decomposition mode: a parent record plus `ready` leaf records — GitHub issues or local `specs/{id}-{slug}.md` files, per `work-backend` | `*-design.md`, `*-brief.md` (decomposition mode, once every phase is fully decomposed) |
+| `/superpowers:brainstorming` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/superpowers/specs/*-design.md` | — |
+| `/specify` | Shaping mode: a work record reference (`/claude-tweaks:challenge`'s `framing-check` mode runs inline, no separate fetch). Decomposition mode: `*-design.md`, plus every open record (queried live — there is no separate index to read) | Shaping mode: shapes the record in place (`ready` + scoring, plus `framing:baked` and `## Gotchas` on a `solution-baked` verdict). Decomposition mode: a parent record plus `ready` leaf records — GitHub issues or local `specs/{id}-{slug}.md` files, per `work-backend` | `*-design.md` (decomposition mode, once every phase is fully decomposed) |
 | `/claude-tweaks:backlog refine` | Open work records carrying `ready` with no `auto:*` grant yet (the authorization worklist) | `auto:build`/`auto:merge` labels (human-granted only); strips `bot:blocked` on re-authorization; removes `ready` and comments when flagging an unshaped record back | — |
 | `/claude-tweaks:dispatch` | Open work records carrying `auto:build`, unclaimed and no `bot:*` label | `bot:in-progress` claim mirror + the atomic `refs/claims/issue-{N}` ref; this firing's `decisions.md`; invokes `/claude-tweaks:flow #{n}[,#{m}...]` | Releases its own claim (`bot:in-progress`) on completion or failure; strips `auto:*` grants and adds `bot:blocked` at the retry ceiling |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
@@ -115,7 +114,7 @@ This is why every skill writes its output to files, not just to the conversation
 Every artifact that a skill produces must be consumed by a downstream skill or explicitly resolved:
 
 - A build's materialized spec file is kept by `/wrap-up` as committed audit trail
-- Design docs and briefs are deleted by `/specify` after absorption into the surviving records
+- Design docs are deleted by `/specify` after absorption into the surviving records
 - Plans are deleted by `/wrap-up` after the work is done
 - Ledger files are deleted by `/wrap-up` after all items are resolved
 - Backlog work records are promoted, absorbed, or explicitly kept by `/tidy`

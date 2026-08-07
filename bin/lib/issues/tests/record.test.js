@@ -116,6 +116,24 @@ test('recordPayload emits labels in order: by:*, risk:*, effort:*, ceremony:*, r
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
+test('recordPayload emits framing:baked when framing is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true });
+  assert.ok(result.labels.includes('framing:baked'));
+});
+
+test('recordPayload emits no framing:baked label when framing is omitted', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('framing:baked'));
+});
+
+test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+  const result = recordPayload({
+    title: 't', body: 'b', type: 'task', origin: 'capture',
+    risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+  });
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+});
+
 // AC 2 — dual-marker extraction
 
 test('extractFingerprint reads the legacy code-health-fingerprint marker', () => {
@@ -169,7 +187,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, effort: null, ceremony: null, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -195,7 +213,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, effort: null, ceremony: null, priority: null, stage: 'backlog',
+    origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -267,6 +285,17 @@ test('parseRecordFacets: ceremony:standard sets facets.ceremony', () => {
 
 test('parseRecordFacets: ceremony defaults to null when the label is absent', () => {
   assert.strictEqual(parseRecordFacets([]).ceremony, null);
+});
+
+// AC — framing axis (challenge framing-check, presence-only label)
+
+test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+});
+
+test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).framing, false);
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
 });
 
 // AC 5 — dependencies

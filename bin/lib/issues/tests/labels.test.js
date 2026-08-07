@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { ensureLabelPayload } = require('../labels');
+const { LABELS } = require('../record');
 
 test('returns { name, description } for a valid description', () => {
   assert.deepStrictEqual(
@@ -30,6 +31,20 @@ test('throws when description is not a string', () => {
 
 test('error message names the label', () => {
   assert.throws(() => ensureLabelPayload('code-health:review-quality', 'x'.repeat(101)), /code-health:review-quality/);
+});
+
+test('framing:baked is bootstrappable with a description within the cap', () => {
+  // Read the description from the canonical fence (see canonicalLabelsFromBootstrapDoc
+  // below) instead of hand-copying it, so a future edit to that source that pushes the
+  // description over the cap fails here rather than drifting silently.
+  const [, description] = canonicalLabelsFromBootstrapDoc().find(([name]) => name === 'framing:baked');
+  const payload = ensureLabelPayload('framing:baked', description);
+  assert.strictEqual(payload.name, 'framing:baked');
+  assert.ok(payload.description.length <= 100);
+});
+
+test('framing:baked is exported as a LABELS constant', () => {
+  assert.strictEqual(LABELS.FRAMING_BAKED, 'framing:baked');
 });
 
 // Reads skills/_shared/label-bootstrap.md's own "Canonical LABELS_JSON" fence live, so this

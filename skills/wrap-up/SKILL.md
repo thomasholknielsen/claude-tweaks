@@ -230,32 +230,12 @@ Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/
 
 ## Step 7.10: Memory curation (D4)
 
-Classify every reflection insight and ledger learning not already routed by
-Steps 6-7.9 through `_shared/learning-routing.md`. For each that resolves to
-**D4**, dedup against `MEMORY.md` per the contract, then stage — never write
-directly:
-
-```
-STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibility: high (stage path: staged/wrap-up-memory-{N}.md).
-```
-
-The stage file holds the complete proposed memory file plus its `MEMORY.md`
-index line, so the Review Console (or, in interactive mode, `summary-template.md`'s
-Memory updates section) can show exactly what would be written.
-
-**Standalone wrap-up** (no run directory resolves): no Review Console will ever
-read a staged file here — the same reasoning `ledger/resolve-gate.md` applies to
-a standalone ledger item — so skip the `STAGED` line and `staged/` file entirely;
-present the proposal directly in `summary-template.md`'s Memory updates section
-and write the memory file on approval there instead.
-
-**No memory directory available.** D4 is unavailable when the invoking
-assistant's system prompt states no memory directory for this project — but
-the lesson is never dropped for that reason alone: re-run the classifier from
-rule 4 **here** and act on the result in this step. A D1/D2 outcome stages as
-a configuration or skill update alongside Steps 6/7's own output; a D3
-outcome becomes a queue-write proposal, staged the way `ledger/resolve-gate.md`
-Phase 3 stages `Keep`/`Defer`, for the Review Console to create on approval.
+**Gate the read.** Classify every reflection insight and ledger learning not already routed by
+Steps 6–7.9 through `_shared/learning-routing.md`. When none resolves to **D4**, emit the summary
+line below with `0` resolved and skip this step. Otherwise read `memory-curation.md` in this
+skill's directory for the full procedure — the dedup-and-stage rule and its `STAGED` line, the
+standalone-wrap-up path, and the re-classification table for when no memory directory is available
+(the lesson is never dropped for that reason alone).
 
 **Mandatory summary**, emitted every run regardless of outcome:
 
@@ -267,27 +247,11 @@ Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interacti
 
 ## Step 7.11: Upstream feedback (D5)
 
-For every learning that `_shared/learning-routing.md` resolves to **D5**, run
-the contract's self-reference check first. When it collapses D5, re-classify and
-handle the result in the appropriate earlier step instead.
-
-Otherwise stage one proposal per learning — never file during the run:
-
-```
-STAGED {time} — Step 7.11: upstream {defect|gap} report proposed for {component}. Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).
-```
-
-The stage file holds the fully drafted **and already scrubbed** body. Filing
-happens on approval — at the Review Console's `On approval` step (Step 8.6),
-or, in interactive mode, `summary-template.md`'s Upstream feedback section —
-by invoking `/claude-tweaks:feedback` per approved row. Step 10 only confirms
-the filing landed; see `execution-and-verification.md`.
-
-**Standalone wrap-up** (no run directory resolves): no Review Console will ever
-read a staged file here — the same reasoning `ledger/resolve-gate.md` applies to
-a standalone ledger item — so skip the `STAGED` line and `staged/` file entirely;
-present the proposal directly in `summary-template.md`'s Upstream feedback
-section and invoke `/claude-tweaks:feedback` on approval there instead.
+**Gate the read.** When `_shared/learning-routing.md` resolved **no** learning to D5, there is
+nothing to stage: emit the summary line below with `0` resolved and skip this step. Otherwise read
+`upstream-feedback.md` in this skill's directory for the full procedure — the self-reference check
+that can collapse D5, the stage-never-file rule and its `STAGED` line, and the standalone-wrap-up
+path that has no console to stage for.
 
 **Mandatory summary**, emitted every run regardless of outcome:
 
@@ -296,6 +260,27 @@ SCANNED {time} — Step 7.11 upstream feedback: {N} learnings classified, {M} re
 ```
 
 Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it inline.
+
+## Step 7.12: Broken-reference sweep
+
+Find references pointing at something **this run renamed, moved, or removed**, and — when the
+`autonomy` ceiling allows — repair them within the initiative budget. Unlike Step 7.7's D1 this
+scans files this run did **not** touch, where orphans live and task-scoped review cannot reach.
+
+**Gate the read.** Compute the rename/move/delete set (`git diff --diff-filter=RD --name-status
+{base}...HEAD`) plus any heading or anchor a modified file renamed. Empty means no orphan can
+exist: emit the summary with `0 targets` and skip — read neither file. Otherwise read
+`reference-sweep.md` in this skill's directory, which owns the procedure and, at
+`trusted`/`unattended`, defers to `_shared/initiative-budget.md` for the floor rule.
+
+Mandatory summary line, regardless of outcome:
+
+```
+SCANNED {time} — Step 7.12 broken-reference sweep: {T} rename/delete targets, {H} surviving references, ceiling {ceiling}. Result: {A} repaired, {S} staged. Reversibility: high (separate commit).
+```
+
+Auto mode appends this line to `decisions.md`; interactive mode prints it inline. `0 targets` is a
+real result and is reported, never omitted.
 
 ## Step 8: Analyze Next Steps (record-based only)
 
