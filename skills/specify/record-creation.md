@@ -60,8 +60,9 @@ labels can still land on it, both applied directly via `gh issue create --label`
 through the payload: `type:feature` — only under `work-types: labels` — and `family:parent`,
 unconditionally, regardless of `work-types`. `family:parent` is what makes a parent enumerable
 at all: the `{design-doc-slug}:parent` fingerprint is a body marker reachable only through `gh
-issue list --search`, which `record-creation.md:90` deliberately avoids — without a label, a
-`/claude-tweaks:tidy` sweep has no way to find a family whose gate was never applied
+issue list --search`, which this step's "Resuming after a partial run" note (below) says to
+never fall back to — without a label, a `/claude-tweaks:tidy` sweep has no way to find a family
+whose gate was never applied
 (`_shared/github-pr-scan.md`'s `family-gate` scope). Bootstrap both before the create (per
 `_shared/label-bootstrap.md`): `family:parent` always, `type:feature` only under `work-types:
 labels` — `LABELS_JSON = [["family:parent", "Structure: decomposition parent — carries the
