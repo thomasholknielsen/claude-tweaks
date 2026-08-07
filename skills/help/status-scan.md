@@ -28,7 +28,7 @@ Stages split by cost. Stages 1, 4.5, 4.6, 4.7, and 4.8 each do real `gh` work ov
 > Do not add narration, headers, or summaries before or after the table.
 > ```
 >
-> Stage 4.8 is deliberately exempt from this template — a trust-table row carries no severity, and its row count is bounded by a finite provenance x band taxonomy, not by the 15-row cap. Capping it would hide exactly the Undispositioned count this feature exists to surface. See Stage 4.8's own section for what it returns instead.
+> Stage 4.8 is deliberately exempt from this template — a trust-table row carries no severity, and its row count is held down by `provenance.js`'s normalization rather than by the 15-row cap (the `side-effect:{source}` half of the provenance axis is free text, so the taxonomy has no formal ceiling; see `_shared/trust-table.md`'s Render section for what actually bounds it). Capping it would hide exactly the Undispositioned count this feature exists to surface. See Stage 4.8's own section for what it returns instead.
 
 > **Parallel execution:** Use parallel tool calls aggressively — all `Glob`/`Grep` operations in Stages 2, 5, and 6 are independent and should run concurrently.
 
