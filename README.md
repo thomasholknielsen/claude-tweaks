@@ -25,15 +25,13 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
   capture ──────────────►  Backlog record
      │
-  challenge ────────────►  Brief
-     │
      │                     Design Doc          ◄───  brainstorm
      │                     (specify can invoke brainstorm directly on topic input)
      │
   specify ──────────────►  Ready record(s)    (writes surface: + design-intent: body metadata)
      │  calls: design shape (frontend only — appends Impeccable shape output to design doc)
      │  calls: visualize (diagram suggestion, all surfaces)
-     │                     (deletes Brief + Design Doc)
+     │                     (deletes Design Doc)
      │
   ┈┈ /claude-tweaks:backlog refine grants, /claude-tweaks:dispatch claims (utility skills, no fixed position) ┈┈
      │
@@ -88,9 +86,9 @@ Every unit of work — a captured idea, a health-skill finding, or a human-filed
 BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
 ```
 
-- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction).
+- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, captures skip there too, once the `producer:capture` class has earned a `clean` trust verdict — see `skills/_shared/autonomy-ceiling.md`.
 - **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready leaves.
-- **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one.
+- **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one. (The `autonomy` ceiling defines one exception at its `unattended` tier, shut behind a second opt-in that nothing sets today.)
 - **building** — an agent holds the claim. `/claude-tweaks:dispatch` claims an authorized record's whole file-overlap group and hands it to `/claude-tweaks:flow`.
 - **closed** — completed via your own merge (close-via-merge — the pipeline never runs `gh issue close`), or not-planned (wontfix, duplicate, absorbed into another record).
 
@@ -107,7 +105,7 @@ See `skills/_shared/work-record.md` for the full axis contract (Type, Origin, Sc
 
 ## Skills
 
-claude-tweaks ships a full set of skills spanning the plan phase (capture, challenge, specify), the automated pipeline (build, test, review, wrap-up), standalone component skills (reflect, simplify, deepen, journeys, visual-review, visualize, assess-agent-autonomy, feedback), and utility skills (flow, help, tidy, demo, code-health, backlog, dispatch, and more). Each is invoked as `/claude-tweaks:{name}` and most work both standalone and as part of the automated `/claude-tweaks:flow` pipeline.
+claude-tweaks ships a full set of skills spanning the plan phase (capture, specify), the automated pipeline (build, test, review, wrap-up), standalone component skills (challenge, reflect, simplify, deepen, journeys, visual-review, visualize, assess-agent-autonomy, feedback), and utility skills (flow, help, tidy, demo, code-health, backlog, dispatch, and more). Each is invoked as `/claude-tweaks:{name}` and most work both standalone and as part of the automated `/claude-tweaks:flow` pipeline.
 
 See [docs/getting-started.md](docs/getting-started.md) for the full skill reference,
 [docs/plugin-structure.md](docs/plugin-structure.md) for the directory layout, per-skill sub-file
@@ -124,7 +122,7 @@ behind CLAUDE.md's `## Don'ts` rules.
 
 # Full pipeline — idea to clean slate
 /claude-tweaks:capture "users need meal planning"
-/claude-tweaks:challenge meal planning
+/claude-tweaks:challenge --lens=1 meal planning  # optional: human debiasing lens before brainstorming
 /superpowers:brainstorming
 /claude-tweaks:specify meal planning
 /claude-tweaks:flow 73

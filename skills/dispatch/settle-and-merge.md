@@ -71,7 +71,13 @@ When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check
 1. **Authorization** — `auto:merge` was present on every member of the group when Step 4 claimed it (true by construction).
 2. **Content judgment** — for each member of the group, invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`. This weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary (`bin/lib/issues/blast-radius.js`) holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`. **Every member's verdict must be `auto-merge`** for the group to proceed — a single `needs-human` verdict anywhere in the group falls the whole group back to the normal pending-review path.
 
-**Both layers pass:** merge directly, bypassing the interactive `/superpowers:finishing-a-development-branch` handoff entirely (there is no human present to answer its merge/PR/discard prompt during a headless firing). Before merging, clear this run's worktree assignment the same way `flow/worktree-merge.md`'s reconciliation does:
+**Both layers pass — acceptance labeling runs first, for every member of the group.** This gate bypasses `/wrap-up` Step 10, which is where acceptance labeling normally happens, so this gate must perform it itself. For each record in the group, run `wrap-up/verification-brief.md`'s full procedure — bootstrap, testability, the safety-net gate, sourcing, posting — then apply `demo:pending`. One brief and one label per record: the merge decision is group-wide, but acceptance is a per-record judgment and a group's members can differ in testability and in what shipped for each.
+
+Order is load-bearing: the merge below carries one `Fixes #{issue}` line per record, so once it lands every member is closed and this gate has moved on. Label before merging, while the records are still open.
+
+`auto:merge` governs merge timing only and has no bearing on whether a record gets `demo:pending` — `_shared/work-record.md` states that an `auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and this gate is the only place on the group path that can honor it.
+
+Then merge directly, bypassing the interactive `/superpowers:finishing-a-development-branch` handoff entirely (there is no human present to answer its merge/PR/discard prompt during a headless firing). Before merging, clear this run's worktree assignment the same way `flow/worktree-merge.md`'s reconciliation does:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"
@@ -117,5 +123,7 @@ One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guaran
 Log to `decisions.md`:
 `AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
 Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
+
+**That claim covers what wrap-up *found*, not everything Step 10 *does*.** It was accurate when written and stayed accurate while going incomplete: acceptance labeling is an action, not a finding, so no completeness claim here covered it and it was silently dropped on every group auto-merge until the labeling step above was added. When adding anything else Step 10 performs, check it against this gate explicitly — a claim that is true about one category is not evidence about another.
 
 **Any layer fails:** proceed exactly as the `auto:build`-only path would — present the normal Review Console, wait for a human.

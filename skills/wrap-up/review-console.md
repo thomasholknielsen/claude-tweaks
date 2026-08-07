@@ -13,6 +13,7 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md` Step 1's Flags subsection), run every analysis step normally — Steps 3-8, and the Auto-merge short-circuit's content-judgment verdict below — but treat everything from this point forward as preview-only:
 
 - Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
+- Skip that same branch's acceptance labeling — no `demo:pending` label write and no Verification Brief comment. Compose the brief and print it as a preview line instead. It is a network write to a live record, so it is preview-only for the same reason the merge is; the bullet above names only the two git commands because they were the only writes on that path when it was written.
 - Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
 - Queue writes (`Q#` items), Memory updates (`M#` items), and Upstream feedback (`U#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead; under `--dry-run` no memory file is ever written and `/claude-tweaks:feedback` is never invoked.
 - Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
@@ -32,7 +33,23 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
 2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`. The verdict must be `auto-merge` to proceed.
 
-**Both layers pass:** skip the blocking wait and merge directly — bypass the
+**Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
+Step 10, which is where acceptance labeling normally happens, so this branch must perform it
+itself. Run `verification-brief.md`'s full procedure now — bootstrap, testability, the Step 2.5
+safety-net gate, sourcing, posting — exactly as Step 10 would, then apply `demo:pending`.
+
+Order is load-bearing: the merge below carries the `Fixes #{issue}` closing keyword, so once it
+lands the record is closed and this branch has moved on. Labeling before the merge is what keeps
+the record's acceptance state correct on a path where no human ever sees the console.
+
+The record-mode precondition is satisfied by construction — this short-circuit already requires a
+materialized header with a `record:` field, which is the same condition Step 10's acceptance
+bullet gates on. `auto:merge` governs merge timing only and has no bearing on whether the record
+gets `demo:pending`; `_shared/work-record.md` states that an `auto:merge`'d record still gets it
+on its now-closed issue, enabling retrospective sign-off, and this branch is the only place that
+can honor it.
+
+Then skip the blocking wait and merge directly — bypass the
 interactive `/superpowers:finishing-a-development-branch` handoff entirely,
 since no human is present to answer its merge/PR/discard prompt during a
 headless `dispatch` run. Before merging, clear this run's worktree
@@ -109,6 +126,13 @@ this console's full content (Auto-applied / Skill updates / Configuration
 updates sections, per "Present the console" below) and attach it to a
 `PushNotification` as a non-blocking FYI. Nothing this console would have
 shown is discarded — only the wait for a live approval is skipped.
+
+**That sentence is about console content, and console content is not all of Step 10.** It was
+accurate when written and stayed accurate while going incomplete: acceptance labeling is neither
+console content nor one of `cleanup-procedures.md`'s cleanup items, so no completeness claim on
+this page covered it, and it was silently dropped on every auto-merge until the labeling step
+above was added. When adding anything else Step 10 performs, check it against this branch
+explicitly — a claim that is true about one category is not evidence about another.
 
 **If the merge conflicts:** conflict resolution requires judgment a headless
 run can't supply — abort the merge (`git merge --abort`) and fall back to
@@ -258,6 +282,24 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 | # | Type | Target | Change |
 |---|---|---|---|
 | 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
+
+#### Reference repairs (from Step 7.12)
+
+Render this section whenever the broken-reference sweep found a surviving reference, in either of
+two states. **Applied** rows are reported, not re-approved — they already happened, in their own
+`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
+**Staged** rows are ordinary approval rows like any other in this console.
+
+| # | State | Target | Repair | Broken by | Why |
+|---|-------|--------|--------|-----------|-----|
+| 14a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
+| 14b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
+
+The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
+run that tripped a cap reads differently from a run that found nothing. **A sweep that found
+surviving references but applied none must still render this section** — an empty Auto-applied
+list plus a populated staged list is the signal that the ceiling is holding, and collapsing it to
+silence hides exactly that.
 
 #### Configuration updates (from Step 6 and Step 7.9)
 

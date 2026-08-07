@@ -20,11 +20,10 @@ When Step 9 completes, return to `SKILL.md`'s `## Next Actions` block.
 > **Parallel execution:** Use parallel tool calls aggressively — all reads and searches below are independent and should run concurrently. Front-load all I/O before analysis.
 
 1. **The design doc** — understand what was decided, the scope, and the technical approach
-2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/claude-tweaks:challenge`, blind spots, and constraints. These should be absorbed into leaf Gotchas sections.
-3. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Query once, per driver, fetching the union of fields both this step and Step 3's Idempotency map need so Step 3 can reuse this same fetch instead of paying for a second round-trip: `work-backend: github-issues` — `gh issue list --state all --json number,title,labels,body,state --limit 500 > /tmp/specify-all-issues.json`, then filter in-memory to `state === 'OPEN'` and run `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels` for this step's Landscape/Overlap Analysis use. Fetching `--state all` here (rather than `--state open`) is deliberate — Step 3's Idempotency map needs the closed records too, and reuses `/tmp/specify-all-issues.json` directly instead of re-fetching (see Step 3). `--limit 500` (not the narrower 200 an open-only fetch would need) matches the `--state all ... --limit 500` convention `/code-health`/`/harness-health`/`/journey-health`/`/docs-health` already use for their own `--state all` fetches — a combined open+closed fetch capped too low can silently push older open issues out (pigeonhole: a fixed number of slots shared between both states, returned newest-first by default), narrowing this step's Landscape/Overlap Analysis coverage versus an open-only fetch; 500 makes that practically unreachable for the repo sizes this plugin targets without paying for a second round-trip, though a repo whose combined issue count grows past it (plausible over a long enough lifetime, given the health skills' own autonomous issue filing) would see the same narrowing again. `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
-4. **Every open record's body** (from the query above) — scan for overlap with the design doc's scope; feeds the File Reference Map below.
-5. **Recent git log** — check if any part of the design has already been implemented
-6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing leaf records that `/superpowers:writing-plans` can act on.
+2. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Query once, per driver, fetching the union of fields both this step and Step 3's Idempotency map need so Step 3 can reuse this same fetch instead of paying for a second round-trip: `work-backend: github-issues` — `gh issue list --state all --json number,title,labels,body,state --limit 500 > /tmp/specify-all-issues.json`, then filter in-memory to `state === 'OPEN'` and run `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels` for this step's Landscape/Overlap Analysis use. Fetching `--state all` here (rather than `--state open`) is deliberate — Step 3's Idempotency map needs the closed records too, and reuses `/tmp/specify-all-issues.json` directly instead of re-fetching (see Step 3). `--limit 500` (not the narrower 200 an open-only fetch would need) matches the `--state all ... --limit 500` convention `/code-health`/`/harness-health`/`/journey-health`/`/docs-health` already use for their own `--state all` fetches — a combined open+closed fetch capped too low can silently push older open issues out (pigeonhole: a fixed number of slots shared between both states, returned newest-first by default), narrowing this step's Landscape/Overlap Analysis coverage versus an open-only fetch; 500 makes that practically unreachable for the repo sizes this plugin targets without paying for a second round-trip, though a repo whose combined issue count grows past it (plausible over a long enough lifetime, given the health skills' own autonomous issue filing) would see the same narrowing again. `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
+3. **Every open record's body** (from the query above) — scan for overlap with the design doc's scope; feeds the File Reference Map below.
+4. **Recent git log** — check if any part of the design has already been implemented
+5. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing leaf records that `/superpowers:writing-plans` can act on.
 
 ### File Reference Map
 
@@ -150,7 +149,7 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 After decomposing into work units, before creating any records, build the input set — every new work unit plus every open record (from the file reference map in Step 1), each as `{id, keyFiles}` — and write it to `/tmp/specify-key-files.json`:
 
 - **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it.
-- **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 6's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the leaf's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
+- **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the leaf's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
 
 ```bash
 node -e "
@@ -225,7 +224,7 @@ Records are created **parent-first**: the parent's number has to exist before an
 
 ## Step 4: Link and order
 
-Every parent and leaf number now exists. This pass wires the relationships between them and absorbs the last of the design doc's and brief's context, before Step 7 deletes both. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
+Every parent and leaf number now exists. This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
 
 ## Step 5: Multi-Persona Red-Team
 
@@ -259,7 +258,7 @@ When all five checks come back clean, proceed to Step 7. No need to re-review af
 
 ## Step 7: Delete Consumed Artifacts (only when fully decomposed)
 
-The design doc and brainstorming brief have served their purpose **once every phase has been decomposed into leaf records and Step 6 Self-Review has confirmed coverage**. Behavior depends on the phase target:
+The design doc has served its purpose **once every phase has been decomposed into leaf records and Step 6 Self-Review has confirmed coverage**. Behavior depends on the phase target:
 
 | Decomposition mode | Delete design doc? |
 |---|---|
@@ -271,7 +270,6 @@ The design doc and brainstorming brief have served their purpose **once every ph
 ```bash
 # Full decomposition (all phases or single-phase):
 git rm docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
-git rm docs/plans/YYYY-MM-DD-{topic}-brief.md  # if it exists
 
 # Partial decomposition (phase-N only): commit the marker, keep the doc
 git add docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
@@ -301,7 +299,6 @@ Present a summary:
 
 ### Artifacts Removed
 - Design doc: `docs/superpowers/specs/{filename}` (absorbed into the parent + leaf records)
-- Brainstorming brief: `docs/plans/{filename}` (absorbed into leaf Gotchas sections) — if it existed
 
 ### Diagram suggestions (optional — render only when Step 2.5d emitted any)
 - {one or two `**Diagram suggestion:** …` blocks emitted by Step 2.5d}
@@ -314,7 +311,7 @@ Present a summary:
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Operational | Created parent record {parent-ref} + {N} leaf records | `{hash}` (local-files) / `—` (github-issues — creates already landed via API, no commit) |
-| Operational | Deleted design doc + brief | `{hash}` |
+| Operational | Deleted design doc | `{hash}` |
 
 **Commit whatever this run wrote to disk — the skill's terminal action, run whether or not anything ends up staged.** This covers only artifacts that are files: the design-doc deletion/marker from Step 7, and — under `work-backend: local-files` — the parent and leaf record files plus Step 4's linking edits, composed and written across Steps 3-4 but not yet committed. A clean `github-issues` run has nothing to commit for the records themselves — every parent/leaf create and edit already landed via the API in Steps 3-5, the same no-commit case Shaping mode documents — **except** any leaf (or the whole batch, if the parent itself fell back) that Step 3's write-path resilience wrote to `local-store.js` after a `gh` failure; that file needs this commit exactly like a `local-files` record does. A full (non-`phase-N`) decomposition may therefore have nothing staged beyond the design doc's `git rm`; a `phase-N` run already committed its own marker back in Step 7, so it may have nothing staged at all. None of this affects durability — a leaf is durable the moment its create/write call lands, not when this step commits it. What used to be true of spec files no longer applies: leaves don't need to exist in committed history before a pipeline can run them; `/claude-tweaks:flow #N` (or a local record id) materializes a leaf into a build-time file only when a pipeline actually runs it (spec 20's contract), independent of this commit.
 

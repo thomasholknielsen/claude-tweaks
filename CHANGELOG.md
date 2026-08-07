@@ -39,6 +39,171 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.59.1 — two rules from the framing-gate build, where a written instruction outran its mechanism
+
+Wrap-up capture for v6.58.0. Both rules come from defects that survived per-task review and
+were caught only by someone opening the file the prose pointed at.
+
+- `[IL-102]` — an instruction was added to `/claude-tweaks:specify`'s procedure three times
+  while the mechanism a few lines below (a `gh issue edit` block, a `gh issue create` block,
+  and `local-store.js`'s frontmatter serializer) never carried it. Two of the three landed
+  *while fixing the first*. The new Don't: find the nearest thing that executes and confirm it
+  carries the item — "the step above says to do it" is not a mechanism.
+- `[IL-103]` — the `risk:*`/`ceremony:*` omit-rule idiom was copied for a presence-only marker
+  whose common case is absence, producing a command block that stamped it on every record. The
+  new Don't: state a neighbouring convention's common case before adopting it; where yours
+  differs, the default must invert.
+
+No behavior change — CLAUDE.md, `docs/incident-log.md`, and two project memory files only.
+
+## v6.59.0 — a run can repair the references its own change broke
+
+Phase 4 of the earned-autonomy design. `CLAUDE.md`'s Don'ts prescribe the same sweep by hand
+in five separate rules (`[IL-10]`, `[IL-17]`, `[IL-21]`, `[IL-52]`, `[IL-93]`), every one
+recording the same failure: when a change renames or removes something, references to the old
+name survive in files the change never touched, and task-scoped review cannot see them by
+construction. `/claude-tweaks:wrap-up` now runs that sweep itself.
+
+- **Step 7.12, the broken-reference sweep** (`wrap-up/reference-sweep.md`) — computes the run's
+  rename/move/delete set, greps for surviving references to the old names, and reports every
+  hit. At `autonomy: supervised`, the default, it stages all of them and applies nothing, so
+  the step is pure detection for any project that has not opted in.
+- **The in-run initiative budget** (`_shared/initiative-budget.md`,
+  `bin/lib/issues/initiative-budget.js`) — at `trusted`/`unattended`, up to three of those
+  repairs apply during the run instead of waiting for approval, capped at 2 files and 20 lines
+  each, in their own commit with an `Initiative-Fix:` trailer so `/claude-tweaks:review` is
+  never handed unrequested edits mixed into the diff it was asked to review.
+
+**The carve-out is causal, not size-based.** `_shared/auto-mode-contract.md` keeps "code
+modifications outside the skill's documented scope" in what `auto` never silences, because that
+row exists to stop a skill reaching outward to make its own work succeed. A pointer repair is
+the inverse: the reference is broken *because of* this run, and the change is not finished while
+it still points at what the run moved. A gap the run merely *noticed* is still filed, never
+fixed, at every ceiling — losing that distinction would turn the budget into a licence to make
+small edits anywhere.
+
+This is the ceiling's second authorized behavior and the first that is **not** trust-gated. An
+unfiled repair generates no record, so it has no provenance class and can never appear in the
+trust table; requiring a `clean` verdict would ship it permanently inert. Its safety comes from
+being mechanically checkable and capped instead — `_shared/autonomy-ceiling.md` states this
+explicitly so a later reader does not "fix" the asymmetry by adding a floor nothing could clear.
+
+Ambiguity always stages: two plausible targets, or an old name that still legitimately exists,
+means the repair is judged rather than checked, and the budget's premise does not hold. Test
+files are excluded outright — retargeting an assertion at a renamed path is how "repair" becomes
+"silence the check".
+
+Also extracts `wrap-up` Steps 7.10 and 7.11 to `memory-curation.md` and `upstream-feedback.md`.
+The new step pushed `SKILL.md` past the 40 KB per-invocation ceiling that
+`bin/lib/skill-audit/tests/context-cost.test.js` enforces; two separate sub-files rather than
+one shared bucket, since two stubs citing sections of a single file makes every stub pay for
+the whole thing.
+
+## v6.58.0 — /challenge becomes an inline framing gate instead of a brief producer
+
+`/claude-tweaks:challenge` was a human-run stage that dispatched seven parallel proposers
+plus an aggregator and saved a Brainstorming Brief to `docs/plans/*-brief.md`. It had
+produced exactly one brief in the repo's history, and its nominal primary consumer
+(`/superpowers:brainstorming`, a third-party skill) never read the file — its documented
+deletion step had never fired either. The judgment was sound; the shape was wrong.
+
+- `/claude-tweaks:challenge` is now two modes. `framing-check` is a component invoked only
+  by `/claude-tweaks:specify`, rendering `FRAMING: open | solution-baked` plus a rationale.
+  `--lens=<n[,n...]>` is a human-invoked escape hatch that applies one of the seven
+  debiasing lenses in conversation. The seven lenses survive; only the machinery around
+  them is gone. The file dropped from 19.3 KB to under 10 KB.
+- A `solution-baked` verdict now stamps a presence-only `framing:baked` marker and folds
+  the surfaced assumptions into the record's own `## Gotchas` — read by `/specify`,
+  `/build`, and `/flow` by construction, rather than a separate file needing discovery.
+  Absence is the clean state; there is no `framing:open`.
+- The verdict surfaces as an informational `Framing` column in `/claude-tweaks:backlog
+  refine`'s existing batch table and a flag in `/claude-tweaks:help`'s scan, which now
+  reads the stamped verdict instead of guessing from record titles. **Net new user-facing
+  prompts: zero.** Three flows lost an option; none gained one.
+- Both drivers carry the verdict: a `framing:baked` label under `work-backend:
+  github-issues`, a `framing` facet under `work-backend: local-files`, bridged through
+  `sharedFacetDefaults()` and `parseRecordFacets` so the two shapes agree.
+- Mode 4 (Layered MoA) is removed from `_shared/multi-agent-coordination.md` and
+  `bin/lib/coordination.js` — `/challenge` was its only consumer. Three coordination modes
+  remain. `docs/plans/2026-07-08-worktree-directory-convention-brief.md` is deliberately
+  retained on disk; ADR 0004 cites it.
+
+## v6.57.1 — auto-merged records get their acceptance label instead of closing silently
+
+Both auto-merge short-circuits bypass `/claude-tweaks:wrap-up` Step 10, which is where
+acceptance labeling lives — so a record that auto-merged closed with no `demo:pending`
+and no Verification Brief. `_shared/work-record.md` says the opposite: an `auto:merge`'d
+record still gets the label on its now-closed issue, to enable retrospective sign-off.
+Nothing enforced it, and `#141` is the case that made it visible.
+
+- `wrap-up/review-console.md`'s single-record fast-lane short-circuit and
+  `dispatch/settle-and-merge.md`'s group Auto-merge gate now each run
+  `verification-brief.md`'s procedure and apply `demo:pending` **before** merging. The
+  merge carries the closing keyword, so after it lands the record is closed and the
+  branch has moved on — order is the fix, not an implementation detail. On the group
+  path it is one brief and one label per record: the merge decision is group-wide, but
+  acceptance is per-record and members differ in testability.
+- `--dry-run` covers the new writes. That branch's skip list named only `git merge` and
+  `git push`, which would have let a live label write and brief comment escape preview
+  mode — the same shape as the defect being fixed, in mirror image.
+
+The defect survived because it sat between three separately-true completeness claims:
+the console's "nothing this console would have shown is discarded" (about console
+content), dispatch's "nothing wrap-up found is dropped" (about findings), and the
+console's rule covering "every cleanup action that would otherwise run in Step 10"
+(about cleanup items). Acceptance labeling is an action, not console content, not a
+finding, and not a cleanup item — so every claim stayed true while the category none of
+them covered was dropped on every auto-merge. Both claims now state what they do not
+cover, so the next thing added to Step 10 has to be checked rather than assumed.
+
+Found by measuring Phase 4's premises before planning it: 129 closed records across 10
+provenance classes, zero acceptance verdicts, 0% coverage in every cell.
+
+## v6.57.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
+
+Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that
+nothing acted on; this release wires the `autonomy` policy lever to it, and hardens the
+verdict first, because the shipped rule was not sound enough for a machine to read.
+
+**The verdict now floors on verdicts, not records.** The old rule graded a cell on
+`total >= MIN_SAMPLES` plus a *single* disposition. Measured against this repo, one
+`demo:approved` on a 40-record class produced `verdict: clean` — fine for a table a human
+reads beside the counts, a live grant once a governor reads it alone. A second floor,
+`MIN_VERDICTS` (5), now counts the acceptance verdicts inside a cell rather than the
+records. `notPlanned` also leaves the clean test: a record closed `NOT_PLANNED` was
+declined, so no work product exists to judge, and with no time window in the table it was
+pinning two of this repo's four real classes to `mixed` permanently. Both counts are still
+rendered, and a new Coverage column says what fraction of a class was ever verified.
+
+**`bin/lib/issues/autonomy.js`** resolves the ceiling (CLI arg > run config > project
+policy > `supervised`) and maps `(ceiling, trust row)` to a permission set. Unrecognized
+input always fails toward less autonomy: an unknown ceiling falls back to `supervised`, and
+gradable kinds are an allowlist rather than a denylist naming `unstructured` — a denylist
+granted to every kind it had not been taught, including a case-variant `PRODUCER`.
+
+**`trusted` unlocks born-`ready` for `/claude-tweaks:capture`**, and only when
+`producer:capture` carries a `clean` verdict. That skips `/claude-tweaks:specify`, never the
+human grant gate — `ready` asserts shape, and `/claude-tweaks:backlog refine` re-derives
+shape from the body before granting anyway. Human-filed classes are excluded by
+construction: born-`ready` authorizes an *agent's* filing, and `human:human` is this repo's
+largest provenance, so a governor that graded it would have fired there first on the weakest
+possible justification.
+
+**`unattended` is defined and shut.** Its machine-originated grant contradicts the standing
+invariant that `auto:*` labels come only from an interactive human session — an invariant
+written after a real run treated a low-risk `ready` record as license to run a full
+build-to-close lifecycle. Reaching the top tier is not by itself an amendment of that, so
+the grant path sits behind a second explicit opt-in that nothing sets.
+
+`/claude-tweaks:backlog refine` gains an advisory `Trust` column beside its existing
+recommendation, which it never drives — a class's history is not evidence about this
+record's shape, and on a repo that has not run `/claude-tweaks:demo` every cell reads
+`insufficient evidence`, which must not become a de facto freeze on granting.
+
+Inert on arrival, deliberately: every trust cell in this repo still reads
+`insufficient-evidence` with zero acceptance verdicts. The ceiling exists so that nothing
+can exceed it later.
+
 ## v6.56.0 — the retired polish vocabulary leaves the files that restated it
 
 The last leaf of the Impeccable upstream-contract program's Phase 3 (#148). #147 changed

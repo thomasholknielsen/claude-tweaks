@@ -21,6 +21,7 @@ const LABELS = {
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
+  FRAMING_BAKED: 'framing:baked',
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
@@ -93,10 +94,10 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, effort?, ceremony?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, effort?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
-function recordPayload({ title, body, type, origin, risk, effort, ceremony, ready, parked, priority, fingerprint } = {}) {
+function recordPayload({ title, body, type, origin, risk, effort, ceremony, framing, ready, parked, priority, fingerprint } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -109,7 +110,7 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, read
     throw new Error('a record cannot be both ready and parked');
   }
 
-  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, ready, parked, priority:*.
+  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, framing:baked, ready, parked, priority:*.
   const labels = [];
 
   if (origin !== undefined) {
@@ -128,6 +129,7 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, read
     oneOf('ceremony', ceremony, CEREMONY_TIERS);
     labels.push(`ceremony:${ceremony}`);
   }
+  if (framing) labels.push(LABELS.FRAMING_BAKED);
   if (ready) labels.push(LABELS.READY);
   if (parked) labels.push(LABELS.PARKED);
   if (priority !== undefined) {
@@ -210,6 +212,10 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.DEMO_CHANGES_REQUESTED) {
       facets.acceptance = 'changes-requested';
+      continue;
+    }
+    if (name === LABELS.FRAMING_BAKED) {
+      facets.framing = true;
       continue;
     }
 

@@ -11,9 +11,9 @@ argument-hint: "[status|commands|<topic>] [--budget <n>]"
 One-stop reference and status dashboard for the workflow system. Combines command help, pipeline scanning, and next-step recommendations.
 
 ```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-    ↑                                                                                                                                                                                                                                              |
-    └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+/claude-tweaks:init → /claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+    ↑                                                                                                                                                                                                                   |
+    └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
                                             ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -75,21 +75,12 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 8. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:backlog refine` to review and grant `auto:build`
 9. **Authorized records** (Stage 1) — recommend `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct) for the highest-priority one with met prerequisites
 10. **Backlog review** — if the backlog is stale or has 10+ records, suggest `/claude-tweaks:tidy` before new brainstorming
-11. **Challenge + Brainstorming** — if the pipeline is empty, suggest brainstorming from a backlog record; if its title has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`. Offer `/claude-tweaks:research` alongside when the record names an external library, protocol, vendor, or standard — prior art is cheapest to gather before the design exists, and this branch is the only point where `/help` already knows the pipeline is empty
+11. **Brainstorming** — if the pipeline is empty, suggest `/superpowers:brainstorming` from a backlog record. Offer `/claude-tweaks:research` alongside when the record names an external library, protocol, vendor, or standard — prior art is cheapest to gather before the design exists, and this branch is the only point where `/help` already knows the pipeline is empty
 12. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking
 
 Row order in the Ready-to-Build table comes from the shared `bin/lib/issues/ranking.js`'s `rankNextToBuild` — the same module `/claude-tweaks:backlog overview`'s bare-mode recommendation uses, so both consumers compute the identical order (see `status-scan.md` Stage 1 for the actual call). Its tie-break sequence: unblocks-count (most other candidates in the pool it unblocks, first) → file-overlap-free (no shared key files with another candidate, first) → effort (low first) → hasPlan (existing plan, first).
-
-### Detecting Items That Need `/claude-tweaks:challenge`
-
-A backlog record likely needs debiasing when its title or body:
-- Names a specific technology as the solution (e.g., "Add Redis caching" instead of "Improve response times")
-- Frames the problem as a solution (e.g., "Build a microservice for X" vs "X is too slow")
-- Contains strong assumptions about the approach without exploring alternatives
-
-**Mode recommendation:** Records with mild assumption signals (slightly solution-oriented phrasing, but the problem space is mostly clear) → recommend `/claude-tweaks:challenge quick {topic}`. Records with strong solution-baking or multiple competing assumptions → recommend full `/claude-tweaks:challenge {topic}`.
 
 ### Present Recommendation
 
@@ -117,6 +108,6 @@ Call `AskUserQuestion`:
 | Skipping the backlog scan | Stale backlog records create noise and slow the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented backlog records bypass the debiasing step |
 | Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — deleting, promoting, absorbing, or deferring records means handing off to `/claude-tweaks:tidy`, never an ad-hoc walkthrough |
-| Deriving a recommendation, grant, or "next step" from the Trust Table's verdicts | Stage 4.8 reports what evidence exists; the `autonomy` policy lever has no consumer yet, so nothing in this skill may act on a `clean`/`mixed`/`insufficient-evidence` verdict |
+| Deriving a recommendation, grant, or "next step" from the Trust Table's verdicts | Stage 4.8 reports what evidence exists. The `autonomy` ceiling does have consumers now (`/claude-tweaks:capture`, `/claude-tweaks:backlog refine`), and this skill is deliberately not one of them — a dashboard reports, so nothing here may act on a `clean`/`mixed`/`insufficient-evidence` verdict |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.

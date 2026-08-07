@@ -20,7 +20,6 @@ const SPECIFY_RED_TEAM = fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'specify', 'red-team.md'),
   'utf8',
 );
-const CHALLENGE_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'challenge', 'SKILL.md'), 'utf8');
 
 // ---------- Dispatch recorder helper ----------
 //
@@ -42,21 +41,19 @@ function makeRecorder() {
 //
 // The decision-log-entry tests below assert a constructed entry against the
 // *documented* format (skills/_shared/multi-agent-coordination.md,
-// skills/review/SKILL.md, skills/specify/red-team.md,
-// skills/challenge/SKILL.md) instead of a regex hand-authored by the same
-// test to match its own hand-authored string. Deriving the pattern live
-// from the doc means a real rewording of the documented format (dropped
-// period, changed phrasing, etc.) changes what these tests require, so they
-// can actually fail on real drift — unlike a self-referential regex, which
-// can never fail regardless of real behavior.
+// skills/review/SKILL.md, skills/specify/red-team.md) instead of a regex
+// hand-authored by the same test to match its own hand-authored string.
+// Deriving the pattern live from the doc means a real rewording of the
+// documented format (dropped period, changed phrasing, etc.) changes what
+// these tests require, so they can actually fail on real drift — unlike a
+// self-referential regex, which can never fail regardless of real behavior.
 
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Matches a single {placeholder}, tolerating one level of nesting (the
-// documented `{topic|record #{N}}` token in challenge/SKILL.md has a
-// placeholder inside a placeholder).
+// Matches a single {placeholder}, tolerating one level of nesting (a
+// documented template may nest a placeholder inside a placeholder).
 const PLACEHOLDER_RE = /\{(?:[^{}]|\{[^{}]*\})*\}/g;
 
 function templateToRegex(templateLine) {
@@ -72,7 +69,7 @@ function templateToRegex(templateLine) {
 // then extracts its decision-log template: either the content of an inline
 // backtick span containing "{HH:MM:SS}" (prose docs, e.g. review/SKILL.md),
 // or the whole trimmed line (fenced-code templates, e.g.
-// multi-agent-coordination.md / red-team.md / challenge/SKILL.md).
+// multi-agent-coordination.md / red-team.md).
 function decisionLogPattern(docText, mustInclude) {
   const matches = docText.split('\n').filter((line) => mustInclude.every((s) => line.includes(s)));
   assert.strictEqual(
@@ -493,44 +490,6 @@ test('red-team: findings emitted in the documented Open Questions / HTML comment
 });
 
 // ============================================================
-// Layered MoA
-// ============================================================
-
-test('MoA: dispatches N proposers in parallel + 1 aggregator sequential', () => {
-  const dispatch = c.buildMoADispatch('Synthesize a challenge brief.', 4);
-  assert.strictEqual(dispatch.layer1.agentCount, 4);
-  assert.strictEqual(dispatch.layer1.parallel, true);
-  assert.strictEqual(dispatch.layer1.agents.length, 4);
-  assert.strictEqual(dispatch.layer2.agentCount, 1);
-  assert.strictEqual(dispatch.layer2.parallel, false);
-});
-
-test("MoA: aggregator's prompt contains all proposer outputs verbatim", () => {
-  const dispatch = c.buildMoADispatch('task scope', 3);
-  const proposerOutputs = ['First proposer response.', 'Second proposer reply.', 'Third take.'];
-  const aggregatorPrompt = dispatch.layer2.buildAggregatorPrompt(proposerOutputs);
-  for (const output of proposerOutputs) {
-    assert.ok(aggregatorPrompt.includes(output), `aggregator prompt must include "${output}" verbatim`);
-  }
-});
-
-test('MoA: aggregator instruction template is inlined verbatim', () => {
-  const expected =
-    'Read N candidate responses below. Identify what each captures that the others miss. ' +
-    'Produce a single output that incorporates the strongest elements of each. ' +
-    'Do not list which proposer contributed which idea. ' +
-    'Do not produce an analysis of the proposers.';
-  assert.strictEqual(c.MOA_AGGREGATOR_INSTRUCTION, expected);
-
-  const dispatch = c.buildMoADispatch('scope', 2);
-  const aggregatorPrompt = dispatch.layer2.buildAggregatorPrompt(['p1', 'p2']);
-  assert.ok(aggregatorPrompt.startsWith(expected), 'aggregator prompt must begin with the verbatim instruction');
-
-  // Also verify the markdown doc carries the same verbatim text.
-  assert.ok(PRIMITIVE_DOC.includes(expected), 'primitive doc must contain the aggregator instruction verbatim');
-});
-
-// ============================================================
 // /review integration tests (Spec 02)
 // ============================================================
 
@@ -738,131 +697,4 @@ test('/specify red-team integration: zero findings → Open Questions section is
   const result = applyRedTeamFindings(draftSpec, []);
   assert.ok(!result.includes('## Open Questions'), 'empty findings must not emit a placeholder header');
   assert.strictEqual(result, draftSpec, 'spec body unchanged when there are no findings');
-});
-
-// ============================================================
-// /challenge integration tests (Spec 04)
-// ============================================================
-
-const REQUIRED_BRIEF_SECTIONS = [
-  '### Original Framing',
-  '### Reframed Problem',
-  '### Key Assumptions Surfaced',
-  '### Blind Spots Identified',
-  '### Constraints to Carry Forward',
-  '### Open Questions for Brainstorming',
-];
-
-test('/challenge MoA integration: fixture INBOX item → 7 proposers + 1 aggregator dispatched → resulting brief contains all 6 required sections', () => {
-  const inboxItem = 'Voice shopping list';
-  const problemStatement = `Build a voice-driven shopping list feature for our app`;
-  const reflectedSummary = `User wants a voice-driven addition to the shopping list flow`;
-
-  // Full mode: 7 proposers (one per lens) + 1 aggregator.
-  const proposerCount = 7;
-  const dispatch = c.buildMoADispatch(
-    `${problemStatement}\n\nReflected: ${reflectedSummary}\n\nINBOX: ${inboxItem}`,
-    proposerCount,
-  );
-
-  // Layer 1: 7 parallel proposers, Standard tier
-  assert.strictEqual(dispatch.layer1.agentCount, proposerCount);
-  assert.strictEqual(dispatch.layer1.parallel, true);
-  assert.strictEqual(dispatch.layer1.tier, 'Standard');
-  assert.strictEqual(dispatch.layer1.agents.length, proposerCount);
-
-  // Layer 2: 1 aggregator, Capable tier, sequential
-  assert.strictEqual(dispatch.layer2.agentCount, 1);
-  assert.strictEqual(dispatch.layer2.parallel, false);
-  assert.strictEqual(dispatch.layer2.tier, 'Capable');
-
-  // Simulate proposer outputs and build the aggregator prompt
-  const proposerOutputs = [
-    'Lens 1 (Surface Hidden Assumptions): The framing assumes voice is what users want.',
-    'Lens 2 (Invert): Maybe the real problem is item entry friction, not modality.',
-    'Lens 3 (Zoom Out): Shopping list is a symptom — meal planning may be the bigger lever.',
-    'Lens 4 (Outsider): A speech accessibility consultant would ask about ambient noise tolerance.',
-    'Lens 5 (Pre-Mortem): In 6 months voice misrecognition created duplicate-item bugs.',
-    'Lens 6 (Temporal Distance): Two years out we may regret optimising for novelty over reliability.',
-    'Lens 7 (Meta): Is the question "build voice" or "remove friction"?',
-  ];
-  const aggregatorPrompt = dispatch.layer2.buildAggregatorPrompt(proposerOutputs);
-
-  // The verbatim Mode 4 instruction template must lead the aggregator prompt
-  assert.ok(
-    aggregatorPrompt.startsWith(c.MOA_AGGREGATOR_INSTRUCTION),
-    'aggregator prompt must begin with the verbatim Mode 4 instruction template',
-  );
-
-  // All proposer outputs must reach the aggregator verbatim — no truncation
-  for (const output of proposerOutputs) {
-    assert.ok(aggregatorPrompt.includes(output), `aggregator prompt must include proposer output verbatim: "${output.slice(0, 40)}..."`);
-  }
-
-  // Simulate aggregator return: a brief with all six required sections
-  const aggregatedBrief = [
-    `## Brainstorming Brief: ${inboxItem}`,
-    '',
-    '### Original Framing',
-    problemStatement,
-    '',
-    '### Reframed Problem',
-    'Reduce shopping-list friction; voice is one of several modalities to evaluate.',
-    '',
-    '### Key Assumptions Surfaced',
-    '- Voice is the desired modality (unvalidated)',
-    '',
-    '### Blind Spots Identified',
-    '- Ambient noise tolerance and misrecognition failure modes',
-    '',
-    '### Constraints to Carry Forward',
-    'Must reach the shopping list within 2 taps for non-voice users.',
-    '',
-    '### Open Questions for Brainstorming',
-    '- Voice vs. quick text vs. photo-of-list scan?',
-  ].join('\n');
-
-  for (const section of REQUIRED_BRIEF_SECTIONS) {
-    assert.ok(aggregatedBrief.includes(section), `brief must contain section "${section}"`);
-  }
-
-  // Decision-log entry: ONE AUTO entry per MoA invocation
-  const entry = `- AUTO 14:55:01 — MoA: applied ${proposerCount} proposers + 1 aggregator on INBOX item "${inboxItem}". Aggregator tier: Capable.`;
-  assert.match(entry, decisionLogPattern(CHALLENGE_SKILL, ['MoA: applied']));
-});
-
-test('/challenge Quick mode: 2 proposers + 1 aggregator dispatched (lens 1 + lens 7); brief schema unchanged', () => {
-  const dispatch = c.buildMoADispatch('Quick debias topic', 2);
-  assert.strictEqual(dispatch.layer1.agentCount, 2);
-  assert.strictEqual(dispatch.layer1.parallel, true);
-  assert.strictEqual(dispatch.layer2.agentCount, 1);
-
-  // The aggregator's prompt still contains the verbatim Mode 4 instruction
-  const prompt = dispatch.layer2.buildAggregatorPrompt(['Lens 1 output', 'Lens 7 output']);
-  assert.ok(
-    prompt.includes(c.MOA_AGGREGATOR_INSTRUCTION),
-    'Quick mode still uses the verbatim Mode 4 aggregator instruction — no special-casing',
-  );
-
-  // Brief schema unchanged between Full and Quick modes
-  for (const section of REQUIRED_BRIEF_SECTIONS) {
-    assert.ok(section.startsWith('### '), 'each required section is a third-level heading');
-  }
-});
-
-test('/challenge auto-mode contract update: Listen + Reflect-back are the not-silenced entry points; per-lens engagement is gone', () => {
-  const CONTRACT = fs.readFileSync(
-    path.join(__dirname, '..', 'skills', '_shared', 'auto-mode-contract.md'),
-    'utf8',
-  );
-  // The contract no longer lists "/challenge lenses" as not-silenced
-  assert.ok(
-    !CONTRACT.includes('`/challenge` lenses |'),
-    'auto-mode-contract.md must no longer list "/challenge lenses" as a not-silenced item',
-  );
-  // It DOES list the new Listen + Reflect-back protection
-  assert.ok(
-    CONTRACT.includes("`/challenge`'s Listen + Reflect-back steps"),
-    'auto-mode-contract.md must list /challenge\'s Listen + Reflect-back steps as not-silenced',
-  );
 });

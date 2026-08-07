@@ -208,6 +208,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
   //   alone.
   //
+  //   358 -> 359, the autonomy governor (Phase 3). One row ADDED to backlog/
+  //   SKILL.md: "Treating `refine`'s `Trust` column as the reason to grant, or
+  //   withholding a grant because a class reads `insufficient evidence`". The
+  //   same change set rewords two existing rows in that table rather than
+  //   evicting them — the machinery-originates-no-grant row, which now names the
+  //   autonomy ceiling's shut-by-default exception, and the overview Trust Table
+  //   row, whose old rationale ("the `autonomy` policy lever has no consumer
+  //   yet") this phase made false. Verified: `git diff -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` returns exactly those two lines and both replacements are
+  //   present in the same table. Measured with the parser, not derived. Net +1.
+  //
   //   358 -> 359, wrap-up of the #163/#164 fix (6.51.1). One row ADDED to
   //   routine/SKILL.md: "Editing the canonical preamble in
   //   `_shared/routine-template-schema.md` and treating the suite's green as
@@ -255,6 +266,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   was re-derived by RUNNING the parser on the merged tree, not by adding
   //   these comment blocks together — the arithmetic agreeing is a coincidence
   //   worth having but not the evidence.
+  //
+  //   -> 366, merge of origin/main (6.53.0) into the autonomy-governor branch.
+  //   Third occurrence of `[IL-99]` on this counter, and the second where the
+  //   comment blocks are what surfaced it: this branch went 358 -> 359, upstream
+  //   went 358 -> 365, and both literals are wrong afterward. Re-derived by
+  //   RUNNING the parser on the merged tree — 366 — not by adding 1 and 7 to the
+  //   shared base. The arithmetic happens to agree here, which is exactly the
+  //   coincidence the entry above warns is not evidence.
+  //
   //   365 -> 370, native surface routing (#151). Five rows ADDED to design-
   //   wrapper/SKILL.md, none evicted, all guarding the new web-vs-native track
   //   resolution: "Running the Impeccable CLI or `live` on a native surface",
@@ -270,6 +290,16 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   Anti-Patterns table and this parser only reads `skills/*/SKILL.md`, so
   //   that lane cannot move this number without touching a SKILL.md itself.
   //
+  //   -> 371, second merge of origin/main (6.54.0) into the autonomy-governor
+  //   branch. Fourth `[IL-99]` occurrence on this counter in one wave: this
+  //   branch stood at 366, upstream at 370, both measured from a 365 base that
+  //   only one of them still shares. Re-derived by RUNNING the parser on the
+  //   merged tree. Note the arithmetic does NOT agree this time — 366 + 5 = 371
+  //   works only because upstream's five rows and this branch's one row are
+  //   disjoint, which is a fact about the diff and not something the two
+  //   literals could have told anyone. That is the whole reason this entry
+  //   records a measurement rather than a sum.
+  //
   //   370 -> 371, merge of origin/main into the #163/#164 wrap-up branch. The
   //   two entries above are the two sides of that merge, both measured against
   //   the same 358 base: this branch added 1 (routine), upstream added 12
@@ -282,5 +312,19 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   computed as 370 + 1 — the arithmetic agreeing is a check, not the
   //   evidence. `git diff --diff-filter=M -- 'skills/*/SKILL.md' |
   //   grep -cE '^-\|'` returns 0 across the merge, so nothing was evicted.
-  assert.strictEqual(total, 371);
+  //
+  //   -> 372, merging both of the above into one tree. This is the textbook
+  //   `[IL-99]` case, and it is worth being precise about why. Two independent
+  //   branches each took a 358 -> 359 step, each added a DIFFERENT row (this
+  //   branch's backlog Trust-column row; the other's routine shared-preamble
+  //   row), and each then merged a different span of upstream and landed on the
+  //   same literal 371. Because the literals coincided, `assert.strictEqual(
+  //   total, 371)` was **not part of the conflict at all** — git merged that
+  //   line silently and left it wrong by exactly the other side's one row. Only
+  //   the two comment blocks conflicted, and reading them is what prompted the
+  //   re-measurement. 372 was read off the parser against the merged tree. The
+  //   arithmetic that would have "confirmed" 371 was available and agreed with
+  //   both sides; it was wrong. Nothing evicted: `git diff --diff-filter=M --
+  //   'skills/*/SKILL.md' | grep -cE '^-\|'` is 0 across the merge.
+  assert.strictEqual(total, 372);
 });

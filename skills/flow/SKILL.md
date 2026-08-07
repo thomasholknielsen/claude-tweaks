@@ -11,9 +11,9 @@ argument-hint: "<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] 
 Run multiple lifecycle steps in sequence without stopping between them. Each step has a gate — if a gate fails, the pipeline stops and presents the failure.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design-wrapper polish → /claude-tweaks:wrap-up
-                                                                                                                ╰────────────────────────────────────── [ /claude-tweaks:flow ] automates this stretch ──────────────────────────────╯
-                                                                                                                ^^^^ YOU ARE HERE ^^^^   (polish + re-verify run only when frontend)
+/claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design-wrapper polish → /claude-tweaks:wrap-up
+                                                                                     ╰────────────────────────────────────── [ /claude-tweaks:flow ] automates this stretch ──────────────────────────────╯
+                                                                                     ^^^^ YOU ARE HERE ^^^^   (polish + re-verify run only when frontend)
 ```
 
 ## When to Use
@@ -301,7 +301,7 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | Inserting model-side reality-checks under `auto` | Concerns belong in the ledger or failure card, not blocking prompts — `_shared/auto-mode-contract.md` |
 | Ignoring gate failures and restarting | Gates catch real problems — investigate before retrying |
 | Running flow on specs with unmet prerequisites | Fails at build — check dependencies first |
-| Using flow for interactive skills | Capture, challenge, and specify need human decisions |
+| Using flow for interactive skills | Capture and specify need human decisions |
 | Using `batched` execution in flow | Batched pauses for human review, contradicting flow's hands-off design — use `/claude-tweaks:build batched` |
 | Ignoring open ledger items at pipeline end | The nothing-left-behind gate requires every item explicitly resolved |
 | Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate's Phase 2 is on `_shared/auto-mode-contract.md`'s "does NOT silence" list — every item needs explicit per-item user input |
