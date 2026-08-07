@@ -343,7 +343,14 @@ git commit -m "State the route-to-every-falsifying-source rule and its consequen
 ```js
 test('source-registry.md verdict carries per-source confidence and the checked-against sha', () => {
   const body = readSourceRegistry();
-  assert.match(body, /checked-at/, 'verdict must carry the sha it was checked against');
+  // Anchored to the template line, not the bare token. Inversion-tested: a bare
+  // /checked-at/ still matches prose reading "we deliberately omit any checked-at
+  // stamping; it is not needed" ([IL-78]).
+  assert.match(
+    body,
+    /checked-at:\s*\{sha\}/,
+    'the verdict template must carry a checked-at sha field',
+  );
   assert.match(body, /outcome:\s*verified\s*\|\s*falsified\s*\|\s*unverified/i, 'must define the three outcomes');
   // Anchored to the claim, not to the word "confidence" (which appears in the
   // registry table header and several rows) ([IL-78]).
@@ -448,7 +455,15 @@ test('source-registry.md dispatch uses Form B and the four-value status line', (
 
 test('source-registry.md dispatch states the agents are read-only with no git access', () => {
   const body = readSourceRegistry();
-  assert.match(body, /read-only/i, 'must state the agents are read-only');
+  // Anchored to the claim about the agents. Inversion-tested: a bare /read-only/i
+  // survives flipping "The agents are read-only" to "The agents may write", because
+  // the phrase "bounded read-only commands" later in the same paragraph keeps it
+  // green ([IL-78]).
+  assert.match(
+    body,
+    /agents\s+are\s+read-only/i,
+    'must state the agents themselves are read-only',
+  );
   assert.match(
     body,
     /no\s+git\s+access|never\s+given\s+git|without\s+git\s+access/i,
