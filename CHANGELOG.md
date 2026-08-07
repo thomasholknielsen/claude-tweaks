@@ -39,6 +39,29 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.61.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
+
+Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
+
+- `bin/lib/wrap-up/state.js` — `pushed` returned a definite `false` when the upstream resolved
+  but the paired `rev-list` did not, making "not pushed" indistinguishable from "could not tell".
+  It is now `boolean | null`, and `render.js` prints `push status unknown ({upstream})` for the
+  null case rather than borrowing `UNPUSHED` — claiming unpushed when you do not know is the
+  same defect facing the other way.
+- `bin/wrap-up-state.js` — `parseArgs` consumed a following flag as `--since`'s value, so
+  `--since --json HEAD~5` silently dropped both. It now exits 2 instead.
+- `skills/wrap-up/summary-template.md` — the exit-2 path added in v6.60.0 had no consumer-side
+  instruction, so a wrong `{base}` could cost the whole State block; and the record-mode closure
+  line still asserted "its plans and ledger have been deleted" unconditionally, while the
+  conversation-mode line beside it was already measured. Both fixed.
+- `skills/wrap-up/verification-brief.md` — the `{base}` pointer named the wrong step.
+- `[IL-104]` — **Don't treat a check's green as evidence before naming what its red would look
+  like.** Five checks in the v6.60.0 build reported success while the thing they checked was
+  false: a `grep -c` that a failing test satisfies identically, four mechanical checks green on a
+  feature whose one required value was undefined, a deleted-line sweep that dropped every input
+  line beginning with `-`, and a reviewer who examined a command and judged it correct without
+  checking the branch it named. Four of the five were introduced while fixing one of the others.
+
 ## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
 
 `/claude-tweaks:specify` cuts a design along layer lines, which produces a serial chain
