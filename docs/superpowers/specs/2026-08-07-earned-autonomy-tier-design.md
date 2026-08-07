@@ -154,12 +154,32 @@ tests broken after?). `supervised` mode then has something real to show on its f
 
 Pure telemetry. No behavior changes, nothing is trusted yet. Everything downstream reads this.
 
-### 1.1 Provenance stamping
+### 1.1 Provenance is already recorded — build a reader, not a writer
 
-Add `by:{source}` at every record-creation site — `/capture`, `/wrap-up` leftover routing,
-`/reflect` tangential-idea routing, `/review` findings, and the four health skills (whose
-`by:{self}` is already specified in `_shared/work-record.md` but emits no label in practice).
-Bootstrap the labels through the existing `_shared/label-bootstrap.md` check-then-create loop.
+*Revised before Phase 1B. The original text called for adding `by:{source}` at every
+record-creation site, on the premise that `_shared/work-record.md` specified the labels but
+nothing emitted them. That premise was wrong.*
+
+Provenance is fully implemented and deliberate. `bin/lib/issues/record.js` defines
+`ORIGINS = ['code-health', 'harness-health', 'journey-health', 'docs-health', 'capture',
+'dispatch']`, and `recordPayload({origin})` emits `by:{origin}`. All four health skills stamp it
+through their `issue-payload.js` modules; `/capture` and `/dispatch` stamp their own.
+
+`_shared/work-record.md`'s Origin axis defines **three** states, not one:
+
+| State | How it is recorded | Examples |
+|---|---|---|
+| Machine producer | `by:*` label (the six in `ORIGINS`) | health sweeps, `/capture`, `/dispatch` |
+| Side-effect of another skill | `Origin: {context}` **body line**, deliberately no label | `Origin: wrap-up leftover from #42`, `Origin: ledger resolve gate`, `Origin: demo changes-requested from #17`, `Origin: /init skill scoring (Phase 4)` |
+| Human-filed | neither — **absence is the signal** | a record opened directly on GitHub |
+
+Only `by:capture` exists as a label in this repo because the health sweeps have not filed here,
+not because emission is missing.
+
+**Consequence:** Phase 1B writes no new labels and changes no filing site. It adds a
+**provenance resolver** that maps a record (labels + body) to one of the three states, so the
+trust table has a key. Changing the taxonomy would mean overriding a documented decision for no
+gain, since all three states are already distinguishable.
 
 ### 1.2 Attribution — derived from git, not breadcrumbed
 
@@ -217,7 +237,11 @@ computed and no behavior changes.
 - Trust table `(provenance × risk band)` derived on demand from closed records; cached disposably
   under `.claude-tweaks/`, regenerable, never authoritative.
 - Survival sweep folded into `/claude-tweaks:tidy --scope=github`'s existing rolling digest.
-- Backfill priors from the 109 recently-closed records.
+- Backfill is **not a separate feature**. *(Revised before Phase 2.)* Because the architecture
+  derives the table on demand from closed records rather than accumulating it incrementally,
+  every computation already reads the full history window. There is nothing to seed — the first
+  run is as populated as the hundredth. The bootstrap problem the original design worried about
+  is dissolved by the storage decision, not solved by a migration step.
 - `autonomy: supervised` ships here. Trust is computed and **displayed** — in `/claude-tweaks:help`'s
   dashboard and `/claude-tweaks:backlog overview` — and never acted on. The operator watches the
   table be right before anything reads it.
