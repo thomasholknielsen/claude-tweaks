@@ -180,5 +180,14 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   diff" row to "...when a brief already exists" — a reword, not an
   //   eviction: `git diff -- 'skills/*/SKILL.md' | grep -E '^-\|'` returns that
   //   one line and its replacement is present in the same table. Net +1.
-  assert.strictEqual(total, 354);
+  //
+  //   354 -> 356, supervised trust table (Task 3). Two rows ADDED, none
+  //   evicted: help/SKILL.md gains "Deriving a recommendation, grant, or 'next
+  //   step' from the Trust Table's verdicts" (guards Stage 4.8's read-only
+  //   contract) and backlog/SKILL.md gains "Deriving a grant, priority bump,
+  //   or 'next step' from `overview` mode's Trust Table" (guards the same
+  //   contract for `/backlog overview`'s new Step 1.5). Verified:
+  //   `git diff -- 'skills/*/SKILL.md' | grep -E '^-\|'` is empty; the same
+  //   diff's `^\+\|` lines are exactly these two new rows. Net +2.
+  assert.strictEqual(total, 356);
 });

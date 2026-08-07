@@ -19,8 +19,8 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 32);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 32);
+  assert.strictEqual(POLICY_KEYS.length, 33);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 33);
 });
 
 test('integration-branch is a recognized string key with no default', () => {
@@ -65,6 +65,24 @@ test('execution-strategy and git-strategy are recognized policy keys', () => {
   assert.strictEqual(git.type, 'enum');
   assert.deepStrictEqual(git.values, ['current-branch', 'worktree']);
   assert.strictEqual(git.default, 'worktree');
+});
+
+test('autonomy is a recognized enum key defaulting to supervised; an invalid value is invalid, not unrecognized', () => {
+  const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
+
+  const autonomy = byKey.get('autonomy');
+  assert.ok(autonomy, 'autonomy missing from POLICY_KEYS');
+  assert.strictEqual(autonomy.type, 'enum');
+  assert.deepStrictEqual(autonomy.values, ['supervised', 'trusted', 'unattended']);
+  assert.strictEqual(autonomy.default, 'supervised');
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'autonomy: reckless\n');
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged as invalid');
+  assert.strictEqual(result.invalidValues[0].key, 'autonomy');
+  assert.strictEqual(result.invalidValues[0].value, 'reckless');
+  assert.deepStrictEqual(result.unrecognizedKeys, [], 'a recognized key with a bad value must never also appear as unrecognized');
 });
 
 test('execution.always locks the axis and execution-strategy sets the default — they are distinct keys', () => {

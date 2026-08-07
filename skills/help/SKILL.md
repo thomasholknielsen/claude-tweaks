@@ -55,7 +55,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 > **Parallel execution:** When both Section 1 and Section 2 run (default, no-argument invocation), issue Section 1's `reference-card.md` Read alongside dispatching Section 2's Stage Task agents below — a static Read and a live Task-agent dispatch are fully independent and should run concurrently rather than sequentially.
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; execution model, dispatch contract, agent template, and dashboard rendering). Stages 1, 4.5, 4.6, and 4.7 dispatch as Task agents; Stages 2, 5, and 6 run as parallel tool calls in the main thread alongside them; Stage 7 runs last, after the others, because it reads their output. The orchestrator assembles the dashboard once everything has returned.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, 4.7, and 4.8; execution model, dispatch contract, agent template, and dashboard rendering). Stages 1, 4.5, 4.6, 4.7, and 4.8 dispatch as Task agents; Stages 2, 5, and 6 run as parallel tool calls in the main thread alongside them; Stage 7 runs last, after the others, because it reads their output. The orchestrator assembles the dashboard once everything has returned. Stage 4.8 is read-only reporting only (a per-class trust table) — it never feeds a recommendation.
 
 ---
 
@@ -117,5 +117,6 @@ Call `AskUserQuestion`:
 | Skipping the backlog scan | Stale backlog records create noise and slow the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented backlog records bypass the debiasing step |
 | Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — deleting, promoting, absorbing, or deferring records means handing off to `/claude-tweaks:tidy`, never an ad-hoc walkthrough |
+| Deriving a recommendation, grant, or "next step" from the Trust Table's verdicts | Stage 4.8 reports what evidence exists; the `autonomy` policy lever has no consumer yet, so nothing in this skill may act on a `clean`/`mixed`/`insufficient-evidence` verdict |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
