@@ -99,13 +99,14 @@ gh issue edit {n} \
   --add-label "risk:{tier}" \
   --add-label "effort:{tier}" \
   --add-label "ceremony:{tier}" \
+  --add-label "framing:baked" \
   --type {t} \
   --remove-label parked
 ```
 
-Omit `--add-label "risk:{tier}"` / `--add-label "effort:{tier}"` / `--add-label "ceremony:{tier}"` for whichever family was already stamped; omit `--type {t}` (or the `--add-label "type:{t}"` swap) when Type was already present; omit `--remove-label parked` when the record never carried it.
+Omit `--add-label "risk:{tier}"` / `--add-label "effort:{tier}"` / `--add-label "ceremony:{tier}"` for whichever family was already stamped; omit `--type {t}` (or the `--add-label "type:{t}"` swap) when Type was already present; omit `--remove-label parked` when the record never carried it. `--add-label "framing:baked"` follows a different rule from the three above: it is never about a family already being stamped — omit it entirely whenever the Framing verdict (above) was `open`. The label is presence-only and absence IS the clean state; there is no `framing:open` counterpart to fall back to.
 
-**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.effort`/`facets.ceremony`/`facets.type` when they were `null` (`facets.ceremony` always gets a value the first time a record is shaped — no null/unscored state for this axis, unlike `risk`/`effort`):
+**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.effort`/`facets.ceremony`/`facets.type` when they were `null` (`facets.ceremony` always gets a value the first time a record is shaped — no null/unscored state for this axis, unlike `risk`/`effort`) and `facets.framing` (unlike `facets.ceremony`, this one is written ONLY on a `solution-baked` verdict — left absent, not null-then-filled, whenever the verdict was `open`):
 
 ```bash
 node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
