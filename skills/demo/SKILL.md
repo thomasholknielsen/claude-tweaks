@@ -96,7 +96,7 @@ never carry the `risk:*`/`effort:*` data a pre-fill would need.
 **`work-backend: github-issues`:**
 
 ```bash
-gh issue view {n} --json number,title,labels,url,state
+gh issue view {n} --json number,title,body,labels,url,state
 ```
 
 If the result carries the `demo:pending` label, fetch its Verification Brief: the last issue
@@ -111,7 +111,8 @@ commit** before reaching for session recall. This is the population `/claude-twe
 have nothing, but the commit that closed the record is still on disk:
 
 ```bash
-git log -i -E --grep='(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#{n}([^0-9]|$)' \
+git log --perl-regexp -i \
+  --grep='(?m)\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#{n}(?!\d)(\s*,\s*(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#\d+(?!\d))*\s*$' \
   --max-count=1 --format='%H' origin/main HEAD
 ```
 
@@ -121,8 +122,26 @@ happened; `HEAD` additionally covers a close made on the current branch that has
 yet. `--all` would sweep abandoned and unmerged branches, whose commits closed nothing — a brief
 built from one of those would describe work that never shipped. Substitute the repo's own default
 branch when it is not `main`, drop `origin/` when there is no remote, and `git fetch origin` first
-if the remote-tracking ref may be behind. The `([^0-9]|$)` tail is what keeps `#14` from matching
-`#141`.
+if the remote-tracking ref may be behind.
+
+`--grep` searches the whole commit message with no positional restriction, so prose that merely
+quotes a closing phrase — a commit *documenting* the convention rather than invoking it — satisfies
+a bare keyword-plus-ref match exactly as well as a real closer, and because `--max-count=1` returns
+the newest hit first, one illustrative quote permanently shadows the true closer for as long as it
+stays the newest match. A real GitHub closer is structural, not buried mid-sentence: it ends the
+commit subject (`… — closes #144`) or stands alone as a body line (`Fixes #14`); prose quoting the
+same phrase has more sentence after it on the same line. The `(?!\d)` lookahead is the same
+digit-boundary guard the original pattern had (keeps `#14` from matching inside `#141`). The new
+part is `(?m)…\s*$` plus the optional `, keyword #M` repeat group: the match must reach the end of
+a line, with nothing but whitespace or further comma-joined closing references in between — so a
+ref followed by a closing quote and more sentence fails to match, while `closes #138, closes #139`
+still resolves each of its two refs. `--perl-regexp` is what makes `(?m)`, the lookahead, and the
+repeat group available; it is not reused from `bin/lib/hooks/post-tool-use.js`'s own closing-keyword
+matcher (`checkClosingKeyword`) — that check only tests whether a keyword immediately precedes a
+ref, with no line-position anchor at all, because a false positive there just skips a non-blocking
+warning. Here a false positive silently returns the *wrong* commit, so the anchor is load-bearing
+and new. The keyword vocabulary itself is unchanged and still mirrors `ISSUE_REF_SOURCE`
+(`bin/lib/issue-branch-tracking.js`) so the two can't drift on which keywords GitHub recognizes.
 
 **Found** — one command reads both halves of the brief:
 
@@ -177,7 +196,7 @@ for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
 - Option 2 — the label names the section it actually walks: `"See it yourself"` when the brief's `### See it yourself` entry point resolved and browser tools are available, `"Verify it yourself"` when the brief carries `### Verify it yourself (manual)`. Offer it under either condition, never both labels at once; `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
-- Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
+- Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a closing-commit reconstruction (never carried `demo:pending` — there is nothing to leave): `label`: `"Skip for now"`, `description`: `"Nothing is written — it still has no demo:* label, so /claude-tweaks:tidy's acceptance-gap scan will surface it again"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
 ### Option 2 ("See it yourself" / "Verify it yourself"): pre-flight, then live or manual
 
