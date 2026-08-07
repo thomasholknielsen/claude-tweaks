@@ -64,6 +64,7 @@ one-time provision-now offer, which uses this list whole):
   ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
   ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
   ["family:parent",     "Structure: decomposition parent — carries the family's acceptance gate"],
+  ["framing:baked",     "Framing: this record names a solution that was never traded off"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],
   ["priority:low",      "Priority: dispatch picks last among prioritized records"]

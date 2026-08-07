@@ -18,6 +18,18 @@ Run the universal preconditions from `../SKILL.md` (Layers 1+3 — Layer 2 does 
 
 On any skip, return the skip object.
 
+### Step 1.5: Native surface — mode unavailable
+
+Read `surface_track` from the track resolution in `../SKILL.md`'s Step 1. When it is `ios`, `android`, or `adaptive`, return immediately:
+
+```json
+{ "mode": "live", "skipped": "native surface — live mode is web-only", "surface_track": "<ios|android|adaptive>" }
+```
+
+Upstream states the constraint: *"`live` and the bundled `detect.mjs` are web-only"* (`reference/routing.md`). Live mode drives a browser overlay against a served page; a native app has no page to attach it to. This is unavailability, not a veto — unlike Step 2.5's dev-server signal there is no `true` that could authorize it, because the mode has nothing to run against on this track at all.
+
+**This gate reads `setup.platform` only, and that is a real limit worth naming.** `live` skips Layer 2 (see Preconditions above), so it never receives a `Surface:` line — the `null` + `Surface: mobile` row of the track table is unreachable from here, and a native project with no `Platform` section in its `PRODUCT.md` resolves to the web track and proceeds. The caller that *does* know the surface closes that gap on its own side: `/claude-tweaks:specify`'s Step 2.5b-ii skips scaffold-and-live entirely for a native surface rather than building an HTML scaffold for a native app.
+
 ### Step 2: Availability check (live-specific)
 
 In addition to the standard `/impeccable:impeccable*` skill-resolution check, live mode depends on scripts under `.claude/skills/impeccable/scripts/` (`live.mjs` et al.) shipping with the installed Impeccable plugin version. If `/impeccable:impeccable*` resolves at all, treat these scripts as present — they ship together as one plugin release; there is no separate installation step to check.

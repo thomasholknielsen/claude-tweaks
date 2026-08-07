@@ -14,6 +14,18 @@ const { dispositionState } = require('./acceptance.js');
 // conservative, and Phase 3 is where it earns or loses its keep.
 const MIN_SAMPLES = 8;
 
+// MIN_SAMPLES floors the cell; this floors the evidence *inside* it. The shipped
+// rule asked only for one disposition, which on this repo's own data let a single
+// approval grade a 40-record class 'clean' — 1 known outcome, 39 unknown. That was
+// survivable while the table only rendered, because the counts sit beside the
+// verdict and a human reads both. A governor reads the verdict alone.
+//
+// Five is the smallest run that is not an anecdote, and at roughly ten closed
+// records per class per month it is reachable in weeks rather than quarters — the
+// binding constraint on this number is that an unreachable floor makes the whole
+// table decorative, which is the failure mode that already killed demo:pending.
+const MIN_VERDICTS = 5;
+
 // provenance.js's `unstructured` kind is not a trust class — it is that
 // module's classifier saying "this record's Origin line could not be reduced
 // to a class at all" (overflow past its length cap, or text that normalizes to
@@ -158,16 +170,30 @@ function trustRows(records) {
 
   const rows = Array.from(cells.values()).map((cell) => {
     const dispositioned = cell.approved + cell.changesRequested;
+    const coverage = cell.total === 0 ? 0 : dispositioned / cell.total;
     let verdict = 'insufficient-evidence';
-    if (cell.kind !== UNGRADABLE_KIND && cell.total >= MIN_SAMPLES && dispositioned >= 1) {
-      const clean = cell.changesRequested === 0 && cell.followUps === 0 && cell.notPlanned === 0;
+    if (
+      cell.kind !== UNGRADABLE_KIND &&
+      cell.total >= MIN_SAMPLES &&
+      dispositioned >= MIN_VERDICTS
+    ) {
+      // notPlanned is deliberately absent. A record closed NOT_PLANNED was
+      // declined — no work product was ever produced for this class to be judged
+      // on — so reading it as a quality failure is a category error. It was also
+      // an unrecoverable one: this table has no time window, so the single
+      // NOT_PLANNED in this repo's `human:human|elevated` cell and the three in
+      // `producer:capture|elevated` would have pinned both to 'mixed' forever,
+      // whatever evidence arrived afterward. It stays counted and stays rendered
+      // — it says something real about a class's filing precision — but it is not
+      // a verdict input.
+      const clean = cell.changesRequested === 0 && cell.followUps === 0;
       verdict = clean ? 'clean' : 'mixed';
     }
-    return { ...cell, verdict };
+    return { ...cell, dispositioned, coverage, verdict };
   });
 
   rows.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   return rows;
 }
 
-module.exports = { riskBand, trustRows, MIN_SAMPLES };
+module.exports = { riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS };

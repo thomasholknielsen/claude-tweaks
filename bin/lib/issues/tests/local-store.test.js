@@ -22,7 +22,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const dir = tmp(t);
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
-    type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', ceremony: 'fast-lane', priority: null,
+    type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', ceremony: 'fast-lane', framing: true, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: 12, familyParent: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
@@ -44,7 +44,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   writeRecord(filePath, {
     title: 'Min', body: 'b',
     facets: {
-      type: 'task', origin: null, risk: null, effort: null, ceremony: null, priority: null,
+      type: 'task', origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
       parent: null, familyParent: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
@@ -59,6 +59,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.ok(!/^origin:/m.test(raw), 'must not write origin when null');
   assert.ok(!/^closed:/m.test(raw), 'must not write closed: false');
   assert.ok(!/^closed-at:/m.test(raw), 'must not write closed-at when null');
+  assert.ok(!/^framing:/m.test(raw), 'must not write framing: false');
   assert.ok(/^type: task$/m.test(raw), 'must still write the non-default type key');
 
   // and it still round-trips to the same facets (omission is lossless)
@@ -69,6 +70,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.strictEqual(record.facets.closed, false);
   assert.strictEqual(record.facets.closedAt, null);
   assert.strictEqual(record.facets.familyParent, false);
+  assert.strictEqual(record.facets.framing, false);
 });
 
 // --- familyParent (decomposition parent marker) ---
@@ -156,7 +158,7 @@ test('allocateId ignores non-matching filenames', (t) => {
 
 function baseFacets(overrides) {
   return Object.assign({
-    type: 'task', origin: null, risk: null, effort: null, ceremony: null, priority: null,
+    type: 'task', origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null,
     stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: null, familyParent: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
   }, overrides);
@@ -234,6 +236,25 @@ test('writeRecord writes ceremony:{tier}, readRecord reads it back, and a null c
   const rawWithout = fs.readFileSync(withoutCeremony, 'utf8');
   assert.ok(!/^ceremony:/m.test(rawWithout));
   assert.strictEqual(readRecord(withoutCeremony).facets.ceremony, null);
+});
+
+// framing:baked (challenge framing-check) is presence-only for the local-files
+// driver too, same convention as unsynced/closed: written only when true, and
+// its absence on read is the false default from facet-shape.js's
+// sharedFacetDefaults(), never a distinct "open" value.
+test('writeRecord writes framing: true, readRecord reads it back, and a false framing writes no line', (t) => {
+  const dir = tmp(t);
+  const withFraming = path.join(dir, '1-a.md');
+  writeRecord(withFraming, { title: 'A', body: 'b', facets: baseFacets({ framing: true }) });
+  const rawWith = fs.readFileSync(withFraming, 'utf8');
+  assert.ok(/^framing: true$/m.test(rawWith));
+  assert.strictEqual(readRecord(withFraming).facets.framing, true);
+
+  const withoutFraming = path.join(dir, '2-b.md');
+  writeRecord(withoutFraming, { title: 'B', body: 'b', facets: baseFacets() });
+  const rawWithout = fs.readFileSync(withoutFraming, 'utf8');
+  assert.ok(!/^framing:/m.test(rawWithout));
+  assert.strictEqual(readRecord(withoutFraming).facets.framing, false);
 });
 
 // --- malformed file (AC 5) ---

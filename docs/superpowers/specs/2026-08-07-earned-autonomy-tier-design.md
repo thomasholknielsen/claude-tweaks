@@ -290,34 +290,168 @@ is genuinely unmet today. Provenance needs a reader, not a backfill.
 ## Phase 3 — The governor
 
 - The `autonomy` ceiling lever, resolved through `_shared/auto-mode-contract.md`'s existing
-  precedence order (CLI arg > `config.yml` > project policy > skill default).
+  precedence order (CLI arg > `config.yml` > project policy > skill default). Shipped as
+  `bin/lib/issues/autonomy.js`'s `resolveCeiling`, with `_shared/autonomy-ceiling.md` as the
+  contract every consumer cites rather than restates.
+- **A verdict floor, added at Phase 3 and not in the original design.** Phase 2's rule graded a
+  cell on `total >= MIN_SAMPLES` plus a *single* disposition, which is sound for a display and
+  unsound the moment a machine reads it: measured on this repo, one `demo:approved` on a
+  40-record cell produced `verdict: 'clean'`. Phase 3 floors on `dispositioned >= MIN_VERDICTS`
+  (5) instead, and drops `notPlanned` from the clean test — a declined record has no work
+  product to judge, and with no time window in the table it was pinning two of the four real
+  cells to `mixed` permanently. This is open question 1, answered.
 - Amend `_shared/work-record.md`'s permission matrix: born-`ready` for agent-filed residue at
-  `trusted`; born-authorized at `unattended`, gated on both class trust and ceiling.
+  `trusted`; born-authorized at `unattended`, gated on both class trust and ceiling. *(Revised at
+  Phase 3.)* The two turned out to differ in kind rather than degree — `ready` asserts shape and
+  leaves the human gate standing, while `auto:build` **is** the authorization and originating one
+  from machinery contradicts a standing invariant that has a live eval asserting it. So
+  born-authorized ships **defined but shut**, behind a second explicit opt-in that nothing sets;
+  reaching the top tier is not by itself an amendment of that invariant.
 - Amend the auto-mode contract's never-reversible list to cover the grant. Record creation already
   has this carve-out shape via `unattended-tier`, which is the precedent to follow.
-- Trust-driven batched grant console in `/claude-tweaks:backlog refine`.
-- Survival sweep, **if** the Phase 2 signals prove too thin to grant on — moved here from Phase 2,
-  which shipped only the signals one `gh` call yields (the trust table's own columns) and
-  deliberately started no git walk. Scope would be revert detection and path-overlap follow-ups
-  over recently-closed records, folded into `/claude-tweaks:tidy --scope=github`'s existing
-  rolling digest.
+- Trust-driven batched grant console in `/claude-tweaks:backlog refine`. *(Revised at Phase 3.)*
+  No new console was built — `refine` Step 3 already has one, with a `grant-check` pass and a
+  single batch confirm. Trust rides in as an advisory `Trust` column beside the existing
+  recommendation and never drives it: the class's history is not evidence about this record's
+  shape. The ceiling's only behavioral effect inside that skill is which records arrive
+  born-`ready` at all.
+- Survival sweep, **if** the Phase 2 signals prove too thin to grant on. *(Revised at Phase 3 —
+  still deferred.)* They cannot be shown too thin yet: no cell has any dispositioned evidence at
+  all, so there is nothing to judge the question against.
 - Handle the resolver's fourth `kind`. `unstructured` is not a taxonomy state and must never be
-  graded (see 1.1) — a consumer switching over three kinds silently drops it.
+  graded (see 1.1) — a consumer switching over three kinds silently drops it. *(Revised at Phase
+  3.)* Shipped as an **allowlist** of the three gradable kinds, not a denylist naming
+  `unstructured`. A denylist inverts this hazard rather than fixing it — it granted to any kind it
+  had not been taught, including a case-variant `'PRODUCER'` and an empty string, both verified
+  reachable before the allowlist landed.
 
-First phase that changes behavior.
+First phase that changes behavior — though on this repo it changes none yet, because every cell
+still reads `insufficient-evidence`. The mechanism ships ahead of the evidence deliberately: the
+ceiling has to exist before anything can exceed it.
 
 ## Phase 4 — Actuator and throughput
 
-- **In-run initiative budget.** N fixes per run, capped lines and files, same-subsystem only, each
-  logged to `decisions.md` and surfaced at the Review Console. Amends the contract's *"code
-  modifications outside the skill's documented scope"* row.
-- **Finalization drain.** The piece that makes "a session finalized efficiently" true.
-  `/claude-tweaks:dispatch` documents *why no drain mode* — a session babysitting N pipeline runs
-  accumulates context until it rots. Any drain here must respect that reasoning rather than
-  contradict it.
-- **Verdict-only-where-it-matters routing** in `/claude-tweaks:demo`: human verdict required only
-  for classes that have not earned trust, records touching `merge-sensitive-paths`, or
-  inconclusive self-verification.
+*Reordered and rescoped at Phase 4, against measurement. The original three bullets assumed the
+acceptance evidence would exist by now. It does not, and the reason is not the one this document
+predicted — see "Measured at Phase 4" below. The drain moved from a throughput nicety to the
+sensor fix itself, the routing bullet is deferred, and the phase splits across two releases.*
+
+### Measured at Phase 4
+
+Against this repo at `main` = `012e27d5`, plugin v6.57.0 — and, unlike the Phase 3 investigation,
+the **installed** build is also 6.57.0, so nothing here is explained by a stale producer.
+
+| Measurement | Value |
+|---|---|
+| Closed records / provenance classes | 129 / 10 |
+| `demo:approved` + `demo:changes-requested` across every class | **0** |
+| Coverage in every cell | **0%** — every verdict `insufficient-evidence` |
+| `demo:pending` ever applied | 11, all on `#13`–`#49`; highest closed record is `#164` |
+| Records closed after v6.50.0 landed (09:15:47Z) carrying any `demo:*` | **0 of 14** — nine of them heavy-lane `auto:build` |
+| Verification Brief comments on `#148`, `#153`, `#151`, `#150` | 0 |
+
+**The nine heavy-lane records did not close the way this document assumed.** `gh api .../timeline`
+reports `commit: null` with `stateReason: COMPLETED` — a direct API close, neither a commit-keyword
+close nor a merge close. They also still carry `auto:build`, so wrap-up cleanup Section E's grant
+removal never ran for them either. `_shared/issue-claims.md`'s Close-via-merge section states the
+agent never runs `gh issue close` and that direct closes surface only for wontfix/duplicate, run by
+the user. So these closed **outside the documented mechanism entirely** — a third path, alongside
+the light-lane keyword close and the heavy-lane auto-merge this document already named.
+
+### Two gaps, not one
+
+**Gap A — a live defect.** Acceptance labeling is `/wrap-up` Step 10 (`verification-brief.md`,
+`execution-and-verification.md`), and **both auto-merge short-circuits bypass Step 10**:
+`wrap-up/review-console.md`'s single-record fast-lane short-circuit and
+`dispatch/settle-and-merge.md`'s group Auto-merge gate. Each closes with a completeness claim —
+*"Nothing this console would have shown is discarded"* and *"nothing wrap-up found is dropped"* —
+and both are **true about console content and silent about Step 10's acceptance labeling**, which
+is neither console content nor one of `cleanup-procedures.md`'s eight cleanup items. The console's
+own completeness rule covers "every cleanup action that would otherwise run in Step 10," which
+acceptance labeling also is not. The label falls through the gap between three individually-true
+statements — the `[IL-02]` / `[IL-93]` shape, where prose stays true while going incomplete.
+
+This is `#141`, still live. It is **not** what produced the nine records above; they never
+auto-merged. Fixing it is necessary and not sufficient.
+
+**Gap B — practice, not code.** The dominant close path emits no disposition, and v6.50.0's answer
+to that was deliberately *detection plus human-run remediation*, not automatic labeling:
+`/claude-tweaks:tidy --scope=github`'s `acceptance-gap` scope finds closed records carrying no
+`demo:*` (findings `info`, always staged, never auto-applied), and `/claude-tweaks:demo #N`
+reconstructs a brief from the closing commit. That path is **close-mechanism-agnostic** — it
+already catches the manual closes. It has simply never been run.
+
+No code change fixes Gap B. What fixes it is making the remediation cheap enough to actually
+happen — **which is this phase's finalization drain.** The drain and the sensor fix are the same
+work. That is the substantive correction to this document's original Phase 4.
+
+### Scope, in two releases
+
+**Release 1 — the sensor.**
+
+- **4A. Close the auto-merge labeling gap.** Both short-circuits apply `demo:pending` and post the
+  Verification Brief before merging, while the record is still open. Correct both completeness
+  claims — the prose is what made the gap invisible, so leaving it intact reproduces the defect at
+  the next widening.
+- **4B. Stop the flow, then decide about the stock.** *(Rewritten mid-Phase-4. The first draft of
+  this bullet said the drain was "obviously" a `/claude-tweaks:demo` mode. That was asserted
+  without reading `/demo`, and `/demo` says the opposite — see "Why the drain does not exist as
+  designed" below. `[IL-24]`, caught before the plan was written but after the claim was in this
+  document.)*
+
+  Split Gap B's population, because the two halves need opposite treatments:
+
+  - **Flow** — records closing *from now on*. 4A plugs the auto-merge leak. The manual and
+    keyword closes that actually dominate need a disposition path of their own, since no
+    `/wrap-up` step runs for them at all.
+  - **Stock** — the 129 already-closed records carrying no disposition. A human verdict on a
+    record closed weeks ago, reconstructed from its closing commit, is mostly theater: it
+    produces a `clean` label that the trust table then reads as real evidence. Draining the
+    stock by approving it is the batch-rubber-stamp risk in its purest form. The honest options
+    are to mark the stock explicitly unassessable and start the evidence window from now, or to
+    leave it undispositioned and let `MIN_VERDICTS` be reached by new work only. Either way it
+    is a **one-time decision about the prior**, not a throughput feature — the same shape as the
+    backfill question Phase 2 dissolved, returning in a different place.
+
+#### Why the drain does not exist as designed
+
+`/claude-tweaks:demo` refuses batching deliberately and says so in five places: the H1 paragraph
+("resolves one item per invocation — it never discovers or lists what's outstanding"), When to Use,
+the Not-for line, `## Input` ("Never sweeps the backlog"), and an explicit Anti-Pattern row
+("Sweeping the `demo:pending` backlog from within this skill — Discovery is `/claude-tweaks:help`'s
+job"). Its Component-Skill Contract additionally makes it **standalone-only**: *"it is never invoked
+by a parent skill in the workflow."*
+
+So both available shapes are closed by design, not by oversight — a `/demo` sweep mode contradicts
+the Anti-Pattern, and an orchestrator looping `/demo` per record contradicts the standalone-only
+contract. Discovery already exists twice (`/help` Stage 4.7, `/tidy --scope=github`'s
+`acceptance-gap`); resolution is deliberately one-at-a-time and human.
+
+**That invariant is correct, and this document's own Known-risk section is why.** The acceptance
+verdict is the single signal the entire trust system reads. A drain that makes approving forty
+records one keystroke manufactures exactly the evidence that must not exist: `clean` verdicts
+earned by clicking, which then authorize real autonomy. The bottleneck is not navigation, and
+making navigation cheap would not fix it.
+
+**Consequence:** "finalization drain" as a batch-approval mechanism is **withdrawn**, not deferred.
+What survives of the original bullet is the throughput concern it was reaching for — which 4A
+(stop the leak) and the flow/stock split above address without ever batching a verdict.
+
+**Release 2 — the actuator.**
+
+- **4C. In-run initiative budget.** N fixes per run, capped lines and files, same-subsystem only,
+  each logged to `decisions.md` and surfaced at the Review Console. Amends the contract's *"code
+  modifications outside the skill's documented scope"* row. Unaffected by the measurement above: it
+  is gated on the **ceiling**, a human-set dial, not on trust evidence, so it works on day one.
+
+**Deferred — verdict-only-where-it-matters routing** in `/claude-tweaks:demo` (human verdict
+required only for unproven classes, `merge-sensitive-paths`, or inconclusive self-verification).
+It is inert by construction: no class has earned trust, and none can until `/demo` runs — the very
+gate the routing exists to relax. Phase 3 shipped its ceiling ahead of the evidence on an ordering
+argument (the ceiling must exist before anything can exceed it); this bullet has no such argument,
+and shipping a second relaxation on top of an empty table compounds Phase 3's inertness rather than
+correcting it. **Trigger, stated rather than left open:** revisit when any cell first reaches
+`MIN_VERDICTS` — the same shape open question 2 was deferred with at Phase 3.
 
 ### Known risk
 
@@ -325,6 +459,13 @@ The initiative budget is the only piece with no precedent in this codebase, and 
 diff — `/claude-tweaks:review` gets handed changes it was not asked to review. Mitigation: write
 initiative fixes to a **separate commit with its own trailer** so the diff stays separable and
 review scope stays legible.
+
+A second risk, new at Phase 4 and specific to the drain: a batch disposition path is a batch
+**rubber-stamp** path. The acceptance verdict is the one signal the whole trust system reads, and a
+drain that makes approving forty records one keystroke produces evidence that means nothing —
+`clean` verdicts earned by a human clicking through, which then authorize real autonomy. Whatever
+4B's batching looks like, approving must stay per-record work; only the *navigation* between
+records is what the drain is allowed to make cheap.
 
 ## Non-goals
 
@@ -337,8 +478,39 @@ review scope stays legible.
 
 ## Open questions
 
-1. Minimum sample count before a trust cell may move off `supervised` behavior — needs a decision,
-   defaulting conservative.
+1. ~~Minimum sample count before a trust cell may move off `supervised` behavior.~~ **Answered at
+   Phase 3.** Two floors, not one: `MIN_SAMPLES` (8) on the cell's size, and `MIN_VERDICTS` (5) on
+   the acceptance verdicts inside it. The second is the one that matters — the original single
+   floor counted *records*, which let one approval grade a 40-record class. Five is the smallest
+   run that is not an anecdote and, at roughly ten closed records per class per month, is
+   reachable in weeks; an unreachable floor would make the table decorative, which is the failure
+   mode that already killed `demo:pending`.
 2. Whether the survival window is 7 or 14 days, and whether a follow-up record against the same
-   paths is a strong enough negative signal on its own.
-3. Whether the finalization drain is a `/claude-tweaks:wrap-up` mode or a new skill.
+   paths is a strong enough negative signal on its own. **Reframed at Phase 3.** The table has no
+   window at all, which makes `changesRequested` and `followUps` permanent: a class that earns one
+   rejection is `mixed` from then on, with no path back. That is the conservative direction and
+   currently costs nothing — both counts are zero everywhere — so it ships as a **recorded
+   limitation with a stated trigger** rather than an open choice: revisit when any cell first
+   reads `mixed`, which is when the limitation stops being theoretical. See
+   `_shared/trust-table.md`'s "Known limitation: no time window".
+3. ~~Whether the finalization drain is a `/claude-tweaks:wrap-up` mode or a new skill.~~
+   **Dissolved at Phase 4 — the question had no correct answer because its subject should not
+   exist.** Both branches presuppose a batch-approval mechanism. `/claude-tweaks:demo` forbids
+   batching in five separate places and is declared standalone-only, so a `/demo` mode and an
+   orchestrator looping `/demo` are both closed by design; and the invariant is right, because
+   batching the one signal the trust system reads is how you manufacture worthless `clean`
+   verdicts. See "Why the drain does not exist as designed" in Phase 4. The throughput concern
+   the question was reaching for is real and is addressed by 4A plus the flow/stock split,
+   neither of which batches a verdict.
+
+   *Process note: this question survived three phases because each phase restated it rather than
+   testing it. Reading `/demo` — which any phase could have done — closes it in one pass. The
+   analogue of `[IL-24]` for open questions: an unexamined question accumulates the same false
+   authority as an unverified claim.*
+4. **New at Phase 3.** Whether machinery may ever originate a grant. `unattended` is defined and
+   its grant path is shut behind an opt-in nothing sets, because opening it means amending
+   `_shared/work-record.md`'s invariant that `auto:*` labels come only from an interactive human
+   session — an invariant with an eval asserting it, written after a real run treated a low-risk
+   `ready` record as license to run a full build-to-close lifecycle. That is a deliberate decision
+   for a human to make, not a step in a plan, and until it is made the top tier's incremental
+   value over `trusted` is zero.

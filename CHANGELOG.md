@@ -15,7 +15,7 @@ parent, where the walk never looks, so versions *left* the reconstructed set as
 later merges landed (#144). Two releases were written up as never-shipped on that
 evidence before anyone checked it against a source outside this repo's topology.
 
-Two conventions follow from how this repo works, and both are visible below:
+Three conventions follow from how this repo works, and all are visible below:
 
 - **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
   developed and written up under one number but reached users under another,
@@ -24,12 +24,322 @@ Two conventions follow from how this repo works, and both are visible below:
   build that actually carried it. The original write-up is kept verbatim.
   Only three entries are genuinely of this kind — v6.3.0, v6.5.0 and v6.25.0.
   Thirteen more carried the label until v6.45.0 and did not deserve it.
+- **A `###` subsection labelled "also carried in this build"** documents work that
+  reached users under a version whose own entry describes something else. The record
+  landed on `main` without bumping, so the build that carried it was already numbered
+  for other work, and the release step that would have written it up never ran
+  (`[IL-12]`). These are backfilled after the fact — labelled, rather than folded into
+  the surrounding entry, so nothing here is mistaken for a contemporaneous release
+  note. Distinct from the branch-numbered case above: there the write-up existed and
+  the number moved; here the number was right and the write-up was missing.
 - **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
   commit history rather than written at release time — the changelog step was
   not part of the release convention until v6.41.0, and 103 of the first 145
   releases went undocumented (`[IL-94]`). They are summaries of what each version
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
+
+## v6.59.0 — a run can repair the references its own change broke
+
+Phase 4 of the earned-autonomy design. `CLAUDE.md`'s Don'ts prescribe the same sweep by hand
+in five separate rules (`[IL-10]`, `[IL-17]`, `[IL-21]`, `[IL-52]`, `[IL-93]`), every one
+recording the same failure: when a change renames or removes something, references to the old
+name survive in files the change never touched, and task-scoped review cannot see them by
+construction. `/claude-tweaks:wrap-up` now runs that sweep itself.
+
+- **Step 7.12, the broken-reference sweep** (`wrap-up/reference-sweep.md`) — computes the run's
+  rename/move/delete set, greps for surviving references to the old names, and reports every
+  hit. At `autonomy: supervised`, the default, it stages all of them and applies nothing, so
+  the step is pure detection for any project that has not opted in.
+- **The in-run initiative budget** (`_shared/initiative-budget.md`,
+  `bin/lib/issues/initiative-budget.js`) — at `trusted`/`unattended`, up to three of those
+  repairs apply during the run instead of waiting for approval, capped at 2 files and 20 lines
+  each, in their own commit with an `Initiative-Fix:` trailer so `/claude-tweaks:review` is
+  never handed unrequested edits mixed into the diff it was asked to review.
+
+**The carve-out is causal, not size-based.** `_shared/auto-mode-contract.md` keeps "code
+modifications outside the skill's documented scope" in what `auto` never silences, because that
+row exists to stop a skill reaching outward to make its own work succeed. A pointer repair is
+the inverse: the reference is broken *because of* this run, and the change is not finished while
+it still points at what the run moved. A gap the run merely *noticed* is still filed, never
+fixed, at every ceiling — losing that distinction would turn the budget into a licence to make
+small edits anywhere.
+
+This is the ceiling's second authorized behavior and the first that is **not** trust-gated. An
+unfiled repair generates no record, so it has no provenance class and can never appear in the
+trust table; requiring a `clean` verdict would ship it permanently inert. Its safety comes from
+being mechanically checkable and capped instead — `_shared/autonomy-ceiling.md` states this
+explicitly so a later reader does not "fix" the asymmetry by adding a floor nothing could clear.
+
+Ambiguity always stages: two plausible targets, or an old name that still legitimately exists,
+means the repair is judged rather than checked, and the budget's premise does not hold. Test
+files are excluded outright — retargeting an assertion at a renamed path is how "repair" becomes
+"silence the check".
+
+Also extracts `wrap-up` Steps 7.10 and 7.11 to `memory-curation.md` and `upstream-feedback.md`.
+The new step pushed `SKILL.md` past the 40 KB per-invocation ceiling that
+`bin/lib/skill-audit/tests/context-cost.test.js` enforces; two separate sub-files rather than
+one shared bucket, since two stubs citing sections of a single file makes every stub pay for
+the whole thing.
+
+## v6.58.0 — /challenge becomes an inline framing gate instead of a brief producer
+
+`/claude-tweaks:challenge` was a human-run stage that dispatched seven parallel proposers
+plus an aggregator and saved a Brainstorming Brief to `docs/plans/*-brief.md`. It had
+produced exactly one brief in the repo's history, and its nominal primary consumer
+(`/superpowers:brainstorming`, a third-party skill) never read the file — its documented
+deletion step had never fired either. The judgment was sound; the shape was wrong.
+
+- `/claude-tweaks:challenge` is now two modes. `framing-check` is a component invoked only
+  by `/claude-tweaks:specify`, rendering `FRAMING: open | solution-baked` plus a rationale.
+  `--lens=<n[,n...]>` is a human-invoked escape hatch that applies one of the seven
+  debiasing lenses in conversation. The seven lenses survive; only the machinery around
+  them is gone. The file dropped from 19.3 KB to under 10 KB.
+- A `solution-baked` verdict now stamps a presence-only `framing:baked` marker and folds
+  the surfaced assumptions into the record's own `## Gotchas` — read by `/specify`,
+  `/build`, and `/flow` by construction, rather than a separate file needing discovery.
+  Absence is the clean state; there is no `framing:open`.
+- The verdict surfaces as an informational `Framing` column in `/claude-tweaks:backlog
+  refine`'s existing batch table and a flag in `/claude-tweaks:help`'s scan, which now
+  reads the stamped verdict instead of guessing from record titles. **Net new user-facing
+  prompts: zero.** Three flows lost an option; none gained one.
+- Both drivers carry the verdict: a `framing:baked` label under `work-backend:
+  github-issues`, a `framing` facet under `work-backend: local-files`, bridged through
+  `sharedFacetDefaults()` and `parseRecordFacets` so the two shapes agree.
+- Mode 4 (Layered MoA) is removed from `_shared/multi-agent-coordination.md` and
+  `bin/lib/coordination.js` — `/challenge` was its only consumer. Three coordination modes
+  remain. `docs/plans/2026-07-08-worktree-directory-convention-brief.md` is deliberately
+  retained on disk; ADR 0004 cites it.
+
+## v6.57.1 — auto-merged records get their acceptance label instead of closing silently
+
+Both auto-merge short-circuits bypass `/claude-tweaks:wrap-up` Step 10, which is where
+acceptance labeling lives — so a record that auto-merged closed with no `demo:pending`
+and no Verification Brief. `_shared/work-record.md` says the opposite: an `auto:merge`'d
+record still gets the label on its now-closed issue, to enable retrospective sign-off.
+Nothing enforced it, and `#141` is the case that made it visible.
+
+- `wrap-up/review-console.md`'s single-record fast-lane short-circuit and
+  `dispatch/settle-and-merge.md`'s group Auto-merge gate now each run
+  `verification-brief.md`'s procedure and apply `demo:pending` **before** merging. The
+  merge carries the closing keyword, so after it lands the record is closed and the
+  branch has moved on — order is the fix, not an implementation detail. On the group
+  path it is one brief and one label per record: the merge decision is group-wide, but
+  acceptance is per-record and members differ in testability.
+- `--dry-run` covers the new writes. That branch's skip list named only `git merge` and
+  `git push`, which would have let a live label write and brief comment escape preview
+  mode — the same shape as the defect being fixed, in mirror image.
+
+The defect survived because it sat between three separately-true completeness claims:
+the console's "nothing this console would have shown is discarded" (about console
+content), dispatch's "nothing wrap-up found is dropped" (about findings), and the
+console's rule covering "every cleanup action that would otherwise run in Step 10"
+(about cleanup items). Acceptance labeling is an action, not console content, not a
+finding, and not a cleanup item — so every claim stayed true while the category none of
+them covered was dropped on every auto-merge. Both claims now state what they do not
+cover, so the next thing added to Step 10 has to be checked rather than assumed.
+
+Found by measuring Phase 4's premises before planning it: 129 closed records across 10
+provenance classes, zero acceptance verdicts, 0% coverage in every cell.
+
+## v6.57.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
+
+Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that
+nothing acted on; this release wires the `autonomy` policy lever to it, and hardens the
+verdict first, because the shipped rule was not sound enough for a machine to read.
+
+**The verdict now floors on verdicts, not records.** The old rule graded a cell on
+`total >= MIN_SAMPLES` plus a *single* disposition. Measured against this repo, one
+`demo:approved` on a 40-record class produced `verdict: clean` — fine for a table a human
+reads beside the counts, a live grant once a governor reads it alone. A second floor,
+`MIN_VERDICTS` (5), now counts the acceptance verdicts inside a cell rather than the
+records. `notPlanned` also leaves the clean test: a record closed `NOT_PLANNED` was
+declined, so no work product exists to judge, and with no time window in the table it was
+pinning two of this repo's four real classes to `mixed` permanently. Both counts are still
+rendered, and a new Coverage column says what fraction of a class was ever verified.
+
+**`bin/lib/issues/autonomy.js`** resolves the ceiling (CLI arg > run config > project
+policy > `supervised`) and maps `(ceiling, trust row)` to a permission set. Unrecognized
+input always fails toward less autonomy: an unknown ceiling falls back to `supervised`, and
+gradable kinds are an allowlist rather than a denylist naming `unstructured` — a denylist
+granted to every kind it had not been taught, including a case-variant `PRODUCER`.
+
+**`trusted` unlocks born-`ready` for `/claude-tweaks:capture`**, and only when
+`producer:capture` carries a `clean` verdict. That skips `/claude-tweaks:specify`, never the
+human grant gate — `ready` asserts shape, and `/claude-tweaks:backlog refine` re-derives
+shape from the body before granting anyway. Human-filed classes are excluded by
+construction: born-`ready` authorizes an *agent's* filing, and `human:human` is this repo's
+largest provenance, so a governor that graded it would have fired there first on the weakest
+possible justification.
+
+**`unattended` is defined and shut.** Its machine-originated grant contradicts the standing
+invariant that `auto:*` labels come only from an interactive human session — an invariant
+written after a real run treated a low-risk `ready` record as license to run a full
+build-to-close lifecycle. Reaching the top tier is not by itself an amendment of that, so
+the grant path sits behind a second explicit opt-in that nothing sets.
+
+`/claude-tweaks:backlog refine` gains an advisory `Trust` column beside its existing
+recommendation, which it never drives — a class's history is not evidence about this
+record's shape, and on a repo that has not run `/claude-tweaks:demo` every cell reads
+`insufficient evidence`, which must not become a de facto freeze on granting.
+
+Inert on arrival, deliberately: every trust cell in this repo still reads
+`insufficient-evidence` with zero acceptance verdicts. The ceiling exists so that nothing
+can exceed it later.
+
+## v6.56.0 — the retired polish vocabulary leaves the files that restated it
+
+The last leaf of the Impeccable upstream-contract program's Phase 3 (#148). #147 changed
+how `/claude-tweaks:design-wrapper` dispatches during the polish phase; this release
+makes the rest of the repo stop describing the old way.
+
+"Auto-fit" and "issue-driven" were never internal names local to `command-map.md` —
+they were this plugin's published vocabulary for the polish phase, restated in their
+own words across `/flow`, `/ledger`, `_shared/auto-mode-contract.md`, `README.md` and
+the user-facing docs. None of those files appeared in #147's diff, and a keyword grep
+for the *new* vocabulary finds nothing wrong with any of them, because they never used
+the new words. Their claims were true when written and went quietly stale (`[IL-93]`).
+
+| Was | Is |
+|---|---|
+| Auto-fit (polish phase) | **Refinement set** |
+| Issue-driven | **Suggestion-driven** — reads each `audit` finding's own `suggestion` field instead of keyword-matching four fixed categories |
+| Intent-driven | unchanged |
+
+**Two things the sweep found that the record specifying it did not know about.**
+
+#147 shipped a fourth term the record's replacement table never listed: **Phase-fixed**,
+covering the pre-spec (`/specify` shape) and review-phase (`/review` critique + audit)
+rows that were also called auto-fit. Renaming only the polish row would have orphaned
+the other two. The authority for a sweep like this is the landed diff, never the
+specifying record.
+
+`skills/flow/polish-execution.md` consumed only one of the two `staged_suggestions`
+kinds. #147 added an `unclassified` kind for a finding carrying no usable `suggestion`,
+and `modes/polish.md`'s output contract requires consumers to branch on `kind` — this
+one did not, so an unclassified observation would reach `{run-dir}/staged/` labelled as
+a manual-only *command* that no finding ever named. Fixed here rather than deferred,
+because that wrong label is what a human reads at the Wrap-Up Review Console.
+
+Also restated against signals that still exist: `/ledger`'s `design`-phase row keyed
+`fixed` off "auto-fit successes", a category that no longer exists, and now keys `fixed`
+off a `commands_invoked` entry and `observation` off a `staged_suggestions` entry.
+`_shared/auto-mode-contract.md`'s polish row keeps its `AUTO` classification and now
+names the staging path it previously left out.
+
+Deliberately not swept: `CHANGELOG.md`, `docs/superpowers/**`, and one audit-trail
+comment in `bin/lib/skill-audit/tests/anti-patterns.test.js` that records *what #147
+retired*. Rewriting a historical note about a removal to use the post-removal names
+would falsify it (`[IL-28]`). `docs/plugin-structure.md`, which the record listed as
+needing a sweep, already carried the new vocabulary and needed no edit.
+
+## v6.55.0 — the finishing review runs at code-review time, and third-party agents are exempt by structure
+
+Two changes with one root, landed together because they pull on the same paragraphs
+(#153, absorbing #124).
+
+**`/claude-tweaks:review`'s design pass now dispatches `impeccable-finish-reviewer`** —
+Impeccable's own shipped reviewer — whenever the changed artifact carries a direction
+contract. v6.53.0 taught this repo to *find* that contract; it deliberately judges
+nothing about it, because the block labels are upstream's and so are the criteria for
+a good one. This release hands the found contract to the agent upstream wrote to audit
+a render against it (`design-wrapper/modes/review.md` Step 3.7). No contract, no
+dispatch — most reviews are not of design work.
+
+Three things that were easy to get wrong, and are specified rather than left to
+judgment:
+
+- **Availability is checked at the agent level.** The existing precondition resolves
+  `/impeccable:impeccable*`, a Skill-tool surface that proves the plugin is installed
+  and says nothing about which agents it ships. Agents are added and removed between
+  versions of one plugin, so the check resolves the agent's own definition file under
+  the pinned plugin root. Absent, the pass degrades to the existing critique + audit
+  path and never hard-fails.
+- **The output is adapted at the boundary, not passed through.** Upstream returns four
+  named sections (`persistence` / `ceiling` / `material_fixes` / `keep`); Step 4 maps
+  them into this wrapper's existing finding shape under a new `source: "finish-review"`.
+  Severities are assigned by the wrapper rather than invented from a fix's rank, and
+  `keep` travels as a constraint on the other findings rather than being filed as one
+  nobody should "resolve".
+- **A dispatch that failed is not a review that passed.** With no status line to route
+  on, unavailable / failed / empty / unparseable are kept apart, and none of them may
+  report a clean design review. Only a parsed reply with no material fixes may say the
+  render met its contract.
+
+**Third-party agents are now explicitly exempt from the Subagent Contract**, on a
+structural condition: the agent's definition lives outside this plugin's `agents/`
+directory. Read as universal — which is how it read — that contract made the dispatch
+above look non-compliant, and the next person to notice would have "fixed" it by
+wrapping someone else's agent in a shim forcing it to speak our protocol, which means
+paraphrasing its output into a shape it never promised. The exemption releases the
+agent and binds the caller: normalize at the boundary, check agent-level availability,
+and handle the outcomes the status line would have carried. A claude-tweaks-authored
+agent is never exempt, however awkward its output is to parse.
+
+**The contract's own rationale is reframed as dispatch correctness** (#124, absorbed
+here). It read as a token-saving measure, down to an unmeasured "cuts output by 60-80%"
+claim. Its load-bearing value is correctness: a clean room is what makes N agents
+independent evidence rather than N echoes, the status line stops a failed dispatch
+aggregating as a clean result, and the templates keep aggregation mechanical rather
+than paraphrased. Cost is acknowledged as a side effect, never the justification. The
+two changes had to land together — an exemption arguing "the contract buys dispatch
+correctness" while the surrounding prose still called it a cost optimization would
+leave the file arguing against itself. `tests/subagent-contract-clauses.test.js` fails
+if either clause later goes missing from either file, because "read #124 before
+editing" protects only the person who reads it.
+
+## v6.54.0 — native surfaces stop being graded by a web-only detector
+
+`/claude-tweaks:design-wrapper` accepted `Surface: web | mobile | desktop` and then
+proceeded identically for all three. A record declaring `mobile` therefore ran the
+bundled HTML rule engine over native app code. The likely outcome was zero findings
+— reported as a pass, meaning nothing. A gate that cannot fail is not a gate, and
+this was that defect on the surface axis rather than the CLI-contract axis where it
+was last found.
+
+Upstream states the constraint itself, in its own `reference/routing.md`: *"`live`
+and the bundled `detect.mjs` are web-only."* This release acts on it.
+
+**Track resolution** now sits between Layers 2 and 3 and runs for every mode.
+`setup.platform` crossed with the record's `Surface:` line resolves to exactly one
+of `web` / `ios` / `android` / `adaptive` — one decision, not an exemption bolted
+after a web-path return. `test` and `live`, the two web-only surfaces, skip
+explicitly on the native track; `test` returns `{skipped: "native surface — CLI
+detector is web-only"}` and can no longer return `pass` there. Every other mode
+dispatches with the platform named, having first read that platform's own upstream
+reference (`ios.md`, `android.md`, or **both** for `adaptive` — there is no
+`reference/adaptive.md`, so the obvious `reference/{platform}.md` template is wrong
+for exactly the value this wrapper infers most often).
+
+Three resolutions worth stating, because each is a judgment rather than a lookup:
+
+- **`platform: null` + `Surface: mobile` infers `adaptive`.** `null` is the common
+  case by construction — `extractPlatform` returns it for a missing `Platform`
+  section, for prose, and for any unrecognized value — so a design whose only native
+  trigger were a non-null platform would close the reported hole in the one case that
+  already had an answer. Upstream has no unnamed-native track to route to, and a bare
+  `mobile` names neither platform, which is the same statement upstream's own
+  resolver collapses `ios, android` into `adaptive` for. Recorded as inferred, never
+  as declared; the correction path is a `Platform` section in `PRODUCT.md`.
+- **`desktop` takes the web path**, on the stated assumption that desktop surfaces
+  here are HTML-based. Upstream's enum has no desktop value, so a genuinely native
+  desktop surface takes the web path too — a known, accepted limitation, not an
+  oversight.
+- **A `setup.platform` / `Surface:` disagreement is recorded, not applied silently.**
+  `setup.platform` wins, and `surface_track_override` names both values and which
+  one did. A stale `PRODUCT.md` must not quietly overrule a record's own declaration.
+
+Layer 3 keeps running on the web track unchanged, and on the native track whenever
+no `Surface:` was declared — so a native project's backend-only diff still skips
+rather than being widened onto the design path. It is skipped only when the record
+declared a native surface, because its trigger table holds no native extension and
+would return `non-frontend (sniff)` on exactly the records this routing exists to
+serve.
+
+Web-surface behavior is unchanged. The native track's detail — the reference
+mapping, the reasoning behind the two inferred rows, and a four-row routing
+walkthrough — lives in the new `design-wrapper/native-routing.md`, loaded only when
+the track resolves native.
 
 ## v6.53.0 — Impeccable's direction contract reaches the human acceptance gate
 
@@ -267,6 +577,41 @@ The four health-sweep `skill-md` tests asserted the prefixed name through an
 unanchored `/name:\s*claude-tweaks:{skill}/`. They now assert `/^name: {skill}$/m`,
 which actually fails on the doubled form.
 
+### also carried in this build
+
+Three records from the Impeccable upstream-contract program landed while `main`'s tip
+still read 6.50.1, each without a bump of its own. Backfilled during #148's wrap-up.
+
+**#146 — `/claude-tweaks:design-wrapper` gained a plugin contract seam.** Mirroring the
+CLI seam Phase 1 built: resolve the installed Impeccable **plugin**, compare it to a
+recorded pin, execute `context-signals.mjs`, and consume its signals as an enrichment
+layer beneath the existing detection layers. New `skills/design-wrapper/impeccable-plugin.md`
+carries the pin comment, the resolution procedure, the executed output shape and the
+per-signal trust rules; `tests/impeccable-plugin-contract.test.js` probes it with the
+same skip/fail asymmetry as the CLI test — skips when absent, **fails** at a version
+other than the pin, because a probe that silently declines to run reads exactly like
+one that passed. Layer 3 survives unchanged as the frontend predicate: nothing upstream
+computes one, so the enrichment sits beneath it rather than replacing it.
+
+**#147 — the auto-fit and issue-driven dispatch tables were retired.** Two tables in
+`command-map.md` re-derived by keyword what Impeccable's `audit` already states. They
+are replaced by the suggestion-driven model the file's own Anti-Pattern section already
+precedented: every finding carries a `suggestion` field naming its own remediation, and
+the wrapper dispatches what the finding names rather than matching four fixed category
+keywords — keywords that never matched upstream's documented Category enum anyway. A
+finding whose `suggestion` names a manual-only command is staged, not run; a finding
+with no usable `suggestion` is staged as an unclassified observation carrying its
+id/category/description, never keyword-mapped and never dropped. The published
+vocabulary this renamed is swept out of the rest of the repo in v6.56.0 (#148).
+
+**#143 — the upstream-drift auditor became runnable.** `tools/upstream-drift/run.js`
+reads the manifest, runs the deterministic checks, hands their output plus the
+contract-path diff to the judge, and files deduplicated `by:upstream-drift` issues. Its
+trigger model is where this auditor departs from the four shipped health sweeps: those
+rotate through targets on a cursor because there is always more repo to audit, whereas
+here there is nothing to look at until a version changes and everything to look at the
+moment one does.
+
 ## v6.50.0 — Closed records reach an explicit acceptance disposition
 
 Work records were closing with no acceptance verdict at all, and nothing noticed.
@@ -303,6 +648,22 @@ component touched." Any path prefix broad enough to catch `src/services/payments
 also catches `src/components/Button.tsx`, and the errors are asymmetric: a missed
 match costs a wasted browser walk, while a wrong match silently skips acceptance —
 the exact failure this release exists to close.
+
+### also carried in this build
+
+**#142 — the upstream-drift capability-triage skill.** Landed while `main`'s tip still
+read 6.50.0, without a bump of its own. Backfilled during #148's wrap-up.
+
+A project-local skill (`.claude/skills/upstream-drift/`) that reads the deterministic
+checks' output, then diffs an upstream dependency's contract paths between the installed
+and latest tags to triage **new capability** — upstream surface this repo could use but
+does not know exists. This half is what the deterministic checks structurally cannot do:
+every assertion tests a claim someone already wrote down, and new capability has nothing
+to assert against. In the audit that motivated the design, source diffing found the
+contract drift, while only a human-style read of the upstream file tree found
+`context-signals.mjs`, `doctor`, and an entire iOS/Android track — none of which any
+assertion could have surfaced. The skill never edits anything, including the
+dependencies themselves.
 
 ## v6.49.0 — One classifier decides where a learning goes
 

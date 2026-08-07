@@ -6,13 +6,16 @@ This file is the single source of truth. Skills include the relevant template **
 
 ## Why this exists
 
-Three forces compound when dispatching parallel agents:
+This contract is **dispatch correctness** discipline. A dispatched agent is not a cheaper copy of the main thread — it is a separate reasoning context the dispatcher cannot see into, and every rule below exists to make that separation safe to act on:
 
-1. **Input bloat** — passing the conversation history or "all relevant context" to N agents multiplies token cost by N. Each agent should get a clean room.
-2. **Output bloat** — three agents each returning 800 tokens of prose is 2400 tokens of overhead before the main thread does anything. Structured templates cut that by 60-80%.
-3. **Model mismatch** — dispatching every agent at the strongest available model wastes cost and latency. Most subagent jobs are mechanical.
+1. **A dispatch you cannot reproduce is a dispatch you cannot trust.** An agent handed the conversation inherits the dispatcher's framing and its half-formed conclusions, then confirms them. The clean room is what makes N agents independent evidence rather than N echoes — the precondition for reproduction, debate, and refutation (`multi-agent-coordination.md`) meaning anything at all.
+2. **An outcome you cannot route is an outcome you will misread.** Without a fixed status line, "I couldn't find the file" and "I found nothing wrong" arrive as the same confident paragraph, and a failed dispatch aggregates silently as a clean result.
+3. **A result you cannot parse is a result you will paraphrase.** Free-form prose from three agents gets merged by the dispatcher's summary rather than by its content — inventing severities, dropping findings, smoothing over disagreement. Templates A/B/C keep aggregation mechanical.
+4. **A model mismatch surfaces as a wrong answer, not just a bill.** An under-powered agent on judgment work returns confident nonsense shaped exactly like a finding.
 
-The contract addresses all three: **input discipline** (below), **output templates** (Templates A/B/C), and **model selection** (per-dispatch tier guidance).
+The contract addresses all four — **input discipline** (below), **the status protocol**, **output templates** (Templates A/B/C), and **model selection** (per-dispatch tier guidance) — and adds **working-directory discipline**, the same principle applied to the filesystem: an agent whose CWD the dispatcher merely assumed lands real commits on the wrong branch while the dispatcher's own `git status` looks fine.
+
+Following it also costs less to run, and the templates are deliberately compact. Treat that as a welcome side effect, never as the justification: a dispatch that saves tokens while returning an unroutable, unparseable, or context-contaminated result has bought nothing. The one sizing rule here (inherited project context, under Input Discipline) exists to stop a fan-out from being wider than it is worth — not to price the protocol.
 
 ## Input Discipline
 
@@ -87,7 +90,7 @@ Match the model to the work. Specify the tier in the `Task()` dispatch.
 |---|---|---|
 | **Fast** (Haiku) | Mechanical: file location, pattern grep, structured extraction, single-file checks | `/journeys` per-journey extraction, `/stories` per-flow probe, `/test` parallel scouts, `/review` lens 3a (convention check), lens 3f (test quality on isolated files) |
 | **Standard** (Sonnet) | Integration: multi-file analysis, cross-cutting findings, format-sensitive transforms | `/review` lenses 3b-3e (security, errors, perf, architecture), `/browse` agents, `/tidy` reviewers |
-| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/challenge` Mode 4 aggregator (Layered MoA), `/specify` red-team synthesis |
+| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/specify` red-team synthesis |
 
 Default to the cheapest model that can do the job. Upgrade explicitly when the agent comes back `BLOCKED` for reasoning reasons (not for context reasons).
 
@@ -145,7 +148,24 @@ Maximum 200 tokens total.
 
 ## Not every consumer uses A/B/C
 
-`/challenge`'s per-lens proposers follow this contract's input discipline, status-line protocol, and model-tier selection, but their output is a free-form 2-4 paragraph debiasing perspective (per `challenge/SKILL.md` Process Step 3), not Template A/B/C — the aggregator (Layered MoA, Step 4) synthesizes prose perspectives, not structured findings/locations/yes-no answers. When a dispatch's output genuinely doesn't fit A/B/C, define the format explicitly in the dispatch prompt rather than forcing it into one of the three.
+When a dispatch's output genuinely doesn't fit A/B/C, define the format explicitly in the dispatch prompt rather than forcing it into one of the three.
+
+## Exemption: third-party agents
+
+**The condition is structural, not a judgment call.** An agent is exempt from this contract when **its definition file lives outside the `agents/` directory this plugin owns** — it ships with a third-party plugin and is invoked as a delegation. Everything under this repository's `agents/` (declared in `.claude-plugin/plugin.json`'s `agents` array) is claude-tweaks-authored and is **never** exempt, however awkward its output is to parse. "This agent's output is inconvenient" is not a reading this paragraph supports: a dispatch site settles its own eligibility by asking where the agent file lives, with no appeal to intent.
+
+Why an exemption rather than a conformance shim: this contract buys **dispatch correctness** for agents claude-tweaks authors, where we control the prompt and the protocol is what makes the result routable. A third-party agent is a delegation — it already has its own input and output contract, written by someone else and versioned with their plugin. Wrapping it to force a `DONE` line and a Template A table would mean paraphrasing its output into a shape it never promised, which is exactly the failure this contract's own rationale warns about. Adapt at the boundary instead.
+
+**The exemption covers the agent, never the caller.** Everything on the dispatcher's side still binds:
+
+- **Normalize at the boundary.** The caller maps the third-party output into the shape its own consumers already read, and documents that mapping at the call site. A caller that passes foreign output through unmapped has not adapted, it has leaked.
+- **Handle the outcomes the status line would have carried.** With no `BLOCKED` / `NEEDS_CONTEXT` to route on, the caller must still separate *agent unavailable*, *agent failed*, *agent returned nothing*, and *agent returned something that does not parse* — and must never report a clean result for any of them. Silence is not a pass.
+- **Check availability at the agent level.** Plugin presence does not imply agent presence; agents are added and removed between versions of one plugin. Resolve the agent's own definition file before dispatching.
+- **Input discipline and working-directory discipline still apply** — both describe what the dispatcher sends, not what comes back.
+
+Re-prompting on format (below) does not apply to an exempt agent: it is not violating a format it was never given.
+
+**Current exempt dispatch:** `impeccable-finish-reviewer`, shipped by the Impeccable plugin and dispatched by `/claude-tweaks:design-wrapper`'s `review` mode (`modes/review.md` Step 3.7). Its four-section output contract (`persistence` / `ceiling` / `material_fixes` / `keep`) is upstream's; that mode's Step 4 maps it into this repo's normalized finding shape.
 
 ## Re-prompt on violation
 
@@ -205,4 +225,4 @@ The blockquote above is the dispatch-site directive; the fenced block is what ea
 
 ## Related primitives
 
-- `skills/_shared/multi-agent-coordination.md` — inter-agent coordination patterns (Reproduction, Debate, Multi-persona red-team, Layered MoA) that compose with these templates.
+- `skills/_shared/multi-agent-coordination.md` — inter-agent coordination patterns (Reproduction, Debate, Multi-persona red-team) that compose with these templates.

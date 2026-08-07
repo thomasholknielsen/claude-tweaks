@@ -84,10 +84,11 @@ If situational filtering leaves only one option (a bare run that surfaced nothin
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Granting `auto:build`/`auto:merge` from anything but an interactive human session | No machinery path originates a grant — `auto:*` labels come only from a human session. This is the security boundary |
+| Granting `auto:build`/`auto:merge` from anything but an interactive human session | `auto:*` labels come only from a human session. The `autonomy` ceiling's `unattended` tier defines the one exception and keeps it shut behind a second opt-in nothing sets, so as shipped no machinery path originates a grant. This is the security boundary |
 | Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action is the load-bearing security signature — never skip it, even for an all-recommended batch |
 | Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only *strips* `bot:blocked` on re-grant |
 | Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |
 | Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | `/claude-tweaks:tidy`'s job (Shape 3) — this skill tags them and in `refine` may apply `priority:*` via the local-files fallback, never mirroring to GitHub |
 | Claiming or building a record from this skill | Out of scope — `/claude-tweaks:dispatch`'s job |
-| Deriving a grant, priority bump, or "next step" from `overview` mode's Trust Table | Read-only reporting — the `autonomy` policy lever has no consumer yet, so no verdict in that table may inform a `refine`-mode decision |
+| Deriving a grant, priority bump, or "next step" from `overview` mode's Trust Table | Read-only reporting — `overview` writes nothing, and the `autonomy` ceiling's one effect on this skill is which records arrive born-`ready` (`refine-mode.md` Step 3.6), never what a verdict recommends for one already here |
+| Treating `refine`'s `Trust` column as the reason to grant, or withholding a grant because a class reads `insufficient evidence` | Trust describes a class's history; the grant is about this record's content and shape, which `grant-check` reads directly. Every class reads `insufficient evidence` until `/claude-tweaks:demo` has run enough times, and that must never become a de facto freeze on granting |

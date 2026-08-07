@@ -31,7 +31,7 @@ documents). Bands are computed by `classifyStaleness(ageMs, thresholdMs)`
 (`bin/lib/issues/record-buckets.js`) against the resolved `record-staleness-weeks` threshold
 (default 4 weeks): `fresh` below half the threshold, `review` from half the threshold up to
 and including the threshold itself, `stale` beyond it. Shapes 1 and 2 below are the only
-consumers of this scale — Step 3's design-doc/brief age rows and Step 4.7's claim-staleness
+consumers of this scale — Step 3's design-doc age rows and Step 4.7's claim-staleness
 rows read different data sources and are not governed by `record-staleness-weeks`.
 
 The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
@@ -91,9 +91,9 @@ A watched-path match is a signal to look again, not proof the record still needs
 
 Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/docs-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6/7) — unchanged by this merge. It's listed in this file only so the seven finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
 
-## Step 3: Audit Design Docs and Briefs
+## Step 3: Audit Design Docs
 
-Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`.
+Scan `docs/superpowers/specs/*-design.md`.
 
 **Design doc classification** — for each file in `docs/superpowers/specs/*-design.md`:
 
@@ -103,15 +103,6 @@ Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`.
 | No status, matches existing specs | Mark as specified |
 | No status, no matching specs | Run `/claude-tweaks:specify` |
 | Very old (4+ weeks), no specs | Delete |
-
-**Brief classification** — for each file in `docs/plans/*-brief.md`:
-
-| Status | Recommendation |
-|--------|---------------|
-| Matching design doc exists | Keep |
-| No matching design doc, specs exist | Delete |
-| No matching design doc, no specs | Delete |
-| Very old (4+ weeks), no design doc | Delete |
 
 → Collect each as: `[doc] {filename} — {recommendation}`
 

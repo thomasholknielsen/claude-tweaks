@@ -120,7 +120,7 @@ If "Override specific items" is chosen, the follow-up is ordinary free-text chat
 **When "Fix now" isn't possible**, route to the right destination:
 
 - **Defer** (new work record, `parked`) — the fix is understood but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin spec, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
-- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/superpowers:brainstorming` pipeline.
+- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline.
 
 **Deferral gate:** An item may only be deferred if it meets ALL of these:
 

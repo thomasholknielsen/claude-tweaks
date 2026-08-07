@@ -16,6 +16,20 @@ Run the universal preconditions from `../SKILL.md` (all three detection layers).
 
 Run all three detection layers + availability. On any skip, return the skip object immediately.
 
+### Step 1.5: Native surface — skip explicitly
+
+Read `surface_track` from the track resolution in `../SKILL.md`'s Step 1. When it is `ios`, `android`, or `adaptive`, return immediately:
+
+```json
+{ "mode": "test", "skipped": "native surface — CLI detector is web-only", "surface_track": "<ios|android|adaptive>" }
+```
+
+**`pass` is not available on this path**, and the distinction is the whole point of the step. The bundled detector is an HTML rule engine — upstream states the constraint itself in `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only."* Run against SwiftUI, Compose, Flutter, or React Native source it does not find zero problems; it finds zero *of the problems it knows how to look for*, which is a different sentence. Reporting that as `pass` is a gate that cannot fail — the defect this mode's CLI contract was rewritten to remove, reappearing on the surface axis.
+
+The skip must happen **here**, before Step 2 resolves targets and before Step 4 invokes the CLI. A native check placed after the CLI has already run would be deciding what to call a result it should never have produced.
+
+Callers already handle this: `skipped` is a first-class return category in `_shared/design-wrapper-handling.md`, and `/claude-tweaks:test`'s `design-gate.md` maps `{skipped: ...}` to "note the skip in test output and proceed." No caller treats this mode's return as binary pass/fail, so no caller changes.
+
 ### Step 2: Resolve target files
 
 If `<files>` was passed, use that list. Otherwise run `git diff --name-only` to collect uncommitted changes (staged + unstaged). If that command itself fails (non-git directory, git error, mid-rebase state), return `{skipped: "unable to resolve target files (git diff failed)"}` immediately — see `../SKILL.md`'s Input section for this shared fallback-failure rule.
@@ -59,3 +73,5 @@ Or on skip:
 ```json
 { "mode": "test", "skipped": "<reason>", "install_hint": "<when availability>" }
 ```
+
+Both shapes additionally carry the wrapper's standard top-level `platform` / `surface_track` fields — see `../SKILL.md`'s Output contract. They are not restated here.
