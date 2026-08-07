@@ -237,13 +237,18 @@ In `## Input`, replace the first bullet (`- $ARGUMENTS is the research topic. If
     before proceeding.
 ```
 
-In `## Workflow`, insert a new Step 1a directly after Step 1 (`**Resolve** topic + depth tier …`):
+In `## Workflow`, fold the mode branch into Step 1 — replace `1. **Resolve** topic + depth tier from `$ARGUMENTS` (or the Mode Picker).` with:
 
 ```markdown
-1a. **Branch on mode.** When the first token of `$ARGUMENTS` is `verify`, read `verify-mode.md` in
-    this skill's directory and follow it instead of Steps 2-7 below; it owns its own output
-    contract. Every other input continues at Step 2 with today's behavior.
+1. **Resolve the input.** When the first token of `$ARGUMENTS` is `verify`, read `verify-mode.md`
+   in this skill's directory and follow it instead of Steps 2-7 below — it owns its own output
+   contract. Otherwise resolve topic + depth tier from `$ARGUMENTS` (or the Mode Picker) and
+   continue at Step 2 with today's behavior.
 ```
+
+**Do not add a `1a.` sub-step and do not renumber.** `1a.` is not a valid CommonMark ordered-list marker — it renders as lazy-continuation text merged into Step 1's paragraph rather than as its own step. Renumbering Steps 2-7 to make room is also wrong: `SKILL.md` self-references its own step numbers at `:46`, `:69`, `:79`, `:80`, and `:127`, and a renumber would silently invalidate all five (`[IL-86]`). Folding the branch into Step 1 avoids both — and reads better, since resolving the input is what deciding the mode is.
+
+Note the stub sentence wraps across a line break between `verify-mode.md` and `in this skill's directory`. That is exactly why the guarding regex is whitespace-flexible.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
