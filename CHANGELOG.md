@@ -264,19 +264,6 @@ and **writing** to one:
 fallback path write, check whether the write is one of that path's own future inputs — if it
 is, the failure mode is not a wrong value but a latch.
 
-## v6.46.0 — Claimed, then renumbered; the content shipped as v6.49.0
-
-No release carries this number. It was claimed by the learning-routing work in
-`707c89c2`, complete with its bump, changelog entry, and `shipped-versions.tsv`
-line. That work then collided with a concurrently-shipped release and was
-renumbered — first to v6.48.0, then to v6.49.0 — and each renumber moved the
-entry and the record line with it. The commit carrying `"version": "6.46.0"`
-stayed in history, so once that history became reachable from `origin/main` the
-coverage gate saw a manifest version with no entry and no record line.
-
-This entry exists so the number reads as burned rather than missing, and so the
-gate has something true to find. The feature itself is documented under v6.49.0.
-
 ## v6.45.1 — /code-health sees the files again when run from a worktree (closes #111)
 
 `bin/lib/code-health/scope.js`'s `sourceFiles()` excluded `SKIP_DIRS` by passing `find` a
