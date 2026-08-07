@@ -28,7 +28,6 @@ Before adding to CLAUDE.md, check the size budget — keep it concise. Move deta
 Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **ADR gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
 
 1. **Gather decision candidates** from this work's surfaces:
-   - `[ADR-candidate]`-tagged constraints in the brainstorming brief (flagged by `/claude-tweaks:challenge`)
    - Architectural deviations classified in `/build` Common Step 4.5
    - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
    - Tradeoffs accepted during `/review` and reflection insights about approach

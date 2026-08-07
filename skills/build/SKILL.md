@@ -120,7 +120,6 @@ Proceed to **Common Step 2**.
 ### Design Step 1: Read the Design Doc
 
 - Read the full design doc
-- If a brainstorming brief exists (`docs/plans/*-brief.md` for the same topic), read it too — it contains debiased constraints and assumptions from `/claude-tweaks:challenge`
 - Scan the codebase for existing files, schemas, APIs, and patterns relevant to the design
 
 ### Design Step 2: Check for Existing Plan
@@ -136,7 +135,6 @@ Invoke the `/superpowers:writing-plans` skill. After it saves the plan file, **s
 
 Context to provide to `/superpowers:writing-plans`:
 - The full design doc content
-- The brainstorming brief (if it exists) — especially constraints and assumptions
 - Relevant codebase context (existing files, patterns, schemas)
 
 <IMPORTANT>
