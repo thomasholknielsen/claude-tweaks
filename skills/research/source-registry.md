@@ -159,9 +159,11 @@ If your source returns nothing, that is an answer, not a failure: report
 outcome: verified with provenance naming what you searched and the literal
 finding "no precedent exists". Never omit an empty result.
 
-If you cannot reach your source at all, report BLOCKED and say what you tried.
+If you cannot reach your source at all, report BLOCKED and say what you tried,
+in place of the five-line block.
 Do not guess, and do not substitute a different source.
 ```
 
 A verdict that arrives without provenance is treated as `unverified` whatever its `outcome` says —
-re-dispatch once with the missing field named, then drop the pair and report it as unverified.
+re-dispatch once with the missing field named, then — if the field is still missing — drop the
+pair and report it as unverified.
