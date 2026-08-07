@@ -105,8 +105,9 @@ return different things.
 | **Falsifiable** | A specific source could show the claim is wrong — "does `X` already handle `Y`?", "is this file loaded at startup?" | The source registry | A **verdict** |
 | **Unfalsifiable** | No single source settles it — "how do other tools approach this?", "what are the tradeoffs here?" | Survey | A **landscape** |
 
-The source registry, its routing rules, and the verdict's exact shape are record #177's
-deliverable. This file establishes only that the split exists and which way each shape goes.
+The registry itself — every source, what each can falsify, its confidence tier, and how it is
+read — lives in `source-registry.md` in this skill's directory, along with the routing rules, the
+dispatch procedure, and the verdict shape. Read it when a question routes to the registry.
 
 ### Depth tiers bound survey breadth only
 

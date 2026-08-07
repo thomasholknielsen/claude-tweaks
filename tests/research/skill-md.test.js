@@ -27,6 +27,17 @@ function readVerifyMode() {
   return fs.readFileSync(VERIFY_MODE_PATH, 'utf8');
 }
 
+const SOURCE_REGISTRY_PATH = path.join(REPO_ROOT, 'skills', 'research', 'source-registry.md');
+
+function readSourceRegistry() {
+  return fs.readFileSync(SOURCE_REGISTRY_PATH, 'utf8');
+}
+
+const REGISTRY_SOURCES = [
+  'runtime', 'codebase', 'repo-prose', 'tests',
+  'history', 'telemetry', 'deps', 'web', 'human',
+];
+
 test('SKILL.md exists', () => {
   assert.ok(fs.existsSync(SKILL_PATH), `Expected ${SKILL_PATH} to exist`);
 });
@@ -202,4 +213,70 @@ test('verify-mode.md resolves survey depth through the documented precedence cha
     /CLI[\s-]?arg[\s\S]{0,160}pipeline[\s-]?config[\s\S]{0,160}project[\s-]?policy[\s\S]{0,160}skill[\s-]?default/i,
     'must state the full four-step precedence chain (whitespace-flexible across line wraps)',
   );
+});
+
+test('source-registry.md exists', () => {
+  assert.ok(fs.existsSync(SOURCE_REGISTRY_PATH), `Expected ${SOURCE_REGISTRY_PATH} to exist`);
+});
+
+for (const source of REGISTRY_SOURCES) {
+  test(`source-registry.md has an entry for ${source}`, () => {
+    const body = readSourceRegistry();
+    assert.match(
+      body,
+      new RegExp(`\\|\\s*\`${source}\`\\s*\\|`),
+      `registry must carry a table row for the ${source} source`,
+    );
+  });
+}
+
+test('source-registry.md keys every entry by what it falsifies, not by tool', () => {
+  const body = readSourceRegistry();
+  assert.match(body, /falsif/i, 'must speak in terms of falsification');
+  // The header row must name all three required columns. Anchoring to the header
+  // rather than to any one row's text is what makes this fail if a column is dropped.
+  assert.match(
+    body,
+    /\|\s*Source\s*\|\s*What it can falsify\s*\|\s*Confidence\s*\|\s*Read mechanism\s*\|/i,
+    'registry table must carry Source / What it can falsify / Confidence / Read mechanism columns',
+  );
+});
+
+test('source-registry.md runtime entry cites the bounded-output form', () => {
+  const body = readSourceRegistry();
+  assert.match(body, /exit=/, 'must show the bounded-output exit-status capture');
+  assert.match(body, /judge-procedure\.md/, 'must cite docs-health as the technique it reuses');
+});
+
+test('source-registry.md human entry is a terminator that dispatches no agent', () => {
+  const body = readSourceRegistry();
+  assert.match(
+    body,
+    /dispatches\s+no\s+agent/i,
+    'the human entry must state it dispatches no agent',
+  );
+  // Gap-tolerant: the prose reads "stop researching **it** and ask", so an
+  // adjacency-only /stop\s+researching\s+and\s+ask/ returns zero. Caught by running
+  // this regex against the planned prose during plan authoring, not after ([IL-66]).
+  assert.match(
+    body,
+    /stop\s+researching[\s\S]{0,20}and\s+ask/i,
+    'routing to human must terminate research for that question',
+  );
+});
+
+test('source-registry.md deps entry records the node_modules denial and its fallback', () => {
+  const body = readSourceRegistry();
+  assert.match(body, /node_modules/, 'must name node_modules');
+  assert.match(
+    body,
+    /node_modules[\s\S]{0,200}denied/i,
+    'must state that node_modules reads are structurally denied here',
+  );
+  assert.match(body, /context7|public\s+docs/i, 'must name the reduced-confidence fallback');
+});
+
+test('verify-mode.md points at source-registry.md by name', () => {
+  const body = readVerifyMode();
+  assert.match(body, /source-registry\.md/, 'verify-mode.md must name the registry sub-file');
 });
