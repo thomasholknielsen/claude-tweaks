@@ -7,54 +7,111 @@ References inside the blocks below to "this file" and to a `## Next Actions` sec
 **Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
 
 ```
-## Wrap-Up: Record #{n} — {title}
-{Origin: {origin} — the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
+## Wrap-Up: {Record #{n} — {title}   |   {topic}}
+{Origin: {origin} — record mode only; the materialized header's origin field:
+by:code-health / by:harness-health / by:journey-health / by:docs-health /
+by:capture / by:dispatch, or "human" when absent. Omit entirely in
+conversation mode and for legacy spec-file-mode runs.}
 
-### Reflection Insights
-1. {insight} → {destination}
-(or: No significant insights.)
+### State
 
-### Implementation Status
-- {section}: {status}
-Overall: {X}% complete
+Render VERBATIM from the helper — do not compose these facts from memory:
 
-### Cleanup Actions (planned in Step 5; executed in Step 10)
-See `cleanup-procedures.md` for the canonical cleanup list. Render only rows whose Condition holds (e.g., no worktree, no design caches). Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred in `cleanup-procedures.md` are skipped here too.
-- [ ] Leftover work: {recommendation}
+    node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
-### Configuration Updates (from Step 6)
-| # | Type | Target | Change |
-|---|------|--------|--------|
-| 1 | {doc/claude.md/rule/adr/docs-health-issue} | {target} | {what to add/change} |
-| 2 | ... | ... | ... |
-(or: No configuration updates needed.)
+{base} is this run's scope base — the same boundary Step 3 passed to
+/claude-tweaks:reflect as "files changed during this work". The helper echoes it
+back, so a wrong base is visible in the output rather than silently narrowing
+the window.
 
-### Manual Steps Required
-| # | What | Where | Status |
-|---|------|-------|--------|
-| 1 | {description} | {source} | Filed as #{n} |
-(or: No manual steps — nothing to do outside the codebase.)
+Then append, in record mode only:
 
-> Complete these after merging. Each row is a real, trackable record (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in this transcript.
-
-### Skill Updates
-Resolved in Step 7 — {N} updates applied, {M} staged, {K} new-skill candidates ({proposed}/{declined}); {R} skills read, gap detection: {found/not found}. See `decisions.md` for the full `SCANNED` summary line.
+Record    #{n} — {closes via merge | closed | open}
+Ledger    {n} items, {n} open   |   none
 
 ### Actions Performed
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| Operational | Closed record #{n} via merge (`Fixes #{n}`) — no local file to delete | `{hash}` |
+| History | {op} {target} — {one line} | `{hash}` |
+| Implemented | {what was built} | `{hash}` |
+| Operational | Closed record #{n} via merge (`Fixes #{n}`) | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
-| Operational | Deleted ledger | — |
-| Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
 | Operational | Removed worktree `{path}`, deleted branch `{branch}` | — |
 | Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
 
-Generate from: cleanup actions in Step 10, config/skill updates applied, ledger items resolved in Step 8.5, and, when present, the run dir's `events.jsonl` (hook-recorded commit breadcrumbs — hash reflects HEAD at hook time, not verified against commit success — and contract violations).
+Generate from: the helper's History ops (every row it reports gets a `History`
+row — that is the whole point of reading them), cleanup actions in Step 10,
+config/skill updates applied, ledger items resolved in Step 8.5, and the run
+dir's `events.jsonl` when present.
 
-(Next Actions are rendered as a top-level section after Step 10 — see `## Next Actions` below. Do NOT render them here in the per-spec summary template.)
+Omit the table entirely when no autonomous action was performed. Never fold a
+history operation into `Operational` — that type means cleanup, and burying a
+rebase there is the failure this row type exists to prevent.
+
+### Decisions
+
+**Needs your call ({n})** — items whose answer changes what happens:
+
+| # | Destination | What |
+|---|-------------|------|
+| 1 | {destination} | {one line} |
+
+Destinations are NAMED, never coded. `_shared/learning-routing.md`'s D1-D5 are
+internal classifier vocabulary and must not reach the reader:
+
+| Internal | Rendered |
+|---|---|
+| D1 | `CLAUDE.md Don'ts`, or the specific `.claude/rules/` file |
+| D2 | the actual path — `docs/x.md`, `skills/y/SKILL.md` |
+| D3 | `Backlog record` |
+| D4 | `Memory` |
+| D5 | `Upstream issue` |
+
+**Will do ({n})** — cleanup already settled, listed so it is disclosed rather
+than decided: {one line each}.
+
+Render cleanup rows from `cleanup-procedures.md`'s canonical list, filtered by
+Condition. Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred there are
+skipped here too.
+
+### Manual Steps Required
+| # | What | Where | Status |
+|---|------|-------|--------|
+| 1 | {description} | {source} | Filed as #{n} |
+(or omit the section entirely — nothing to do outside the codebase.)
+
+> Complete these after merging. Each row is a real, trackable record
+> (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in
+> this transcript.
+
+### Evidence
+
+Reflection — {insights, near-misses, tradeoffs accepted}. Do NOT restate an
+insight that already became a Decisions row; name the row instead.
+
+Scans — Step 7 {result} · 7.7 {result} · 7.8 {result} · 7.9 {result} ·
+7.10 {result}. Full `SCANNED` lines in `decisions.md`.
+
+Skill updates — {N} applied, {M} staged, {K} new-skill candidates
+({proposed}/{declined}); {R} skills read, gap detection: {found/not found}.
+
+(Next Actions are rendered as a top-level section after Step 10 — see
+`## Next Actions` in SKILL.md. Do NOT render them here.)
 ```
+
+**Conversation mode.** When no materialized header exists for this run
+(`SKILL.md`'s Conversation-based row), render the SAME four-part shape with the
+record-keyed pieces dropped: the `## Wrap-Up:` heading takes the work's topic
+instead of `Record #{n} — {title}`; the `Origin:` line, the `Record` and
+`Ledger` State lines, and any `Operational` row about closing a record or
+deleting plans are all omitted. Everything else — State, Actions Performed,
+Decisions, Evidence — renders identically.
+
+This variant is not optional. Its absence is what caused a conversation-based
+run to compose its report from the steps it had just executed, surfacing
+internal step numbers and route codes and reporting a rebase inside a table
+cell's rationale column.
 
 **Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
 
