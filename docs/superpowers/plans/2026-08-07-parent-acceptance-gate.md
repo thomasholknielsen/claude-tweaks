@@ -12,7 +12,8 @@
 
 - **Fail open, always.** Every new path skips silently when `gh` is unavailable, unauthenticated, the repo has no GitHub remote, or a parent cannot be resolved. The gate is an aid to a human decision, never a correctness mechanism, and must never block a wrap-up or a review.
 - **`hasParent` is checked as an explicit boolean**, never by truthiness of a default-constructed object (`[IL-31]`). `record.hasParent === true` suppresses; an absent field preserves today's behavior.
-- **`hasParent` is resolved from the parent side, never the leaf side.** `work-links: body-text` writes `Parent: #N` onto the leaf; `work-links: native` writes nothing onto the leaf. A leaf-side lookup silently returns `false` for every leaf under `native` (`[IL-64]`).
+- **`hasParent` is resolved from the parent side, never the leaf side.** `work-links: body-text` writes `Parent: #N` onto the leaf; `work-links: native` writes nothing onto the leaf. A leaf-side lookup silently returns `false` for every leaf under `native`.
+- **Every `work-links: body-text` / `work-links: native` branch pair gets a resolution step beside it**, and every consumer that inlines that procedure into a subagent prompt names the resolution step in its own "what the dispatcher inlines" sentence. Two branches with no way to choose between them is a branch pair that always takes the first one.
 - **Producer and consumer land in the same task.** Tasks 4, 5, and 6 each pair a new signal with the code that reads it, because task-scoped review cannot catch a cross-file gap (`[IL-02]`).
 - **No new `bin/lib/{name}/tests/` directories.** All new tests go in the existing `bin/lib/issues/tests/`, already covered by `package.json`'s glob (`[IL-84]`).
 - **Skill prose edits are verified by reading the rendered result**, not the diff (`[IL-27]`), and by a whitespace-flexible grep, since hard-wrapped markdown splits phrases across lines (`[IL-66]`).
@@ -249,14 +250,16 @@ In `verification-brief.md`, state that a parent brief consists of:
 
 Where no register exists (below `promise-register-min-leaves`, default `4`, or `work-backend: local-files`), part 2 alone is the brief.
 
+State that the parent brief renders the same `## Verification Brief` template Step 4 of `verification-brief.md` already renders, and that the rendered result is **written to `/tmp/parent-verification-brief.md`** — Step 5 below passes that path to `--body-file`, so nothing composes it into the comment inline.
+
 - [ ] **Step 5: Apply the gate**
 
 ```bash
-gh issue edit $PARENT_NUM --add-label demo:pending
 gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
+gh issue edit $PARENT_NUM --add-label demo:pending
 ```
 
-Post the brief **before** adding the label, matching `verification-brief.md:205`'s existing invariant that a reader never sees `demo:pending` without a brief already attached.
+Post the brief **before** adding the label — matching the existing invariant in `verification-brief.md`'s own Step 4 (search for "Post the comment before adding the label"; do not cite a line number, they move) that a reader never sees `demo:pending` without a brief already attached. The block above is in that order deliberately: comment first, then label.
 
 - [ ] **Step 6: Amend the Anti-Patterns row this task contradicts**
 
@@ -294,7 +297,7 @@ git commit -m "Apply the family gate from /wrap-up when the last leaf closes —
 Completes the human loop. After this task the feature works end to end for the common path: a family gets gated, a human gives a verdict, the parent closes.
 
 **Files:**
-- Modify: `skills/demo/SKILL.md` (Step 1 entry resolution; the approve/changes-requested verdict actions near line 301-303)
+- Modify: `skills/demo/SKILL.md` (Step 1 entry resolution; the **Approve** and **Request changes** bullets in Step 3's verdict-action list — locate them by their bold labels, not by line number)
 
 **Interfaces:**
 - Consumes: a parent carrying `demo:pending` plus a `## Verification Brief` comment, from Task 2.
@@ -302,31 +305,23 @@ Completes the human loop. After this task the feature works end to end for the c
 
 - [ ] **Step 1: Note that parents need no new entry-resolution branch**
 
-A gated parent carries `demo:pending`, so it resolves through the existing label-backed branch (`skills/demo/SKILL.md:102`) with no change. Add one sentence to Step 1 recording that a `#N` may be a decomposition parent, and that its brief covers the whole family rather than one diff.
+A gated parent carries `demo:pending`, so it resolves through the existing label-backed branch in Step 1 (the "If the result carries the `demo:pending` label" paragraph — locate it by that text, not a line number) with no change. Add one sentence to Step 1 recording that a `#N` may be a decomposition parent, and that its brief covers the whole family rather than one diff.
 
 - [ ] **Step 2: Add parent closing to the approve action**
 
-The current approve action (line 301) is:
+The approve action is **inline prose in Step 3's verdict-action list**, not a fenced block — a bullet beginning `- **Approve** — ` whose command sits in backticks inside the sentence, alongside both drivers' behavior and the `--remove-label`-is-a-no-op note. Edit it in place, in that same inline style; do not restructure it into a code block.
 
-```bash
-gh issue edit {n} --remove-label demo:pending --add-label demo:approved
-```
-
-For a record carrying `family:parent`, follow it with:
-
-```bash
-gh issue close {n} --reason completed
-```
+Today it carries `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: `facets.acceptance = 'approved'` via `writeRecord`). Extend the same bullet so that, for a decomposition parent, the record is also closed: `gh issue close {n} --reason completed` under `github-issues`, `closeRecord(path)` under `local-files`.
 
 State why explicitly: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the family was ever accepted.
 
 - [ ] **Step 3: State that changes-requested leaves the parent open**
 
-The existing follow-up filing applies unchanged. The parent stays open, since the family's work is not done.
+The existing follow-up filing applies unchanged. The parent stays open, since the family's work is not done. Use the **same** parent test as the Approve bullet — `family:parent` in labels under `github-issues`, `facets.familyParent === true` under `local-files` — so the two sibling bullets do not diverge on how they recognize a parent.
 
 - [ ] **Step 4: Verify the rendered result and the untouched no-op**
 
-Read the edited region. Confirm the existing `--remove-label demo:pending` note at line 301 — that removing an absent label is a silent no-op — still reads correctly beside the new close step.
+Read the edited region. Confirm the existing `--remove-label demo:pending` note — that removing an absent label is a silent no-op — still reads correctly beside the new close step.
 
 - [ ] **Step 5: Run the suites**
 

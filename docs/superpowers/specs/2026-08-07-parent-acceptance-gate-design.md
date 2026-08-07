@@ -44,14 +44,14 @@ commits stale.
 |---|---|
 | Parents are created with no labels | `recordPayload` "returns zero labels for the parent" — `skills/specify/record-creation.md:58` |
 | Parents never become `ready` | `skills/_shared/work-record.md:195` |
-| `demo:pending` has exactly one writer | `skills/wrap-up/verification-brief.md:201` |
+| `demo:pending` has exactly one *procedure* that writes it | `skills/wrap-up/verification-brief.md`. **Not one caller** — upstream v6.57.1 added two more (`wrap-up/review-console.md`'s auto-merge short-circuit, `dispatch/settle-and-merge.md`'s group gate), which is why this design's leaf-skip condition lives in that procedure's own header rather than in any caller |
 | `needsBackstop` requires CLOSED | `bin/lib/issues/acceptance.js:57` |
 | Nothing closes a parent | No match repo-wide for a parent-closing path |
 | Promise register threshold | `promise-register-min-leaves`, default `4` — `bin/lib/policy-schema.js:37` |
 | Register is github-issues only | Permanent `local-files` exclusion — `skills/specify/record-creation.md:225` |
 | Register is not a hard gate | `skills/review/SKILL.md:173-175` |
-| Trust cells count all closed records | `bin/lib/issues/trust.js:106`, `:135` |
-| Trust verdict floor | `total >= MIN_SAMPLES (8) && dispositioned >= 1` — `bin/lib/issues/trust.js:159` |
+| Trust cells count all closed records | `trustRows`' `closed` filter and its `cell.total += 1` — `bin/lib/issues/trust.js` |
+| Trust verdict floor | `total >= MIN_SAMPLES (8) && dispositioned >= MIN_VERDICTS (5)`, plus a rendered `coverage = dispositioned / total`, `notPlanned` not a verdict input — `bin/lib/issues/trust.js`. **Superseded upstream after this table was first written**; the row above and the Trust-population section were re-derived against the merged module, and this is the shape they were re-derived against |
 
 ## Decisions
 
@@ -146,8 +146,14 @@ such line.
 because the two `work-links` modes express the link asymmetrically: `body-text` writes
 `Parent: #N` onto the leaf, `native` writes nothing onto the leaf and expresses the
 relationship as a sub-issue. A leaf-side lookup would therefore work in one mode and
-silently return `false` for every leaf in the other — the failure mode `[IL-64]` warns
-about, and one that produces no error, just a quietly wrong trust table.
+silently return `false` for every leaf in the other — a failure that produces no error, just a
+quietly wrong trust table.
+
+The corollary, which the first implementation missed: **every place that branches on
+`work-links` must carry a way to resolve it.** Two branches with no resolution step is a branch
+pair that always takes the first one, and under `native` the `body-text` branch returns nothing
+rather than failing. This bites hardest in the procedures a dispatcher inlines into a subagent
+prompt, since a subagent cannot read the sibling file the key is documented in.
 
 The resolution is uniform: query `family:parent` (one cheap label query, few records),
 then collect each parent's own leaf numbers — from its task list under `body-text`, from
@@ -160,7 +166,7 @@ in that union gets `hasParent: true`; everything else is left absent, not `false
 | Skill | Change |
 |---|---|
 | `/specify` | Parent created with `family:parent`. No other change. |
-| `/wrap-up` | When the record has a resolvable parent: skip its own acceptance labeling entirely. Then evaluate `familyGateState`; on `due`, compose the parent brief and apply `demo:pending` to the parent. |
+| `/wrap-up` | When the record has a resolvable parent: skip its own acceptance labeling entirely. Then evaluate `familyGateState`; on `due`, compose the parent brief and apply `demo:pending` to the parent. **The condition lives in `verification-brief.md`'s own Routing header, not in the caller** — the other two callers of that procedure (`wrap-up/review-console.md`'s auto-merge short-circuit, `dispatch/settle-and-merge.md`'s group gate) inherit it there, and an `auto:merge`'d leaf is exactly the population the `/tidy` backstop exists for. |
 | `/tidy` | New `family-gate` scope in `_shared/github-pr-scan.md` for families reading `due`. Existing `acceptance-gap` scope passes `hasParent: true` for parent-linked leaves. |
 | `/demo` | Parent entries resolve through the existing label-backed branch. On **approve**, additionally close the parent. On **changes-requested**, existing follow-up filing applies and the parent stays open. |
 | `/help` | **No change.** Stage 4.7 queries `--label demo:pending --state all`, so gated parents appear for free. |
@@ -200,34 +206,57 @@ or `work-backend: local-files`), the walkthrough alone is the brief.
 
 ### Trust population
 
-`trustRows` grades a cell `clean` when `total >= 8 && dispositioned >= 1` and there is no
-*negative* evidence — zero changes-requested, zero follow-ups, zero not-planned
-(`bin/lib/issues/trust.js:159-161`). `total` counts every closed record, and
-un-dispositioned records still increment it (`:135`, `:141`). Absent evidence is not
-negative evidence.
+**Re-derived against the merged module, not the one this design was sketched against.**
+`trust.js` changed on `origin/main` while this branch was in flight and arrived with the
+v6.59.0 merge: the `dispositioned >= 1` floor is gone, replaced by `MIN_VERDICTS = 5` plus a
+rendered `coverage = dispositioned / total` ratio, and `notPlanned` left the verdict entirely.
+The live formula is:
 
-Under decision 1 that formula becomes reachable in a way it is not today: a seven-leaf
-family plus one approved parent yields `total = 8`, `dispositioned = 1`,
-`undispositioned = 7`, `changesRequested = 0` → verdict **`clean`**. Seven records nobody
-examined, one click, and the cell reads clean — and per v6.51.0's changelog, `clean` is
-what the earned-autonomy design's Phase 3 will read to move the autonomy level.
+```js
+const dispositioned = cell.approved + cell.changesRequested;
+const coverage = cell.total === 0 ? 0 : dispositioned / cell.total;
+if (cell.kind !== UNGRADABLE_KIND && cell.total >= MIN_SAMPLES && dispositioned >= MIN_VERDICTS) {
+  verdict = (cell.changesRequested === 0 && cell.followUps === 0) ? 'clean' : 'mixed';
+}
+// MIN_SAMPLES = 8, MIN_VERDICTS = 5
+```
 
-The weakness is latent in `trust.js` today; it is unreachable only because the repo
-currently holds zero approvals across all 118 closed records. This design is what would
-make it routine.
+The worked example this section used to carry — seven leaves plus one approved parent →
+`total = 8`, `dispositioned = 1` → `clean` — **no longer describes the module.** One
+disposition is under `MIN_VERDICTS`, so that cell now reads `insufficient-evidence`. The
+one-click-manufactured `clean` is closed on its own.
 
-**Resolution:** if the family is the unit of acceptance, the family is the unit of
+**The conclusion still holds, for a different and now-primary reason: leaves dilute coverage
+while clearing `MIN_SAMPLES` on evidence nobody produced.** Work the numbers on a class whose
+volume is decomposed families — the case this design creates:
+
+| | five 7-leaf families, parents approved | eight 7-leaf families, parents approved |
+|---|---|---|
+| Leaves counted | `total` 40, `dispositioned` 5 → **`clean` at 13% coverage** | `total` 64, `dispositioned` 8 → **`clean` at 13% coverage** |
+| Leaves excluded | `total` 5 → `insufficient-evidence` (under `MIN_SAMPLES`) | `total` 8, `dispositioned` 8 → **`clean` at 100% coverage** |
+
+Both floors are cleared either way once enough families accumulate; what differs is what the
+cell's numbers then mean. With leaves counted, `MIN_SAMPLES` is satisfied by 35 records nobody
+examined while `MIN_VERDICTS` is satisfied by the 5 parents alone — exactly the split
+`trust.js`'s own filter comment names ("counting leaves here would let `total >= 8` be satisfied
+by records nobody judged"). The module accepts low coverage by design and mitigates it with the
+Coverage column, on the stated assumption that "the counts sit beside the verdict and a human
+reads both." Decomposition breaks that assumption in a specific way: it manufactures low coverage
+*structurally*, on every family, rather than as an artifact of one class's filing habits — and
+the module's own commentary is that "a governor reads the verdict alone."
+
+**Resolution, unchanged:** if the family is the unit of acceptance, the family is the unit of
 evidence. `trustRows` skips closed records with `hasParent: true`, so a decomposed family
-contributes exactly one graded record — its parent — to `cell.total`. That keeps
-`total >= 8` meaning "eight things a human actually judged" rather than eight closed
-issues. It reuses the `hasParent` signal introduced for `needsBackstop`, so this is one
-new field with two consumers rather than two mechanisms.
+contributes exactly one graded record — its parent — to `cell.total`. It reuses the `hasParent`
+signal introduced for `needsBackstop`, so this is one new field with two consumers rather than
+two mechanisms. A useful side effect: with leaves excluded, a family-heavy class has
+`total ≈ dispositioned`, so `MIN_SAMPLES` (8) becomes the single binding floor and
+`MIN_VERDICTS` (5) is subsumed — the cell's size and its evidence stop being separable numbers,
+which is the state the Coverage column exists to reveal when they are not.
 
-Rejected: also raising the `dispositioned >= 1` floor. That closes the hole permanently
-rather than only removing this design's ability to trigger it, but it changes verdict
-semantics for a feature that shipped the same day and whose Phase 3 consumers are
-unwritten — that is the earned-autonomy work's call, not this design's. It is recorded as
-an open question below.
+Previously rejected here — "also raising the `dispositioned >= 1` floor" — has since shipped
+upstream as `MIN_VERDICTS`. It closed the manufactured-`clean` hole; it did not close the
+coverage-dilution one, which is what this section now rests on.
 
 ## Error handling
 
@@ -304,9 +333,12 @@ this, neither overlapping it:
 
 ## Open questions
 
-1. Should `trust.js`'s `dispositioned >= 1` floor be raised so a cell cannot be graded on
-   a single disposition? Out of scope here, but this design is what makes the weakness
-   reachable, so it should not be left unstated.
+1. ~~Should `trust.js`'s `dispositioned >= 1` floor be raised so a cell cannot be graded on
+   a single disposition?~~ **Answered upstream, before this branch merged.** The floor is now
+   `MIN_VERDICTS = 5`, and a `coverage = dispositioned / total` ratio is rendered beside every
+   verdict. That closes the single-disposition hole this question was about. It does not close
+   the coverage-dilution one — see *Trust population* above, which was re-derived against the
+   merged module and now rests on that instead.
 2. What is the live population impact of excluding parent-linked leaves from the trust
    table — how many of the 118 closed records are decomposed leaves? Measurable with one
    `gh` query before implementation.
