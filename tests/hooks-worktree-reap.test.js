@@ -135,11 +135,30 @@ test('isContentIdentical: a rebase-rewritten branch is still identical (the ance
   execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: main });
   fs.writeFileSync(path.join(main, 'f.txt'), 'content');
   execFileSync('git', ['add', 'f.txt'], { cwd: main });
-  execFileSync('git', ['commit', '-q', '-m', 'feature work'], { cwd: main });
+  // Commit SHAs are content-addressed at 1-second granularity, and
+  // `cherry-pick` below inherits the original commit's AUTHOR date while
+  // stamping a fresh COMMITTER date. If both commits happened to land in the
+  // same wall-clock second (execFileSync calls are fast — a real, observed
+  // failure, not theoretical), the cherry-picked commit would be
+  // byte-identical to the original — same tree, parent, author+date,
+  // committer+date, message — producing the SAME sha and turning this test's
+  // own precondition (NOT an ancestor) into a random, load-independent
+  // failure (#185 review, Important 2). Pinning explicit, distinct dates via
+  // GIT_AUTHOR_DATE/GIT_COMMITTER_DATE removes the race outright — no sleep,
+  // no reliance on the clock ticking over.
+  execFileSync('git', ['commit', '-q', '-m', 'feature work'], {
+    cwd: main,
+    env: { ...process.env, GIT_AUTHOR_DATE: '2020-01-01T00:00:00', GIT_COMMITTER_DATE: '2020-01-01T00:00:00' },
+  });
   // Simulate `gh pr merge --rebase`: the integration branch gains the same
   // content under a different sha, so the branch is NOT an ancestor of it.
+  // cherry-pick copies the AUTHOR date from the source commit automatically;
+  // only the COMMITTER date needs to be forced distinct here.
   execFileSync('git', ['checkout', '-q', base], { cwd: main });
-  execFileSync('git', ['cherry-pick', 'feature'], { cwd: main });
+  execFileSync('git', ['cherry-pick', 'feature'], {
+    cwd: main,
+    env: { ...process.env, GIT_COMMITTER_DATE: '2020-01-02T00:00:00' },
+  });
 
   const ancestor = (() => {
     try {
@@ -211,4 +230,48 @@ test('reapWorktrees: never removes the worktree the caller is standing in', () =
   const res = reapWorktrees({ cwd: wt, integration: base });
   assert.deepStrictEqual(res.reaped, []);
   assert.strictEqual(fs.existsSync(wt), true);
+});
+
+// The five tests above all exercise freshly-created, never-locked worktrees,
+// so lockVerdict() always evaluates to 'free' inside reapWorktrees() itself —
+// lockVerdict is well covered in isolation against synthetic {locked, pid}
+// fixtures (above), but nothing proved the *wiring* at the loop's own
+// verdict-dispatch: a regression that inverted or dropped that condition
+// would still pass every other test here. These two drive 'in-use' and
+// 'orphaned' through reapWorktrees() itself, via a real `git worktree lock`.
+
+test('reapWorktrees: a worktree locked by a live session is skipped, never removed', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = linkedWorktreeOf(main);
+  // process.pid is guaranteed alive for the duration of this test.
+  execFileSync(
+    'git',
+    ['worktree', 'lock', '--reason', `claude session test (pid ${process.pid} start Fri Aug  7 14:40:15 2026)`, wt],
+    { cwd: main },
+  );
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, []);
+  assert.strictEqual(fs.existsSync(wt), true);
+  assert.match(res.skipped.find((s) => s.path === fs.realpathSync(wt)).reason, /in use/);
+});
+
+test('reapWorktrees: a worktree locked by a dead pid is unlocked and reaped', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = linkedWorktreeOf(main);
+  // 2^22 is above the default pid_max on both macOS and Linux — the same
+  // deterministic "definitely dead" pid the lockVerdict tests above use.
+  execFileSync(
+    'git',
+    ['worktree', 'lock', '--reason', 'claude session test (pid 4194304 start Fri Aug  7 09:00:00 2026)', wt],
+    { cwd: main },
+  );
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  // Reaching `reaped` at all proves the `git worktree unlock` step ran first —
+  // `git worktree remove` refuses outright on a still-locked worktree.
+  assert.deepStrictEqual(res.reaped, [wt]);
+  assert.strictEqual(fs.existsSync(wt), false);
 });
