@@ -20,11 +20,39 @@ labels (see `_shared/work-record.md`'s permission matrix).
 
 ## Step 2: Determine testability
 
-Read the changed-file list for this run (`git diff --name-only {base}...HEAD`, or the
-materialized header's file list). If every changed path matches a non-UI pattern —
-documentation (`docs/**`, `*.md` outside `stories/`/`docs/journeys/`), configuration, harness
-skill files (`skills/**/*.md`, `.claude/**`), or backend-only code with no route/component/page
-touched — this record has **no interactive verification surface**. Otherwise it is testable.
+Classify the changed-file list for this run (`git diff --name-only {base}...HEAD`, or the
+materialized header's file list) through the shared classifier — the same one
+`bin/lib/issues/acceptance.js` exports for `/claude-tweaks:tidy`'s acceptance-gap scan
+(`_shared/github-pr-scan.md`), so the two never drift apart:
+
+```bash
+node -e "
+  const { verificationSurface } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const paths = process.argv.slice(1);
+  console.log(verificationSurface(paths));
+" $(git diff --name-only {base}...HEAD)
+```
+
+`interactive` — this record is testable; continue to Step 2.5.
+
+`non-interactive` — this record has **no interactive verification surface**, but it is not a
+dead end: compose **manual verification steps** now, concrete enough for a human to run or read
+by hand and observe the result —
+
+- A changed skill or harness file — name the skill and the specific behavior to exercise (a step
+  number, a branch, a template section), not "read the skill."
+- Changed `bin/` code — the command to run and its expected output (e.g. the module's own test
+  file and its pass output, or a one-line `node -e` exercising the changed function).
+- A changed doc or config file — the file to open and the specific claim or setting to check
+  against current behavior.
+
+(Read the changed-path list itself to tell which of these applies per file — do not re-derive
+which categories `verificationSurface` treats as non-interactive; that classification already
+ran above.)
+
+These steps carry forward into Step 4's `### Verify it yourself (manual)` section. Skip Step 2.5
+(its own header already scopes it to testable records) and go straight to Step 3's non-testable
+branch.
 
 ## Step 2.5: Visual-Review Safety-Net Gate (testable records only)
 
@@ -37,7 +65,7 @@ field (`review-summary-template.md`). Branch on its value:
 |---|---|---|
 | `Completed (code + visual)` or `Completed (code + visual, QA-enriched)` | A full browser walk already ran; any bug it found was already fixed and reverified through `/review`'s Step 3 Routing before `/review` could PASS | Proceed to Step 3 — no further action |
 | `Recommended — journeys affected` or `Recommended — UI changed (no journeys)` | Only recommendation mode ran — no browser walk happened | Trigger the gate below |
-| `Skipped — no UI changes` | Contradicts Step 2 finding an interactive surface | Treat as `Recommended` — trigger the gate below and let `/visual-review`'s own detection re-confirm |
+| `Skipped — no UI changes` | `/review` read the diff and found no UI. Step 2 disagrees, but only by default — no path positively matched a UI surface, and `verificationSurface` carries no backend-code category (see its own comment for why), so a backend-only change lands here routinely | Treat as `Recommended` — trigger the gate below and let `/visual-review`'s own detection re-confirm. It costs a walk that finds nothing; the reverse error skips acceptance on a real UI change |
 | `Skipped — browser tools not configured` or `Completed (code only — no browser)` | Nothing was walked, nothing can be — the latter is full-mode `/review` completing with a code-only fallback when no browser backend was available at invocation, same practical outcome as the former | See the browser-unavailable fallback below |
 | No `/review` summary available for this run (standalone `/wrap-up`, no recent `/review` run) | No signal exists | Treat as `Recommended` — trigger the gate below |
 
@@ -153,6 +181,12 @@ Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 ### See it yourself (optional)
 {APP_URL}/{path} — {journey name, when applicable}
 {omit this section entirely for non-testable records and the browser-unavailable fallback}
+
+### Verify it yourself (manual)
+{non-testable records only — the manual verification steps composed in Step 2: one concrete
+command, file path, or observable behavior per changed area}
+{omit this section entirely for testable records, with or without visual review — mutually
+exclusive with "See it yourself" above, never both}
 
 ---
 
