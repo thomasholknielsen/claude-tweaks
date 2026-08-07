@@ -251,10 +251,14 @@ Without this the new suite never runs under `npm test` — the script enumerates
 
 In `package.json`, in the `scripts.test` value, insert `bin/lib/wrap-up/tests/*.test.js` immediately after `bin/lib/init/tests/*.test.js`.
 
-- [ ] **Step 8: Verify the glob works**
+- [ ] **Step 8: Verify the glob works AND the suite is green**
 
-Run: `npm test 2>&1 | grep -c "reflog"`
-Expected: a non-zero count, proving the new suite is picked up by the enumerated script.
+Run: `npm test > /tmp/wrapup-task1.txt 2>&1; echo "exit=$?" >> /tmp/wrapup-task1.txt`
+Then: `grep -E "^exit=|^# (pass|fail)" /tmp/wrapup-task1.txt` and `grep -c "reflog" /tmp/wrapup-task1.txt`
+
+Expected: `exit=0`, `# fail 0`, and a non-zero reflog count. All three matter and none substitutes for another — the reflog count proves the enumerated glob picked the new suite up, while `exit=0` / `# fail 0` prove Step 6's deliberate break was actually reverted. A count alone cannot tell a passing test from a failing one, since both print the test name.
+
+Note: `install-statusline-wrapper.test.js` is load-sensitive and can time out at 5 s under a loaded machine, reporting `status=null`. If that is the ONLY failure, re-run it alone (`node --test tests/install-statusline-wrapper.test.js`) to confirm it passes in isolation before treating the suite as red.
 
 - [ ] **Step 9: Commit**
 
@@ -901,8 +905,10 @@ Expected: `4`
 - [ ] **Step 9: Run the full suite**
 
 Run: `npm test > /tmp/wrapup-task5.txt 2>&1; echo "exit=$?" >> /tmp/wrapup-task5.txt`
-Then: `tail -20 /tmp/wrapup-task5.txt`
-Expected: `exit=0`. Redirect first — piping a long suite directly can hide the real failure or trigger a silent re-run.
+Then: `grep -E "^exit=|^# (pass|fail)" /tmp/wrapup-task5.txt`
+Expected: `exit=0`, `# fail 0`. Redirect first — piping a long suite directly can hide the real failure or trigger a silent re-run. The full suite takes roughly 25 minutes; use `node --test bin/lib/wrap-up/tests/*.test.js` for the inner loop and reserve this for the final check.
+
+Note: `install-statusline-wrapper.test.js` is load-sensitive and can time out at 5 s under a loaded machine, reporting `status=null`. If that is the ONLY failure, re-run it alone (`node --test tests/install-statusline-wrapper.test.js`) to confirm it passes in isolation before treating the suite as red.
 
 - [ ] **Step 10: Commit**
 
