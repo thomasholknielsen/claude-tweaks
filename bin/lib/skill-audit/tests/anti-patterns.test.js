@@ -263,5 +263,30 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   RUNNING the parser on the merged tree — 366 — not by adding 1 and 7 to the
   //   shared base. The arithmetic happens to agree here, which is exactly the
   //   coincidence the entry above warns is not evidence.
-  assert.strictEqual(total, 366);
+  //
+  //   365 -> 370, native surface routing (#151). Five rows ADDED to design-
+  //   wrapper/SKILL.md, none evicted, all guarding the new web-vs-native track
+  //   resolution: "Running the Impeccable CLI or `live` on a native surface",
+  //   "Returning `pass` from `test` mode on a native surface", "Dispatching
+  //   native work without naming `ios`, `android`, or `adaptive`", "Letting
+  //   `setup.platform` silently overrule an explicit `Surface:`", and "Running
+  //   Layer 3's web-only sniff against a declared native surface". Verified in
+  //   both directions: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty, and 370 was read off the parser run against the
+  //   working tree, not computed as 365 + 5 — the arithmetic agreeing is a
+  //   check, not the evidence (`[IL-99]`). A concurrent lane is editing
+  //   design-wrapper/modes/review.md this wave; mode sub-files carry no
+  //   Anti-Patterns table and this parser only reads `skills/*/SKILL.md`, so
+  //   that lane cannot move this number without touching a SKILL.md itself.
+  //
+  //   -> 371, second merge of origin/main (6.54.0) into the autonomy-governor
+  //   branch. Fourth `[IL-99]` occurrence on this counter in one wave: this
+  //   branch stood at 366, upstream at 370, both measured from a 365 base that
+  //   only one of them still shares. Re-derived by RUNNING the parser on the
+  //   merged tree. Note the arithmetic does NOT agree this time — 366 + 5 = 371
+  //   works only because upstream's five rows and this branch's one row are
+  //   disjoint, which is a fact about the diff and not something the two
+  //   literals could have told anyone. That is the whole reason this entry
+  //   records a measurement rather than a sum.
+  assert.strictEqual(total, 371);
 });
