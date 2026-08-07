@@ -1,0 +1,6 @@
+{
+  "name": "impeccable",
+  "description": "Fixture candidate — a cached version ABOVE the pin. Not a real install.",
+  "version": "4.0.4",
+  "skills": "./skills/"
+}

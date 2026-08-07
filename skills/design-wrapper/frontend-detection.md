@@ -1,6 +1,6 @@
 # Frontend Detection — Sniff Rules + Body-Metadata Spec
 
-Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which `/specify` writes on every new leaf record today; pre-v4.5 specs predate the field, so an absent value is normal and falls through to Layer 3.
+Reference for the wrapper's 3-layer detection logic — Layers 1-3, the layers that can actually decide. (Layer 0, the context-signals enrichment layer, sits above them in resolution order but decides nothing; see the precedence summary below and `impeccable-plugin.md`.) Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which `/specify` writes on every new leaf record today; pre-v4.5 specs predate the field, so an absent value is normal and falls through to Layer 3.
 
 ## Layer 3 — File-extension sniff (fallback)
 
@@ -77,6 +77,14 @@ For Layer 2 detection, see `Surface:` values in `skills/specify/spec-template.md
 ## Detection precedence summary
 
 ```
+Context signals (Layer 0 — ENRICHMENT ONLY, no branch)
+    │
+    ├─ resolved            → carry signals forward
+    ├─ absent / off-pin    → carry nothing forward
+    └─ execution failure   → carry nothing forward
+    │
+    │   (all three continue — Layer 0 has no skip edge)
+    ▼
 CLAUDE.md design-integration flag (Layer 1)
     │
     ├─ disabled  → skip (universal)
@@ -97,4 +105,8 @@ CLAUDE.md design-integration flag (Layer 1)
                                                           └─ matches    → proceed to dispatch
 ```
 
-The earlier a layer can decide, the cheaper the skip. Kill-switch is a single CLAUDE.md read; sniff requires walking the file list.
+**Layer 0 gates nothing.** Every one of its outcomes continues to Layer 1 — that is why it is drawn with no skip edge while the three layers below each have one. It enriches; it has no veto and no skip power of its own. Layers 1-3 remain the only things that can stop a dispatch.
+
+**Layer 3 is retained, not superseded.** Layer 0 carries a `scan.targets` list that looks like a frontend-file list and is not one: it filters on the extensions Impeccable's detector can *parse*, which include bare `.js` and `.ts` — the exact files the negative-cases section above requires Layer 3 to reject. Nothing upstream computes a frontend predicate, so Layer 3 remains the only thing that answers "is this change frontend?" and this diagram's bottom decision stays exactly where it was. `impeccable-plugin.md` has the full argument; `tests/impeccable-plugin-contract.test.js` holds a permanent frozen-fixture assertion of the non-equivalence.
+
+The earlier a layer can decide, the cheaper the skip. Kill-switch is a single CLAUDE.md read; sniff requires walking the file list. Layer 0 is ordered first for a different reason — it is an unconditional enrichment fetch whose result later steps may consult, not a decision that could short-circuit the ones after it.
