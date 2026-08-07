@@ -48,6 +48,8 @@ come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buck
 | Review | Keep (unless clearly stale) |
 | Stale | Delete or Promote |
 
+**Decomposition parents are exempt — always `Keep`, at every age.** A record carrying `family:parent` (`github-issues`) or `facets.familyParent === true` (`local-files`) is `isBacklog` by construction and forever: `/claude-tweaks:specify` never gives a parent a stage label and nothing ever promotes one, so every live parent crosses the staleness threshold and lands on `Delete or Promote` while its family is still being built — and `Delete` here is `gh issue close --reason "not planned"`, which destroys the family's only acceptance checkpoint. Leaves landing weeks apart is the dominant workflow, so a parent going stale mid-family is the common case, not the edge one. Give the row the reason inline (`Keep — decomposition parent, gated by Step 4.8's family-gate scope, not by staleness`) rather than dropping it silently, so a reader sees why one stale-looking record is being left alone. Step 4.8's `[family-gate]` scope is what acts on parents; this shape must not race it with a contradictory recommendation for the same record.
+
 → Collect each as: `[backlog] {title} — {age} — {recommendation}`
 
 ### Shape 2 — parked trigger met
