@@ -96,13 +96,18 @@ Cache shape:
 {
   "spec": "<spec id or path>",
   "written_at": "<ISO timestamp>",
-  "findings": [ { "source": "audit", "file": "...", "category": "...", "severity": "...", "message": "...", "suggestion": "..." }, ... ]
+  "findings": [ { "id": "...", "source": "audit", "file": "...", "category": "...", "severity": "...", "message": "...", "suggestion": "..." }, ... ]
 }
 ```
 
+Two fields exist for `polish` mode's benefit and must be written even when they look redundant:
+
+- **`suggestion`** — the command `audit` named for this finding, normalized to a bare command name. It is the *only* thing that selects a command in `polish` mode's suggestion-driven dispatch, so a finding cached without it is downgraded to an unclassified observation. When `audit`'s output gives no suggested command for an issue, write the field as `null` rather than omitting it, so the downgrade is visibly deliberate rather than looking like a cache-shape bug.
+- **`id`** — a per-run identifier, stable within one cache file: use the finding's own identifier when `audit` emits one, otherwise assign `audit-{n}` by position, 1-based. `polish` mode stages unclassified findings by `id`, and a human at the Review Console needs it to find the finding this cache came from.
+
 Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. Cleanup is handled by `/claude-tweaks:wrap-up` Step 5 alongside the ledger.
 
-If the cache write fails (disk full, permission denied), surface the failure as a one-time skip and continue — `polish` mode degrades to auto-fit-only when the cache is absent.
+If the cache write fails (disk full, permission denied), surface the failure as a one-time skip and continue — with the cache absent, `polish` mode runs its refinement set and intent dispatch, and skips suggestion-driven dispatch entirely.
 
 ## Output to caller
 
@@ -124,4 +129,4 @@ If the cache write fails (disk full, permission denied), surface the failure as 
 
 `score_trend` is built from Step 4.5. A score type's key (`critique` or `audit`) is omitted entirely from `score_trend` if that command's Total row didn't parse this run (Step 4). If **neither** score parsed, omit `score_trend` entirely from the output — same pattern as other inapplicable fields elsewhere in this contract.
 
-`result: advisory` signals the findings inform the review verdict but do not auto-modify code. The `polish` mode (invoked separately by `/flow`) is the code-modifying counterpart that consumes the cached audit findings to drive issue-driven dispatch.
+`result: advisory` signals the findings inform the review verdict but do not auto-modify code. The `polish` mode (invoked separately by `/flow`) is the code-modifying counterpart that consumes the cached audit findings to drive suggestion-driven dispatch. Each cached finding's `suggestion` field is what selects the command there, so preserve it verbatim when writing the cache — dropping it turns a dispatchable finding into an unclassified observation.
