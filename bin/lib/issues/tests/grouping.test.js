@@ -262,6 +262,179 @@ test('accepts label objects ({name}) as well as plain strings', () => {
   assert.deepStrictEqual(extractKeyFiles(issue), ['src/x.js']);
 });
 
+// ── extractKeyFiles: the `### Key Files` fallthrough (#154) ──────────────────
+// /specify-produced leaves and /capture records carry no by:* origin label, so
+// they reach the fallthrough below the four health-sweep branches. Before #154
+// that fallthrough was a bare `return []`, and every such record reported zero
+// key files — making groupByFileOverlap emit singletons regardless of real
+// overlap, which is exactly the collision guard /dispatch relies on.
+
+const SPECIFY_LEAF_LABELS = ['ready', 'type:feature', 'auto:build', 'priority:high', 'risk:medium', 'effort:medium', 'ceremony:standard'];
+
+test('extracts backticked paths from a /specify-produced leaf\'s ### Key Files subsection', () => {
+  const issue = {
+    labels: SPECIFY_LEAF_LABELS,
+    body: [
+      'Surface: backend',
+      '',
+      '## Technical Approach',
+      '',
+      '### Key Files',
+      '',
+      '- `bin/lib/issues/grouping.js` (modify)',
+      '- `skills/dispatch/SKILL.md` (check)',
+      '',
+      '### Gotchas',
+      '',
+      '- Do not touch `skills/specify/spec-template.md` — it is already correct.',
+    ].join('\n'),
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), [
+    'bin/lib/issues/grouping.js',
+    'skills/dispatch/SKILL.md',
+  ]);
+});
+
+test('stops at the next heading rather than scraping backticked paths out of ### Gotchas', () => {
+  // The Gotchas section routinely names files in backticks. Bleeding past the
+  // section boundary would union unrelated records on an incidental mention.
+  const issue = {
+    labels: SPECIFY_LEAF_LABELS,
+    body: [
+      '### Key Files',
+      '',
+      '- `src/only-this-one.js` (modify)',
+      '',
+      '### Gotchas',
+      '',
+      '- `src/not-a-key-file.js` is merely mentioned here.',
+    ].join('\n'),
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['src/only-this-one.js']);
+});
+
+test('ignores a trailing annotation, including one containing commas and bold markup', () => {
+  // Real annotations from #146/#150. A comma inside the annotation must not be
+  // treated as a path separator the way code-health's `Files:` line does.
+  const issue = {
+    labels: SPECIFY_LEAF_LABELS,
+    body: [
+      '### Key Files',
+      '',
+      '- `skills/design-wrapper/modes/doctor.md` (create — **owns the finding schema**)',
+      '- `skills/design-wrapper/SKILL.md` (modify — Universal preconditions Step 1 and Step 2, Reference sub-files list)',
+    ].join('\n'),
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), [
+    'skills/design-wrapper/modes/doctor.md',
+    'skills/design-wrapper/SKILL.md',
+  ]);
+});
+
+test('takes the first backticked span when a list item names an alternative', () => {
+  // Real shape from record #154's own body:
+  //   - `bin/lib/issues/tests/` or `tests/` (add — fixture-based coverage)
+  const issue = {
+    labels: SPECIFY_LEAF_LABELS,
+    body: '### Key Files\n\n- `bin/lib/issues/tests/` or `tests/` (add — fixture-based coverage)',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['bin/lib/issues/tests/']);
+});
+
+test('skips an unfilled `{path}` template placeholder instead of grouping records on it', () => {
+  // spec-template.md ships "- `{path}` — {what changes}". Two records that both
+  // carry the unfilled template would otherwise union on the literal "{path}".
+  const issue = {
+    labels: SPECIFY_LEAF_LABELS,
+    body: '### Key Files\n\n- `{path}` — {what changes}\n- `src/real.js` (modify)',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['src/real.js']);
+});
+
+test('returns [] for a record whose body has no ### Key Files section', () => {
+  // Backlog and parked records have no such section by construction —
+  // decomposition-mode.md: "skip silently rather than treating the absence as
+  // an error."
+  const issue = {
+    labels: ['backlog', 'type:feature'],
+    body: '## Overview\n\nA half-formed idea with no technical approach yet.',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), []);
+});
+
+test('returns [] for a ### Key Files section that exists but lists no backticked path', () => {
+  const issue = {
+    labels: SPECIFY_LEAF_LABELS,
+    body: '### Key Files\n\n_To be determined during the build._\n\n### Gotchas\n',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), []);
+});
+
+test('the ### Key Files branch is a fallthrough — it never shadows a health-sweep branch', () => {
+  // [IL-83]: an exemption placed after an early return only runs on the branch
+  // you did not put it after. A health record whose body happens to carry a
+  // ### Key Files heading must still extract via its own origin branch.
+  const issue = {
+    labels: ['by:docs-health'],
+    body: [
+      '**Doc:** docs/api.md | **Section:** Overview',
+      '',
+      '### Key Files',
+      '',
+      '- `docs/SOMETHING-ELSE.md` (modify)',
+    ].join('\n'),
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['docs/api.md']);
+});
+
+test('#146 and #150 real bodies land in ONE bundle of two, not two singletons', () => {
+  // Frozen fixtures of the real issue bodies ([IL-80] — never fetched live).
+  // Their true intersection is skills/design-wrapper/SKILL.md and
+  // skills/design-wrapper/impeccable-plugin.md. Before #154, extractKeyFiles
+  // returned [] for both and /dispatch would have built them in two separate
+  // worktrees, each editing those same two files.
+  const readFixture = (n) =>
+    require('node:fs').readFileSync(
+      require('node:path').join(__dirname, 'fixtures', `record-${n}-body.md`),
+      'utf8',
+    );
+  const issue146 = { id: 146, labels: SPECIFY_LEAF_LABELS, body: readFixture(146) };
+  const issue150 = { id: 150, labels: SPECIFY_LEAF_LABELS, body: readFixture(150) };
+
+  const files146 = extractKeyFiles(issue146);
+  const files150 = extractKeyFiles(issue150);
+
+  assert.deepStrictEqual(files146, [
+    'skills/design-wrapper/impeccable-plugin.md',
+    'skills/design-wrapper/SKILL.md',
+    'skills/design-wrapper/frontend-detection.md',
+    'skills/design-wrapper/modes/live.md',
+    'skills/design-wrapper/modes/review.md',
+    'tests/impeccable-plugin-contract.test.js',
+  ]);
+  assert.deepStrictEqual(files150, [
+    'skills/design-wrapper/modes/doctor.md',
+    'skills/design-wrapper/SKILL.md',
+    'skills/design-wrapper/impeccable-plugin.md',
+    'skills/tidy/scan-procedures.md',
+    'skills/tidy/SKILL.md',
+  ]);
+
+  const shared = files146.filter((f) => files150.includes(f));
+  assert.deepStrictEqual(
+    shared.sort(),
+    ['skills/design-wrapper/SKILL.md', 'skills/design-wrapper/impeccable-plugin.md'],
+    'the two records genuinely overlap on exactly these files',
+  );
+
+  const groups = groupByFileOverlap([
+    { id: 146, keyFiles: files146 },
+    { id: 150, keyFiles: files150 },
+  ]);
+  assert.strictEqual(groups.length, 1, 'must be one bundle of two, not two singletons');
+  assert.deepStrictEqual(groups[0].sort(), [146, 150]);
+});
+
 // ── parseExplicitIssueList ───────────────────────────────────────────────────
 
 test('parses a single bare number with a leading #', () => {
