@@ -1,7 +1,7 @@
 ---
 name: design-wrapper
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
-argument-hint: "<shape|pre-build|test|review|polish|survey|reset-recommendations|live> <target> [--screenshots <paths>] [--source <parent-skill>] [--dry-run] [--limit <n>]"
+argument-hint: "<shape|pre-build|test|review|polish|survey|reset-recommendations|live> <target> [--screenshots <paths>] [--source <parent-skill>] [--description <text>] [--dry-run] [--limit <n>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -12,7 +12,7 @@ Wrapper skill that encapsulates the Impeccable design-quality plugin behind a st
 
 Lifecycle: utility — called by lifecycle skills anywhere between `/claude-tweaks:capture` and `/claude-tweaks:wrap-up`.
 
-All seven modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — auto-fit, issue-driven, and intent-driven (the latter reads the record's `Design-intent:` body-metadata line — lifted into the materialized header per spec 20 — and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
+All seven modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — the refinement set, suggestion-driven, and intent-driven (the latter reads the record's `Design-intent:` body-metadata line — lifted into the materialized header per spec 20 — and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
 
 **Three independent surfacing anchors** ensure creative commands cannot get buried:
 
@@ -42,11 +42,11 @@ Full per-mode behavior and argument shape: see the Input table below.
 
 | Mode | Target | Behavior |
 |------|--------|----------|
-| `shape <topic>` | Topic name | Invokes `/impeccable:impeccable shape <topic>`; returns the output for the caller to append to the design doc |
-| `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files plus project's root `PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths and an approximate context size |
+| `shape <topic>` | Topic name | Invokes `/impeccable:impeccable shape <topic>`, forwarding `--description` verbatim when the caller supplied it so upstream's `new-work.md` classifies the work rather than the wrapper pre-classifying it; returns the output for the caller to append to the design doc |
+| `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files (including `new-work.md`, which owns job classification) plus project's root `PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths, an approximate context size, and the record's description verbatim |
 | `test <files>` | Space-separated file list | Runs the deterministic CLI per `impeccable-cli.md`; returns pass/fail |
 | `review <spec>` | Spec number or path | Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files; returns advisory findings; writes findings cache for `polish` mode to read |
-| `polish <spec>` | Spec number or path | Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (per the record's `Design-intent:` body-metadata line, lifted into the materialized header — spec 20) commands per `command-map.md`; modifies code. With `--dry-run`, computes the same category/trigger dispatch list but issues no Impeccable commands and modifies nothing — see `modes/polish.md` Step 8. |
+| `polish <spec>` | Spec number or path | Dispatches the refinement set (`polish`/`clarify`/`harden`, each carrying the job-statement suffix) + suggestion-driven (whatever command each audit finding's own `suggestion` field names) + intent-driven (per the record's `Design-intent:` body-metadata line, lifted into the materialized header — spec 20) commands per `command-map.md`; modifies code. With `--dry-run`, computes the same category/trigger dispatch list but issues no Impeccable commands and modifies nothing — see `modes/polish.md` Step 8. |
 | `survey <files>` | Space-separated file list, or `--screenshots <paths>` when invoked from `/visual-review` | Analyzes the diff (and screenshots when provided) and returns ranked Creative Opportunities recommendations; suppresses recommendations the user previously declined for the same spec; read-only. `--limit <n>` overrides the default cap of 5 recommendations. |
 | `reset-recommendations <spec>` | Spec number or path | Deletes the declined-recommendations cache for the spec; the next `survey` call surfaces all matching recommendations again |
 | `live <target>` | URL — an ephemeral scaffold server or an already-running app | Invokes `/impeccable:impeccable live` against the target. Interactive-only, no auto-mode branch — a human must be present in a browser |
@@ -57,6 +57,7 @@ Full per-mode behavior and argument shape: see the Input table below.
 |------|-------|---------|
 | `--screenshots <paths>` | `survey` | Passed by `/visual-review` — screenshot paths for per-screenshot LLM-graded observations instead of heuristic diff analysis |
 | `--source <parent-skill>` | any | Explicit caller-invoked signal when the caller has no `$PIPELINE_RUN_DIR` of its own to forward (e.g. standalone `/visual-review`) — see Component-Skill Contract below |
+| `--description <text>` | `shape` | The design doc's own overview or problem statement, forwarded verbatim to upstream so `new-work.md` can classify the work. Optional — omitting it degrades the call, never fails it. |
 | `--dry-run` | `polish` | Compute the dispatch list without invoking any Impeccable command or modifying files |
 | `--limit <n>` | `survey` | Override the default 5-recommendation cap (see `modes/survey.md` Step 5) |
 
@@ -130,7 +131,7 @@ For the dispatched mode, verify the dependency is available:
 | `review` | Impeccable plugin (LLM commands) | Check whether `/impeccable:impeccable` skill resolves. Look for `/impeccable:impeccable*` in the available skills list provided by the harness. If none resolve, treat as unavailable. |
 | `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. |
 | `pre-build` | Impeccable plugin (reference files) | Same as `review`. The reference files ship with the plugin; if the plugin resolves, the references are available. |
-| `polish` | Impeccable plugin (LLM commands) | Same as `review` — `polish`/`clarify`/`harden` and the issue-driven commands all live in the plugin. |
+| `polish` | Impeccable plugin (LLM commands) | Same as `review` — the refinement set and every suggestion-driven command all live in the plugin. |
 | `live` | Impeccable plugin (LLM commands + bundled live-mode scripts) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. The live-mode scripts ship with the plugin itself, so no separate check is needed. |
 | **Layer 0** (all modes) | Impeccable plugin **at the pinned version**, resolved from the plugin cache | Follow `impeccable-plugin.md`'s resolution procedure: glob the cache, read each candidate's own `version`, select the one equal to the pin in its `<!-- upstream-pin: impeccable-plugin@X.Y.Z -->` comment. **Unlike every row above, an unavailable result here is not a mode-level skip** — see the note below the skip shapes. |
 
@@ -187,7 +188,7 @@ Does not modify code — read-only enrichment. Read `modes/pre-build.md` in this
 
 ### Mode: `polish <spec>` — Active
 
-**The only wrapper mode that modifies code** — callers must follow up with re-verification. See `command-map.md` in this skill's directory for the dispatch tables (auto-fit list, issue-driven category matching, intent-driven mapping). Read `modes/polish.md` in this skill's directory for the full procedure.
+**The only wrapper mode that modifies code** — callers must follow up with re-verification. See `command-map.md` in this skill's directory for the dispatch rules (refinement set + job-statement suffix, suggestion-driven resolution, intent-driven mapping). Read `modes/polish.md` in this skill's directory for the full procedure.
 
 ### Mode: `survey <files>` — Active
 
@@ -230,7 +231,7 @@ See `_shared/design-wrapper-handling.md` for the canonical caller-side contract 
 Lazy-load these only when needed for the active mode:
 
 - `modes/{name}.md` — One file per mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format).
-- `command-map.md` — Single source of truth for dispatch tables: auto-fit / issue-driven / intent-driven categorization for all 24 Impeccable commands, plus the survey "would help" criteria → command mapping.
+- `command-map.md` — Single source of truth for dispatch: the per-command categorization (phase-fixed / refinement set / suggestion-driven / intent-driven / manual-only / never) covering every Impeccable command the wrapper knows about, plus the survey "would help" criteria → command mapping. Its Full command map table is the count — do not restate one here.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules. Pins the **CLI**.
 - `impeccable-plugin.md` — Layer 0: plugin-cache resolution, the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
@@ -273,7 +274,9 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Running CLI gate on backend specs | Wastes scans on irrelevant files — the detection layer must skip before invocation |
 | Treating `/impeccable:impeccable critique` as authoritative | Advisory only — surfaced for user judgment, never auto-applied |
 | Hard-failing the test gate when the CLI is missing | Blocks users without Impeccable — the availability check returns skip, not fail |
-| Running `polish` when the audit cache is absent | Issue-driven dispatch needs audit signal — degrade to auto-fit-only rather than guessing categories |
+| Running `polish` when the audit cache is absent | Suggestion-driven dispatch needs audit findings — run the refinement set and intent dispatch, and skip it, rather than guessing commands |
+| Deriving a polish command from a finding's `category`, `rule`, or `description` | The finding's own `suggestion` field is the only dispatch key. Keyword-mapping was retired precisely because it re-derived, badly, what `audit` already states. |
+| Dropping an audit finding that has no `suggestion` | Stage it as an unclassified observation so it reaches the Review Console — silently discarding it loses a real finding. |
 | Polish modifying logic that breaks tests | `/flow`'s re-verify gate and one-cycle cap only contain it — keep polish scoped to design-system alignment, not behavior. |
 | Auto-running intent-driven commands without explicit intent | Dispatch ONLY when `design-intent:` declares a matching value — inferring it from file content or LLM judgment removes user agency. |
 | Auto-running survey recommendations | `survey` is read-only — it suggests, never invokes. Auto-running its output bypasses user agency. |

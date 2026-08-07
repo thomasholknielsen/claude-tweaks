@@ -180,5 +180,16 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   diff" row to "...when a brief already exists" — a reword, not an
   //   eviction: `git diff -- 'skills/*/SKILL.md' | grep -E '^-\|'` returns that
   //   one line and its replacement is present in the same table. Net +1.
-  assert.strictEqual(total, 354);
+  //
+  //   354 -> 356, retirement of design-wrapper's auto-fit / issue-driven
+  //   dispatch tables (#147). Two rows ADDED to design-wrapper/SKILL.md, both
+  //   guarding the suggestion-driven model that replaced the keyword tables:
+  //   "Deriving a polish command from a finding's `category`, `rule`, or
+  //   `description`" and "Dropping an audit finding that has no `suggestion`".
+  //   The same change set rewords that table's "Running `polish` when the audit
+  //   cache is absent" row to name the new vocabulary — a reword, not an
+  //   eviction: its replacement is present in the same table. The other `-|`
+  //   lines in this change set are Input/Flags/availability rows, which this
+  //   parser does not read. Net +2.
+  assert.strictEqual(total, 356);
 });
