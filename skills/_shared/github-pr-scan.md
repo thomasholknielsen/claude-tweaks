@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
 
 Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — `gh`'s implicit default is 30, which silently truncates instead of erroring. A result count landing exactly at the stated limit means the scan may be incomplete; treat that as a signal to narrow the query (a tighter label/state filter) or re-run with a higher `--limit`, not as a final count.
 
@@ -143,13 +143,51 @@ Render as one line listing every matching record: `Awaiting sign-off: **{N} reco
 ({title1}), #{n2} ({title2}), ... — run /demo #N on any of these` — omit entirely when the count
 is 0.
 
+## Scope: `acceptance-gap` (consumed by /tidy Step 4.8)
+
+Finds closed records that carry no acceptance label at all — the case `acceptance-queue` above
+cannot see, since that scope only lists records already flagged `demo:pending`. A record closed
+without ever receiving a `demo:*` label is invisible to `acceptance-queue` and would otherwise
+disappear from the backlog with no disposition on record. Classification is entirely
+`needsBackstop`'s (`bin/lib/issues/acceptance.js`, Task 1) — this scope does not reimplement the
+label taxonomy; see that module or `_shared/work-record.md` for what the labels mean.
+
+Record set: closed records from the last 30 days. The `date` fallback covers both platforms this
+plugin runs on — BSD `date` (macOS, this project's development platform) uses `-v-30d`; GNU `date`
+(Linux, cloud Routine sandboxes) uses `-d '30 days ago'`.
+
+```bash
+gh issue list --state closed --limit 200 \
+  --json number,title,state,labels,closedAt \
+  --jq '[.[] | select(.closedAt > "'"$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)"'")]' \
+  > /tmp/tidy-closed-records.json
+
+node -e "
+  const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const records = require('/tmp/tidy-closed-records.json');
+  const gaps = records
+    .map(r => ({ ...r, labels: r.labels.map(l => l.name) }))
+    .filter(r => needsBackstop({ state: 'CLOSED', labels: r.labels }));
+  gaps.forEach(r => console.log('[acceptance-gap] #' + r.number + ': ' + r.title + ' — closed with no acceptance disposition — recommend /claude-tweaks:demo #' + r.number));
+"
+```
+
+Un-dispositioned closed records are **staged, never auto-applied**, regardless of
+`tidy-aggressiveness`. Applying a disposition is a judgment about whether shipped work actually
+solved the problem — not a mechanical cleanup — and `_shared/auto-mode-contract.md` places that
+kind of work-record judgment outside what `auto` silences. Do not fold this finding into any
+auto-apply tier.
+
+Emit `[acceptance-gap]` rows per the Output Contract.
+
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, plus one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records), and one un-dispositioned-closed-record prefix (`acceptance-gap` scope only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 - `[gh-issue]` — code-health/harness-health/journey-health/docs-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 - `[queue]` — grant-queue metrics (item 8 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
+- `[acceptance-gap]` — closed records with no acceptance disposition (`acceptance-gap` scope above): `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
 
 Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
 
@@ -164,5 +202,6 @@ Severity mapping (Template A Severity column):
 | Merged/closed PR with local branch/worktree remnants | medium |
 | Code-health/harness-health/journey-health/docs-health issue stale/superseded | medium |
 | Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:backlog refine` | low |
+| Closed record with no acceptance disposition (`acceptance-gap` scope) | medium |
 | Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
 | Fresh draft PR / no PR / scan skipped | info |
