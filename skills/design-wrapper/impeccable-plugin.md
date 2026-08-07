@@ -161,7 +161,7 @@ Use the Bash tool's default timeout. The dominant cost is the dev-server probe �
 | `git.changedCount` | number | The **uncapped** total — compare against `changedFiles.length` to detect truncation |
 | `devServer.running` | boolean | True when any probed port accepted a TCP connection |
 | `devServer.ports` | number[] | Ascending. Probed set: `3000 4200 4321 5173 5174 8000 8080` |
-| `scan.targets` | string[] | Capped at 50, relative to `cwd`. **Not a frontend-file list** — see the trust table and the Layer 3 section above |
+| `scan.targets` | string[] | Relative to `cwd`, and capped at 50 **on the `git-changes` branch only** — the other three branches return at most a handful of directory names by construction. **Not a frontend-file list** — see the trust table and the Layer 3 section above |
 | `scan.via` | `git-changes` \| `source-dir` \| `html` \| `root` \| null | Which of the four resolution branches produced `targets` |
 
 ### `scan.via` resolution order
