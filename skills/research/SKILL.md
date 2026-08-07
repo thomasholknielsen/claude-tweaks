@@ -61,10 +61,10 @@ Then proceed with the selected mode.
 
 ## Workflow
 
-1. **Resolve** topic + depth tier from `$ARGUMENTS` (or the Mode Picker).
-1a. **Branch on mode.** When the first token of `$ARGUMENTS` is `verify`, read `verify-mode.md` in
-    this skill's directory and follow it instead of Steps 2-7 below; it owns its own output
-    contract. Every other input continues at Step 2 with today's behavior.
+1. **Resolve the input.** When the first token of `$ARGUMENTS` is `verify`, read `verify-mode.md`
+   in this skill's directory and follow it instead of Steps 2-7 below — it owns its own output
+   contract. Otherwise resolve topic + depth tier from `$ARGUMENTS` (or the Mode Picker) and
+   continue at Step 2 with today's behavior.
 2. **Construct the output directory:** `{root}/[YYYY-MM-DD]-[topic-slug]/`, where `{root}` is `{cwd}/.claude-tweaks/research/` unless `--output=<path>` overrides it (the dated subdirectory is still appended beneath the override). Derive `topic-slug` by lowercasing the topic, collapsing runs of non-alphanumeric characters to a single hyphen, trimming leading/trailing hyphens, and truncating to 60 characters. If the resulting directory already exists (an identical topic re-run the same day), append a numeric suffix (`-2`, `-3`, ...) instead of overwriting the earlier report. Create the directory before researching.
 3. **Availability pre-check (built-in path).** Skip this step entirely when `--engine=inline` was passed — go straight to Step 5. Otherwise decide whether the built-in `/deep-research` Dynamic Workflow is usable:
 
