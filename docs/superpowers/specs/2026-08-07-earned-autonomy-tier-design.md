@@ -290,21 +290,44 @@ is genuinely unmet today. Provenance needs a reader, not a backfill.
 ## Phase 3 — The governor
 
 - The `autonomy` ceiling lever, resolved through `_shared/auto-mode-contract.md`'s existing
-  precedence order (CLI arg > `config.yml` > project policy > skill default).
+  precedence order (CLI arg > `config.yml` > project policy > skill default). Shipped as
+  `bin/lib/issues/autonomy.js`'s `resolveCeiling`, with `_shared/autonomy-ceiling.md` as the
+  contract every consumer cites rather than restates.
+- **A verdict floor, added at Phase 3 and not in the original design.** Phase 2's rule graded a
+  cell on `total >= MIN_SAMPLES` plus a *single* disposition, which is sound for a display and
+  unsound the moment a machine reads it: measured on this repo, one `demo:approved` on a
+  40-record cell produced `verdict: 'clean'`. Phase 3 floors on `dispositioned >= MIN_VERDICTS`
+  (5) instead, and drops `notPlanned` from the clean test — a declined record has no work
+  product to judge, and with no time window in the table it was pinning two of the four real
+  cells to `mixed` permanently. This is open question 1, answered.
 - Amend `_shared/work-record.md`'s permission matrix: born-`ready` for agent-filed residue at
-  `trusted`; born-authorized at `unattended`, gated on both class trust and ceiling.
+  `trusted`; born-authorized at `unattended`, gated on both class trust and ceiling. *(Revised at
+  Phase 3.)* The two turned out to differ in kind rather than degree — `ready` asserts shape and
+  leaves the human gate standing, while `auto:build` **is** the authorization and originating one
+  from machinery contradicts a standing invariant that has a live eval asserting it. So
+  born-authorized ships **defined but shut**, behind a second explicit opt-in that nothing sets;
+  reaching the top tier is not by itself an amendment of that invariant.
 - Amend the auto-mode contract's never-reversible list to cover the grant. Record creation already
   has this carve-out shape via `unattended-tier`, which is the precedent to follow.
-- Trust-driven batched grant console in `/claude-tweaks:backlog refine`.
-- Survival sweep, **if** the Phase 2 signals prove too thin to grant on — moved here from Phase 2,
-  which shipped only the signals one `gh` call yields (the trust table's own columns) and
-  deliberately started no git walk. Scope would be revert detection and path-overlap follow-ups
-  over recently-closed records, folded into `/claude-tweaks:tidy --scope=github`'s existing
-  rolling digest.
+- Trust-driven batched grant console in `/claude-tweaks:backlog refine`. *(Revised at Phase 3.)*
+  No new console was built — `refine` Step 3 already has one, with a `grant-check` pass and a
+  single batch confirm. Trust rides in as an advisory `Trust` column beside the existing
+  recommendation and never drives it: the class's history is not evidence about this record's
+  shape. The ceiling's only behavioral effect inside that skill is which records arrive
+  born-`ready` at all.
+- Survival sweep, **if** the Phase 2 signals prove too thin to grant on. *(Revised at Phase 3 —
+  still deferred.)* They cannot be shown too thin yet: no cell has any dispositioned evidence at
+  all, so there is nothing to judge the question against.
 - Handle the resolver's fourth `kind`. `unstructured` is not a taxonomy state and must never be
-  graded (see 1.1) — a consumer switching over three kinds silently drops it.
+  graded (see 1.1) — a consumer switching over three kinds silently drops it. *(Revised at Phase
+  3.)* Shipped as an **allowlist** of the three gradable kinds, not a denylist naming
+  `unstructured`. A denylist inverts this hazard rather than fixing it — it granted to any kind it
+  had not been taught, including a case-variant `'PRODUCER'` and an empty string, both verified
+  reachable before the allowlist landed.
 
-First phase that changes behavior.
+First phase that changes behavior — though on this repo it changes none yet, because every cell
+still reads `insufficient-evidence`. The mechanism ships ahead of the evidence deliberately: the
+ceiling has to exist before anything can exceed it.
 
 ## Phase 4 — Actuator and throughput
 
@@ -337,8 +360,26 @@ review scope stays legible.
 
 ## Open questions
 
-1. Minimum sample count before a trust cell may move off `supervised` behavior — needs a decision,
-   defaulting conservative.
+1. ~~Minimum sample count before a trust cell may move off `supervised` behavior.~~ **Answered at
+   Phase 3.** Two floors, not one: `MIN_SAMPLES` (8) on the cell's size, and `MIN_VERDICTS` (5) on
+   the acceptance verdicts inside it. The second is the one that matters — the original single
+   floor counted *records*, which let one approval grade a 40-record class. Five is the smallest
+   run that is not an anecdote and, at roughly ten closed records per class per month, is
+   reachable in weeks; an unreachable floor would make the table decorative, which is the failure
+   mode that already killed `demo:pending`.
 2. Whether the survival window is 7 or 14 days, and whether a follow-up record against the same
-   paths is a strong enough negative signal on its own.
+   paths is a strong enough negative signal on its own. **Reframed at Phase 3.** The table has no
+   window at all, which makes `changesRequested` and `followUps` permanent: a class that earns one
+   rejection is `mixed` from then on, with no path back. That is the conservative direction and
+   currently costs nothing — both counts are zero everywhere — so it ships as a **recorded
+   limitation with a stated trigger** rather than an open choice: revisit when any cell first
+   reads `mixed`, which is when the limitation stops being theoretical. See
+   `_shared/trust-table.md`'s "Known limitation: no time window".
 3. Whether the finalization drain is a `/claude-tweaks:wrap-up` mode or a new skill.
+4. **New at Phase 3.** Whether machinery may ever originate a grant. `unattended` is defined and
+   its grant path is shut behind an opt-in nothing sets, because opening it means amending
+   `_shared/work-record.md`'s invariant that `auto:*` labels come only from an interactive human
+   session — an invariant with an eval asserting it, written after a real run treated a low-risk
+   `ready` record as license to run a full build-to-close lifecycle. That is a deliberate decision
+   for a human to make, not a step in a plan, and until it is made the top tier's incremental
+   value over `trusted` is zero.
