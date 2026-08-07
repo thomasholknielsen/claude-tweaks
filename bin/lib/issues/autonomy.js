@@ -10,12 +10,21 @@
 // order is load-bearing, not cosmetic.
 const CEILINGS = ['supervised', 'trusted', 'unattended'];
 
-// provenance.js's fourth kind. trust.js already pins its verdict to
-// 'insufficient-evidence', so this check is redundant today — deliberately. The
-// design's Phase 3 note calls out that "a consumer switching over three kinds
-// silently drops it," and a redundant deny here means neither module can open
-// this bucket on its own.
-const UNGRADABLE_KIND = 'unstructured';
+// The kinds provenance.js emits that name a real class: 'producer' (a by:*
+// label), 'side-effect' (an Origin: body line), 'human' (absence of both). Its
+// fourth kind, 'unstructured', is the classifier reporting it could not reduce
+// a record to a class at all, and is absent here deliberately — trust.js already
+// pins that kind's verdict to 'insufficient-evidence', and a redundant deny means
+// neither module can open the bucket on its own.
+//
+// An allowlist, not a denylist naming 'unstructured'. The design's Phase 3 note
+// warns that "a consumer switching over three kinds silently drops" the fourth;
+// a denylist inverts that failure rather than fixing it — it would grant to any
+// fifth kind a later provenance change introduces, and to a row whose `kind` is
+// an empty string. Both were reachable and both granted before this became an
+// allowlist. Unrecognized input must deny, which is only true if recognition is
+// what is being tested.
+const GRADABLE_KINDS = new Set(['producer', 'side-effect', 'human']);
 
 function isCeiling(value) {
   return typeof value === 'string' && CEILINGS.includes(value);
@@ -47,8 +56,8 @@ function permittedGrants({ ceiling, row, grantOriginationEnabled } = {}) {
   if (!row || typeof row !== 'object' || typeof row.verdict !== 'string' || typeof row.kind !== 'string') {
     return DENY('no trust row for this class — nothing has been measured');
   }
-  if (row.kind === UNGRADABLE_KIND) {
-    return DENY('class is unclassifiable — provenance could not reduce these records to a class at all');
+  if (!GRADABLE_KINDS.has(row.kind)) {
+    return DENY(`class is unclassifiable (kind ${JSON.stringify(row.kind)}) — provenance could not reduce these records to a class this module recognizes`);
   }
   if (tier === 'supervised') {
     return DENY('autonomy ceiling is supervised — trust is recorded and displayed, never acted on');

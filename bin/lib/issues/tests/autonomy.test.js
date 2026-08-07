@@ -60,8 +60,33 @@ test('the unstructured kind is denied at every ceiling, clean verdict or not', (
   }
 });
 
+test('a kind this module does not recognize is denied, not permitted', () => {
+  // The check is an allowlist of the three kinds that name a real class, not a
+  // denylist naming 'unstructured'. A denylist inverts the design's stated hazard
+  // instead of fixing it: a fifth kind added to provenance.js later, or a row
+  // whose kind is an empty string, would sail through it with a clean verdict.
+  // Both of these granted before the allowlist landed.
+  for (const kind of ['some-future-kind', '', 'PRODUCER', undefined, null, 42]) {
+    const result = permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind } });
+    assert.equal(result.bornReady, false, `kind ${JSON.stringify(kind)} must not grade`);
+    assert.equal(result.bornAuthorized, false, `kind ${JSON.stringify(kind)} must not grade`);
+  }
+});
+
+test('every kind provenance.js actually emits is classified, none silently denied', () => {
+  // Control for the allowlist: it must not be so tight that it denies a real
+  // class. These four are provenance.js's complete output set — three gradable,
+  // one pinned — so a change there that this module has not been taught about
+  // fails here rather than in production.
+  const gradable = ['producer', 'side-effect', 'human'];
+  for (const kind of gradable) {
+    assert.equal(permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind } }).bornReady, true, kind);
+  }
+  assert.equal(permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'unstructured' } }).bornReady, false);
+});
+
 test('a missing or malformed row is denied, not defaulted', () => {
-  for (const row of [undefined, null, {}, { verdict: 'clean' }]) {
+  for (const row of [undefined, null, {}, { verdict: 'clean' }, { kind: 'human' }]) {
     const result = permittedGrants({ ceiling: 'unattended', row });
     assert.equal(result.bornReady, false);
     assert.equal(result.bornAuthorized, false);
