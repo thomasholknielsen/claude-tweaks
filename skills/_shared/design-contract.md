@@ -14,7 +14,10 @@ must say, and what makes a block inadequate — lives in the Impeccable plugin's
 
 This repo **never** defines, validates, reformats, or paraphrases it. Nothing here explains what a
 block is supposed to contain, and nothing here judges whether a block is any good. Auditing the
-render against the contract is `impeccable-finish-reviewer`'s job, which upstream spawns itself.
+render against the contract is `impeccable-finish-reviewer`'s job — upstream spawns it at the end of
+its own build, and `/claude-tweaks:design-wrapper`'s `review` mode dispatches it again at code-review
+time over the diff under review (`../design-wrapper/modes/review.md` Step 3.7). Either way the judging
+is that agent's, never this procedure's.
 
 What this repo does is narrower and purely structural:
 
