@@ -321,3 +321,42 @@ test('source-registry.md verdict carries per-source confidence and the checked-a
     'must state that confidence is carried per source, not per report',
   );
 });
+
+test('source-registry.md dispatch inlines a literal output template', () => {
+  const body = readSourceRegistry();
+  assert.match(body, /OUTPUT FORMAT \(required\)/, 'must inline a literal output template block');
+  // The point of inlining is that a reference does not reach the agent. Assert the
+  // template's own field names are present in the dispatch block, not merely that
+  // the contract file is cited somewhere.
+  assert.match(
+    body,
+    /OUTPUT FORMAT \(required\)[\s\S]{0,600}checked-at/,
+    'the inlined template must carry the verdict fields, not just name the contract',
+  );
+});
+
+test('source-registry.md dispatch uses Form B and the four-value status line', () => {
+  const body = readSourceRegistry();
+  assert.match(body, /Parallel execution:/, 'must carry the Form B parallel-execution directive');
+  assert.match(body, /DONE_WITH_CONCERNS/, 'must inline the four-value status line');
+  assert.match(body, /NEEDS_CONTEXT/);
+  assert.match(body, /BLOCKED/);
+});
+
+test('source-registry.md dispatch states the agents are read-only with no git access', () => {
+  const body = readSourceRegistry();
+  // Anchored to the claim about the agents. Inversion-tested: a bare /read-only/i
+  // survives flipping "The agents are read-only" to "The agents may write", because
+  // the phrase "bounded read-only commands" later in the same paragraph keeps it
+  // green ([IL-78]).
+  assert.match(
+    body,
+    /agents\s+are\s+read-only/i,
+    'must state the agents themselves are read-only',
+  );
+  assert.match(
+    body,
+    /no\s+git\s+access|never\s+given\s+git|without\s+git\s+access/i,
+    'must state the agents carry no git access',
+  );
+});

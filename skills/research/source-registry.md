@@ -118,3 +118,50 @@ checked-at: {sha}
 Related: #117 ("Stamp health-sweep issues with the commit they were verified against") applies the
 same sha-stamping to a different producer. If it lands a shared helper, use it rather than
 duplicating the mechanism.
+
+## Dispatch
+
+> **Parallel execution:** Dispatch each question×source pair as parallel Task agents — each runs
+> independently and returns one verdict. Assemble results after all agents complete.
+
+One agent per question×source pair. A question routed to four sources fans out to four agents, and
+they run concurrently — the pairs share no state, and a source that is slow to read must not hold
+up the three that are fast.
+
+**The agents are read-only and carry no git access.** They read files, run bounded read-only
+commands, and fetch URLs; they never stage, commit, or branch. This removes the shared-index race
+rather than narrowing it — parallel agents with git access race on one index no matter how
+file-disjoint their reads look.
+
+Model tier: `Fast` for `codebase`, `repo-prose`, `tests`, and `history` — these are grep-and-read
+lookups against a named target. `Standard` for `runtime`, `telemetry`, `deps`, and `web`, where the
+agent has to judge whether what it found actually settles the claim.
+
+Inline this block verbatim in every dispatch prompt. It is a define-in-prompt format rather than
+Template A, per `skills/_shared/subagent-output-contract.md`'s "Not every consumer uses A/B/C" — a
+source agent returns a verdict, and Template A's severity/path/finding columns cannot express one.
+The contract's input discipline, four-value status line, and model-tier selection all still apply.
+
+```
+Report one of these as your FIRST line, alone:
+DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
+
+OUTPUT FORMAT (required):
+Then return ONLY these five lines, no preamble and no narration:
+
+outcome:    verified | falsified | unverified
+source:     {the one source you were assigned}
+confidence: high | medium
+provenance: {file:line, or command + exit status, or URL, or record ref}
+checked-at: {output of `git rev-parse HEAD`}
+
+If your source returns nothing, that is an answer, not a failure: report
+outcome: verified with provenance naming what you searched and the literal
+finding "no precedent exists". Never omit an empty result.
+
+If you cannot reach your source at all, report BLOCKED and say what you tried.
+Do not guess, and do not substitute a different source.
+```
+
+A verdict that arrives without provenance is treated as `unverified` whatever its `outcome` says —
+re-dispatch once with the missing field named, then drop the pair and report it as unverified.
