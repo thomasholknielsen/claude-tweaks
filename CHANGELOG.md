@@ -39,6 +39,23 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.59.1 — two rules from the framing-gate build, where a written instruction outran its mechanism
+
+Wrap-up capture for v6.58.0. Both rules come from defects that survived per-task review and
+were caught only by someone opening the file the prose pointed at.
+
+- `[IL-102]` — an instruction was added to `/claude-tweaks:specify`'s procedure three times
+  while the mechanism a few lines below (a `gh issue edit` block, a `gh issue create` block,
+  and `local-store.js`'s frontmatter serializer) never carried it. Two of the three landed
+  *while fixing the first*. The new Don't: find the nearest thing that executes and confirm it
+  carries the item — "the step above says to do it" is not a mechanism.
+- `[IL-103]` — the `risk:*`/`ceremony:*` omit-rule idiom was copied for a presence-only marker
+  whose common case is absence, producing a command block that stamped it on every record. The
+  new Don't: state a neighbouring convention's common case before adopting it; where yours
+  differs, the default must invert.
+
+No behavior change — CLAUDE.md, `docs/incident-log.md`, and two project memory files only.
+
 ## v6.59.0 — a run can repair the references its own change broke
 
 Phase 4 of the earned-autonomy design. `CLAUDE.md`'s Don'ts prescribe the same sweep by hand
