@@ -23,6 +23,35 @@
 - **Verify staged contents before every commit** with `git diff --cached --name-only`. `git commit` with no pathspec takes the entire staged index (`[IL-42]`).
 - **Do not bump the version.** The version bump and changelog entry happen once, after the whole-branch review, in Task 10.
 
+### The brief sweep — corrected pattern and the four concepts
+
+There are **four** unrelated "brief" concepts in this repo. Only the first is being removed. Deleting any of the other three is a defect.
+
+| Concept | Home | Disposition |
+|---|---|---|
+| Brainstorming brief | `/challenge` → `docs/plans/*-brief.md` | **REMOVE** |
+| Verification brief | `skills/wrap-up/verification-brief.md`, used by `/demo` | Leave alone |
+| Visual-review briefs | `skills/visual-review/*` | Leave alone |
+| Impeccable design brief | `skills/specify/design-pre-steps.md:51`, design-wrapper `shape` mode | Leave alone |
+
+The authoritative sweep — an earlier pattern anchored only on `brainstorming brief` and the file glob, and **missed three sites that say only "from the brief"**:
+
+```bash
+grep -rnEi "brainstorming brief|docs/plans/[^ ]*brief|\*-brief\.md|from the brief" \
+  skills/ docs/getting-started.md docs/plugin-structure.md docs/skill-graph.md bin/ tests/ \
+  | grep -v "2026-08-07-challenge-framing-gate"
+```
+
+A bare-word `brief` sweep matches 74 files and is useless — it is common English.
+
+**Sites this pattern added, beyond the per-task lists below:**
+
+- `skills/specify/spec-template.md:93` — the `## Assumptions (optional)` section body, "Absorbed from the brief" (Task 5).
+- `skills/_shared/decision-records.md:44` — "plus any `[ADR-candidate]` from the brief or from `/deepen`" in the `/wrap-up` row; the plan already lists `:42` (Task 6).
+- `docs/getting-started.md:13` — "Generates solution approaches from the Brief" in the `/superpowers:brainstorming` entry (Task 9).
+
+**Pre-existing contradiction to resolve while in there (Task 5):** `record-creation.md:224` asserts "there's no separate `## Assumptions` section anymore", but `spec-template.md:93` still defines one. Both are being edited by this plan; make them agree — the template's optional section should go, since the sentence claiming it is gone is the newer intent.
+
 ---
 
 ### Task 1: Remove the Layered MoA primitive from code and tests
