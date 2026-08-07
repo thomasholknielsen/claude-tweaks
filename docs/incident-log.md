@@ -657,3 +657,19 @@ The idiom was not wrong; importing it was. `risk`/`effort`/`ceremony` are tiered
 
 The generalizable rule: before reusing a neighbouring convention, state its common case out loud and check that yours matches. Where they differ, the shape must invert — the default in an example block is not cosmetic, it is the instruction most readers will follow unchanged. This is the prose analogue of `[IL-101]`'s reused-set hazard: there, one set answered two questions whose answers differed; here, one idiom served two fields whose default cases differed. In both, nothing reads wrong, which is what makes them survive review.
 
+## IL-104 — Committed project state was read from the working checkout, which had no way to know it was stale
+
+`.claude-tweaks/routines/*.yml` is a committed artifact — `.gitignore` carves it out of the `.claude-tweaks/` rule with a comment saying exactly that. All three modes of `/claude-tweaks:routine` nevertheless read it straight from the working checkout with no fetch. On a checkout behind its integration branch, every one of them therefore described a tree that was not the project's.
+
+The reported run (#190) had all six of a project's routines showing as needing an update: four at template v2 against a v4 template, two at v3 against v5, none carrying `branch:`, one schedule mismatch, one filename/name mismatch. The integration branch already had all six current, with `branch:` present and the rename done. Nothing was wrong except where the skill was looking.
+
+What makes this worth an entry is not the misreport — it is that **nothing in the checkout could reveal the problem**. `git status` printed a clean tree and `## main...origin/main` with no behind-marker, because ahead/behind is computed against `refs/remotes/origin/main`, a local cache that only a fetch updates. The checkout was 119 commits behind. `git branch -vv` reads the same stale ref and is equally blind. The one command a person would reach for to check is the one that cannot answer.
+
+The stale read then fed writes. UPDATE's confirm gate asked the user to adjudicate drift that did not exist; Step 6 issued a live `RemoteTrigger update` assembled from the stale record, and Step 7 rewrote the record from the same input, staging a real regression for commit. Worst was CREATE Step 3: a record committed upstream is simply *absent* from a stale checkout, so the idempotency check routed to CREATE and minted a duplicate live routine — the outcome the skill's own Anti-Patterns table forbids, and one `RemoteTrigger` has no delete action to undo.
+
+A second instance was found in the same session while fixing the first: `/claude-tweaks:init`'s Update Mode skipped its entire Routine Drift check when `.claude-tweaks/routines/` did not exist **locally** — so on a stale checkout it skipped the project that most needed it, and two sibling checks hung off that gate by reference.
+
+The near-miss inside the fix is worth recording too. The first draft resolved the comparison branch with the full `_shared/integration-branch.md` ladder. Ranks 1-2 (`--branch`, `template.branch`) name the branch a routine *audits*, which is a different question from where its records are committed — using them would have compared records against the wrong tree, reintroducing the same defect inside its own fix. Nothing in the suite would have failed; it was caught by reasoning, and is now filed as #193.
+
+The generalizable rule: reading a committed artifact from the working tree is only correct once the checkout is known to be current, and no local git command establishes that. Fetch first, or read the artifact from the ref directly. The corollary that makes it safe: gate any resulting stop on a *verified* comparison, so a failed fetch degrades to the old behavior instead of blocking an offline session — unknown is not stale.
+
