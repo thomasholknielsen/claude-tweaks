@@ -39,6 +39,48 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.60.0 — the wrap-up report states what is true of the repository, not what the run remembers
+
+`skills/wrap-up/summary-template.md` rendered exactly one shape, keyed to `## Wrap-Up: Record #{n}`.
+`SKILL.md` declares two modes and told conversation-based runs only what to *skip*, never what their
+summary looks like — so a run with no record had no template to follow and composed its report from
+the steps it had just executed. That is why one read as a step log: internal `D1`-`D5` route codes as
+a table column, five lines of scan telemetry at the same weight as the one scan that found something,
+decisions mixed with settled cleanup, a `git rebase` disclosed inside a table cell's rationale column,
+and the fact that the commit had never left the machine arriving as a postscript below the table.
+
+- **New `bin/wrap-up-state.js` + `bin/lib/wrap-up/`** — reads branch, commit count, and pushed-vs-unpushed
+  from git, and classifies `git reflog` into report-worthy history operations (a rebase collapses to one
+  row; `reset` always reports, since reflog cannot distinguish `--hard` from `--soft`; fast-forward merges
+  drop). Every field is present even when unknown, because a field that disappears reads as an absent fact
+  rather than an unknown one — the mechanism behind the original "it landed."
+- **The report is now State / Actions Performed / Decisions / Evidence.** State is rendered from the helper
+  rather than composed; a new `History` action type carries git operations that were previously disclosed,
+  if at all, as a rationale for something else. Route codes never reach the reader — destinations are named.
+  Full `SCANNED` lines stay in `decisions.md`; the summary carries a one-line roll-up.
+- **A conversation-mode variant**, which is the gap that caused all of the above.
+- Scope base resolves against the **integration branch** (`_shared/integration-branch.md`'s ladder), not
+  GitHub's default-branch pointer — the display-fact distinction `[IL-91]`'s neighbours already record.
+
+`skills/wrap-up/SKILL.md` shrank while the feature grew.
+
+## v6.59.1 — two rules from the framing-gate build, where a written instruction outran its mechanism
+
+Wrap-up capture for v6.58.0. Both rules come from defects that survived per-task review and
+were caught only by someone opening the file the prose pointed at.
+
+- `[IL-102]` — an instruction was added to `/claude-tweaks:specify`'s procedure three times
+  while the mechanism a few lines below (a `gh issue edit` block, a `gh issue create` block,
+  and `local-store.js`'s frontmatter serializer) never carried it. Two of the three landed
+  *while fixing the first*. The new Don't: find the nearest thing that executes and confirm it
+  carries the item — "the step above says to do it" is not a mechanism.
+- `[IL-103]` — the `risk:*`/`ceremony:*` omit-rule idiom was copied for a presence-only marker
+  whose common case is absence, producing a command block that stamped it on every record. The
+  new Don't: state a neighbouring convention's common case before adopting it; where yours
+  differs, the default must invert.
+
+No behavior change — CLAUDE.md, `docs/incident-log.md`, and two project memory files only.
+
 ## v6.59.0 — a run can repair the references its own change broke
 
 Phase 4 of the earned-autonomy design. `CLAUDE.md`'s Don'ts prescribe the same sweep by hand

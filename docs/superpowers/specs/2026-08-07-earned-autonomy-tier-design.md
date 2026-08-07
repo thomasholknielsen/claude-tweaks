@@ -1,8 +1,14 @@
 # Earned Autonomy Tier — Design
 
 **Date:** 2026-08-07
-**Status:** Design approved, plans pending
-**Scope:** Four phases. This document specifies Phase 1 in full and Phases 2–4 at architecture level. Each phase gets its own implementation plan.
+**Status:** All four phases shipped — v6.50.0, v6.51.0, v6.57.0, v6.57.1 + v6.59.0. Nothing here is
+awaiting code. Two items are deliberately open and both are decisions rather than work: whether
+machinery may ever originate a grant (open question 4), and whether the acceptance practice gets
+run at all (Phase 4's 4B, parked 2026-08-07). The mechanism this design set out to build exists and
+currently reads `insufficient-evidence` in every cell, which is the honest state, not a defect.
+**Scope:** Four phases. This document specifies Phase 1 in full and Phases 2–4 at architecture
+level. Each phase got its own implementation plan, and each phase's section carries `Revised at
+Phase N` annotations where execution contradicted the original design — several did.
 
 ## Problem
 
@@ -387,7 +393,13 @@ work. That is the substantive correction to this document's original Phase 4.
 
 ### Scope, in two releases
 
-**Release 1 — the sensor.**
+> **Outcome, 2026-08-07.** 4A shipped as **v6.57.1** and 4C as **v6.59.0**. 4B was **parked by an
+> explicit decision**, not left undone — see its own bullet. The finalization drain is withdrawn
+> and the verdict-only routing deferred, both recorded below with their reasoning. Phase 4 is
+> closed on that basis; what remains open is the acceptance *practice*, which is a question about
+> how the project is worked rather than a piece of software to build.
+
+**Release 1 — the sensor.** *(Shipped as v6.57.1.)*
 
 - **4A. Close the auto-merge labeling gap.** Both short-circuits apply `demo:pending` and post the
   Verification Brief before merging, while the record is still open. Correct both completeness
@@ -413,6 +425,26 @@ work. That is the substantive correction to this document's original Phase 4.
     is a **one-time decision about the prior**, not a throughput feature — the same shape as the
     backfill question Phase 2 dissolved, returning in a different place.
 
+  **Parked, 2026-08-07, by explicit decision — neither option taken.** Presented with the flow/stock
+  split alongside the alternative of building 4C first, the project owner chose to let evidence
+  accumulate from new closes and revisit the stock later. So the 129 undispositioned records are
+  **left as they are**: not marked unassessable, not drained, not backfilled. Coverage stays at 0%
+  and every cell stays `insufficient-evidence` until the acceptance practice is actually exercised.
+
+  This is a decision, not an omission, and the distinction matters for whoever reads this next.
+  Nothing here is waiting on code. The flow half's remaining leak — manual and keyword closes, which
+  4A does not touch — has no agent-side hook by design: `_shared/issue-claims.md` states the agent
+  never runs `gh issue close`, so the close is the user's action and no skill step runs at it. Its
+  remediation already exists and already covers every close mechanism
+  (`/claude-tweaks:tidy --scope=github`'s `acceptance-gap` scope finds any closed record with no
+  `demo:*` label; `/claude-tweaks:demo #N` reconstructs a brief from the closing commit). It has
+  never been run. **What is missing is the practice, not the mechanism** — and building more
+  mechanism is precisely how that would be misread.
+
+  **Reopen this bullet when**, and only when, the answer to "are we running the acceptance gate?"
+  changes. If it stays no, the trust table is decoration and the honest follow-up is to say so
+  rather than to keep feeding it.
+
 #### Why the drain does not exist as designed
 
 `/claude-tweaks:demo` refuses batching deliberately and says so in five places: the H1 paragraph
@@ -437,12 +469,35 @@ making navigation cheap would not fix it.
 What survives of the original bullet is the throughput concern it was reaching for — which 4A
 (stop the leak) and the flow/stock split above address without ever batching a verdict.
 
-**Release 2 — the actuator.**
+**Release 2 — the actuator.** *(Shipped as v6.59.0.)*
 
 - **4C. In-run initiative budget.** N fixes per run, capped lines and files, same-subsystem only,
   each logged to `decisions.md` and surfaced at the Review Console. Amends the contract's *"code
   modifications outside the skill's documented scope"* row. Unaffected by the measurement above: it
   is gated on the **ceiling**, a human-set dial, not on trust evidence, so it works on day one.
+
+  **What shipped is narrower than that bullet, in two ways worth recording.**
+
+  *Scope.* "N fixes" resolved to exactly one repairable kind: **pointer repair** — a reference to
+  something this run renamed, moved, or removed. Not typos, not dead code, not small defects. The
+  detection it needed did not exist either, so v6.59.0 also added `/claude-tweaks:wrap-up` Step 7.12
+  (`wrap-up/reference-sweep.md`), which is the sweep `CLAUDE.md` prescribes by hand in five Don'ts
+  (`[IL-10]`, `[IL-17]`, `[IL-21]`, `[IL-52]`, `[IL-93]`) and which nothing automated.
+
+  *Gate.* "Same-subsystem only" was replaced by a **causal** test, because proximity is the wrong
+  question. `permittedInitiative` requires a `brokenBy` field naming a file this run actually
+  changed: the carve-out from the contract row holds only because the reference is broken *by* this
+  run, so repairing it finishes the change rather than expanding it. A same-subsystem edit the run
+  merely noticed is still a scope expansion; a cross-subsystem reference the run broke is still its
+  own mess. The full floor rule — allowlisted kind, 3 fixes, 2 files, 20 lines, no test files, no
+  `merge-sensitive-paths`, ambiguity always stages — lives in `_shared/initiative-budget.md`.
+
+  *And one asymmetry the ceiling did not previously have.* This is the first thing `trusted`
+  authorizes that is **not** trust-gated, because an unfiled repair produces no record, therefore no
+  provenance class, therefore no cell that could ever carry a verdict. Gating it on `clean` would
+  have shipped it permanently inert — Phase 3's failure mode, repeated. `_shared/autonomy-ceiling.md`
+  states this explicitly so a later reader does not "correct" the asymmetry by adding a floor
+  nothing can clear.
 
 **Deferred — verdict-only-where-it-matters routing** in `/claude-tweaks:demo` (human verdict
 required only for unproven classes, `merge-sensitive-paths`, or inconclusive self-verification).
