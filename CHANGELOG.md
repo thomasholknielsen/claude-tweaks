@@ -39,6 +39,37 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.59.2 — /claude-tweaks:routine reads its records from the branch they live on
+
+`.claude-tweaks/routines/*.yml` is a committed artifact, but all three of `/claude-tweaks:routine`'s
+modes read it straight from the working checkout with no fetch. A checkout behind its integration
+branch therefore reported drift that did not exist — and then fed that stale read into real writes
+(#190). Reported from a live run where all six of a project's routines showed as needing an update
+while the integration branch already had every one of them current; the checkout was 119 commits
+behind, with nothing in `git status` indicating it.
+
+- **`skills/routine/record-freshness.md`** — one procedure, cited by all three call sites. Resolves
+  the branch of record per `_shared/integration-branch.md` (starting at rank 3: `--branch` and
+  `template.branch` name the branch a routine *audits*, which is a different question), then compares
+  the working copy against it over the **union** of both sides.
+- **`compareRoutineRecords` / `readRoutineRecordsAtRef`** (`bin/lib/routine-template-parser.js`) —
+  the comparison itself, so the fix is testable rather than prose-only. Reads records at a ref via
+  `git ls-tree`/`git show` without touching the working tree.
+- **CREATE Step 3 is the one that mattered.** A record committed upstream was invisible to a
+  working-tree read, so the idempotency check routed to CREATE and minted a *second live routine* —
+  the duplicate the skill's own Anti-Patterns table forbids, which `RemoteTrigger` has no delete
+  action to undo. Existence is now the union, and an upstream-only record hard-stops with both
+  recovery commands. UPDATE stops on the same evidence (every step past it writes). STATUS never
+  stops: it enumerates the union, computes each verdict against the authoritative copy, and names
+  which tree it read.
+- **Fail-open by construction.** No remote, no network, a fetch past its timeout, or no branch
+  resolved all degrade to the pre-#190 working-checkout read and print one line saying so. Both
+  stops are gated on a *verified* comparison, so `/claude-tweaks:routine status` still works offline
+  — a naive fetch at the top of three steps would have been a worse regression than the bug.
+
+Distinct from #11 (the cloud sandbox's checkout at firing time) and #132 (which branch a routine
+audits); this is the local skill invocation reading stale project state.
+
 ## v6.59.1 — two rules from the framing-gate build, where a written instruction outran its mechanism
 
 Wrap-up capture for v6.58.0. Both rules come from defects that survived per-task review and
