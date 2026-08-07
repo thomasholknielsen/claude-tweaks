@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { riskBand, trustRows, MIN_SAMPLES } = require('../trust.js');
+const { riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS } = require('../trust.js');
 
 test('riskBand splits low from everything else', () => {
   assert.equal(riskBand(['risk:low']), 'low');
@@ -194,4 +194,97 @@ test('rows are returned in a stable order', () => {
     { number: 2, labels: ['by:capture', 'risk:low'], body: '', state: 'CLOSED' },
   ];
   assert.deepEqual(trustRows(input).map((r) => r.key), trustRows(input.reverse()).map((r) => r.key));
+});
+
+test('one verdict cannot grade a class of forty', () => {
+  // The shipped rule was `dispositioned >= 1`. Measured against this repo, that
+  // let a single approval grade a 40-record cell 'clean' — 1 known, 39 unknown.
+  // Harmless while the table only rendered; a live grant once a governor reads it.
+  const records = Array.from({ length: 40 }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low'], body: '', state: 'CLOSED',
+  }));
+  records[0].labels = ['by:capture', 'risk:low', 'demo:approved'];
+  const row = trustRows(records)[0];
+  assert.equal(row.total, 40);
+  assert.equal(row.dispositioned, 1);
+  assert.equal(row.verdict, 'insufficient-evidence');
+});
+
+test('the verdict floor is MIN_VERDICTS, and it is a floor on verdicts not records', () => {
+  const build = (approvals) => {
+    const records = Array.from({ length: 40 }, (_, i) => ({
+      number: i + 1, labels: ['by:capture', 'risk:low'], body: '', state: 'CLOSED',
+    }));
+    for (let i = 0; i < approvals; i += 1) {
+      records[i].labels = ['by:capture', 'risk:low', 'demo:approved'];
+    }
+    return trustRows(records)[0];
+  };
+  assert.equal(build(MIN_VERDICTS - 1).verdict, 'insufficient-evidence');
+  assert.equal(build(MIN_VERDICTS).verdict, 'clean');
+});
+
+test('sample floor and verdict floor are both required', () => {
+  // MIN_VERDICTS verdicts in a cell too small to be a class yet: still ungraded.
+  const records = Array.from({ length: MIN_VERDICTS }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+  }));
+  const row = trustRows(records)[0];
+  assert.ok(row.total < MIN_SAMPLES, 'fixture must sit below the sample floor');
+  assert.equal(row.dispositioned, MIN_VERDICTS);
+  assert.equal(row.verdict, 'insufficient-evidence');
+});
+
+test('a declined record is not a quality failure and never blocks a verdict', () => {
+  // NOT_PLANNED means the record was declined — no work product exists to judge.
+  // Counting it as a negative made two of this repo's four real cells
+  // permanently ungradable, since the table has no time window to age it out.
+  const records = Array.from({ length: MIN_SAMPLES }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+  }));
+  records.push({
+    number: 99, labels: ['by:capture', 'risk:low'], body: '',
+    state: 'CLOSED', stateReason: 'NOT_PLANNED',
+  });
+  const row = trustRows(records)[0];
+  assert.equal(row.notPlanned, 1, 'still counted and still rendered');
+  assert.equal(row.verdict, 'clean', 'but not a verdict input');
+});
+
+test('changes-requested and follow-ups remain verdict inputs', () => {
+  // Control for the test above: removing notPlanned from the clean test must not
+  // remove the two signals that ARE about work quality.
+  const base = () => Array.from({ length: MIN_SAMPLES }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+  }));
+
+  const rejected = base();
+  rejected[0].labels = ['by:capture', 'risk:low', 'demo:changes-requested'];
+  assert.equal(trustRows(rejected)[0].verdict, 'mixed');
+
+  const followedUp = [...base(), { number: 100, labels: [], body: 'Origin: demo changes-requested from #1', state: 'OPEN' }];
+  assert.equal(trustRows(followedUp)[0].verdict, 'mixed');
+});
+
+test('coverage is reported and is dispositioned over total', () => {
+  const records = Array.from({ length: 10 }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low'], body: '', state: 'CLOSED',
+  }));
+  for (let i = 0; i < 5; i += 1) records[i].labels = ['by:capture', 'risk:low', 'demo:approved'];
+  const row = trustRows(records)[0];
+  assert.equal(row.dispositioned, 5);
+  assert.equal(row.coverage, 0.5);
+});
+
+test('an unstructured cell stays ungradable however many verdicts it collects', () => {
+  // Task 2 denies this kind independently; this asserts the pin still holds
+  // after the floor change, so the two defenses stay genuinely independent.
+  const overlong = 'Origin: ' + 'x'.repeat(80);
+  const records = Array.from({ length: MIN_SAMPLES + MIN_VERDICTS }, (_, i) => ({
+    number: i + 1, labels: ['risk:low', 'demo:approved'], body: overlong, state: 'CLOSED',
+  }));
+  const row = trustRows(records)[0];
+  assert.equal(row.provenance, 'unstructured:unstructured');
+  assert.ok(row.dispositioned >= MIN_VERDICTS);
+  assert.equal(row.verdict, 'insufficient-evidence');
 });

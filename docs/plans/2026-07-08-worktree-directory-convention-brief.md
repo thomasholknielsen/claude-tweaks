@@ -1,5 +1,17 @@
 ## Brainstorming Brief: Worktree directory convention — `.claude/worktrees/` vs `.worktrees/`
 
+> **Status (2026-08-07).** The directory-convention half is decided: **ADR-0004**
+> (`docs/decisions/0004-worktree-two-domain-convention.md`, accepted 2026-07-09) adopts
+> the two-permanently-separate-domains reframe below, and cites this brief as its Context —
+> which is why this file is retained rather than reaped with the resolved ledgers.
+>
+> The **cleanup** half — Open Questions 2 and 3, and the "does either side's cleanup
+> contract actually hold?" thread in Reframed Problem — is **not** decided, and is now
+> tracked as **#185**. The brief's suspicion was right and the problem compounded: the
+> 4 accumulated worktrees cited below as evidence were **21** on 2026-08-07. ADR-0004's
+> Consequences assert the harness owns `.claude/worktrees/` cleanup; that is the assumption
+> #185 exists to test.
+
 ### Original Framing
 `bootstrap-steps.md` Step 6 documents `.worktrees/` (project root) as "the standard worktree directory," citing superpowers v5.1.0's preferred path and claiming it is the only directory `/superpowers:finishing-a-development-branch` cleans up. But the native `EnterWorktree` harness tool actually creates worktrees under `.claude/worktrees/` — confirmed live (4 active there, 0 under `.worktrees/`). The task as posed: "determine which convention is actually correct going forward" — update the doc to make `.claude/worktrees/` the standard, or confirm `.worktrees/` remains correct for the git-fallback path — plus investigate whether cleanup handles `.claude/worktrees/` worktrees today. The reflected summary leaned toward promoting `.claude/worktrees/` to the standard.
 

@@ -15,7 +15,7 @@ parent, where the walk never looks, so versions *left* the reconstructed set as
 later merges landed (#144). Two releases were written up as never-shipped on that
 evidence before anyone checked it against a source outside this repo's topology.
 
-Two conventions follow from how this repo works, and both are visible below:
+Three conventions follow from how this repo works, and all are visible below:
 
 - **A `###` subsection labelled "branch-numbered vX.Y.Z"** is work that was
   developed and written up under one number but reached users under another,
@@ -24,12 +24,142 @@ Two conventions follow from how this repo works, and both are visible below:
   build that actually carried it. The original write-up is kept verbatim.
   Only three entries are genuinely of this kind — v6.3.0, v6.5.0 and v6.25.0.
   Thirteen more carried the label until v6.45.0 and did not deserve it.
+- **A `###` subsection labelled "also carried in this build"** documents work that
+  reached users under a version whose own entry describes something else. The record
+  landed on `main` without bumping, so the build that carried it was already numbered
+  for other work, and the release step that would have written it up never ran
+  (`[IL-12]`). These are backfilled after the fact — labelled, rather than folded into
+  the surrounding entry, so nothing here is mistaken for a contemporaneous release
+  note. Distinct from the branch-numbered case above: there the write-up existed and
+  the number moved; here the number was right and the write-up was missing.
 - **Entries from v1.0.0 (2026-02-20) through v5.29.0 are reconstructed** from
   commit history rather than written at release time — the changelog step was
   not part of the release convention until v6.41.0, and 103 of the first 145
   releases went undocumented (`[IL-94]`). They are summaries of what each version
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
+
+## v6.57.1 — auto-merged records get their acceptance label instead of closing silently
+
+Both auto-merge short-circuits bypass `/claude-tweaks:wrap-up` Step 10, which is where
+acceptance labeling lives — so a record that auto-merged closed with no `demo:pending`
+and no Verification Brief. `_shared/work-record.md` says the opposite: an `auto:merge`'d
+record still gets the label on its now-closed issue, to enable retrospective sign-off.
+Nothing enforced it, and `#141` is the case that made it visible.
+
+- `wrap-up/review-console.md`'s single-record fast-lane short-circuit and
+  `dispatch/settle-and-merge.md`'s group Auto-merge gate now each run
+  `verification-brief.md`'s procedure and apply `demo:pending` **before** merging. The
+  merge carries the closing keyword, so after it lands the record is closed and the
+  branch has moved on — order is the fix, not an implementation detail. On the group
+  path it is one brief and one label per record: the merge decision is group-wide, but
+  acceptance is per-record and members differ in testability.
+- `--dry-run` covers the new writes. That branch's skip list named only `git merge` and
+  `git push`, which would have let a live label write and brief comment escape preview
+  mode — the same shape as the defect being fixed, in mirror image.
+
+The defect survived because it sat between three separately-true completeness claims:
+the console's "nothing this console would have shown is discarded" (about console
+content), dispatch's "nothing wrap-up found is dropped" (about findings), and the
+console's rule covering "every cleanup action that would otherwise run in Step 10"
+(about cleanup items). Acceptance labeling is an action, not console content, not a
+finding, and not a cleanup item — so every claim stayed true while the category none of
+them covered was dropped on every auto-merge. Both claims now state what they do not
+cover, so the next thing added to Step 10 has to be checked rather than assumed.
+
+Found by measuring Phase 4's premises before planning it: 129 closed records across 10
+provenance classes, zero acceptance verdicts, 0% coverage in every cell.
+
+## v6.57.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
+
+Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that
+nothing acted on; this release wires the `autonomy` policy lever to it, and hardens the
+verdict first, because the shipped rule was not sound enough for a machine to read.
+
+**The verdict now floors on verdicts, not records.** The old rule graded a cell on
+`total >= MIN_SAMPLES` plus a *single* disposition. Measured against this repo, one
+`demo:approved` on a 40-record class produced `verdict: clean` — fine for a table a human
+reads beside the counts, a live grant once a governor reads it alone. A second floor,
+`MIN_VERDICTS` (5), now counts the acceptance verdicts inside a cell rather than the
+records. `notPlanned` also leaves the clean test: a record closed `NOT_PLANNED` was
+declined, so no work product exists to judge, and with no time window in the table it was
+pinning two of this repo's four real classes to `mixed` permanently. Both counts are still
+rendered, and a new Coverage column says what fraction of a class was ever verified.
+
+**`bin/lib/issues/autonomy.js`** resolves the ceiling (CLI arg > run config > project
+policy > `supervised`) and maps `(ceiling, trust row)` to a permission set. Unrecognized
+input always fails toward less autonomy: an unknown ceiling falls back to `supervised`, and
+gradable kinds are an allowlist rather than a denylist naming `unstructured` — a denylist
+granted to every kind it had not been taught, including a case-variant `PRODUCER`.
+
+**`trusted` unlocks born-`ready` for `/claude-tweaks:capture`**, and only when
+`producer:capture` carries a `clean` verdict. That skips `/claude-tweaks:specify`, never the
+human grant gate — `ready` asserts shape, and `/claude-tweaks:backlog refine` re-derives
+shape from the body before granting anyway. Human-filed classes are excluded by
+construction: born-`ready` authorizes an *agent's* filing, and `human:human` is this repo's
+largest provenance, so a governor that graded it would have fired there first on the weakest
+possible justification.
+
+**`unattended` is defined and shut.** Its machine-originated grant contradicts the standing
+invariant that `auto:*` labels come only from an interactive human session — an invariant
+written after a real run treated a low-risk `ready` record as license to run a full
+build-to-close lifecycle. Reaching the top tier is not by itself an amendment of that, so
+the grant path sits behind a second explicit opt-in that nothing sets.
+
+`/claude-tweaks:backlog refine` gains an advisory `Trust` column beside its existing
+recommendation, which it never drives — a class's history is not evidence about this
+record's shape, and on a repo that has not run `/claude-tweaks:demo` every cell reads
+`insufficient evidence`, which must not become a de facto freeze on granting.
+
+Inert on arrival, deliberately: every trust cell in this repo still reads
+`insufficient-evidence` with zero acceptance verdicts. The ceiling exists so that nothing
+can exceed it later.
+
+## v6.56.0 — the retired polish vocabulary leaves the files that restated it
+
+The last leaf of the Impeccable upstream-contract program's Phase 3 (#148). #147 changed
+how `/claude-tweaks:design-wrapper` dispatches during the polish phase; this release
+makes the rest of the repo stop describing the old way.
+
+"Auto-fit" and "issue-driven" were never internal names local to `command-map.md` —
+they were this plugin's published vocabulary for the polish phase, restated in their
+own words across `/flow`, `/ledger`, `_shared/auto-mode-contract.md`, `README.md` and
+the user-facing docs. None of those files appeared in #147's diff, and a keyword grep
+for the *new* vocabulary finds nothing wrong with any of them, because they never used
+the new words. Their claims were true when written and went quietly stale (`[IL-93]`).
+
+| Was | Is |
+|---|---|
+| Auto-fit (polish phase) | **Refinement set** |
+| Issue-driven | **Suggestion-driven** — reads each `audit` finding's own `suggestion` field instead of keyword-matching four fixed categories |
+| Intent-driven | unchanged |
+
+**Two things the sweep found that the record specifying it did not know about.**
+
+#147 shipped a fourth term the record's replacement table never listed: **Phase-fixed**,
+covering the pre-spec (`/specify` shape) and review-phase (`/review` critique + audit)
+rows that were also called auto-fit. Renaming only the polish row would have orphaned
+the other two. The authority for a sweep like this is the landed diff, never the
+specifying record.
+
+`skills/flow/polish-execution.md` consumed only one of the two `staged_suggestions`
+kinds. #147 added an `unclassified` kind for a finding carrying no usable `suggestion`,
+and `modes/polish.md`'s output contract requires consumers to branch on `kind` — this
+one did not, so an unclassified observation would reach `{run-dir}/staged/` labelled as
+a manual-only *command* that no finding ever named. Fixed here rather than deferred,
+because that wrong label is what a human reads at the Wrap-Up Review Console.
+
+Also restated against signals that still exist: `/ledger`'s `design`-phase row keyed
+`fixed` off "auto-fit successes", a category that no longer exists, and now keys `fixed`
+off a `commands_invoked` entry and `observation` off a `staged_suggestions` entry.
+`_shared/auto-mode-contract.md`'s polish row keeps its `AUTO` classification and now
+names the staging path it previously left out.
+
+Deliberately not swept: `CHANGELOG.md`, `docs/superpowers/**`, and one audit-trail
+comment in `bin/lib/skill-audit/tests/anti-patterns.test.js` that records *what #147
+retired*. Rewriting a historical note about a removal to use the post-removal names
+would falsify it (`[IL-28]`). `docs/plugin-structure.md`, which the record listed as
+needing a sweep, already carried the new vocabulary and needed no edit.
 
 ## v6.55.0 — the finishing review runs at code-review time, and third-party agents are exempt by structure
 
@@ -375,6 +505,41 @@ The four health-sweep `skill-md` tests asserted the prefixed name through an
 unanchored `/name:\s*claude-tweaks:{skill}/`. They now assert `/^name: {skill}$/m`,
 which actually fails on the doubled form.
 
+### also carried in this build
+
+Three records from the Impeccable upstream-contract program landed while `main`'s tip
+still read 6.50.1, each without a bump of its own. Backfilled during #148's wrap-up.
+
+**#146 — `/claude-tweaks:design-wrapper` gained a plugin contract seam.** Mirroring the
+CLI seam Phase 1 built: resolve the installed Impeccable **plugin**, compare it to a
+recorded pin, execute `context-signals.mjs`, and consume its signals as an enrichment
+layer beneath the existing detection layers. New `skills/design-wrapper/impeccable-plugin.md`
+carries the pin comment, the resolution procedure, the executed output shape and the
+per-signal trust rules; `tests/impeccable-plugin-contract.test.js` probes it with the
+same skip/fail asymmetry as the CLI test — skips when absent, **fails** at a version
+other than the pin, because a probe that silently declines to run reads exactly like
+one that passed. Layer 3 survives unchanged as the frontend predicate: nothing upstream
+computes one, so the enrichment sits beneath it rather than replacing it.
+
+**#147 — the auto-fit and issue-driven dispatch tables were retired.** Two tables in
+`command-map.md` re-derived by keyword what Impeccable's `audit` already states. They
+are replaced by the suggestion-driven model the file's own Anti-Pattern section already
+precedented: every finding carries a `suggestion` field naming its own remediation, and
+the wrapper dispatches what the finding names rather than matching four fixed category
+keywords — keywords that never matched upstream's documented Category enum anyway. A
+finding whose `suggestion` names a manual-only command is staged, not run; a finding
+with no usable `suggestion` is staged as an unclassified observation carrying its
+id/category/description, never keyword-mapped and never dropped. The published
+vocabulary this renamed is swept out of the rest of the repo in v6.56.0 (#148).
+
+**#143 — the upstream-drift auditor became runnable.** `tools/upstream-drift/run.js`
+reads the manifest, runs the deterministic checks, hands their output plus the
+contract-path diff to the judge, and files deduplicated `by:upstream-drift` issues. Its
+trigger model is where this auditor departs from the four shipped health sweeps: those
+rotate through targets on a cursor because there is always more repo to audit, whereas
+here there is nothing to look at until a version changes and everything to look at the
+moment one does.
+
 ## v6.50.0 — Closed records reach an explicit acceptance disposition
 
 Work records were closing with no acceptance verdict at all, and nothing noticed.
@@ -411,6 +576,22 @@ component touched." Any path prefix broad enough to catch `src/services/payments
 also catches `src/components/Button.tsx`, and the errors are asymmetric: a missed
 match costs a wasted browser walk, while a wrong match silently skips acceptance —
 the exact failure this release exists to close.
+
+### also carried in this build
+
+**#142 — the upstream-drift capability-triage skill.** Landed while `main`'s tip still
+read 6.50.0, without a bump of its own. Backfilled during #148's wrap-up.
+
+A project-local skill (`.claude/skills/upstream-drift/`) that reads the deterministic
+checks' output, then diffs an upstream dependency's contract paths between the installed
+and latest tags to triage **new capability** — upstream surface this repo could use but
+does not know exists. This half is what the deterministic checks structurally cannot do:
+every assertion tests a claim someone already wrote down, and new capability has nothing
+to assert against. In the audit that motivated the design, source diffing found the
+contract drift, while only a human-style read of the upstream file tree found
+`context-signals.mjs`, `doctor`, and an entire iOS/Android track — none of which any
+assertion could have surfaced. The skill never edits anything, including the
+dependencies themselves.
 
 ## v6.49.0 — One classifier decides where a learning goes
 

@@ -88,11 +88,18 @@ this contract.
 
 Who may add / remove which labels. "Machinery" = any headless or autonomous path.
 
+**Every row is exhaustive for its actor.** There is no general "agent path" row that widens the
+specific ones — the `autonomy` ceiling's born-`ready` tier is written into `/capture`'s row
+directly, because that is the only actor it currently covers. Extending it to another residue
+producer (`/wrap-up` leftovers, `/reflect` routing, `/demo` follow-ups — the `side-effect:*`
+classes) means editing that actor's own row, deliberately, and until then their `Never` columns
+hold as written whatever the ceiling says.
+
 | Actor | Adds | Removes | Never |
 |---|---|---|---|
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
 | **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`effort:*` | nothing | `auto:*`, `bot:*`, `parked` |
-| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`) | nothing | scoring, stage, `auto:*`, `bot:*` |
+| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`); `ready` **only** under `autonomy: trusted`+ when `producer:capture`'s trust verdict is `clean` (see `_shared/autonomy-ceiling.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`; `ready` whenever either half of that condition fails — at `supervised` (the default), or on any verdict but `clean` |
 | **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, `ceremony:*` (always — no unscored state), `framing:baked` (via `/claude-tweaks:challenge`'s `framing-check`), Type | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`effort:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
@@ -118,14 +125,18 @@ not-authorized state** — no label means no autonomous action, ever.
   review. **Additive on `auto:build`:** the gate always grants `auto:build` when granting
   `auto:merge`. Dispatch queries `auto:build` only; `auto:merge` **alone is inert** — no
   queue selects on it.
-- **Machinery may only remove grants, never add them.** Failure handling is
+- **Machinery may only remove grants, never add them** (save for the one carve-out in the
+  next bullet, which is shut by default). Failure handling is
   classification-driven (via `/claude-tweaks:assess-agent-autonomy`'s `failure-check` mode):
   a `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before retry; a
   `transient`-classified one preserves it. At the retry ceiling (`dispatch-retry-ceiling`),
   regardless of classification, machinery removes all `auto:*` labels and adds `bot:blocked` —
   the record needs a human re-grant to run again.
-- `auto:*` labels are only ever added by an interactive human session; there is no
-  machinery path that originates a grant.
+- `auto:*` labels are only ever added by an interactive human session. The single
+  exception is the `unattended` ceiling's machine-originated grant, which is shut by
+  default and needs an explicit second opt-in beyond reaching that tier — see
+  `_shared/autonomy-ceiling.md`. With that opt-in absent, which is its shipped state,
+  there is no machinery path that originates a grant.
 
 ## Acceptance semantics
 
@@ -187,6 +198,13 @@ agent-sized and spec-shaped **by construction** — their builders emit Current 
 Deliverables / Acceptance Criteria bodies with scoring. They therefore file with `ready`
 already applied and appear directly in the gate's worklist, skipping maturation. Captured
 and human-filed records start in backlog state and reach `ready` through `/specify`.
+
+Under `autonomy: trusted` or higher, `/capture` files born-`ready` too when the
+`producer:capture` class carries a `clean` trust verdict — the same reasoning reached a different
+way, the class having *demonstrated* its output is spec-shaped rather than being so by
+construction. `/capture` is the only actor this covers; every other agent path keeps the `Never`
+column its own matrix row states. See `_shared/autonomy-ceiling.md`. At `supervised`, the default,
+`/specify` remains the only road to `ready` for a captured record.
 
 ## Decomposition rules
 
