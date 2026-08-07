@@ -100,9 +100,14 @@ gh issue view {n} --json number,title,body,labels,url,state
 ```
 
 If the result carries the `demo:pending` label, fetch its Verification Brief: the last issue
-comment containing `## Verification Brief` (`gh issue view {n} --json comments -q
-'.comments[-1].body'` if only one build/demo cycle occurred; otherwise search all comments for
-the last one containing that heading). Go straight to Step 2 with it.
+comment **containing** `## Verification Brief`. Fetch every comment (`gh issue view {n} --json
+comments`) and take the last one carrying that heading — test the heading, never assume the
+position. A `.comments[-1]` shortcut holds only when the brief happens to be the most recent
+comment, which nothing about the record predicts: any later reply or bot notification displaces
+it, and a decomposition parent whose gate was completed by the Family-Gate Procedure's
+already-posted-brief branch (`wrap-up/verification-brief.md`'s **Apply the gate**) received its
+label with no comment posted at all, leaving its brief arbitrarily far from last. Go straight to
+Step 2 with it.
 
 This `#N` may itself be a decomposition parent gated by the Family-Gate Procedure
 (`wrap-up/verification-brief.md`) rather than a single build, in which case its Verification
