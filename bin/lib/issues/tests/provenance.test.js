@@ -74,3 +74,61 @@ test('Origin is only recognized at the start of a line', () => {
     { kind: 'human', source: 'human' }
   );
 });
+
+test('structured Origins with "from ..." are preserved and not truncated', () => {
+  // Emitted forms like these should NOT be truncated.
+  const r1 = resolveProvenance({ labels: [], body: 'Origin: wrap-up leftover from #42' });
+  assert.equal(r1.source, 'wrap-up leftover');
+
+  const r2 = resolveProvenance({ labels: [], body: 'Origin: ledger resolve gate (acknowledged) from session recall' });
+  assert.equal(r2.source, 'ledger resolve gate (acknowledged)');
+});
+
+test('a period inside a version/phase number (Phase 8.5) does NOT truncate', () => {
+  // This is a real emitted context. The period in "8.5" is not a clause boundary.
+  assert.deepEqual(
+    resolveProvenance({ labels: [], body: 'Origin: /init doc registry (Phase 8.5) from #99' }),
+    { kind: 'side-effect', source: '/init doc registry (phase 8.5)' }
+  );
+});
+
+test('a period inside a filename (.md) followed by punctuation does NOT truncate', () => {
+  // Legacy records may have prose like "specs/inbox.md', deleted by..."
+  // The period in ".md" should NOT truncate; only comma+space should.
+  const source = resolveProvenance({
+    labels: [],
+    body: "Origin: migrated from 'specs/inbox.md', deleted by the 6.36.0 legacy purge"
+  }).source;
+  assert.equal(source, "migrated from 'specs/inbox.md'");
+});
+
+test('clause boundary: comma followed by space truncates', () => {
+  // Legacy records that differ only after the first comma should collapse.
+  const a = resolveProvenance({
+    labels: [],
+    body: 'Origin: migrated from inbox.md, captured 2026-06-14. category: technical.'
+  });
+  const b = resolveProvenance({
+    labels: [],
+    body: 'Origin: migrated from inbox.md, captured 2026-06-13. category: technical.'
+  });
+  assert.equal(a.source, 'migrated from inbox.md');
+  assert.deepEqual(a, b);
+});
+
+test('clause boundary: period followed by space truncates', () => {
+  const source = resolveProvenance({
+    labels: [],
+    body: 'Origin: gap found while auditing v6.36.0. plan c task 6 was never executed.'
+  }).source;
+  assert.equal(source, 'gap found while auditing v6.36.0');
+});
+
+test('long prose is capped at 60 characters after clause truncation', () => {
+  // Ensure the 60-char cap applies.
+  const source = resolveProvenance({
+    labels: [],
+    body: 'Origin: this is a very long side-effect context that should be capped at sixty chars total'
+  }).source;
+  assert.equal(source.length, 60);
+});

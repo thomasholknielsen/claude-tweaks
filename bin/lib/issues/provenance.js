@@ -15,6 +15,13 @@ const ORIGIN_LINE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
 // A trailing source reference makes the context per-record unique, which would
 // explode the class count and give every cell a sample size of one.
 const TRAILING_SOURCE = /\s+from\s+(#\d+|session recall)$/i;
+// Truncate long prose at a clause boundary (comma or period followed by
+// whitespace/end-of-string), then cap at 60 characters to normalize legacy
+// records that differ only in trailing details (e.g., "captured 2026-06-14"
+// vs "captured 2026-06-13"). Must NOT break on periods inside contexts like
+// "Phase 8.5" or inside filenames like ".md'," — the boundary requires
+// whitespace or string end after the punctuation.
+const CLAUSE_BOUNDARY = /^(.*?)[,.](?=[ \t\n]|$)/;
 
 function resolveProvenance({ labels, body } = {}) {
   const names = Array.isArray(labels) ? labels : [];
@@ -27,7 +34,14 @@ function resolveProvenance({ labels, body } = {}) {
 
   const line = ORIGIN_LINE.exec(typeof body === 'string' ? body : '');
   if (line) {
-    const source = line[1].replace(TRAILING_SOURCE, '').trim().toLowerCase();
+    let source = line[1].replace(TRAILING_SOURCE, '').trim();
+    // Truncate at clause boundaries (comma or period + whitespace/EOS) to
+    // normalize long prose descriptions. Then lowercase and cap at 60 chars.
+    const clauseMatch = CLAUSE_BOUNDARY.exec(source);
+    if (clauseMatch) {
+      source = clauseMatch[1];
+    }
+    source = source.toLowerCase().slice(0, 60);
     if (source) return { kind: 'side-effect', source };
   }
 
