@@ -31,7 +31,7 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.50.2 — wontfix suppression survives a gh-absent firing, and the build diagnostic says how it resolved
+## v6.51.1 — wontfix suppression survives a gh-absent firing, and the build diagnostic says how it resolved
 
 Two defects found by test-firing six live cloud Routines against a real project on
 2026-08-07 and reading the transcripts.
@@ -87,6 +87,46 @@ that used it did so by coincidence of that project's state.
 prompt it was created from, so **existing routines keep running the old text until they are
 re-provisioned** with `/claude-tweaks:routine update <skill>`; drift detection
 (`routine/status.md` Step 3) keys off that integer and would otherwise report nothing.
+
+## v6.51.0 — A trust table that measures acceptance evidence and acts on nothing
+
+v6.50.0 gave closed records an acceptance disposition. Nothing yet asked what that
+evidence adds up to per class of work — so `/claude-tweaks:help` and
+`/claude-tweaks:backlog overview` now render a supervised trust table: closed records
+grouped by `(provenance × risk band)` and tallied against their `demo:*` labels. Run
+against this repo today: 118 closed records across 10 cells, zero approved, zero
+changes-requested, every cell `insufficient-evidence`. The plugin had no acceptance
+evidence at all, and now it says so measurably instead of silently.
+
+- `bin/lib/issues/provenance.js` resolves a record's origin to one of four kinds —
+  `producer` (a `by:*`-labelled health-sweep filing), `side-effect` (an unlabelled
+  `Origin:` body line from another skill's flow), `unstructured` (an Origin line too
+  long to classify reliably, or one that normalizes to empty — the latter was added
+  in the fix wave to stop such records from falsely merging into `human`), or `human`
+  (neither signal — absence is the signal).
+- `bin/lib/issues/trust.js` groups closed records into `(provenance × risk band)`
+  cells and assigns each a verdict — `unstructured` cells are pinned to
+  `insufficient-evidence` at every sample count, since a bucket defined by "could not
+  be classified" has no coherent class to earn trust for; every other cell reads
+  `insufficient-evidence` below an 8-sample floor and `clean` or `mixed` above it.
+  Undispositioned is never hidden or folded into another column: it is the count of
+  how blind the system currently is, and today it is every cell's largest number.
+- `skills/_shared/trust-table.md` is the one fetch/render procedure both consuming
+  skills inline rather than duplicate — `/help` Stage 4.8 (subagents cannot read the
+  file directly, so its Fetch/Render sections are inlined into the dispatch prompt)
+  and `/backlog overview` Step 1.5 (rendered inline, no subagent). When every cell
+  reads `insufficient-evidence`, the table collapses to one summary line instead of
+  ten identical rows.
+- The `autonomy` policy lever gains its default value, `supervised`, alongside the
+  `trusted`/`unattended` ceiling values declared in
+  `docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md`. It is a ceiling
+  on autonomous action, not a level — the trust table moves the level, this lever only
+  ever caps it.
+
+Nothing in this release acts on a verdict. `trusted` and `unattended` exist so the
+ceiling is in place before anything can exceed it, but no consumer reads either value
+yet, and the table itself never grants a label, changes one, merges anything, or
+attaches a recommendation to what it renders. That wiring is Phase 3.
 
 ## v6.50.1 — Skill frontmatter stops double-prefixing the plugin namespace
 

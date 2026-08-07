@@ -22,11 +22,17 @@ On any skip, return the skip object — the caller continues without the shape p
 
 ### Step 2: Invoke shape command
 
-Invoke via the Skill tool:
+Invoke via the Skill tool, passing the topic **and**, when the caller supplied one via `--description <text>` (see `../SKILL.md`'s Input section), the description verbatim beneath it:
 
 ```
 /impeccable:impeccable shape <topic>
+
+<description, verbatim>
 ```
+
+**Forward the description; never pre-classify it.** Upstream's `shape` enters `reference/new-work.md`, whose first step ("Decide what is already true") classifies the work itself — redesign, established world to inherit, incomplete brand, or no visual authority — and rules that a section or component inside an established surface inherits that surface rather than becoming a new identity exercise. That classification is upstream's to make, and it needs the description to make it. Forwarding a bare noun phrase forces it to classify from nothing; deciding the job type here and forwarding a verdict re-derives what upstream already does — the same defect that retired the keyword tables in `../command-map.md`. Do not summarize, label, or otherwise interpret the text on the way through.
+
+**When no description was passed, forward the topic alone.** That is a degraded call, not an error: upstream still classifies, just from less. Never substitute a locally-inferred job type for the missing text.
 
 ### Step 3: Capture output verbatim
 

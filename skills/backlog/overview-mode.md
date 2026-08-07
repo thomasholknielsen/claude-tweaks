@@ -30,6 +30,18 @@ node -e "
 
 This last script reads `/tmp/backlog-overview-faceted.json`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `/tmp/backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
 
+## Step 1.5: Trust table (read-only)
+
+*(Omit this entire step under `work-backend: local-files` — see `_shared/trust-table.md`'s
+framing note; `demo:approved`/`demo:changes-requested` are a `github-issues` concept and there is
+nothing to fetch.)*
+
+Render `bin/lib/issues/trust.js`'s per-class trust table per `_shared/trust-table.md`'s Fetch and
+Render sections, verbatim. This step reports what evidence exists and nothing else — it never
+grants, changes a label, merges anything, or recommends an autonomous action. It runs once per
+invocation, independent of which lens (or none) was requested below, since it is a repo-wide
+finding rather than a lens-scoped view.
+
 ## Step 2: Route by lens
 
 ```bash

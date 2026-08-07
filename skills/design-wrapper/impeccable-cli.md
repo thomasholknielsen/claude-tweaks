@@ -76,7 +76,7 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
 | `name` | string | Yes | Short human-readable rule name |
 | `description` | string | Yes | Full explanation of the anti-pattern |
 | `severity` | string | Yes | Informational display value; not the classification axis (see `advisory`). Observed domain: `warning`, `advisory`, `error` — `error` is currently emitted only by rules reachable through the browser/URL engine, not through `detect --json <files>`, so it will not appear in this wrapper's output at the pinned version. |
-| `category` | string | Yes | Rule grouping (e.g. `slop`). Present since at least 3.5.0; useful for dispatch grouping in place of keyword-matching `description`. |
+| `category` | string | Yes | Rule grouping (e.g. `slop`). Present since at least 3.5.0. Useful for **grouping** findings for a human; it is **not** a dispatch key — `polish` mode selects commands solely from a finding's own `suggestion` field, and deriving a command from `category` is the keyword-mapping retired in `command-map.md`'s "Step 2 — Suggestion-driven". |
 | `file` | string | Yes | Absolute path (the CLI resolves before scanning) |
 | `line` | integer | Yes | Line number; `0` for file-level findings (the CLI always sets this field, defaulting to `0`) |
 | `snippet` | string | Yes | The matched text/pattern that triggered the finding |

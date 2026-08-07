@@ -26,11 +26,13 @@ When `<spec>` is a record reference, resolve via the run's materialized file (`{
 
 Reference selection rules (inspect the spec body):
 
-- **Always load** when frontend: `typography.md`, `color-and-contrast.md`, `spatial-design.md`
+- **Always load** when frontend: `typography.md`, `color-and-contrast.md`, `spatial-design.md`, `new-work.md`
 - **Add `motion-design.md`** when the spec mentions animations, transitions, micro-interactions, motion, or hover effects
 - **Add `responsive-design.md`** when the spec mentions breakpoints, mobile, tablet, responsive, or viewport
 - **Add `interaction-design.md`** when the spec mentions hover/focus states, keyboard navigation, or interactive controls
 - **Add `ux-writing.md`** when the spec mentions copy, microcopy, error messages, empty states, or labels
+
+The keyword rules above select *which reference files to load*. They are not a job-type classifier and must not grow into one: nothing here decides whether the record is a redesign, a new page, or an addition. `new-work.md` is in the always-load set precisely because its first step ("Decide what is already true") is where that determination belongs, and it is made downstream — during the build, against the real code and the record's own description — not guessed here from keywords. Carry the record's description into `description` (see Output to caller) so the implementer has the text that determination needs; do not summarize or label it.
 
 Reference files live inside the Impeccable plugin's skill directory. The wrapper does not bundle them — it lazy-loads them via the Skill tool's read of `/impeccable:impeccable` (consult the Impeccable plugin's own SKILL.md for the canonical paths). When a reference cannot be located, note the miss and continue with what was loaded.
 
@@ -49,10 +51,13 @@ Missing files are not errors — they mean `/impeccable:impeccable init` and `do
   "result": "ok",
   "loaded": [ "<path1>", "<path2>", ... ],
   "context_size": <approx tokens, sum of file sizes / 4>,
-  "missed": [ "<path that was expected but not found>" ]
+  "missed": [ "<path that was expected but not found>" ],
+  "description": "<the record's own description of the work, verbatim>"
 }
 ```
 
 The `context_size` is a rough estimate (`bytes / 4`) — used by `/build` to decide whether to summarize the references before injecting into the subagent prompt versus passing them whole.
+
+`description` is the record's own text, passed through unaltered from Step 2's spec read; omit the field entirely when the spec yielded no usable description. It pairs with `new-work.md` in `loaded`: the reference supplies the classification procedure, this field supplies the input it classifies. `/build` forwards both into the implementer's context rather than acting on either — a wrapper-side or caller-side summary of the description would substitute this layer's reading of the work for upstream's, which is what this mode stopped doing.
 
 `pre-build` does not modify code. The loaded references are read-only context for the implementer subagent.

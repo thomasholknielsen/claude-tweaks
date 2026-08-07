@@ -38,6 +38,7 @@ const POLICY_KEYS = [
   { key: 'scope-keywords-required', type: 'boolean', default: false },
   { key: 'section-confirmation', type: 'enum', values: ['adaptive', 'per-section', 'batch'], default: 'adaptive' },
   { key: 'merge-check', type: 'boolean', default: true },
+  { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised' },
 ];
 
 function readFileSafe(filePath) {
