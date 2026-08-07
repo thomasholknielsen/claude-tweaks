@@ -161,21 +161,25 @@ Add `by:{source}` at every record-creation site — `/capture`, `/wrap-up` lefto
 `by:{self}` is already specified in `_shared/work-record.md` but emits no label in practice).
 Bootstrap the labels through the existing `_shared/label-bootstrap.md` check-then-create loop.
 
-### 1.2 Outcome breadcrumb on the light lane
+### 1.2 Attribution — derived from git, not breadcrumbed
 
-`bin/lib/hooks/post-tool-use.js` already runs a closing-keyword check on **every** `git commit`,
-deliberately ungated on run-dir state. Extend it to emit an outcome breadcrumb naming the record,
-the commit SHA, and the touched paths.
+*Revised during planning. The original design proposed extending
+`bin/lib/hooks/post-tool-use.js`'s closing-keyword check to emit an outcome breadcrumb. Planning
+found this both unnecessary and hazardous, and it is dropped.*
 
-**Attribution constraint.** `[IL-96]` forbids a fallback that *guesses* which record to use from
-also writing to it. This design satisfies that by construction: the closing keyword (`Fixes #N`)
-names the record explicitly, so the breadcrumb never resolves a run dir and never guesses. It must
-**not** be written into `events.jsonl` via a fallback-resolved run — light-lane commits frequently
-resolve no run at all. Where the breadcrumb needs durable storage beyond the commit trailer itself,
-it attaches to the record.
+Unnecessary: **the closing commit is already the durable record.** Every light-lane close leaves a
+`Fixes #N` / `closes #N` commit in git history, so `git log --grep` recovers the full
+record → commit → touched-paths mapping after the fact. A breadcrumb would duplicate data git
+already holds.
 
-Per the hooks contract, this stays **log tier** — no new stop, no session-breaking path, exits 0 on
-every branch, and passes the garbage-stdin invariant test in `tests/hooks-dispatcher.test.js`.
+Hazardous: the check the breadcrumb would feed needs to know whether a record *currently* carries a
+disposition, which is a network read. Hooks must stay fast and local, so the check cannot live
+there — and a breadcrumb with no local consumer is pure cost. Writing one would also mean inventing
+a durable store for commits that resolve no run dir, which is exactly the cross-session collision
+shape `[IL-96]` warns about.
+
+**Consequence:** Phase 1 requires no hook change at all. Attribution is derived by the Phase 1.3
+sweep from git history.
 
 ### 1.3 Acceptance disposition on every closing path
 
@@ -195,11 +199,13 @@ files as having **no interactive verification surface** — which is nearly this
 a manual-verification path the sensor is blind by default on its own project. `#135` records this
 gap; it is a Phase 1 dependency, not a separate nicety.
 
-### 1.5 Bootstrap the missing labels
+### 1.5 The missing labels are a symptom, not a defect
 
-`wrap-up/verification-brief.md` Step 1 bootstraps only `demo:pending`. `demo:approved` and
-`demo:changes-requested` do not exist in this repo, so `/demo` cannot currently resolve anything.
-Bootstrap all three.
+*Revised during planning.* `demo:approved` and `demo:changes-requested` are already defined in
+`_shared/label-bootstrap.md`'s canonical taxonomy, and `/claude-tweaks:demo` Step 3 already
+bootstraps both via the check-then-create loop before its first swap. Their absence from this repo
+is therefore **evidence that `/demo` has never run**, not a gap to fix. No work is required here;
+the row remains only so the measured-state finding is not mistaken for a defect later.
 
 ### Phase 1 exit criteria
 
