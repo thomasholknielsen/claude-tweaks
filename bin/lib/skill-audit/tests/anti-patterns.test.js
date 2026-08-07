@@ -207,5 +207,19 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the same base — while the two comment blocks did conflict. Correct total
   //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
   //   alone.
-  assert.strictEqual(total, 358);
+  //
+  //   358 -> 362, `doctor` mode routing Impeccable's design-record findings
+  //   into /tidy (#150). Four rows ADDED to design-wrapper/SKILL.md, none
+  //   evicted: "Passing `--fix` to `doctor.mjs`", "Passing any flag but
+  //   `--json` to `doctor.mjs`", "Collapsing `route`/`mention`/`auto` into
+  //   claude-tweaks' severity words in the wrapper's return", and "Running
+  //   Layer 3's file sniff before `doctor`". Verified rather than assumed, in
+  //   both directions: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty, and the same diff's `^\+\|` lines are these
+  //   four plus four Input/availability/Next-Actions rows this parser does not
+  //   read. The concurrent merge from origin/main that landed in the same
+  //   branch added no table rows at all (checked separately, since the 356 ->
+  //   358 entry above records what happens when a merge's contribution is
+  //   assumed to be zero without looking). Net +4.
+  assert.strictEqual(total, 362);
 });

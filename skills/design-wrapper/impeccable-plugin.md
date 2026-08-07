@@ -7,6 +7,8 @@ The **plugin** and the **CLI** are two independent artifacts on two independent 
 
 Reference for **Layer 0**, the wrapper's enrichment layer. Layer 0 executes Impeccable's own `context-signals.mjs` and folds its output into the wrapper's decisions. It is cheap (no LLM call, no detector run, no file writes) and entirely optional.
 
+This file also hosts the **shared plugin-root resolver** (`## Resolution` below). Layer 0 is its first consumer but no longer its only one: `doctor` mode runs a different script out of the same plugin root. The resolver is named and specified once here precisely so a second consumer imports it rather than re-deriving it (`[IL-32]`). Everything outside `## Resolution` — the output shape, the trust rules, the Layer 0 framing — remains Layer-0-specific.
+
 ## Layer 0 — what it can and cannot decide
 
 **Layer 0 gates nothing.** It enriches; it has no veto and no skip power of its own. Layers 1-3 remain the only things that can stop a dispatch. A Layer 0 that is absent, off-pin, or broken changes no mode's outcome — every mode continues to work with Layers 1-3 unchanged. **Degradation is never a failure.**
@@ -43,13 +45,29 @@ Nothing upstream computes a frontend predicate, so deleting or weakening Layer 3
 
 The wrapper resolves the pinned plugin from the Claude Code plugin cache. Every step reads the artifact itself.
 
-### Procedure
+### `resolveImpeccablePlugin({searchRoot}) -> {root, version} | null`
+
+**One resolver, every consumer.** Both Layer 0 and `doctor` mode need the same answer — "where is the pinned Impeccable plugin?" — so the procedure below is specified once, under this name, and each consumer derives its own script path from the returned `root`. A second copy of these four steps is the duplication `[IL-32]` names; do not add one.
+
+`searchRoot` defaults to `~/.claude/plugins/cache` (see "Injectable search root" below). The return is `{root, version}` on a hit and `null` on a miss, with the miss distinguished per the degradation table below — a bare `null` collapses "absent" into "off-pin" and reports a fixable install problem as an unfixable absence.
+
+#### Procedure
 
 1. **Glob** `<search-root>/*/impeccable/*/.claude-plugin/plugin.json`, where `<search-root>` defaults to `~/.claude/plugins/cache`. The first `*` is the marketplace directory; the second is the version directory.
 2. **Read each candidate's own `version` field.** Never infer the version from the directory name — a stale or mislabeled cache directory is precisely the drift this pin exists to catch, not to reproduce.
 3. **Select the candidate whose `version` equals the pin** in this file's `<!-- upstream-pin: impeccable-plugin@X.Y.Z -->` comment. Several versions coexist in the cache routinely (4.0.2 and 3.0.6 both sit there on the machine this contract was recorded against), so this is a select-from-many, not a read-the-one.
-4. **The plugin root** is two segments up from the matched `plugin.json` — the directory containing `.claude-plugin/`.
-5. **The script** is `<plugin-root>/skills/impeccable/scripts/context-signals.mjs`.
+4. **The plugin root** is two segments up from the matched `plugin.json` — the directory containing `.claude-plugin/`. That directory is the returned `root`; the matched `version` is the returned `version`.
+
+#### Script paths per consumer
+
+Derived from the returned `root`. The resolver itself resolves no script — it answers only "which plugin root is at the pin," and each consumer appends its own path:
+
+| Consumer | Script |
+|---|---|
+| Layer 0 (all modes) | `<root>/skills/impeccable/scripts/context-signals.mjs` |
+| `doctor` mode (`modes/doctor.md`) | `<root>/skills/impeccable/scripts/doctor.mjs` |
+
+Both scripts ship inside the same plugin at the same pin, so one successful resolve serves both — a `doctor` invocation never re-globs the cache when Layer 0 already resolved in the same wrapper call.
 
 ### Never resolve via `${CLAUDE_PLUGIN_ROOT}`
 
@@ -61,23 +79,25 @@ The search root is a parameter with a default, not a constant. Without one, the 
 
 ### The pin is not pedantry
 
-`context-signals.mjs` **does not exist** at 3.0.6, the other version cached on the recording machine. A resolver that took "some Impeccable plugin is installed" for an answer would resolve a path that isn't there. Version-mismatch is a real, load-bearing distinction, not a strictness preference.
+`context-signals.mjs` **does not exist** at 3.0.6, the other version cached on the recording machine. Neither does `doctor.mjs` — verified against the same cache, so the pin is load-bearing for *both* consumers of this resolver, not just Layer 0. A resolver that took "some Impeccable plugin is installed" for an answer would resolve a path that isn't there. Version-mismatch is a real, load-bearing distinction, not a strictness preference.
 
 ## Degradation
 
 Three conditions all degrade to a skip. The skip reason must distinguish them — collapsing them reports a fixable install problem as an unfixable absence.
 
-| Condition | Detected by | Skip reason |
-|---|---|---|
-| **Absent** | The glob matched no candidate directory at all | `Impeccable plugin not installed` |
-| **Version mismatch** | Candidates found, none at the pin | `Impeccable plugin {found} does not match the pinned {pinned}` — `{found}` names **every** version found, as a list |
-| **Execution failure** | The pinned script resolves but exits non-zero, writes to stderr, or emits stdout that does not parse as JSON | `Impeccable context signals unavailable (execution failed)` |
+The first two rows are **resolver-level**: they are the two ways `resolveImpeccablePlugin` returns `null`, and they read identically for every consumer. The third is **per-consumer** — each consumer runs a different script, so each detects and words its own execution failure. `doctor` mode's wording is in `modes/doctor.md`.
+
+| Condition | Level | Detected by | Skip reason |
+|---|---|---|---|
+| **Absent** | Resolver | The glob matched no candidate directory at all | `Impeccable plugin not installed` |
+| **Version mismatch** | Resolver | Candidates found, none at the pin | `Impeccable plugin {found} does not match the pinned {pinned}` — `{found}` names **every** version found, as a list |
+| **Execution failure** | Per-consumer | The pinned script resolves but exits non-zero, writes to stderr, or emits stdout that does not parse as JSON | `Impeccable context signals unavailable (execution failed)` (Layer 0's wording) |
 
 Naming every version found is the point, and the plural is load-bearing: two cached copies on one machine is an ordinary observed state, so "what was found" is a list, not a value. A reason naming one of two installed versions sends the user chasing the wrong one.
 
 **Execution failure is a skip, never an exception.** Exit 0 / empty stderr / JSON on stdout is an *observation* from one run of one version, not a guarantee. `context-signals.mjs` promises internally that "every probe is best-effort and never throws" — but that promise covers the probes, not the module load, not the imports it resolves at load time, and not the process. A version-matched script that fails must not propagate an exception into every `/tidy` and `/flow` run.
 
-In all three cases Layers 1-3 run unchanged and every mode completes normally.
+In all three cases Layers 1-3 run unchanged and every mode completes normally — **for Layer 0**. That immunity is Layer 0's property, not the table's: Layer 0 is enrichment, so losing it changes no outcome. A consumer for which the plugin *is* the work degrades differently — `doctor` mode returns a skip object of its own, because a `doctor` run with no `doctor.mjs` has no result to report. Read a row here for how to *detect and word* a condition, not for what it costs the caller.
 
 ## Invocation
 
@@ -186,7 +206,7 @@ First branch that yields anything wins:
 |---|---|---|
 | `scan.targets` / `scan.via` | Target resolution, all modes | Replaces the wrapper's `git diff --name-only` **fallback**, and only **after** Layer 3 has ruled the change frontend. Never overrides an explicit caller-supplied target list — per "Arguments resolution" it is computed from the live working tree with no injection point, so substituting it would silently widen a scoped invocation. Empty `targets` takes the git-diff fallback too: "did not resolve" and "resolved but returned nothing" reach the same place. |
 | `setup.platform` | `/claude-tweaks:design-wrapper`'s return (surfaced), native routing (acts) | Authoritative when non-null; `null` falls back to the record's `Surface:` body-metadata line. This file's leaf surfaces the field; acting on `ios`/`android`/`adaptive` is a later record's job. |
-| `setup.hasProduct` / `setup.hasDesign` | `pre-build`, `doctor` | Whether Impeccable's own project context exists. Not surfaced in the wrapper return yet — the record that consumes them adds the field. |
+| `setup.hasProduct` / `setup.hasDesign` | `pre-build`, `doctor` | Whether Impeccable's own project context exists. **`doctor` gates on this**: both false means the project has no Impeccable artifacts to audit, and `doctor` skips before spawning `doctor.mjs` (see `modes/doctor.md`). Still not surfaced in the wrapper return — `doctor` consumes them internally rather than re-exporting them. |
 | `critique.latest` | `review` | A cached score with P0/P1 counts, free. Advisory context only — it never replaces a live `critique` run and never changes `result`. |
 | `devServer.running` / `devServer.ports` | `live` | **Veto only** — `false` skips, `true` does not authorize. The probe is a bare TCP connect against seven fixed ports: it cannot tell whose server answered, and it is silent about every port it did not check, so `false` only vetoes a target whose port is in that set. See `modes/live.md`. |
 
@@ -197,5 +217,5 @@ First branch that yields anything wins:
 ## Open items (tracked in parent design doc)
 
 - **Native routing** — `setup.platform` is plumbed through and surfaced here, but nothing acts on `ios`/`android`/`adaptive` yet. That behaviour, and the `Surface:` fallback's precise precedence when both are present, belong to the record that owns native routing.
-- **`doctor` integration** — `setup.hasProduct` / `setup.hasDesign` are documented here and consumed by the record that adds `doctor` mode. Until then they are contract-only, deliberately not surfaced in the return.
+- ~~**`doctor` integration**~~ — **closed.** `doctor` mode landed and consumes `setup.hasProduct` / `setup.hasDesign` as its project-context precondition (see the trust table above and `modes/doctor.md`). They remain deliberately unsurfaced in the wrapper return: the consumer reads them internally, so surfacing them would add a field with no reader.
 - **Cache lifetime** — the wrapper re-executes `gatherSignals()` per invocation. The call is sub-second, so there is no caching today; if a pipeline run ever calls several modes in sequence, a per-run memo keyed on `cwd` is the obvious next step.
