@@ -25,9 +25,9 @@ Continuing from the shared step (1) in `SKILL.md`'s table: (2) update the target
 
 Resolves a `[family-gate]` finding. Under this driver those come from `scan-procedures.md`
 Step 1's **Shape 7**, not from `_shared/github-pr-scan.md`'s `family-gate` scope — that scope
-reads GitHub issues and its Detection Ladder skips the whole file when `gh` is unreachable, which
-is why the local sweep lives in the record scan instead. Same finding prefix, same action; only
-the scan and the store differ.
+queries the `family:parent` label and so returns nothing here, and its file is skipped outright
+whenever `gh` is absent, which is why the local sweep lives in the record scan instead. Same
+finding prefix, same action; only the scan and the store differ.
 
 Approving one runs `wrap-up/verification-brief.md`'s Family-Gate Procedure from **Enumerate the
 family's leaves** onward, using the **parent-side** entry shape that section documents, on its
@@ -53,10 +53,28 @@ and this one is a file edit under git, which clears `_shared/auto-mode-contract.
 reversibility floor outright. What fails here instead is that contract's **confidence** floor:
 the write is not a mechanical flag flip but the composition of a Verification Brief, an authored
 artifact a human then reads as the basis for a sign-off verdict, plus the assertion that a family
-is complete. Keeping both drivers on the same tier is also what keeps `[family-gate]` one finding
-with one behavior rather than two that diverge by store.
+is complete.
+
+**And the write latches.** `familyGateState` reads the parent's own disposition before it reads
+any leaf, so the moment `acceptance: pending` is on the parent the family returns `gated` on
+every future evaluation — this action, `/claude-tweaks:wrap-up`'s eager path, and Shape 7's sweep
+all stop looking at it. An auto-applied brief that got the family wrong therefore becomes the
+input a human signs off against, with nothing left in the data to show a machine chose it —
+`[IL-96]`'s shape, a write that becomes one of its own path's future inputs. `git revert` undoes
+the bytes; it does not undo a verdict already given against them, which is why clearing the
+reversibility floor is not sufficient here.
+
+Keeping both drivers on the same tier is also what keeps `[family-gate]` one finding with one
+behavior rather than two that diverge by store.
 
 This action never sets `acceptance: approved` or `acceptance: changes-requested` — those stay
 exclusively `/claude-tweaks:demo`'s job, applied only after an explicit human verdict. Opening
 the gate is the precondition for that verdict, not the verdict itself, which is why the
 recommendation still ends with `/claude-tweaks:demo {id}` even once the gate is open.
+
+**What this does not cover.** Only families. The sibling backstop — `acceptance-gap`, closed
+records with no disposition that are *not* decomposed leaves — still has no `local-files`
+equivalent anywhere; it remains a `_shared/github-pr-scan.md` scope reading GitHub issues. A
+locally-closed standalone record therefore reaches a disposition only if `/claude-tweaks:wrap-up`
+applied one as it closed. Say so if asked why such a record shows no acceptance state; do not
+imply a sweep will pick it up.

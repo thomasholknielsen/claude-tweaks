@@ -163,8 +163,9 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   parent and, once approved, applies the same disposition — reusing the identical Family-Gate
   Procedure rather than a second copy of it. Only the sweep that surfaces it differs by driver:
   `_shared/github-pr-scan.md`'s `family-gate` scope under `github-issues`, and
-  `tidy/scan-procedures.md` Step 1's Shape 7 under `local-files`, since that first file's
-  Detection Ladder gates it on `gh` reachability.
+  `tidy/scan-procedures.md` Step 1's Shape 7 under `local-files` — the first queries the
+  `family:parent` label, which no local record carries, and its file is skipped entirely whenever
+  `gh` is absent, so the local sweep cannot live there.
 - `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
   record's brief per invocation (open or closed) and resolves the label to `demo:approved` or
   `demo:changes-requested` — `/claude-tweaks:help` (Stage 4.7) is the sole discovery surface for

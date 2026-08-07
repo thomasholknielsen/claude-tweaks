@@ -48,7 +48,7 @@ come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buck
 | Review | Keep (unless clearly stale) |
 | Stale | Delete or Promote |
 
-**Decomposition parents are exempt — always `Keep`, at every age.** A record carrying `family:parent` (`github-issues`) or `facets.familyParent === true` (`local-files`) is `isBacklog` by construction and forever: `/claude-tweaks:specify` never gives a parent a stage label and nothing ever promotes one, so every live parent crosses the staleness threshold and lands on `Delete or Promote` while its family is still being built — and `Delete` here is `gh issue close --reason "not planned"`, which destroys the family's only acceptance checkpoint. Leaves landing weeks apart is the dominant workflow, so a parent going stale mid-family is the common case, not the edge one. Give the row the reason inline (`Keep — decomposition parent, gated by Step 4.8's family-gate scope, not by staleness`) rather than dropping it silently, so a reader sees why one stale-looking record is being left alone. Step 4.8's `[family-gate]` scope is what acts on parents; this shape must not race it with a contradictory recommendation for the same record.
+**Decomposition parents are exempt — always `Keep`, at every age.** A record carrying `family:parent` (`github-issues`) or `facets.familyParent === true` (`local-files`) is `isBacklog` by construction and forever: `/claude-tweaks:specify` never gives a parent a stage label and nothing ever promotes one, so every live parent crosses the staleness threshold and lands on `Delete or Promote` while its family is still being built — and `Delete` here is `gh issue close --reason "not planned"`, which destroys the family's only acceptance checkpoint. Leaves landing weeks apart is the dominant workflow, so a parent going stale mid-family is the common case, not the edge one. Give the row the reason inline (`Keep — decomposition parent, gated by the family-gate sweep, not by staleness`) rather than dropping it silently, so a reader sees why one stale-looking record is being left alone. **Name the sweep the resolved driver actually uses** — Step 4.8's `family-gate` scope under `github-issues`, **Shape 7 below** under `local-files` — since citing Step 4.8 on a project that never runs it points the reader at a sweep that will never produce the row it promises. Either way, that sweep is what acts on parents and this shape must not race it with a contradictory recommendation for the same record; under `local-files` they are not even separate agents — Shape 7 runs in this same Step 1 prompt, so a `Delete or Promote` row here would contradict a `[family-gate]` row this same agent emits in the same reply.
 
 → Collect each as: `[backlog] {title} — {age} — {recommendation}`
 
@@ -95,27 +95,27 @@ Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/d
 
 ### Shape 7 — decomposition family gate due
 
-**`work-backend: local-files` only.** This is the local twin of Step 4.8's `family-gate` scope
-(`_shared/github-pr-scan.md`), which reads GitHub issues and is gated on `gh` reachability by
-that file's Detection Ladder — the reason the local-files sweep lives here, in the one scan step
-that reads the record store through the driver, rather than there. Same finding, same
-`[family-gate]` prefix, same `Open family gate` action; only the store differs.
+**`work-backend: local-files` only.** Finds decomposition families whose every leaf has closed
+but whose parent carries no acceptance disposition yet — the population
+`/claude-tweaks:wrap-up`'s Family-Gate Procedure (`wrap-up/verification-brief.md`) gates eagerly
+when it closes a family's last leaf. A family whose last leaf closes any other way — by hand, or
+by a run that ended before wrap-up — never reaches that eager path; this shape catches it after.
 
-It finds decomposition families whose every leaf has closed but whose parent carries no
-acceptance disposition yet — the population `/claude-tweaks:wrap-up`'s own Family-Gate Procedure
-(`wrap-up/verification-brief.md`) gates eagerly when it closes a family's last leaf. A family
-whose last leaf closes any other way — by hand, or by a run that ended before wrap-up — never
-reaches that eager path, and this shape is the backstop that catches it afterward.
+It is the local twin of Step 4.8's `family-gate` scope (`_shared/github-pr-scan.md`) — same
+finding, same `[family-gate]` prefix, same `Open family gate` action; only the store differs. It
+lives in this step rather than that file because that file is skipped whole whenever `gh` is
+absent, and a sweep needing no `gh` must not inherit that skip; that scope's own header states
+the full reasoning, including what its Detection Ladder does and does not gate on.
 
 Classification is entirely `familyGateState`'s (`bin/lib/issues/acceptance.js`) — do not
-reimplement the gate logic. That predicate is backend-agnostic: it takes `{leaves, parentLabels}`,
-and a local parent's disposition translates to the one-element `['demo:' + facets.acceptance]`
-(empty array when the facet is unset), exactly as `wrap-up/verification-brief.md`'s
-**Evaluate the gate** already does for this driver.
+reimplement it. That predicate is backend-agnostic: it takes `{leaves, parentLabels}`, and a
+local parent's disposition translates to the one-element `['demo:' + facets.acceptance]` (empty
+when unset), exactly as `wrap-up/verification-brief.md`'s **Evaluate the gate** does for this
+driver.
 
-This shape needs its own query rather than reusing Step 1's shared fetch above: that fetch
-returns open records only and carries no leaf-to-parent index, and a family's leaves are closed
-by definition when its gate is due.
+It needs its own query, not Step 1's shared fetch: that fetch returns open records only and
+carries no leaf-to-parent index, and a family's leaves are closed by definition when its gate is
+due.
 
 ```bash
 node -e "
@@ -141,39 +141,27 @@ node -e "
 "
 ```
 
-Each line comes back as `{path}<TAB>{finding}`: the parent record's own file path fills the row's
-`Path:Line` column (`SKILL.md`'s Tidy-specific column semantics — the local record path under
-this driver, where `github-issues` rows carry `#{n}`), and everything after the tab is the
-`[family-gate]` finding itself.
+Each line is `{path}<TAB>{finding}` — the path fills the row's `Path:Line` column (`SKILL.md`'s
+Tidy-specific column semantics: the local record path on this driver, where `github-issues` rows
+carry `#{n}`), the rest is the finding.
 
-Both `queryRecords` shapes above are deliberate. `{ familyParent: true }` returns **open**
-parents only (the function excludes closed records unless the filter names `closed`), which is
-the right set — a closed parent has already been dispositioned and closed by
-`/claude-tweaks:demo`, and it mirrors the `github-issues` scope's own `--state open`
-`family:parent` fetch. The leaf listing is the two-call open+closed merge for the same reason:
-one call alone would silently drop every closed leaf, i.e. exactly the leaves that make a gate
-due. No fetch-limit or truncation warning applies here, unlike the `github-issues` scope that
-pages an API — `queryRecords` reads the whole `specs/` directory on every call.
+Both `queryRecords` shapes are deliberate. `{ familyParent: true }` returns **open** parents only
+(closed records are excluded unless the filter names `closed`) — the right set, since a closed
+parent was already dispositioned and closed by `/claude-tweaks:demo`, and it mirrors the
+`github-issues` scope's `--state open` fetch. The leaf listing is the open+closed two-call merge
+for the same reason: one call alone drops every closed leaf, exactly the ones that make a gate
+due. No fetch-limit or truncation warning applies, unlike the API-paging twin — `queryRecords`
+reads the whole `specs/` directory every call.
 
 → Collect each as: `[family-gate] {id}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo {id}`
 
-The recommendation is the `Open family gate` action (`SKILL.md`'s Action Vocabulary, executed
-via `actions-local-files.md`'s `## Open family gate`) — **staged, never auto-applied, at every
-aggressiveness tier** (`step-6-auto.md`'s `Open family gate` row), the same as its
-`github-issues` twin. It never writes `demo:approved`/`demo:changes-requested`: that verdict
-stays exclusively `/claude-tweaks:demo`'s job, which is why the row still ends with
-`/claude-tweaks:demo {id}` even once the gate is open.
-
-Severity `info` — the same tier the `github-issues` `family-gate` scope uses, and for the same
-reason: on a project with several open decompositions this is a standing backlog, not a defect
-count, and Step 6's report caps rows highest-severity-first.
-
-**What this shape does not cover.** Its sibling backstop — `acceptance-gap`, closed records with
-no acceptance disposition that are *not* decomposed leaves — still has no `local-files`
-equivalent anywhere; it remains a `_shared/github-pr-scan.md` scope reading GitHub issues. A
-locally-closed standalone record therefore still reaches a disposition only if
-`/claude-tweaks:wrap-up` applied one as it closed. Say so if a user asks why a closed local
-record shows no acceptance state; do not imply this shape picks it up.
+Severity `info` — with several open decompositions this is a standing backlog, not a defect
+count, and Step 6 caps rows highest-severity-first (the same tier and reason as its
+`github-issues` twin). The recommendation is the `Open family gate` action, staged at every
+aggressiveness tier and never writing `demo:approved`/`demo:changes-requested`, which is why the
+row still ends with `/claude-tweaks:demo {id}`; `actions-local-files.md`'s `## Open family gate`
+and `step-6-auto.md`'s row carry that action's execution, its staging reasoning, and what it
+does not cover.
 
 ## Step 3: Audit Design Docs
 

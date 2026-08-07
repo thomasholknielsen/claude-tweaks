@@ -187,7 +187,8 @@ After all actions are applied, verify every decision was fully executed. Present
 - [x] Captured: "{title}" — new backlog record with source URL (PR/thread/issue link)
 - [x] Closed (GitHub): PR #{n} / issue #{n} — explanatory comment posted, state re-queried as `CLOSED` (`gh pr view {n} --json state` / `gh issue view {n} --json state`)
 - [x] Resolved thread: PR #{n} — thread re-queried as `isResolved: true`
-- [x] Opened family gate: "{title}" — parent #{n} carries a brief comment headed `## Verification Brief` (the template's own first line) and `demo:pending` in its labels, both re-queried (`gh issue view {n} --json labels,comments`); comment present before label, per the invariant
+- [x] Opened family gate: "{title}" — parent #{n} carries a brief comment headed `## Verification Brief` (the template's own first line) and `demo:pending` in its labels, both re-queried (`gh issue view {n} --json labels,comments`); comment present before label, per the invariant (`github-issues`)
+- [x] Opened family gate: "{title}" — parent record `specs/{id}-{slug}.md` re-read (`readRecord`) and found to carry a `## Verification Brief` section in its body and `acceptance: pending` in its frontmatter. No ordering invariant to check here: the action writes both in one composed `writeRecord`, so a partially-applied gate is not a reachable state on this driver (`local-files`)
 - [ ] FAILED: "{title}" — {what went wrong}
 ```
 

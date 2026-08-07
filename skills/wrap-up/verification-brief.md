@@ -189,6 +189,14 @@ The set overrides state; it never adds leaves. Only members of `$CLOSING_LEAVES`
 family enumeration above already returned are affected — a member belonging to a different
 family, or to no family at all, is simply irrelevant to this family's `leaves` array.
 
+**A leaf-side entry arriving without an explicit `$CLOSING_LEAVES` defaults to the one-element
+set `{the leaf in hand}` — never to the empty set.** That default is what keeps this rule a
+strict widening of the self-contained one it replaced rather than a replacement for it: a caller
+that names no set still gets exactly the old behavior. The empty set would instead make every
+leaf evaluate `incomplete` and label nothing, which is precisely the silent no-op this rule
+exists to prevent and the `[IL-65]` mode named below — so a future fifth caller that forgets to
+pass one degrades to correct-for-one-leaf, not to silence.
+
 **Sizing the set to the run, not to the invocation.** There is one path here, not two: the
 single-leaf case is the one-element set.
 
