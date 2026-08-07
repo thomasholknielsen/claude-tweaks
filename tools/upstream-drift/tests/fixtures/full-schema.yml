@@ -1,0 +1,62 @@
+# tools/upstream-drift/tests/fixtures/full-schema.yml
+#
+# Frozen fixture — a maintainer-authored manifest exercising every field in
+# the schema. This file is independent of the live
+# tools/upstream-drift/manifest.yml and must NOT be edited when that file
+# changes; the round-trip test in manifest.test.js asserts an exact object
+# against THIS file, so editing the real manifest must never rewrite these
+# assertions ([IL-80]).
+
+dependencies:
+  - name: sample-cli
+    kind: npm-cli
+    installed-probe:
+      type: command
+      run: "npx --no-install sample --version"
+      root: "npm root -g"
+      root-suffix: "sample"
+    pinned: "1.2.3"
+    upstream:
+      repo: "example/sample"
+      tag-prefix: "cli-v"
+    contract-paths:
+      - "cli/engine/main.mjs"
+      - "cli/engine/registry.mjs"
+    assertions:
+      - file: "docs/sample.md"
+        claims: "exits non-zero on a warning-level finding"
+        upstream-path: "cli/engine/main.mjs"
+        must-match: "process.exit(2)"
+      - file: "docs/sample.md"
+        claims: "a clean scan prints an empty array"
+        upstream-path: "cli/engine/main.mjs"
+        must-match: "stdout.write('[]"
+    fixtures:
+      - run: "npx --no-install sample detect --json fixtures/warning.html"
+        expect:
+          exit: 2
+          stream: stdout
+          keys: [name, severity, file, line]
+      - run: "npx --no-install sample detect --json fixtures/clean.html"
+        expect:
+          exit: 0
+          stream: stdout
+          keys: []
+
+  - name: sample-plugin
+    kind: claude-plugin
+    installed-probe:
+      type: plugin-cache-glob
+      glob: "~/.claude/plugins/cache/*/sample/*/.claude-plugin/plugin.json"
+    pinned: "4.0.2"
+    upstream:
+      repo: "example/sample"
+      tag-prefix: "skill-v"
+    contract-paths:
+      - "skills/sample/SKILL.md"
+    assertions:
+      - file: "skills/sample-wrapper/command-map.md"
+        claims: "the plugin exposes a polish command"
+        upstream-path: "skills/sample/SKILL.md"
+        must-match: "polish [target]"
+    fixtures: []

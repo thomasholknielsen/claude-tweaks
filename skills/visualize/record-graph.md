@@ -103,7 +103,7 @@ fetch procedure exactly as written, with one addition: append `body` to
 same faceted-record JSON `/help`, `/tidy`, and `/backlog` already consume — no new
 fetch logic, this type is one more consumer of that shared procedure.
 
-Also read `work-links` from the project's CLAUDE.md (`_shared/work-record.md`'s Config
+Also read `work-links` from the project's `.claude-tweaks/policy.yml` (`_shared/work-record.md`'s Config
 keys table); a missing key resolves to `body-text`, matching that table's own default.
 
 **Do not rely on a shell variable to carry this value into Step B.** If Step A and

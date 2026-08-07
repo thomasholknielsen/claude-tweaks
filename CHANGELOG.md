@@ -31,7 +31,7 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.48.0 — One classifier decides where a learning goes
+## v6.49.0 — One classifier decides where a learning goes
 
 Learnings had five possible destinations, three writers, and nothing deciding
 between them. Two of the five — a memory file, and the plugin's own issue
@@ -53,6 +53,79 @@ against the plugin itself with an unconditional scrub gate and an explicit
 confirmation in every mode, including `--dry-run`. `/claude-tweaks:wrap-up`
 Steps 7.10 and 7.11 stage memory and upstream proposals to two new per-item
 Review Console sections; `auto` silences neither.
+
+Three gaps that work left behind are closed here rather than in a follow-up
+release, since none of it ever shipped separately. Interactive-mode wrap-up now
+has a Queue writes surface (#156): the ledger resolve gate stages a record
+proposal whenever a run directory exists, but routed it to a Review Console that
+only runs in `auto`/`hybrid`, so in interactive mode the proposal had no reader.
+The evals harness gains a `git-remote` fixture-seed step (#157), without which
+the self-reference scenario could not present its own precondition, and a matrix
+construct (#158), without which four of seven frozen corpus lessons were
+exercised by nothing — a fixture that reads as coverage while measuring nothing.
+
+## v6.48.1 — /init stops writing work-links to the file nothing reads
+
+v6.48.0 moved every `work-links` **reader** to `.claude-tweaks/policy.yml` and left the
+**writer** behind. `/claude-tweaks:init` bootstrap Step 17b probes the org's Issue
+capabilities and wrote both `work-types` and `work-links` "beside the flag" in CLAUDE.md —
+so on a newly bootstrapped project in an org with sub-issues and dependencies enabled, the
+probe returned `native`, recorded it where nothing looks, and every consumer fell back to
+`body-text`. Parent links landed as body-text task lists instead of sub-issue relationships,
+with nothing objecting. The next `/claude-tweaks:init --update` would then flag the key
+`/init` had just written as Config Home Drift: the skill fighting its own output on every
+cycle.
+
+Found by the whole-branch review, which is the only pass that could have found it — the
+writer and the readers are in different files, and each task's own diff was self-consistent.
+The scope list that kept Step 17b out of the migration excluded it for naming `work-backend`;
+nobody noticed the same file writes `work-links` fifty lines further down.
+
+- Step 17b now splits the write: `work-types` to CLAUDE.md, `work-links` to
+  `.claude-tweaks/policy.yml`, with the failure mode stated inline so the next editor sees why.
+- `_shared/auto-mode-contract.md`'s **skill-integration template** — the block skills are told
+  to copy when implementing an auto branch — still read project policy from CLAUDE.md. Its
+  descriptive twin three sections up was fixed in 6.48.0; the prescriptive copy, the one that
+  actually gets copied, was not.
+- The auto-FORBIDDEN list now names `policy.yml`'s keys, not just CLAUDE.md's. The old wording
+  stayed literally true while its subject moved out from under it, so nothing contradicted it.
+- Update Mode's Work-Record Backend Drift row looked for `work-links` in CLAUDE.md, which
+  after 6.48.0 fires on every correctly-configured project, forever.
+- The Config Home Drift "promote the CLAUDE.md value" remedy appended to `policy.yml` even
+  when the key was already present. Consumers read `| head -1`, so the append was inert and the
+  old value silently kept winning — a no-op the user had no way to notice. It now replaces
+  in place.
+- Root `CLAUDE.md` still said project policy lives "in CLAUDE.md or `.claude-tweaks/policy.yml`".
+
+## v6.48.0 — policy.yml is the single home for project config
+
+`.claude-tweaks/policy.yml` is now the only file claude-tweaks reads for config keys.
+Before this, eight levers were readable from either CLAUDE.md or `policy.yml`, four more
+were documented as CLAUDE.md-only, and one — `merge-sensitive-paths` — was documented as
+`policy.yml`-only while the skill that reads it grepped CLAUDE.md anyway.
+
+- Every lever in `_shared/policy-schema.md` resolves from `.claude-tweaks/policy.yml`. The
+  five remaining dual-read greps now name one file, and pick up the inline-comment strip the
+  rest of the codebase already used — a value like `5  # raised for the migration` no longer
+  carries its comment into the command it is interpolated into.
+- `depth-survey`, `creative-survey`, `backlog-fetch-limit`, and `promise-register-min-leaves`
+  gain the `policy.yml` path they never had. Defaults are unchanged.
+- `auditPolicy()` stops validating CLAUDE.md values and starts reporting recognized keys found
+  there under a new `migratableKeys` field. A value in a file nobody reads cannot be wrong,
+  only misplaced — so the remedy is to move the key, not correct the value.
+- `/claude-tweaks:init --update` gains a **Config Home Drift** check that shows a diff and
+  offers to move those keys, removing only exactly-matched lines. It is a staged offer, never
+  an autonomous edit: CLAUDE.md is the file users hand-tune most, and `parseFlatLines`
+  deliberately matches key-shaped lines inside fenced blocks, so a CLAUDE.md that *documents*
+  these levers can produce rows that must not be applied.
+- `/claude-tweaks:harness-health`'s policy check reports migrations alongside unrecognized
+  keys and invalid values.
+
+**If your project sets levers in CLAUDE.md, run `/claude-tweaks:init --update`.** Those keys
+stop applying in this release; the check finds them and offers the move. The work-record keys
+`work-backend`, `work-types`, and `record-staleness-weeks` are unaffected and stay in
+CLAUDE.md — `_shared/work-record-config.md` states why, and they are absent from `POLICY_KEYS`
+so the migration never touches them.
 
 ## v6.47.0 — Run bookkeeping stops writing to other sessions' runs (closes #62)
 

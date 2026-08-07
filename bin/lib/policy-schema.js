@@ -95,17 +95,33 @@ function auditPolicy(repoRoot) {
 
   const unrecognizedKeys = Object.keys(policyEntries).filter((key) => !schemaByKey.has(key));
 
+  // policy.yml is the only config home, so it is the only thing worth validating.
   const invalidValues = [];
-  for (const [entries, source] of [[policyEntries, 'policy.yml'], [claudeMdEntries, 'CLAUDE.md']]) {
-    for (const [key, value] of Object.entries(entries)) {
-      const schemaEntry = schemaByKey.get(key);
-      if (schemaEntry && !isValidValue(schemaEntry, value)) {
-        invalidValues.push({ key, value, expected: schemaEntry, source });
-      }
+  for (const [key, value] of Object.entries(policyEntries)) {
+    const schemaEntry = schemaByKey.get(key);
+    if (schemaEntry && !isValidValue(schemaEntry, value)) {
+      invalidValues.push({ key, value, expected: schemaEntry });
     }
   }
 
-  return { unrecognizedKeys, invalidValues };
+  // A recognized key still sitting in CLAUDE.md no longer applies to anything.
+  // Its value is not audited — correcting a value nobody reads is not the fix;
+  // moving the key is. `alsoInPolicy` separates the two remedies: false means
+  // "move it," true means "delete the dead copy, policy.yml already wins."
+  // Deliberately restricted to POLICY_KEYS: CLAUDE.md prose is full of
+  // key-shaped lines ("Lifecycle:", "Status:"), and the /init migration this
+  // feeds deletes lines from a file users hand-tune.
+  const migratableKeys = [];
+  for (const [key, value] of Object.entries(claudeMdEntries)) {
+    if (!schemaByKey.has(key)) continue;
+    migratableKeys.push({
+      key,
+      value,
+      alsoInPolicy: Object.prototype.hasOwnProperty.call(policyEntries, key),
+    });
+  }
+
+  return { unrecognizedKeys, invalidValues, migratableKeys };
 }
 
 module.exports = { POLICY_KEYS, auditPolicy };

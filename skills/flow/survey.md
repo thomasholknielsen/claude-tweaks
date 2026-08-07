@@ -9,13 +9,13 @@ This is the responsible way `/flow` captures the value of low-reversibility work
 
 ## Pipeline Creative Opportunities Survey
 
-Enabled by default in `auto` and `interactive` (the wrapper handles `{skipped}` returns silently). Opt out with the `no-creative` flag (or `creative-survey: off` in CLAUDE.md), mirroring the Depth Opportunities survey's `no-deepen` / `depth-survey: off` mechanics below.
+Enabled by default in `auto` and `interactive` (the wrapper handles `{skipped}` returns silently). Opt out with the `no-creative` flag (or `creative-survey: off` in `.claude-tweaks/policy.yml`), mirroring the Depth Opportunities survey's `no-deepen` / `depth-survey: off` mechanics below.
 
 The survey produces the **Creative Opportunities** block rendered before Next Actions — ranked recommendations for creative Impeccable commands the user might want to run manually. Flow never invokes these commands automatically.
 
 ## When to run
 
-Run the survey before rendering the Pipeline Summary, after the resolve gate completes (nothing-left-behind), and only when `no-creative` was not set (nor `creative-survey: off` in CLAUDE.md) — when skipped, omit decline detection, the wrapper call, and the block entirely. Decline detection runs **before** the survey call so the wrapper can suppress repeatedly-declined recommendations.
+Run the survey before rendering the Pipeline Summary, after the resolve gate completes (nothing-left-behind), and only when `no-creative` was not set (nor `creative-survey: off` in `.claude-tweaks/policy.yml`) — when skipped, omit decline detection, the wrapper call, and the block entirely. Decline detection runs **before** the survey call so the wrapper can suppress repeatedly-declined recommendations.
 
 ## Survey procedure
 
@@ -45,7 +45,7 @@ Decline detection runs only when a prior recommendations cache exists for the sa
 
 ## Pipeline Depth Survey
 
-Enabled by default; opt out with the `no-deepen` flag (or `depth-survey: off` in CLAUDE.md). This is how a hands-off `/flow` run captures the value of `/claude-tweaks:deepen` **responsibly** — it runs the depth *analysis* automatically and surfaces ranked candidates, but never performs an architecture refactor unattended.
+Enabled by default; opt out with the `no-deepen` flag (or `depth-survey: off` in `.claude-tweaks/policy.yml`). This is how a hands-off `/flow` run captures the value of `/claude-tweaks:deepen` **responsibly** — it runs the depth *analysis* automatically and surfaces ranked candidates, but never performs an architecture refactor unattended.
 
 ### The responsibility boundary (read this first)
 
@@ -60,7 +60,7 @@ The output is a recommendation, identical in spirit to Creative Opportunities: "
 
 Depth analysis reads call sites, so don't run it on diffs where it can't find anything. Skip the survey entirely (omit the block, no `/deepen` invocation) when **any** of:
 
-- `no-deepen` was passed, or `depth-survey: off` in CLAUDE.md.
+- `no-deepen` was passed, or `depth-survey: off` in `.claude-tweaks/policy.yml`.
 - The pipeline diff added/changed **no source modules** (e.g., config-only, docs-only, or pure test changes). Use `git diff --name-only` against the run's base — if no non-test source files with module structure changed, skip.
 - The diff is trivial (single-file, no new exports/modules introduced).
 

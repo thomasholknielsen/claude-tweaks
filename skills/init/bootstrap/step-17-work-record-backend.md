@@ -75,10 +75,25 @@ node -e "
 " "$OWNER" "$REPO"
 ```
 
-Write the results beside the flag: `work-types: native` when the result's `types`
-is true, else `work-types: labels`; `work-links: native` when BOTH `subIssues` and
-`dependencies` are true, else `work-links: body-text`. Filing and shaping skills
-read these two keys and branch — they never re-probe mid-flow
+Write the results to **two different files** — the two keys no longer share a home:
+
+- `work-types` goes beside the flag in CLAUDE.md: `work-types: native` when the
+  result's `types` is true, else `work-types: labels`.
+- `work-links` goes in `.claude-tweaks/policy.yml` (create the file if absent):
+  `work-links: native` when BOTH `subIssues` and `dependencies` are true, else
+  `work-links: body-text`.
+
+**Writing `work-links` to CLAUDE.md instead silently discards the probe.** Every
+consumer — `/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`,
+`/claude-tweaks:visualize`, `/claude-tweaks:specify` — greps
+`.claude-tweaks/policy.yml` alone and falls back to `body-text` when the key is
+absent there. A project whose org has sub-issues and dependencies enabled would be
+probed as `native`, recorded in the file nobody reads, and then run on `body-text`
+with nothing objecting; the next `/claude-tweaks:init --update` would flag the key
+this step just wrote as Config Home Drift. `work-backend` and `work-types` stay in
+CLAUDE.md deliberately — see `_shared/work-record-config.md`'s "Where these live."
+
+Filing and shaping skills read these keys and branch — they never re-probe mid-flow
 (`_shared/work-record.md`'s config-key table).
 
 Under `work-backend: local-files`, skip the probe entirely and write
