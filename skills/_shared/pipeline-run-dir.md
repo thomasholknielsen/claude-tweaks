@@ -18,18 +18,45 @@ Operational reference for skills that need to locate the active pipeline run dir
 
 The resolved directory contains `config.yml` (Manifesto answers / policy — absent for standalone runs), `decisions.md` (auto-decision log), `staged/` (proposals awaiting the Review Console / Pending Review section), `run-state.json` (hook-maintained status/worktree assignment; terminal = status `clean`), and `events.jsonl` (hook-appended typed events). Full layout and lifecycle in `auto-mode-contract.md`.
 
+## Anchoring
+
+Run directories live under the **main checkout's** `.claude-tweaks/pipelines/`, never a
+linked worktree's. Resolve the root once, before any path is built:
+
+```bash
+RUN_ROOT=$(git rev-parse --git-common-dir)
+RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
+```
+
+In the main checkout `--git-common-dir` is `.git`, so this is the repo root and nothing
+changes. Inside a linked worktree it resolves to the main checkout. Every path below is
+built from `$RUN_ROOT`, not from the current directory.
+
+Two consequences, both load-bearing:
+
+- **A worktree never holds the only copy** of `config.yml`, `decisions.md`,
+  `events.jsonl` or `staged/`. Removing a worktree therefore cannot destroy pipeline
+  state, which is what makes automatic reaping safe (`session-start.js`).
+- **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
+  and must be committed onto the feature branch; it reaches the main checkout by merge.
+
+The `worktree.always` PreToolUse gate permits writes to this path from anywhere — see the
+one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
+`git commit` issued from the main checkout is still denied.
+
 ## Bash snippet (resolution)
 
 ```bash
+RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 RUN_DIR="${PIPELINE_RUN_DIR:-}"
 if [ -z "$RUN_DIR" ]; then
-  RUN_DIR=$(find .claude-tweaks/pipelines/ -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
+  RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
 fi
 if [ -z "$RUN_DIR" ] && [ "$MODE" = "auto" ] && [ -n "$STANDALONE_SKILL" ]; then
   # Standalone auto fallback — see resolution order step 4 (step 3, the record-mode
   # materialization exception, is /build-specific and handled separately in materialize.md)
   TS=$(date -u +%Y-%m-%dT%H%M%S)
-  RUN_DIR=".claude-tweaks/pipelines/${TS}-${STANDALONE_SKILL}-standalone"
+  RUN_DIR="$RUN_ROOT/.claude-tweaks/pipelines/${TS}-${STANDALONE_SKILL}-standalone"
   mkdir -p "$RUN_DIR/staged"
   touch "$RUN_DIR/decisions.md"
 fi
