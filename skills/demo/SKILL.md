@@ -189,8 +189,47 @@ judge, not a checklist to complete). Label-backed entries were
 fetched per `verification-brief.md`'s digest template in Step 1's `#N` lookup; closing-commit
 reconstructions and session-recall entries were composed directly, in Step 1's `#N` and
 no-arguments paths respectively — all three render identically here, and a reconstruction says so
-in its own `### Confirmed` section rather than being flagged separately at this point. Then call
-`AskUserQuestion` with `question`: `"Does {title} do what you asked
+in its own `### Confirmed` section rather than being flagged separately at this point. Then render
+the design-contract section below when one resolves, and ask for the verdict.
+
+### The design contract this was built against
+
+Design work built through Impeccable carries a **direction contract** in the opening comment of the
+artifact it produced — five blocks, written *before* the code. That is the one thing an acceptance
+gate cannot reconstruct afterward: once the artifact exists, the intent behind it is only inferable
+from the result, which is circular. Surfacing it here is what lets a human answer "is this what it
+was trying to be?" instead of only "does this look fine?".
+
+Run the locate-and-parse procedure in `../_shared/design-contract.md` over the changed-path list
+Step 1 already produced — the closing commit's `--name-only` list, the label-backed brief's paths,
+or session recall's own list. Do not go looking for files beyond it.
+
+**When a contract resolves,** render this section under exactly this heading, above the verdict
+question, with the five blocks reproduced **verbatim** — never summarized, re-worded, or reordered.
+Introduce it as *what this was promising to be*, and make the direction of the check explicit: the
+human is comparing the result against a promise made beforehand, not reading a description of what
+shipped. `### What shipped` already covers the latter, and collapsing the two wastes the only
+section here that carries pre-build intent.
+
+Then a `Design-seed:` line, when there is one — the record body's own `Design-seed:` metadata line
+(fetched with the record in Step 1) if present, otherwise the seed the parse just read out of the
+artifact. If both exist and disagree, render the artifact's and say in one line that the record's
+differs, which means the artifact was rebuilt on a different roll after the record was stamped.
+Omit the line entirely when neither source has one — upstream carries a seed key only *"when the
+seed dealt stagings,"* so a contract without one is complete, not truncated.
+
+**When no contract resolves,** render nothing — no heading, no empty section, no "not found" note.
+This includes the malformed case, which that procedure already collapses into absence. Most records
+have no design contract and never will; a placeholder on every one of them would be noise, and a
+half-rendered contract would be worse, because it reads as complete.
+
+This section never becomes a reason to block, and it is never audited here. Whether the render
+actually honors the contract is `impeccable-finish-reviewer`'s job upstream — this skill puts the
+promise in front of a human and asks them.
+
+### Verdict
+
+Call `AskUserQuestion` with `question`: `"Does {title} do what you asked
 for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
@@ -373,3 +412,5 @@ always renders.
 | Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it as `/browse` requires, right after the human looks, before re-rendering the verdict |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
 | Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |
+| Summarizing, re-wording, or reordering the direction contract's five blocks | The blocks are the pre-build promise the human is checking the result against; a paraphrase is one more reading of the result, which is exactly the circularity this section exists to break |
+| Rendering the design-contract heading when no contract resolved, or with only the blocks that parsed | Most records have no contract — an empty section is noise on all of them, and a partial one is worse, because it reads as complete (`_shared/design-contract.md` collapses malformed into absent for this reason) |
