@@ -28,15 +28,17 @@ RUN_ROOT=$(git rev-parse --git-common-dir)
 RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 ```
 
-In the main checkout `--git-common-dir` is `.git`, so this is the repo root and nothing
-changes. Inside a linked worktree it resolves to the main checkout. Every path below is
-built from `$RUN_ROOT`, not from the current directory.
+Resolved from the main checkout, `$RUN_ROOT` lands on the repo root and nothing changes —
+the raw `--git-common-dir` output varies with cwd (`.git` at the root, `../../.git` from a
+subdirectory), but the `cd`+`pwd` above normalizes either form to the same absolute path.
+Resolved from inside a linked worktree, it lands on the main checkout instead. Every path
+below is built from `$RUN_ROOT`, not from the current directory.
 
 Two consequences, both load-bearing:
 
 - **A worktree never holds the only copy** of `config.yml`, `decisions.md`,
   `events.jsonl` or `staged/`. Removing a worktree therefore cannot destroy pipeline
-  state, which is what makes automatic reaping safe (`session-start.js`).
+  state, which is what will make automatic reaping (`session-start.js`) safe once it ships.
 - **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
   and must be committed onto the feature branch; it reaches the main checkout by merge.
 
