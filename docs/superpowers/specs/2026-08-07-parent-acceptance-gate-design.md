@@ -67,6 +67,17 @@ when `verificationSurface()` reports `interactive`) — the split is defensible 
 the stall hole below, but adds a conditional branch to an already-dense lifecycle for a
 benefit the parent gate largely subsumes.
 
+**This narrows a guarantee that shipped in v6.50.0**, and the narrowing is deliberate.
+That release's stated invariant was that *every closed work record* reaches an explicit
+acceptance disposition on every closing path — "silence stops being a valid outcome."
+After this design the invariant reads: every closed record **that is not a decomposed
+leaf**, plus every completed family, reaches an explicit disposition. The unit changes
+from record to family; silence is still not a valid outcome for a family. The live
+statement of the old reach is `skills/wrap-up/SKILL.md:416`'s Anti-Patterns row ("the
+Acceptance axis applies uniformly"), which was true when written and which nothing
+contradicts on its own — the `[IL-93]` shape. Amending that row is part of the work, not
+an afterthought.
+
 **2. Eager writer plus sweep backstop.** `/wrap-up` applies the gate when it closes the
 last open leaf; a new `/tidy` scope independently finds families that are complete but
 un-gated. This mirrors the pairing the codebase already uses one level down —
