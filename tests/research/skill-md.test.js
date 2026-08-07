@@ -117,3 +117,28 @@ test('verify-mode.md states that verify is not reachable from /flow', () => {
   assert.match(body, /\/claude-tweaks:flow|\/flow/, 'must name /flow');
   assert.match(body, /not\s+reachable/i, 'must state the resolved decision explicitly');
 });
+
+test('SKILL.md argument-hint accepts the verify mode', () => {
+  const fm = parseFrontmatter(readSkill());
+  assert.ok(fm, 'frontmatter block missing');
+  assert.match(fm['argument-hint'], /verify/, 'argument-hint must document the verify form');
+});
+
+test('SKILL.md ## Input documents both the bare-topic and verify forms', () => {
+  const body = readSkill();
+  const start = body.indexOf('## Input');
+  const end = body.indexOf('## Mode Picker');
+  assert.ok(start !== -1 && end > start, 'expected ## Input to precede ## Mode Picker');
+  const input = body.slice(start, end);
+  assert.match(input, /verify/, '## Input must document the verify form');
+  assert.match(input, /topic/i, '## Input must still document the bare-topic form');
+});
+
+test('SKILL.md references verify-mode.md by a stub naming the file', () => {
+  const body = readSkill();
+  assert.match(
+    body,
+    /read\s+`?verify-mode\.md`?\s+in\s+this\s+skill's\s+directory/i,
+    'must use the canonical sub-file stub wording',
+  );
+});

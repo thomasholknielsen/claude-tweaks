@@ -1,7 +1,7 @@
 ---
 name: research
 description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, adversarial multi-verifier refutation pass). Delegates to Claude Code's built-in /deep-research when available; falls back to an inline method otherwise. Keywords - research, deep research, web research, sources, citations, literature review.
-argument-hint: "<topic> [--mode=quick|standard|deep|ultradeep] [--engine=auto|inline] [--output=<path>]"
+argument-hint: "verify [brief-path|#N] | <topic> [--mode=quick|standard|deep|ultradeep] [--engine=auto|inline] [--output=<path>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -32,7 +32,14 @@ report under `.claude-tweaks/research/`.
 
 ## Input
 
-- `$ARGUMENTS` is the research topic. If empty, ask the user for it before proceeding.
+- `$ARGUMENTS` takes one of two forms, distinguished by its **first token**:
+  - **`verify [brief-path|#N]`** — verification mode. Grounds a design before it is written by
+    answering the questions a brief surfaced. Read `verify-mode.md` in this skill's directory for
+    the full procedure: input resolution, the consequence filter, question-shape routing, and
+    auto-mode behavior. The flags below apply, but `--mode=` bounds survey breadth only — see that
+    file.
+  - **`<topic>`** — the default web-survey mode, unchanged. If empty, ask the user for the topic
+    before proceeding.
 - Mode is selected via a single numbered-options prompt (see Mode Picker). **`standard` is the recommended default** — it balances depth and runtime.
 - Flags parsed from `$ARGUMENTS`:
   - `--mode=<quick|standard|deep|ultradeep>` — skip the mode prompt. A value outside this set (e.g. a typo) is treated the same as absent: fall back to the Mode Picker.
@@ -55,6 +62,9 @@ Then proceed with the selected mode.
 ## Workflow
 
 1. **Resolve** topic + depth tier from `$ARGUMENTS` (or the Mode Picker).
+1a. **Branch on mode.** When the first token of `$ARGUMENTS` is `verify`, read `verify-mode.md` in
+    this skill's directory and follow it instead of Steps 2-7 below; it owns its own output
+    contract. Every other input continues at Step 2 with today's behavior.
 2. **Construct the output directory:** `{root}/[YYYY-MM-DD]-[topic-slug]/`, where `{root}` is `{cwd}/.claude-tweaks/research/` unless `--output=<path>` overrides it (the dated subdirectory is still appended beneath the override). Derive `topic-slug` by lowercasing the topic, collapsing runs of non-alphanumeric characters to a single hyphen, trimming leading/trailing hyphens, and truncating to 60 characters. If the resulting directory already exists (an identical topic re-run the same day), append a numeric suffix (`-2`, `-3`, ...) instead of overwriting the earlier report. Create the directory before researching.
 3. **Availability pre-check (built-in path).** Skip this step entirely when `--engine=inline` was passed — go straight to Step 5. Otherwise decide whether the built-in `/deep-research` Dynamic Workflow is usable:
 
