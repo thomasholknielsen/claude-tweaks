@@ -379,11 +379,11 @@ EOF
 ### Task 3: Register the `framing:baked` label
 
 **Files:**
-- Modify: `bin/lib/issues/record.js` (the `LABELS` constant at `:16-26`)
-- Modify: `bin/lib/issues/labels.js` (bootstrap payload)
+- Modify: `bin/lib/issues/record.js` (the `LABELS` constant at `:16`, after `WONTFIX` at `:23`)
+- Modify: `skills/_shared/label-bootstrap.md` (canonical `LABELS_JSON`, after the `upstream-candidate` pair at `:65`)
+- Modify: `skills/_shared/work-record.md` (Label taxonomy table — new row after `Upstream (1)` at `:78`; per-skill write-authority table, the `/specify` shaper row)
 - Modify: `bin/lib/issues/tests/labels.test.js` (coverage for the new label)
-- Modify: `skills/_shared/work-record.md` (Label taxonomy table at `:67-79`; per-skill write-authority table at `:95`)
-- Modify: `skills/_shared/label-bootstrap.md` (`LABELS_JSON`)
+- **Not** `bin/lib/issues/labels.js` — see the correction in Step 1.
 
 **Interfaces:**
 - Consumes: nothing.
@@ -392,10 +392,14 @@ EOF
 - [ ] **Step 1: Read how an existing one-member label family is defined**
 
 ```bash
-grep -n "WONTFIX\|wontfix" bin/lib/issues/record.js bin/lib/issues/labels.js bin/lib/issues/tests/labels.test.js
+grep -n "WONTFIX" bin/lib/issues/record.js
+grep -n "wontfix\|upstream-candidate" skills/_shared/label-bootstrap.md
+grep -n "Closure (1)\|Upstream (1)" skills/_shared/work-record.md
 ```
 
-Follow whatever shape `wontfix` uses — it and `upstream-candidate` are the two existing one-member families. Do **not** follow `parked` or `bot:blocked`; each belongs to a two-member family and is not a precedent for a presence-only label.
+Follow the shape `wontfix` and `upstream-candidate` use — they are the two existing one-member families. Do **not** follow `parked` or `bot:blocked`; each belongs to a two-member family and is not a precedent for a presence-only label.
+
+**Correction to an earlier draft of this plan:** `bin/lib/issues/labels.js` is **not** a label registry. It is an 18-line module exporting only `ensureLabelPayload(name, description)`, a validator that throws when a description exceeds 100 characters. There is no per-label entry to add there. The canonical descriptions live in `skills/_shared/label-bootstrap.md`'s `LABELS_JSON` array-of-pairs. Do not try to "register" the label in `labels.js`.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -434,9 +438,17 @@ In `bin/lib/issues/record.js`, add to the `LABELS` object (after `WONTFIX`, keep
   FRAMING_BAKED: 'framing:baked',
 ```
 
-- [ ] **Step 5: Add the bootstrap payload**
+- [ ] **Step 5: Add the bootstrap payload to `label-bootstrap.md`**
 
-In `bin/lib/issues/labels.js`, register `framing:baked` with the description `Framing: record names a solution that was never traded off` (57 characters, within the 100-character cap `ensureLabelPayload` enforces at `:12`). Follow the same registration shape `wontfix` uses in that file.
+In `skills/_shared/label-bootstrap.md`'s canonical `LABELS_JSON` array, add this pair immediately after the `upstream-candidate` line, matching the file's existing column alignment:
+
+```
+  ["framing:baked",     "Framing: this record names a solution that was never traded off"],
+```
+
+The description is 62 characters, within the 100-character cap `ensureLabelPayload` enforces at `bin/lib/issues/labels.js:12`. Note the preceding line currently ends the array's non-priority block — keep the trailing comma correct so the array stays valid JS (the last element, `priority:low`, must remain comma-free).
+
+No edit to `bin/lib/issues/labels.js` is needed or wanted.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
