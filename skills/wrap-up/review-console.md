@@ -35,8 +35,14 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
 Step 10, which is where acceptance labeling normally happens, so this branch must perform it
-itself. Run `verification-brief.md`'s full procedure now — bootstrap, testability, the Step 2.5
-safety-net gate, sourcing, posting — exactly as Step 10 would, then apply `demo:pending`.
+itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
+Step 10 would. That file owns the routing: a record with a resolvable parent goes to its
+Family-Gate Procedure (the family's parent gets the one gate; this leaf gets none), and
+everything else goes through its Steps 1-4 — bootstrap, testability, the Step 2.5 safety-net
+gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
+independently of that routing: an `auto:merge`'d leaf is exactly the population
+`_shared/github-pr-scan.md`'s `family-gate` backstop scope exists to catch, so gating it here
+would defeat the family gate.
 
 Order is load-bearing: the merge below carries the `Fixes #{issue}` closing keyword, so once it
 lands the record is closed and this branch has moved on. Labeling before the merge is what keeps

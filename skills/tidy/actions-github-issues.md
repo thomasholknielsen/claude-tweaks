@@ -28,8 +28,8 @@ which produces the `[family-gate]` findings this action resolves, only ever scan
 folded in there).
 
 Approving a `[family-gate]` finding runs `wrap-up/verification-brief.md`'s Family-Gate
-Procedure from **Enumerate the family's leaves** onward, using the `/claude-tweaks:tidy` entry
-point that section documents (`$PARENT_NUM` is already known from the scan; re-fetch leaf state
+Procedure from **Enumerate the family's leaves** onward, using the **parent-side** entry shape
+that section documents (`$PARENT_NUM` is already known from the scan; re-fetch leaf state
 and the parent's labels fresh, and re-run **Evaluate the gate** — do not reuse the scan's own
 snapshot, since time has passed since Step 4.8 ran). If the re-verified gate no longer reads
 `due` (another process already gated the family, or a leaf reopened), this is a silent no-op —
