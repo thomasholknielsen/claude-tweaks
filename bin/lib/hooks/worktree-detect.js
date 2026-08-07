@@ -34,6 +34,44 @@ function nearestExistingDir(p) {
   return dir;
 }
 
+// A linked worktree's `.git` is a plain FILE containing
+// `gitdir: <main>/.git/worktrees/<name>`; the main checkout's is a directory.
+// That difference resolves the main checkout with zero subprocesses, which
+// matters because context.js's run-dir enumeration runs on every hook
+// invocation — including bin/hooks.js argument parsing, which happens before
+// repoInfo() spawns anything.
+//
+// Returns null whenever the answer isn't certain (no .git found, unreadable or
+// unparseable .git file, or a gitdir pointing somewhere other than
+// .git/worktrees/ — notably a submodule's .git/modules/<name>, where the
+// superproject root is NOT the right anchor). Callers fall back to their
+// existing cwd-relative behavior on null rather than guessing.
+const WORKTREE_ADMIN_MARKER = `${path.sep}.git${path.sep}worktrees${path.sep}`;
+
+function mainCheckoutRoot(p) {
+  let dir = nearestExistingDir(p);
+  while (dir) {
+    const gitPath = path.join(dir, '.git');
+    let st = null;
+    try { st = fs.statSync(gitPath); } catch { /* keep walking up */ }
+    if (st && st.isDirectory()) return safeReal(dir);
+    if (st && st.isFile()) {
+      let raw;
+      try { raw = fs.readFileSync(gitPath, 'utf8'); } catch { return null; }
+      const m = /^gitdir:\s*(.+?)\s*$/m.exec(raw);
+      if (!m) return null;
+      const admin = path.resolve(dir, m[1]);
+      const idx = admin.indexOf(WORKTREE_ADMIN_MARKER);
+      if (idx === -1) return null;
+      return safeReal(admin.slice(0, idx));
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
 // Single git subprocess spawn querying toplevel + git-dir + git-common-dir +
 // superproject in one invocation instead of four separate spawns — every
 // caller of this module needs both the repo root and the linked-worktree
@@ -107,4 +145,4 @@ function findPolicyFile(p) {
   return null;
 }
 
-module.exports = { nearestExistingDir, repoInfo, findPolicyFile, safeReal };
+module.exports = { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot };

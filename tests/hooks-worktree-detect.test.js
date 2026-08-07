@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoInfo, findPolicyFile, safeReal } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot } = require('../bin/lib/hooks/worktree-detect');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 test('nearestExistingDir: existing directory returns itself', () => {
@@ -116,4 +116,42 @@ test('findPolicyFile: policy file present several directories up returns that an
   const target = path.join(nested, 'file.txt');
   assert.strictEqual(findPolicyFile(target), dir);
   assert.notStrictEqual(findPolicyFile(target), nested);
+});
+
+test('mainCheckoutRoot: from the main checkout returns its own root', () => {
+  const main = gitRepo();
+  assert.strictEqual(mainCheckoutRoot(main), safeReal(main));
+});
+
+test('mainCheckoutRoot: from inside a linked worktree returns the MAIN checkout, not the worktree', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.strictEqual(mainCheckoutRoot(wt), safeReal(main));
+  // The discriminating half: a naive implementation returns the worktree.
+  assert.notStrictEqual(mainCheckoutRoot(wt), safeReal(wt));
+});
+
+test('mainCheckoutRoot: from a nested path inside a linked worktree still returns the main checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const nested = path.join(wt, 'a', 'b');
+  fs.mkdirSync(nested, { recursive: true });
+  assert.strictEqual(mainCheckoutRoot(nested), safeReal(main));
+});
+
+test('mainCheckoutRoot: a .git file pointing outside .git/worktrees/ (submodule shape) returns null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sub-'));
+  fs.writeFileSync(path.join(dir, '.git'), 'gitdir: /somewhere/.git/modules/thing\n');
+  assert.strictEqual(mainCheckoutRoot(dir), null);
+});
+
+test('mainCheckoutRoot: an unparseable .git file returns null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bad-'));
+  fs.writeFileSync(path.join(dir, '.git'), 'not a gitdir line\n');
+  assert.strictEqual(mainCheckoutRoot(dir), null);
+});
+
+test('mainCheckoutRoot: a path in no repository at all returns null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-norepo-'));
+  assert.strictEqual(mainCheckoutRoot(dir), null);
 });
