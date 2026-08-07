@@ -36,6 +36,15 @@ Present all collected findings as a single report. Every item has a pre-filled r
 
 *Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
 
+### Design Record Drift (if any)
+
+| # | Severity | Path:Line | Finding | Evidence |
+|---|----------|-----------|---------|----------|
+| 17 | medium | PRODUCT.md | [doctor] product-schema-legacy (route) — {summary} | {fix text} |
+| 18 | info | PRODUCT.md | [doctor] product-deprecated-register (mention) — {summary} | {fix text} |
+
+*Drift in this project's own Impeccable artifacts, from `/claude-tweaks:design-wrapper doctor` (Step 4.9). **Informational — nothing here is applied.** "Apply all" does not act on these rows: `route` and `mention` findings have no mechanical fix by construction, and an `auto` finding's fix means running `doctor.mjs --fix`, which rewrites `PRODUCT.md` and is yours to run. Omit this whole section entirely when the scan skipped or returned no findings — never render it with an "unavailable" note.*
+
 ### Summary
 - Backlog: {X} records ({Y} stale, {Z} ready to promote)
 - Parked: {X} records ({Y} trigger-met, {Z} still waiting)
