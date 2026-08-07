@@ -58,7 +58,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
      │         visual-review (calls: design survey — Creative Opportunities)
      │
   polish ───────────────►  Polished Code      (frontend specs only)
-     │  calls: design polish (auto-fit + issue-driven + intent-driven)
+     │  calls: design polish (refinement set + suggestion-driven + intent-driven)
      │         test skip-qa  (re-verify gate, 1-cycle cap)
      │
   flow summary ─────────►  Pipeline report    (Creative Opportunities block)

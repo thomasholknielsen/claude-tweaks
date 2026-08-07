@@ -31,7 +31,7 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.56.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
+## v6.57.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
 
 Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that
 nothing acted on; this release wires the `autonomy` policy lever to it, and hardens the
@@ -75,6 +75,52 @@ record's shape, and on a repo that has not run `/claude-tweaks:demo` every cell 
 Inert on arrival, deliberately: every trust cell in this repo still reads
 `insufficient-evidence` with zero acceptance verdicts. The ceiling exists so that nothing
 can exceed it later.
+
+## v6.56.0 — the retired polish vocabulary leaves the files that restated it
+
+The last leaf of the Impeccable upstream-contract program's Phase 3 (#148). #147 changed
+how `/claude-tweaks:design-wrapper` dispatches during the polish phase; this release
+makes the rest of the repo stop describing the old way.
+
+"Auto-fit" and "issue-driven" were never internal names local to `command-map.md` —
+they were this plugin's published vocabulary for the polish phase, restated in their
+own words across `/flow`, `/ledger`, `_shared/auto-mode-contract.md`, `README.md` and
+the user-facing docs. None of those files appeared in #147's diff, and a keyword grep
+for the *new* vocabulary finds nothing wrong with any of them, because they never used
+the new words. Their claims were true when written and went quietly stale (`[IL-93]`).
+
+| Was | Is |
+|---|---|
+| Auto-fit (polish phase) | **Refinement set** |
+| Issue-driven | **Suggestion-driven** — reads each `audit` finding's own `suggestion` field instead of keyword-matching four fixed categories |
+| Intent-driven | unchanged |
+
+**Two things the sweep found that the record specifying it did not know about.**
+
+#147 shipped a fourth term the record's replacement table never listed: **Phase-fixed**,
+covering the pre-spec (`/specify` shape) and review-phase (`/review` critique + audit)
+rows that were also called auto-fit. Renaming only the polish row would have orphaned
+the other two. The authority for a sweep like this is the landed diff, never the
+specifying record.
+
+`skills/flow/polish-execution.md` consumed only one of the two `staged_suggestions`
+kinds. #147 added an `unclassified` kind for a finding carrying no usable `suggestion`,
+and `modes/polish.md`'s output contract requires consumers to branch on `kind` — this
+one did not, so an unclassified observation would reach `{run-dir}/staged/` labelled as
+a manual-only *command* that no finding ever named. Fixed here rather than deferred,
+because that wrong label is what a human reads at the Wrap-Up Review Console.
+
+Also restated against signals that still exist: `/ledger`'s `design`-phase row keyed
+`fixed` off "auto-fit successes", a category that no longer exists, and now keys `fixed`
+off a `commands_invoked` entry and `observation` off a `staged_suggestions` entry.
+`_shared/auto-mode-contract.md`'s polish row keeps its `AUTO` classification and now
+names the staging path it previously left out.
+
+Deliberately not swept: `CHANGELOG.md`, `docs/superpowers/**`, and one audit-trail
+comment in `bin/lib/skill-audit/tests/anti-patterns.test.js` that records *what #147
+retired*. Rewriting a historical note about a removal to use the post-removal names
+would falsify it (`[IL-28]`). `docs/plugin-structure.md`, which the record listed as
+needing a sweep, already carried the new vocabulary and needed no edit.
 
 ## v6.55.0 — the finishing review runs at code-review time, and third-party agents are exempt by structure
 
