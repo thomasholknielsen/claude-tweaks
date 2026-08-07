@@ -289,19 +289,21 @@ node -e "
 
 Un-gated families recommend the `Open family gate` action (`tidy/SKILL.md`'s Action Vocabulary,
 executed via `tidy/actions-github-issues.md`'s `## Open family gate`) — never applied without
-going through `/tidy`'s own Step 6 approval first, whether that's a human explicitly approving
-the batch report (interactive mode) or, in auto mode, whatever `tidy-aggressiveness` tier
-`step-6-auto.md`'s Open family gate row resolves to. **This is narrower staging than
-`acceptance-gap` carries, not the same rule**: `Open family gate` composes and posts the
-parent's Verification Brief and applies `demo:pending` — opening the gate, not resolving it.
-`_shared/auto-mode-contract.md`'s disposition-staging floor governs `demo:approved` /
-`demo:changes-requested`, the human judgment about whether shipped work actually solved the
-problem; opening the gate is a mechanical, fully reversible precondition to that judgment, the
-same one `/claude-tweaks:wrap-up` already applies with zero staging whenever its own eager path
-fires. This scope, and the `Open family gate` action it feeds, never write `demo:approved` or
-`demo:changes-requested` under any circumstance — that verdict stays exclusively
-`/claude-tweaks:demo`'s job, which is why the recommendation always still ends with "then
-`/claude-tweaks:demo #{n}`" even once the gate is open.
+going through `/tidy`'s own Step 6 batch approval first, at **every** aggressiveness tier in auto
+mode (`step-6-auto.md`'s Open family gate row is `Stage`/`Stage`/`Stage`), the same as
+`acceptance-gap` — though for a related but distinct reason. `Open family gate` posts a comment
+and adds a label: an outward-facing GitHub API write. `_shared/auto-mode-contract.md`'s
+reversibility floor requires `high` — "undoable via file edit or `git revert`" — before anything
+may auto-resolve, and its never-reversible list separately forbids "network calls beyond reads
+(no API writes, no message sends)" at every tier regardless of mode. Neither bar is clearable by
+this write, however mechanical or precondition-only it is; `/claude-tweaks:wrap-up` applying the
+identical write with zero staging is not a counter-example, since that write is an unconditional
+step of a pipeline a human already launched against one named record and sits in no tier table at
+all, unlike this action. Separately, and independent of the write-level reasoning above, this
+scope and the `Open family gate` action it feeds never write `demo:approved` or
+`demo:changes-requested` under any circumstance — that disposition stays exclusively
+`/claude-tweaks:demo`'s job, staged and human-only, which is why the recommendation always still
+ends with "then `/claude-tweaks:demo #{n}`" even once the gate is open.
 
 Emit `[family-gate]` rows per the Output Contract, at severity `info` — the same severity
 `acceptance-gap` uses and for the same reason: `/claude-tweaks:tidy` runs this scope in the same

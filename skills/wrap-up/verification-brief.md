@@ -132,13 +132,30 @@ Render the same `## Verification Brief` template Step 4 below renders, with: **T
 parent's own design summary (problem, chosen approach — `_shared/work-record.md`'s
 Decomposition rules); **What shipped** — one-paragraph summary of what was delivered across the
 assembled leaves; **Confirmed** — parts 1 and 2 above, in place of Step 4's testable/non-testable
-branches. Omit **See it yourself** and **Verify it yourself (manual)** — part 2's walkthrough
+branches; **`{poster}`** in the template's own footer — substitute the entry point actually
+running *this* composition (see "Two entry points" above), never hardcode
+`` `/claude-tweaks:wrap-up` ``: `` `/claude-tweaks:wrap-up` `` for the eager entry,
+`` `/claude-tweaks:tidy` `` for the `/tidy` backstop entry. Omit **See it yourself** and
+**Verify it yourself (manual)** — part 2's walkthrough
 already names the entry point inline within Confirmed.
 
 ### Apply the gate
 
-`work-backend: github-issues` — write the rendered template composed above (**Compose the
-parent brief**) to `/tmp/parent-verification-brief.md`, then:
+`work-backend: github-issues` — bootstrap `demo:pending` first, per `_shared/label-bootstrap.md`'s
+check-then-create loop:
+
+```js
+LABELS_JSON = [
+  ["demo:pending", "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo"]
+]
+```
+
+The same pair Step 1 below bootstraps for the default (non-family-gate) path — this procedure
+runs **in place of, not alongside** Step 1 (see the top of this section), so on a repo where
+every `demo:pending` application has ever gone through this procedure, the label may not exist
+yet at all. Both entry points need this: `/wrap-up`'s own eager path skips Step 1 exactly the
+same way `/tidy`'s does. Then write the rendered template composed above (**Compose the parent
+brief**) to `/tmp/parent-verification-brief.md`, then:
 
 ```bash
 gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
@@ -147,6 +164,18 @@ gh issue edit $PARENT_NUM --add-label demo:pending
 
 Post the brief **before** adding the label — matching Step 4 below's existing invariant that a
 reader never sees `demo:pending` without a brief already attached.
+
+**Partial-state note.** These are two independent `gh` calls, not one atomic write: if the comment
+posts and the label add then fails (a transient `gh` error; the bootstrap above should make a
+missing-label failure specifically impossible), report exactly which step failed — don't assume
+all-or-nothing, the same rule `tidy/actions-github-issues.md`'s `Defer` action states for its own
+multi-step sequence. This matters more for the `/tidy` entry than for `/wrap-up`'s: `/tidy`'s
+`Open family gate` action re-evaluates the same family on every future `/tidy` run while the gate
+stays `due` (the label add never landed, so nothing marks it gated), so a caller re-entering this
+section for a family it may have already partially applied must check whether the parent's last
+comment already carries a `## Verification Brief` heading (`gh issue view $PARENT_NUM --json
+comments`, the same lookup `/claude-tweaks:demo`'s Step 1 already does) before composing and
+posting a second one — never blindly re-post.
 
 `work-backend: local-files` — append the brief to the parent record's own body and set
 `facets.acceptance = 'pending'` on the parent, the same write Step 4 below performs for a
@@ -351,8 +380,17 @@ exclusive with "See it yourself" above, never both}
 
 ---
 
-_Posted by `/claude-tweaks:wrap-up`. Resolve with `/claude-tweaks:demo`._
+_Posted by {poster}. Resolve with `/claude-tweaks:demo`._
 ```
+
+`{poster}` is `` `/claude-tweaks:wrap-up` `` for this default (Step 1-4) path — the only caller
+that reaches this template directly. The Family-Gate Procedure above renders this same template
+too (see **Compose the parent brief**) but substitutes its own actual caller instead, per its
+"Two entry points": `` `/claude-tweaks:wrap-up` `` for the eager entry, `` `/claude-tweaks:tidy` ``
+for the backstop entry. Never hardcode `` `/claude-tweaks:wrap-up` `` here regardless of which
+path composed the brief — the string is outward-facing (posted as a GitHub comment, or embedded
+in a local record body), and a `/tidy`-posted parent brief claiming `/wrap-up` posted it would be
+wrong on exactly the population the backstop exists for: families that never reached `/wrap-up`.
 
 `work-backend: github-issues` — write the rendered template to
 `/tmp/verification-brief-{issue}.md`, then:

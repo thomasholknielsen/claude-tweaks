@@ -186,6 +186,7 @@ After all actions are applied, verify every decision was fully executed. Present
 - [x] Captured: "{title}" — new backlog record with source URL (PR/thread/issue link)
 - [x] Closed (GitHub): PR #{n} / issue #{n} — explanatory comment posted, state re-queried as `CLOSED` (`gh pr view {n} --json state` / `gh issue view {n} --json state`)
 - [x] Resolved thread: PR #{n} — thread re-queried as `isResolved: true`
+- [x] Opened family gate: "{title}" — parent #{n} carries a brief comment ending `## Verification Brief` and `demo:pending` in its labels, both re-queried (`gh issue view {n} --json labels,comments`); comment present before label, per the invariant
 - [ ] FAILED: "{title}" — {what went wrong}
 ```
 
