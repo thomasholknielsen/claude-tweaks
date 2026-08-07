@@ -283,6 +283,24 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 |---|---|---|---|
 | 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
 
+#### Reference repairs (from Step 7.12)
+
+Render this section whenever the broken-reference sweep found a surviving reference, in either of
+two states. **Applied** rows are reported, not re-approved — they already happened, in their own
+`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
+**Staged** rows are ordinary approval rows like any other in this console.
+
+| # | State | Target | Repair | Broken by | Why |
+|---|-------|--------|--------|-----------|-----|
+| 14a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
+| 14b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
+
+The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
+run that tripped a cap reads differently from a run that found nothing. **A sweep that found
+surviving references but applied none must still render this section** — an empty Auto-applied
+list plus a populated staged list is the signal that the ceiling is holding, and collapsing it to
+silence hides exactly that.
+
 #### Configuration updates (from Step 6 and Step 7.9)
 
 | # | Type | Target | Change |

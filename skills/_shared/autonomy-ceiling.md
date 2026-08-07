@@ -6,7 +6,10 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception), and
 `backlog/refine-mode.md` (Step 3.6).
 
-**Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** The other
+**Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
+is about the born-`ready` tier only — it is not a statement about everything the ceiling
+authorizes. The in-run initiative budget rides the same `trusted` value with a different actor set
+and a different gate entirely (`_shared/initiative-budget.md`). The other
 residue producers — `/claude-tweaks:wrap-up` leftovers, `/claude-tweaks:reflect` routing,
 `/claude-tweaks:demo` follow-ups, all of which resolve to `side-effect:*` classes — keep the
 `Never` columns their own permission-matrix rows state, whatever this lever is set to. Widening it
@@ -23,7 +26,7 @@ rows carry. Neither applies a label — they answer whether a caller may, and th
 | Ceiling | Unlocks — only for classes that have earned it |
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
-| `trusted` | Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. |
+| `trusted` | Two things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. |
 | `unattended` | Everything `trusted` allows, plus machine-originated `auto:build`. **That half is shut behind its own opt-in** — see below. |
 
 ## Ceiling, not level
@@ -71,6 +74,25 @@ A class earns nothing unless `permittedGrants` says so, which requires **all** o
 Read `_shared/trust-table.md` for what those columns mean and for the Coverage figure that says
 whether a verdict can be believed. A `clean` verdict at low coverage and one at high coverage are
 different claims.
+
+**The floor rule above governs born-`ready` and born-authorized. It does not govern the initiative
+budget**, which is gated on the ceiling alone plus its own caps. That is deliberate, and it is the
+first asymmetry under this lever, so it is stated here rather than left to be inferred:
+
+`permittedGrants` asks *"has this class of agent-filed record proved itself?"* — a question only
+history can answer, because the thing being authorized is a **judgment** (this record is
+well-shaped) that nothing else checks. An initiative fix has **no class at all**: it is not a filed
+record, it has no provenance, and it never appears in the trust table. Keying it on the provenance
+of whatever record the run happens to be for would import a verdict about filing quality into a
+decision about reference repair — two unrelated questions, which is the `[IL-101]` mistake in a new
+place.
+
+Its safety comes from somewhere else entirely: the change is mechanically verifiable (the old
+target is gone, the new one exists), capped in count, files, and lines, causally tied to the run's
+own diff, excluded from tests and merge-sensitive paths, committed separately, and reverted with
+one `git revert`. Those caps are the gate. **Do not "fix" this by adding a trust-verdict
+requirement** — no cell would ever satisfy it, since an unfiled repair generates no record and
+therefore no verdict, and the budget would ship permanently inert.
 
 ## Why born-authorized is gated separately
 
