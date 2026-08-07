@@ -31,6 +31,104 @@ Two conventions follow from how this repo works, and both are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.53.0 — Impeccable's direction contract reaches the human acceptance gate
+
+`/claude-tweaks:demo` is the human sign-off gate, and until now it had nothing
+design-specific to check against. It could describe what changed; it could not say
+what the change was *trying* to be. That gap is structural, not an oversight — by
+the time an artifact exists, the intent behind it is only inferable from the result,
+which is circular.
+
+Impeccable writes a **direction contract** into the opening comment of what it
+builds, in five blocks, *before* the code. That is upstream's own statement of
+intent, authored ahead of the work, which is exactly what an acceptance gate needs
+and exactly what a reviewer cannot reconstruct afterward (#152).
+
+**`/demo` Step 2 now renders those blocks** under `### The design contract this was
+built against`, above the verdict question, framed as the promise the result is
+being checked against rather than a description of what shipped. It re-parses the
+shipped artifact rather than reading a copy captured at build time, so the human
+sees the contract that is actually in the file they are signing off on.
+
+**The seed key is recorded on the work record** as a `Design-seed:` body-metadata
+line, because Impeccable 4.x is deliberately non-deterministic by dice and a build's
+direction is unreproducible without it. `/claude-tweaks:design-wrapper`'s `review`
+mode writes it — the one point in the pipeline where a built artifact and its record
+are both in hand. The value is treated as an opaque token throughout: it defaults to
+eight hex characters but is freely user-supplied via `--from`, so nothing validates,
+normalizes, or pattern-matches it, and a `FORM` block naming a whole reproduction
+recipe survives intact rather than being trimmed to a bare key.
+
+`/specify` **declares** `Design-seed:` in `spec-template.md`'s body-metadata block
+but never writes a value — it runs before code exists, so there is no contract to
+read yet. Materialization lifts it like `Surface:`/`Design-intent:`, with one
+difference now stated where a reader would otherwise go looking: on the very run
+that *produces* a seed, materialization has already happened and correctly omits the
+line. The field is never required, and a `ready` leaf without one stays valid.
+
+claude-tweaks does not define, validate, reformat, or paraphrase the contract
+anywhere — it finds the comment, splits on the five labels, and passes the text
+through. Auditing the render against the contract remains `impeccable-finish-reviewer`'s
+job upstream. The five block labels are the only upstream literal this repo
+hard-codes, so they are pinned by three assertions in `tools/upstream-drift/manifest.yml`
+(verified to fail when mutated, not merely to pass today) — a rename upstream surfaces
+as drift instead of quietly producing an empty brief.
+
+Three absence cases have three defined outcomes: no contract renders exactly as
+before with no placeholder; a malformed one is treated as absent and logged, because
+a half-rendered contract is worse than none; and a contract with no seed key renders
+its blocks with the line omitted entirely rather than written empty — upstream carries
+a seed only "when the seed dealt stagings," so that is normal and not drift.
+
+Because both `/demo` and the wrapper need the same rules, the locate-and-parse
+procedure lives once in `skills/_shared/design-contract.md` and both cite it.
+
+## v6.52.0 — Impeccable's own doctor findings reach /tidy, surfaced and never applied
+
+Impeccable ships a `doctor.mjs` that audits a project's own design record — `PRODUCT.md`,
+`DESIGN.md` and its sidecar, `.impeccable/config.json`, surface briefs, the design hook.
+Nothing in claude-tweaks had ever run it. `/claude-tweaks:tidy` now does, as Step 4.9,
+through a new thin `doctor` mode on `/claude-tweaks:design-wrapper` that delegates
+wholesale rather than reimplementing a single check. Run against this repo during
+implementation it surfaced two real findings against `PRODUCT.md` — a retired
+`## Register` section and a record predating the current schema — so the integration
+shipped with a live case rather than a constructed fixture.
+
+- `skills/design-wrapper/modes/doctor.md` **owns the finding schema** and is the single
+  source of truth for it; `skills/tidy/scan-procedures.md` references that section rather
+  than restating it. Two properties were read off Impeccable 4.0.2's own source rather
+  than trusted from a summary, and neither is obvious: a finding's `path` is nullable and
+  may be a *comma-joined list* of paths, and its `artifact` is a human label
+  (`hook manifest`, `live state`, `surface brief`) that is not always a filename. Both
+  decide what the report's `Path:Line` column can render, so the mapping falls back to
+  `artifact` rather than emitting an empty cell.
+- `skills/design-wrapper/impeccable-plugin.md` grows the shared
+  `resolveImpeccablePlugin({searchRoot}) -> {root, version} | null`, with a per-consumer
+  script-path table underneath it. Layer 0 and `doctor` need the same answer — which
+  plugin root sits at the pin — so it is specified once and each consumer appends its own
+  script path, rather than shipping two resolvers for one root (`[IL-32]`). The pin is
+  load-bearing for both: neither `context-signals.mjs` nor `doctor.mjs` exists at 3.0.6,
+  the other version cached alongside 4.0.2.
+- `--fix` is never passed, and the file says why in one sentence so a later reader does
+  not add it as an obvious convenience: it rewrites `PRODUCT.md`, and
+  `_shared/auto-mode-contract.md` reserves file-modifying decisions for explicit human
+  approval. That upstream calls `auto` migrations "the ones with no judgment in them"
+  answers a different question than whether *this* wrapper may apply them unattended.
+- Upstream's `route` / `mention` / `auto` severities are carried through verbatim — the
+  `--fix` boundary is defined in terms of those exact strings. `/tidy` maps them onto its
+  own urgency scale for display only and keeps the original word inside the rendered row.
+- `[doctor]` rows route to their own Design Record Drift section, deliberately **not**
+  `/tidy`'s Actions table: every Action Vocabulary row mutates something and these never
+  do, at any aggressiveness tier. On a skip — no plugin, off-pin, no `PRODUCT.md`, or
+  `doctor.mjs` failing outright — the scan step renders nothing at all, since a step that
+  reports its own absence on every run trains users to skim the report.
+- `doctor` runs the wrapper's Layer 1 kill-switch only. Layers 2 and 3 are structurally
+  inapplicable: there is no spec to read a `Surface:` line from and no file list to sniff,
+  and a diff-based sniff would skip `doctor` on exactly the clean-tree runs `/tidy`
+  performs.
+
+Closes #150.
+
 ## v6.51.1 — wontfix suppression survives a gh-absent firing, and the build diagnostic says how it resolved
 
 Two defects found by test-firing six live cloud Routines against a real project on
@@ -127,6 +225,22 @@ Nothing in this release acts on a verdict. `trusted` and `unattended` exist so t
 ceiling is in place before anything can exceed it, but no consumer reads either value
 yet, and the table itself never grants a label, changes one, merges anything, or
 attaches a recommendation to what it renders. That wiring is Phase 3.
+
+## v6.50.2 — the same fixes as v6.51.1, under the number they first shipped as
+
+Backfilled by the v6.53.0 release, which the coverage gate blocked until this
+entry existed. Not a separate body of work: commit `a373a178` bumped the manifest
+to 6.50.2 and reached `main` carrying the #163 and #164 fixes, then merged with
+the concurrently-landed 6.51.0 and re-emerged as 6.51.1. Only 6.51.1 got an entry,
+so the number the tip actually held in between had none.
+
+For what it contains, read **v6.51.1** above — the two are the same change set.
+This entry exists because a version that reached the tip of `main` is a build
+someone could be running, whether or not a later merge renumbered it, and the
+gate deliberately cannot tell "renumbered" from "forgotten" (`[IL-94]`). It sits
+here rather than beside 6.51.1 because this file is ordered by version, and 6.50.2
+is the one recent release whose version order and ship order disagree — it reached
+the tip at 16:40, after 6.51.0 did at 15:21.
 
 ## v6.50.1 — Skill frontmatter stops double-prefixing the plugin namespace
 

@@ -26,6 +26,7 @@ For each finding, route by recommendation type:
 | **Absorb** (backlog record, `github-issues` backend — closes a GitHub issue) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
 | **Fix now** (registry entries pointing to non-existent files) | Stage | Stage | Stage — fixing requires judgment about which side to keep |
 | **Add rule to CLAUDE.md** (cross-spec patterns) | Stage | Stage | Stage — CLAUDE.md never edited autonomously |
+| **Design record drift** (Step 4.9's `[doctor]` findings; no mutation, informational) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) — there is no tier at which this becomes an action. The scan step never edits a project file: applying an `auto` finding means `doctor.mjs --fix`, which rewrites `PRODUCT.md`, and `_shared/auto-mode-contract.md` reserves that for explicit human approval. A skipped scan surfaces nothing at all. |
 | **Close (GitHub) / Resolve thread** (outward-facing GitHub mutations) | Stage | Stage | Stage — visible to collaborators and may trigger notifications; never auto-applied per the auto-mode contract's reversibility floor |
 | **Capture** (PR/issue → backlog record) | Stage | Stage | Stage — new backlog-record writes are on the auto-mode contract's never-silenced list (`_shared/auto-mode-contract.md`: "Work-record creation") |
 
