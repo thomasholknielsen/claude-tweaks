@@ -39,6 +39,39 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
+
+Seven citations across six live skill files pointed at
+`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`, deleted under
+ADR-0007. Every agent reading those skills was sent to a file that does not exist (closes
+#114). `docs/skill-graph.md` cited it too, as live rationale — that one was in neither the
+record's list nor its historical-exclusion list.
+
+**Nothing was blanket-repointed at the amending doc**, which is the obvious fix and the wrong
+one. `2026-07-20-lifecycle-ceremony-tiering-design.md` *references* the escape hatch but never
+defines it — it says those parts "still apply as written", pointing back at the deleted file.
+Repointing there would have produced a second dangling pointer that reads as fixed.
+
+So each site was resolved by what it actually cited:
+
+- **Behavior** now points at the skill that implements it — the ceremony escape hatch is
+  `wrap-up/SKILL.md` Step 3.5, the `ceremony-check` contract is
+  `assess-agent-autonomy/SKILL.md`'s own mode section.
+- **Rationale** was restated inline where it was short enough to carry — why `/reflect`'s light
+  mode keeps Near-misses and Fresh-start and drops the rest: those two can still produce the
+  Safety regression finding the escape hatch keys on, and the others are narrative.
+- **Lever definitions** point at `_shared/policy-schema.md`.
+
+This follows a precedent already sitting one row above the replaced `skill-graph.md` entry:
+*"Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the
+previous anchor was a design doc, and it was pruned."* Anchoring live prose to a dated design
+doc is the defect, not the particular doc that got deleted.
+
+References remaining in `docs/superpowers/plans/`, `CHANGELOG.md`, and the amending design doc
+are historical record and stay. The amending doc's own stale citations are flagged at the live
+pointer in `skill-graph.md` rather than rewritten in place — a dated design doc says what was
+true when it was written.
+
 ## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
 
 `/claude-tweaks:specify` cuts a design along layer lines, which produces a serial chain
