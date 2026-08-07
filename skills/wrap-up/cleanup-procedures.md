@@ -6,8 +6,6 @@ Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wr
 
 Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console). **Ordering rule, first half: pipeline run directory archival (item 8) is always last.** Items 4, 6, and 7 read or write files under `$RUN_DIR` — the worktree/carrier-commit check reads the materialized header from `${RUN_DIR}/work/`, the ephemeral-server teardown reads `${RUN_DIR}/ephemeral-server.txt`, and the issue claim release reads the same materialized header again — and once the run directory is archived none of those paths resolve any more. State this as an unconditional rule, not a closed list: any future cleanup item that reads or writes `$RUN_DIR` belongs before item 8 too, not just the three named here.
 
-**Ordering rule, second half: item 4's own worktree-removal sub-step must not destroy `$RUN_DIR`'s gitignored content before it's copied out.** Under `worktree.always`, `$RUN_DIR` lives inside the worktree; `git worktree remove` (Section C step 5) deletes the entire worktree filesystem tree, including `config.yml`/`decisions.md`/`events.jsonl`/`staged/` (gitignored — only `work/` is git-tracked and survives via commit + merge). Item 8's own archival step runs too late to prevent this on its own, since item 4 already completed by the time item 8 runs. Section C therefore copies `$RUN_DIR`'s gitignored content out to the main checkout *before* its own worktree-removal sub-step (see Section C step 4) — item 8 (Section B) then only needs to `git mv` the already-merged `work/` subdirectory into the same archive path and confirm the pre-copied gitignored files are already there.
-
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
 | 1 | Execution plans | Delete ephemeral plan files in `~/.claude/plans/` related to this spec (Claude Code's own native plan-mode scratch output). **Do NOT delete `docs/superpowers/plans/*.md`** — this project's CLAUDE.md documents it as a permanent historical archive, pruned only as a separate, deliberate maintenance action, never per-build. This applies regardless of build mode (design-mode or otherwise) — a spec-specific plan file there is kept, same as every other. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | record-based work | No (idempotent — leave to per-spec wrap-up) |
@@ -61,7 +59,13 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 2. Verify the Review Console (Step 8.6) ran and applied/dismissed all staged items.
 3. **Mark the run terminal** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
 4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
-5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`): **worktree-strategy runs** — already copied to this same archive path by Section C's pre-removal copy step (Section C step 4, which runs *before* the worktree is removed); confirm the files are present here, do not re-move them — the worktree they would move *from* no longer exists by the time this step runs. **`current-branch` mode** (no worktree ever existed to lose them to) — move them here directly with a plain `mv`, same destination as `work/`'s but without `git mv` since they were never tracked.
+5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
+   already in the main checkout — run directories are anchored there at creation
+   (`_shared/pipeline-run-dir.md`, Anchoring). Move them into the archive path with a
+   plain `mv`, same destination as `work/`'s but without `git mv` since they were never
+   tracked. This is identical for worktree-strategy and `current-branch` runs; the
+   two-branch split it replaces existed only because the worktree strategy used to hold
+   the sole copy.
 6. Skipped staged items remain in the archive; they are NOT silently dropped.
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
@@ -121,62 +125,14 @@ If the build used worktree git strategy, clean up the worktree directory:
    - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
    - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
      - **Merged, PR created, or discarded** → proceed to step 4.
-     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 4-6 below entirely for this spec (do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
+     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 4-5 below entirely for this spec (do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
    — the carrier is the final wrap-up commit message instead: include the same
    `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
    branch (the operative instruction lives in wrap-up SKILL.md Step 10's commit procedure,
    since Section C is skipped when no worktree exists).
-4. **Copy `$RUN_DIR`'s gitignored content out to the main checkout — before removing the worktree.**
-   `$RUN_DIR` (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`) lives inside the worktree
-   under `worktree.always` and is gitignored — only `work/` is git-tracked and survives worktree
-   removal via commit + merge. Step 5 below (`git worktree remove`) deletes the entire worktree
-   filesystem tree, including these gitignored files, unless they're copied out first:
-
-   ```bash
-   MAIN_CHECKOUT=$(dirname "$(git rev-parse --git-common-dir)")
-   ARCHIVE_DEST="$MAIN_CHECKOUT/.claude-tweaks/pipelines/archive/$(basename "$RUN_DIR")"
-   mkdir -p "$ARCHIVE_DEST"
-   for f in config.yml decisions.md events.jsonl; do
-     [ -e "$RUN_DIR/$f" ] && cp "$RUN_DIR/$f" "$ARCHIVE_DEST/$f"
-   done
-   [ -d "$RUN_DIR/staged" ] && [ "$(ls -A "$RUN_DIR/staged" 2>/dev/null)" ] && cp -r "$RUN_DIR/staged" "$ARCHIVE_DEST/staged"
-   ```
-
-   The `worktree.always` PreToolUse gate **does** cover a bare `cp` into the main checkout —
-   `cp`/`mv`/`tee` are gated write shapes, and choosing Bash over the `Write` tool changes
-   nothing. This copy is permitted by the gate's one path-prefix exemption instead: file writes
-   under the repo's own `.claude-tweaks/pipelines/` are plugin-owned bookkeeping, not the project
-   work the gate isolates. See the `worktree.always` coverage block in `_shared/policy-schema.md`
-   — the canonical statement of what the gate intercepts; do not restate it here.
-
-   Keep the destination under `.claude-tweaks/pipelines/`. A copy anywhere else in the main
-   checkout is denied, and the denial is easy to miss: it is a refused tool call mid-cleanup,
-   not a hard stop, which is how this step went silently broken on every `worktree.always`
-   project until #138.
-
-   `git rev-parse --git-common-dir` resolves the
-   shared `.git` directory regardless of which worktree the command runs from; stripping the
-   trailing `.git` segment gives the main checkout root. Section B's archival step (item 8, above)
-   then only needs to `git mv` the already-merged `work/` subdirectory into this same archive path
-   — the gitignored half already landed here, before removal.
-
-   **Multi-spec shared-worktree interaction (open question, not resolved here):** this record's
-   reproduction and fix cover the single-record/single-spec worktree case only — where the
-   worktree is torn down once, at the end of one pipeline's own wrap-up. A
-   `MULTISPEC_SHARED_WORKTREE=1` run's `$RUN_DIR` may resolve differently (per-spec subdirectory
-   of a parent multi-spec run dir), and per Section B's Multi-spec defer check, item 4 (this
-   section) is deferred to the parent `/flow`'s consolidated console under
-   `MULTISPEC_REVIEW_DEFER=1` regardless — so this step's per-spec invocation is skipped in that
-   mode already (see "Multi-spec defer behavior" above) and does not need separate handling here.
-   Whether the parent `/flow`'s own end-of-run worktree teardown needs an equivalent pre-removal
-   copy step is a follow-up, not covered by this fix. What #138 *did* settle for that follow-up:
-   permission is no longer the obstacle. The exemption is a path prefix, so it covers a
-   per-spec `spec-{N}/` run dir exactly as it covers a single-record one — whatever teardown
-   ends up performing the copy, the gate will allow it. The open part is purely which step
-   invokes it.
-5. Remove the worktree: `git worktree remove {path}`.
-6. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
+4. Remove the worktree: `git worktree remove {path}`.
+5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
 If no worktree exists for this spec, skip this section silently.
 
