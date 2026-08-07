@@ -1,6 +1,6 @@
 # Step 9 — Consolidated Summary Template and Batch Decision
 
-Loaded by `/claude-tweaks:wrap-up` Step 9, which always runs. Holds the render template for the wrap-up summary, the conditional batch-decision block (presented only when Step 8.6's Review Console did not run), and the closure lines for record mode and the legacy spec-file alias.
+Loaded by `/claude-tweaks:wrap-up` Step 9, which always runs. Holds the render template for the wrap-up summary, its conversation-mode variant, the conditional batch-decision block (presented only when Step 8.6's Review Console did not run), and the closure lines for record mode and the legacy spec-file alias.
 
 References inside the blocks below to "this file" and to a `## Next Actions` section "below" resolve to `SKILL.md`, not to this file.
 
@@ -19,10 +19,18 @@ Render VERBATIM from the helper — do not compose these facts from memory:
 
     node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
-{base} is this run's scope base — the same boundary Step 3 passed to
-/claude-tweaks:reflect as "files changed during this work". The helper echoes it
-back, so a wrong base is visible in the output rather than silently narrowing
-the window.
+Resolve `{base}` — a commit-ish, never a date — by the first rule that applies:
+
+1. `git merge-base HEAD @{u}` when the branch has an upstream. This covers work
+   committed straight onto a tracking branch: the base is the last commit the
+   remote has, so the window is exactly what has not been pushed.
+2. `git merge-base HEAD {default-branch}` when there is no upstream and HEAD is
+   not on the default branch — the usual worktree case.
+3. `HEAD` otherwise. The window is empty and renders as `0 commits`, which is a
+   visible, checkable answer rather than a silent guess.
+
+The helper echoes the base back on the `Scope` line, so a wrong one shows up in
+the output instead of silently narrowing the window.
 
 Then append, in record mode only:
 
@@ -43,7 +51,9 @@ Ledger    {n} items, {n} open   |   none
 Generate from: the helper's History ops (every row it reports gets a `History`
 row — that is the whole point of reading them), cleanup actions in Step 10,
 config/skill updates applied, ledger items resolved in Step 8.5, and the run
-dir's `events.jsonl` when present.
+dir's `events.jsonl` when present (hook-recorded commit breadcrumbs — the hash
+reflects HEAD at hook time and is NOT verified against commit success — and
+contract violations).
 
 Omit the table entirely when no autonomous action was performed. Never fold a
 history operation into `Operational` — that type means cleanup, and burying a
@@ -68,8 +78,17 @@ internal classifier vocabulary and must not reach the reader:
 | D4 | `Memory` |
 | D5 | `Upstream issue` |
 
-**Will do ({n})** — cleanup already settled, listed so it is disclosed rather
-than decided: {one line each}.
+Generate from: Step 4's routed leftover sections, Step 6 and Step 7.9
+configuration proposals not yet approved, Steps 7 / 7.7 / 7.8's staged updates,
+and any staged `Q#` / `M#` / `U#` proposal. In record mode a Partial
+implementation status from Step 2 lands here too — as the specific sections that
+remain, never as a percentage.
+
+**Will do ({n})** — {one line each}. When Step 8.6's Review Console ran, these
+were approved there; state them as settled. When it did NOT run (interactive
+mode, standalone wrap-up, the empty-console fast path), the Conditional batch
+decision below is where they are actually decided — render them here as a
+preview of that table, never as already-settled.
 
 Render cleanup rows from `cleanup-procedures.md`'s canonical list, filtered by
 Condition. Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred there are
@@ -105,13 +124,21 @@ Skill updates — {N} applied, {M} staged, {K} new-skill candidates
 record-keyed pieces dropped: the `## Wrap-Up:` heading takes the work's topic
 instead of `Record #{n} — {title}`; the `Origin:` line, the `Record` and
 `Ledger` State lines, and any `Operational` row about closing a record or
-deleting plans are all omitted. Everything else — State, Actions Performed,
-Decisions, Evidence — renders identically.
+deleting plans are all omitted. State, Actions Performed, Decisions, and
+Evidence render identically to record mode — the closure line does not.
 
 This variant is not optional. Its absence is what caused a conversation-based
 run to compose its report from the steps it had just executed, surfacing
 internal step numbers and route codes and reporting a rebase inside a table
 cell's rationale column.
+
+Close conversation mode with this line instead of the record-mode archival
+line below:
+
+```
+Work wrapped up. This run closed no record and had no plans or ledger to delete —
+what it leaves behind is the code and the learnings above.
+```
 
 **Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
 
