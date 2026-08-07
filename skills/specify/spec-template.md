@@ -88,10 +88,6 @@ Parent: {#N — decomposition-mode leaves under work-links: body-text only; omit
 
 {Absorbed from the design doc. Why this approach was chosen, what alternatives were rejected, and key tradeoffs accepted. Only included in the first spec of a decomposition — subsequent specs reference "See Spec {N} Decision Rationale."}
 
-## Assumptions (optional)
-
-{Absorbed from the brief. Validated assumptions, surfaced blind spots, and hard constraints that shaped this spec. Only included when the brief contains assumptions relevant to this specific spec.}
-
 ## Open Questions (optional)
 
 {Populated by /specify Step 5 multi-persona red-team. Each row is a question raised by a persona during red-team review. When empty, this section is omitted from the spec entirely — do not emit an empty header.}

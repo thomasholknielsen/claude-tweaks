@@ -1,6 +1,6 @@
 # Specify — Record Creation and Linking (Steps 3-4)
 
-Loaded by `/claude-tweaks:specify` Step 3 onward, decomposition mode only — shaping mode never reaches this step (it runs `shaping-mode.md` in this skill's directory and exits straight to `SKILL.md`'s `## Next Actions`). Covers creating the parent and leaf records (Step 3) and wiring their relationships plus absorbing the last of the design doc's/brief's context (Step 4), before Step 7 deletes the design doc.
+Loaded by `/claude-tweaks:specify` Step 3 onward, decomposition mode only — shaping mode never reaches this step (it runs `shaping-mode.md` in this skill's directory and exits straight to `SKILL.md`'s `## Next Actions`). Covers creating the parent and leaf records (Step 3) and wiring their relationships plus absorbing the last of the design doc's context (Step 4), before Step 7 deletes the design doc.
 
 ## Step 3: Create the records
 
@@ -184,14 +184,13 @@ Capture `$LEAF_NUM` / `$LEAF_ID` for every leaf (created or resumed via the Idem
 - **Be specific about files** — "update the API" is too vague. Name the exact file and what to add.
 - **Include testable acceptance criteria** — not "works correctly" but specific assertions an agent can verify.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
-- **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant leaves' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive. (Step 4 re-checks this systematically before the brief becomes unrecoverable.)
 - **Include known manual steps — but only ones that survive the triage.** The Manual Steps section is reserved for items that have no CLI, require human judgment, or require out-of-band signoff. Infrastructure setup, env var provisioning, and API key creation with CLIs (`terraform`, `gh secret set`, `vercel env add`, `stripe`, `ldcli`, etc.) do NOT belong here — `/build` Step 2.5 auto-classifies and executes them. See `spec-template.md` Manual Steps section for the triage criteria and the `reason-not-auto` qualifier.
 
 ---
 
 ## Step 4: Link and order
 
-Every parent and leaf number now exists. This pass wires the relationships between them and absorbs the last of the design doc's and brief's context, before Step 7 deletes both.
+Every parent and leaf number now exists. This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it.
 
 ### Linking
 
@@ -224,10 +223,10 @@ There's no ordering step separate from linking — the dependency graph these li
 
 ### Decision Rationale and Assumptions
 
-Before Step 7 deletes the design doc and brief, absorb the last of their context into the records that survive:
+Before Step 7 deletes the design doc, absorb the last of its context into the records that survive:
 
 1. **Decision Rationale** — from the design doc, extract the "why" behind major decisions (approach choices, technology selections, rejected alternatives). Add as a `## Decision Rationale` section in the **parent** body — recompose the parent's full body (design summary + this new section + the task list, under `body-text`) and write once.
-2. **Assumptions** — from the brief (produced by `/claude-tweaks:challenge`), extract validated assumptions, surfaced blind spots, and hard constraints relevant to each leaf. Fold them into that leaf's **existing `## Gotchas` section** as additional bullets — there's no separate `## Assumptions` section anymore. Recompose the affected leaf's body and write once.
+2. **Assumptions** — from the design doc's own stated assumptions, surfaced blind spots, and hard constraints, extract what's relevant to each leaf. Fold them into that leaf's **existing `## Gotchas` section** as additional bullets — there's no separate `## Assumptions` section anymore. Recompose the affected leaf's body and write once.
 3. **Cross-Spec Promises** (only when this decomposition met `promise-register-min-leaves` — default `4`, `_shared/work-record-config.md`) — add a `## Cross-Spec Promises` section to the **parent** body, recomposed alongside Decision Rationale and the task list. This seeding step is `work-links: body-text`-specific — only that mode's Linking pass (above) writes `Blocked by #N: {assumption}` lines to seed rows from; `work-links: native` leaves have zero such lines at decomposition time (native's Linking pass writes no body text at all — see Linking, above), so a native-mode decomposition's section still gets created here, just empty at first — `/claude-tweaks:review`'s Step 1.6 can populate it later regardless of `work-links` mode, since its writes are plain `gh issue edit`/`gh issue comment` calls with no native-vs-body-text restriction. The one genuine, permanent exclusion is `work-backend: local-files`: there's no GitHub issue to hold a section, a row, or a comment on at all, so a decomposition under that backend never gets a `## Cross-Spec Promises` section, regardless of leaf count. Seed one row per `Blocked by #{blocker}: {assumption}` line the Linking pass above just wrote between two leaves of this decomposition — `{blocker}` is the same number from that line (the record being depended on); `{owner}` is the dependent leaf whose body carries the line (pre-existing-record links don't get a row — the register tracks promises within this family, not every dependency):
 
    ```
@@ -238,6 +237,6 @@ Before Step 7 deletes the design doc and brief, absorb the last of their context
 
    When no leaf-to-leaf assumption lines exist (the threshold is still met — this decomposition simply had no forward dependencies among its leaves), still create the section with just the header row — `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) looks for this section by name on every parent-linked record it reviews, and an absent section means "nothing to track at all (below threshold)" while a present-but-empty one means "tracked, nothing found yet." Post one comment on the parent noting the seed: `gh issue comment $PARENT_NUM --body "Cross-Spec Promises seeded: {count} forward reference(s) at decomposition time."` (skip the comment, but still create the empty section, when count is 0).
 
-Step 3's Rules already asked for brief-absorption while each leaf was being drafted; this is the systematic completeness pass — the last chance to catch a leaf that missed something, before the source becomes unrecoverable.
+Step 3's Rules already asked for design-doc absorption while each leaf was being drafted; this is the systematic completeness pass — the last chance to catch a leaf that missed something, before the design doc becomes unrecoverable.
 
 This is what keeps the records self-contained: reading the parent, or any leaf, later explains *why* the approach was chosen without needing the deleted design doc.
