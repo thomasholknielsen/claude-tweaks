@@ -39,6 +39,35 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.58.0 — /challenge becomes an inline framing gate instead of a brief producer
+
+`/claude-tweaks:challenge` was a human-run stage that dispatched seven parallel proposers
+plus an aggregator and saved a Brainstorming Brief to `docs/plans/*-brief.md`. It had
+produced exactly one brief in the repo's history, and its nominal primary consumer
+(`/superpowers:brainstorming`, a third-party skill) never read the file — its documented
+deletion step had never fired either. The judgment was sound; the shape was wrong.
+
+- `/claude-tweaks:challenge` is now two modes. `framing-check` is a component invoked only
+  by `/claude-tweaks:specify`, rendering `FRAMING: open | solution-baked` plus a rationale.
+  `--lens=<n[,n...]>` is a human-invoked escape hatch that applies one of the seven
+  debiasing lenses in conversation. The seven lenses survive; only the machinery around
+  them is gone. The file dropped from 19.3 KB to under 10 KB.
+- A `solution-baked` verdict now stamps a presence-only `framing:baked` marker and folds
+  the surfaced assumptions into the record's own `## Gotchas` — read by `/specify`,
+  `/build`, and `/flow` by construction, rather than a separate file needing discovery.
+  Absence is the clean state; there is no `framing:open`.
+- The verdict surfaces as an informational `Framing` column in `/claude-tweaks:backlog
+  refine`'s existing batch table and a flag in `/claude-tweaks:help`'s scan, which now
+  reads the stamped verdict instead of guessing from record titles. **Net new user-facing
+  prompts: zero.** Three flows lost an option; none gained one.
+- Both drivers carry the verdict: a `framing:baked` label under `work-backend:
+  github-issues`, a `framing` facet under `work-backend: local-files`, bridged through
+  `sharedFacetDefaults()` and `parseRecordFacets` so the two shapes agree.
+- Mode 4 (Layered MoA) is removed from `_shared/multi-agent-coordination.md` and
+  `bin/lib/coordination.js` — `/challenge` was its only consumer. Three coordination modes
+  remain. `docs/plans/2026-07-08-worktree-directory-convention-brief.md` is deliberately
+  retained on disk; ADR 0004 cites it.
+
 ## v6.57.1 — auto-merged records get their acceptance label instead of closing silently
 
 Both auto-merge short-circuits bypass `/claude-tweaks:wrap-up` Step 10, which is where
