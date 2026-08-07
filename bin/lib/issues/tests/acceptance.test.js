@@ -6,6 +6,7 @@ const {
   dispositionState,
   verificationSurface,
   needsBackstop,
+  familyGateState,
 } = require('../acceptance.js');
 
 test('dispositionState reads each acceptance label', () => {
@@ -70,4 +71,41 @@ test('needsBackstop fires only for a closed record with no disposition', () => {
   assert.equal(needsBackstop({ state: 'CLOSED', labels: ['demo:approved'] }), false);
   assert.equal(needsBackstop({ state: 'OPEN', labels: [] }), false);
   assert.equal(needsBackstop(undefined), false);
+});
+
+const CLOSED = (n) => ({ number: n, state: 'CLOSED' });
+const OPEN = (n) => ({ number: n, state: 'OPEN' });
+
+test('familyGateState is incomplete while any leaf is open', () => {
+  assert.equal(familyGateState({ leaves: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
+});
+
+test('familyGateState is due when every leaf is closed and the parent is unlabelled', () => {
+  assert.equal(familyGateState({ leaves: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
+});
+
+test('familyGateState is gated once the parent carries demo:pending', () => {
+  assert.equal(familyGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
+});
+
+test('familyGateState is resolved once a verdict is recorded', () => {
+  assert.equal(familyGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
+  assert.equal(
+    familyGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
+    'resolved',
+  );
+});
+
+test('familyGateState reports gated even if a leaf reopens after gating', () => {
+  // The label is the authoritative record of what was applied; a reopened leaf
+  // must not cause the sweep to re-gate an already-gated parent.
+  assert.equal(familyGateState({ leaves: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
+});
+
+test('familyGateState never reports due for a family with no discoverable leaves', () => {
+  // A parent whose leaves cannot be resolved is a resolution failure, not a
+  // complete family — gating it would demand a verdict on work nobody built.
+  assert.equal(familyGateState({ leaves: [], parentLabels: [] }), 'incomplete');
+  assert.equal(familyGateState({}), 'incomplete');
+  assert.equal(familyGateState(), 'incomplete');
 });

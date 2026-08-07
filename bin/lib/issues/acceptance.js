@@ -58,4 +58,17 @@ function needsBackstop(record) {
   return dispositionState(record.labels) === 'none';
 }
 
-module.exports = { dispositionState, verificationSurface, needsBackstop };
+// A decomposition family's acceptance state. Reads the parent's own label first:
+// the label is the authoritative record of what has already been applied, so a
+// leaf reopening after the gate went on never re-opens the gating decision.
+function familyGateState({ leaves, parentLabels } = {}) {
+  const disposition = dispositionState(parentLabels);
+  if (disposition === 'approved' || disposition === 'changes-requested') return 'resolved';
+  if (disposition === 'pending') return 'gated';
+
+  const all = Array.isArray(leaves) ? leaves : [];
+  if (all.length === 0) return 'incomplete';
+  return all.every((leaf) => leaf && leaf.state === 'CLOSED') ? 'due' : 'incomplete';
+}
+
+module.exports = { dispositionState, verificationSurface, needsBackstop, familyGateState };
