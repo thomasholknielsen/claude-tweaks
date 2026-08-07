@@ -39,6 +39,49 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.59.0 — a run can repair the references its own change broke
+
+Phase 4 of the earned-autonomy design. `CLAUDE.md`'s Don'ts prescribe the same sweep by hand
+in five separate rules (`[IL-10]`, `[IL-17]`, `[IL-21]`, `[IL-52]`, `[IL-93]`), every one
+recording the same failure: when a change renames or removes something, references to the old
+name survive in files the change never touched, and task-scoped review cannot see them by
+construction. `/claude-tweaks:wrap-up` now runs that sweep itself.
+
+- **Step 7.12, the broken-reference sweep** (`wrap-up/reference-sweep.md`) — computes the run's
+  rename/move/delete set, greps for surviving references to the old names, and reports every
+  hit. At `autonomy: supervised`, the default, it stages all of them and applies nothing, so
+  the step is pure detection for any project that has not opted in.
+- **The in-run initiative budget** (`_shared/initiative-budget.md`,
+  `bin/lib/issues/initiative-budget.js`) — at `trusted`/`unattended`, up to three of those
+  repairs apply during the run instead of waiting for approval, capped at 2 files and 20 lines
+  each, in their own commit with an `Initiative-Fix:` trailer so `/claude-tweaks:review` is
+  never handed unrequested edits mixed into the diff it was asked to review.
+
+**The carve-out is causal, not size-based.** `_shared/auto-mode-contract.md` keeps "code
+modifications outside the skill's documented scope" in what `auto` never silences, because that
+row exists to stop a skill reaching outward to make its own work succeed. A pointer repair is
+the inverse: the reference is broken *because of* this run, and the change is not finished while
+it still points at what the run moved. A gap the run merely *noticed* is still filed, never
+fixed, at every ceiling — losing that distinction would turn the budget into a licence to make
+small edits anywhere.
+
+This is the ceiling's second authorized behavior and the first that is **not** trust-gated. An
+unfiled repair generates no record, so it has no provenance class and can never appear in the
+trust table; requiring a `clean` verdict would ship it permanently inert. Its safety comes from
+being mechanically checkable and capped instead — `_shared/autonomy-ceiling.md` states this
+explicitly so a later reader does not "fix" the asymmetry by adding a floor nothing could clear.
+
+Ambiguity always stages: two plausible targets, or an old name that still legitimately exists,
+means the repair is judged rather than checked, and the budget's premise does not hold. Test
+files are excluded outright — retargeting an assertion at a renamed path is how "repair" becomes
+"silence the check".
+
+Also extracts `wrap-up` Steps 7.10 and 7.11 to `memory-curation.md` and `upstream-feedback.md`.
+The new step pushed `SKILL.md` past the 40 KB per-invocation ceiling that
+`bin/lib/skill-audit/tests/context-cost.test.js` enforces; two separate sub-files rather than
+one shared bucket, since two stubs citing sections of a single file makes every stub pay for
+the whole thing.
+
 ## v6.58.0 — /challenge becomes an inline framing gate instead of a brief producer
 
 `/claude-tweaks:challenge` was a human-run stage that dispatched seven parallel proposers
