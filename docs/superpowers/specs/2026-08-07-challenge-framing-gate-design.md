@@ -120,10 +120,23 @@ Under `work-backend: local-files`, the equivalent is a `facets.framing` value wr
 
 | Removed | Sites requiring update |
 |---|---|
-| Brief production, schema, and save/delete lifecycle | `challenge/SKILL.md`; `specify/record-creation.md:181,221,224`; `specify/decomposition-mode.md:23,228,254,260`; `build/SKILL.md:123`; `wrap-up/config-updates.md:31` |
+| Brief production, schema, and save/delete lifecycle | `challenge/SKILL.md:68,72,201,210,220,225,251`; `specify/record-creation.md:181,221,224`; `specify/decomposition-mode.md:23,228,254,262,274,304`; `build/SKILL.md:123,139`; `wrap-up/config-updates.md:31`; `tidy/SKILL.md:99`; `tidy/scan-procedures.md:96,107`; `help/context-flow.md:26,54,55,56` |
 | MoA dispatch (7 proposers + 1 aggregator) | `challenge/SKILL.md` |
 | Mode 4 — Layered MoA (`/challenge` is its only consumer) | `_shared/multi-agent-coordination.md:3,30,221ff`; `_shared/subagent-output-contract.md:90,148,208`; `_shared/auto-mode-contract.md:181` |
 | ADR-candidate flagging sourced from the brief | `_shared/decision-records.md:42`; `wrap-up/config-updates.md:31` |
+
+#### Executable code, not only prose
+
+The reshape touches four code files. These were absent from this document's first draft and are the reason the change is larger than a documentation sweep:
+
+| File | Change |
+|---|---|
+| `bin/lib/coordination.js` | Delete `MOA_AGGREGATOR_INSTRUCTION` (`:38`) and `buildMoADispatch` (`:247`), plus their `module.exports` entries (`:267`+). `/challenge` is the only consumer. |
+| `tests/multi-agent-coordination.test.js` | Delete the Layered MoA block (`:496-525`) and the `/challenge` integration block (`:744-858`). This suite reads the **live** `skills/challenge/SKILL.md` at `:23` and asserts on the exact design being removed — seven proposers, the six-section brief schema, quick mode's two proposers, and a decision-log pattern derived from that live file. Per `[IL-80]` this is a scheduled failure timed to this migration, so the test edits belong in the same task as the code deletion, not in cleanup afterward. |
+| `bin/lib/issues/record.js` | Add `FRAMING_BAKED: 'framing:baked'` to the `LABELS` constant (`:16-26`). |
+| `bin/lib/issues/labels.js` + `bin/lib/issues/tests/labels.test.js` | Add the bootstrap payload. `ensureLabelPayload` (`:8-15`) throws at construction time on a description over 100 characters, so the cap is enforced rather than advisory. |
+
+`tests/skill-conventions.test.js` constrains the `challenge/SKILL.md` rewrite and must keep passing unchanged: the skill count stays 33 (`:26` — `/challenge` survives), the canonical interaction directive must be preserved verbatim (`:29-31`), and `/challenge` is one of the eleven skills required to carry a one-line `Lifecycle:` marker (`:56-58`) and to **not** open with a fenced block within fifteen lines of its H1 (`:62-72`).
 
 Plus lifecycle-chain and command-reference prose in: `capture/SKILL.md` (`:4,31,165,187,201,232,238`), `help/SKILL.md` (`:14,78,85,92`), `help/reference-card.md` (`:11,68,132,169`), `help/context-flow.md` (`:10,27,54`), `flow/SKILL.md` (`:14,304`), `flow/steps-and-gates.md:18`, `tidy/SKILL.md:14`, `research/SKILL.md` (`:22,99,100,106`), `build/SKILL.md:14`, `docs/skill-graph.md` (`:74,84`), `docs/getting-started.md` (`:9,11`), `docs/plugin-structure.md:33`.
 
@@ -140,11 +153,30 @@ Plus lifecycle-chain and command-reference prose in: `capture/SKILL.md` (`:4,31,
 
 Per `[IL-10]` and `[IL-21]`, a task-scoped review cannot catch prose in an untouched file that still assumes briefs exist — every task's own diff will read as self-consistent. Per `[IL-93]`, prose describing a mechanism's old reach stays true-sounding while going incomplete, and keyword search cannot find a procedure whose defect is silence.
 
-Mitigations to bake into the plans from task one:
+**There are three unrelated "brief" concepts in this repo, and only one is being removed.** This is `[IL-37]`: near-identical names, different categories. A bulk sweep on the bare word would eat all three.
 
-- A case-insensitive **bare-word** sweep for `brief` across the whole tree, not a literal-path grep for `docs/plans/*-brief.md` — the generic-vocabulary occurrences are the ones a path grep misses.
-- The same for `MoA`, `Layered MoA`, `proposer`, and `aggregator`.
-- Exclude this design document and any generated plan from those sweeps, per `[IL-28]` — a document describing the removal necessarily quotes the removed terms verbatim.
+| Concept | Home | Disposition |
+|---|---|---|
+| Brainstorming brief | `challenge` → `docs/plans/*-brief.md` | **Removed by this design** |
+| Verification brief | `skills/wrap-up/verification-brief.md`, consumed by `/demo` | Untouched |
+| Visual-review briefs | `skills/visual-review/*` | Untouched |
+
+A bare-word case-insensitive sweep for `brief` matches **74 files** — it is a common English word ("keep it brief", "briefly") and is useless as a gate. The discriminating pattern, verified against the current tree, is:
+
+```bash
+grep -rnEi "brainstorming brief|docs/plans/[^ ]*brief|\*-brief\.md" \
+  skills/ docs/getting-started.md docs/plugin-structure.md docs/skill-graph.md bin/ tests/ \
+  | grep -v "2026-08-07-challenge-framing-gate-design"
+```
+
+It returns the authoritative worklist and correctly excludes the other two concepts. Running it during authoring is what surfaced `tidy/SKILL.md:99`, `tidy/scan-procedures.md:96,107`, and `build/SKILL.md:139` — three sites this document's first draft missed.
+
+Note that `docs/getting-started.md`, `docs/plugin-structure.md`, and `docs/skill-graph.md` do **not** match that pattern: they reference `/challenge` without naming the brief. Reference sweeps for the skill itself therefore need a separate `challenge` pattern, and neither sweep substitutes for the other.
+
+Remaining mitigations to bake into the plans from task one:
+
+- A case-insensitive sweep for `MoA`, `Layered MoA`, `proposer`, and `aggregator` — 9 files at baseline, tractable as a bare-word sweep because the vocabulary is not generic English.
+- Exclude this design document and any generated plan from every sweep, per `[IL-28]` — a document describing the removal necessarily quotes the removed terms verbatim.
 - A whole-branch review before the version bump, per CLAUDE.md's Releasing section — a producer and its consumers sit in different files here by construction, so per-task review cannot see the pair.
 
 **Second risk: the gate's judgment quality is unproven.** Unlike the modes it is modeled on, `framing-check` has no calibration table drawn from real cases. The signals in §3 are derived from the lens definitions, not from observed misfires. Expect the first few runs to need recalibration, and prefer `open` while calibrating — a missed flag costs nothing that the current design does not already cost.
