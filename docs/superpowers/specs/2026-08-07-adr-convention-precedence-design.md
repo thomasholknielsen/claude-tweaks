@@ -2,6 +2,12 @@
 
 Design doc for #187. Written 2026-08-07.
 
+> **Superseded by `2026-08-07-doc-prior-art-detection-design.md`**, which generalizes this
+> to a per-genre prior-art contract and makes #187 its Phase 1. The verification evidence
+> below still stands and is cited from there; two conclusions did not survive — `/init`
+> scaffolding `docs/decisions/` (contradicts a thrice-stated invariant that `/init` creates
+> only `docs/REGISTRY.md`), and the `adr-convention` key name (now `doc-convention.adr`).
+
 ## The report, and what verification changed about it
 
 `_shared/decision-records.md:26` states `docs/decisions/NNNN-{kebab-slug}.md` as a fact.
