@@ -1,6 +1,7 @@
 'use strict';
 const { createCache } = require('../health-core/cache');
 const { createDurableState } = require('../health-core/durable-state');
+const { mergeWontfixIntoDeclined } = require('../health-core/mark');
 
 // Local, gitignored: cache.json only (rebuildable-from-issues dedup state).
 // Canonical path: <root>/.claude-tweaks/journey-health/cache.json
@@ -49,8 +50,12 @@ const durable = createDurableState('journey-health', { includeDeclined: true });
 // fails its `git fetch origin health-state` first (no real GitHub-hosted
 // remote configured in any test), so the mutator itself is never actually
 // invoked by any CLI-level test.
+// wontfixSuppressed: [fingerprint] — findings suppressed this run because
+// their matching issue carried the `wontfix` label. Folded into the durable
+// `declined` slice so the suppression outlives the issue index it was read
+// from; see health-core/mark.js's mergeWontfixIntoDeclined.
 function buildValidateFindingsUpdate(current, {
-  target, tier, coverageScan, runRecord, deletedFileSig, now = Date.now(),
+  target, tier, coverageScan, runRecord, deletedFileSig, wontfixSuppressed, now = Date.now(),
 }) {
   const cursors = { ...current.cursors };
   if (target) {
@@ -68,7 +73,12 @@ function buildValidateFindingsUpdate(current, {
   if (coverageScan) {
     cursors.__coverageScan = { lastScannedMs: now };
   }
-  return { ...current, cursors, runs: [...current.runs, runRecord] };
+  return {
+    ...current,
+    cursors,
+    declined: mergeWontfixIntoDeclined(current.declined, wontfixSuppressed, { now }),
+    runs: [...current.runs, runRecord],
+  };
 }
 
 module.exports = {

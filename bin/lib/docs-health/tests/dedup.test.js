@@ -13,7 +13,7 @@ test('decide skips when an open issue already matches the fingerprint', () => {
 
 test('decide suppresses when the matching issue is labelled wontfix', () => {
   const issueIndex = { 'docshealth-abc': { number: 42, state: 'open', labels: ['wontfix'] } };
-  assert.deepStrictEqual(decide({ id: 'docshealth-abc' }, issueIndex, {}), { action: 'suppress', issue: 42 });
+  assert.deepStrictEqual(decide({ id: 'docshealth-abc' }, issueIndex, {}), { action: 'suppress', issue: 42, reason: 'wontfix-label' });
 });
 
 test('decide reopens when the matching issue is closed and not wontfix (regressed)', () => {
@@ -25,7 +25,7 @@ test('decide reopens when the matching issue is closed and not wontfix (regresse
 
 test('decide suppresses a finding the local cache marked declined', () => {
   const cache = { 'docshealth-abc': { status: 'declined', lastSeenMs: 1 } };
-  assert.deepStrictEqual(decide({ id: 'docshealth-abc' }, {}, cache), { action: 'suppress' });
+  assert.deepStrictEqual(decide({ id: 'docshealth-abc' }, {}, cache), { action: 'suppress', reason: 'declined' });
 });
 
 test('decide skips a finding the local cache marked staged', () => {

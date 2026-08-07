@@ -257,3 +257,48 @@ test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g.
   });
   assert.deepStrictEqual(next.retryQueue, current.retryQueue);
 });
+
+// wontfixSuppressed — the durable half of the gh-absent wontfix fix (#163).
+// A firing that CAN read the issue index persists its `wontfix` label
+// readings, so a later index-less firing still suppresses them.
+
+test('buildValidateFindingsUpdate: wontfixSuppressed fingerprints land in the durable declined slice', () => {
+  const current = baseCurrent({ declined: {} });
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'checkout-flow',
+    tier: 'light',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    wontfixSuppressed: ['journeyhealth-aaaa0001'],
+    now: 500,
+  });
+  assert.deepStrictEqual(
+    next.declined['journeyhealth-aaaa0001'],
+    { lastSeenMs: 500, origin: 'wontfix-label' },
+  );
+});
+
+test('buildValidateFindingsUpdate: an existing declined entry is not clobbered by a wontfix suppression', () => {
+  const current = baseCurrent({ declined: { 'journeyhealth-aaaa0001': { lastSeenMs: 1 } } });
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'checkout-flow',
+    tier: 'light',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    wontfixSuppressed: ['journeyhealth-aaaa0001'],
+    now: 500,
+  });
+  assert.deepStrictEqual(next.declined['journeyhealth-aaaa0001'], { lastSeenMs: 1 });
+});
+
+test('buildValidateFindingsUpdate: omitting wontfixSuppressed leaves declined untouched', () => {
+  const current = baseCurrent({ declined: { 'journeyhealth-bbbb0002': { lastSeenMs: 9 } } });
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'checkout-flow',
+    tier: 'light',
+    coverageScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    now: 500,
+  });
+  assert.deepStrictEqual(next.declined, current.declined);
+});

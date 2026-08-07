@@ -75,4 +75,37 @@ function mergeDeclinedIntoCache(cache, declined) {
   return merged;
 }
 
-module.exports = { makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache };
+// Pure: folds the fingerprints a run suppressed because their matching GitHub
+// issue carried the `wontfix` label into the durable `declined` slice, so the
+// suppression survives a later firing that cannot rebuild the issue index at
+// all (`gh` absent AND no MCP transport, or GitHub unreachable outright). The
+// local gitignored cache is not a substitute: it does not survive a scheduled
+// Routine firing's fresh container, which is precisely the environment these
+// skills run in unattended.
+//
+// Shared by all three health builders (harness/journey/docs
+// buildValidateFindingsUpdate) rather than triplicated in each, so the entry
+// shape and the first-write-wins rule below are defined once.
+//
+// First write wins: an existing entry is never overwritten. A human `mark
+// ... declined` and a label-derived suppression both mean "never re-propose
+// this," so clobbering would only churn `lastSeenMs` and lose the original
+// provenance — and the human mark is the stronger statement of the two.
+//
+// `origin` records which path created the entry. Entries written by `mark`
+// carry no `origin` (pre-existing shape, left untouched for compatibility);
+// only label-derived ones are tagged, so provenance is readable off the
+// health-state branch without a schema migration. mergeDeclinedIntoCache
+// reads only `lastSeenMs`, so the extra key is inert to every consumer.
+function mergeWontfixIntoDeclined(declined, fingerprints, { now = Date.now() } = {}) {
+  const next = { ...(declined || {}) };
+  for (const fp of fingerprints || []) {
+    if (!fp || next[fp]) continue;
+    next[fp] = { lastSeenMs: now, origin: 'wontfix-label' };
+  }
+  return next;
+}
+
+module.exports = {
+  makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache, mergeWontfixIntoDeclined,
+};

@@ -178,13 +178,22 @@ function cmdValidateFindings(args) {
   const payloads = [];
   const rememberCandidates = [];
   const seen = new Set();
+  // Fingerprints suppressed because their matching issue carries `wontfix`.
+  // Kept so the durable write below can outlive the issue index they were
+  // read from — the same hand-off health-core/validate-findings-dispatch.js
+  // performs for the two skills that do use the shared loop.
+  const wontfixSuppressed = [];
   const threshold = args['min-confidence'];
   for (const finding of survivors) {
     if (seen.has(finding.id)) continue; // intra-run dedup
     seen.add(finding.id);
 
     const decision = decide(finding, issueIndex, cache);
-    if (decision.action === 'skip' || decision.action === 'suppress') continue;
+    if (decision.action === 'suppress') {
+      if (decision.reason === 'wontfix-label') wontfixSuppressed.push(finding.id);
+      continue;
+    }
+    if (decision.action === 'skip') continue;
 
     if (decision.action === 'file' && threshold) {
       const rank = CONFIDENCE_RANK[finding.confidence];
@@ -211,7 +220,7 @@ function cmdValidateFindings(args) {
     writeCache(root, cache);
     const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
     // Named rather than inlined into the mutator call below, for readability.
-    const mutatorInput = { target: args.target, runRecord, rememberCandidates };
+    const mutatorInput = { target: args.target, runRecord, rememberCandidates, wontfixSuppressed };
     const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
     if (!result.ok) {
       process.stderr.write(`[docs-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
