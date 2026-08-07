@@ -91,6 +91,7 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 |---|---|---|---|
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
 | **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`effort:*` | nothing | `auto:*`, `bot:*`, `parked` |
+| **Ceiling-authorized filing** (any agent path, `autonomy: trusted`+) | `ready` (born-ready) for a record whose provenance class has a `clean` trust verdict — see `_shared/autonomy-ceiling.md` | nothing | `auto:*` (a machine-originated grant needs `unattended` **plus** its own opt-in), `bot:*`, `parked` |
 | **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`) | nothing | scoring, stage, `auto:*`, `bot:*` |
 | **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, `ceremony:*` (always — no unscored state), Type | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`effort:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
@@ -117,14 +118,18 @@ not-authorized state** — no label means no autonomous action, ever.
   review. **Additive on `auto:build`:** the gate always grants `auto:build` when granting
   `auto:merge`. Dispatch queries `auto:build` only; `auto:merge` **alone is inert** — no
   queue selects on it.
-- **Machinery may only remove grants, never add them.** Failure handling is
+- **Machinery may only remove grants, never add them** (save for the one carve-out in the
+  next bullet, which is shut by default). Failure handling is
   classification-driven (via `/claude-tweaks:assess-agent-autonomy`'s `failure-check` mode):
   a `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before retry; a
   `transient`-classified one preserves it. At the retry ceiling (`dispatch-retry-ceiling`),
   regardless of classification, machinery removes all `auto:*` labels and adds `bot:blocked` —
   the record needs a human re-grant to run again.
-- `auto:*` labels are only ever added by an interactive human session; there is no
-  machinery path that originates a grant.
+- `auto:*` labels are only ever added by an interactive human session. The single
+  exception is the `unattended` ceiling's machine-originated grant, which is shut by
+  default and needs an explicit second opt-in beyond reaching that tier — see
+  `_shared/autonomy-ceiling.md`. With that opt-in absent, which is its shipped state,
+  there is no machinery path that originates a grant.
 
 ## Acceptance semantics
 
@@ -186,6 +191,11 @@ agent-sized and spec-shaped **by construction** — their builders emit Current 
 Deliverables / Acceptance Criteria bodies with scoring. They therefore file with `ready`
 already applied and appear directly in the gate's worklist, skipping maturation. Captured
 and human-filed records start in backlog state and reach `ready` through `/specify`.
+
+Under `autonomy: trusted` or higher, agent-filed records whose provenance class carries a
+`clean` trust verdict file born-`ready` on the same reasoning — the class has demonstrated its
+output is spec-shaped rather than being so by construction. See `_shared/autonomy-ceiling.md`.
+At `supervised`, the default, `/specify` remains the only road to `ready` for those records.
 
 ## Decomposition rules
 

@@ -530,7 +530,7 @@
           <div class="vz-ghi-subhead">Machinery may only remove grants, never add them</div>
           <div class="vz-ghi-explain-line">Any failed run unconditionally revokes auto:merge before the next retry. At the retry ceiling (dispatch-retry-ceiling, default 3) machinery strips every auto:* label and adds bot:blocked &mdash; the record needs a fresh human re-grant to run again.</div>
           <div class="vz-ghi-subhead">auto:* is a maintainer's signature, not the agent's</div>
-          <div class="vz-ghi-explain-line">auto:* labels are only ever added by an interactive human session &mdash; there is no machinery path that originates a grant. Applying a label requires triage permission on GitHub, which is the actual enforcement mechanism, not just a policy convention.</div>
+          <div class="vz-ghi-explain-line">auto:* labels are only ever added by an interactive human session. Applying a label requires triage permission on GitHub, which is the actual enforcement mechanism, not just a policy convention. The one defined exception is the autonomy ceiling's unattended tier, which is shut behind a second explicit opt-in that nothing sets &mdash; so as shipped, there is still no machinery path that originates a grant.</div>
         </div>
       </foreignObject>
 

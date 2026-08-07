@@ -130,6 +130,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
 - Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when `unattended-tier` is on (see `_shared/unattended-tier.md`)
+- Originating a work-record grant (`auto:build` / `auto:merge`) — except under the `autonomy` ceiling's `unattended` tier with its explicit grant-origination opt-in, for a class carrying a `clean` trust verdict (see `_shared/autonomy-ceiling.md`). Shut by default; nothing sets that opt-in today
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying project-policy values — `.claude-tweaks/policy.yml`'s keys, and the
   work-record keys still resident in CLAUDE.md (`work-backend`, `work-types`,
