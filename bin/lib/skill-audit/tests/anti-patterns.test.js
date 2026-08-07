@@ -219,6 +219,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   grep -E '^-\|'` returns exactly those two lines and both replacements are
   //   present in the same table. Measured with the parser, not derived. Net +1.
   //
+  //   358 -> 359, wrap-up of the #163/#164 fix (6.51.1). One row ADDED to
+  //   routine/SKILL.md: "Editing the canonical preamble in
+  //   `_shared/routine-template-schema.md` and treating the suite's green as
+  //   confirmation". The adjacent row it sits under covers editing a single
+  //   template; neither covered the shared preamble, whose edit obligates all
+  //   six templates plus six `template_version` bumps —
+  //   tests/routine-template-schema.test.js enforces the byte-identical
+  //   fan-out but only asserts `template_version` is a positive integer, never
+  //   that it incremented. No row evicted: `git diff -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty for this change set. Net +1.
+  //
   //   358 -> 361, Impeccable's direction contract at the acceptance gate (#152).
   //   Three rows ADDED to demo/SKILL.md, none evicted, all guarding the new
   //   `### The design contract this was built against` section in Step 2:
@@ -288,5 +299,32 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   disjoint, which is a fact about the diff and not something the two
   //   literals could have told anyone. That is the whole reason this entry
   //   records a measurement rather than a sum.
-  assert.strictEqual(total, 371);
+  //
+  //   370 -> 371, merge of origin/main into the #163/#164 wrap-up branch. The
+  //   two entries above are the two sides of that merge, both measured against
+  //   the same 358 base: this branch added 1 (routine), upstream added 12
+  //   across 6.52.0-6.55.0. Neither side's own literal is correct afterward —
+  //   359 and 370 each omit the other's contribution, and because both sides
+  //   moved the SAME line from the SAME base, git surfaced this as a conflict
+  //   only in the comment block; had the two totals happened to coincide it
+  //   would have merged silently at the wrong value, which is exactly [IL-99].
+  //   371 was read off the parser run against the merged working tree, not
+  //   computed as 370 + 1 — the arithmetic agreeing is a check, not the
+  //   evidence. `git diff --diff-filter=M -- 'skills/*/SKILL.md' |
+  //   grep -cE '^-\|'` returns 0 across the merge, so nothing was evicted.
+  //
+  //   -> 372, merging both of the above into one tree. This is the textbook
+  //   `[IL-99]` case, and it is worth being precise about why. Two independent
+  //   branches each took a 358 -> 359 step, each added a DIFFERENT row (this
+  //   branch's backlog Trust-column row; the other's routine shared-preamble
+  //   row), and each then merged a different span of upstream and landed on the
+  //   same literal 371. Because the literals coincided, `assert.strictEqual(
+  //   total, 371)` was **not part of the conflict at all** — git merged that
+  //   line silently and left it wrong by exactly the other side's one row. Only
+  //   the two comment blocks conflicted, and reading them is what prompted the
+  //   re-measurement. 372 was read off the parser against the merged tree. The
+  //   arithmetic that would have "confirmed" 371 was available and agreed with
+  //   both sides; it was wrong. Nothing evicted: `git diff --diff-filter=M --
+  //   'skills/*/SKILL.md' | grep -cE '^-\|'` is 0 across the merge.
+  assert.strictEqual(total, 372);
 });
