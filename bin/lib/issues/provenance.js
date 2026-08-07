@@ -13,15 +13,35 @@ const BY_LABEL = /^by:(.+)$/;
 // for a provenance claim.
 const ORIGIN_LINE = /^Origin:[ \t]*(.+?)[ \t]*$/m;
 // A trailing source reference makes the context per-record unique, which would
-// explode the class count and give every cell a sample size of one.
+// explode the class count and give every cell a sample size of one. This is
+// stripped AFTER clause truncation so that trailing punctuation doesn't defeat
+// the pattern (e.g., "from #42." still matches).
 const TRAILING_SOURCE = /\s+from\s+(#\d+|session recall)$/i;
-// Truncate long prose at a clause boundary (comma or period followed by
-// whitespace/end-of-string), then cap at 60 characters to normalize legacy
-// records that differ only in trailing details (e.g., "captured 2026-06-14"
-// vs "captured 2026-06-13"). Must NOT break on periods inside contexts like
-// "Phase 8.5" or inside filenames like ".md'," — the boundary requires
-// whitespace or string end after the punctuation.
-const CLAUSE_BOUNDARY = /^(.*?)[,.](?=[ \t\n]|$)/;
+
+const MAX_SOURCE_LENGTH = 60;
+
+// Truncate at the first clause boundary (comma or period at bracket depth zero,
+// followed by whitespace or end-of-string) to normalize legacy records that
+// differ only in trailing details (e.g., "captured 2026-06-14" vs "2026-06-13").
+// Must NOT truncate at punctuation inside parentheses or other brackets.
+function truncateAtClauseBoundary(source) {
+  let depth = 0;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '(' || ch === '[' || ch === '{') {
+      depth++;
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      depth--;
+    } else if (depth === 0 && (ch === ',' || ch === '.')) {
+      // Check if followed by whitespace or end-of-string
+      const nextChar = i + 1 < source.length ? source[i + 1] : ' ';
+      if (nextChar === ' ' || nextChar === '\t' || nextChar === '\n' || i + 1 === source.length) {
+        return source.slice(0, i);
+      }
+    }
+  }
+  return source;
+}
 
 function resolveProvenance({ labels, body } = {}) {
   const names = Array.isArray(labels) ? labels : [];
@@ -34,14 +54,18 @@ function resolveProvenance({ labels, body } = {}) {
 
   const line = ORIGIN_LINE.exec(typeof body === 'string' ? body : '');
   if (line) {
-    let source = line[1].replace(TRAILING_SOURCE, '').trim();
-    // Truncate at clause boundaries (comma or period + whitespace/EOS) to
-    // normalize long prose descriptions. Then lowercase and cap at 60 chars.
-    const clauseMatch = CLAUSE_BOUNDARY.exec(source);
-    if (clauseMatch) {
-      source = clauseMatch[1];
+    // Truncate at clause boundaries first (before stripping trailing source),
+    // so that punctuation after "from #N" doesn't prevent the pattern from matching.
+    let source = truncateAtClauseBoundary(line[1]).trim();
+    // Then strip the trailing source reference.
+    source = source.replace(TRAILING_SOURCE, '').trim();
+    // Lowercase and check length. If still exceeds MAX_SOURCE_LENGTH, it is not
+    // a structured context — resolve to the literal 'unstructured' to avoid
+    // false merges of unrelated long contexts sharing a prefix.
+    source = source.toLowerCase();
+    if (source.length > MAX_SOURCE_LENGTH) {
+      source = 'unstructured';
     }
-    source = source.toLowerCase().slice(0, 60);
     if (source) return { kind: 'side-effect', source };
   }
 

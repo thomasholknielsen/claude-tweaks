@@ -124,11 +124,61 @@ test('clause boundary: period followed by space truncates', () => {
   assert.equal(source, 'gap found while auditing v6.36.0');
 });
 
-test('long prose is capped at 60 characters after clause truncation', () => {
-  // Ensure the 60-char cap applies.
+test('a source at exactly 60 characters or less is accepted as-is', () => {
+  // Structured contexts within the limit are returned exactly.
   const source = resolveProvenance({
     labels: [],
-    body: 'Origin: this is a very long side-effect context that should be capped at sixty chars total'
+    body: 'Origin: this context is exactly at the limit now'
   }).source;
-  assert.equal(source.length, 60);
+  assert.ok(source.length <= 60);
+  assert.notEqual(source, 'unstructured');
+});
+
+// Fix 1: Reverse order — clause-truncate FIRST, then strip trailing source
+test('"from #N" followed by trailing period is correctly stripped', () => {
+  // The trailing "from #42." pattern should be stripped even when followed by
+  // punctuation. This requires truncating first, then stripping.
+  const a = resolveProvenance({
+    labels: [],
+    body: 'Origin: wrap-up leftover from #42.'
+  });
+  const b = resolveProvenance({
+    labels: [],
+    body: 'Origin: wrap-up leftover from #91.'
+  });
+  assert.equal(a.source, 'wrap-up leftover');
+  assert.deepEqual(a, b);
+});
+
+// Fix 2: Bracket-depth-aware clause boundaries
+test('comma inside parentheses does NOT truncate the clause', () => {
+  // A comma inside a parenthetical context should not be treated as a clause
+  // boundary. "(acknowledged, needs re-check)" is a single semantic unit.
+  const a = resolveProvenance({
+    labels: [],
+    body: 'Origin: ledger resolve gate (acknowledged, needs re-check)'
+  });
+  const b = resolveProvenance({
+    labels: [],
+    body: 'Origin: ledger resolve gate (acknowledged, already closed)'
+  });
+  // Both should capture the full context, not truncate at the internal comma.
+  assert.equal(a.source, 'ledger resolve gate (acknowledged, needs re-check)');
+  assert.equal(b.source, 'ledger resolve gate (acknowledged, already closed)');
+  // They are distinct contexts, not merged.
+  assert.notEqual(a.source, b.source);
+});
+
+// Fix 3: Blind slice can cause false merges; cap should return 'unstructured'
+test('a source exceeding 60 chars becomes "unstructured" to prevent false merges', () => {
+  // A context that is still over 60 chars after truncation is not a structured
+  // origin—it is freeform prose. Return 'unstructured' rather than truncate it
+  // blindly, which would merge two different long contexts if they share a
+  // 60-char prefix.
+  const veryLong = 'this is an extremely long side-effect context that nobody should ever write because it defeats the trust table';
+  const source = resolveProvenance({
+    labels: [],
+    body: 'Origin: ' + veryLong
+  }).source;
+  assert.equal(source, 'unstructured');
 });
