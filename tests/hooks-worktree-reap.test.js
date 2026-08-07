@@ -5,7 +5,7 @@ const { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical } = requi
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
+const { gitRepo } = require('./helpers/git-fixtures');
 
 // gitRepo() runs a bare `git init`, so the initial branch is whatever the
 // machine's init.defaultBranch says — `main` on some, `master` on others.

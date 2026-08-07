@@ -68,7 +68,7 @@ function isPidAlive(pid) {
 //   'unknown'  — locked, but the reason yielded no pid. Surface, never act.
 function lockVerdict(entry) {
   if (!entry.locked) return 'free';
-  if (entry.pid === null) return 'unknown';
+  if (!Number.isInteger(entry.pid)) return 'unknown';
   return isPidAlive(entry.pid) ? 'in-use' : 'orphaned';
 }
 
