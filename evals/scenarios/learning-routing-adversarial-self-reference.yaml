@@ -18,44 +18,30 @@ description: >
   project should instead hold as its own local record, producing a public
   issue no maintainer wants a duplicate of.
 
-  KNOWN FIXTURE GAP (verified empirically while writing this scenario, not
-  assumed): the self-reference collapse above depends on `git remote get-url
-  origin` actually resolving to a claude-tweaks-shaped URL inside the fixture
-  repo. evals/fixtures/git-fixtures.js's freshRepo() never configures a git
-  remote, and minimal-node-repo/CLAUDE.md says so explicitly ("Single master
-  branch, no remote configured"). No existing fixture.seed step type can add
-  one either: local-record only writes under specs/, and apply-patch's
-  underlying `git apply` refuses any diff touching .git/ paths outright
-  (confirmed directly: `git apply` on a patch touching .git/config fails with
-  "error: invalid path '.git/config'", exit 128 — not a permissions issue, a
-  hard refusal). So as this scenario stands today, `git remote get-url
-  origin` inside the fixture repo will error with "No such remote 'origin'",
-  the self-reference check has nothing to resolve against, and a real run is
-  expected to report D5, not the D1 asserted below — not because the
-  classifier is broken, but because no fixture in this harness can currently
-  present the precondition this scenario exists to test. The assertion is
-  still written for the intended, correct behavior (D1) rather than quietly
-  matching whatever the incomplete fixture produces today, so a future fix to
-  git-fixtures.js (adding a remote-seeding fixture.seed step) makes this
-  scenario start passing for the right reason instead of needing to be
-  rewritten. Until then, a FAIL here is expected and should not be read as a
-  classifier regression.
+  The collapse depends on `git remote get-url origin` actually resolving to a
+  claude-tweaks-shaped URL inside the fixture repo, which the git-remote seed
+  step below supplies. That step exists because of this scenario (#157):
+  freshRepo() configures no remote, and neither existing seed type can add
+  one — local-record only writes under specs/, and apply-patch's underlying
+  `git apply` hard-refuses any diff touching .git/ ("error: invalid path
+  '.git/config'", exit 128). Until it existed, this scenario asserted D1 and
+  was expected to FAIL, since the precondition it tests could not be
+  presented; the assertion was deliberately never weakened to match the
+  broken fixture, because a test rewritten to agree with current behavior can
+  no longer tell correct from merely-current (IL-62).
 
-  Corpus-coverage note: evals/fixtures/learning-routing-corpus/lessons.json
-  holds 7 lessons total. runner.js has no matrix/loop construct — each
-  scenario file invokes exactly one skill_invocation.prompt once — so each
-  corpus entry needs its own scenario file to actually run. Three of the
-  seven are wired up as of this scenario
-  (learning-routing-classification.yaml for subagent-dispatch-anchor,
-  learning-routing-adversarial-named-but-local.yaml for
-  adversarial-named-but-local, and this file for adversarial-self-reference);
-  the remaining four (brainstorm-style, zsh-parameter-modifier,
-  adversarial-bounded-procedure-not-rule, gap-no-opinion) are deliberately
-  fixture-only right now — recorded and integrity-checked, but exercised by
-  no scenario. That bound is stated here so it reads as a known, visible
-  limit rather than an oversight to whoever extends this suite next.
+  Corpus coverage: this file claims one corpus entry via covers_corpus_entry
+  below; everything not claimed by a dedicated scenario is run by
+  learning-routing-corpus-matrix.yaml. tests/learning-routing-coverage.test.js
+  enforces that the two sets partition the corpus exactly, so an entry can
+  neither go unexercised nor be paid for twice.
+covers_corpus_entry: adversarial-self-reference
 fixture:
   base: minimal-node-repo
+  seed:
+    # The whole point of this scenario: origin IS claude-tweaks, so a D5
+    # verdict must collapse to a local record rather than filing upstream.
+    - git-remote: https://github.com/thomasholknielsen/claude-tweaks.git
 skill_invocation:
   prompt: >
     /claude-tweaks:feedback --dry-run "The wrap-up skill's Review Console

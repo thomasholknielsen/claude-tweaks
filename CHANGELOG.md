@@ -91,6 +91,16 @@ confirmation in every mode, including `--dry-run`. `/claude-tweaks:wrap-up`
 Steps 7.10 and 7.11 stage memory and upstream proposals to two new per-item
 Review Console sections; `auto` silences neither.
 
+Three gaps that work left behind are closed here rather than in a follow-up
+release, since none of it ever shipped separately. Interactive-mode wrap-up now
+has a Queue writes surface (#156): the ledger resolve gate stages a record
+proposal whenever a run directory exists, but routed it to a Review Console that
+only runs in `auto`/`hybrid`, so in interactive mode the proposal had no reader.
+The evals harness gains a `git-remote` fixture-seed step (#157), without which
+the self-reference scenario could not present its own precondition, and a matrix
+construct (#158), without which four of seven frozen corpus lessons were
+exercised by nothing — a fixture that reads as coverage while measuring nothing.
+
 ## v6.48.1 — /init stops writing work-links to the file nothing reads
 
 v6.48.0 moved every `work-links` **reader** to `.claude-tweaks/policy.yml` and left the

@@ -22,20 +22,12 @@ description: >
   dependency on git remote state and is fully testable against the existing
   minimal-node-repo fixture as-is.
 
-  Corpus-coverage note: evals/fixtures/learning-routing-corpus/lessons.json
-  holds 7 lessons total. runner.js has no matrix/loop construct — each
-  scenario file invokes exactly one skill_invocation.prompt once — so each
-  corpus entry needs its own scenario file to actually run. Three of the
-  seven are wired up as of this scenario
-  (learning-routing-classification.yaml for subagent-dispatch-anchor, this
-  file for adversarial-named-but-local, and
-  learning-routing-adversarial-self-reference.yaml for
-  adversarial-self-reference); the remaining four
-  (brainstorm-style, zsh-parameter-modifier, adversarial-bounded-procedure-not-rule,
-  gap-no-opinion) are deliberately fixture-only right now — recorded and
-  integrity-checked, but exercised by no scenario. That bound is stated here
-  so it reads as a known, visible limit rather than an oversight to whoever
-  extends this suite next.
+  Corpus coverage: this file claims one corpus entry via covers_corpus_entry
+  below; everything not claimed by a dedicated scenario is run by
+  learning-routing-corpus-matrix.yaml. tests/learning-routing-coverage.test.js
+  enforces that the two sets partition the corpus exactly, so an entry can
+  neither go unexercised nor be paid for twice.
+covers_corpus_entry: adversarial-named-but-local
 fixture:
   base: minimal-node-repo
 skill_invocation:

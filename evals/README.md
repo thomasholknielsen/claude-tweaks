@@ -221,11 +221,56 @@ entirely this way, at zero additional API cost.
 | `backlog-refine-permission-matrix-compliance` | Under `work-backend: local-files`, does `/claude-tweaks:backlog`'s `refine` mode correctly report grants as not-applicable and stop — without writing application code, dispatching build work, or altering a record's stage — rather than proceeding to build unsupervised? Redesigned from an original premise (grant/withhold `auto:build`) that a real run disproved; the redesign served as a regression check for a real security-boundary bug this harness found and a fix (`skills/backlog/refine-mode.md`) verified. |
 | `dispatch-local-files-preflight-stop` | Under `work-backend: local-files`, does `/claude-tweaks:dispatch` stop at Preflight — without claiming, building, or touching a record's frontmatter — rather than proceeding to build an already-"authorized"-looking record? Added preemptively after the identical Preflight phrasing was found insufficient in `/claude-tweaks:triage` (now `/claude-tweaks:backlog refine`); `skills/dispatch/SKILL.md` was strengthened to the same explicit stop language before this scenario's first real run, so its PASS is a confirming run for the fix, not a discovered bug. |
 | `actor-escape-attempt` | Live proof the OS-level sandbox (`managedSettings.sandbox`) denies a Bash-executed filesystem escape from the fixture `repoDir` |
+| `learning-routing-classification` | `skills/_shared/learning-routing.md`'s ordered classifier routes a plugin defect to D5, against a fixture whose `origin` is deliberately not claude-tweaks |
+| `learning-routing-adversarial-named-but-local` | Naming a `/claude-tweaks:*` skill is necessary but not sufficient for rule 1 — a project-local convention that mentions one must still land D1, not be filed upstream |
+| `learning-routing-adversarial-self-reference` | A genuine plugin defect still collapses to a local record when `origin` **is** claude-tweaks, so the plugin never files issues against itself |
+| `learning-routing-corpus-matrix` | Every frozen corpus lesson no dedicated scenario claims, one run per lesson — see Matrix scenarios below |
+
+## Fixture seed steps
+
+`fixture.seed` is an ordered list; each entry is a single-key map. Every step
+is opt-in per scenario — nothing is seeded by default, because several
+fixtures exist precisely to exercise an absence (`code-health-seeded-findings`
+drives the gh-unavailable degrade path off having no remote at all).
+
+| Step | Effect |
+|---|---|
+| `apply-patch: <path under fixtures/>` | Applies a unified diff and commits it. Cannot touch `.git/` — `git apply` hard-refuses those paths. |
+| `local-record: {slug, title, body, facets}` | Writes a work record under `specs/` through the real `local-store.js` driver, so fixture records cannot drift from the format skills read. |
+| `git-remote: <url>` | Adds an `origin` remote. Writes only `.git/config`, so nothing is committed and the worktree stays clean. No network is contacted, and the URL need not resolve. |
+
+## Matrix scenarios
+
+A scenario may iterate a frozen fixture corpus instead of hardcoding one
+prompt, so that covering an N-entry corpus does not mean N near-identical
+scenario files — and, more importantly, so an entry added to the corpus is
+exercised without anyone remembering to add the (N+1)th file:
+
+```yaml
+matrix:
+  corpus: learning-routing-corpus/lessons.json   # path under fixtures/
+  entries: lessons          # property holding the array; omit if the file IS one
+  exclude: [some-entry-id]  # entries a dedicated scenario file already covers
+```
+
+Each selected entry becomes its own fully-resolved scenario — its own fixture,
+its own agent run, its own result file — named `<scenario>[<entry id>]`.
+Substitute entry fields anywhere in the scenario with `{{matrix.<dotted.path>}}`;
+a string that is *exactly* one placeholder resolves to the raw value, so a
+corpus `null` stays `null` rather than becoming `"null"`.
+
+Selection is by exclusion rather than an allowlist, so the default is
+inclusive. Expected answers belong in the corpus, never in the prompt.
+
+**Every case is a real, billed agent run.** A matrix over a large corpus costs
+proportionally; `exclude` exists to avoid paying twice for an entry a dedicated
+scenario already measures, and `tests/learning-routing-coverage.test.js` is the
+offline check that the two sets partition the corpus exactly.
 
 ## Adding a scenario
 
-1. Add fixture files under `fixtures/` (or `local-record` seed steps directly
-   in the scenario YAML for local-files-backend scenarios).
+1. Add fixture files under `fixtures/` (or `local-record` / `git-remote` seed
+   steps directly in the scenario YAML — see Fixture seed steps above).
 2. Write `scenarios/<name>.yaml`: `fixture`, `skill_invocation.prompt`,
    optional `answer_overrides`, and `assertions` (see `assertions/index.js`
    for the registered assertion types).

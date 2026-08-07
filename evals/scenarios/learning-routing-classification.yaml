@@ -17,8 +17,18 @@ description: >
   plugin defect that must still collapse to a local record because the repo
   under test is claude-tweaks itself. A corpus of only obvious cases would
   pass on any classifier (IL-78).
+
+  The fixture carries a deliberately non-claude-tweaks origin so Step 3's
+  self-reference check resolves and returns "not self-reference" on its own
+  terms. Before the git-remote seed step existed (#157) this scenario passed
+  through the check's error path instead — `git remote get-url origin` failed
+  with "No such remote 'origin'" — which reaches the same D5 verdict for a
+  reason that says nothing about the check working.
+covers_corpus_entry: subagent-dispatch-anchor
 fixture:
   base: minimal-node-repo
+  seed:
+    - git-remote: https://github.com/example-org/example-app.git
 skill_invocation:
   prompt: >
     /claude-tweaks:feedback --dry-run "When dispatching implementer subagents
