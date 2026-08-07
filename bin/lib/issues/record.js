@@ -214,6 +214,10 @@ function parseRecordFacets(labels) {
       facets.acceptance = 'changes-requested';
       continue;
     }
+    if (name === LABELS.FRAMING_BAKED) {
+      facets.framing = true;
+      continue;
+    }
 
     const by = BY_RE.exec(name);
     if (by && ORIGINS.includes(by[1])) {

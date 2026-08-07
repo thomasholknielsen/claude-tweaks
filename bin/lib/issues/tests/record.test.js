@@ -187,7 +187,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, effort: null, ceremony: null, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -213,7 +213,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, effort: null, ceremony: null, priority: null, stage: 'backlog',
+    origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -285,6 +285,17 @@ test('parseRecordFacets: ceremony:standard sets facets.ceremony', () => {
 
 test('parseRecordFacets: ceremony defaults to null when the label is absent', () => {
   assert.strictEqual(parseRecordFacets([]).ceremony, null);
+});
+
+// AC — framing axis (challenge framing-check, presence-only label)
+
+test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+});
+
+test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).framing, false);
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
 });
 
 // AC 5 — dependencies
