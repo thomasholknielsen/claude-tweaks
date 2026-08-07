@@ -51,15 +51,28 @@ verification work done in this session, check whether it already correlates to a
 anywhere in this conversation. Work with no correlating `#N` is a session-recall candidate —
 compose its Verification Brief content now, directly from recall, into the same shape
 `verification-brief.md` renders (`### The ask` / `### What shipped` / `### Confirmed` / `### See
-it yourself`):
+it yourself` or `### Verify it yourself (manual)`):
 
 - **The ask** — what was actually requested in this conversation, for this unit of work.
 - **What shipped** — what was actually implemented, from recall.
 - **Confirmed** — whatever was actually verified this session (a live browser walk, test runs,
   manual checks), described plainly, including what wasn't checked — not a checklist pretending
   completeness.
-- **See it yourself** — an entry point, only if one was actually exercised/known; omit the
-  section entirely otherwise.
+- **See it yourself, or Verify it yourself (manual)** — mutually exclusive, at most one, never
+  both. Recall which paths this unit of work actually touched this session — unlike the
+  record-backed path there is no `{base}...HEAD` range to diff here (session-recall work rarely
+  sits on a dedicated branch, and may be interleaved with unrelated commits in the same session),
+  so this path list comes from the session's own memory of what it edited or created, not a git
+  command. Run that recalled list through the same classifier `verification-brief.md` Step 2
+  uses — `verificationSurface` (`bin/lib/issues/acceptance.js`) — rather than re-deriving which
+  categories count as non-interactive. `interactive` — render **See it yourself**, an entry
+  point, only if one was actually exercised/known this session. `non-interactive` — render
+  **Verify it yourself (manual)** instead, composed the same way `verification-brief.md` Step 2
+  does for a non-testable record: concrete commands, file paths, or behavior actually run or
+  checked this session, not a generic checklist. Neither can be resolved — nothing was touched,
+  or recall can't confidently produce a path list — omit the section entirely, the same omission
+  rule that already applied to "See it yourself" alone. Do not invent a path list to force a
+  classification when recall genuinely has none.
 
 This path has no fetch step — there is no comment or record body to read from. A fresh `/demo`
 session with no memory of any unrecorded work naturally finds nothing here; that's expected, not
