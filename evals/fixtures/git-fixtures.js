@@ -38,6 +38,26 @@ export function applyPatch(dir, patchText, message = 'apply planted patch') {
   execFileSync('git', ['-C', dir, 'commit', '-m', message, '-q']);
 }
 
+// Gives a fixture repo an `origin` remote. Needed by any scenario whose skill
+// branches on where the repo under test actually lives — the learning-routing
+// self-reference check (`git remote get-url origin`, see
+// skills/_shared/learning-routing.md) is the first such consumer: it collapses
+// a D5 upstream verdict to a local record when origin IS claude-tweaks.
+//
+// This is its own seed step rather than a patch because the two existing ones
+// structurally cannot reach a remote: local-record only writes under specs/,
+// and applyPatch's `git apply` hard-refuses any diff touching .git/ ("error:
+// invalid path '.git/config'", exit 128). A remote lives in .git/config, never
+// in the worktree, so nothing is committed here and `git status` stays clean.
+//
+// No network is ever contacted — `git remote add` only writes config, and the
+// eval sandbox blocks outbound traffic anyway (runner.js's
+// managedSettings.sandbox sets network.allowedDomains to []). A fixture URL
+// need not resolve to a real repository.
+export function seedGitRemote(dir, url, name = 'origin') {
+  execFileSync('git', ['-C', dir, 'remote', 'add', name, url]);
+}
+
 export function seedLocalWorkRecord(dir, { slug, title, body = '', facets = {} }) {
   const specsDir = path.join(dir, 'specs');
   const record = createRecord(specsDir, { slug, title, body, facets: { ...defaultFacets(), ...facets } });
@@ -48,11 +68,20 @@ export function seedLocalWorkRecord(dir, { slug, title, body = '', facets = {} }
 
 // Manual recursive walk (not fs.readdirSync's `recursive` option, which needs
 // Node 20.1+ — this repo targets Node 18+) -> flat {relPath: content} map.
+//
+// .git is skipped. Its contents are never wanted: the only consumer is
+// seedFiles, which writes each entry back out and `git add`s it, and git
+// refuses to track paths under .git anyway. Walking it is also racy — git's
+// background maintenance creates and deletes lockfiles under .git/objects, so
+// a readdirSync/readFileSync pair straddling one dies with ENOENT on a file
+// that existed a moment earlier.
 export function walkFiles(dir, baseDir = dir) {
   const result = {};
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
+    if (entry.name === '.git') {
+      continue;
+    } else if (entry.isDirectory()) {
       Object.assign(result, walkFiles(fullPath, baseDir));
     } else if (entry.isFile()) {
       const relPath = path.relative(baseDir, fullPath);

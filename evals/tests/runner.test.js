@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runScenarioWith, buildPluginSnapshot, parseRunArgs } from '../runner.js';
+import { execFileSync } from 'node:child_process';
+import { runScenarioWith, buildPluginSnapshot, parseRunArgs, expandMatrix } from '../runner.js';
 import { resolveGitState } from '../history.js';
 import { freshRepo, seedFiles } from '../fixtures/git-fixtures.js';
 
@@ -89,7 +90,7 @@ test('runScenarioWith: builds fixture, runs the fake query, evaluates assertions
 
   const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
 
-  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir });
+  const [result] = await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir });
 
   assert.strictEqual(result.allPassed, true);
   assert.strictEqual(result.costUsd, 0.01);
@@ -116,7 +117,7 @@ test('runScenarioWith: resultText accumulates across assistant messages so an ea
 
   const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
 
-  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQueryMultiMessage, resultsDir, fixturesDir: scenariosDir });
+  const [result] = await runScenarioWith(scenarioPath, { queryFn: fakeQueryMultiMessage, resultsDir, fixturesDir: scenariosDir });
 
   assert.strictEqual(result.allPassed, true, JSON.stringify(result.assertions));
   assert.strictEqual(result.assertions[0].pass, true);
@@ -152,7 +153,7 @@ test('runScenarioWith: tool-input-includes verifies the specific command ran, no
 
   const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
 
-  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQueryBashCommand, resultsDir, fixturesDir: scenariosDir });
+  const [result] = await runScenarioWith(scenarioPath, { queryFn: fakeQueryBashCommand, resultsDir, fixturesDir: scenariosDir });
 
   assert.strictEqual(result.assertions[0].pass, true, JSON.stringify(result.assertions[0]));
   assert.strictEqual(result.assertions[1].pass, false, JSON.stringify(result.assertions[1]));
@@ -175,7 +176,7 @@ test('runScenarioWith: a throwing assertion (e.g. absolute-path-exists.js\'s mis
 
   const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
 
-  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir });
+  const [result] = await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir });
 
   assert.strictEqual(result.allPassed, false);
   assert.strictEqual(result.assertions[0].pass, false);
@@ -203,7 +204,7 @@ test('runScenarioWith: substitutes {{ESCAPE_TARGET_PATH}} in the prompt with a r
   const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
 
   capturedPrompt = null;
-  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingPrompt, resultsDir, fixturesDir: scenariosDir });
+  const [result] = await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingPrompt, resultsDir, fixturesDir: scenariosDir });
 
   assert.ok(capturedPrompt, 'queryFn should have been invoked');
   assert.ok(!capturedPrompt.includes('{{ESCAPE_TARGET_PATH}}'), 'placeholder should be substituted, not passed through literally');
@@ -285,6 +286,184 @@ test('buildPluginSnapshot: copies plugin content into a fresh tmpdir, excluding 
   assert.ok(!fs.existsSync(path.join(snapshotDir, 'evals')), 'snapshot must not contain evals/');
   assert.ok(!fs.existsSync(path.join(snapshotDir, '.git')), 'snapshot must not contain .git');
   assert.ok(!fs.existsSync(path.join(snapshotDir, 'docs')), 'snapshot must not contain docs/');
+});
+
+// ── git-remote fixture seed step (#157) ─────────────────────────────────────
+
+test('runScenarioWith: a git-remote seed step gives the fixture repo an origin the skill under test can resolve', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-git-remote',
+    'fixture:',
+    '  base: none',
+    '  seed:',
+    '    - git-remote: https://github.com/thomasholknielsen/claude-tweaks.git',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedOptions = null;
+  await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingOptions, resultsDir, fixturesDir: scenariosDir });
+
+  // capturedOptions.cwd is the fixture repoDir runner.js built for this run.
+  const url = execFileSync('git', ['-C', capturedOptions.cwd, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+  assert.strictEqual(url, 'https://github.com/thomasholknielsen/claude-tweaks.git');
+});
+
+test('runScenarioWith: a fixture with no git-remote seed step still has no remote (the step is opt-in)', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-no-git-remote',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedOptions = null;
+  await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingOptions, resultsDir, fixturesDir: scenariosDir });
+
+  // code-health-seeded-findings drives gh-unavailable degradation off exactly
+  // this absence, so seeding a remote by default would silently retarget it.
+  assert.throws(
+    () => execFileSync('git', ['-C', capturedOptions.cwd, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: 'pipe' }),
+  );
+});
+
+// ── Matrix expansion (#158) ─────────────────────────────────────────────────
+
+function writeCorpus(dir, entries) {
+  fs.writeFileSync(path.join(dir, 'corpus.json'), JSON.stringify({ lessons: entries }), 'utf8');
+}
+
+test('expandMatrix: a scenario with no matrix block expands to exactly itself', () => {
+  const scenario = { name: 'plain', skill_invocation: { prompt: 'hello' } };
+  assert.deepStrictEqual(expandMatrix(scenario, '/nonexistent'), [scenario]);
+});
+
+test('expandMatrix: one case per corpus entry, with placeholders substituted into prompt and assertions', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-matrix-'));
+  writeCorpus(dir, [
+    { id: 'alpha', text: 'first lesson', expected: { destination: 'D5', kind: 'defect' } },
+    { id: 'beta', text: 'second lesson', expected: { destination: 'D4', kind: null } },
+  ]);
+
+  const cases = expandMatrix({
+    name: 'routing',
+    matrix: { corpus: 'corpus.json', entries: 'lessons' },
+    skill_invocation: { prompt: 'classify: {{matrix.text}}' },
+    assertions: [{
+      type: 'routing-destination-matches',
+      expectedDestination: '{{matrix.expected.destination}}',
+      expectedKind: '{{matrix.expected.kind}}',
+    }],
+  }, dir);
+
+  assert.strictEqual(cases.length, 2);
+  assert.deepStrictEqual(cases.map((c) => c.name), ['routing[alpha]', 'routing[beta]']);
+  assert.strictEqual(cases[0].skill_invocation.prompt, 'classify: first lesson');
+  assert.strictEqual(cases[1].skill_invocation.prompt, 'classify: second lesson');
+  assert.strictEqual(cases[0].assertions[0].expectedDestination, 'D5');
+  assert.strictEqual(cases[0].assertions[0].expectedKind, 'defect');
+  assert.strictEqual(cases[1].assertions[0].expectedDestination, 'D4');
+  // The corpus records kind as null for every non-D5 lesson.
+  // routing-destination-matches.js gates its kind check on `if (expectedKind)`,
+  // so a stringified "null" would flip a deliberately-skipped check into one
+  // that can never pass.
+  assert.strictEqual(cases[1].assertions[0].expectedKind, null);
+  // The matrix block itself must not survive into a resolved case — a case is a
+  // plain scenario, and leaving it in would re-expand on any second pass.
+  assert.ok(!('matrix' in cases[0]));
+});
+
+test('expandMatrix: exclude drops entries a dedicated scenario file already covers', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-matrix-'));
+  writeCorpus(dir, [
+    { id: 'alpha', text: 'a' },
+    { id: 'beta', text: 'b' },
+    { id: 'gamma', text: 'c' },
+  ]);
+
+  const cases = expandMatrix({
+    name: 'routing',
+    matrix: { corpus: 'corpus.json', entries: 'lessons', exclude: ['beta'] },
+    skill_invocation: { prompt: '{{matrix.text}}' },
+  }, dir);
+
+  assert.deepStrictEqual(cases.map((c) => c.name), ['routing[alpha]', 'routing[gamma]']);
+});
+
+test('expandMatrix: throws when exclude has grown to cover the whole corpus, rather than running zero cases', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-matrix-'));
+  writeCorpus(dir, [{ id: 'alpha', text: 'a' }]);
+
+  assert.throws(() => expandMatrix({
+    name: 'routing',
+    matrix: { corpus: 'corpus.json', entries: 'lessons', exclude: ['alpha'] },
+    skill_invocation: { prompt: '{{matrix.text}}' },
+  }, dir), /selected 0 of 1 entries/);
+});
+
+test('expandMatrix: throws when the named entries property is not an array', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-matrix-'));
+  fs.writeFileSync(path.join(dir, 'corpus.json'), JSON.stringify({ lessons: { not: 'an array' } }), 'utf8');
+
+  assert.throws(() => expandMatrix({
+    name: 'routing',
+    matrix: { corpus: 'corpus.json', entries: 'lessons' },
+    skill_invocation: { prompt: '{{matrix.text}}' },
+  }, dir), /is not an array/);
+});
+
+test('runScenarioWith: a matrix scenario runs every case and returns one result (and one result file) each', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  writeCorpus(scenariosDir, [
+    { id: 'alpha', text: 'first lesson' },
+    { id: 'beta', text: 'second lesson' },
+  ]);
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-matrix',
+    'matrix:',
+    '  corpus: corpus.json',
+    '  entries: lessons',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "classify: {{matrix.text}}"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedPrompt = null;
+  const results = await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingPrompt, resultsDir, fixturesDir: scenariosDir });
+
+  assert.strictEqual(results.length, 2, 'every corpus entry must run, not just the first');
+  assert.deepStrictEqual(results.map((r) => r.scenario), ['sample-matrix[alpha]', 'sample-matrix[beta]']);
+  assert.ok(results.every((r) => r.allPassed));
+  // The last case's prompt proves substitution reached the SDK, not just expandMatrix.
+  assert.strictEqual(capturedPrompt, 'classify: second lesson');
+  assert.strictEqual(fs.readdirSync(resultsDir).length, 2, 'each case writes its own result file');
 });
 
 test('parseRunArgs: --no-record suppresses record and is excluded from the positional arg', () => {

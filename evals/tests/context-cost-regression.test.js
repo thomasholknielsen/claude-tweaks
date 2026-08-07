@@ -179,7 +179,7 @@ async function runWithHistory(cacheCreationTokens, priorTokens) {
     tokens: { cache_creation_input_tokens: t },
   }));
 
-  const result = await runScenarioWith(scenarioPath, {
+  const [result] = await runScenarioWith(scenarioPath, {
     queryFn: fakeRunAt(cacheCreationTokens),
     resultsDir: path.join(dir, 'results'),
     fixturesDir: dir,

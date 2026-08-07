@@ -12,7 +12,7 @@ import { load as loadYaml } from 'js-yaml';
 import { query as realQuery } from '@anthropic-ai/claude-agent-sdk';
 import { createActor } from './actor.js';
 import { runAssertion } from './assertions/index.js';
-import { freshRepo, seedFiles, applyPatch, seedLocalWorkRecord, walkFiles } from './fixtures/git-fixtures.js';
+import { freshRepo, seedFiles, applyPatch, seedLocalWorkRecord, seedGitRemote, walkFiles } from './fixtures/git-fixtures.js';
 import { resolveGitState, appendHistoryEntry, readHistory, formatHistoryTable } from './history.js';
 
 const EVALS_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -63,13 +63,101 @@ function buildFixture(scenario, fixturesDir) {
     if (step['local-record']) {
       seedLocalWorkRecord(dir, step['local-record']);
     }
+    // Opt-in per scenario, never a default: several fixtures exist precisely to
+    // exercise a no-remote repo (code-health-seeded-findings drives the
+    // gh-unavailable degrade path that way), so seeding one globally would
+    // silently retarget them.
+    if (step['git-remote']) {
+      seedGitRemote(dir, step['git-remote']);
+    }
   }
   return dir;
 }
 
-// scenarioPath -> result object, also written to <resultsDir>/<name>-<ts>.json.
-// opts: { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR, record = false, historyPath = HISTORY_PATH, resolveGitStateFn = resolveGitState }
+// ── Matrix expansion ────────────────────────────────────────────────────────
+// One scenario file iterating a frozen fixture corpus. Without this, covering
+// an N-entry corpus means N near-identical scenario files, and an entry added
+// to the corpus is exercised by nothing until someone remembers to add the
+// (N+1)th file — the corpus reads as coverage while measuring nothing (#158).
+
+const MATRIX_PLACEHOLDER_RE = /\{\{matrix\.([A-Za-z0-9_$.]+)\}\}/g;
+const MATRIX_WHOLE_RE = /^\{\{matrix\.([A-Za-z0-9_$.]+)\}\}$/;
+
+function readPath(obj, dottedPath) {
+  return dottedPath.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
+}
+
+// Deep-substitutes {{matrix.<dotted.path>}} against one corpus entry. A string
+// that is EXACTLY one placeholder resolves to the raw value rather than to its
+// stringification, so a corpus null stays null: routing-destination-matches.js
+// gates the kind check on `if (expectedKind)`, which a literal "null" string
+// would wrongly satisfy — turning a skipped check into a guaranteed-failing one.
+function substituteMatrix(value, entry) {
+  if (typeof value === 'string') {
+    const whole = value.match(MATRIX_WHOLE_RE);
+    if (whole) return readPath(entry, whole[1]);
+    return value.replace(MATRIX_PLACEHOLDER_RE, (_, p) => String(readPath(entry, p) ?? ''));
+  }
+  if (Array.isArray(value)) return value.map((v) => substituteMatrix(v, entry));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, substituteMatrix(v, entry)]));
+  }
+  return value;
+}
+
+// scenario -> array of fully-resolved scenarios, one per selected corpus entry.
+// A scenario with no `matrix:` block expands to itself, so every caller runs
+// the same loop and a matrix can never be silently reduced to its first case.
+//
+//   matrix:
+//     corpus: learning-routing-corpus/lessons.json   # path under fixturesDir
+//     entries: lessons        # property holding the array; omit if the file IS one
+//     exclude: [some-id]      # entries a dedicated scenario file already covers
+//
+// `exclude` (rather than an `only` allowlist) keeps the default inclusive: a
+// newly added corpus entry runs without anyone editing this scenario, which is
+// the whole failure mode this construct exists to close.
+export function expandMatrix(scenario, fixturesDir) {
+  const matrix = scenario.matrix;
+  if (!matrix) return [scenario];
+  if (!matrix.corpus) throw new Error(`scenario "${scenario.name}": matrix.corpus is required`);
+  const corpus = JSON.parse(fs.readFileSync(path.join(fixturesDir, matrix.corpus), 'utf8'));
+  const entries = matrix.entries ? readPath(corpus, matrix.entries) : corpus;
+  if (!Array.isArray(entries)) {
+    const where = matrix.entries ? `${matrix.corpus} (.${matrix.entries})` : matrix.corpus;
+    throw new Error(`scenario "${scenario.name}": matrix source ${where} is not an array`);
+  }
+  const exclude = new Set(matrix.exclude || []);
+  const selected = entries.filter((entry) => !exclude.has(entry.id));
+  // Fail loudly: an exclude list that has grown to cover the whole corpus is a
+  // scenario that runs nothing while still reporting PASS for zero cases.
+  if (selected.length === 0) {
+    throw new Error(`scenario "${scenario.name}": matrix selected 0 of ${entries.length} entries in ${matrix.corpus} — every entry is excluded`);
+  }
+  return selected.map((entry, i) => {
+    const { matrix: _unused, ...rest } = scenario;
+    return { ...substituteMatrix(rest, entry), name: `${scenario.name}[${entry.id ?? i}]` };
+  });
+}
+
+// scenarioPath -> array of result objects, one per matrix case (length 1 when
+// the scenario declares no matrix), each also written to
+// <resultsDir>/<name>-<ts>.json. Cases run sequentially: each is a real,
+// billed agent run against its own fixture repo.
+// opts: see runResolvedScenario.
 export async function runScenarioWith(scenarioPath, opts = {}) {
+  const { fixturesDir = FIXTURES_DIR } = opts;
+  const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
+  const results = [];
+  for (const resolved of expandMatrix(scenario, fixturesDir)) {
+    results.push(await runResolvedScenario(resolved, opts));
+  }
+  return results;
+}
+
+// Runs ONE fully-resolved scenario object (matrix already expanded).
+// opts: { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR, record = false, historyPath = HISTORY_PATH, resolveGitStateFn = resolveGitState }
+export async function runResolvedScenario(scenario, opts = {}) {
   const {
     queryFn = realQuery,
     resultsDir = RESULTS_DIR,
@@ -78,7 +166,6 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
     historyPath = HISTORY_PATH,
     resolveGitStateFn = resolveGitState,
   } = opts;
-  const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
   const repoDir = buildFixture(scenario, fixturesDir);
   const escapeTargetPath = path.join(os.tmpdir(), `ct-eval-escape-${path.basename(repoDir)}.txt`);
   const prompt = scenario.skill_invocation.prompt.replaceAll('{{ESCAPE_TARGET_PATH}}', escapeTargetPath);
@@ -222,9 +309,13 @@ async function main() {
   let anyFailed = false;
   for (const name of names) {
     const scenarioPath = path.join(SCENARIOS_DIR, `${name}.yaml`);
-    const result = await runScenarioWith(scenarioPath, { record });
-    console.log(`${name}: ${result.allPassed ? 'PASS' : 'FAIL'} (cost=$${result.costUsd}, tools=${result.toolCallCount}, ${result.durationMs}ms)`);
-    if (!result.allPassed) anyFailed = true;
+    // One line per matrix case, labelled by result.scenario (which carries the
+    // `[entry-id]` suffix) rather than by the file's basename — otherwise every
+    // case of a matrix scenario prints under one indistinguishable name.
+    for (const result of await runScenarioWith(scenarioPath, { record })) {
+      console.log(`${result.scenario}: ${result.allPassed ? 'PASS' : 'FAIL'} (cost=$${result.costUsd}, tools=${result.toolCallCount}, ${result.durationMs}ms)`);
+      if (!result.allPassed) anyFailed = true;
+    }
   }
   process.exit(anyFailed ? 1 : 0);
 }
