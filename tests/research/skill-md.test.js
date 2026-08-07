@@ -21,6 +21,12 @@ function parseFrontmatter(content) {
   return fm;
 }
 
+const VERIFY_MODE_PATH = path.join(REPO_ROOT, 'skills', 'research', 'verify-mode.md');
+
+function readVerifyMode() {
+  return fs.readFileSync(VERIFY_MODE_PATH, 'utf8');
+}
+
 test('SKILL.md exists', () => {
   assert.ok(fs.existsSync(SKILL_PATH), `Expected ${SKILL_PATH} to exist`);
 });
@@ -82,4 +88,28 @@ test('SKILL.md has a Component-Skill Contract keyed on PIPELINE_RUN_DIR', () => 
   const body = readSkill();
   assert.match(body, /## Component-Skill Contract/);
   assert.match(body, /\$PIPELINE_RUN_DIR/);
+});
+
+test('verify-mode.md exists', () => {
+  assert.ok(fs.existsSync(VERIFY_MODE_PATH), `Expected ${VERIFY_MODE_PATH} to exist`);
+});
+
+test('verify-mode.md documents the no-brief path so skipping /challenge does not skip grounding', () => {
+  const body = readVerifyMode();
+  // [IL-66]: tolerate both the hyphenated "No-brief case" heading and the prose
+  // "a record with no brief" — the phrase appears in both shapes in the file.
+  assert.match(body, /no[\s-]brief/i, 'must name the no-brief case');
+  assert.match(body, /candidate/i, 'must say candidates are generated from the topic directly');
+});
+
+test('verify-mode.md resolves the bare-verify ambiguity by presenting a choice', () => {
+  const body = readVerifyMode();
+  assert.match(body, /ambiguous|ambiguity/i, 'must name the bare-verify ambiguity');
+  assert.match(body, /AskUserQuestion/, 'must resolve it by presenting a choice, not by assuming');
+});
+
+test('verify-mode.md states that verify is not reachable from /flow', () => {
+  const body = readVerifyMode();
+  assert.match(body, /\/claude-tweaks:flow|\/flow/, 'must name /flow');
+  assert.match(body, /not\s+reachable/i, 'must state the resolved decision explicitly');
 });
