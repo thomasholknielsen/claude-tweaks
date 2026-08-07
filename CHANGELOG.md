@@ -39,6 +39,40 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.63.0 — the family gate reaches dispatched groups and the local-files driver
+
+Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavioral.
+
+- **A dispatched multi-leaf family now gets its eager gate.** `/claude-tweaks:dispatch`
+  labels before the single merge that carries every `Fixes #{issue}`, and the gate's
+  self-inclusion rule was singular — "the leaf this run is closing counts as `CLOSED`" —
+  so every sibling evaluated with its siblings still open, `familyGateState` returned
+  `incomplete` for all of them, and nothing was labeled: not the leaves, not the parent.
+  The rule now takes a caller-supplied `$CLOSING_LEAVES` set, and a leaf-side entry that
+  supplies none defaults to the one-element set rather than the empty one — so the group
+  case is a strict widening of the old rule, not a replacement that can silently no-op.
+- **`work-backend: local-files` gains a `family-gate` backstop.** Both sweeps lived in
+  `_shared/github-pr-scan.md`, a file the Detection Ladder gates on `gh` reachability, so
+  a local-files family whose last leaf closed outside `/claude-tweaks:wrap-up` had no
+  eager path *and* no backstop. `/claude-tweaks:tidy` Step 1 gains Shape 7, alongside the
+  driver-scoped shapes already there, emitting the same `[family-gate]` prefix every
+  consumer is already wired for, with an `Open family gate` counterpart in
+  `actions-local-files.md`. Staged at every tier, like its GitHub twin: opening a gate
+  **latches** — once written, `familyGateState` reads `gated` forever and both paths
+  no-op — so an auto-applied brief would become the input to a human sign-off with its
+  own cause erased from the data (`[IL-96]`'s shape).
+- Corrected the driver-specific claims the above made stale: Step 7.5's verification row
+  (unrunnable on the driver it was meant to verify), Shape 1's parent exemption (which
+  named the wrong sibling and, on that driver, a sibling running in its own agent), and
+  five restatements of a `gh`-reachability justification that conflated the Detection
+  Ladder's three checks with `work-backend` — the Ladder never checks the driver
+  (`[IL-24]`).
+- Doc repairs: the design doc's Problem section no longer contradicts its own
+  Measured-state table about how many callers write `demo:pending`, and `README.md`,
+  `docs/plugin-structure.md` and `docs/skill-graph.md` stop describing the procedure as
+  Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
+  parent.
+
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 
 Seven citations across six live skill files pointed at
