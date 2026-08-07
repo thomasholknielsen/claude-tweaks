@@ -161,16 +161,68 @@ gh issue list --state closed --limit 200 \
   --json number,title,state,labels,closedAt \
   --jq '[.[] | select(.closedAt > "'"$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)"'")]' \
   > /tmp/tidy-closed-records.json
+```
 
+A closed record whose acceptance lives on a `/claude-tweaks:specify` decomposition parent must
+not count as a gap — `needsBackstop`'s `hasParent` field exists precisely to suppress it. Resolving
+which closed records are leaves reuses the same parent-side enumeration the `family-gate` scope
+below already documents in full — never the leaf side, which works under one `work-links` mode and
+silently returns nothing under the other (`[IL-64]`). This step only needs leaf *existence*, not
+per-leaf state, so it skips that scope's state-map plumbing; and it fetches `--state all` rather
+than `family-gate`'s `--state open`, because a leaf whose family was already gated and approved —
+which closes the parent (`demo/SKILL.md`'s Approve step) — must still be suppressed here, and an
+open-only fetch would miss it.
+
+**`work-links: body-text`** — every parent's task list comes back in the same fetch:
+
+```bash
+gh issue list --label family:parent --state all --json number,body --limit 200 \
+  > /tmp/tidy-family-parents-for-gap.json
+
+node -e "
+  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const fs = require('fs');
+  const parents = require('/tmp/tidy-family-parents-for-gap.json');
+  const leafNumbers = parents.flatMap((p) => parseFamilyLeaves(p.body));
+  fs.writeFileSync('/tmp/tidy-family-leaves.json', JSON.stringify(leafNumbers));
+"
+```
+
+**`work-links: native`** — one `sub_issues` call per parent, same endpoint as `family-gate`'s
+native branch:
+
+```bash
+gh issue list --label family:parent --state all --json number --limit 200 \
+  > /tmp/tidy-family-parents-for-gap.json
+
+: > /tmp/tidy-family-leaf-numbers.jsonl
+node -e "require('/tmp/tidy-family-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-family-leaf-numbers.jsonl
+done
+
+node -e "
+  const fs = require('fs');
+  const leafNumbers = fs.readFileSync('/tmp/tidy-family-leaf-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  fs.writeFileSync('/tmp/tidy-family-leaves.json', JSON.stringify(leafNumbers));
+"
+```
+
+With `/tmp/tidy-family-leaves.json` written by whichever branch applies, filter the closed-record
+set:
+
+```bash
 node -e "
   const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
   const records = require('/tmp/tidy-closed-records.json');
+  const familyLeaves = new Set(require('/tmp/tidy-family-leaves.json'));
   const gaps = records
-    .map(r => ({ ...r, labels: r.labels.map(l => l.name) }))
-    .filter(r => needsBackstop({ state: 'CLOSED', labels: r.labels }));
+    .map(r => ({ ...r, labels: r.labels.map(l => l.name), hasParent: familyLeaves.has(r.number) }))
+    .filter(r => needsBackstop({ state: 'CLOSED', labels: r.labels, hasParent: r.hasParent }));
   gaps.forEach(r => console.log('[acceptance-gap] #' + r.number + ': ' + r.title + ' — closed with no acceptance disposition — recommend /claude-tweaks:demo #' + r.number));
 "
 ```
+
+Note the spread order: derived fields come after the parsed spread, never before (`[IL-01]`).
 
 Un-dispositioned closed records are **staged, never auto-applied**, regardless of
 `tidy-aggressiveness`. Applying a disposition is a judgment about whether shipped work actually

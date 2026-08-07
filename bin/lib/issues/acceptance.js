@@ -55,6 +55,8 @@ function verificationSurface(changedPaths) {
 
 function needsBackstop(record) {
   if (!record || record.state !== 'CLOSED') return false;
+  // A decomposed leaf's acceptance lives on its family's parent, not on itself.
+  if (record.hasParent === true) return false;
   return dispositionState(record.labels) === 'none';
 }
 

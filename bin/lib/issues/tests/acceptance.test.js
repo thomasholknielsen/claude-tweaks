@@ -73,6 +73,18 @@ test('needsBackstop fires only for a closed record with no disposition', () => {
   assert.equal(needsBackstop(undefined), false);
 });
 
+test('needsBackstop suppresses a closed leaf that belongs to a family', () => {
+  assert.equal(needsBackstop({ state: 'CLOSED', labels: [], hasParent: true }), false);
+});
+
+test('needsBackstop is unchanged when hasParent is absent or not literally true', () => {
+  // Explicit-boolean check, not truthiness of a default object — an absent field
+  // must preserve today's behavior for human-filed and /capture'd records.
+  assert.equal(needsBackstop({ state: 'CLOSED', labels: [] }), true);
+  assert.equal(needsBackstop({ state: 'CLOSED', labels: [], hasParent: false }), true);
+  assert.equal(needsBackstop({ state: 'CLOSED', labels: [], hasParent: undefined }), true);
+});
+
 const CLOSED = (n) => ({ number: n, state: 'CLOSED' });
 const OPEN = (n) => ({ number: n, state: 'OPEN' });
 
