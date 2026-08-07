@@ -103,7 +103,10 @@ function correctiveFollowUpTarget(body) {
 
 function trustRows(records) {
   const all = Array.isArray(records) ? records : [];
-  const closed = all.filter((r) => r && r.state === 'CLOSED');
+  // A decomposed leaf is not independently graded work — its family's parent
+  // carries the one verdict. Counting leaves here would let `total >= 8` be
+  // satisfied by records nobody judged.
+  const closed = all.filter((r) => r && r.state === 'CLOSED' && r.hasParent !== true);
 
   // Build cells from closed records only. Key on kind:source (never source
   // alone — see provenance.js) plus the risk band, joined with '|'.

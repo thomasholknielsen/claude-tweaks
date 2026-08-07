@@ -24,13 +24,60 @@ One `gh issue list --state all` call supplies everything `trustRows` needs — c
 the cells, and open records are still scanned for follow-up `Origin:` references naming a closed
 record's number.
 
-Before running it, read `backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml` (per
-`_shared/work-record.md`'s Config keys table, the same value `_shared/record-queue-fetch.md`
-resolves) and substitute it for `{resolved-limit}` below; use `1000` when the key is absent.
-Substitute the literal number — do **not** rely on a `${BACKLOG_FETCH_LIMIT:-1000}` expansion
-reading an `export` from an earlier step. Shell environment does not survive between Bash calls
-and never reaches a subagent, so that expansion always resolves to `1000` and a project
-configured for `3000` would silently fetch a third of its history.
+A decomposed leaf must not form a cell of its own — its family's parent already carries the one
+graded verdict, and counting the leaf too would let `total >= MIN_SAMPLES` be satisfied by records
+nobody judged (`trust.js`'s `hasParent !== true` filter). Resolving which closed records are leaves
+reuses the same parent-side enumeration `_shared/github-pr-scan.md`'s `acceptance-gap` scope
+already documents in full — never the leaf side, which works under one `work-links` mode and
+silently returns nothing under the other (`[IL-64]`) — and fetches parents `--state all` for the
+same reason that scope does: an approved family's parent is closed, so an open-only fetch would
+miss exactly the parents this filter needs to see.
+
+```bash
+gh issue list --label family:parent --state all --json number,body --limit 200 \
+  > /tmp/trust-table-family-parents.json
+```
+
+**`work-links: body-text`** — every parent's task list comes back in the same fetch:
+
+```bash
+node -e "
+  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const fs = require('fs');
+  const parents = require('/tmp/trust-table-family-parents.json');
+  const leafNumbers = parents.flatMap((p) => parseFamilyLeaves(p.body));
+  fs.writeFileSync('/tmp/trust-table-family-leaves.json', JSON.stringify(leafNumbers));
+"
+```
+
+**`work-links: native`** — the parent body carries no task list, so re-fetch parent numbers alone
+and query the sub-issues API instead, one call per parent:
+
+```bash
+gh issue list --label family:parent --state all --json number --limit 200 \
+  > /tmp/trust-table-family-parents.json
+
+: > /tmp/trust-table-family-leaf-numbers.jsonl
+node -e "require('/tmp/trust-table-family-parents.json').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-family-leaf-numbers.jsonl
+done
+
+node -e "
+  const fs = require('fs');
+  const leafNumbers = fs.readFileSync('/tmp/trust-table-family-leaf-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  fs.writeFileSync('/tmp/trust-table-family-leaves.json', JSON.stringify(leafNumbers));
+"
+```
+
+With `/tmp/trust-table-family-leaves.json` written by whichever branch applies, fetch the record
+set itself. Before running it, read `backlog-fetch-limit` from the project's
+`.claude-tweaks/policy.yml` (per `_shared/work-record.md`'s Config keys table, the same value
+`_shared/record-queue-fetch.md` resolves) and substitute it for `{resolved-limit}` below; use
+`1000` when the key is absent. Substitute the literal number — do **not** rely on a
+`${BACKLOG_FETCH_LIMIT:-1000}` expansion reading an `export` from an earlier step. Shell
+environment does not survive between Bash calls and never reaches a subagent, so that expansion
+always resolves to `1000` and a project configured for `3000` would silently fetch a third of its
+history.
 
 ```bash
 LIMIT="{resolved-limit}"
@@ -40,13 +87,17 @@ gh issue list --state all --json number,labels,body,state,stateReason \
 node -e "
   const { trustRows } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
   const issues = require('/tmp/trust-table-records.json');
+  const familyLeaves = new Set(require('/tmp/trust-table-family-leaves.json'));
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' records (the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
-  const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: familyLeaves.has(i.number) }));
   console.log(JSON.stringify(trustRows(records)));
 "
 ```
+
+Note the spread order: derived fields (`labels`, `hasParent`) come after the parsed spread, never
+before (`[IL-01]`).
 
 **Report that truncation warning verbatim above the table, and never suppress it.** `gh issue
 list` returns newest-first, so the cap drops the **oldest** records, and the dropped window is not
