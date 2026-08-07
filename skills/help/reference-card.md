@@ -8,7 +8,6 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend]` |
 | `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
-| `/claude-tweaks:challenge` | Framing verdict for `/specify` (component mode), or a named debiasing lens on demand (human-invoked) | `framing-check \| --lens=<n[,n...]> <#n\|topic\|problem statement>` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
 | `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready leaf records | `<#N\|record-id\|design-doc-path\|topic\|backlog-title> [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra>] [--granularity <fine\|standard\|coarse>]` |
 | `/claude-tweaks:build` | Implement a work record, spec, or design doc | `[#<n>\|<spec>\|<design-doc-path>\|<topic>] [subagent\|batched] [auto] [worktree\|current-branch] [tier=<fast\|standard\|capable>] [ops=confirm]` |
@@ -21,6 +20,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
+| `/claude-tweaks:challenge` | Framing verdict for `/specify` (component mode), or a named debiasing lens on demand (human-invoked) | `framing-check \| --lens=<n[,n...]> <#n\|topic\|problem statement>` |
 | `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `[hindsight\|full\|light] [<spec-number>\|<file-path>...]` |
 | `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | `[<file-or-dir>...\|#N\|<spec-number>]` |
 | `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | `[<file-or-dir>...\|<spec-number>] [--kind deepen\|collapse]` |

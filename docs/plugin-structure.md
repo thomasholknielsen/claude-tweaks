@@ -31,7 +31,7 @@ LICENSE                           → MIT
 ### Skill directories
 
 **Lifecycle:** init, capture, specify, build, test, stories, review, wrap-up
-**Component:** reflect, simplify, deepen, journeys, visual-review, design-wrapper, visualize, assess-agent-autonomy, feedback
+**Component:** challenge, reflect, simplify, deepen, journeys, visual-review, design-wrapper, visualize, assess-agent-autonomy, feedback
 **Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, docs-health, backlog, dispatch, demo
 
 ### Skills with sub-files
