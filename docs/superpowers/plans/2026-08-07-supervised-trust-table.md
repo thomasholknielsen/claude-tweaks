@@ -216,6 +216,8 @@ git commit -m "Add the provenance resolver for the three-state Origin axis"
   - `riskBand(labels: string[]) -> 'low' | 'elevated'`
   - `trustRows(records: Array<{number, labels, body, state, stateReason}>) -> Array<{key, provenance, band, total, approved, changesRequested, undispositioned, notPlanned, followUps, verdict}>`
 
+**Key format.** `key` is `` `${kind}:${source}|${band}` `` — e.g. `producer:capture|low`. It MUST include `resolveProvenance`'s `kind`, never `source` alone. `provenance.js` returns four kinds (`producer`, `side-effect`, `unstructured`, `human`) and the overflow bucket is distinguished by `kind`, not by a reserved source string — so keying on `source` alone would let a genuine record collide with the unclassifiable bucket. That contract is stated in `provenance.js` and is the reason this format is not negotiable.
+
 **Outcome signals** — all derivable from one `gh issue list` call, no git and no extra API:
 
 | Signal | Meaning |
@@ -257,7 +259,7 @@ test('rows key on provenance and band together', () => {
     { number: 2, labels: ['by:capture', 'risk:high', 'demo:approved'], body: '', state: 'CLOSED' },
   ]);
   assert.equal(rows.length, 2);
-  assert.deepEqual(rows.map((r) => r.key).sort(), ['capture|elevated', 'capture|low']);
+  assert.deepEqual(rows.map((r) => r.key).sort(), ['producer:capture|elevated', 'producer:capture|low']);
 });
 
 test('approved and changes-requested are tallied separately', () => {
@@ -292,7 +294,7 @@ test('a follow-up record counts against the record it names', () => {
     { number: 7, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
     { number: 8, labels: [], body: 'Origin: demo changes-requested from #7', state: 'OPEN' },
   ]);
-  const capture = rows.find((r) => r.key === 'capture|low');
+  const capture = rows.find((r) => r.key === 'producer:capture|low');
   assert.equal(capture.followUps, 1);
 });
 
