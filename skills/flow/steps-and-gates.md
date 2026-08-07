@@ -15,7 +15,7 @@ Only automatable skills can be included in the pipeline:
 | `polish` | `/claude-tweaks:design-wrapper polish <spec>` | Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Followed by re-verify (`/test skip-qa`) only when polish modified code — see the polish-phase decision tree below. Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
-**Not allowed in flow:** `capture`, `challenge`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
+**Not allowed in flow:** `capture`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
 
 `re-verify` is **bundled** with `polish` — it is not a separately addressable step. When `polish` runs and modifies code, the re-verify gate runs automatically afterward (`/test skip-qa`, one-cycle cap). Including `re-verify` in a step list is a no-op; treat it as already implied by `polish`.
 

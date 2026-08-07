@@ -11,9 +11,9 @@ argument-hint: "[#<n>|<design-doc-path>|<topic>] [subagent|batched] [auto] [work
 Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it, and capture the journeys it enables. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                       ↑                                          ^^^^ YOU ARE HERE ^^^^   ↑
-                                                                                       └── or skip directly ──────────────────────────────────────────────┘
+/claude-tweaks:init → /claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                            ↑                                          ^^^^ YOU ARE HERE ^^^^   ↑
+                                                            └── or skip directly ──────────────────────────────────────────────┘
 ```
 
 ## When to Use

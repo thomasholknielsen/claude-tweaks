@@ -7,8 +7,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend]` |
-| `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=challenge\|brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
-| `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `[quick\|--lens=<n[,n...]>] <#n\|topic\|problem statement>` |
+| `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
+| `/claude-tweaks:challenge` | Framing verdict for `/specify` (component mode), or a named debiasing lens on demand (human-invoked) | `framing-check \| --lens=<n[,n...]> <#n\|topic\|problem statement>` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
 | `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready leaf records | `<#N\|record-id\|design-doc-path\|topic\|backlog-title> [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra>] [--granularity <fine\|standard\|coarse>]` |
 | `/claude-tweaks:build` | Implement a work record, spec, or design doc | `[#<n>\|<spec>\|<design-doc-path>\|<topic>] [subagent\|batched] [auto] [worktree\|current-branch] [tier=<fast\|standard\|capable>] [ops=confirm]` |
@@ -65,7 +65,7 @@ External tools claude-tweaks integrates with — Claude Code plugins and standal
 ### Feature from scratch
 ```
 /claude-tweaks:capture "users need meal planning"
-/claude-tweaks:challenge meal planning
+/claude-tweaks:challenge --lens=1 meal planning       → optional: human debiasing lens before brainstorming
 /superpowers:brainstorming
 /claude-tweaks:specify meal planning
 /claude-tweaks:build 73
@@ -123,15 +123,15 @@ or standalone:
 ## Artifact Lifecycle
 
 ```
-Backlog record → Brief → Design Doc → Ready record(s) → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
+Backlog record → Design Doc → Ready record(s) → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
 ```
 
 | Skill | Creates | Deletes |
 |-------|---------|---------|
 | `/claude-tweaks:capture` | Backlog record | — |
-| `/claude-tweaks:challenge` | Brief | — |
+| `/claude-tweaks:challenge` | — | — |
 | `/superpowers:brainstorming` | Design Doc | — |
-| `/claude-tweaks:specify` | Ready record(s) — shapes an existing record in place, or creates a parent + ready leaves | Brief, Design Doc |
+| `/claude-tweaks:specify` | Ready record(s) — shapes an existing record in place, or creates a parent + ready leaves | Design Doc |
 | `/claude-tweaks:build` | Code (+ Journeys via /journeys) | — |
 | `/claude-tweaks:journeys` | Journey files | — |
 | `/claude-tweaks:stories` | Story YAML files | — |
@@ -166,7 +166,6 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 **Doctrine preserved (still per-item user input, even in auto):**
 - Ledger resolve gate Phase 2 (open items)
 - Work-record creation (new backlog or parked records)
-- `/challenge` lenses
 - `/init` Phase 4 / 9 governance gates (per `init/SKILL.md`'s own auto-mode text: Phase 4 skill-manifest selection and Phase 9 final confirmation are never silenceable; all other phases run without pausing)
 - All HARD-GATE / BLOCKED / STOP conditions
 

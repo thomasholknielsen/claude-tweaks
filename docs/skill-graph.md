@@ -72,7 +72,7 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/backlog` | Records `/capture` files reach `refine`'s grant worklist only after `/specify` shapes them to `ready`; `overview` mode surveys and prioritizes them. |
-| `/challenge` | Debiases backlog records before `/superpowers:brainstorming` — `/help` flags candidates. |
+| `/challenge` | Indirect only — `/challenge`'s `framing-check` mode judges the record `/capture` created, but it is invoked by `/specify` while shaping that record, not by `/capture` itself. See the `## challenge` and `## specify` sections. |
 | `/code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |
 | `/help` | Feeds items `/help` surfaces in the status dashboard / queue counts. |
@@ -86,7 +86,8 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `_shared/work-record.md` | Taxonomy home for backlog records — stage vocabulary (backlog / parked / ready), the label contract, and work record lifecycle. |
+| `/specify` | Only caller — invokes `framing-check` inline (not a Task dispatch) from both record-creation paths (`shaping-mode.md`'s single-record path, `record-creation.md`'s per-leaf loop), immediately alongside the existing `ceremony-check` call. `--lens` is never called by a pipeline orchestrator; it is human-invoked only. Reciprocal of `/specify`'s own `/challenge` row. |
+| `_shared/work-record.md` | Taxonomy home for the `framing:baked` label a `solution-baked` verdict stamps on the record, and for the stage vocabulary (backlog / parked / ready) `framing-check` reads over. |
 
 ## code-health
 
@@ -313,6 +314,7 @@ depends on them.
 |---|---|
 | `/assess-agent-autonomy` | Step 3 (Create the Records) invokes `ceremony-check` inline (not a fresh Task dispatch) once per record — Shaping mode's single record, decomposition mode's per leaf, never the parent — immediately alongside `risk:*`/`effort:*` stamping, deciding `ceremony:fast-lane`/`ceremony:standard` and persisting the verdict as an explicit `ceremony:*` label. Step 5 (Multi-Persona Red-Team) reads the freshly-stamped label to decide persona count. `/specify` is this mode's primary caller; `/flow`'s `materialize.md` falls back to it only for records that never went through this step. |
 | `/backlog` | Upstream hand-off source (`overview` surfaces priority-suggested records) and downstream gate — `/specify` is "the shaper" `refine` names: stamping `ready` + scoring is what admits a record into its grant worklist, and a record `refine` flags back for missing/empty spec-shaped fields returns here via `/specify #{n}` for re-shaping. |
+| `/challenge` | Invokes `framing-check` inline (not a Task dispatch), once per record — Shaping mode's single record, decomposition mode's per leaf — immediately alongside the `ceremony-check` call, before the record's stage label is stamped. A `solution-baked` verdict stamps `framing:baked` and writes the surfaced assumptions into the record's own `## Gotchas`. Reciprocal of `/challenge`'s own `/specify` row, which carries the fuller mode/label contract. |
 | `/design-wrapper` | `/specify` invokes `/design-wrapper shape <topic>` (Step 2.5b) as a pre-decomposition step on frontend design docs, to enrich the doc with UX/UI planning. `/specify` asks the design-intent question and writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-leaf procedure, or Shaping mode's Metadata block for a single record) — never frontmatter, never labels; the wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish`'s intent-driven dispatch for `Design-intent:`, active in v4.5.0). When the shape brief is confirmed, `/specify` may also invoke `live` mode (Step 2.5b-ii) against a throwaway scaffold and write an accepted direction's path as a `Visual-reference:` body-metadata line. `Design-seed:` is the exception in that block — `spec-template.md` declares it so it is a recognized field, but `/specify` never writes a value, because the seed comes from a direction contract that does not exist until the build has run; the wrapper's `review` mode writes it post-build (see this file's `demo` section). The full pre-step procedure lives in `specify/design-pre-steps.md`. |
 | `/help` | Shows which leaf records from `/specify` are `ready` for `/build` — also uses Key Files for implicit dependency detection. |
 | `/research` | Prior-art lookup before authoring a record — `/research` reports can be cited directly in a leaf's `Technical Approach` or `Gotchas` section. |

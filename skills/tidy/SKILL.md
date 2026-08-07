@@ -11,10 +11,10 @@ argument-hint: "[--scope=<name>[,<name>...]] [--dry-run]"
 Periodic backlog hygiene to keep the spec system healthy. Run when the backlog feels cluttered, before a brainstorming session, or on a regular cadence.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                          ↑
-                                               [ /claude-tweaks:tidy ] (maintenance loop)
-                                            ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                               ↑
+                    [ /claude-tweaks:tidy ] (maintenance loop)
+                 ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use

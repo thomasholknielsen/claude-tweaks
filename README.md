@@ -25,15 +25,13 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
   capture ──────────────►  Backlog record
      │
-  challenge ────────────►  Brief
-     │
      │                     Design Doc          ◄───  brainstorm
      │                     (specify can invoke brainstorm directly on topic input)
      │
   specify ──────────────►  Ready record(s)    (writes surface: + design-intent: body metadata)
      │  calls: design shape (frontend only — appends Impeccable shape output to design doc)
      │  calls: visualize (diagram suggestion, all surfaces)
-     │                     (deletes Brief + Design Doc)
+     │                     (deletes Design Doc)
      │
   ┈┈ /claude-tweaks:backlog refine grants, /claude-tweaks:dispatch claims (utility skills, no fixed position) ┈┈
      │
@@ -107,7 +105,7 @@ See `skills/_shared/work-record.md` for the full axis contract (Type, Origin, Sc
 
 ## Skills
 
-claude-tweaks ships a full set of skills spanning the plan phase (capture, challenge, specify), the automated pipeline (build, test, review, wrap-up), standalone component skills (reflect, simplify, deepen, journeys, visual-review, visualize, assess-agent-autonomy, feedback), and utility skills (flow, help, tidy, demo, code-health, backlog, dispatch, and more). Each is invoked as `/claude-tweaks:{name}` and most work both standalone and as part of the automated `/claude-tweaks:flow` pipeline.
+claude-tweaks ships a full set of skills spanning the plan phase (capture, specify), the automated pipeline (build, test, review, wrap-up), standalone component skills (challenge, reflect, simplify, deepen, journeys, visual-review, visualize, assess-agent-autonomy, feedback), and utility skills (flow, help, tidy, demo, code-health, backlog, dispatch, and more). Each is invoked as `/claude-tweaks:{name}` and most work both standalone and as part of the automated `/claude-tweaks:flow` pipeline.
 
 See [docs/getting-started.md](docs/getting-started.md) for the full skill reference,
 [docs/plugin-structure.md](docs/plugin-structure.md) for the directory layout, per-skill sub-file
@@ -124,7 +122,7 @@ behind CLAUDE.md's `## Don'ts` rules.
 
 # Full pipeline — idea to clean slate
 /claude-tweaks:capture "users need meal planning"
-/claude-tweaks:challenge meal planning
+/claude-tweaks:challenge --lens=1 meal planning  # optional: human debiasing lens before brainstorming
 /superpowers:brainstorming
 /claude-tweaks:specify meal planning
 /claude-tweaks:flow 73

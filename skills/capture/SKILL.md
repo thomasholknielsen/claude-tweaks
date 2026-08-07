@@ -1,7 +1,7 @@
 ---
 name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
-argument-hint: '<idea text> [--route=challenge|brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task]'
+argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task]'
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -10,7 +10,7 @@ argument-hint: '<idea text> [--route=challenge|brainstorm|keep|absorb:N] [--titl
 
 Quick capture for ideas that aren't ready for full specification. Part of the workflow lifecycle:
 
-Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/claude-tweaks:challenge`
+Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpowers:brainstorming`
 
 ## When to Use
 
@@ -28,7 +28,7 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/claude-t
 | Argument | Behavior |
 |----------|----------|
 | Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). |
-| `--route=challenge` / `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
+| `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
 | `--title="..."` | Override the auto-derived title. |
 | `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
 
@@ -158,11 +158,10 @@ After adding the record, route the item per the `--route` arg or by asking.
 
 ### Routing via `--route` arg (front-loaded)
 
-`/claude-tweaks:capture` accepts `--route={challenge|brainstorm|keep|absorb:N}` to skip the post-capture prompt:
+`/claude-tweaks:capture` accepts `--route={brainstorm|keep|absorb:N}` to skip the post-capture prompt:
 
 | `--route` value | Action |
 |---|---|
-| `challenge` | Open `/claude-tweaks:challenge` with the new backlog record as input |
 | `brainstorm` | Open `/superpowers:brainstorming` with the new backlog record as input |
 | `keep` | Record stays in backlog state — explicitly, no label asserts this; no further routing |
 | `absorb:42` | Absorb the record into record `#42`; close the new record as not-planned |
@@ -185,20 +184,19 @@ AUTO {time} — Routing: defaulted to keep (no --route provided). Reversibility:
 In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t})" and call `AskUserQuestion`:
 
 - `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Challenge first"`, `description`: `"Run /claude-tweaks:challenge to stress-test assumptions, then /superpowers:brainstorming, then /claude-tweaks:specify"`
-- Option 2 — `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`
-- Option 3 — `label`: `"Keep as backlog record"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`
-- Option 4 (conditional) — `label`: `"Absorb into record {N}"`, `description`: `"This belongs in an existing record"`
+- Option 1 — `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`
+- Option 2 — `label`: `"Keep as backlog record"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`
+- Option 3 (conditional) — `label`: `"Absorb into record {N}"`, `description`: `"This belongs in an existing record"`
 
-The call has 4 options only when Option 4 is visible; otherwise build it with the first 3 options only — never include Option 4 with a placeholder value.
+The call has 3 options only when Option 3 is visible; otherwise build it with the first 2 options only — never include Option 3 with a placeholder value.
 
-> **Option 4 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title --limit 5`. Only show option 4 when either search returns a candidate. Without a candidate match, option 4 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
+> **Option 3 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title --limit 5`. Only show option 3 when either search returns a candidate. Without a candidate match, option 3 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
 
 ### Route execution, by backend
 
 | Route | `local-files` | `github-issues` |
 |---|---|---|
-| `challenge` / `brainstorm` | Opens the child skill with the record's text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
+| `brainstorm` | Opens the child skill with the record's text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
 | `keep` | No further action — the record stays as-is at `specs/{id}-{slug}.md`, no `stage:` frontmatter | No further action — the issue is already open, `by:capture`-labeled, with no stage label. That **is** the backlog state; there is nothing to add. |
 | `absorb:N` | Integrate into record N's body (its Deliverables/AC/Technical Approach sections when shaped, otherwise its raw body), delete the absorbed record's file | Integrate into record `#N`'s body the same way, then comment `Absorbed into #N.`, then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Absorb action |
 
@@ -229,13 +227,10 @@ When invoked by a parent skill, omit this block — the parent owns the handoff.
 - Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
 - Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage backlog records (promote, absorb, or drop stale items)"`
 - Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this record straight to a spec ({ref} is '#{n}' under work-backend: github-issues, or the record id under work-backend: local-files)"`
-- Option 4 — `label`: `"Challenge"`, `description`: `"/claude-tweaks:challenge \"{title}\" — debias and stress-test assumptions before specifying"`
 
 ## Component-Skill Contract
 
 This skill is a **component skill** — directly invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture) and by `/claude-tweaks:reflect` (both `full` and `hindsight` modes' Capture disposition, routing an insight/finding that's too complex or uncertain to act on without brainstorming — a distinct path from reflect's Defer disposition, which files directly and is not a capture parent). `/claude-tweaks:visual-review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:demo` file a new backlog record directly without going through this skill, so they are NOT capture parents — they only recommend `/capture` in Next Actions for the user's next session.
-
-Capture is also a parent of `/challenge` when `--route=challenge` is set — when invoking `/challenge`, capture sets `$PIPELINE_RUN_DIR` to a standalone run dir (per `_shared/pipeline-run-dir.md` step 4) if not already set, so the child's auto-mode and audit-log behavior resolves correctly.
 
 Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in the environment. Direct invocation may pass `--source <parent-skill>` (e.g. `--source build`, `--source reflect`) as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). This fallback matters here specifically: a standalone (non-`/flow`) design-mode `/build` invocation never resolves a run dir of its own (per `_shared/pipeline-run-dir.md`'s resolution order, the record-mode materialization exception and the standalone-auto allowlist both exclude design-mode `/build` — confirmed by `build/SKILL.md`'s own "Auto mode (including a standalone `auto` invocation with no pipeline run dir)" language). Standalone `/reflect` likewise has no run dir of its own to forward. When invoked from within a parent's workflow (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
 
