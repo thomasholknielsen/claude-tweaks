@@ -301,3 +301,23 @@ test('source-registry.md routes a question to every source that could falsify it
     'multiplicity must be stated as the default, not the exception',
   );
 });
+
+test('source-registry.md verdict carries per-source confidence and the checked-against sha', () => {
+  const body = readSourceRegistry();
+  // Anchored to the template line, not the bare token. Inversion-tested: a bare
+  // /checked-at/ still matches prose reading "we deliberately omit any checked-at
+  // stamping; it is not needed" ([IL-78]).
+  assert.match(
+    body,
+    /checked-at:\s*\{sha\}/,
+    'the verdict template must carry a checked-at sha field',
+  );
+  assert.match(body, /outcome:\s*verified\s*\|\s*falsified\s*\|\s*unverified/i, 'must define the three outcomes');
+  // Anchored to the claim, not to the word "confidence" (which appears in the
+  // registry table header and several rows) ([IL-78]).
+  assert.match(
+    body,
+    /confidence\s+is\s+per-source,?\s+not\s+per-report/i,
+    'must state that confidence is carried per source, not per report',
+  );
+});

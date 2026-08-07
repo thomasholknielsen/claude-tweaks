@@ -86,3 +86,35 @@ A source that returns nothing has answered. Report it — "no precedent exists" 
 binds hardest on `history` and `telemetry`, where "we have never done this before" is frequently the
 single most design-changing thing a run surfaces. A silently-absent result is indistinguishable from
 a lookup that failed, and silence cannot be found by keyword search later.
+
+## The verdict
+
+Each dispatched source agent returns exactly one verdict:
+
+```
+outcome:    verified | falsified | unverified
+source:     runtime | codebase | repo-prose | tests | history | telemetry | deps | web
+confidence: high | medium
+provenance: {file:line, command + exit status, URL, or record ref}
+checked-at: {sha}
+```
+
+- **`outcome`** — `falsified` is the valuable one. It is not a failure of the research; it is the
+  research working. `unverified` means the source ran and could not settle the claim either way,
+  which is distinct from the source finding nothing (see Absence is a finding — that is a
+  `verified` outcome for the claim "no precedent exists").
+- **`source`** — the registry row that produced it. `human` never appears here: it dispatches no
+  agent and therefore returns no verdict.
+- **`confidence`** — the tier from that source's registry row, not a per-run judgment. **Confidence
+  is per-source, not per-report.** A run that mixes a `file:line` verdict with a `web` verdict must
+  render them at their own tiers; a single document-level disclaimer lets the grep-verified fact
+  lend its credibility to the blog post beside it.
+- **`provenance`** — what a reader would have to open to check the verdict themselves. A verdict
+  with no provenance is an assertion, and is treated as `unverified` regardless of what it claims.
+- **`checked-at`** — the commit sha the check ran against, from `git rev-parse HEAD`. Verdicts rot:
+  a claim verified against one tree says nothing about another, and without the sha there is no way
+  to know which tree it was.
+
+Related: #117 ("Stamp health-sweep issues with the commit they were verified against") applies the
+same sha-stamping to a different producer. If it lands a shared helper, use it rather than
+duplicating the mechanism.
