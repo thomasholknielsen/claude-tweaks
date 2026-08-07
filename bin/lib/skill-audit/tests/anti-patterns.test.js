@@ -207,5 +207,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the same base — while the two comment blocks did conflict. Correct total
   //   is 354 + 2 + 2 = 358, confirmed by running the parser, not by arithmetic
   //   alone.
-  assert.strictEqual(total, 358);
+  //
+  //   358 -> 359, wrap-up of the #163/#164 fix (6.51.1). One row ADDED to
+  //   routine/SKILL.md: "Editing the canonical preamble in
+  //   `_shared/routine-template-schema.md` and treating the suite's green as
+  //   confirmation". The adjacent row it sits under covers editing a single
+  //   template; neither covered the shared preamble, whose edit obligates all
+  //   six templates plus six `template_version` bumps —
+  //   tests/routine-template-schema.test.js enforces the byte-identical
+  //   fan-out but only asserts `template_version` is a positive integer, never
+  //   that it incremented. No row evicted: `git diff -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` is empty for this change set. Net +1. Measured at 359 by
+  //   running the parser over all 33 skills, per [IL-99].
+  assert.strictEqual(total, 359);
 });
