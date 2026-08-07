@@ -79,7 +79,7 @@ node -e "
 
 **Wake-ready sub-count** (parked, milestone due in the past) is a cheap heuristic, not full trigger evaluation — a `local-files` parked record's trigger lives as body prose (`**Trigger:**`/`**Watched paths:**` lines), too expensive to read per-record on a dashboard pass. Omit the sub-count under this driver and report the bare `parked` count only. Full trigger evaluation (including watched-path `git log` checks on both drivers) stays `/claude-tweaks:tidy`'s job — this is a maintenance signal, not a substitute.
 
-**Solution-baked title flag:** scan every `backlog`-bucket record's `title` (already fetched above — no extra call) for solution-oriented phrasing per `SKILL.md` Section 3's criteria (a specific technology named as the fix, or the problem framed as a solution). Flag matches in the Needs Attention table as `/claude-tweaks:challenge` candidates — this is a title-only signal, not the full debiasing judgment `/claude-tweaks:challenge` itself performs against the whole record.
+**Framing flag:** flag every `backlog`-bucket record carrying the `framing:baked` label (already present on the fetched record above — no extra call) — the verdict `/claude-tweaks:specify` stamped via `/claude-tweaks:challenge`'s `framing-check` mode when it shaped the record. Flag matches in the Needs Attention table as `/claude-tweaks:challenge` candidates.
 
 ### Conflict detection (file overlap)
 
@@ -124,7 +124,7 @@ node -e "
 
 The table below renders in this ranked order, not the fetch's own order.
 
-Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per solution-baked-title backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
+Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per `framing:baked` backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
 
 There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 4.7, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
 
