@@ -15,6 +15,8 @@
 // That format belongs to a tool this plugin neither owns nor version-pins, so
 // it is parsed defensively and tested against a frozen fixture, never live
 // output: if it changes shape, pid comes back null and nothing is reaped.
+const { runGit } = require('./git-exec');
+
 const PID_RE = /\(pid\s+(\d+)\b/;
 
 function parseWorktreeList(porcelain) {
@@ -45,4 +47,45 @@ function parseWorktreeList(porcelain) {
   return out;
 }
 
-module.exports = { parseWorktreeList };
+// signal 0 tests for existence without delivering anything. ESRCH means no
+// such process; EPERM means it exists but belongs to another user, which is
+// still alive. Both directions of pid reuse are safe here: a recycled pid
+// reads as alive and the worktree is skipped, and there is no input on which
+// a live session reads as dead. The failure mode is always under-reaping.
+function isPidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e && e.code === 'EPERM';
+  }
+}
+
+//   'free'     — nothing holds it
+//   'in-use'   — a live session holds it; never touch
+//   'orphaned' — a session held it and died without releasing
+//   'unknown'  — locked, but the reason yielded no pid. Surface, never act.
+function lockVerdict(entry) {
+  if (!entry.locked) return 'free';
+  if (entry.pid === null) return 'unknown';
+  return isPidAlive(entry.pid) ? 'in-use' : 'orphaned';
+}
+
+// Content identity, deliberately NOT `git merge-base --is-ancestor`. A branch
+// merged with `gh pr merge --rebase` has its shas rewritten, so it is
+// permanently a non-ancestor of the integration branch even though every line
+// of its content landed there. This repo favors rebase merges, so an ancestry
+// check would refuse to reap the common case (see #106, the same trap in
+// [IL-45]'s sha-identity check).
+//
+// An empty `git diff --name-only A B` means the two trees are identical.
+// Any failure to answer returns false: unresolvable is not identical.
+function isContentIdentical(repoRoot, branch, integration) {
+  if (!branch || !integration) return false;
+  const { stdout, failure } = runGit(['diff', '--name-only', integration, branch], repoRoot);
+  if (failure) return false;
+  return stdout.trim() === '';
+}
+
+module.exports = { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical };
