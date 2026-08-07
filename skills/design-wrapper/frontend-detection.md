@@ -92,21 +92,40 @@ CLAUDE.md design-integration flag (Layer 1)
     └─ enabled / plugin-only → continue
                                    │
                                    ▼
-            Surface: body-metadata line (Layer 2, only if spec input)
-                                   │
-                                   ├─ backend / infra        → skip
-                                   ├─ web / mobile / desktop → continue
-                                   └─ missing                → continue (fall through)
-                                                          │
-                                                          ▼
-                                File-extension sniff (Layer 3)
-                                                          │
-                                                          ├─ no matches → skip
-                                                          └─ matches    → proceed to dispatch
+Surface: body-metadata line (Layer 2, only if spec input)
+    │
+    ├─ backend / infra        → skip
+    ├─ web / mobile / desktop → continue
+    └─ missing                → continue (fall through)
+    │
+    ▼
+Track resolution (every mode — NOT a layer, gates nothing)
+setup.platform × Surface: → web | ios | android | adaptive
+    │
+    ├─ native track, Surface: declared
+    │      └─ dispatch, platform named   (Layer 3 skipped — the sniff is
+    │                                     web-only and cannot rule on
+    │                                     native code)
+    │
+    ├─ native track, Surface: missing ──┐
+    │                                   │
+    └─ web track ───────────────────────┤
+                                        │
+                                        ▼
+                          File-extension sniff (Layer 3)
+                                        │
+                                        ├─ no matches → skip
+                                        └─ matches    → dispatch
+                                                        (native track:
+                                                         platform named)
 ```
 
 **Layer 0 gates nothing.** Every one of its outcomes continues to Layer 1 — that is why it is drawn with no skip edge while the three layers below each have one. It enriches; it has no veto and no skip power of its own. Layers 1-3 remain the only things that can stop a dispatch.
 
-**Layer 3 is retained, not superseded.** Layer 0 carries a `scan.targets` list that looks like a frontend-file list and is not one: it filters on the extensions Impeccable's detector can *parse*, which include bare `.js` and `.ts` — the exact files the negative-cases section above requires Layer 3 to reject. Nothing upstream computes a frontend predicate, so Layer 3 remains the only thing that answers "is this change frontend?" and this diagram's bottom decision stays exactly where it was. `impeccable-plugin.md` has the full argument; `tests/impeccable-plugin-contract.test.js` holds a permanent frozen-fixture assertion of the non-equivalence.
+**Track resolution gates nothing either, for a different reason.** Layer 0 has no skip edge because it is enrichment; track resolution has none because *both* of its outcomes dispatch. It decides which track, never whether. The only skips downstream of it are Layer 3's, plus the two mode-level ones the native track implies (`test` and `live` are web-only — see `SKILL.md`'s track-resolution section).
+
+**Layer 3 is retained, not superseded.** Layer 0 carries a `scan.targets` list that looks like a frontend-file list and is not one: it filters on the extensions Impeccable's detector can *parse*, which include bare `.js` and `.ts` — the exact files the negative-cases section above requires Layer 3 to reject. Nothing upstream computes a frontend predicate, so Layer 3 remains the only thing that answers "is this change frontend?" — on the web track always, and on the native track whenever no `Surface:` was declared. `impeccable-plugin.md` has the full argument; `tests/impeccable-plugin-contract.test.js` holds a permanent frozen-fixture assertion of the non-equivalence.
+
+**The trigger tables above are web-only, and that is why the native track routes around them.** No native extension appears in either table — not `.swift`, `.kt`, `.dart`, `.xib`, `.storyboard` — so a SwiftUI or Compose diff matches nothing here. That is not a gap to fill: this file answers "is this change *web* frontend?", which is the only question the layers below it need. Adding native extensions would make Layer 3 admit native diffs to the web-only CLI, which is the defect native routing exists to remove.
 
 The earlier a layer can decide, the cheaper the skip. Kill-switch is a single CLAUDE.md read; sniff requires walking the file list. Layer 0 is ordered first for a different reason — it is an unconditional enrichment fetch whose result later steps may consult, not a decision that could short-circuit the ones after it.
