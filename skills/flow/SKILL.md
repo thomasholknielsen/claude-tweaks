@@ -223,7 +223,7 @@ On successful completion of all steps:
 
 ### Creative Opportunities
 
-The polish phase ran the auto-fit + issue-driven + intent-driven commands. These could enhance the result further:
+The polish phase ran the refinement set + suggestion-driven + intent-driven commands. These could enhance the result further:
 
 | Command | Why it might help |
 |---------|------------------|
@@ -308,7 +308,7 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | Creating a work record from inside flow without explicit per-item user approval | Both `backlog` and `parked` are valid, so each record needs the user's choice on that specific item — pipeline phases never file autonomously |
 | Skipping test in the pipeline | Review depends on `TEST_PASSED` — skipping it reviews potentially broken code |
 | Retrying polish after re-verify failure within the same flow run | The one-cycle cap prevents oscillation — surface the failure and require a fresh `/flow {spec} polish` to retry |
-| Treating polish skip as a flow failure | Skips are normal (non-frontend spec, no Impeccable, `no-polish` flag, no audit findings + no auto-fit changes); the pipeline continues to wrap-up |
+| Treating polish skip as a flow failure | Skips are normal (non-frontend spec, no Impeccable, `no-polish` flag, no audit findings + no refinement-set changes); the pipeline continues to wrap-up |
 | Running re-verify without `skip-qa` | Browser QA is irrelevant after stylistic-only polish — `/test skip-qa` keeps the cycle fast; the Design CLI gate still runs |
 | Using `no-polish` on a frontend spec by reflex | Polish is the value-add for frontend specs — set `no-polish` only when iterating fast or after a manual Impeccable polish |
 | Auto-running creative commands surfaced in the Creative Opportunities block | Recommendations only — flow never executes Impeccable creative commands from survey output; the user invokes them |
