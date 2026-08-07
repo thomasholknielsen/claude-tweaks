@@ -162,3 +162,25 @@ test('verify-mode.md logs every filter drop to decisions.md in the shared entry 
   assert.match(body, /auto-decision-log\.md/, 'must cite the canonical line format');
   assert.match(body, /Reversibility:/, 'must quote the entry schema');
 });
+
+test('verify-mode.md routes unfalsifiable questions to survey and bounds tiers to survey breadth', () => {
+  const body = readVerifyMode();
+  assert.match(body, /unfalsifiable/i, 'must name the unfalsifiable shape');
+  assert.match(body, /ultradeep/, 'must name the existing depth tiers');
+  assert.match(body, /bounds?\s+survey\s+breadth\s+only/i, 'tiers must bound survey breadth only');
+});
+
+test('verify-mode.md states that absence is a finding', () => {
+  const body = readVerifyMode();
+  assert.match(body, /no\s+precedent\s+exists/i, 'absence must be reported, not omitted');
+});
+
+test('verify-mode.md resolves survey depth through the documented precedence chain', () => {
+  const body = readVerifyMode();
+  assert.match(body, /auto-mode-contract\.md/, 'must cite the contract');
+  assert.match(
+    body,
+    /CLI[\s-]?arg[\s\S]{0,160}pipeline[\s-]?config[\s\S]{0,160}project[\s-]?policy[\s\S]{0,160}skill[\s-]?default/i,
+    'must state the full four-step precedence chain (whitespace-flexible across line wraps)',
+  );
+});

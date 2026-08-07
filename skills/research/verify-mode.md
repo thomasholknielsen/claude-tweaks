@@ -94,3 +94,50 @@ Concretely, under a `## /research` heading:
 A drop is `AUTO`, never `STAGED` or `KEPT-PROMPT`: the filter acted, and the log is how that action
 stays auditable. Dropping silently is forbidden — an unlogged drop is indistinguishable from a
 question nobody thought of.
+
+## Question shape: falsifiable vs. unfalsifiable
+
+Every surviving question is classified by shape before it is researched, because the two shapes
+return different things.
+
+| Shape | Meaning | Routes to | Returns |
+|---|---|---|---|
+| **Falsifiable** | A specific source could show the claim is wrong — "does `X` already handle `Y`?", "is this file loaded at startup?" | The source registry | A **verdict** |
+| **Unfalsifiable** | No single source settles it — "how do other tools approach this?", "what are the tradeoffs here?" | Survey | A **landscape** |
+
+The source registry, its routing rules, and the verdict's exact shape are record #177's
+deliverable. This file establishes only that the split exists and which way each shape goes.
+
+### Depth tiers bound survey breadth only
+
+`--mode=quick|standard|deep|ultradeep` **bounds survey breadth only** — how wide the landscape
+sweep goes for unfalsifiable questions. The tiers do not govern falsifiable questions at all: a
+verdict is settled by whether a source falsifies the claim, and no depth setting makes that answer
+more or less true. A falsifiable question is researched until a source settles it or the sources
+are exhausted, regardless of the tier in effect.
+
+### Absence is a finding
+
+A source that returns nothing has answered the question. Report it as such — "no precedent exists"
+— never omit it. A silently-absent result is indistinguishable from a lookup that failed, and
+silence cannot be found by keyword search later. This binds hardest on history- and
+telemetry-shaped sources, where "we have never done this before" is frequently the single most
+design-changing thing the run surfaces.
+
+## Auto-mode behavior
+
+Survey depth resolves through the standard chain in `skills/_shared/auto-mode-contract.md` —
+**CLI arg > pipeline config > project policy > skill default** — never by prompting:
+
+1. **CLI arg** — an explicit `--mode=` on this invocation always wins.
+2. **Pipeline config** — the run directory's `config.yml`, when one resolves.
+3. **Project policy** — `.claude-tweaks/policy.yml`.
+4. **Skill default** — `standard`.
+
+Verify mode introduces **no new mid-flow stop**. The Mode Picker's interactive prompt is skipped
+whenever `auto` is active or `$PIPELINE_RUN_DIR` is set, exactly as the bare-topic path already
+does; the resolved tier is logged rather than asked. The one exception is the bare-`verify`
+ambiguity above, which is an unparseable-input condition rather than a policy decision — there is
+no value to resolve from the chain, so there is nothing for `auto` to silence.
+
+Every verdict writes one `decisions.md` line, in the same entry schema a filter drop uses.
