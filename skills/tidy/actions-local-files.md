@@ -16,6 +16,7 @@ scopes reading GitHub issues, and Step 1's local-record shapes include no accept
 all. The parent simply sits open with no `acceptance:` facet, indefinitely. Say so if a user asks
 why a completed local-files family shows no acceptance state; do not imply a sweep will pick it
 up.
+
 Everything else stays inline in `SKILL.md`'s Action Vocabulary table. Each action is atomic —
 complete all its steps or none.
 
