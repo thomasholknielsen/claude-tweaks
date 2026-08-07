@@ -284,3 +284,19 @@ test('verify-mode.md points at source-registry.md by name', () => {
   const body = readVerifyMode();
   assert.match(body, /source-registry\.md/, 'verify-mode.md must name the registry sub-file');
 });
+
+test('source-registry.md routes a question to every source that could falsify it', () => {
+  const body = readSourceRegistry();
+  assert.match(
+    body,
+    /every\s+source\s+that\s+could\s+falsify/i,
+    'must state the route-to-all rule, not a pick-one rule',
+  );
+  // Anchored: "multiple" and "default" both appear elsewhere in the file, so a bare
+  // presence check would pass on prose saying the opposite ([IL-78]).
+  assert.match(
+    body,
+    /multiple\s+sources\s+per\s+question\s+is\s+the\s+(?:normal|default)\s+case/i,
+    'multiplicity must be stated as the default, not the exception',
+  );
+});

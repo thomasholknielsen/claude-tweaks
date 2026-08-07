@@ -56,3 +56,30 @@ installed source describes behavior.
 is no source that can settle intent, and a research pass that guesses at it produces a confident
 answer to a question nobody asked. A question routed to `human` yields no verdict; it yields a
 question for the caller to put to the user.
+
+## Routing
+
+A question goes to **every source that could falsify it** — not to the single best one. Multiple
+sources per question is the normal case, not an exception, and a question that reaches only one
+source is usually a question that was scoped too narrowly.
+
+Route by reading the "What it can falsify" column against the question, and take every row that
+could return a contradicting answer. Two consequences follow:
+
+- **Agreement across sources is itself evidence.** Three sources that independently fail to falsify
+  a claim support it far more than one that fails to falsify it once.
+- **Disagreement is the most valuable outcome.** When `repo-prose` says one thing and `codebase`
+  says another, the design question is settled less by which is right than by the fact that the two
+  have drifted — that is a finding in its own right, and it is reported as one rather than resolved
+  silently in favour of whichever source is easier to trust.
+
+`human` is the exception to the fan-out: routing there **terminates** the question (see The human
+terminator). When a question routes to `human` and to other sources, run the others — their
+verdicts are what the human will need in order to answer.
+
+### Absence is a finding
+
+A source that returns nothing has answered. Report it — "no precedent exists" — never omit it. This
+binds hardest on `history` and `telemetry`, where "we have never done this before" is frequently the
+single most design-changing thing a run surfaces. A silently-absent result is indistinguishable from
+a lookup that failed, and silence cannot be found by keyword search later.
