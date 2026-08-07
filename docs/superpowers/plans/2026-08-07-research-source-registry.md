@@ -96,7 +96,7 @@ test('source-registry.md keys every entry by what it falsifies, not by tool', ()
   // rather than to any one row's text is what makes this fail if a column is dropped.
   assert.match(
     body,
-    /\|\s*Source\s*\|\s*What it can falsify\s*\|\s*Confidence\s*\|\s*Read mechanism\s*\|/i,
+    /\|\s*Source\s*\|\s*What\s+it\s+can\s+falsify\s*\|\s*Confidence\s*\|\s*Read\s+mechanism\s*\|/i,
     'registry table must carry Source / What it can falsify / Confidence / Read mechanism columns',
   );
 });
@@ -127,12 +127,22 @@ test('source-registry.md human entry is a terminator that dispatches no agent', 
 test('source-registry.md deps entry records the node_modules denial and its fallback', () => {
   const body = readSourceRegistry();
   assert.match(body, /node_modules/, 'must name node_modules');
+  // Token-anchored, not a wide window. Measured: the real span is 45 chars, and a
+  // {0,200} gap still matches prose inverted to "fully supported, nothing denied" —
+  // i.e. it does not discriminate. `structurally denied` is the load-bearing claim ([IL-78]).
   assert.match(
     body,
-    /node_modules[\s\S]{0,200}denied/i,
-    'must state that node_modules reads are structurally denied here',
+    /node_modules[\s\S]{0,40}structurally\s+denied/i,
+    'must state the denial is structural, not a transient permission prompt',
   );
-  assert.match(body, /context7|public\s+docs/i, 'must name the reduced-confidence fallback');
+  // Anchored to the deps entry (measured gap: 239 chars) rather than scanning the whole
+  // file — an unrelated future mention of context7 would otherwise keep this green even
+  // if the fallback text were deleted.
+  assert.match(
+    body,
+    /node_modules[\s\S]{0,400}(?:context7|public\s+documentation)/i,
+    'the reduced-confidence fallback must sit with the deps denial, not merely appear somewhere',
+  );
 });
 
 test('verify-mode.md points at source-registry.md by name', () => {
