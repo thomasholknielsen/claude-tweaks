@@ -188,7 +188,7 @@ First branch that yields anything wins:
 | `setup.platform` | `/claude-tweaks:design-wrapper`'s return (surfaced), native routing (acts) | Authoritative when non-null; `null` falls back to the record's `Surface:` body-metadata line. This file's leaf surfaces the field; acting on `ios`/`android`/`adaptive` is a later record's job. |
 | `setup.hasProduct` / `setup.hasDesign` | `pre-build`, `doctor` | Whether Impeccable's own project context exists. Not surfaced in the wrapper return yet — the record that consumes them adds the field. |
 | `critique.latest` | `review` | A cached score with P0/P1 counts, free. Advisory context only — it never replaces a live `critique` run and never changes `result`. |
-| `devServer.running` / `devServer.ports` | `live` | **Veto only** — `false` skips, `true` does not authorize. The probe is a bare TCP connect and cannot tell whose server answered; see `modes/live.md`. |
+| `devServer.running` / `devServer.ports` | `live` | **Veto only** — `false` skips, `true` does not authorize. The probe is a bare TCP connect against seven fixed ports: it cannot tell whose server answered, and it is silent about every port it did not check, so `false` only vetoes a target whose port is in that set. See `modes/live.md`. |
 
 ## Surfaced in the wrapper's return
 

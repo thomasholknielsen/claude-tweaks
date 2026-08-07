@@ -31,7 +31,9 @@ When Layer 0 resolved (see `../impeccable-plugin.md`), read `devServer.running`.
 | `devServer.running: false` | **Sufficient to skip.** Return `{mode: "live", skipped: "no dev server is listening"}`. Nothing is serving `<target>`, so a live session has nothing to attach to. |
 | `devServer.running: true` | **Not sufficient to enter.** Proceed to Step 3, where live's existing human-present requirement still governs — exactly as it does when Layer 0 carried no signals at all. |
 
-The reason for the asymmetry: the probe is a bare TCP connect against seven common dev ports and cannot tell whose server answered. Verified 2026-08-06 — it reported `running: true, ports: [8080]` on a machine with no dev server for this project. A `true` is therefore evidence that *something* is listening, never that it is `<target>`; only `false` (nothing listening anywhere) is conclusive.
+The reason for the asymmetry: the probe is a bare TCP connect against seven common dev ports and cannot tell whose server answered. Verified 2026-08-06 — it reported `running: true, ports: [8080]` on a machine with no dev server for this project. A `true` is therefore evidence that *something* is listening, never that it is `<target>`.
+
+**One precondition on the veto: the probe must have looked where `<target>` lives.** `running: false` means "none of `3000 4200 4321 5173 5174 8000 8080` accepted a connection" — it is silent about every other port. When `<target>`'s port is parseable from the URL and is **not** in that set, `false` is not evidence about `<target>` and must not skip; proceed to Step 3. This is the same argument the asymmetry above rests on — the probe's answer is only as good as its resolution — applied to its coverage rather than its precision. Reading `false` as conclusive regardless would silently refuse a live session against an ephemeral scaffold server on an uncommon port, which is exactly what `/claude-tweaks:specify`'s caller provides.
 
 When Layer 0 did not resolve, skip this step entirely and proceed to Step 3 — degradation is never a failure, and this mode behaved exactly this way before Layer 0 existed.
 
