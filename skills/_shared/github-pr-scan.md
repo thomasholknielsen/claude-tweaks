@@ -295,10 +295,18 @@ acceptance disposition yet — the population `/claude-tweaks:wrap-up`'s own fam
 procedure (`wrap-up/verification-brief.md`) applies eagerly when it closes a family's last leaf.
 A leaf closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches
 that eager path at all, so its family's gate never fires on its own; this scope is the backstop
-sweep that catches it later. Classification is entirely `familyGateState`'s
+sweep that catches it later.
+
+Classification is entirely `familyGateState`'s
 (`bin/lib/issues/acceptance.js`) — this scope does not reimplement the gate logic, and leaf
 enumeration reuses the same parent-side resolution `wrap-up/verification-brief.md`'s
 family-gate procedure already documents rather than inventing a second one.
+
+**`work-backend: github-issues` only** — this whole file is gated on `gh` reachability by the
+Detection Ladder above. The `local-files` driver has its own twin of this sweep in
+`tidy/scan-procedures.md` Step 1 (Shape 7), reading the record store through `queryRecords`
+rather than the API; it emits the identical `[family-gate]` row and feeds the identical
+`Open family gate` action, so no consumer distinguishes the two.
 
 Record set: open records carrying `family:parent` (`/claude-tweaks:specify` labels every
 decomposition parent this way — see `specify/record-creation.md`'s Parent record section),
@@ -442,7 +450,7 @@ node -e "
 ```
 
 Un-gated families recommend the `Open family gate` action (`tidy/SKILL.md`'s Action Vocabulary,
-executed via `tidy/actions-github-issues.md`'s `## Open family gate`) — never applied without
+executed for this scope's rows via `tidy/actions-github-issues.md`'s `## Open family gate`) — never applied without
 going through `/tidy`'s own Step 6 batch approval first, at **every** aggressiveness tier in auto
 mode (`step-6-auto.md`'s Open family gate row is `Stage`/`Stage`/`Stage`), the same as
 `acceptance-gap` — though for a related but distinct reason. `Open family gate` posts a comment

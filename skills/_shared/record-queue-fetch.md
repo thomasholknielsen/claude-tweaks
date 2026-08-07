@@ -6,7 +6,7 @@ Single source of truth for the first read every open-work-record scan performs: 
 `/claude-tweaks:backlog` (both `refine-mode.md`'s and `overview-mode.md`'s Step 1), and
 `/claude-tweaks:visualize` (`visualize/record-graph.md` Step A) — every one of these scans
 starts from the identical fetch below before branching into its own consumer-specific
-classification (dashboard bucket counts for `/help`; the seven finding shapes for `/tidy`;
+classification (dashboard bucket counts for `/help`; the per-shape finding classification for `/tidy`;
 priority/Related synthesis plus the grant worklist for `/backlog refine`, lens routing plus the
 build recommendation for `/backlog overview`; stage-column bucketing plus six-axis encoding for
 `/visualize record-graph`).

@@ -23,7 +23,7 @@ node -e "
 " > /tmp/tidy-unsynced.json
 ```
 
-Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. Three of the seven shapes below don't apply under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only).
+Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only). Conversely, Shape 7 (family gate due) fires **only** under this driver — its `github-issues` counterpart is Step 4.8's `family-gate` scope, which reads GitHub issues.
 
 **Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock and
 Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 below already
@@ -91,7 +91,89 @@ A watched-path match is a signal to look again, not proof the record still needs
 
 ### Shape 6 — flagged code demonstrably gone
 
-Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/docs-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6/7) — unchanged by this merge. It's listed in this file only so the seven finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
+Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/docs-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6/7) — unchanged by this merge. It's listed in this file only so the finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
+
+### Shape 7 — decomposition family gate due
+
+**`work-backend: local-files` only.** This is the local twin of Step 4.8's `family-gate` scope
+(`_shared/github-pr-scan.md`), which reads GitHub issues and is gated on `gh` reachability by
+that file's Detection Ladder — the reason the local-files sweep lives here, in the one scan step
+that reads the record store through the driver, rather than there. Same finding, same
+`[family-gate]` prefix, same `Open family gate` action; only the store differs.
+
+It finds decomposition families whose every leaf has closed but whose parent carries no
+acceptance disposition yet — the population `/claude-tweaks:wrap-up`'s own Family-Gate Procedure
+(`wrap-up/verification-brief.md`) gates eagerly when it closes a family's last leaf. A family
+whose last leaf closes any other way — by hand, or by a run that ended before wrap-up — never
+reaches that eager path, and this shape is the backstop that catches it afterward.
+
+Classification is entirely `familyGateState`'s (`bin/lib/issues/acceptance.js`) — do not
+reimplement the gate logic. That predicate is backend-agnostic: it takes `{leaves, parentLabels}`,
+and a local parent's disposition translates to the one-element `['demo:' + facets.acceptance]`
+(empty array when the facet is unset), exactly as `wrap-up/verification-brief.md`'s
+**Evaluate the gate** already does for this driver.
+
+This shape needs its own query rather than reusing Step 1's shared fetch above: that fetch
+returns open records only and carries no leaf-to-parent index, and a family's leaves are closed
+by definition when its gate is due.
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { familyGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const parents = queryRecords('specs', { familyParent: true });
+  const families = parents.map((p) => {
+    const leafRecords = [
+      ...queryRecords('specs', { parent: p.id }),
+      ...queryRecords('specs', { parent: p.id, closed: true }),
+    ];
+    return {
+      id: p.id,
+      title: p.title,
+      path: p.path,
+      parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
+      leaves: leafRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' })),
+    };
+  });
+  families
+    .filter((f) => familyGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
+    .forEach((f) => console.log(f.path + '\t[family-gate] ' + f.id + ': ' + f.title + ' — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo ' + f.id));
+"
+```
+
+Each line comes back as `{path}<TAB>{finding}`: the parent record's own file path fills the row's
+`Path:Line` column (`SKILL.md`'s Tidy-specific column semantics — the local record path under
+this driver, where `github-issues` rows carry `#{n}`), and everything after the tab is the
+`[family-gate]` finding itself.
+
+Both `queryRecords` shapes above are deliberate. `{ familyParent: true }` returns **open**
+parents only (the function excludes closed records unless the filter names `closed`), which is
+the right set — a closed parent has already been dispositioned and closed by
+`/claude-tweaks:demo`, and it mirrors the `github-issues` scope's own `--state open`
+`family:parent` fetch. The leaf listing is the two-call open+closed merge for the same reason:
+one call alone would silently drop every closed leaf, i.e. exactly the leaves that make a gate
+due. No fetch-limit or truncation warning applies here, unlike the `github-issues` scope that
+pages an API — `queryRecords` reads the whole `specs/` directory on every call.
+
+→ Collect each as: `[family-gate] {id}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo {id}`
+
+The recommendation is the `Open family gate` action (`SKILL.md`'s Action Vocabulary, executed
+via `actions-local-files.md`'s `## Open family gate`) — **staged, never auto-applied, at every
+aggressiveness tier** (`step-6-auto.md`'s `Open family gate` row), the same as its
+`github-issues` twin. It never writes `demo:approved`/`demo:changes-requested`: that verdict
+stays exclusively `/claude-tweaks:demo`'s job, which is why the row still ends with
+`/claude-tweaks:demo {id}` even once the gate is open.
+
+Severity `info` — the same tier the `github-issues` `family-gate` scope uses, and for the same
+reason: on a project with several open decompositions this is a standing backlog, not a defect
+count, and Step 6's report caps rows highest-severity-first.
+
+**What this shape does not cover.** Its sibling backstop — `acceptance-gap`, closed records with
+no acceptance disposition that are *not* decomposed leaves — still has no `local-files`
+equivalent anywhere; it remains a `_shared/github-pr-scan.md` scope reading GitHub issues. A
+locally-closed standalone record therefore still reaches a disposition only if
+`/claude-tweaks:wrap-up` applied one as it closed. Say so if a user asks why a closed local
+record shows no acceptance state; do not imply this shape picks it up.
 
 ## Step 3: Audit Design Docs
 

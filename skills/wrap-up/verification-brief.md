@@ -16,7 +16,7 @@ wrong by omission). Four call sites exist today:
 | `/claude-tweaks:wrap-up` Step 10's Acceptance-labeling bullet (`wrap-up/execution-and-verification.md`) | one **leaf**, mid-close |
 | `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | one **leaf**, mid-close |
 | `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | one **leaf** per group member, mid-close — plus the group's whole closing-leaf set (see the Self-inclusion rule) |
-| `/claude-tweaks:tidy`'s `Open family gate` action (`tidy/actions-github-issues.md`) | a **parent** number (`$PARENT_NUM`) directly |
+| `/claude-tweaks:tidy`'s `Open family gate` action (`tidy/actions-github-issues.md`, or `tidy/actions-local-files.md` on that driver) | a **parent** number (`$PARENT_NUM`) directly |
 
 **Whatever invoked this file: if the record in hand has a resolvable parent, run the
 Family-Gate Procedure below in place of — not alongside — Steps 1-4.** A decomposed leaf never
@@ -51,19 +51,20 @@ Every step from **Enumerate the family's leaves** onward is shared, unchanged, b
   leaf numbers its own run is closing, which the **Self-inclusion rule** below reads (one
   element for both wrap-up entries; the whole group for the dispatch gate). Run every section
   below in order, starting with **Resolve the parent**.
-- **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open family gate` action** (`tidy/actions-github-issues.md`,
-  executed on approving a `[family-gate]` finding from `_shared/github-pr-scan.md`'s
-  `family-gate` scope) — arrives already holding the **parent** number directly (`$PARENT_NUM`),
-  read straight from its own `family:parent`-labeled scan. Skip **Resolve the parent** and
-  **Self-inclusion rule** below entirely — there is no leaf mid-close in this entry, so nothing
-  needs resolving or self-inclusion special-casing. Start at **Enumerate the family's leaves**,
-  but re-fetch every leaf's state and the parent's labels fresh rather than reusing the scan's own
-  snapshot, and re-run **Evaluate the gate** before composing anything — time has passed since the
-  scan ran (`/tidy`'s Step 6 approval is never instantaneous with its Step 4.8 scan), and another
-  process (a concurrent `/wrap-up` gating the same family, or a leaf reopening) may already have
-  changed the outcome. `work-backend: github-issues` only — `_shared/github-pr-scan.md`'s
-  `family-gate` scope's own population is github-issues-only, so this entry never needs the
-  `local-files` branches below.
+- **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open family gate` action**, on either
+  driver: `tidy/actions-github-issues.md` executing on a `[family-gate]` finding from
+  `_shared/github-pr-scan.md`'s `family-gate` scope, or `tidy/actions-local-files.md` executing
+  on one from `tidy/scan-procedures.md` Step 1's Shape 7. Both arrive already holding the
+  **parent** number directly (`$PARENT_NUM` — a `family:parent`-labeled issue number, or a
+  `family-parent: true` record's id), read straight from their own scan. Skip **Resolve the
+  parent** and **Self-inclusion rule** below entirely — there is no leaf mid-close in this entry,
+  so nothing needs resolving or self-inclusion special-casing. Start at **Enumerate the family's
+  leaves**, but re-read every leaf's state and the parent's own disposition fresh rather than
+  reusing the scan's snapshot, and re-run **Evaluate the gate** before composing anything — time
+  has passed since the scan ran (`/tidy`'s Step 6 approval is never instantaneous with its scan),
+  and another process (a concurrent `/wrap-up` gating the same family, or a leaf reopening) may
+  already have changed the outcome. Every per-driver branch below applies to this entry exactly
+  as it does to a leaf-side one — take the `local-files` branches when that is the driver.
 
 **Fail open on every `gh` call in this section.** If `gh` is unavailable, unauthenticated, the
 repo has no GitHub remote, or any family-gate `gh` call below fails: a **leaf-side** entry
@@ -71,7 +72,9 @@ skips the family-gate procedure entirely and falls back to today's behavior (app
 to this record itself via Steps 1-4 below) — never blocking the wrap-up, the auto-merge
 short-circuit, or the dispatched group's merge gate. The **parent-side** entry skips this one
 family for this run, leaving its `[family-gate]` finding surfaced and unmutated — never failing
-the whole `/tidy` run over one family's `gh` call.
+the whole `/tidy` run over one family's `gh` call. This paragraph is moot under
+`work-backend: local-files`, whose branches below make no `gh` call at all; a filesystem error
+there is a real failure to report, not a fail-open case.
 
 ### What this path deliberately does not run
 
