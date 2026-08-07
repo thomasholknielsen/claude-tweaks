@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:simplify
+name: simplify
 description: Use when you want to simplify recently changed code — catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Works standalone or as a step within /claude-tweaks:build and /claude-tweaks:review.
 argument-hint: "[<file-or-dir>...|#N|<spec-number>]"
 ---

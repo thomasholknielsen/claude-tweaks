@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:stories
+name: stories
 description: Use when generating or updating user story YAML files for UI testing — browses a site with agent-browser, discovers flows, creates structured stories using semantic locators (schema v2) with diff-aware updates, negative testing, source-aware contracts, journey awareness, and self-validation. Keywords - stories, generate, create, user journey, persona, QA, testing, semantic-locators.
 argument-hint: "[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>]"
 ---

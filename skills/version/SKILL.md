@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:version
+name: version
 description: Use when you want to know which version of the claude-tweaks plugin is installed.
 argument-hint: "[plain|full] [--min <version>]"
 ---

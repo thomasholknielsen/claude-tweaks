@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:deepen
+name: deepen
 description: Use when you want an architectural-depth pass on recently changed code — finds shallow modules (interface nearly as complex as implementation) and proposes deepening or collapsing them, ranked by leverage. Catches architecture entropy that line-level simplification misses. Works standalone or surfaced as a Next Action by /claude-tweaks:review and /claude-tweaks:reflect.
 argument-hint: "[<file-or-dir>...|<spec-number>] [--kind deepen|collapse]"
 ---

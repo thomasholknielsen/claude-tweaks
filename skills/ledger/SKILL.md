@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:ledger
+name: ledger
 description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file. Called by /claude-tweaks:build, /claude-tweaks:test, /claude-tweaks:review, /claude-tweaks:wrap-up, and /claude-tweaks:flow — or standalone for ledger inspection.
 argument-hint: "[resolve [<feature-name>]|<feature-name>]"
 ---

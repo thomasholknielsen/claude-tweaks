@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:wrap-up
+name: wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]"
 ---

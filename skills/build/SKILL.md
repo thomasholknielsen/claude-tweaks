@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:build
+name: build
 description: Use when implementing a work record or design doc end-to-end. Accepts a record reference (#N) for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 argument-hint: "[#<n>|<design-doc-path>|<topic>] [subagent|batched] [auto] [worktree|current-branch] [tier=<fast|standard|capable>] [ops=confirm]"
 ---

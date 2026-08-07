@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:design-wrapper
+name: design-wrapper
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
 argument-hint: "<shape|pre-build|test|review|polish|survey|reset-recommendations|live> <target> [--screenshots <paths>] [--source <parent-skill>] [--dry-run] [--limit <n>]"
 ---
