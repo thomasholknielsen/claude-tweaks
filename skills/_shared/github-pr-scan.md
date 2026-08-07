@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines the Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`family-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines the Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`family-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`). A scope section is inlined **whole**, its `work-links` resolution and fetch-limit sub-sections included: the `acceptance-gap` and `family-gate` scopes each carry a `work-links: body-text` / `work-links: native` branch pair, and an agent that cannot resolve `work-links` cannot choose between them — taking the first-listed `body-text` branch on a `native` repo returns zero leaves from every parent and makes both scopes silently wrong (see each scope's own resolution sub-section for the failure it produces).
 
 Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — `gh`'s implicit default is 30, which silently truncates instead of erroring. A result count landing exactly at the stated limit means the scan may be incomplete; treat that as a signal to narrow the query (a tighter label/state filter) or re-run with a higher `--limit`, not as a final count.
 
@@ -167,24 +167,65 @@ A closed record whose acceptance lives on a `/claude-tweaks:specify` decompositi
 not count as a gap — `needsBackstop`'s `hasParent` field exists precisely to suppress it. Resolving
 which closed records are leaves reuses the same parent-side enumeration the `family-gate` scope
 below already documents in full — never the leaf side, which works under one `work-links` mode and
-silently returns nothing under the other (`[IL-64]`). This step only needs leaf *existence*, not
+silently returns nothing under the other. This step only needs leaf *existence*, not
 per-leaf state, so it skips that scope's state-map plumbing; and it fetches `--state all` rather
 than `family-gate`'s `--state open`, because a leaf whose family was already gated and approved —
 which closes the parent (`demo/SKILL.md`'s Approve step) — must still be suppressed here, and an
 open-only fetch would miss it.
 
+### `work-links` resolution
+
+**Read `work-links` before choosing between the two branches below** — they are mutually
+exclusive, and nothing in the fetched data reveals which one applies. It lives in the project's
+`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table; a missing key means
+`body-text`, the documented default), so read it directly rather than assuming the first-listed
+branch:
+
+```bash
+grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+```
+
+An empty result means `body-text`. Taking the `body-text` branch on a `work-links: native` repo
+is not a degraded read but a silent total failure: a native parent's body carries no task list by
+construction, so `parseFamilyLeaves` returns `[]` for every parent,
+`/tmp/tidy-acceptance-gap-leaves.json` is empty, and every decomposed leaf re-enters this scope
+as a false `[acceptance-gap]` row — the
+exact flood `hasParent` exists to stop, with no error anywhere to say so.
+
+### Fetch limit
+
+Both branches below bound the `family:parent` fetch with `{resolved-limit}` rather than a
+hardcoded cap. Read `backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml`
+(`_shared/work-record-config.md`'s key table) and substitute the literal number into **every**
+block below that names it; use `1000` when the key is absent. Substitute it independently per
+block and never carry it across blocks in a shell variable — shell environment does not survive
+between Bash calls and never reaches a subagent, so a cross-block `export` silently resolves
+empty (the same discipline `_shared/trust-table.md` states for its own identical fetches).
+
+This scope's own closed-record fetch above keeps its hardcoded `--limit 200`: its record set is
+bounded to the last 30 days, so 200 is in practice never reached. The `family:parent` fetches are
+not — they are `--state all` over the repo's entire history, and `gh issue list` returns
+newest-first, so a fixed cap drops the **oldest** families first. Those are precisely the families
+whose leaves have already closed, so truncation silently re-floods this scope with exactly the
+rows the filter exists to remove.
+
 **`work-links: body-text`** — every parent's task list comes back in the same fetch:
 
 ```bash
-gh issue list --label family:parent --state all --json number,body --limit 200 \
+LIMIT="{resolved-limit}"
+export FETCH_LIMIT="$LIMIT"
+gh issue list --label family:parent --state all --json number,body --limit "$LIMIT" \
   > /tmp/tidy-family-parents-for-gap.json
 
 node -e "
   const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
   const parents = require('/tmp/tidy-family-parents-for-gap.json');
+  if (parents.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped, so their leaves re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
+  }
   const leafNumbers = parents.flatMap((p) => parseFamilyLeaves(p.body));
-  fs.writeFileSync('/tmp/tidy-family-leaves.json', JSON.stringify(leafNumbers));
+  fs.writeFileSync('/tmp/tidy-acceptance-gap-leaves.json', JSON.stringify(leafNumbers));
 "
 ```
 
@@ -192,29 +233,37 @@ node -e "
 native branch:
 
 ```bash
-gh issue list --label family:parent --state all --json number --limit 200 \
+LIMIT="{resolved-limit}"
+export FETCH_LIMIT="$LIMIT"
+gh issue list --label family:parent --state all --json number --limit "$LIMIT" \
   > /tmp/tidy-family-parents-for-gap.json
 
-: > /tmp/tidy-family-leaf-numbers.jsonl
+: > /tmp/tidy-acceptance-gap-leaf-numbers.jsonl
 node -e "require('/tmp/tidy-family-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-family-leaf-numbers.jsonl
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-leaf-numbers.jsonl
 done
 
 node -e "
   const fs = require('fs');
-  const leafNumbers = fs.readFileSync('/tmp/tidy-family-leaf-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
-  fs.writeFileSync('/tmp/tidy-family-leaves.json', JSON.stringify(leafNumbers));
+  const parents = require('/tmp/tidy-family-parents-for-gap.json');
+  if (parents.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped, so their leaves re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
+  }
+  const leafNumbers = fs.readFileSync('/tmp/tidy-acceptance-gap-leaf-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  fs.writeFileSync('/tmp/tidy-acceptance-gap-leaves.json', JSON.stringify(leafNumbers));
 "
 ```
 
-With `/tmp/tidy-family-leaves.json` written by whichever branch applies, filter the closed-record
-set:
+With `/tmp/tidy-acceptance-gap-leaves.json` written by whichever branch applies, filter the
+closed-record set — note the filename: this scope's leaf list and the `family-gate` scope's
+`/tmp/tidy-families.json` are different artifacts written by different procedures in the same
+agent prompt, so they never share a path:
 
 ```bash
 node -e "
   const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
   const records = require('/tmp/tidy-closed-records.json');
-  const familyLeaves = new Set(require('/tmp/tidy-family-leaves.json'));
+  const familyLeaves = new Set(require('/tmp/tidy-acceptance-gap-leaves.json'));
   const gaps = records
     .map(r => ({ ...r, labels: r.labels.map(l => l.name), hasParent: familyLeaves.has(r.number) }))
     .filter(r => needsBackstop({ state: 'CLOSED', labels: r.labels, hasParent: r.hasParent }));
@@ -253,27 +302,80 @@ family-gate procedure already documents rather than inventing a second one.
 
 Record set: open records carrying `family:parent` (`/claude-tweaks:specify` labels every
 decomposition parent this way — see `specify/record-creation.md`'s Parent record section),
-plus every issue's current state, fetched once:
+plus every issue's current state, fetched once.
+
+### Fetch limit
+
+**Both fetches are bounded by `{resolved-limit}`, never a hardcoded cap.** Read
+`backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml`
+(`_shared/work-record-config.md`'s key table) and substitute the literal number into **every**
+block below that names it; use `1000` when the key is absent. Substitute it independently per
+block and never carry it across blocks in a shell variable — shell environment does not survive
+between Bash calls and never reaches a subagent, so a cross-block `export` silently resolves
+empty (the same discipline `_shared/trust-table.md` states for its own identical fetches). The
+state map in particular is `--state all` over the repo's entire lifetime with no recency bound,
+which is why it cannot carry a fixed cap: past that cap every truncated leaf defaults to `OPEN`,
+so every family containing one reads `incomplete` and this backstop stops firing — permanently,
+and with nothing on the output to say it did.
 
 ```bash
-gh issue list --label family:parent --state open --json number,title,body,labels --limit 200 \
+LIMIT="{resolved-limit}"
+export FETCH_LIMIT="$LIMIT"
+gh issue list --label family:parent --state open --json number,title,body,labels --limit "$LIMIT" \
   > /tmp/tidy-family-parents.json
 
-gh issue list --state all --json number,state --limit 500 \
+gh issue list --state all --json number,state --limit "$LIMIT" \
   > /tmp/tidy-all-issue-states.json
+
+node -e "
+  const parents = require('/tmp/tidy-family-parents.json');
+  const states = require('/tmp/tidy-all-issue-states.json');
+  if (parents.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped and are invisible to this scope entirely. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
+  }
+  if (states.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + states.length + ' issue states (the configured backlog-fetch-limit) — every leaf beyond this cap defaults to OPEN, so any family containing one reads incomplete and this backstop silently never fires for it. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
+  }
+"
 ```
 
+**Report every warning emitted above verbatim beside this scope's rows, and never suppress
+either of them.** Both truncations fail in the *quiet* direction — fewer rows, not wrong ones —
+which is exactly the direction a backstop must never fail in silently, since a scope that emits
+nothing is indistinguishable from a repo with no un-gated families.
+
+### `work-links` resolution
+
+**Read `work-links` before choosing between the two branches below** — they are mutually
+exclusive, and nothing in the fetched data reveals which one applies. It lives in the project's
+`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table; a missing key means
+`body-text`, the documented default), so read it directly rather than assuming the first-listed
+branch:
+
+```bash
+grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+```
+
+An empty result means `body-text`. Taking the `body-text` branch on a `work-links: native` repo
+is not a degraded read but a silent total failure: a native parent's body carries no task list by
+construction, so `parseFamilyLeaves` returns `[]` for every parent, every family reads
+`incomplete` (`familyGateState` never reports `due` for a family with no discoverable leaves),
+and this backstop emits nothing at all — on a repo where it is the only thing that gates a
+family whose last leaf closed outside `/claude-tweaks:wrap-up`.
+
+### Leaf enumeration
+
 For each parent, enumerate its leaves from the **parent** side — never the leaf side, which
-works under one `work-links` mode and silently returns nothing under the other (`[IL-64]`).
+works under one `work-links` mode and silently returns nothing under the other.
 Leaf **state** is read from the state map just fetched above in both branches below, never from
 a leaf's own `state` field wherever one happens to already be present in a response — GitHub's
 REST responses (the `sub_issues` endpoint included) report lowercase `open`/`closed`, while
 `familyGateState` and the state map both use the `gh issue list --json state` uppercase
 `OPEN`/`CLOSED` form; reading from one source only avoids a silent casing mismatch. A leaf
-number absent from the state map (the `--limit 500` fetch above truncated before reaching it)
-defaults to `OPEN`, the fail-safe direction — an unresolved leaf must never let a family read
-as `due` (mirrors `familyGateState`'s own "never reports `due` for a family with no discoverable
-leaves" rule).
+number absent from the state map (the fetch above truncated before reaching it — the warning
+above fires when that is possible) defaults to `OPEN`, the fail-safe direction — an unresolved
+leaf must never let a family read as `due` (mirrors `familyGateState`'s own "never reports `due`
+for a family with no discoverable leaves" rule).
 
 **`work-links: body-text`** — every parent's task list is already in hand from the first fetch
 above; no further `gh` calls:

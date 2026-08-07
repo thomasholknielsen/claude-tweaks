@@ -5,7 +5,10 @@ by `/claude-tweaks:help` (`status-scan.md` Stage 4.8), `/claude-tweaks:backlog o
 (`overview-mode.md` Step 1.5), and `/claude-tweaks:backlog refine` (`refine-mode.md` Step 3, which
 reuses the Fetch section for its advisory Trust column). Subagents cannot read this file —
 `/help`'s dispatcher inlines this file's Fetch and Render sections into Stage 4.8's agent prompt,
-the same pattern already used for `_shared/github-pr-scan.md`.
+the same pattern already used for `_shared/github-pr-scan.md`. The Fetch section goes in
+**whole**, its `backlog-fetch-limit` and `work-links` resolution sub-sections included: the
+family-parent fetch has two mutually exclusive branches, and an agent that cannot resolve
+`work-links` cannot choose between them.
 
 **Read-only, and read-only for a reason.** This procedure reports what evidence exists and
 nothing else — it never grants a label, changes a label, merges anything, or recommends an
@@ -21,9 +24,12 @@ GitHub Issue labels this table reads directly; there is no local-record equivale
 
 ## Fetch
 
-One `gh issue list --state all` call supplies everything `trustRows` needs — closed records form
-the cells, and open records are still scanned for follow-up `Origin:` references naming a closed
-record's number.
+`trustRows` reads one record set — closed records form the cells, and open records are still
+scanned for follow-up `Origin:` references naming a closed record's number — and one derived
+input, the set of record numbers that are decomposed leaves. The record set is a single
+`gh issue list --state all` call; the leaf set costs a second one (plus, under
+`work-links: native`, one `sub_issues` call per parent). Both are fetched below before anything
+is rendered.
 
 Before running anything below, read `backlog-fetch-limit` from the project's
 `.claude-tweaks/policy.yml` (per `_shared/work-record.md`'s Config keys table, the same value
@@ -42,18 +48,39 @@ graded verdict, and counting the leaf too would let `total >= MIN_SAMPLES` be sa
 nobody judged (`trust.js`'s `hasParent !== true` filter). Resolving which closed records are leaves
 reuses the same parent-side enumeration `_shared/github-pr-scan.md`'s `acceptance-gap` scope
 already documents in full — never the leaf side, which works under one `work-links` mode and
-silently returns nothing under the other (`[IL-64]`) — and fetches parents `--state all` for the
+silently returns nothing under the other — and fetches parents `--state all` for the
 same reason that scope does: an approved family's parent is closed, so an open-only fetch would
 miss exactly the parents this filter needs to see.
 
-Unlike `acceptance-gap` (whose record set is bounded to closed records from the last 30 days, so
-its own hardcoded `--limit 200` is in practice never truncated), this table grades the **entire**
-historical closed-record set with no recency bound at all. A fixed `--limit 200` here would let
+This table grades the **entire** historical closed-record set with no recency bound at all — and
+so does the `--state all` family-parent fetch that feeds it. A fixed `--limit 200` here would let
 `gh issue list`'s newest-first ordering silently drop the **oldest** `family:parent` issues first —
 and older families are exactly the ones most likely to already sit inside a `total >= 8` cell, so
 truncation would reopen the exact defect this filter exists to close, with no warning. The
 family-parent fetches below therefore use the same `{resolved-limit}` and the same
 truncation-warning discipline as the main record fetch further down, not a separate hardcoded cap.
+(`acceptance-gap`'s own *closed-record* fetch keeps a hardcoded `--limit 200` because its record
+set is bounded to the last 30 days; that reasoning covers only that one call, not its
+`--state all` family-parent fetch, which is bounded the same way this one is.)
+
+### `work-links` resolution
+
+**Read `work-links` before choosing between the two branches below** — they are mutually
+exclusive, and nothing in the fetched data reveals which one applies. It lives in the project's
+`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table; a missing key means
+`body-text`, the documented default), so read it directly rather than assuming the first-listed
+branch:
+
+```bash
+grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+```
+
+An empty result means `body-text`. Taking the `body-text` branch on a `work-links: native` repo
+is not a degraded read but a silent total failure: a native parent's body carries no task list by
+construction, so `parseFamilyLeaves` returns `[]` for every parent,
+`/tmp/trust-table-family-leaves.json` is empty, and every decomposed leaf re-enters `cell.total`
+as ungraded evidence — reinstating exactly the manufactured-`clean` path this filter exists to
+close, in the one direction this table must never fail in.
 
 **`work-links: body-text`** — one fetch supplies every parent's task list:
 
