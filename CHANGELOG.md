@@ -39,6 +39,37 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.57.1 — auto-merged records get their acceptance label instead of closing silently
+
+Both auto-merge short-circuits bypass `/claude-tweaks:wrap-up` Step 10, which is where
+acceptance labeling lives — so a record that auto-merged closed with no `demo:pending`
+and no Verification Brief. `_shared/work-record.md` says the opposite: an `auto:merge`'d
+record still gets the label on its now-closed issue, to enable retrospective sign-off.
+Nothing enforced it, and `#141` is the case that made it visible.
+
+- `wrap-up/review-console.md`'s single-record fast-lane short-circuit and
+  `dispatch/settle-and-merge.md`'s group Auto-merge gate now each run
+  `verification-brief.md`'s procedure and apply `demo:pending` **before** merging. The
+  merge carries the closing keyword, so after it lands the record is closed and the
+  branch has moved on — order is the fix, not an implementation detail. On the group
+  path it is one brief and one label per record: the merge decision is group-wide, but
+  acceptance is per-record and members differ in testability.
+- `--dry-run` covers the new writes. That branch's skip list named only `git merge` and
+  `git push`, which would have let a live label write and brief comment escape preview
+  mode — the same shape as the defect being fixed, in mirror image.
+
+The defect survived because it sat between three separately-true completeness claims:
+the console's "nothing this console would have shown is discarded" (about console
+content), dispatch's "nothing wrap-up found is dropped" (about findings), and the
+console's rule covering "every cleanup action that would otherwise run in Step 10"
+(about cleanup items). Acceptance labeling is an action, not console content, not a
+finding, and not a cleanup item — so every claim stayed true while the category none of
+them covered was dropped on every auto-merge. Both claims now state what they do not
+cover, so the next thing added to Step 10 has to be checked rather than assumed.
+
+Found by measuring Phase 4's premises before planning it: 129 closed records across 10
+provenance classes, zero acceptance verdicts, 0% coverage in every cell.
+
 ## v6.57.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
 
 Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that
