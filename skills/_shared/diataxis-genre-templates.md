@@ -4,6 +4,21 @@ Canonical skeletons for the six doc genres `/claude-tweaks:docs-health` recogniz
 
 This is the single source of truth for the ADR and Journey templates — `_shared/decision-records.md` and `journeys/journey-template.md` each keep their own non-template content (the ADR gate and location convention; the journey key-principles and file-location convention) and point here for the literal skeleton, rather than duplicating it.
 
+## Genre declarations
+
+What each genre claims about placement and naming, and whether a doc-creating path runs `_shared/prior-art-detection.md` before writing one. "Owns filename" means the plugin prescribes a filename grammar, not merely content.
+
+| Genre | Owns filename | Detection | Aliases to glob | Project-skill keywords |
+|---|---|---|---|---|
+| Tutorial | no | Phase 2 | — | — |
+| How-To | no | Phase 2 | — | — |
+| Reference | no | Phase 2 | — | — |
+| Explanation | no | Phase 2 | — | — |
+| Journey | `docs/journeys/{journey-name}.md` | Phase 2 | `docs/journeys/` | — |
+| ADR | `docs/decisions/NNNN-{kebab-slug}.md` | **active** | `docs/decisions/`, `docs/adr/`, `docs/rfcs/` | `adr`, `architecture decision`, `decision record` |
+
+A row marked `Phase 2` declares intent only — **no consumer reads it yet**, and nothing should behave as though one does. Wiring a row means adding its consumer and its `doc-convention.{genre}` key in the same change.
+
 ## Tutorial
 
 Learning-oriented — a concrete guided exercise, start to finish. No unexplained jumps: a reader with zero context follows every step and confirms progress at each one. No branching decision points ("if you're on Windows...") — that belongs in a How-To. Minimize explanation — link out to an Explanation doc for "why," don't inline it.

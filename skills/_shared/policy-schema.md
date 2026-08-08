@@ -71,6 +71,12 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `review-effort-floor` | `policy.yml` | `/claude-tweaks:review` | unset (no floor) | Project-level floor (`low`/`medium`/`high`/`xhigh`/`max`) that raises (never lowers) the resolved review-effort tier |
 | `review-diff-heuristic-thresholds` | `policy.yml` | `/claude-tweaks:review` | `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` | File/line thresholds for the diff-size review-effort heuristic. **Presence-only validated** — its value is a nested object, but `policy.yml` only supports flat `key: value` lines and no flat-line encoding for this shape has ever been specified; `auditPolicy()` checks the key name only, not the value |
 
+## Documentation
+
+| Key | Canonical home | Owner skill(s) | Default | Meaning |
+|---|---|---|---|---|
+| `doc-convention.adr` | `policy.yml` | `/claude-tweaks:wrap-up` Step 6.2, via `_shared/prior-art-detection.md` | unset (detect and ask on conflict) | Which convention wins when this repo's existing decision records disagree with the plugin's. `plugin` conforms forward, `project` resolves form from the corpus and any project skill. Written *by* the plugin after the user answers once at the Review Console — never a key a project fills in up front. Records **which source wins**, not a grammar, which is what keeps it flat-encodable |
+
 ## Harness-health budgets
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |

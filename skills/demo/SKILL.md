@@ -114,9 +114,10 @@ This `#N` may itself be a decomposition parent gated by the Family-Gate Procedur
 Brief covers the whole family's primary path rather than one diff, but resolves and renders
 through this same branch exactly like any other label-backed entry. Two things can have applied
 that gate: `/wrap-up`'s own eager path (closing the family's last leaf), or `/claude-tweaks:tidy`'s
-`Open family gate` action backstopping a family that missed it (`_shared/github-pr-scan.md`'s
-`family-gate` scope) — both write the identical `demo:pending` + brief, so this branch never
-needs to know or care which one ran.
+`Open family gate` action backstopping a family that missed it (surfaced by
+`_shared/github-pr-scan.md`'s `family-gate` scope under `work-backend: github-issues`, or by
+`tidy/scan-procedures.md` Step 1's Shape 7 under `local-files`) — all of them write the identical
+`demo:pending` + brief, so this branch never needs to know or care which one ran.
 
 If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
 and closed by a `Fixes #N` commit, never reaching `/wrap-up`'s Step 10), recover that **closing

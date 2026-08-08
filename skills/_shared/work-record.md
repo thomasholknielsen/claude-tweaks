@@ -105,7 +105,7 @@ hold as written whatever the ceiling says.
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`effort:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
 | **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling), `demo:pending` (group auto-merge gate, `dispatch/settle-and-merge.md` — reuses `/wrap-up`'s own `verification-brief.md` procedure, including its family-gate routing, so on a parent-linked leaf the label lands on the parent instead) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready`, `demo:approved`, `demo:changes-requested` |
-| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open family gate action, `work-backend: github-issues` only — reuses `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |
+| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open family gate action, either driver — the local twin writes the parent's `acceptance: pending` facet; both reuse `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |
 | **Executors** (`/flow`, `/build`) | nothing | nothing | `auto:*`, `ready` |
 | **`/wrap-up`** | `demo:pending` | `bot:in-progress` (claim release) | `auto:*`, `ready`, `demo:approved`, `demo:changes-requested` |
 | **`/demo`** | `demo:approved`, `demo:changes-requested` | `demo:pending` (on resolution) | `auto:*`, `ready`, `bot:*`, adding `demo:pending` itself |
@@ -157,12 +157,15 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   procedure applies one gate on the **parent**, once every leaf is closed — never on individual
   leaves, and identically on all three of those paths, since the routing lives in the procedure
   rather than in any caller.
-- `/claude-tweaks:tidy`'s `Open family gate` action is the backstop for the same write, on
-  `work-backend: github-issues` only: when a family's last leaf closes without ever reaching
-  `/claude-tweaks:wrap-up` (`auto:merge`, a hand-close, a dispatch run that ended early),
-  `/tidy`'s `family-gate` scope (`_shared/github-pr-scan.md`) finds the un-gated parent and, once
-  approved, applies `demo:pending` the same way — reusing the identical Family-Gate Procedure
-  rather than a second copy of it.
+- `/claude-tweaks:tidy`'s `Open family gate` action is the backstop for the same write, on both
+  drivers: when a family's last leaf closes without ever reaching `/claude-tweaks:wrap-up`
+  (`auto:merge`, a hand-close, a dispatch run that ended early), `/tidy` finds the un-gated
+  parent and, once approved, applies the same disposition — reusing the identical Family-Gate
+  Procedure rather than a second copy of it. Only the sweep that surfaces it differs by driver:
+  `_shared/github-pr-scan.md`'s `family-gate` scope under `github-issues`, and
+  `tidy/scan-procedures.md` Step 1's Shape 7 under `local-files` — the first queries the
+  `family:parent` label, which no local record carries, and its file is skipped entirely whenever
+  `gh` is absent, so the local sweep cannot live there.
 - `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
   record's brief per invocation (open or closed) and resolves the label to `demo:approved` or
   `demo:changes-requested` — `/claude-tweaks:help` (Stage 4.7) is the sole discovery surface for
@@ -312,7 +315,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
-| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the acceptance backstops — surfaces closed records with no disposition (`acceptance-gap`) and opens the gate on complete-but-un-gated decomposition families (`family-gate` scope + `Open family gate` action, which applies `demo:pending` to the parent and posts its Verification Brief) |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the acceptance backstops — surfaces closed records with no disposition (`acceptance-gap`) and opens the gate on complete-but-un-gated decomposition families (the `family-gate` sweep — a `github-pr-scan.md` scope under `github-issues`, a Step 1 shape under `local-files` — plus the `Open family gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief) |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 | `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |

@@ -1,9 +1,9 @@
 # Tidy — Action Execution (`work-backend: github-issues`)
 
-The actions documented here for the `github-issues` driver: three whose execution diverges by
-backend (`Delete`, `Defer`, `Absorb` — `actions-local-files.md` is their twin) plus two that
-exist only on this backend, with no `local-files` counterpart at all (`Open family gate`,
-`Sync to GitHub`). Everything else stays inline in `SKILL.md`'s Action Vocabulary table. Each
+The actions documented here for the `github-issues` driver: four whose execution diverges by
+backend (`Delete`, `Defer`, `Absorb`, `Open family gate` — `actions-local-files.md` is their
+twin) plus one that exists only on this backend, with no `local-files` counterpart at all
+(`Sync to GitHub`). Everything else stays inline in `SKILL.md`'s Action Vocabulary table. Each
 action is atomic — complete all its steps or none.
 
 ## Delete
@@ -22,10 +22,13 @@ Continuing from the shared step (1) in `SKILL.md`'s table: (2) comment naming th
 
 ## Open family gate
 
-This action exists only on this backend — `_shared/github-pr-scan.md`'s `family-gate` scope,
-which produces the `[family-gate]` findings this action resolves, only ever scans
-`work-backend: github-issues` (see that scope's own note on why local-files coverage isn't
-folded in there).
+The `[family-gate]` findings this action resolves come from `_shared/github-pr-scan.md`'s
+`family-gate` scope, which queries the `family:parent` label and therefore only ever finds
+`work-backend: github-issues` families — that file's Detection Ladder gates on `gh` reachability,
+not on the driver. The `local-files` driver has its own twin of this action
+(`actions-local-files.md`'s `## Open family gate`), fed by `scan-procedures.md` Step 1's Shape 7
+instead; both run the same Family-Gate Procedure, and the finding prefix is identical on either
+driver.
 
 Approving a `[family-gate]` finding runs `wrap-up/verification-brief.md`'s Family-Gate
 Procedure from **Enumerate the family's leaves** onward, using the **parent-side** entry shape

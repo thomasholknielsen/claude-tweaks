@@ -28,7 +28,7 @@ different reasons:
 
 | Sweep | Consumer | Why it cannot see a parent |
 |---|---|---|
-| `acceptance-queue` | `/help` Stage 4.7 | Lists records carrying `demo:pending`. Only `/wrap-up` writes that label (`skills/wrap-up/verification-brief.md:201`, the sole `--add-label demo:pending` in the repo), and parents never reach `/wrap-up` because they never get `ready`. |
+| `acceptance-queue` | `/help` Stage 4.7 | Lists records carrying `demo:pending`. Exactly one *procedure* writes that label — `skills/wrap-up/verification-brief.md` — and every caller of it arrives holding a record that entered the build pipeline (see the Measured state row below for the caller set). A parent never does: it never becomes `ready`. |
 | `acceptance-gap` | `/tidy` Step 4.8 | `needsBackstop` returns `false` unless `record.state === 'CLOSED'` (`bin/lib/issues/acceptance.js:57`). Nothing anywhere closes a parent. |
 
 So a decomposed feature can be fully built, fully closed, and never receive a single

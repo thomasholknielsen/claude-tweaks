@@ -160,8 +160,11 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Unattended tier | `off` | Conservative default; each project/run opts in explicitly |
 
 `ceremony-profile` (lever 10) has no row here — its source is always `header` (the bundle-folded
-`ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. See
-`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`.
+`ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
+what "always-present label" buys: `/claude-tweaks:specify` stamps `ceremony:*` on every record it
+shapes, so the header always carries a value and there is nothing for a default to fill in. See
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`'s "Promoting `ceremony:`
+to an explicit, always-present label".
 
 ## Approval flow
 
