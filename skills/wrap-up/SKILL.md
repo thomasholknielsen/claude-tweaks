@@ -49,9 +49,9 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 
 ### If no arguments, detect from context:
 
-1. Check whether a materialized header exists for this run (`${RUN_DIR}/work/*-spec.md`) — record mode
-2. Check recent git commits and the current branch name for record references
-3. Review conversation for references to records or features
+1. Check recent git commits and the current branch name for record references
+2. Review conversation for references to records or features
+3. Check whether a materialized header exists for this run (`${RUN_DIR}/work/*-spec.md`) — record mode
 
 | Type | Characteristics | Primary Focus |
 |------|----------------|---------------|

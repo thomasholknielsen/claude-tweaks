@@ -216,10 +216,10 @@ This spec's record is identified whenever this section runs (`SKILL.md` Step 1 �
 branch/commit reference, or, when `skills/flow/materialize.md` wrote one, a materialized header's
 `record:` field). Call that number `<n>`: the pipeline may hold `refs/claims/issue-<n>` per
 `_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
-through `/claude-tweaks:dispatch` never held a claim either, and the delete below is a safe no-op
-against a ref that never existed (step 5). Release it only after the branch outcome is known
-(item 4, Git Worktree, completes first — the execution order of the canonical list guarantees
-this):
+through `/claude-tweaks:dispatch` never held a claim either: step 3's ownership check ends the
+section harmlessly there, before the delete is attempted, logging the misleading-but-harmless
+`claim held by run undefined`. Release it only after the branch outcome is known (item 4, Git
+Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
 `_shared/github-pr-scan.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
