@@ -54,7 +54,7 @@ Every step from **Enumerate the family's leaves** onward is shared, unchanged, b
 - **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open family gate` action**, on either
   driver: `tidy/actions-github-issues.md` executing on a `[family-gate]` finding from
   `_shared/github-pr-scan.md`'s `family-gate` scope, or `tidy/actions-local-files.md` executing
-  on one from `tidy/scan-procedures.md` Step 1's Shape 7. Both arrive already holding the
+  on one from `tidy/step-1-records.md`'s Shape 7. Both arrive already holding the
   **parent** number directly (`$PARENT_NUM` — a `family:parent`-labeled issue number, or a
   `family-parent: true` record's id), read straight from their own scan. Skip **Resolve the
   parent** and **Self-inclusion rule** below entirely — there is no leaf mid-close in this entry,

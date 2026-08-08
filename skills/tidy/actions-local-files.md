@@ -23,8 +23,8 @@ Continuing from the shared step (1) in `SKILL.md`'s table: (2) update the target
 
 ## Open family gate
 
-Resolves a `[family-gate]` finding. Under this driver those come from `scan-procedures.md`
-Step 1's **Shape 7**, not from `_shared/github-pr-scan.md`'s `family-gate` scope — that scope
+Resolves a `[family-gate]` finding. Under this driver those come from Step 1's **Shape 7**
+(`step-1-records.md`), not from `_shared/github-pr-scan.md`'s `family-gate` scope — that scope
 queries the `family:parent` label and so returns nothing here, and its file is skipped outright
 whenever `gh` is absent, which is why the local sweep lives in the record scan instead. Same
 finding prefix, same action; only the scan and the store differ.
