@@ -37,3 +37,13 @@ test('a truncated finding list reports the cap rather than hiding it', () => {
   const out = renderOutstanding({ results: [{ ran: true, findings: many }], dispositions: {}, cap: 10 });
   assert.match(out, /20 more/);
 });
+
+test('a deliberate suite skip is distinguishable from a genuine failure to run', () => {
+  const skipped = renderOutstanding({ results: [{ ran: false, reason: 'skipped via --no-suite', findings: [] }], dispositions: {} });
+  assert.match(skipped, /skipped via --no-suite/);
+  assert.doesNotMatch(skipped, /could not run/);
+
+  const broken = renderOutstanding({ results: [{ ran: false, reason: 'could not run the project test command', findings: [] }], dispositions: {} });
+  assert.match(broken, /could not run/);
+  assert.doesNotMatch(broken, /skipped via --no-suite/);
+});

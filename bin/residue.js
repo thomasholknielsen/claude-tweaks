@@ -57,17 +57,23 @@ function main() {
     manifest = JSON.parse(fs.readFileSync(path.join(cwd, '.claude-plugin', 'plugin.json'), 'utf8'));
   } catch { /* absent manifest is normal outside this plugin */ }
 
-  const suiteRun = opts.noSuite
-    ? () => null
-    : () => {
-      try {
-        return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, stdio: ['ignore', 'pipe', 'ignore'] }) };
-      } catch (err) {
-        if (err && err.killed) return { code: null, stdout: '', timedOut: true };
-        if (err && typeof err.status === 'number') return { code: err.status, stdout: String(err.stdout || '') };
-        return null;
-      }
-    };
+  const suiteRun = () => {
+    try {
+      return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, stdio: ['ignore', 'pipe', 'ignore'] }) };
+    } catch (err) {
+      if (err && err.killed) return { code: null, stdout: '', timedOut: true };
+      if (err && typeof err.status === 'number') return { code: err.status, stdout: String(err.stdout || '') };
+      return null;
+    }
+  };
+
+  // A deliberate skip is still `unknown` — we do not know the suite's state —
+  // but it is NOT a failure to run, and saying so would read as an environment
+  // problem the user did not have. probeSuite's own contract has no third
+  // outcome, so the honest reason is supplied here, where the choice was made.
+  const suiteResult = opts.noSuite
+    ? { ran: false, reason: 'skipped via --no-suite', findings: [] }
+    : probeSuite({ scope, run: suiteRun });
 
   // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
   // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
@@ -80,7 +86,7 @@ function main() {
     probeBranches({ scope, integrationBranch: opts.integrationBranch, run: git }),
     probeForge({ scope, run }),
     probeClaims({ scope, run }),
-    probeSuite({ scope, run: suiteRun }),
+    suiteResult,
     probeRelease({ scope, manifest, run }),
   ];
 
