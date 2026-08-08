@@ -39,6 +39,35 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.64.3 — the renumber rule stops erasing releases that already shipped
+
+The Releasing section told you to renumber a CHANGELOG heading whenever a collision forced a new
+version, justified by "an entry naming a version that never reached `main` is an orphan." That
+justification only holds for a number that never shipped.
+
+It happened **twice in one day**, to two different sessions. `e4a79904` applied the rule literally
+to 6.62.0 — which *had* reached `main`'s tip — so moving its heading to 6.64.0 deleted the record of
+a real release, and step 3's "renumber this line too" took the `docs/shipped-versions.tsv` line with
+it. The identical thing had already happened to 6.61.2 (`a5476a4b`), renumbered to 6.64.2. Both were
+found the same way: `tests/changelog-coverage.test.js` failing on a version the git walk can still
+see with nothing to match it against. 6.62.0 was restored in 6.64.1; 6.61.2 is restored here, both
+from their original release commits rather than reconstructed.
+
+The recurrence is the argument. One session mis-applying a rule is a mistake; two independent
+sessions doing it inside 24 hours is the rule being wrong.
+
+- **Steps 2 and 3 now split on whether the old number reached `main`'s tip.** Never shipped →
+  renumber, as before. Shipped → keep the old entry and add a second one for the new number,
+  pointing at it rather than duplicating the body, since a duplicate heading is its own parse
+  failure in that same test. Step 3 carries the matching split for the tsv line, and says which
+  half of the mistake is the damaging one: that file is the authority for what shipped (`[IL-95]`),
+  so a deleted line is the real loss and the changelog gap is merely what surfaces it.
+
+No new Don't. The person who erased 6.62.0 was following the Releasing section literally, and that
+section is already in the always-loaded file — a Don't bullet would be a second copy of the same
+instruction, and an incident-log entry with no rule behind it is an orphan by this repo's own
+definition.
+
 ## v6.64.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
 
 Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
@@ -146,6 +175,16 @@ here, and the renumber note in CLAUDE.md's Releasing section for the rule this c
 outside: renumber the heading when the old number never reached `main`, and add a second entry
 when it did.
 
+
+## v6.61.2 — the wrap-up helper's fix, first shipped under this number
+
+Bookkeeping restoration, not new work — the same renumber-after-ship loss as v6.62.0 below.
+Released as 6.61.2 in `a5476a4b` and reached `main`'s tip under that number; a later collision
+renumbered the work to 6.64.2 and moved its CHANGELOG heading and `docs/shipped-versions.tsv`
+line along with it, erasing the record of a real release.
+
+See **v6.64.2** above for what the release contains; the two numbers carry the same work.
+Restored in 6.64.3, which also fixed the rule that caused both losses.
 
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 
