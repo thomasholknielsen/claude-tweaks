@@ -49,13 +49,13 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 
 ### If no arguments, detect from context:
 
-1. Check whether a materialized header exists for this run (`${RUN_DIR}/work/*-spec.md`) — record mode
-2. Check recent git commits and the current branch name for record references
-3. Review conversation for references to records or features
+1. Check recent git commits and the current branch name for record references
+2. Review conversation for references to records or features
+3. Check whether a materialized header exists for this run (`${RUN_DIR}/work/*-spec.md`) — record mode
 
 | Type | Characteristics | Primary Focus |
 |------|----------------|---------------|
-| **Record-based** | A materialized header exists for this run | Full lifecycle: record completion + plans + all assessments |
+| **Record-based** | A record is identified for this run — a `#`-prefixed argument, a git commit/branch reference, or (fallback) a materialized header | Full lifecycle: record completion + plans + all assessments |
 | **Conversation-based** | No record, just work discussed | Assessments only (skip record/plan cleanup steps) |
 
 ## Step 2: Summarize Completed Work
@@ -115,7 +115,7 @@ This step **plans** the cleanup — it does not execute. Actual deletions and ar
 
 Step 5 enumerates 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
 
-First check whether **any** of the 8 conditions holds for this run — record-based work (items 1, 5), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), a materialized header exists at `${RUN_DIR}/work/*-spec.md` (7), or a pipeline run directory exists (8):
+First check whether **any** of the 8 conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
 
 - **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into Step 9's summary and Step 10's execution.
 - **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
@@ -293,17 +293,21 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 ### Newly unblocked records (record mode only)
 
-The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
+The record this run just closed is already known — `record: {n}`, resolved by Step 1 (the `#`-prefixed argument, a branch/commit reference, or a materialized header's `record:` field when one exists). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
 
-**Gate the read.** If this run is record mode (a materialized header exists at `${RUN_DIR}/work/*-spec.md`), read `unblocked-records.md` in this skill's directory — it holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, which has no record whose closure could unblock a dependent — skip this sub-step entirely and do not read the file.
+**Gate the read.** If this run is record-based work (Step 1's determination — record identity does not require a materialized header), read `unblocked-records.md` in this skill's directory — it holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, which has no record whose closure could unblock a dependent — skip this sub-step entirely and do not read the file.
 
 ---
 
 ## Step 8.5: Nothing Left Behind (Gate)
 
+**Residue sweep first.** Run `residue-sweep.md` in this skill's directory: it writes what this
+work leaves outstanding as ledger items, so this gate has something to enforce on a standalone
+run.
+
 Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the three-phase procedure: Phase 1 fix-exhaust silently → Phase 2 present remainder for per-item user decision → Phase 3 apply).
 
-**Gate the read.** Read `ledger/resolve-gate.md` when the ledger exists **and holds at least one item** — of any status, not just `open`. If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), or exists but is empty, report "No ledger items to resolve" and skip this gate entirely without reading the file.
+**Gate the read.** Read `ledger/resolve-gate.md` when the ledger exists **and holds at least one item** — of any status, not just `open`. If, after the sweep above has run, the ledger still doesn't exist or holds zero items, report "No ledger items to resolve" and skip this gate entirely without reading the file.
 
 The same condition gates `nothing-left-behind.md` in this skill's directory — wrap-up's own wrapper around that gate: the item-existence rationale, the hard requirements (Phase 1 fix-exhaust before any user-facing output, Phase 2's mandatory per-item input, and what `auto` never silences), the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step with its `unattended-tier` branch. When the gate is closed, read neither file.
 
@@ -330,7 +334,7 @@ In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outri
 
 ## Step 9: Present Consolidated Summary
 
-Render one consolidated summary of this run — State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Evidence — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
+Render one consolidated summary of this run — Verdict, State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Outstanding, Routed, Evidence — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
 
 **Read the template.** Read `summary-template.md` in this skill's directory for the standalone multi-record batch variant, the full render template, the conversation-mode variant, the conditional batch-decision branch with its `AskUserQuestion` shape, the three per-item sections that sit beside that batch but outside it (Queue writes `Q#`, Memory updates `M#`, Upstream feedback `U#` — each approved and executed one row at a time), and both closure lines (record mode and the legacy spec-file alias). Step 9 always runs, so this read is unconditional.
 

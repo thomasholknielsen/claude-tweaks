@@ -13,6 +13,12 @@ by:code-health / by:harness-health / by:journey-health / by:docs-health /
 by:capture / by:dispatch, or "human" when absent. Omit entirely in
 conversation mode and for legacy spec-file-mode runs.}
 
+### Verdict
+
+{One line: what shipped, where it is now, and what blocks it. State the
+push status from the State block's own measurement — never assert "it
+landed" from memory.}
+
 ### State
 
 Render VERBATIM from the helper — do not compose these facts from memory:
@@ -103,15 +109,36 @@ Render cleanup rows from `cleanup-procedures.md`'s canonical list, filtered by
 Condition. Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred there are
 skipped here too.
 
-### Manual Steps Required
-| # | What | Where | Status |
-|---|------|-------|--------|
-| 1 | {description} | {source} | Filed as #{n} |
-(or omit the section entirely — nothing to do outside the codebase.)
+### Outstanding ({n})
+| # | What | Kind | Disposition |
+|---|------|------|-------------|
+| 1 | {subject — evidence} | {kind} | {Fixed — `{hash}` \| Filed as #{n} \| Accepted — {reason}} |
+(or omit the section entirely — every probe ran and found nothing.)
 
 > Complete these after merging. Each row is a real, trackable record
 > (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in
 > this transcript.
+
+Generate from: the residue sweep's ledger items (`residue-sweep.md`, run ahead
+of Step 8.5), Step 4's routed leftover sections, and any ledger item resolved
+to `Acknowledge`.
+
+No row may render without a disposition. A blank Disposition cell is the
+untracked transcript note this section exists to eliminate. A probe that could
+not run renders as `unknown` with its reason — never folded into an omitted
+section, which would read as "nothing outstanding".
+
+### Routed ({n})
+| Learning | Destination |
+|---|---|
+| {one line} | {CLAUDE.md [IL-nn] \| docs/x.md \| record #{n} \| Memory \| Upstream issue} |
+
+Generate from: every learning routed by Steps 6-7.11, named by destination.
+
+Name the destination; never restate what landed there. This is the existing
+rule under Evidence ("Do NOT restate an insight that already became a Decisions
+row") given a section of its own. A learning with no destination is visibly
+missing from this table, which is the point.
 
 ### Evidence
 
@@ -128,13 +155,15 @@ Skill updates — {N} applied, {M} staged, {K} new-skill candidates
 `## Next Actions` in SKILL.md. Do NOT render them here.)
 ```
 
-**Conversation mode.** When no materialized header exists for this run
-(`SKILL.md`'s Conversation-based row), render the SAME four-part shape with the
-record-keyed pieces dropped: the `## Wrap-Up:` heading takes the work's topic
-instead of `Record #{n} — {title}`; the `Origin:` line, the `Record` and
-`Ledger` State lines, and any `Operational` row about closing a record or
-deleting plans are all omitted. State, Actions Performed, Decisions, and
-Evidence render identically to record mode — the closure line does not.
+**Conversation mode.** When no record is identified for this run (`SKILL.md`
+Step 1's Conversation-based row — no `#`-prefixed argument, git commit/branch
+reference, or, as fallback, materialized header resolved one), render the SAME
+section shape with the record-keyed pieces dropped: the `## Wrap-Up:` heading
+takes the work's topic instead of `Record #{n} — {title}`; the `Origin:` line,
+the `Record` and `Ledger` State lines, and any `Operational` row about closing
+a record or deleting plans are all omitted. Verdict, State, Actions Performed,
+Decisions, Outstanding, Routed, and Evidence render identically to record
+mode — the closure line does not.
 
 This variant is not optional. Its absence is what caused a conversation-based
 run to compose its report from the steps it had just executed, surfacing
@@ -180,6 +209,10 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all cleanup and configuration items"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
+**Hard gate.** Check the response you are about to send: does it already contain the numbered
+cleanup+configuration table as literal rendered markdown, with a row for every item? If not, render
+it now, in this response, before the tool call.
+
 If the user chooses to override, let them pick which items to skip or change.
 
 **Queue writes, Memory updates, and Upstream feedback — per-item, not part of the batch decision above.** "Not part of the batch decision" means not folded into the cleanup+configuration Apply-all/Override choice — it does **not** disclaim the section's own gating: this block sits inside the same **Conditional batch decision** section as that batch, so it renders under the identical condition — only when Step 8.6's Review Console did not run. When the Review Console did run, it already resolved every Queue-write / Memory / Upstream row per-item at approval time (`review-console.md`'s `On approval` steps), and this whole block is skipped here — never re-presented, never re-applied. After the cleanup+configuration batch decision resolves, render whichever of the three tables below has at least one row; omit a table entirely when it has no rows, mirroring `review-console.md`'s shape:
@@ -206,7 +239,7 @@ If the user chooses to override, let them pick which items to skip or change.
 
 **Where the `Q#` rows come from.** Every file in `{run-dir}/staged/` carrying a `Title:`/`Type:`/`Labels:` header is a queue write — `ledger-record-*.md` (`ledger/resolve-gate.md` Phase 3's `Defer` / `Keep` / `Acknowledge` dispositions, including the ones `nothing-left-behind.md`'s Ops acknowledgment stages), `leftover-*.md`, and any other producer's staged proposal. Identify them by that header, not by filename, so a new producer is picked up without editing this file. This section exists for **interactive mode with a pipeline run directory** — the one case where a proposal is staged but no Review Console will ever read it. In standalone wrap-up no `staged/` directory exists and every producer already creates its record directly instead of staging (`ledger/resolve-gate.md` Phase 3's no-run-directory branch, `leftover-routing.md`'s Interactive mode), so this table has no rows and the omit-when-empty rule above drops it.
 
-Each row gets its own `AskUserQuestion` call — never batched together, and never folded into the cleanup+configuration batch choice above. Prompt per item exactly as `review-console.md`'s per-item drill does: `question` is the item's own line, `header` is `"Queue write {Q#}"`, `"Memory update {M#}"`, or `"Upstream feedback {U#}"`, and the three options are `"Apply"`, `"Skip"`, `"Edit"` — none carries `(Recommended)`.
+Each row gets its own `AskUserQuestion` call — never batched together, never folded into the cleanup+configuration batch choice above, and never treated as satisfied by a *different* table's approval (the Reflection Insights batch, the Skill Updates batch, or any other) even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list — routing an insight to Memory (D4) is one such row; the write is a separate decision this section's own `M#` prompt makes. Prompt per item exactly as `review-console.md`'s per-item drill does: `question` is the item's own line, `header` is `"Queue write {Q#}"`, `"Memory update {M#}"`, or `"Upstream feedback {U#}"`, and the three options are `"Apply"`, `"Skip"`, `"Edit"` — none carries `(Recommended)`.
 
 On Apply (or Edit, after modification), the action is performed **here** — Step 10 only verifies it landed, it never performs it (`execution-and-verification.md`). Read the item's content from its staged file when a pipeline run directory exists (`staged/ledger-record-{slug}.md` and the other `Title:`-headed files above for `Q#`; `staged/wrap-up-memory-{N}.md` / `staged/wrap-up-upstream-{N}.md` for `M#` / `U#`), or from the inline proposal held from Step 7.10/7.11 when this is standalone wrap-up (no `staged/` file — see those steps' standalone branch). Then execute exactly as `review-console.md`'s `On approval` steps 7-9 describe: for a `Q#` item, create the record via `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body back out of the staged file; for an `M#` item, write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)"; for a `U#` item, invoke `/claude-tweaks:feedback` with the already-scrubbed body. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason (or "declined, no reason given") when a pipeline run directory exists; state the decline inline in this summary otherwise.
 

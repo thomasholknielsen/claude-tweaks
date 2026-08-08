@@ -758,4 +758,43 @@ What makes this one hard to catch is that the borrowed number is plausible, adja
 
 The generalizable rule: when a lookup cannot enumerate its domain, state no total for that domain at all — report what was observed and say the rest is unreachable. And never let a neighbouring set's cardinality supply a number the measurement did not produce. `[IL-67]` covers the pagination limitation itself and its mitigation; this is the reporting failure sitting on top of it. `[IL-40]` covers a restated cardinality drifting out of date; this one was never right to begin with.
 
+## IL-111 — A mitigation created a worse instance of the hazard it was written to prevent, and its own "resolved" note stopped anyone rechecking
+
+During 6.69.0's build, a task review surfaced a `⚠️ Cannot verify from diff` item: the reviewer could not tell whether a later task would pass `probeBranches` the right `--integration-branch` value. The controller resolved it, correctly, by reading the consumer — the wiring existed. But it also noticed a real adjacent hazard: `bin/residue.js` defaults that flag to the literal `origin/main`, which is right for this repo and wrong for any adopter whose integration branch differs.
+
+The remedy it wrote into the ledger, and then into `skills/wrap-up/residue-sweep.md` in bold, was: never rely on the default — resolve the value via `skills/_shared/integration-branch.md`'s canonical ladder and pass it explicitly.
+
+That ladder yields a **bare** branch name at every one of its ranks — `main`, `dev` — because every other consumer in the repo wants one: `review-console.md` and `dispatch/settle-and-merge.md` compare it against `git branch --show-current`, `summary-template.md` feeds it to `git merge-base`. `probeBranches` was the one consumer that needed a remote-tracking ref: it derives `remotePrefix` from `integrationBranch.split('/')[0]`, so `main` becomes the prefix `main/`, which matches no remote-tracking ref that `git branch -r --merged` can return.
+
+Net effect: following the procedure's own mandated instruction made the probe return `{ran: true, findings: []}` — "ran and found nothing" — on every invocation, forever. "A merged remote branch is still alive" was the first of the five items in the report that motivated the whole feature, and the design's scorecard claimed it as one of only two fully automatic outcomes.
+
+The ledger entry recorded the hazard, the reasoning, and the remedy, and closed with "resolved by controller." Every later review read that as settled. The whole-branch review found it only because it re-derived the ladder's actual output rather than trusting the note, and confirmed it by execution: `origin/main` → 1 finding, `main` → 0, `dev` → 0. Every existing test hardcoded `origin/main`, so the suite was green throughout.
+
+Two properties make this class hard. The mitigation is *correct about the hazard* — the default really is wrong for adopters — so re-reading it finds nothing to object to. And marking it resolved converts it from an open question into background, which is precisely the state in which nobody re-derives it. A hazard noticed and half-fixed is more dangerous than one never noticed, because the note reads as a check that already happened.
+
+## IL-112 — A check reported a working fix as broken, and its red was believed because red is what a check is for
+
+Verifying `[IL-111]`'s fix, the controller drove the shipped `probeBranches` with a stub runner and got `main` → 0 findings — the same result as before the fix. It began writing that up as "the fix did not work."
+
+The stub was wrong. The fixed probe now issues **two** different git commands: `git config branch.<name>.remote` to resolve the remote, then `git branch -r --merged`. The stub returned the same branch-list string for every call, so the remote resolution consumed a multi-line branch dump as a remote name and produced a garbage prefix. Re-run with a stub that distinguished the two commands: `origin/main` → 1, `main` → 1, `dev` → 2. The fix was correct the whole time.
+
+Cost was two commands here, because the claim was checked before being reported. The near-miss was larger: the next action would have been re-dispatching a finished task, and a second wrong verification could as easily have "confirmed" the false negative.
+
+`[IL-105]` covers the mirror case — naming what red looks like before trusting green. This is the same discipline pointed the other way, and it is the harder half to remember, because a green check invites suspicion while a red one feels like the check doing its job. A failing check is equally a hypothesis: it asserts both that the code is broken *and* that the harness around it is sound. When a check fails on code you have reason to believe is correct, suspect the check first — especially when the change under test altered how many calls the code makes, or in what order.
+
+## IL-113 — A permission was read as a mechanism, and the config that grants it was shipped as the fix
+
+On 2026-08-08 a user reported that adding the claude-tweaks marketplace failed in a claude.ai/code cloud session. Two hypotheses were formed and both were wrong before any measurement: that the marketplace repository was private or malformed (it was public, its manifest valid, and a clean-config CLI `marketplace add` succeeded end to end), and that the Claude GitHub App's repository scoping blocked it (the App was already set to All repositories, and the docs state plainly that App installation "is not a session-level access control").
+
+The third answer came from the docs and looked decisive: user-scoped `enabledPlugins` in `~/.claude/settings.json` does not reach a cloud sandbox, and the documented remedy is to declare plugins in the repo's own `.claude/settings.json`, which are "Installed at session start from the marketplace you declared." That declaration was committed and pushed. The session still reported `Unknown command: /claude-tweaks:version`.
+
+Only then was the sandbox measured. Inside a live session whose clone demonstrably contained the declaration, with the environment's network access set to **Full**, and with `git clone` of the marketplace repository succeeding from inside the VM: `~/.claude/plugins/` did not exist at all — no `known_marketplaces.json`, no `marketplaces/`, no `cache/`. Every stated precondition held and the install had simply never run. The fix was a Setup script on the cloud *environment* running `claude plugin marketplace add` and `claude plugin install` explicitly. It worked on the next session, and on a second repository that received no repo change whatsoever — which is what isolated the environment, not the repository, as the operative variable.
+
+Two failures compound here. The first is reading a permission as a mechanism: `enabledPlugins` says what a sandbox *may* load, and the prose "they only see plugins declared in …" is true as a necessary condition while reading naturally as a sufficient one. Nothing in the wording is false, which is why it survived being checked against the docs twice.
+
+The second is scope. This plugin already shipped the correct mechanism — `/init` Step 14 generates `scripts/claude-cloud-setup.sh`, and `routine/guided-environment-creation.md` attaches it to an environment automatically. But that attachment only ever ran for environments it creates *for routines*. Interactive sessions use whichever environment is selected in the composer, typically a long-lived human-named one (`Default`, `General`) that no flow here had ever touched. So a project could be fully declared, fully scripted, and still get nothing — and this repository was worse off than its own consumers, having never run Step 14 on itself at all: no `scripts/`, no `## Cloud parity` section.
+
+A third, smaller lesson: the cloud session's own agent reported "the plugin is loaded via `--plugin-dir ./` … which is why the skills are available" in the same turn whose command output showed three missing directories and an `Unknown command`. Its narrative contradicted its own evidence, and the evidence was right.
+
+The generalizable rule: when config grants a capability, find the thing that *exercises* it before shipping the grant as the fix — and check that the exerciser covers every class of consumer, not just the class the feature was originally built for. `[IL-02]` covers a cross-file promise with no consumer; this is the same shape one level up, where the consumer exists but reaches only some of the cases. `[IL-100]` covers promoting an observation to a guarantee, which is what the "self-heals one session later" caveat did to users hitting this exact failure.
 

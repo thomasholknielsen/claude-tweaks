@@ -335,6 +335,66 @@ test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in
   assert.match(result.stdout, /"permissionDecision":"deny"/);
 });
 
+function policyRepoWithRun() {
+  const project = gitRepo();
+  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  return { project, run };
+}
+
+test('a resolved deny appends a gate-denial event', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'a.txt');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'expected exactly one event appended');
+  assert.strictEqual(events[0].type, 'gate-denial');
+  assert.strictEqual(events[0].tool, 'Write');
+  assert.strictEqual(events[0].path, target);
+});
+
+test('a deny with no resolved run dir writes nothing and still denies', () => {
+  const project = gitRepo();
+  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  // Deliberately no .claude-tweaks/pipelines/ run dir at all, so
+  // ctxLib.resolveRun finds nothing and ownedRun.dir is null — the
+  // documented, accepted gap: ad-hoc work with no run dir records nothing.
+  const target = path.join(project, 'a.txt');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  assert.strictEqual(fs.existsSync(path.join(project, '.claude-tweaks', 'pipelines')), false,
+    'no run dir existed before the call, so appending a breadcrumb must not create one');
+});
+
+test('a gate denial with an unwritable run dir still denies and exits 0', () => {
+  const { project, run } = policyRepoWithRun();
+  fs.chmodSync(run, 0o500); // read+execute only — fs.appendFileSync inside it must throw
+  try {
+    const target = path.join(project, 'a.txt');
+    const result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+      cwd: project,
+    });
+    assert.strictEqual(result.code, 0);
+    assert.match(result.stdout, /"permissionDecision":"deny"/);
+    assert.strictEqual(fs.existsSync(path.join(run, 'events.jsonl')), false);
+  } finally {
+    fs.chmodSync(run, 0o700);
+  }
+});
+
 test('e2e: pre-tool-use CLI allows an Edit when worktree.always policy is not set', () => {
   const project = gitRepo();
   const result = runHook(['pre-tool-use'], {

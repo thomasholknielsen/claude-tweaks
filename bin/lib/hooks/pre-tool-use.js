@@ -197,6 +197,22 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // records. Only file-write targets are eligible; see `exemptible` above.
     if (exemptible && isPipelineBookkeeping(repoRoot, targetPath)) continue;
 
+    // Breadcrumb for the residue sweep's judgment class (#185, Task 12) —
+    // scoped to ctx.ownedRun, NEVER ctx.runDir: this gate fires before any
+    // pipeline run necessarily exists for THIS session, so there is no
+    // "run being enforced" the way E1's wd-deny below has. The only run this
+    // may write to is the one the calling session itself owns (ctxLib.
+    // resolveRun's session/env attribution) — writing to the unfiltered
+    // newest-non-terminal ctx.runDir would risk stamping another session's
+    // audit trail with this session's own denied write ([IL-96]). Ad-hoc work
+    // with no owned run dir records nothing here — appendEvent's own
+    // try/catch turns a null runDir (path.join throws) into a silent no-op,
+    // which is exactly the documented, accepted gap: a failed breadcrumb is
+    // strictly less bad than a failed tool call, and this hook must never
+    // throw on a deny.
+    const ownedRun = ctx.ownedRun || {};
+    ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath }, ownedRun.attribution);
+
     return {
       exit: 0,
       json: {

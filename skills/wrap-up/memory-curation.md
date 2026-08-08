@@ -24,12 +24,23 @@ them among what `auto` does not silence — a memory file is cross-project and a
 wrong one silently degrades every future session in every project the user works in, the largest
 blast radius of any routing destination. It is **not** exempt under `unattended-tier`.
 
+**This is a per-item gate, not folded into any other approval.** Reflect's insights batch table
+(`reflect/full-mode.md`) resolving an insight to D4 — even under "Apply all" — approves *routing*
+it here, not writing it. The Skill Updates batch, the cleanup+configuration batch, and any other
+`AskUserQuestion` in this run are likewise not this gate. The memory file is written only after its
+own dedicated `M#` `AskUserQuestion` (Step 2 below, or the Review Console) resolves to Apply or
+Edit. Writing a memory file in the same turn as a different table's approval, with no intervening
+`M#` prompt naming that specific file, is the exact contract violation this section exists to
+prevent.
+
 ## Step 2: Standalone wrap-up has no console to stage for
 
 When no run directory resolves, no Review Console will ever read a staged file here — the same
 reasoning `ledger/resolve-gate.md` applies to a standalone ledger item. Skip the `STAGED` line and
 the `staged/` file entirely; present the proposal directly in `summary-template.md`'s Memory
-updates section and write the memory file on approval there instead.
+updates section and write the memory file on approval there instead — "there" means that section's
+own per-item `M#` `AskUserQuestion` call, a separate approval from whatever batch table routed the
+insight to D4 in the first place.
 
 ## Step 3: No memory directory available
 
