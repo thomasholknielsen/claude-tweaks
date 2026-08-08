@@ -32,7 +32,7 @@ When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, 
 
 **A file allowlist inherits the staleness of whatever it was derived from.** When the scope comes from an issue body, a design doc, or any other snapshot, the real work site may sit outside it — the four health-sweep skills file issues whose file lists are routinely wrong in both directions (a named file that isn't really affected, and an unnamed one that is). Say so in the dispatch: the agent must locate constructs by content rather than by the source's line numbers, and report an out-of-allowlist site under `DONE_WITH_CONCERNS` instead of silently scoping around it or editing outside its list. That report is cheap; a fix applied to the wrong file because the right one wasn't listed is not.
 
-**Inherited project context is the dominant per-agent cost.** Every dispatched agent also inherits the project's `CLAUDE.md` in its system prompt — you do not pass it, and you cannot opt out of it. That inherited payload is typically an order of magnitude larger than a well-disciplined prompt, and it multiplies by N across a fan-out, so a wide dispatch of cheap, mechanical agents costs far more than its prompts suggest. Size a fan-out against the inherited total, not the prompt you wrote — and measure the current file rather than trusting a remembered figure, since it changes. Note the division of labour: input discipline governs only your share of the cost; the lever for the inherited term is keeping `CLAUDE.md` itself lean.
+**Inherited project context is the dominant per-agent cost.** Every dispatched agent also inherits the project's `CLAUDE.md` in its system prompt — you do not pass it, and you cannot opt out of it. That inherited payload is typically an order of magnitude larger than a well-disciplined prompt, and it multiplies by N across a fan-out, so a wide dispatch of cheap, mechanical agents costs far more than its prompts suggest. Size a fan-out against the inherited total, not the prompt you wrote — and measure the current file rather than trusting a remembered figure, since it changes. Note the division of labour: input discipline governs only your share of the cost; the lever for the inherited term is keeping `CLAUDE.md` itself lean. Sonnet 5's tokenizer emits roughly 30% more tokens for the same text than its predecessor, so the inherited payload's cost rose with it — the lever is unchanged: keep CLAUDE.md lean.
 
 ## Working Directory Discipline
 
@@ -84,17 +84,26 @@ SubagentStop hook (E3) logs replies missing the status line to the run dir's `ev
 
 ## Model Selection
 
-Match the model to the work. Specify the tier in the `Task()` dispatch.
+Match the profile to the work. A **work profile** names the kind of work; this table — the single canonical resolution — says what runs it:
 
-| Tier | When to use | Examples |
-|---|---|---|
-| **Fast** (Haiku) | Mechanical: file location, pattern grep, structured extraction, single-file checks | `/journeys` per-journey extraction, `/stories` per-flow probe, `/test` parallel scouts, `/review` lens 3a (convention check), lens 3f (test quality on isolated files) |
-| **Standard** (Sonnet) | Integration: multi-file analysis, cross-cutting findings, format-sensitive transforms | `/review` lenses 3b-3e (security, errors, perf, architecture), `/browse` agents, `/tidy` reviewers |
-| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/specify` red-team synthesis |
+| Profile | Model | Effort | Constraints |
+|---|---|---|---|
+| Fast | haiku | — | No effort dial (Haiku ignores effort) |
+| Standard | sonnet | high | — |
+| Capable | opus | high | — |
+| Frontier | fable | high | Singleton-only; degrades to Capable |
 
-Default to the cheapest model that can do the job. Upgrade explicitly when the agent comes back `BLOCKED` for reasoning reasons (not for context reasons).
+This table is pinned to `bin/lib/model-profiles/profiles.js` by test — change them together. Models are family aliases, never versioned IDs. The effort scale is ordered `low < medium < high < xhigh < max`.
 
-When dispatching, name the tier in the prompt: `[Use: Fast model — this is a mechanical extraction task]`. The dispatcher (you) selects the actual model.
+**Dispatching.** Name the profile in the prompt as `[Use: {Profile}]`, and resolve it mechanically: run `node bin/resolve-profile.js {profile}` from the checkout root (add `--run-dir "$PIPELINE_RUN_DIR"` inside a pipeline, `--unattended` in any headless context) and copy the returned `model` into the Agent tool's `model` parameter. Append the returned `effortLine` to the dispatch prompt. (`${CLAUDE_PLUGIN_ROOT}` is not reliably set in Bash tool calls — #170 tracks it; the repo-local invocation above is the documented form.) Effort binds mechanically only where an agent definition carries `effort:` frontmatter — the Agent tool has no per-dispatch effort parameter, so `effortLine` is a best-effort prompt instruction. Upstream watch item: adopt a per-dispatch effort parameter the release it exists.
+
+**Overrides.** The resolver merges, in precedence order: CLI/per-invocation override > run stance > project policy (`model-profiles`, `model-stance`, `model-ceiling`, `frontier-run-cap` in `.claude-tweaks/policy.yml`) > the table. Stances shift effort, never the model upward: `economy` drops one notch and resolves Frontier as Capable; `max-rigor` raises one notch capped at `max`. `CLAUDE_CODE_SUBAGENT_MODEL` and the session's `/model`/`/effort` are harness-level and always win — the plugin defers to them.
+
+**Selection and upgrade.** Default to the cheapest profile that can do the job. Upgrade one profile when the agent comes back `BLOCKED` for reasoning reasons (not for context reasons). Capable→Frontier upgrades are valid only at the singleton slots enumerated in this section.
+
+**Frontier is singleton-only.** Profiles govern *dispatches*; inline steps ride the session model by design. Frontier is never valid in a parallel fan-out — one agent whose judgment is the bottleneck, at an enumerated slot only. Preconditions (all enforced by the resolver): interactive context, stance at `default` or above, and the per-run cap (`frontier-run-cap`, default 3, tallied in the run dir's `frontier-tally.log`; standalone skill invocations get 1 per invocation, enforced by the calling skill). Any miss degrades to Capable with the reason in the resolution's `source`. Best-effort rule: a harness usage-limit warning observed in-session degrades Frontier to Capable for the remainder of the run — best-effort, no mechanism claimed.
+
+**Session-inherit protection.** No fresh-agent dispatch omits `model` — inheriting the session model is only ever an explicit, stated choice (`[Use: inherit — {reason}]`), never a silent default; this is what makes running a session on Fable or Opus safe. Fork dispatches are exempt (the Agent tool ignores a fork's `model` override structurally; fork usage is already restricted — see the incident-log rule on forks). Every agent definition under `agents/` must declare `model:` in its frontmatter.
 
 ## Template A — Review-style (returns findings)
 
