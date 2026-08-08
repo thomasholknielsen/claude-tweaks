@@ -602,9 +602,15 @@ test('unparseable gh output does not run, rather than throwing', () => {
   assert.match(r.reason, /could not parse/);
 });
 
+// Claims are enumerated from the REMOTE — they are created via `gh api
+// .../git/refs` and never exist as local refs. A fixture keyed on
+// `git for-each-ref refs/claims` would pass while the real probe saw
+// nothing forever.
+const CLAIM_LIST = 'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref';
+
 test('a claim ref for a closed record is reported as auto-releasable', () => {
   const run = stubRunner({
-    'git for-each-ref --format=%(refname) refs/claims': 'refs/claims/issue-185',
+    [CLAIM_LIST]: 'refs/claims/issue-185',
     'gh issue view 185 --json state': JSON.stringify({ state: 'CLOSED' }),
   });
   const { findings } = probeClaims({ scope: SCOPE, run });
@@ -614,14 +620,14 @@ test('a claim ref for a closed record is reported as auto-releasable', () => {
 
 test('a claim ref for an open record is not residue', () => {
   const run = stubRunner({
-    'git for-each-ref --format=%(refname) refs/claims': 'refs/claims/issue-185',
+    [CLAIM_LIST]: 'refs/claims/issue-185',
     'gh issue view 185 --json state': JSON.stringify({ state: 'OPEN' }),
   });
   assert.deepStrictEqual(probeClaims({ scope: SCOPE, run }).findings, []);
 });
 
 test('an unreadable record state leaves the claim alone', () => {
-  const run = stubRunner({ 'git for-each-ref --format=%(refname) refs/claims': 'refs/claims/issue-185' });
+  const run = stubRunner({ [CLAIM_LIST]: 'refs/claims/issue-185' });
   const r = probeClaims({ scope: SCOPE, run });
   assert.deepStrictEqual(r.findings, [], 'releasing a claim whose state is unknown could unclaim live work');
   assert.strictEqual(r.ran, true, 'the scan itself ran; it simply had nothing provable');
@@ -687,6 +693,13 @@ module.exports = { probeForge };
 // record state yields no finding: releasing a claim whose state is unknown
 // could unclaim live work another session is holding. That is a ran-but-empty
 // result, not a failed scan.
+//
+// Claims live on the REMOTE. They are created via `gh api .../git/refs`
+// (`_shared/issue-claims.md`) and never pushed from a local ref, and the
+// default fetch refspec is `+refs/heads/*` only — so `git for-each-ref
+// refs/claims` is empty on every machine, always. Enumerate the same way
+// `_shared/issue-claims.md` and `/tidy` Step 4.7 do, or this probe reports
+// a clean sweep forever while seeing nothing.
 'use strict';
 
 const { makeFinding } = require('../finding');
@@ -695,8 +708,11 @@ function probeClaims({ scope, run } = {}) {
   if (!scope || !scope.ran) {
     return { ran: false, reason: (scope && scope.reason) || 'scope unresolved', findings: [] };
   }
-  const refs = run(['git', 'for-each-ref', '--format=%(refname)', 'refs/claims']);
-  if (refs === null) return { ran: false, reason: 'could not read refs/claims', findings: [] };
+  // `{owner}`/`{repo}` are LITERAL — gh substitutes them from repo context.
+  const refs = run(['gh', 'api', 'repos/{owner}/{repo}/git/matching-refs/claims/', '-q', '.[].ref']);
+  if (refs === null) {
+    return { ran: false, reason: 'could not list claim refs (gh unavailable or not authenticated)', findings: [] };
+  }
 
   const findings = [];
   for (const ref of refs.split('\n').filter(Boolean)) {
@@ -938,7 +954,7 @@ git commit -m "Add the suite and release residue probes — refs #185"
 
 **Interfaces:**
 - Consumes: every probe's `{ ran, reason, findings }`; Task 1's `validateFinding`.
-- Produces: `renderOutstanding({ results, dispositions })` returning the markdown table as a string. `dispositions` is a map of `finding.id -> string`; a finding with no disposition renders `NEEDS DISPOSITION` and `renderOutstanding` throws only on a malformed finding, never on a missing disposition.
+- Produces: `renderOutstanding({ results, dispositions })` returning the markdown table as a string. `dispositions` is a map of `finding.id -> string`; a finding with no disposition renders `NEEDS DISPOSITION`. **The renderer never throws and never validates** — it is the last step before the report reaches a human, and throwing there would cost the whole report to save one malformed row, which contradicts this plan's own "a degraded read must never cost the caller the whole report" rule. Validation belongs at construction (`makeFinding`), not at render.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1113,7 +1129,13 @@ function main() {
     probeForge({ scope, run }),
     probeClaims({ scope, run }),
     probeSuite({ scope, run: suiteRun }),
-    probeRelease({ scope, manifest, run: git }),
+    // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
+    // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
+    // probeRelease calls run(['git', 'show', ...]) — full argv including the
+    // executable — so it gets the raw `run`, like probeForge/probeClaims.
+    // Passing `git` here yields `git git show …`, and the probe then reports
+    // ran:false on every invocation of a perfectly healthy repo.
+    probeRelease({ scope, manifest, run }),
   ];
 
   if (opts.json) {
