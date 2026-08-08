@@ -10,14 +10,33 @@ const fs = require('fs');
 const path = require('path');
 const { gitRepo, linkedWorktreeOf, harnessWorktreeOf } = require('./helpers/git-fixtures');
 
-// Backdate everything newestMtimeMs() looks at (the worktree root plus its
-// immediate entries), so a fixture created seconds ago reads as untouched for
-// longer than the orphan grace period.
+// Backdate everything newestMtimeMs() looks at, so a fixture created seconds
+// ago reads as untouched for longer than the orphan grace period. Recursive,
+// and skipping exactly what the scan skips: if this helper walked less deeply
+// than the code under test, a nested fixture file would stay fresh and every
+// staleness test would silently stop testing staleness.
 function backdate(wtPath, ms) {
   const when = new Date(Date.now() - ms);
-  for (const p of [wtPath, ...fs.readdirSync(wtPath).map((e) => path.join(wtPath, e))]) {
-    try { fs.lutimesSync(p, when, when); } catch { fs.utimesSync(p, when, when); }
-  }
+  const touch = (p) => {
+    try { fs.lutimesSync(p, when, when); } catch { try { fs.utimesSync(p, when, when); } catch { /* gone */ } }
+  };
+  const walk = (dir) => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      // Recurse into everything except `.git`, but still backdate the `.git`
+      // entry itself. The scan under test skips `.git`, so its age is
+      // irrelevant to the real path — but leaving it FRESH would mask a
+      // depth-limited scan behind a depth-1 entry that is always current,
+      // which is exactly how a sabotage check comes back green and proves
+      // nothing.
+      if (e.isDirectory() && e.name !== '.git' && e.name !== 'node_modules') walk(p);
+      touch(p);
+    }
+  };
+  walk(wtPath);
+  touch(wtPath);
 }
 
 // gitRepo() runs a bare `git init`, so the initial branch is whatever the
@@ -315,6 +334,27 @@ test('isStale: a directory untouched for longer than the grace period is stale',
   const main = gitRepo();
   backdate(main, ORPHAN_GRACE_MS + 60_000);
   assert.strictEqual(isStale(main), true);
+});
+
+test('isStale: recent activity below depth 2 keeps a worktree off the stale list', () => {
+  // The defect this replaces (#199), reproduced as a fixture: everything
+  // shallow is old, and the only fresh write is four levels down. A depth-1
+  // scan reports 25h idle; the real newest write is seconds ago. Measured on a
+  // live worktree in this repo before the fix — .claude-tweaks/pipelines/{run}/
+  // events.jsonl, which the hooks touch on every tool call, sits at exactly
+  // this depth. Directory mtimes do not propagate upward, so nothing above it
+  // moved.
+  const main = gitRepo();
+  const deep = path.join(main, '.claude-tweaks', 'pipelines', '2026-08-06T174516-record-138');
+  fs.mkdirSync(deep, { recursive: true });
+  fs.writeFileSync(path.join(deep, 'events.jsonl'), '{}\n');
+  backdate(main, 25 * 60 * 60 * 1000);
+
+  // Now make only the depth-4 file current again.
+  const now = new Date();
+  fs.utimesSync(path.join(deep, 'events.jsonl'), now, now);
+
+  assert.strictEqual(isStale(main), false);
 });
 
 test('isStale: an unreadable path cannot prove staleness, so it is not stale', () => {
