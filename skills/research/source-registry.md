@@ -45,7 +45,7 @@ when its tail contradicts the claim and the detail is needed to describe the con
 
 `node_modules` reads are **structurally denied in this project**, even after a grant attempt — this
 is a standing environment fact, not a transient permission prompt to retry. When a `deps` question
-needs the installed source, fall back to context7 or the dependency's public documentation and
+needs the installed source, fall back to the dependency's public documentation (via WebFetch) and
 record the verdict at **medium** confidence, noting the fallback in its provenance. Do not report a
 `deps` verdict at high confidence on the strength of documentation alone: docs describe intent,
 installed source describes behavior.

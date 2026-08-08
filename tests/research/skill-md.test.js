@@ -278,7 +278,7 @@ test('source-registry.md deps entry records the node_modules denial and its fall
   );
   assert.match(
     body,
-    /node_modules[\s\S]{0,400}(?:context7|public\s+documentation)/i,
+    /node_modules[\s\S]{0,400}public\s+documentation/i,
     'the reduced-confidence fallback must sit with the deps denial, not merely appear somewhere',
   );
 });
