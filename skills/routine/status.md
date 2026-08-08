@@ -12,15 +12,24 @@ Steps 1-2 mirror CREATE Steps 1-2 for the per-skill path; that procedure lives i
 
 ---
 
-**Step 1.** When `--all` was passed (no `<skill>` argument), skip straight to the `--all` branch below. Otherwise, load the template and resolve `PREFIXED_NAME` exactly as CREATE Steps 1-2 do (`create-and-update.md` in this skill's directory), then check whether `.claude-tweaks/routines/{PREFIXED_NAME}.yml` exists. If it doesn't, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop. If it does, proceed with that instance for the rest of this workflow.
+**Step 1.** Run `record-freshness.md` in this skill's directory (Steps F1-F2) first, on every path through this step — its Step F3 STATUS disposition governs everything below. STATUS never stops on a stale checkout: it is read-only, and `status --all` is what `/claude-tweaks:init`'s Update Mode fires in bulk, so a stop here would block a read path. What changes instead is *which copy of each record gets read* — always the one named by that record's `authority`, which on a behind checkout is the integration branch's rather than this checkout's (#190).
 
-**Step 1, `--all` branch.** Enumerate every instantiated record directly, regardless of which skill each names:
+When `--all` was passed (no `<skill>` argument), skip straight to the `--all` branch below. Otherwise, load the template and resolve `PREFIXED_NAME` exactly as CREATE Steps 1-2 do (`create-and-update.md` in this skill's directory), then look up the entry for `{PREFIXED_NAME}.yml` in the comparison's `records[]`. If there is no entry on either side, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop. If there is, proceed with that instance — read from its `authority` copy — for the rest of this workflow. An `upstream-only` entry is a real, live routine that this checkout simply lacks: it carries a `routine_id`, so Steps 2-3.5 all run against it normally rather than being reported as "not created."
+
+**Step 1, `--all` branch.** Enumerate every record across the union of the working checkout and the integration branch, regardless of which skill each names — `records[]` from Step F2's comparison, not a bare directory listing. Reading the directory alone is what made a record renamed upstream report under its old filename while its new one stayed invisible:
 
 ```bash
-node -e "const {listRoutineRecords}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/routine-template-parser.js'); console.log(JSON.stringify(listRoutineRecords('.claude-tweaks/routines')))"
+export INTEGRATION_BRANCH="<Step F1's resolved branch, or empty if nothing resolved>"
+node -e "
+  const { compareRoutineRecords, freshnessNote } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/routine-template-parser.js');
+  const r = compareRoutineRecords({ branch: process.env.INTEGRATION_BRANCH || undefined });
+  console.log(JSON.stringify({ ...r, note: freshnessNote(r) }, null, 2));
+"
 ```
 
-If it returns `[]`, report "no routines instantiated in this project yet" and stop. This branch never derives `REPO_SLUG` or calls `git remote get-url origin` for the purpose of resolving which template matches each record — every other STATUS path starts from a skill name and works forward to a record; this one starts from the records that already exist. (Step 3.5's existing field-level drift check may still call `git remote get-url origin` separately, to compare a record's live repo-url field against the project's current origin — an unrelated, pre-existing check this branch doesn't change.)
+Use each entry's `authority` copy (`upstream` when set, else `local`) wherever the steps below say "the record". When the comparison is unverified, `records[]` degrades to exactly the working checkout's own listing, so this branch behaves as it did before — print `note` verbatim and carry on.
+
+If `records[]` is empty, report "no routines instantiated in this project yet" and stop. This branch never derives `REPO_SLUG` or calls `git remote get-url origin` for the purpose of resolving which template matches each record — every other STATUS path starts from a skill name and works forward to a record; this one starts from the records that already exist. (Step 3.5's existing field-level drift check may still call `git remote get-url origin` separately, to compare a record's live repo-url field against the project's current origin — an unrelated, pre-existing check this branch doesn't change.)
 
 For each returned record, resolve its matching template:
 
@@ -35,19 +44,26 @@ For every record that resolved a template (i.e. not Orphaned or Malformed), cont
 
 > **Parallel execution:** Use parallel tool calls aggressively — each non-Orphaned, non-Malformed record's Step 2 `RemoteTrigger get` call targets a different `trigger_id` and is independent of every other record's call, so issue them concurrently. Orphaned and Malformed records need no `RemoteTrigger` call at all and are already fully resolved after step 1 above.
 
-Present one combined table across every record, regardless of skill (this is the one STATUS mode with no per-skill grouping, since `--all` never had a skill name to group by):
+Present one combined table across every record, regardless of skill (this is the one STATUS mode with no per-skill grouping, since `--all` never had a skill name to group by), preceded by one always-present banner line naming what the records were compared against:
 
 ```
+Compared against origin/dev — this checkout is 119 commit(s) behind.
+
 | Routine | Verdict | Detail |
 |---|---|---|
-| code-health | In sync | template v2, no field drift |
-| tidy | Drifted | template v1 → v2; schedule unchanged |
+| code-health | In sync | template v4, no field drift — read from origin/dev; this checkout's copy is stale |
+| tidy | In sync | template v2, no field drift — read from origin/dev; not present in this checkout |
+| docs-health | Drifted | template v1 → v2; schedule unchanged |
 | skill-health | Orphaned | no skills/skill-health/routine-template.yml found — was this skill renamed? |
 | journey-health | Stale | routine_id no longer resolves via RemoteTrigger get |
 | claude-tweaks-broken (unresolved) | Malformed | claude-tweaks-broken.yml is missing required field `template` |
 ```
 
-"Verdict" is one of: **In sync** (template_version matches, no field drift — Steps 3/3.5's existing checks), **Drifted** (version mismatch and/or schedule/model/tools/repo-url diff), **Orphaned** (per step 1 above — no live template resolved), **Stale** (Step 2's `RemoteTrigger get` call fails because the routine no longer exists — same condition Step 2 already documents for the per-skill path), **Malformed** (the record is missing a required field — see above). "Detail" carries whichever of Step 3/3.5's messages applies, or the Orphaned/Stale/Malformed explanation.
+The banner reads `Compared against {ref} — this checkout is {behind} commit(s) behind` (or `— up to date`) when the comparison is verified, and `freshnessNote`'s line verbatim when it is not. Never omit it: a report that does not say which tree it describes is exactly what made the original phantom-drift run read as authoritative.
+
+"Verdict" is one of: **In sync** (template_version matches, no field drift — Steps 3/3.5's existing checks), **Drifted** (version mismatch and/or schedule/model/tools/repo-url diff), **Orphaned** (per step 1 above — no live template resolved), **Stale** (Step 2's `RemoteTrigger get` call fails because the routine no longer exists — same condition Step 2 already documents for the per-skill path), **Malformed** (the record is missing a required field — see above). Freshness adds no sixth value — it changes which copy the verdict is computed from, and a record already current on the integration branch now reports **In sync** where a working-tree read reported Drifted. Keeping the set at five is deliberate: `skills/init/update-mode.md` enumerates these five by name, and a sixth would silently fall outside its routing.
+
+"Detail" carries whichever of Step 3/3.5's messages applies, or the Orphaned/Stale/Malformed explanation. Where a record's `authority` is `upstream`, suffix it with `— read from {ref}; this checkout's copy is stale` (presence `both`) or `— read from {ref}; not present in this checkout` (presence `upstream-only`), so a row's provenance is visible without cross-referencing the banner.
 
 > **Parallel execution:** Use parallel tool calls aggressively — when more than one instantiated record exists, each instance's Step 2 `RemoteTrigger get` call targets a different `trigger_id` and is independent of every other instance's call, so issue them concurrently rather than iterating sequentially. Run each instance's Step 3/3.5 analysis and assemble the combined presentation after all `get` calls complete.
 

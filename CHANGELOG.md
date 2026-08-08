@@ -39,7 +39,7 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.64.1 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
+## v6.64.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
 
 Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
 
@@ -55,12 +55,44 @@ Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept d
   line still asserted "its plans and ledger have been deleted" unconditionally, while the
   conversation-mode line beside it was already measured. Both fixed.
 - `skills/wrap-up/verification-brief.md` — the `{base}` pointer named the wrong step.
-- `[IL-104]` — **Don't treat a check's green as evidence before naming what its red would look
+- `[IL-105]` — **Don't treat a check's green as evidence before naming what its red would look
   like.** Five checks in the v6.60.0 build reported success while the thing they checked was
   false: a `grep -c` that a failing test satisfies identically, four mechanical checks green on a
   feature whose one required value was undefined, a deleted-line sweep that dropped every input
   line beginning with `-`, and a reviewer who examined a command and judged it correct without
   checking the branch it named. Four of the five were introduced while fixing one of the others.
+
+## v6.64.1 — /claude-tweaks:routine reads its records from the branch they live on
+
+`.claude-tweaks/routines/*.yml` is a committed artifact, but all three of `/claude-tweaks:routine`'s
+modes read it straight from the working checkout with no fetch. A checkout behind its integration
+branch therefore reported drift that did not exist — and then fed that stale read into real writes
+(#190). Reported from a live run where all six of a project's routines showed as needing an update
+while the integration branch already had every one of them current; the checkout was 119 commits
+behind, with nothing in `git status` indicating it.
+
+- **`skills/routine/record-freshness.md`** — one procedure, cited by all three call sites. Resolves
+  the branch of record per `_shared/integration-branch.md` (starting at rank 3: `--branch` and
+  `template.branch` name the branch a routine *audits*, which is a different question), then compares
+  the working copy against it over the **union** of both sides.
+- **`compareRoutineRecords` / `readRoutineRecordsAtRef`** (`bin/lib/routine-template-parser.js`) —
+  the comparison itself, so the fix is testable rather than prose-only. Reads records at a ref via
+  `git ls-tree`/`git show` without touching the working tree.
+- **CREATE Step 3 is the one that mattered.** A record committed upstream was invisible to a
+  working-tree read, so the idempotency check routed to CREATE and minted a *second live routine* —
+  the duplicate the skill's own Anti-Patterns table forbids, which `RemoteTrigger` has no delete
+  action to undo. Existence is now the union, and an upstream-only record hard-stops with both
+  recovery commands. UPDATE stops on the same evidence (every step past it writes). STATUS never
+  stops: it enumerates the union, computes each verdict against the authoritative copy, and names
+  which tree it read.
+- **Fail-open by construction.** No remote, no network, a fetch past its timeout, or no branch
+  resolved all degrade to the pre-#190 working-checkout read and print one line saying so. Both
+  stops are gated on a *verified* comparison, so `/claude-tweaks:routine status` still works offline
+  — a naive fetch at the top of three steps would have been a worse regression than the bug.
+
+Distinct from #11 (the cloud sandbox's checkout at firing time) and #132 (which branch a routine
+audits); this is the local skill invocation reading stale project state.
+
 
 ## v6.64.0 — the plugin's doc conventions notice when a repo already has its own
 
@@ -100,11 +132,20 @@ Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavior
   Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
   parent.
 
-## v6.62.0 — the plugin's doc conventions notice when a repo already has its own
+## v6.62.0 — prior-art detection, first shipped under this number
 
-- **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
+Bookkeeping restoration, not new work. The prior-art-detection feature was released as 6.62.0 in
+`8275bfa5` and reached `main`'s tip under that number. A later collision renumbered it to 6.64.0
+and moved the CHANGELOG heading with it — correct for a version that never shipped, but 6.62.0
+*had* shipped, so the move erased the record of a real release rather than an orphan. The git walk
+in `tests/changelog-coverage.test.js` still sees 6.62.0 and had no entry to match it against.
 
-  *(Entry restored in 6.64.1. It was written in `8275bfa5` alongside the bump and the shipped-versions line, then lost from both files by a later merge — the `[IL-95]` shape, caught by `changelog-coverage`.)*
+See **v6.64.0** above for what the release actually contains; the two numbers carry the same work.
+Restored while merging #190 — see `[IL-95]` for why `docs/shipped-versions.tsv` is the authority
+here, and the renumber note in CLAUDE.md's Releasing section for the rule this case sits just
+outside: renumber the heading when the old number never reached `main`, and add a second entry
+when it did.
+
 
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 

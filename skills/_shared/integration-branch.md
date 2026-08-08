@@ -45,6 +45,7 @@ Rank 6 is deliberately per-consumer, because they degrade differently. In every 
 | Consumer | Uses it for | Fallback when nothing resolved |
 |---|---|---|
 | `/claude-tweaks:routine` | Substituting `{{TARGET_BRANCH}}` into a routine's prompt | Prose telling the cloud agent to resolve the branch itself at firing time |
+| `/claude-tweaks:routine` (record freshness) | Which branch `.claude-tweaks/routines/*.yml` is compared against before CREATE/UPDATE/STATUS read it (`routine/record-freshness.md`, #190) | Skip the comparison, report it unverified, proceed on the working checkout — the pre-#190 behavior, so an offline session is never blocked |
 | `/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up` | Merge target and push target | `git remote show origin` / `gh api default_branch`, as today |
 | `/claude-tweaks:assess-agent-autonomy` | `merge-base` for blast radius | `gh api default_branch`, as today; an unresolvable value is already the documented `needs-human` inconclusive-read case |
 | `/claude-tweaks:build`, `/claude-tweaks:flow` | Expected fork point | Upstream of the current branch, else `origin/HEAD`, as today |
