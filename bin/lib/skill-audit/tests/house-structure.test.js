@@ -4,7 +4,7 @@
 //
 // The per-skill checks in bin/lib/{code,docs,harness,journey}-health/tests/
 // skill-md.test.js cover four skills; skills/research has its own. That left
-// the rest of skills/*/SKILL.md with nothing enforcing CLAUDE.md's documented
+// the rest of skills/*/SKILL.md with nothing enforcing docs/skill-authoring.md's documented
 // house structure at all. This file closes that gap: it applies the subset of
 // the house rules that holds for EVERY skill, to every skill.
 //
@@ -111,14 +111,14 @@ for (const name of skills) {
     assert.ok(
       nextActions < antiPatterns,
       `skills/${name}/SKILL.md orders '## Next Actions' (${nextActions}) after `
-      + `'## Anti-Patterns' (${antiPatterns}); CLAUDE.md requires Next Actions first`,
+      + `'## Anti-Patterns' (${antiPatterns}); docs/skill-authoring.md requires Next Actions first`,
     );
   });
 
   test(`${name}: carries the standard interaction-style directive verbatim`, () => {
     assert.ok(
       readSkill(name).includes(INTERACTION_STYLE),
-      `skills/${name}/SKILL.md does not carry CLAUDE.md's exact interaction-style directive`,
+      `skills/${name}/SKILL.md does not carry docs/skill-authoring.md's exact interaction-style directive`,
     );
   });
 
