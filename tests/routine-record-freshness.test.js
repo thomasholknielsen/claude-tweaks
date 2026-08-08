@@ -202,6 +202,69 @@ test('an uncommitted local edit keeps the working copy authoritative even when b
   assert.deepEqual(r.onlyUpstream, ['proj-tidy-weekly.yml']);
 });
 
+test('a model-only difference between local and upstream is reported as a significant field', () => {
+  // A dedicated remote, not the shared FIXTURE one: the shared bare repo is
+  // read by every other test in this file via `origin/main`, and pushing a
+  // `model` field onto it here would leak into their comparisons too. Scoped
+  // under FIXTURE.tmp purely so the suite's `after()` hook cleans it up.
+  const dir = path.join(FIXTURE.tmp, `case-${CASE_SEQ++}`);
+  fs.mkdirSync(dir);
+  const remote = path.join(dir, 'remote.git');
+  const repo = path.join(dir, 'repo');
+  git(dir, 'init', '--bare', '--initial-branch=main', remote);
+  git(dir, 'clone', '--quiet', remote, repo);
+
+  const baseFields = {
+    routine_id: 'trig_ccc',
+    template: 'code-health',
+    template_version: 1,
+    created_at: '2026-03-01T00:00:00Z',
+    schedule: '0 6 * * *',
+  };
+  writeRecord(repo, 'proj-code-health-nightly.yml', { ...baseFields, model: 'claude-sonnet-5' });
+  git(repo, 'add', '-A');
+  git(repo, 'commit', '-q', '-m', 'Add code-health record with model');
+  git(repo, 'push', '-q', 'origin', 'main');
+
+  // Overwrite the working copy only, uncommitted: same significant fields,
+  // `model` alone diverges from what was just pushed.
+  writeRecord(repo, 'proj-code-health-nightly.yml', { ...baseFields, model: 'claude-opus-5' });
+
+  const r = compareRoutineRecords({ cwd: repo, branch: 'main' });
+  assert.equal(r.verified, true);
+  const drift = r.differing.find((d) => d.filename === 'proj-code-health-nightly.yml');
+  assert.ok(drift, 'a model-only edit must be reported as a divergent record');
+  assert.deepEqual(drift.fields, ['model']);
+  assert.equal(drift.local.model, 'claude-opus-5');
+  assert.equal(drift.upstream.model, 'claude-sonnet-5');
+});
+
+test('a model field present locally but absent upstream counts as a significant difference (create/update transition)', () => {
+  const { stale } = useFixture();
+  // Matches origin/main's second commit on every other significant field
+  // (template_version: 4, schedule unchanged, branch: 'dev') so `model` is
+  // isolated as the only source of divergence. Upstream's committed copy has
+  // no `model` key at all — it predates Task 1's rename — which is exactly
+  // the create/update transition this test demonstrates: presence vs.
+  // absence must count as changed, not compare equal, and must not throw.
+  writeRecord(stale, 'proj-code-health-daily.yml', {
+    routine_id: 'trig_aaa',
+    template: 'code-health',
+    template_version: 4,
+    created_at: '2026-02-01T00:00:00Z',
+    schedule: '0 3 * * *',
+    branch: 'dev',
+    model: 'claude-sonnet-5',
+  });
+  const r = compareRoutineRecords({ cwd: stale, branch: 'main' });
+  assert.equal(r.verified, true);
+  const drift = r.differing.find((d) => d.filename === 'proj-code-health-daily.yml');
+  assert.ok(drift, 'presence vs. absence of model must be reported as a divergent record, not silently equal');
+  assert.deepEqual(drift.fields, ['model']);
+  assert.equal(drift.local.model, 'claude-sonnet-5');
+  assert.equal(drift.upstream.model, undefined, "upstream's fixture record predates the model field entirely");
+});
+
 test('created_at alone is not divergence', () => {
   const { authoring } = useFixture();
   // Same significant fields as upstream, different timestamp only.
