@@ -70,11 +70,14 @@ test('recordPayload throws on unknown size', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', size: 'gigantic' }), /size/);
 });
 
-// The emit side is size-only: `effort` is no longer a recordPayload parameter, so a
-// caller still passing it contributes nothing (its own suite is what catches that).
-test('recordPayload ignores a legacy effort argument and emits no effort:* label', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', effort: 'low' });
-  assert.deepStrictEqual(result.labels, []);
+// The emit side is size-only: a caller still passing `effort` (composed inline
+// from pre-rename facets, e.g.) must fail loud rather than silently drop the
+// scoring label — matches the throw-on-unknown pattern above for risk/size.
+test('recordPayload throws on a legacy effort argument instead of silently dropping it', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', effort: 'low' }),
+    /effort/
+  );
 });
 
 test('recordPayload throws on unknown priority', () => {
@@ -279,6 +282,11 @@ test('parseRecordFacets: facets.effort is never populated — the facet is size'
 test('parseRecordFacets: size:* wins over effort:* when both are present, in either array order', () => {
   assert.strictEqual(parseRecordFacets(['size:low', 'effort:high']).size, 'low');
   assert.strictEqual(parseRecordFacets(['effort:high', 'size:low']).size, 'low');
+});
+
+test('parseRecordFacets: repeated effort:* labels resolve last-wins, matching facets.size and local-store.js', () => {
+  assert.strictEqual(parseRecordFacets(['effort:low', 'effort:high']).size, 'high');
+  assert.strictEqual(parseRecordFacets(['effort:high', 'effort:low']).size, 'low');
 });
 
 test('parseRecordFacets: an out-of-range size:* value leaves the facet null and does not fall back to effort:*', () => {

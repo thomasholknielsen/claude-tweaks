@@ -103,10 +103,12 @@ function fencedBlock(text) {
 // { title, body, type, origin?, risk?, size?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
-// The emit side is size-only: there is no `effort` parameter, and no code path
-// here writes an effort:* label. The read side's effort:* fallback
-// (parseRecordFacets below) is deliberately one-directional.
-function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint } = {}) {
+// The emit side is size-only: `effort` is accepted only to throw on it (below) —
+// a caller composing a payload inline from pre-rename facets fails loud instead
+// of silently dropping the scoring label. No code path here writes an effort:*
+// label. The read side's effort:* fallback (parseRecordFacets below) is
+// deliberately one-directional.
+function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint, effort } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -114,6 +116,10 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, framin
     throw new Error(`body must be a string (got ${typeof body})`);
   }
   oneOf('type', type, TYPES);
+
+  if (effort !== undefined) {
+    throw new Error('recordPayload has no effort parameter — the record facet is size (#217); effort means reasoning depth');
+  }
 
   if (ready && parked) {
     throw new Error('a record cannot be both ready and parked');
@@ -249,9 +255,10 @@ function parseRecordFacets(labels) {
       continue;
     }
     // Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
+    // Last such label wins among repeats, matching facets.size two branches up and the pre-rename effort parse this replaces.
     const effort = EFFORT_LABEL_RE.exec(name);
     if (effort && TIERS.includes(effort[1])) {
-      if (effortFallback === null) effortFallback = effort[1];
+      effortFallback = effort[1];
       continue;
     }
     const ceremony = CEREMONY_LABEL_RE.exec(name);
