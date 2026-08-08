@@ -1,9 +1,9 @@
 # Wrap-Up — Verification Brief Procedure
 
 Canonical procedure for the acceptance-labeling action: applying `demo:pending` and posting
-the Verification Brief. Record mode only (a materialized header exists for this run, per
-`/claude-tweaks:wrap-up` Step 1) — conversation-based work has no work record to label, so
-this procedure does not run for it.
+the Verification Brief. Record mode only (a record is identified for this run, per
+`/claude-tweaks:wrap-up` Step 1 — a materialized header is not required) — conversation-based
+work has no work record to label, so this procedure does not run for it.
 
 ## Routing — read this before anything else, whatever invoked this file
 

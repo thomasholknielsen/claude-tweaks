@@ -4,7 +4,7 @@ Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wr
 
 ## Canonical cleanup list
 
-Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console). **Ordering rule, first half: pipeline run directory archival (item 8) is always last.** Items 4, 6, and 7 read or write files under `$RUN_DIR` — the worktree/carrier-commit check reads the materialized header from `${RUN_DIR}/work/`, the ephemeral-server teardown reads `${RUN_DIR}/ephemeral-server.txt`, and the issue claim release reads the same materialized header again — and once the run directory is archived none of those paths resolve any more. State this as an unconditional rule, not a closed list: any future cleanup item that reads or writes `$RUN_DIR` belongs before item 8 too, not just the three named here.
+Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console). **Ordering rule, first half: pipeline run directory archival (item 8) is always last.** Items 4, 6, and 7 read or write files under `$RUN_DIR` — the worktree/carrier-commit check reads the materialized header from `${RUN_DIR}/work/`, the ephemeral-server teardown reads `${RUN_DIR}/ephemeral-server.txt`, and the issue claim release optionally reads the same materialized header again (for its `parked-at-shaping` restore sub-step only — its core release no longer requires it, see Section E) — and once the run directory is archived none of those paths resolve any more. State this as an unconditional rule, not a closed list: any future cleanup item that reads or writes `$RUN_DIR` belongs before item 8 too, not just the three named here.
 
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
@@ -14,7 +14,7 @@ Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5
 | 4 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
 | 5 | Record lifecycle | `work-backend: github-issues`: no-op — closure is close-via-merge (items 4 and 7 stamp the carrier commit and release the claim). `work-backend: local-files`: on 100% completion (confirmed by `/claude-tweaks:review`), call `closeRecord(path)` (`bin/lib/issues/local-store.js`) on the record's file and commit — the record stays on disk as history, excluded from `queryRecords`' default results | record-based work | No (idempotent — does not interact with parent multi-spec archival either way) |
 | 6 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
-| 7 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for the spec's materialized header | materialized header present (`${RUN_DIR}/work/*-spec.md`) | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
+| 7 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for this spec's record | record-based work | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
 | 8 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 
 The detailed procedures for items 3, 4, 6, 7, and 8 follow — see each row's Procedure ref column for its Section letter. Items 1, 2, and 5 are simple enough to execute inline at Step 10 without a dedicated sub-procedure.
@@ -212,12 +212,14 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 ## E. Issue claim release (v5.3.0)
 
-If a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — the file
-`skills/flow/materialize.md` writes and never deletes; read its `record:` field directly, there
-is no pre-deletion capture step to route around), the pipeline holds `refs/claims/issue-<n>`
-(`<n>` = the header's `record:` value) per `_shared/issue-claims.md`. Release it only after the
-branch outcome is known (item 4, Git Worktree, completes first — the execution order of the
-canonical list guarantees this):
+This spec's record is identified whenever this section runs (`SKILL.md` Step 1 — an argument, a
+branch/commit reference, or, when `skills/flow/materialize.md` wrote one, a materialized header's
+`record:` field). Call that number `<n>`: the pipeline may hold `refs/claims/issue-<n>` per
+`_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
+through `/claude-tweaks:dispatch` never held a claim either: step 3's ownership check ends the
+section harmlessly there, before the delete is attempted, logging the misleading-but-harmless
+`claim held by run undefined`. Release it only after the branch outcome is known (item 4, Git
+Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
 `_shared/github-pr-scan.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
@@ -289,4 +291,4 @@ stop before attempting any release.
 8. Log each release, grant removal, `bot:in-progress` removal, and `parked` restoration to
    `decisions.md` (status `AUTO`, reason string as detail).
 
-If no spec has a materialized header, skip silently.
+This section does not apply to conversation-based work — Step 5's item 7 condition (record-based work) already excludes it before Section E is ever reached.
