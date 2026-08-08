@@ -26,7 +26,7 @@ The `[family-gate]` findings this action resolves come from `_shared/github-pr-s
 `family-gate` scope, which queries the `family:parent` label and therefore only ever finds
 `work-backend: github-issues` families — that file's Detection Ladder gates on `gh` reachability,
 not on the driver. The `local-files` driver has its own twin of this action
-(`actions-local-files.md`'s `## Open family gate`), fed by `scan-procedures.md` Step 1's Shape 7
+(`actions-local-files.md`'s `## Open family gate`), fed by `step-1-records.md`'s Shape 7
 instead; both run the same Family-Gate Procedure, and the finding prefix is identical on either
 driver.
 

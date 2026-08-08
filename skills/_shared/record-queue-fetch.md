@@ -2,7 +2,7 @@
 
 Single source of truth for the first read every open-work-record scan performs: resolve
 `work-backend`, fetch the queue, and facet-parse it. Consumed by `/claude-tweaks:help`
-(`status-scan.md` Stage 1), `/claude-tweaks:tidy` (`scan-procedures.md` Step 1),
+(`status-scan.md` Stage 1), `/claude-tweaks:tidy` (`tidy/step-1-records.md`, its Step 1),
 `/claude-tweaks:backlog` (both `refine-mode.md`'s and `overview-mode.md`'s Step 1), and
 `/claude-tweaks:visualize` (`visualize/record-graph.md` Step A) — every one of these scans
 starts from the identical fetch below before branching into its own consumer-specific

@@ -163,7 +163,7 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   parent and, once approved, applies the same disposition — reusing the identical Family-Gate
   Procedure rather than a second copy of it. Only the sweep that surfaces it differs by driver:
   `_shared/github-pr-scan.md`'s `family-gate` scope under `github-issues`, and
-  `tidy/scan-procedures.md` Step 1's Shape 7 under `local-files` — the first queries the
+  `tidy/step-1-records.md`'s Shape 7 under `local-files` — the first queries the
   `family:parent` label, which no local record carries, and its file is skipped entirely whenever
   `gh` is absent, so the local sweep cannot live there.
 - `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
@@ -315,7 +315,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
-| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the acceptance backstops — surfaces closed records with no disposition (`acceptance-gap`) and opens the gate on complete-but-un-gated decomposition families (the `family-gate` sweep — a `github-pr-scan.md` scope under `github-issues`, a Step 1 shape under `local-files` — plus the `Open family gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief) |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `family-gate` surfaces complete-but-un-gated decomposition families and carries the `Open family gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 | `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |
