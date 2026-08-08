@@ -211,9 +211,19 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
 
 A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
-is using it. `SessionStart`'s reaper (`bin/lib/hooks/worktree-reap.js`) already removes
-locked worktrees whose owning process is gone, so anything still locked at `/tidy` time is
-either in use or unrecognized — surface it as `locked — manual review required`.
+is using it. Surface it as `locked — manual review required`.
+
+`SessionStart`'s reaper (`bin/lib/hooks/worktree-reap.js`) collects *some* of these
+unattended, but its reach is deliberately narrower than this step's, so do not read a
+still-locked worktree as one the reaper has already judged. It only considers worktrees
+under `{REPO_ROOT}/.claude/worktrees/` (ADR-0004's harness-owned domain — `.worktrees/`
+belongs to superpowers' `finishing-a-development-branch`), it unlocks only when the lock's
+owning pid is provably dead **and** nothing in the worktree has been modified for 24h, and
+it reaps nothing at all on a repo where its own integration-branch resolution comes up empty
+(`_shared/integration-branch.md` — the reaper's row in the per-consumer fallback table; it
+may consult only the `integration-branch:` policy key and `origin/HEAD`, never the checked-out
+branch). Anything still locked at `/tidy` time is therefore in use, unrecognized, recently
+active, out of the reaper's domain, or on a repo where the reaper is inert.
 
 ## Step 4.6: Audit Doc Registry
 
@@ -230,7 +240,12 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 
 ## Step 4.7: Audit Issue Claims
 
-**Working-directory discipline:** every command in this step (and in any dispatched parallel agent) — the claim-ref listing below and both backstops that use `find .claude-tweaks/pipelines` — MUST be anchored to `{REPO_ROOT}` (resolved via `git rev-parse --show-toplevel` in the dispatcher before any agent fires, the same resolution Step 4.5 already documents). Anchor with `cd "{REPO_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored `find .claude-tweaks/pipelines/...` doesn't error from the wrong cwd, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. `gh` commands need the same anchor: `gh` infers the target repo from the cwd's git remote, so a wrong cwd can point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
+**Working-directory discipline:** every command in this step (and in any dispatched parallel agent) MUST be anchored, but the three commands below do not all take the *same* anchor:
+
+- The claim-ref listing and the `gh issue list` backstop take `{REPO_ROOT}` — `git rev-parse --show-toplevel`, the same resolution Step 4.5 documents. `gh` infers the target repo from the cwd's git remote, and either checkout has the same remote.
+- **Both backstops that run `find .claude-tweaks/pipelines` take `{RUN_ROOT}` instead** — the **main checkout** root, resolved as `RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)` (`_shared/pipeline-run-dir.md`'s Anchoring section). Run directories are anchored to the main checkout at creation, so from inside a linked worktree `--show-toplevel` names the worktree — which holds no `.claude-tweaks/pipelines/` at all — and the `find` returns zero. Resolved from the main checkout the two are the same path, so this only ever matters when `/tidy` runs from a worktree.
+
+Anchor with `cd "{REPO_ROOT}" &&` / `cd "{RUN_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored (or wrongly-anchored) `find .claude-tweaks/pipelines/...` doesn't error, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. A wrong cwd can also point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
 
 Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
 `gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
@@ -285,7 +300,7 @@ audit trail" section), so they survive on disk at `.claude-tweaks/pipelines/**/w
 runs) — in both live and archived (`.claude-tweaks/pipelines/archive/`) run directories:
 
 ```bash
-cd "{REPO_ROOT}" && find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
+cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
   grep -q "^parked-at-shaping: true$" "$header" || continue
   n=$(grep -m1 "^record:" "$header" | sed 's/^record: *//')
   [ -z "$n" ] && continue
@@ -332,7 +347,7 @@ skill-name filter, so it matches all of them equally). A `worktree.always`-block
 silently-skipped log write leaves no trace anywhere except an empty file:
 
 ```bash
-cd "{REPO_ROOT}" && find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
+cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
   STATUS=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1]+'/run-state.json','utf8')).status)}catch(e){console.log('unknown')}" "$RUN_DIR")
   [ "$STATUS" = "clean" ] || continue
   SIZE=$(wc -c < "$RUN_DIR/decisions.md" 2>/dev/null || echo 0)
