@@ -3,13 +3,15 @@
 // Body is /specify-shaped so promotion to a spec is near-zero translation, and
 // carries a hidden fingerprint marker the dedup step re-extracts.
 const { recordPayload, specShapedBody } = require('../issues/record');
+const { buildRelatedBlocks } = require('../issues/related-blocks');
 
 // legacy: v1, frozen. Not called by bin/code-health.js (which uses toIssuePayloadV2
 // exclusively) — kept only so its own test file can assert this historical shape
 // never regresses. Do not update this function's footer/labels/marker to match v2.
 function toIssuePayload(finding) {
   const marker = `<!-- code-health-fingerprint: ${finding.id} -->`;
-  const filesLine = (finding.files || []).length ? (finding.files || []).join(', ') : '(no specific file)';
+  const files = finding.files || [];
+  const filesLine = files.length > 0 ? files.join(', ') : '(no specific file)';
   const body = [
     marker,
     '',
@@ -46,9 +48,10 @@ function toIssuePayload(finding) {
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:code-health,
 // colon-form risk:*/size:* scoring, born-ready, Type task, work-fingerprint marker.
 function toIssuePayloadV2(finding) {
-  const relatedBlocks = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
-    ? [`Also affects: ${finding.relatedAnchors.map((a) => `\`${a}\``).join(', ')}`]
-    : [];
+  // Same "Also affects: ..." bundler the other three health producers use — this
+  // file's finding vocabulary names the bundled items relatedAnchors rather than
+  // relatedSections, but the rendered block is identical.
+  const relatedBlocks = buildRelatedBlocks(finding.relatedAnchors);
   const body = specShapedBody({
     header: `**Criterion:** ${finding.criterion} | **Risk:** ${finding.risk} | **Severity:** ${finding.severity} | **Likelihood:** ${finding.likelihood} | **Effort:** ${finding.effort} | **Confidence:** ${finding.confidence} | **Area:** ${finding.areaId}`,
     currentState: [`Anchor: \`${finding.anchor}\``, ...relatedBlocks, finding.evidence],

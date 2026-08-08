@@ -28,6 +28,9 @@ const RANK = { high: 0, medium: 1, low: 2 };
 const bandOf = (r) => (r.facets.priority && PRIORITIES.includes(r.facets.priority) ? RANK[r.facets.priority] : 3);
 const riskBandOf = (r) => (r.facets.risk && TIERS.includes(r.facets.risk) ? RANK[r.facets.risk] : 3);
 const byCreatedAtAsc = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
+// The sort both single-axis lenses (filterCritical, filterCleanup) use once
+// they've filtered: priority band first, then oldest-createdAt-first.
+const byPriorityThenAge = (a, b) => bandOf(a) - bandOf(b) || byCreatedAtAsc(a, b);
 
 // records[] -> { scored: records[], unscored: records[] }. Scored = carries both
 // risk:* and size:* (the two labels /specify's shaping and the health skills'
@@ -47,9 +50,7 @@ function splitScoredUnscored(records) {
 // oldest-createdAt-first. Only scored records ever carry risk:*, so this is safe
 // to call on a mixed scored+unscored array directly.
 function filterCritical(records) {
-  return records
-    .filter((r) => r.facets.risk === 'high')
-    .sort((a, b) => bandOf(a) - bandOf(b) || byCreatedAtAsc(a, b));
+  return records.filter((r) => r.facets.risk === 'high').sort(byPriorityThenAge);
 }
 
 // records[] -> { ranked: records[], unscored: records[] }. ranked is the scored
@@ -67,9 +68,7 @@ function rankRiskValue(records) {
 // records[] -> records[] filtered to size:low, sorted by priority band then
 // oldest-createdAt-first.
 function filterCleanup(records) {
-  return records
-    .filter((r) => r.facets.size === 'low')
-    .sort((a, b) => bandOf(a) - bandOf(b) || byCreatedAtAsc(a, b));
+  return records.filter((r) => r.facets.size === 'low').sort(byPriorityThenAge);
 }
 
 // (unscored records[], budget) -> { selected: records[], remaining: number }.

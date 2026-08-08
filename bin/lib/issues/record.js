@@ -64,6 +64,21 @@ const EFFORT_LABEL_RE = /^effort:(.+)$/;
 const PRIORITY_LABEL_RE = /^priority:(.+)$/;
 const CEREMONY_LABEL_RE = /^ceremony:(.+)$/;
 
+// The colon-form value labels parseRecordFacets reads straight into a facet:
+// the regex that recognizes one, the facet key it sets, and the vocabulary its
+// value must belong to. A value outside that vocabulary is ignored entirely
+// (the facet keeps its default) rather than stored. Every prefix here is
+// distinct, so one label name can match at most one row and evaluation order
+// carries no meaning. effort:* is deliberately absent — it is the one value
+// label that does NOT write its facet directly (see parseRecordFacets).
+const VALUE_FACETS = [
+  [BY_RE, 'origin', ORIGINS],
+  [RISK_LABEL_RE, 'risk', TIERS],
+  [SIZE_LABEL_RE, 'size', TIERS],
+  [CEREMONY_LABEL_RE, 'ceremony', CEREMONY_TIERS],
+  [PRIORITY_LABEL_RE, 'priority', PRIORITIES],
+];
+
 function oneOf(name, value, allowed) {
   if (!allowed.includes(value)) {
     throw new Error(`${name} must be one of ${allowed.join('|')} (got "${value}")`);
@@ -239,37 +254,20 @@ function parseRecordFacets(labels) {
       continue;
     }
 
-    const by = BY_RE.exec(name);
-    if (by && ORIGINS.includes(by[1])) {
-      facets.origin = by[1];
-      continue;
-    }
-    const risk = RISK_LABEL_RE.exec(name);
-    if (risk && TIERS.includes(risk[1])) {
-      facets.risk = risk[1];
-      continue;
-    }
-    const size = SIZE_LABEL_RE.exec(name);
-    if (size && TIERS.includes(size[1])) {
-      facets.size = size[1];
-      continue;
-    }
     // Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
-    // Last such label wins among repeats, matching facets.size two branches up and the pre-rename effort parse this replaces.
+    // Last such label wins among repeats, matching the VALUE_FACETS pass just below and the pre-rename effort parse this replaces.
     const effort = EFFORT_LABEL_RE.exec(name);
     if (effort && TIERS.includes(effort[1])) {
       effortFallback = effort[1];
       continue;
     }
-    const ceremony = CEREMONY_LABEL_RE.exec(name);
-    if (ceremony && CEREMONY_TIERS.includes(ceremony[1])) {
-      facets.ceremony = ceremony[1];
-      continue;
-    }
-    const priority = PRIORITY_LABEL_RE.exec(name);
-    if (priority && PRIORITIES.includes(priority[1])) {
-      facets.priority = priority[1];
-      continue;
+
+    for (const [labelRe, key, vocabulary] of VALUE_FACETS) {
+      const match = labelRe.exec(name);
+      if (match && vocabulary.includes(match[1])) {
+        facets[key] = match[1];
+        break;
+      }
     }
   }
 
@@ -278,15 +276,16 @@ function parseRecordFacets(labels) {
   return facets;
 }
 
-// body -> deduped array of issue numbers from line-anchored 'Blocked by #N' lines,
-// in order of first appearance. Mid-line occurrences (not at line start) don't
-// count as a dependency declaration. DEP_RE carries the 'g' flag but matchAll
-// clones it internally per call, so lastIndex state is never shared across calls.
-function parseDependencies(body) {
+// (body, lineRe) -> deduped array of the numbers lineRe's first capture group
+// matches, in order of first appearance; [] for a null/undefined/empty body.
+// Shared by the two line-anchored body scans below. Both regexes carry the 'g'
+// flag but matchAll clones them internally per call, so lastIndex state is never
+// shared across calls.
+function parseIssueNumbers(body, lineRe) {
   if (typeof body !== 'string' || !body) return [];
   const seen = new Set();
   const result = [];
-  for (const match of body.matchAll(DEP_RE)) {
+  for (const match of body.matchAll(lineRe)) {
     const n = Number(match[1]);
     if (!seen.has(n)) {
       seen.add(n);
@@ -296,22 +295,19 @@ function parseDependencies(body) {
   return result;
 }
 
+// body -> deduped array of issue numbers from line-anchored 'Blocked by #N' lines,
+// in order of first appearance. Mid-line occurrences (not at line start) don't
+// count as a dependency declaration.
+function parseDependencies(body) {
+  return parseIssueNumbers(body, DEP_RE);
+}
+
 // parent body -> deduped array of leaf issue numbers from its task list, in order
 // of first appearance. Mid-line occurrences don't count, exactly as with DEP_RE.
 // Under work-links: native the parent body carries no task list at all — that
 // caller reads sub_issues from the API and never calls this.
 function parseFamilyLeaves(body) {
-  if (typeof body !== 'string' || !body) return [];
-  const seen = new Set();
-  const result = [];
-  for (const match of body.matchAll(FAMILY_LEAF_RE)) {
-    const n = Number(match[1]);
-    if (!seen.has(n)) {
-      seen.add(n);
-      result.push(n);
-    }
-  }
-  return result;
+  return parseIssueNumbers(body, FAMILY_LEAF_RE);
 }
 
 // candidate issue numbers -> one batched, aliased GraphQL query requesting each

@@ -252,6 +252,13 @@ function listRecordFilenames(dir) {
   return entries.filter((e) => e.isFile() && ID_PREFIX_RE.test(e.name)).map((e) => e.name);
 }
 
+// record filename -> its numeric id prefix. Only ever called on names that
+// already passed listRecordFilenames' ID_PREFIX_RE filter, so the match and its
+// capture group are guaranteed to be there.
+function idFromFilename(name) {
+  return Number(ID_PREFIX_RE.exec(name)[1]);
+}
+
 // dir -> max existing numeric filename prefix + 1; 1 when empty/missing.
 //
 // NOTE: this alone is NOT safe for concurrent record creation — it only reads a
@@ -270,7 +277,7 @@ function listRecordFilenames(dir) {
 function allocateId(dir = DEFAULT_DIR) {
   let max = 0;
   for (const name of listRecordFilenames(dir)) {
-    const n = Number(ID_PREFIX_RE.exec(name)[1]);
+    const n = idFromFilename(name);
     if (n > max) max = n;
   }
   return max + 1;
@@ -284,7 +291,7 @@ function allocateId(dir = DEFAULT_DIR) {
 // existing vs. not existing alone isn't enough, since a completed rename
 // makes the claim disappear at the exact moment the final file appears.
 function idAlreadyFinalized(dir, id) {
-  return listRecordFilenames(dir).some((name) => Number(ID_PREFIX_RE.exec(name)[1]) === id);
+  return listRecordFilenames(dir).some((name) => idFromFilename(name) === id);
 }
 
 // Bounds the retry loop in createRecord. Real contention resolves in a handful
