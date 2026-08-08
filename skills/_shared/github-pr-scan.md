@@ -500,7 +500,7 @@ Two collection prefixes for PR/code-health/harness-health/journey-health/docs-he
 - `[acceptance-gap]` — closed records with no acceptance disposition (`acceptance-gap` scope above): `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
 - `[family-gate]` — decomposition families with every leaf closed and no acceptance disposition on the parent (`family-gate` scope above): `[family-gate] #{n}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #{n}`
 
-Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
+Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/step-1-records.md`).
 
 Severity mapping (Template A Severity column):
 
