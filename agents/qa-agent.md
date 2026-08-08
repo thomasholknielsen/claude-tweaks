@@ -1,6 +1,8 @@
 ---
 name: qa-agent
 description: UI validation agent that executes user stories against web apps using agent-browser and reports pass/fail results with annotated screenshots at every step. Use for QA, acceptance testing, user story validation, or UI verification. Each agent owns a single named agent-browser session and runs in parallel with other instances. Keywords - QA, validation, user story, UI testing, acceptance testing.
+model: sonnet
+effort: medium
 tools: Bash
 color: green
 skills:
