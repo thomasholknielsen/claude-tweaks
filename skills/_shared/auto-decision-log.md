@@ -112,7 +112,7 @@ The Review Console reads the log file for the current pipeline run:
 2. Read `{run-dir}/decisions.md`
 3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED
 4. List staged artifacts from `{run-dir}/staged/`
-5. Present in the Review Console (see `/wrap-up` Step 8.6)
+5. Present in the Review Console (see `/wrap-up`'s Phase 4)
 
 ## Archival on completion
 

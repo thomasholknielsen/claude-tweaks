@@ -1,4 +1,4 @@
-# Step 8.6 — Wrap-Up Review Console
+# Wrap-Up Review Console — Phase 4 (CLOSE)
 
 The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One consolidated batch surfaces everything that was auto-decided or staged during the pipeline, plus skill update proposals, leftover-work routing, queue writes, and end-of-pipeline cleanup — all the friction that used to live mid-flow now lands here.
 
@@ -13,14 +13,14 @@ In interactive and standalone runs this console replaces the batch decision the 
 
 ## Dry-run mode (`--dry-run`)
 
-When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md` Step 1's Flags subsection), run every analysis step normally — Steps 3-8, and the Auto-merge short-circuit's content-judgment verdict below — but treat everything from this point forward as preview-only:
+When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md`'s Phase 1 Flags subsection), run every analysis step normally — Phases 1-3, and the Auto-merge short-circuit's content-judgment verdict below — but treat everything from this point forward as preview-only:
 
 - Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
 - Skip that same branch's acceptance labeling — no `demo:pending` label write and no Verification Brief comment. Compose the brief and print it as a preview line instead. It is a network write to a live record, so it is preview-only for the same reason the merge is; the bullet above names only the two git commands because they were the only writes on that path when it was written.
 - Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
 - Queue writes (`Q#` items), Memory updates (`M#` items), and Upstream feedback (`U#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead; under `--dry-run` no memory file is ever written and `/claude-tweaks:feedback` is never invoked.
 - Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
-- After presenting, stop — do not proceed to Step 9/10's real execution; report the preview as the run's final output.
+- After presenting, stop — do not proceed to the phase-trace report or Phase 4's real execution step; report the preview as the run's final output.
 
 ## Auto-merge short-circuit
 
@@ -37,9 +37,9 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`. The verdict must be `auto-merge` to proceed.
 
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
-Step 10, which is where acceptance labeling normally happens, so this branch must perform it
-itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
-Step 10 would. This short-circuit closes exactly one record, so pass that record's own number as
+Phase 4's execution step, which is where acceptance labeling normally happens, so this branch must
+perform it itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
+execution would. This short-circuit closes exactly one record, so pass that record's own number as
 `$CLOSING_LEAVES` — the one-element closing-leaf set that file's **Self-inclusion rule** reads
 (`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
 file owns the routing: a record with a resolvable parent goes to its
@@ -55,8 +55,8 @@ lands the record is closed and this branch has moved on. Labeling before the mer
 the record's acceptance state correct on a path where no human ever sees the console.
 
 The record-mode precondition is satisfied by construction — this short-circuit already requires a
-materialized header with a `record:` field, which is the same condition Step 10's acceptance
-bullet gates on. `auto:merge` governs merge timing only and has no bearing on whether the record
+materialized header with a `record:` field, which is the same condition the execution step's
+acceptance bullet gates on. `auto:merge` governs merge timing only and has no bearing on whether the record
 gets `demo:pending`; `_shared/work-record.md` states that an `auto:merge`'d record still gets it
 on its now-closed issue, enabling retrospective sign-off, and this branch is the only place that
 can honor it.
@@ -139,12 +139,12 @@ updates sections, per "Present the console" below) and attach it to a
 `PushNotification` as a non-blocking FYI. Nothing this console would have
 shown is discarded — only the wait for a live approval is skipped.
 
-**That sentence is about console content, and console content is not all of Step 10.** It was
-accurate when written and stayed accurate while going incomplete: acceptance labeling is neither
-console content nor one of `cleanup-procedures.md`'s cleanup items, so no completeness claim on
-this page covered it, and it was silently dropped on every auto-merge until the labeling step
-above was added. When adding anything else Step 10 performs, check it against this branch
-explicitly — a claim that is true about one category is not evidence about another.
+**That sentence is about console content, and console content is not all of Phase 4's execution
+step.** It was accurate when written and stayed accurate while going incomplete: acceptance
+labeling is neither console content nor one of `cleanup-procedures.md`'s cleanup items, so no
+completeness claim on this page covered it, and it was silently dropped on every auto-merge until
+the labeling step above was added. When adding anything else that execution step performs, check
+it against this branch explicitly — a claim that is true about one category is not evidence about another.
 
 **If the merge conflicts:** conflict resolution requires judgment a headless
 run can't supply — abort the merge (`git merge --abort`) and fall back to
@@ -182,12 +182,12 @@ When `MULTISPEC_REVIEW_DEFER=1` is set (by `/flow` multi-spec orchestration):
 2. Do NOT apply or revert any staged items — leave `staged/` and `decisions.md` untouched in the per-spec subdirectory
 3. Append a final entry to this spec's `decisions.md`:
    ```
-   AUTO {time} — Step 8.6: Review Console deferred to multi-spec consolidated console. Per-spec staged items: {count}. Auto-decisions: {count}. Parent run dir: {MULTISPEC_PARENT_DIR}.
+   AUTO {time} — Review Console deferred to multi-spec consolidated console. Per-spec staged items: {count}. Auto-decisions: {count}. Parent run dir: {MULTISPEC_PARENT_DIR}.
    ```
-4. Proceed to Step 9 (Present Consolidated Summary) — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
-5. Skip the run-directory archival in Step 5 — the parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated console completes
+4. Proceed to the phase-trace report — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
+5. Skip the run-directory archival in Phase 4's cleanup planning — the parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated console completes
 
-This is the *only* condition under which `/wrap-up` skips Step 8.6 when a run directory exists. Every single-spec run — in any mode — always runs the per-spec console.
+This is the *only* condition under which `/wrap-up` skips the Review Console when a run directory exists. Every single-spec run — in any mode — always runs the per-spec console.
 
 ## Locate the pipeline run directory
 
@@ -204,15 +204,15 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 
 - The console has **up to nine named batch sections** — Auto-applied, Pending review, Low-confidence findings, Contested findings, Skill updates, Documentation updates, Journey updates, Configuration updates, Cleanup actions (the two coordination-derived sections — Low-confidence findings, Contested findings — render only when non-empty — see `wrap-up/SKILL.md`'s own "up to nine sections" summary of this same console). Together they use a **single global sequence** starting at #1: every row across every present section has a unique number, with no restart between sections.
 - Three sections sit outside the global sequence because they require per-item approval and are NOT part of the global "Approve all" choice: **Queue writes** (`Q1`, `Q2`, …), **Memory updates** (`M1`, `M2`, …), and **Upstream feedback** (`U1`, `U2`, …). Each uses its own prefixed sequence, and none is ever counted into the nine batch sections above.
-- **One row type is per-item without being its own section:** an `[adr-convention]` row (Step 6.2) renders inside Configuration updates and keeps its global number, but carries a three-way choice rather than approve/reject, so "Approve all" leaves it unanswered. It is the one exception to the otherwise-clean split between batch sections and per-item sections — see the Configuration updates section below for its render shape and for what it blocks while unanswered.
+- **One row type is per-item without being its own section:** an `[adr-convention]` row (from the Decision records curation row, `adr-curation.md`) renders inside Configuration updates and keeps its global number, but carries a three-way choice rather than approve/reject, so "Approve all" leaves it unanswered. It is the one exception to the otherwise-clean split between batch sections and per-item sections — see the Configuration updates section below for its render shape and for what it blocks while unanswered.
 - This applies to both the example below and any real Console output. Do not restart numbering within the global sequence.
 
 ## Unattended-tier auto-file (runs before rendering)
 
 If `unattended-tier: on` (see `_shared/unattended-tier.md`), before building any of the tables
 below: for every queue-write proposal already staged (from ledger Phase 2's narrowing, leftover
-routing Step 4, or `/reflect`'s tangential-idea routing Step 3 — all three run earlier in
-`/wrap-up`'s own step order, before Step 8.6) create the record directly via the same `gh issue
+routing's own Step 4, or `/reflect`'s tangential-idea routing Step 3 — all three run earlier in
+`/wrap-up`'s own phase order, before this console) create the record directly via the same `gh issue
 create` / `local-store.js` path "On approval" step 5 below already uses, log it as `AUTO` instead
 of `STAGED`, and list it under **Auto-applied** instead of **Queue writes**. On a fully-on run
 with no ambiguous residue, the Queue writes section below therefore renders empty.
@@ -247,7 +247,7 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. T
 | 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
 
-A `SCANNED` entry (skill curation's scan-summary log line from Step 7, documentation curation's from Step 7.7, journey curation's from Step 7.8, or CLAUDE.md curation's from Step 7.9 — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
+A `SCANNED` entry (the scan-summary log line the engine writes for any curation row — Skills, Docs, Journeys, CLAUDE.md & rules, and the rest — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the registry row it ran for (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
@@ -277,46 +277,28 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 > Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `staged/review-contested-{N}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
 
-Generate the next five sections — Skill updates, Documentation updates, Journey updates, Reference repairs, and Configuration updates — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence). The shapes below are the contract that output satisfies, and the prose-fallback template when the engine did not run.
+Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence). The shapes below are the contract that output satisfies, and the prose-fallback template when the engine did not run.
 
-#### Skill updates (from Step 7)
+#### Skill updates (from the Skills curation row)
 
 | # | Skill | Section | Change |
 |---|---|---|---|
 | 11 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
 | 12 | NEW | session-management | Create new skill for session lifecycle patterns |
 
-#### Documentation updates (from Step 7.7)
+#### Documentation updates (from the Docs curation row)
 
 | # | Type | Target | Change |
 |---|---|---|---|
 | 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
 
-#### Journey updates (from Step 7.8)
+#### Journey updates (from the Journeys curation row)
 
 | # | Type | Target | Change |
 |---|---|---|---|
 | 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
 
-#### Reference repairs (from Step 7.12)
-
-Render this section whenever the broken-reference sweep found a surviving reference, in either of
-two states. **Applied** rows are reported, not re-approved — they already happened, in their own
-`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
-**Staged** rows are ordinary approval rows like any other in this console.
-
-| # | State | Target | Repair | Broken by | Why |
-|---|-------|--------|--------|-----------|-----|
-| 14a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
-| 14b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
-
-The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
-run that tripped a cap reads differently from a run that found nothing. **A sweep that found
-surviving references but applied none must still render this section** — an empty Auto-applied
-list plus a populated staged list is the signal that the ceiling is holding, and collapsing it to
-silence hides exactly that.
-
-#### Configuration updates (from Step 6 and Step 7.9)
+#### Configuration updates (from the CLAUDE.md & rules and Decision records curation rows)
 
 | # | Type | Target | Change |
 |---|---|---|---|
@@ -338,7 +320,25 @@ An `[adr-convention]` row renders inside this section but carries its own three-
 
 Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
 
-#### Cleanup actions (executed in Step 10 after approval)
+#### Reference repairs (from the Broken references curation row)
+
+Render this section whenever the broken-reference sweep found a surviving reference, in either of
+two states. **Applied** rows are reported, not re-approved — they already happened, in their own
+`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
+**Staged** rows are ordinary approval rows like any other in this console.
+
+| # | State | Target | Repair | Broken by | Why |
+|---|-------|--------|--------|-----------|-----|
+| 15a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
+| 15b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
+
+The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
+run that tripped a cap reads differently from a run that found nothing. **A sweep that found
+surviving references but applied none must still render this section** — an empty Auto-applied
+list plus a populated staged list is the signal that the ceiling is holding, and collapsing it to
+silence hides exactly that.
+
+#### Cleanup actions (executed at Phase 4's execution step after approval)
 
 Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filtered by Condition (e.g., omit the worktree row when no worktree strategy was used). Each row gets a globally-unique # in the shared batch-section sequence (see Numbering rules above). Example:
 
@@ -366,12 +366,12 @@ picked up without editing this file.
 
 | Q# | Destination | What | Source |
 |---|---|---|---|
-| Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
+| Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Phase 3 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
 | Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
 #### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when Step 7.10 staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.
+Render this section only when the Memory curation row staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.
 
 | M# | Name | Type | Fact | Index line | Patch |
 |---|---|---|---|---|---|
@@ -381,7 +381,7 @@ Render this section only when Step 7.10 staged a memory-file proposal (`staged/w
 
 #### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when Step 7.11 staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise.
+Render this section only when the Upstream feedback curation row staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
@@ -391,6 +391,8 @@ Render this section only when Step 7.11 staged an upstream defect/gap report (`s
 
 Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
 ```
+
+**Hard gate (restated):** the tables must be literal rendered markdown in THIS response, above this tool call — see the top-of-file gate.
 
 Immediately after presenting the console tables above, call `AskUserQuestion` with:
 
@@ -419,16 +421,16 @@ None of these three options carries `(Recommended)` — the source text requires
 ## On approval (option 1)
 
 1. Apply all staged patches in `staged/` for items 5–7 (run `git apply` or equivalent for each)
-2. Apply skill updates and create new skills (items 11–12, from Step 7)
-3. Apply documentation updates (item 13, from Step 7.7) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
-4. Apply journey updates (item 14, from Step 7.8) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
-5. Apply config updates (item 15: CLAUDE.md, rules, ADRs) — including any CLAUDE.md findings staged by Step 7.9, which are always offered, never auto-applied
-6. Execute cleanup actions (items 16 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Step 10 picks these up
+2. Apply skill updates and create new skills (items 11–12, from the Skills curation row)
+3. Apply documentation updates (item 13, from the Docs curation row) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
+4. Apply journey updates (item 14, from the Journeys curation row) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
+5. Apply config updates (item 15: CLAUDE.md, rules, ADRs) — including any CLAUDE.md findings staged by the CLAUDE.md & rules curation row, which are always offered, never auto-applied
+6. Execute cleanup actions (items 16 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Phase 4's execution step picks these up
 7. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 8. For each `M#` memory update, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (`staged/wrap-up-memory-{N}.md`). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the wrap-up commit below. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 9. For each `U#` upstream feedback item, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): invoke `/claude-tweaks:feedback` with the staged, already-scrubbed body from the item's staged file (`staged/wrap-up-upstream-{N}.md`) — that skill re-runs its own scrub and confirm gates, since its Component-Skill Contract states a pipeline never relaxes them. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 10. Commit with a wrap-up message
-11. Proceed to Step 9 (Present Consolidated Summary)
+11. Proceed to the phase-trace report
 
 ## On override (option 2)
 
@@ -437,7 +439,7 @@ None of these three options carries `(Recommended)` — the source text requires
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
 5. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
-6. Commit, then proceed to Step 9 (Present Consolidated Summary)
+6. Commit, then proceed to the phase-trace report
 
 ## On stop (option 3)
 
@@ -445,13 +447,13 @@ Halt before applying. Leave the run directory intact. User resumes with `/claude
 
 ## Empty-console fast path
 
-If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes, memory updates, or upstream feedback proposals are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 9 (Present Consolidated Summary).
+If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes, memory updates, or upstream feedback proposals are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to the phase-trace report.
 
 Cleanup rows that are unconditional bookkeeping — run-dir archival, `cleanup-procedures.md` item 8 — do **not** count as cleanup actions for this test; archival executes regardless, undisplayed, as bookkeeping. Without that carve-out the fast path could never fire, since item 8's condition now holds on every run.
 
 ## Hard requirements
 
-- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
+- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run at Phase 4's execution step, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
 - **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
 - **An `[adr-convention]` row is also per-item**, despite sitting inside Configuration updates. Never fold it into "Approve all" and never pick one of its three options as a default — an unanswered row blocks the `[adr]` rows from the same run rather than resolving them, because their paths depend on the answer.

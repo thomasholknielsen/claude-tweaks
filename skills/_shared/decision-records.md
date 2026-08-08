@@ -1,6 +1,6 @@
 # Decision Records (ADRs)
 
-Canonical contract for when and how the workflow captures an Architecture Decision Record. Referenced by `/claude-tweaks:wrap-up` (Step 6.2, writes ADRs for qualifying decisions). `/claude-tweaks:init` Phase 8.5 may flag `docs/decisions/` as a missing doc and backlog a pointer to this file's template (it never creates the folder or a file itself); the `docs/decisions/` folder is first created in practice when `/claude-tweaks:wrap-up` Step 6.2 writes the first ADR file into it.
+Canonical contract for when and how the workflow captures an Architecture Decision Record. Referenced by `/claude-tweaks:wrap-up` (its Decision records curation row, `wrap-up/adr-curation.md`, writes ADRs for qualifying decisions). `/claude-tweaks:init` Phase 8.5 may flag `docs/decisions/` as a missing doc and backlog a pointer to this file's template (it never creates the folder or a file itself); the `docs/decisions/` folder is first created in practice when that curation row's first ADR file is written into it.
 
 ## Why this exists
 
@@ -28,7 +28,7 @@ docs/decisions/NNNN-{kebab-slug}.md
 
 `NNNN` is a zero-padded sequence (`0001`, `0002`, …) — find the highest existing number under `docs/decisions/` and increment. Slug describes the decision, not the feature (`0007-soft-delete-accounts`, not `0007-accounts-feature`).
 
-**This is the plugin's convention and the default everywhere.** It is not a claim about what any given repo already does. Before proposing a path, `/claude-tweaks:wrap-up` Step 6.2 runs `_shared/existing-convention-detection.md` against `docs/decisions/`: a repo whose existing decision records follow a different grammar gets the conflict surfaced once at the Review Console and the answer recorded in `doc-convention.adr`, rather than a seventeenth file in a seventeenth style. A repo with no decision records, or one already following this convention, never sees a prompt.
+**This is the plugin's convention and the default everywhere.** It is not a claim about what any given repo already does. Before proposing a path, `/claude-tweaks:wrap-up`'s Decision records curation row runs `_shared/existing-convention-detection.md` against `docs/decisions/`: a repo whose existing decision records follow a different grammar gets the conflict surfaced once at the Review Console and the answer recorded in `doc-convention.adr`, rather than a seventeenth file in a seventeenth style. A repo with no decision records, or one already following this convention, never sees a prompt.
 
 ## Template
 
@@ -44,4 +44,4 @@ The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s
 
 ## Auto-mode
 
-ADR creation is a **configuration-class change**, not a code change. It is routed through the Wrap-Up Review Console (or the Step 9 batch decision in interactive mode) alongside doc and CLAUDE.md updates — `auto` may stage it, but the user approves the final set. Every staged ADR proposal logs one entry to `decisions.md` per `_shared/auto-decision-log.md`. Writing an ADR without surfacing it for approval is forbidden — see `_shared/auto-mode-contract.md`.
+ADR creation is a **configuration-class change**, not a code change. It is routed through the Wrap-Up Review Console, in every mode, alongside doc and CLAUDE.md updates — `auto` may stage it, but the user approves the final set. Every staged ADR proposal logs one entry to `decisions.md` per `_shared/auto-decision-log.md`. Writing an ADR without surfacing it for approval is forbidden — see `_shared/auto-mode-contract.md`.

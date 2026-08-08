@@ -16,16 +16,17 @@ in the appropriate earlier step instead. Nothing is staged here in that case.
 One proposal per surviving learning:
 
 ```
-STAGED {time} — Step 7.11: upstream {defect|gap} report proposed for {component}. Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).
+STAGED {time} — Upstream feedback row: upstream {defect|gap} report proposed for {component}. Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).
 ```
 
 The stage file holds the fully drafted **and already scrubbed** body. Scrubbing happens at staging
 time, not at filing time — the approver reads what will actually be published, and a body scrubbed
 later is a body nobody approved.
 
-Filing happens on approval — at the Review Console's `On approval` step
-(`review-console.md`'s Upstream feedback section, which runs in every mode) — by invoking
-`/claude-tweaks:feedback` per approved row. Step 10 only confirms the filing landed; see
+Filing happens on approval, at `review-console.md`'s **On approval step 9** — that is what invokes
+`/claude-tweaks:feedback` for each approved `U#` row. The console's own *Upstream feedback section*
+does not file: it only renders the `U#` table and issues the per-item `AskUserQuestion`. Both run in
+every mode. Phase 4's execution step files nothing either — it only confirms the filing landed; see
 `execution-and-verification.md`.
 
 Filing is never auto-resolved regardless of mode: `_shared/auto-mode-contract.md` lists upstream

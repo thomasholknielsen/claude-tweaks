@@ -1,15 +1,15 @@
 # Wrap-Up Cleanup Procedures
 
-Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up` Step 5 (planning), Step 9 (summary checklist), Step 10 (execution), and by `review-console.md` (the Cleanup actions section of the Review Console — the ninth of its named batch sections). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
+Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up`'s Phase 4 — its cleanup-planning step, its phase-trace report checklist, and its execution step — and by `review-console.md` (the Cleanup actions section of the Review Console — the ninth of its named batch sections). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
 
 ## Canonical cleanup list
 
-Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console). **Ordering rule, first half: pipeline run directory archival (item 8) is always last.** Items 4, 6, and 7 read or write files under `$RUN_DIR` — the worktree/carrier-commit check reads the materialized header from `${RUN_DIR}/work/`, the ephemeral-server teardown reads `${RUN_DIR}/ephemeral-server.txt`, and the issue claim release optionally reads the same materialized header again (for its `parked-at-shaping` restore sub-step only — its core release no longer requires it, see Section E) — and once the run directory is archived none of those paths resolve any more. State this as an unconditional rule, not a closed list: any future cleanup item that reads or writes `$RUN_DIR` belongs before item 8 too, not just the three named here.
+Eight cleanup actions, executed in order (Phase 4's execution step) and surfaced together (cleanup planning, the phase-trace report, the Review Console). **Ordering rule, first half: pipeline run directory archival (item 8) is always last.** Items 4, 6, and 7 read or write files under `$RUN_DIR` — the worktree/carrier-commit check reads the materialized header from `${RUN_DIR}/work/`, the ephemeral-server teardown reads `${RUN_DIR}/ephemeral-server.txt`, and the issue claim release optionally reads the same materialized header again (for its `parked-at-shaping` restore sub-step only — its core release no longer requires it, see Section E) — and once the run directory is archived none of those paths resolve any more. State this as an unconditional rule, not a closed list: any future cleanup item that reads or writes `$RUN_DIR` belongs before item 8 too, not just the three named here.
 
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
 | 1 | Execution plans | Delete ephemeral plan files in `~/.claude/plans/` related to this spec (Claude Code's own native plan-mode scratch output). **Do NOT delete `docs/superpowers/plans/*.md`** — this project's CLAUDE.md documents it as a permanent historical archive, pruned only as a separate, deliberate maintenance action, never per-build. This applies regardless of build mode (design-mode or otherwise) — a spec-specific plan file there is kept, same as every other. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | record-based work | No (idempotent — leave to per-spec wrap-up) |
-| 2 | Open items ledger | Delete via `/ledger`'s delete operation, only after Step 8.5 confirms zero open items | ledger exists | No (idempotent) |
+| 2 | Open items ledger | Delete via `/ledger`'s delete operation, only after Phase 3's ledger gate confirms zero open items | ledger exists | No (idempotent) |
 | 3 | Design wrapper caches | Section A below — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` | design wrapper active | **Yes — defer to parent `/flow` console** |
 | 4 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
 | 5 | Record lifecycle | `work-backend: github-issues`: no-op — closure is close-via-merge (items 4 and 7 stamp the carrier commit and release the claim). `work-backend: local-files`: on 100% completion (confirmed by `/claude-tweaks:review`), call `closeRecord(path)` (`bin/lib/issues/local-store.js`) on the record's file and commit — the record stays on disk as history, excluded from `queryRecords`' default results | record-based work | No (idempotent — does not interact with parent multi-spec archival either way) |
@@ -17,15 +17,15 @@ Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5
 | 7 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for this spec's record | record-based work | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
 | 8 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 
-The detailed procedures for items 3, 4, 6, 7, and 8 follow — see each row's Procedure ref column for its Section letter. Items 1, 2, and 5 are simple enough to execute inline at Step 10 without a dedicated sub-procedure.
+The detailed procedures for items 3, 4, 6, 7, and 8 follow — see each row's Procedure ref column for its Section letter. Items 1, 2, and 5 are simple enough to execute inline at Phase 4's execution step without a dedicated sub-procedure.
 
 **Item 5's two framings, in one line each.** A run under `github-issues` has no file to delete — the record's own lifecycle closes via the merge/PR/commit that carries `Fixes #{issue}` (items 4 and 7), a wrap-up-owned label/claim operation, not a file deletion. A run under `local-files` has a real file to close (there is no GitHub issue whose own closed state does this job) — `closeRecord` marks it `closed: true` in place, mirroring GitHub's closed-not-deleted semantics, then this step commits the change (a local-files record is a tracked file, unlike a GitHub issue edit).
 
 ## Multi-spec defer behavior
 
-Under `MULTISPEC_REVIEW_DEFER=1`, Step 10 SKIPS state-changing cleanups marked "Yes" in the table above (items 3, 4, 6, 7, and 8). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run. Items 1, 2, and 5 still execute — they are idempotent and do not interfere with parent-orchestrated cleanup of design caches, run dirs, or worktrees.
+Under `MULTISPEC_REVIEW_DEFER=1`, Phase 4's execution step SKIPS state-changing cleanups marked "Yes" in the table above (items 3, 4, 6, 7, and 8). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run. Items 1, 2, and 5 still execute — they are idempotent and do not interfere with parent-orchestrated cleanup of design caches, run dirs, or worktrees.
 
-The full list of Step 10's deferred-under-MULTISPEC actions:
+The full list of execution's deferred-under-MULTISPEC actions:
 
 - Item 3 (Design caches) — parent /flow owns design-cache archival across all specs
 - Item 4 (Worktree removal) — parent /flow handles worktree teardown after consolidated console approves cross-spec changes
@@ -56,7 +56,7 @@ Cleanup is silent — no user prompt. The caches are pipeline state, not user-au
 If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet):
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
-2. Verify the Review Console (Step 8.6) ran and applied/dismissed all staged items.
+2. Verify the Review Console ran and applied/dismissed all staged items.
 3. **Mark the run terminal** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
 4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
 5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
@@ -72,7 +72,7 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
 
-If no pipeline run directory exists (interactive mode, or pre-v4.6 pipeline), skip this section silently.
+A run directory always exists from Phase 1 onward, so this section always applies. The one residual exception is a pre-v4.6 pipeline whose run directory was never created — if none resolves, skip this section silently rather than failing the wrap-up.
 
 ---
 
@@ -131,7 +131,7 @@ If the build used worktree git strategy, clean up the worktree directory:
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
    — the carrier is the final wrap-up commit message instead: include the same
    `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
-   branch (the operative instruction lives in wrap-up SKILL.md Step 10's commit procedure,
+   branch (the operative instruction lives in `execution-and-verification.md`'s commit procedure,
    since Section C is skipped when no worktree exists).
 3.5. **Transitional guard — a run directory whose only copy is inside this worktree.**
    Run directories created since run-dir anchoring shipped (2026-08-07, `_shared/pipeline-run-dir.md`'s
@@ -212,7 +212,7 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 ## E. Issue claim release (v5.3.0)
 
-This spec's record is identified whenever this section runs (`SKILL.md` Step 1 — an argument, a
+This spec's record is identified whenever this section runs (`SKILL.md` Phase 1 — an argument, a
 branch/commit reference, or, when `skills/flow/materialize.md` wrote one, a materialized header's
 `record:` field). Call that number `<n>`: the pipeline may hold `refs/claims/issue-<n>` per
 `_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
@@ -291,4 +291,4 @@ stop before attempting any release.
 8. Log each release, grant removal, `bot:in-progress` removal, and `parked` restoration to
    `decisions.md` (status `AUTO`, reason string as detail).
 
-This section does not apply to conversation-based work — Step 5's item 7 condition (record-based work) already excludes it before Section E is ever reached.
+This section does not apply to conversation-based work — cleanup planning's item 7 condition (record-based work) already excludes it before Section E is ever reached.

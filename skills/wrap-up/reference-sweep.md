@@ -11,7 +11,7 @@ This is the sweep `CLAUDE.md`'s Don'ts prescribe by hand in five separate rules 
 review cannot see an orphaned reference in an untouched file, by construction, so nothing catches
 it until someone follows a dead pointer.
 
-Unlike Step 7.7's D1, this scans **files this run did not touch** — an orphan lives wherever the
+Unlike the Docs curation row's D1, this scans **files this run did not touch** — an orphan lives wherever the
 old name was cited, which is precisely not where the change was made.
 
 ## Step 1: The target set
@@ -53,8 +53,8 @@ fails, the carve-out does not apply — see `_shared/initiative-budget.md`.
 ## Step 4: Apply or stage, by ceiling
 
 **Under `--dry-run`, this step applies nothing** — whatever the ceiling says. Run the floor check,
-report what *would* have been repaired as preview rows, and stage everything. This step runs well
-before Step 10's preview branch, so `SKILL.md`'s "make no commits" alone would not have stopped the
+report what *would* have been repaired as preview rows, and stage everything. This step runs in
+Phase 2, well before Phase 4's execution-step preview branch, so `SKILL.md`'s "make no commits" alone would not have stopped the
 edits themselves from landing in the tree; the rule has to live here, at the point of application.
 
 Resolve the `autonomy` ceiling per `_shared/autonomy-ceiling.md`.

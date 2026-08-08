@@ -266,7 +266,7 @@ Two fields exist for `polish` mode's benefit and must be written even when they 
 - **`suggestion`** — the command `audit` named for this finding, normalized to a bare command name. It is the *only* thing that selects a command in `polish` mode's suggestion-driven dispatch, so a finding cached without it is downgraded to an unclassified observation. When `audit`'s output gives no suggested command for an issue, write the field as `null` rather than omitting it, so the downgrade is visibly deliberate rather than looking like a cache-shape bug.
 - **`id`** — a per-run identifier, stable within one cache file: use the finding's own identifier when `audit` emits one, otherwise assign `audit-{n}` by position, 1-based. `polish` mode stages unclassified findings by `id`, and a human at the Review Console needs it to find the finding this cache came from.
 
-Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. Cleanup is handled by `/claude-tweaks:wrap-up` Step 5 alongside the ledger.
+Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. Cleanup is handled by `/claude-tweaks:wrap-up`'s Phase 4 cleanup alongside the ledger.
 
 If the cache write fails (disk full, permission denied), surface the failure as a one-time skip and continue — with the cache absent, `polish` mode runs its refinement set and intent dispatch, and skips suggestion-driven dispatch entirely.
 

@@ -1,6 +1,6 @@
 # Multi-Spec Consolidated Review Console
 
-For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Review Consoles (`/wrap-up` Step 8.6) are **deferred** so the user is not interrupted between specs. After the final spec's wrap-up completes, `/flow` runs **one consolidated Review Console** that aggregates decisions and staged items from every spec in the run.
+For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Review Consoles (`/wrap-up`'s Phase 4) are **deferred** so the user is not interrupted between specs. After the final spec's wrap-up completes, `/flow` runs **one consolidated Review Console** that aggregates decisions and staged items from every spec in the run.
 
 This preserves the bookend architecture (Manifesto at start, one Review Console at end) even when N > 1 specs run sequentially.
 
@@ -14,7 +14,7 @@ The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run 
 
 ## When to run the consolidated console
 
-After every spec's pipeline reaches `/wrap-up` Step 10 (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
+After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
 
 1. Read `manifest.yml` to enumerate per-spec subdirectories
 2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any
@@ -140,7 +140,7 @@ The run shares **one** worktree (see `multi-spec.md`, "Shared worktree"), so the
 Status values:
 - **failed** — spec hit a HARD-GATE but the run continued (only happens under `keep-going`). Worktree is preserved for inspection.
 - **not-run** — spec was skipped because an earlier spec failed and `keep-going` was not set. No worktree was created.
-- **running** (stuck) — spec started but the run never reached `/wrap-up` Step 10 or a HARD-GATE for it (rare; e.g., subagent crash). `manifest.yml`'s status schema (`multi-spec.md`) has no dedicated `incomplete` value and no procedure ever writes one — a crash simply leaves the entry at whatever status it last had, almost always `running`. Treat any spec whose manifest status is still `running` when the console renders as this case.
+- **running** (stuck) — spec started but the run never reached `/wrap-up`'s Phase 4 execution step or a HARD-GATE for it (rare; e.g., subagent crash). `manifest.yml`'s status schema (`multi-spec.md`) has no dedicated `incomplete` value and no procedure ever writes one — a crash simply leaves the entry at whatever status it last had, almost always `running`. Treat any spec whose manifest status is still `running` when the console renders as this case.
 
 Populate this footer from `manifest.yml` — any spec with `status: failed`, `not-run`, or still `running` gets a row.
 

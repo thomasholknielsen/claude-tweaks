@@ -12,7 +12,7 @@ Classify every reflection insight and ledger learning not already routed by Step
 contract, then stage — never write directly:
 
 ```
-STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibility: high (stage path: staged/wrap-up-memory-{N}.md).
+STAGED {time} — Memory row: memory file proposed "{name}" ({type}). Reversibility: high (stage path: staged/wrap-up-memory-{N}.md).
 ```
 
 The stage file holds the complete proposed memory file **plus** its `MEMORY.md` index line, so the

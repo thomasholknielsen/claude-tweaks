@@ -85,12 +85,12 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `.cl
 | File | Written by | Read by |
 |---|---|---|
 | `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile |
-| `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up` Step 8.6 (Wrap-Up Review Console) |
-| `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up` Step 8.6 |
+| `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up`'s Phase 4 (Wrap-Up Review Console) |
+| `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up`'s Phase 4 |
 
 The directory is **collision-safe** across parallel agents (multiple `/flow` runs in the same checkout each get their own `{ISO-timestamp}-{spec-slug}` directory). Downstream skills locate the active run via the `PIPELINE_RUN_DIR` env var or by selecting the most recent matching directory.
 
-After successful pipeline closure, `/wrap-up` Step 10 moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
+After successful pipeline closure, `/wrap-up`'s Phase 4 execution step moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
 
 ## Within-Session Context
 

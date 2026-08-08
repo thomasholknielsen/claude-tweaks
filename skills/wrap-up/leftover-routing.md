@@ -1,6 +1,6 @@
-# Step 4 — Analyze Leftover Work
+# Phase 3 — Analyze Leftover Work
 
-Spec-based only. Same fix-exhaust-first discipline as the resolve gate (Step 8.5): attempt to complete unfinished spec sections in this pipeline before proposing routing. Only sections that genuinely cannot be completed in the current work context get presented for routing.
+Spec-based only. Same fix-exhaust-first discipline as Phase 3's ledger gate: attempt to complete unfinished spec sections in this pipeline before proposing routing. Only sections that genuinely cannot be completed in the current work context get presented for routing.
 
 ## Fix-exhaust first
 
@@ -13,9 +13,9 @@ A section qualifies for "finish now" if **all** of these hold:
 
 Finish qualifying sections silently, commit, then present only the residue.
 
-## Auto mode (policy lookup)
+## Staging (every mode — policy lookup)
 
-When the pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `leftover-default` from `config.yml`. Per the Manifesto default (`defer`), each residue section becomes a staged **work-record proposal** — never created directly. `_shared/auto-mode-contract.md` lists work-record creation among what `auto` does NOT silence: every record filed on the user's tracker needs explicit per-item approval, so the record queue stays the user's, not the model's.
+Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet); read `leftover-default` from its `config.yml` when one is present, and fall back to the Manifesto default (`defer`) on a standalone run, which has none. Each residue section becomes a staged **work-record proposal** — never created directly. `_shared/auto-mode-contract.md` lists work-record creation among what `auto` does NOT silence: every record filed on the user's tracker needs explicit per-item approval, so the record queue stays the user's, not the model's.
 
 1. **Compose the body.** Start with a provenance line — `Origin: wrap-up leftover from #{n}` when this run's materialized header exists (`{n}` = its `record:` field) — then a blank line, then the section's own unfinished-work description (what's left, why it can't finish now). When the recommended destination is `parked` (a concrete trigger exists — a date, a watched path, another spec landing), append a `Trigger: {condition}` line. When no specific trigger exists (a captured idea worth keeping but nothing concrete to wake it), the body ends after the description and the record stays plain backlog — the unified taxonomy's equivalent of the pre-migration "inbox" destination, minus a separate stage label (`_shared/work-record.md`'s Stage axis has exactly three values: backlog/parked/ready; there is no fourth "inbox" state).
 
@@ -41,11 +41,15 @@ When the pipeline run directory exists (see `_shared/pipeline-run-dir.md` for th
 
 4. **Log entry** to `decisions.md`:
    ```
-   STAGED 15:02:18 — Step 4: section "{name}" cannot finish now ({blocker}). Recommended: {leftover-default} → {parked|backlog}. Stage path: staged/leftover-{slug}.md.
+   STAGED 15:02:18 — Leftover routing: section "{name}" cannot finish now ({blocker}). Recommended: {leftover-default} → {parked|backlog}. Stage path: staged/leftover-{slug}.md.
    ```
-5. Do NOT create the record autonomously. The Wrap-Up Review Console (Step 8.6) presents each staged leftover in its Queue writes section for mandatory per-item approval — never bulk, per `_shared/auto-mode-contract.md`'s work-record-creation row — unless `unattended-tier: on`, in which case the console's auto-file step (see `review-console.md`) creates it directly before rendering, per `_shared/unattended-tier.md`. Either way, the disposition (`backlog` vs. `parked`) chosen by `leftover-default` above is unchanged; this only affects whether creating the record needs a click. On approval (or auto-file), the record is created via: `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading the `Title:`/`Type:`/`Labels:` header and the body back out of the staged file. See `review-console.md`'s Queue writes section in this skill's directory.
+5. Do NOT create the record autonomously. The Wrap-Up Review Console presents each staged leftover in its Queue writes section for mandatory per-item approval — never bulk, per `_shared/auto-mode-contract.md`'s work-record-creation row — unless `unattended-tier: on`, in which case the console's auto-file step (see `review-console.md`) creates it directly before rendering, per `_shared/unattended-tier.md`. Either way, the disposition (`backlog` vs. `parked`) chosen by `leftover-default` above is unchanged; this only affects whether creating the record needs a click. On approval (or auto-file), the record is created via: `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading the `Title:`/`Type:`/`Labels:` header and the body back out of the staged file. See `review-console.md`'s Queue writes section in this skill's directory.
 
-## Interactive mode (per-item user input)
+## Interactive disposition drill (per-item user input, before staging)
+
+**This is not a second copy of the console's approval.** It decides each leftover section's *disposition* — finish it now, route it, or drop it — which happens in Phase 3, before anything is staged. Whether an approved routing actually becomes a record is the Review Console's own `Q#` per-item decision in Phase 4, and this drill never substitutes for it.
+
+Run this drill when a human is present (interactive or standalone wrap-up). In `auto` and `hybrid` runs the `leftover-default` policy lookup above supplies the disposition instead, and nothing is asked here.
 
 For each unfinished section that genuinely cannot be finished, first present a summary table (dense multi-row data, per CLAUDE.md's Multi-item decisions convention):
 
@@ -71,6 +75,6 @@ None of these three options carries `(Recommended)` — fix-exhaust already atte
 - Option 2 — `label`: `"New record, parked"`, `description`: `"Work needs its own context and has a clear trigger (a date, a watched path, another spec landing)"`
 - Option 3 — `label`: `"New record, backlog"`, `description`: `"Genuinely new idea discovered during implementation, no specific trigger yet"`
 
-For "New record, parked" or "New record, backlog": compose the body and build the payload exactly as the Auto mode steps above (`Origin:` line, plus `Trigger:` line and `parked: true` for the parked case), then create it directly — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`). Bootstrap the `parked` label first if missing (per `_shared/label-bootstrap.md`, `LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']]`). "New record, backlog" omits the `Trigger:` line and `parked` — the record files with no stage label (open, unparked, unready): the unified taxonomy's equivalent of the pre-migration "inbox" destination.
+For "New record, parked" or "New record, backlog": compose the body and build the payload exactly as the staging steps above (`Origin:` line, plus `Trigger:` line and `parked: true` for the parked case), then **stage it** to `{run-dir}/staged/leftover-{slug}.md` the same way — do not create the record here. The Review Console's Queue writes section owns the creation decision in every mode, and `_shared/label-bootstrap.md`'s `parked` bootstrap runs there, at creation time, not here. "New record, backlog" omits the `Trigger:` line and `parked` — the record files with no stage label (open, unparked, unready): the unified taxonomy's equivalent of the pre-migration "inbox" destination.
 
-**Wait for the user's reply at every step.** Do not bulk-route. Creating a record here — unlike auto mode, where it only stages a proposal — is the user's explicit per-item confirmation itself, which **is** the required approval (`_shared/auto-mode-contract.md`'s work-record-creation row).
+**Wait for the user's reply at every step.** Do not bulk-route. This drill records the disposition; `_shared/auto-mode-contract.md`'s work-record-creation row is satisfied later, by the console's own per-item `Q#` approval.

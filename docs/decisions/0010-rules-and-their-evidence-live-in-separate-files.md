@@ -37,7 +37,7 @@ A rule and the evidence for that rule live in different files, with different bu
 Three mechanisms keep the split from collapsing back:
 
 1. **Ordering.** The incident account is written *first*, then compressed to the rule
-   (`reflect/full-mode.md`, `wrap-up/config-updates.md` 6.1). Writing the rule first pads it — the
+   (`reflect/full-mode.md`, `wrap-up/claude-md-curation.md`). Writing the rule first pads it — the
    incident is vivid, every detail feels load-bearing, and the justification leaks into the
    always-loaded file a clause at a time.
 2. **An exit.** `/claude-tweaks:harness-health`'s rule-expiry check proposes removing rules whose
@@ -59,7 +59,7 @@ open rather than closed against a criterion it does not meet.
 **Accepted.** Rule expiry is scoped to `assetType: claude-md`, because CLAUDE.md findings never
 auto-apply and that containment is what makes an empty `newString` safe. Rules under
 `.claude/rules/` and skill files therefore have no expiry path yet; widening it requires auditing
-every auto-apply consumer (`/init` Phase 6, `/wrap-up` Step 7) first.
+every auto-apply consumer (`/init` Phase 6, `/wrap-up`'s Skills curation row) first.
 
 **Risk.** The incident log grows without bound. That is acceptable while it stays un-auto-loaded —
 but if anything ever adds it to a always-loaded path or inlines it into a dispatch prompt, the
