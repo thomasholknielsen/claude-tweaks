@@ -4,6 +4,15 @@
 - **Date:** 2026-07-29
 - **Context:** gh-CLI/MCP-fallback branch (`docs/superpowers/specs/2026-07-28-gh-cli-mcp-fallback-design.md`), closing GitHub issues #60 (tidy's `--scope=github` digest/triage), #61 (dispatch's claim lock), #63 (health-engine durable-state cursor writes)
 
+> **Premise note (6.70.0).** The alternatives below reject setup scripts as the fix mechanism partly
+> because they are "account-level manual configuration the plugin cannot ship, enforce, or verify."
+> The middle term has weakened: `/init` Step 14 now offers to *attach* a setup script to a cloud
+> environment via `guided-environment-creation.md`'s `Ensure-setup-script`, and the script it writes
+> verifies its own installs. The plugin still cannot **enforce** it — a user who declines, or who
+> later switches environments, lands in exactly the silent-fallback failure this ADR describes, which
+> is why the decision below is unchanged and the MCP fallback stays the mechanism. `[IL-113]` is that
+> failure observed for plugin loading rather than for `gh`. Left unedited below, per `[ADR-0013]`.
+
 ## Context
 
 Three plugin skills — `/claude-tweaks:tidy`'s GitHub digest, `/claude-tweaks:dispatch`'s claim
