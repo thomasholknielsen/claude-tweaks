@@ -9,7 +9,7 @@ a standalone run, where no other producer ever creates one.
 ## Running the sweep
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {ref} --scope blast-radius
+node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {ref} --scope repo
 ```
 
 **`--integration-branch` must always be passed explicitly — never rely on the CLI's own default.**
