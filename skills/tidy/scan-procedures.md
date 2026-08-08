@@ -51,9 +51,19 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
 
-**Worktrees:** Run `git -C "{REPO_ROOT}" worktree list`. Any worktree beyond the main working tree is a candidate.
+**Worktrees and merged remote branches — shared probe.** Run, anchored at `{REPO_ROOT}`:
 
-**Build branches:** Run `git -C "{REPO_ROOT}" branch --list "build/*"`.
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {merge-base} --scope repo --no-suite --json
+```
+
+`{merge-base}` resolves to `HEAD` for this step — /tidy has no single feature branch to diff, unlike `/wrap-up`'s own close-time invocation of this same CLI (`residue-sweep.md`), which passes its run's actual base; `--base` gates the whole invocation on a resolvable commit-ish but isn't otherwise read by the worktree/branch probes. `--no-suite` skips the CLI's own test-suite probe, which this step has no use for.
+
+Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, and reaper-domain membership. This replaces `git worktree list` as this step's worktree enumeration one-for-one. If the results block reports `ran: false` for this probe, treat worktrees as **`unknown`** for this run, not clean — an empty `findings` array under `ran: false` must never be read as "no worktrees."
+
+Each `kind: branch` finding is a **remote-tracking** branch (of the integration branch's own remote — `origin` by default) already merged into the integration branch and not yet deleted. This does **not** replace the local `build/*` scan below — it is a narrower, differently-shaped catch: it never surfaces an unmerged branch (the probe filters to `--merged` only, so an unmerged `build/*` branch is invisible to it — exactly the case the "Unmerged changes" row needs), and it never surfaces a branch that was only ever merged locally, e.g. via `_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern, which is this repo's own dominant merge shape for worktree-derived branches and leaves no remote-tracking ref at all. Fold its findings in as an **additional** repo-wide check for stray already-merged remote branches (of any name, not just `build/*`), never as a substitute for the scan below.
+
+**Build branches (local, any merge state):** Run `git -C "{REPO_ROOT}" branch --list "build/*"`. The CLI above has no equivalent for this — it can only ever report merged, remote-tracking branches, so a local-only or still-unmerged `build/*` branch (including one being actively worked on) is outside its domain entirely.
 
 | Status | Recommendation |
 |--------|---------------|
@@ -126,6 +136,13 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 (gh path shown above; use `_shared/issue-claims.md`'s MCP-path "List all claims" when `gh` is
 unavailable — a directory listing of `claims/` on the `claims-registry` branch instead of
 `git/matching-refs`.)
+
+**Not re-pointed at `bin/residue.js`.** That CLI's `kind: claim` probe (`probeClaims`) checks
+only whether each claim ref's issue is closed — it never fetches comments and never calls
+`claimStatus`, so it covers just the first row of the table below and has no way to produce
+the other five, nor any of the three backstops that follow. Folding it in would drop, not
+replace, five of six status rows plus every backstop; this step keeps its own full listing and
+`claimStatus` fold unchanged.
 
 | Status | Recommendation |
 |--------|---------------|
@@ -221,6 +238,14 @@ way.
 → Collect each as: `[claim] {run-dir} — clean standalone run, empty decisions.md — possible skipped audit-log write (manual review)`
 
 ## Step 4.8: Audit GitHub PRs and Issues
+
+**Not re-pointed at `bin/residue.js`.** That CLI's `kind: pr` probe (`probeForge`) is a raw
+`gh pr list --state open --json number,title,headRefName` with no staleness/CI/review-thread
+classification and no issue scanning at all — no `by:code-health`/`by:harness-health`/
+`by:journey-health`/`by:docs-health` labels, no `acceptance-gap`, no `family-gate`. Its fields
+aren't even sufficient to redo item 1's classification below (no `updatedAt`, `isDraft`,
+`reviewDecision`, or `url`), so this step still fetches PRs itself and keeps its full procedure
+below unchanged.
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** and **`family-gate`** scopes. The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `family-gate` procedure), the Detection Ladder, and the Output Contract into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `family-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero leaves from every parent, so every leaf re-enters `acceptance-gap` as a false row and `family-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 

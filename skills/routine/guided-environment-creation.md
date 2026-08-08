@@ -1,9 +1,12 @@
 # Guided Environment Creation
 
 Referenced by `/claude-tweaks:routine`'s CREATE Step 4 (when no environment exists yet for the
-current project — the Create procedure below) and by `/claude-tweaks:init`'s Update Mode Routine
+current project — the Create procedure below), by `/claude-tweaks:init`'s Update Mode Routine
 Environment Dedication check (`skills/init/update-mode.md` — the Audit and Re-point procedures
-below). Not invoked directly by a human — always reached from one of those two call sites. Each
+below), and by `/claude-tweaks:init`'s Step 14 (`init/bootstrap/step-14-cloud-routine-parity.md`
+— the Ensure-setup-script procedure below, which is the only one that targets the environment
+interactive sessions use rather than a routine's). Not invoked directly by a human — always
+reached from one of those call sites. Each
 procedure's own "Takes:" line documents its exact inputs; they are not identical across the three
 (Create needs the project-slug and resolved repo URL plus the routine's own fields; Audit needs only
 a `trigger_id`; Re-point needs a `trigger_id` plus a `target_environment_name`, and optionally a
@@ -15,13 +18,20 @@ directly (`RemoteTrigger` is scoped to `/v1/code/triggers` only) — this is alw
 web-UI action. `agent-browser` (this plugin's default `/browse` backend) has no authenticated
 claude.ai session, so every procedure below drives `/claude-tweaks:browse backend=chrome`
 specifically — this repo's existing documented exception for human-invoked, non-Routine browser
-automation. All three procedures below are interactive-only: if claude-in-chrome is unavailable (no
+automation. Every procedure below is interactive-only: if claude-in-chrome is unavailable (no
 extension connected, or the user declines when `/browse` offers it), fall back immediately to
 printing the exact values below for the user to enter manually, and return a failure to the caller
 in that procedure's own return shape (Create: `{trigger_id: null, console_url: null, environment_id:
 null, environment_name: null, connectors_pending: []}`; Audit: `{environment_name: null}`; Re-point:
-report failure per its own step 4) — never block the calling step's own flow waiting on a browser
-that isn't there.
+report failure per its own step 4; Ensure-setup-script: `{success: false, environment_name: null,
+had_script: null}`) — never block the calling step's own flow waiting on a browser that isn't there.
+
+**Extension availability is not a one-shot check.** Confirmed live: `list_connected_browsers` can
+return a browser and then return `[]` moments later, so a `select_browser` call issued on a stale
+listing fails with `No connected browser has deviceId "…"`. Re-list immediately before selecting,
+select without an intervening call, and treat a drop mid-procedure as the unavailable case above
+rather than retrying in a loop. Any claude.ai re-authentication (`reason=elevated_auth`) drops the
+pairing, so a procedure that triggers one will need the user to re-pair before it can continue.
 
 ## Naming convention
 
@@ -117,6 +127,51 @@ step 6 below).
    `trigger_id`/`console_url` in place of its own Step 8 `RemoteTrigger create` call and Step 9's
    instantiated-record write — this procedure's own routine
    creation *is* that caller's Step 8 for this one invocation, not a separate or duplicate routine.
+
+## Ensure-setup-script procedure
+
+Takes: `environment_name` (optional — when omitted, operate on whichever environment the session
+composer currently has selected, which is the one a plainly-started cloud session will use).
+
+The Create procedure above only ever reaches an environment it is creating for a *routine*. An
+interactive cloud session uses whichever environment is selected in the composer — commonly a
+long-lived, human-named one (`Default`, `General`) that no claude-tweaks flow has ever touched.
+That environment having an empty Setup script is the single most common reason a fully-declared
+project still reports `Unknown command` for every plugin skill. This procedure closes that gap,
+and it is the only one here that edits an environment's own fields rather than which environment
+a routine points at.
+
+The composer path below is distinct from the routine-form path Create uses — it was confirmed live
+and does not go through the Routines UI at all.
+
+1. Dispatch `/claude-tweaks:browse backend=chrome`: navigate to `claude.ai/code` and click the
+   sidebar's **New** entry, which renders the composer with its chip row (environment, repository,
+   branch) directly above the prompt box.
+2. Click the leftmost chip — the environment chip, showing the current environment's name. A menu
+   opens with `Local` / `Cloud` / `Remote Control`. Click `Cloud` to expand its submenu, which
+   lists every environment with a checkmark on the selected one, plus `Add cloud environment…` as
+   its last item. Apply Create step 3's 1-2 second `wait` here too.
+3. Hover the row for `environment_name` (or the checkmarked row when no name was passed) — a gear
+   icon appears on hover and is not present in a screenshot taken before hovering. Click the gear.
+   This opens an **Update cloud environment** dialog with Name, Network access, Environment
+   variables, Setup script, and `Archive` / `Cancel` / `Save changes` controls.
+4. Read the Setup script field. Record whether it was non-empty as `had_script`.
+   - Already contains a `claude-cloud-setup.sh` invocation: click `Cancel` (never `Save changes` —
+     same read-only discipline as the Audit procedure) and report success without editing.
+   - Empty: click into the field and type exactly `bash scripts/claude-cloud-setup.sh 2>/dev/null || true`
+     — the same repo-agnostic line Create step 5 uses, safe on a repo that has never run
+     `/claude-tweaks:init`. Restating it here rather than citing Create's step 5 is deliberate: the
+     two are the same string today but reach different environment classes, and a future change to
+     one is not automatically correct for the other.
+   - Non-empty with unrelated content (e.g. `npm install`): **do not overwrite it.** Append the
+     invocation on its own new line after the existing content. An environment shared with other
+     work can carry a setup script this plugin knows nothing about, and replacing it silently
+     breaks that work.
+5. Click `Save changes`. The dialog notes that changes apply to **new** sessions only — an already-
+   running session does not pick this up, so any verification must start a fresh session.
+6. Report `{success: true, environment_name: <the name acted on>, had_script: <boolean>}`. On
+   failure at any step, report the failure shape from this file's header and leave the environment
+   untouched.
 
 ## Audit procedure
 

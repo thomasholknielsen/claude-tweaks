@@ -195,7 +195,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 1. `decisions.md` — auto-decision log
 2. `staged/` directory — patches and proposals awaiting decisions
 3. `config.yml` — the Manifesto answers (for context)
-4. `events.jsonl` — hook-recorded typed events; surface `wd-deny`, `wd-push-mismatch`, and `contract-violation` events
+4. `events.jsonl` — hook-recorded typed events; surface `wd-deny`, `wd-push-mismatch`, `contract-violation`, and `gate-denial` events
 
 ## Numbering rules
 

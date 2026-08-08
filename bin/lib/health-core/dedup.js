@@ -1,7 +1,10 @@
 'use strict';
 
 // Decide what to do with a freshly-fingerprinted finding given the current
-// issue index and local cache. Pure — no I/O, no network.
+// issue index and local cache. Pure — no I/O, no network, and asserted so by
+// bin/lib/health-core/tests/purity.test.js. Consumed by the three health
+// sweeps below only — bin/lib/residue/ does not require this module; it
+// relies on fingerprint.js and finding-validation.js instead.
 //
 // Shared by harness-health, journey-health, and docs-health (byte-identical
 // wrapper across the three today). code-health keeps its own decide() in
