@@ -59,7 +59,7 @@ Step numbering inside those files is unchanged from before the split, so cross-r
 
 ### CREATE `<skill>`
 
-Steps 0-9 live in `create-and-update.md` in this skill's directory; Step 5's own 5a-5d live in `schedule-resolution.md`.
+Steps 0-9 live in `create-and-update.md` in this skill's directory; Step 5's own 5a-5d live in `schedule-resolution.md`. The live routine's `session_context.model` is caller-overridable, not fixed to the template's declared model — see `_shared/routine-diagnostic-probe.md`'s note on that field.
 
 ### UPDATE `<skill>`
 
