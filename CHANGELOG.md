@@ -39,6 +39,16 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.68.2 — the /research deps fallback stops naming context7
+
+context7 is retired from this user's toolchain, and the deps-fallback sentence in
+`skills/research/source-registry.md` was its one functional citation in the plugin: it now
+names WebFetch of the dependency's public documentation as the mechanism. The pinned test
+regex in `tests/research/skill-md.test.js` is tightened in step — its alternation would
+otherwise keep passing on a term the prose no longer contains. All shadcn support is
+untouched: the dead MCP the cleanup started from was a user-level `shadcn.io` entry,
+unrelated to `/init` Step 13's official `npx shadcn@latest mcp` wiring.
+
 ## v6.68.1 — the convention-detection contract loses its patent-law jargon
 
 `_shared/prior-art-detection.md` is now `_shared/existing-convention-detection.md`, and the concept it names is "the repo's existing convention" rather than "prior art". Six live references swept — `_shared/decision-records.md`, `_shared/diataxis-genre-templates.md`, `_shared/policy-schema.md`, `wrap-up/config-updates.md`, `wrap-up/SKILL.md`, `docs/skill-graph.md`.
@@ -48,6 +58,17 @@ Renamed because the maintainer read the term and asked what it meant. "Prior art
 The term also collided inside this repo. `/claude-tweaks:research` does prior-art lookup in the ordinary sense — external libraries, standards, vendors — and `docs/skill-graph.md` carried both meanings a hundred lines apart. Only one of them was about documentation genres.
 
 Behavior is unchanged: same procedure, same three outcomes, same `doc-convention.adr` key. The dated design doc and plan keep the old vocabulary as the historical record they are, with a pointer at the top of the spec naming the current file so the reference does not dangle. ADR 0013 keeps its filename and title for the same reason — an accepted decision record is dated evidence, superseded rather than edited — and gains a pointer note instead.
+
+## v6.64.3 — never shipped; the number the rename WIP carried before landing as v6.68.1
+
+`main`'s tip never reported this version, so no install could ever have run it. The
+preserved-WIP commit that carried it (`e2a583f0`, an `[IL-46]` preservation) was renumbered
+to v6.68.1 at the merge — but that merge put the WIP commit on `main`'s first-parent chain,
+so the coverage gate's git walk sees the number anyway. Recorded here and in
+`docs/shipped-versions.tsv` (source `wip-never-shipped`) because a walk-visible version with
+no entry is indistinguishable from a skipped changelog step, and the record's failure
+asymmetry deliberately prefers one unnecessary entry over an erasable release
+(`bin/lib/shipped-record.js`). The work itself is written up under v6.68.1.
 
 ## v6.68.0 — /research gains a verify mode that grounds a design before it is written
 
