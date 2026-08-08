@@ -1,4 +1,6 @@
-# Docs-Health Integration for /wrap-up Step 7.7
+# Docs-Health Integration — judge file
+
+Judge file for the `docs` registry row (`Docs`), loaded per that row when its gate opens. The gate, the scope cap, and the row's `SCANNED` line are **engine-owned** — see `curation-engine.md`; this file is judgment only.
 
 Loaded by `/claude-tweaks:wrap-up` Step 7.7 to judge the health of docs this work actually touched or is closely related to, and to detect documentation this work should have produced but didn't. Three checks — D0 broadens which existing docs get judged beyond the touched set via a domain-overlap scan, D1 applies the shared docs-health judgment to that combined scope, D2 judges the diff for missing coverage.
 
@@ -6,10 +8,10 @@ Loaded by `/claude-tweaks:wrap-up` Step 7.7 to judge the health of docs this wor
 
 **Purpose:** rank existing docs by how much they cover the changed subsystem, so D1 also judges docs that weren't directly touched but are still relevant — the documentation equivalent of skill curation's independent domain-scoped scan (`skill-curation.md` 7.2).
 
-1. Read `docs/REGISTRY.md`. **Explicit fallback:** if it doesn't exist, or exists with no Auto-detect patterns, skip this scan for the run entirely — do not fall back to scanning the whole `docs/` tree (that's `/claude-tweaks:docs-health`'s own rotation's job, not this leaf's). Note this in the mandatory summary below as `"registry absent/empty — domain-overlap scan skipped"`; this is not an error.
+1. Read `docs/REGISTRY.md`. **Explicit fallback:** if it doesn't exist, or exists with no Auto-detect patterns, skip this scan for the run entirely — do not fall back to scanning the whole `docs/` tree (that's `/claude-tweaks:docs-health`'s own rotation's job, not this leaf's). Report this via the payload's `detail` as `"registry absent/empty — domain-overlap scan skipped"`; this is not an error.
 2. Otherwise, score each registry entry by how much its Auto-detect patterns intersect this work's `git diff --name-only` — reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` the same way `SKILL.md`'s Step 6 fast-lane pre-check does (map each bare filename to `{path: f}` first, since the function reads `f.path`), passing the registry's own Auto-detect patterns as the `sensitivePaths` argument. A result's `isSensitive: true` means a registry-pattern hit here.
-3. Rank descending by overlap-hit count. Take the **top-N**, where N is `--doc-budget` if passed to the invoking `/claude-tweaks:wrap-up` call (see `wrap-up/SKILL.md`'s Flags), else **3** — or **1** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see `wrap-up/SKILL.md` Step 3.5). Exclude any doc already in D1's touched-docs scope below — it's already covered, don't double-judge it.
-4. If more docs than the applicable cap have a nonzero overlap score, **note the overflow explicitly** in the mandatory summary below (name the cap and how many were left unread) — never silently truncate. `/claude-tweaks:tidy` and future wrap-ups pick up the remainder.
+3. Rank descending by overlap-hit count. Take the **top-N**, where N is the cap that arrives in the worklist row (`scope.cap`), resolved by the engine. Exclude any doc already in D1's touched-docs scope below — it's already covered, don't double-judge it.
+4. If more docs than the applicable cap have a nonzero overlap score, **note the overflow explicitly** in the payload's `detail` (name the cap and how many were left unread) — never silently truncate. `/claude-tweaks:tidy` and future wrap-ups pick up the remainder.
 5. Add the selected top-N docs to D1's scope below — they go through the identical JUDGE procedure (D1 Steps 1-3) as touched docs, with no special-casing.
 
 ## Registry Maintenance
@@ -65,22 +67,10 @@ On a hit:
 
 Never propose more than one new doc per genuinely new subsystem — if the new subsystem spans multiple genres worth of content (e.g. both a How-To and a Reference), propose each as its own row rather than one doc trying to be two genres.
 
-## Mandatory summary (always, regardless of outcome)
-
-Emit exactly one summary line every Step 7.7 run, auto mode or interactive:
-
-```
-SCANNED {time} — Step 7.7 documentation curation summary: {T} docs touched, {D} domain-overlap docs read
-(top-{cap}: {names}, or "registry absent/empty — domain-overlap scan skipped"), gap detection: {what was
-examined, found/not found}.
-Result: {N} applied, {M} staged, {K} restructural filed.
-Reversibility: N/A.
-```
-
-`{T}` counts docs in D1's touched-docs sub-scope (`git diff` against `docs/**/*.md`). `{D}` counts D0's domain-overlap docs actually read — `0` when the registry is absent/empty, in which case render the parenthetical as the literal fallback text instead of `top-{cap}: {names}`. `{cap}` is D0's own default-3/fast-lane-1/`--doc-budget`-override value. When D0 noted an overflow (Step 3 above), append it to the summary: `; {V} additional domain-overlap doc(s) over cap, deferred to /claude-tweaks:tidy`. Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
-
-Declare **"No documentation updates needed"** only when D0 finds no domain-overlap docs (or the registry is absent/empty), D1's full scope (touched + domain-overlap) produces no findings, and D2 finds no missing-doc gap — and even then, the mandatory summary line above is still emitted, naming the docs-touched count, domain-overlap docs read, and gap-detection outcome. A "no updates needed" outcome that skips the summary line is a Step 7.7 defect, not a valid completion.
+Declare **"No documentation updates needed"** only when D0 finds no domain-overlap docs (or the registry is absent/empty), D1's full scope (touched + domain-overlap) produces no findings, and D2 finds no missing-doc gap.
 
 ## Gotcha: Step 9's standalone template is not split
+
+<!-- updated in summary-template rewrite -->
 
 `wrap-up/SKILL.md`'s Step 9 "Present Consolidated Summary" standalone template (the non-Review-Console path, used in interactive mode or standalone wrap-up) still folds doc items into one generic `### Configuration Updates (from Step 6)` table alongside CLAUDE.md/rule/ADR items. This is deliberate — Step 9 is a lower-traffic path (Step 8.6's Review Console already covers the console-driven flow with its own dedicated "Documentation updates" section), and splitting Step 9's template is out of scope for this change. Only Step 8.6 (`review-console.md`) gets the dedicated section.

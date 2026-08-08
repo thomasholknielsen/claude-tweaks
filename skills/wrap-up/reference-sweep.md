@@ -1,4 +1,6 @@
-# Broken-Reference Sweep — /wrap-up Step 7.12
+# Broken-Reference Sweep — judge file
+
+Judge file for the `references` registry row (`Broken references`), loaded per that row when its gate opens. The gate, the scope, and the row's `SCANNED` line are **engine-owned** — see `curation-engine.md`; this file is judgment only.
 
 Finds references elsewhere in the repository that point at something **this run renamed, moved, or
 removed** — a path, an anchor, a symbol name, a heading, a step number — and, when the `autonomy`
@@ -12,18 +14,13 @@ it until someone follows a dead pointer.
 Unlike Step 7.7's D1, this scans **files this run did not touch** — an orphan lives wherever the
 old name was cited, which is precisely not where the change was made.
 
-## Step 1: Compute the target set
+## Step 1: The target set
 
-```bash
-git diff --diff-filter=RD --name-status {base}...HEAD
-```
-
-Each `R`/`D` entry is a **target**: an old path that no longer resolves. Beyond paths, collect
+The rename/move/delete targets arrive in the worklist row (`scope.candidates`), resolved by the
+engine — each is an old path that no longer resolves. Beyond paths, collect
 renamed anchors and headings from the diff of files that were modified rather than moved — a
 heading that changed text is a target for any `#anchor` link or "see the X section" citation
 pointing at it.
-
-If the target set is empty, stop and report `0 targets` via the summary line below.
 
 ## Step 2: Find surviving references
 
@@ -82,16 +79,3 @@ permittedInitiative({
 
 Read `_shared/initiative-budget.md` for the floor rule, the commit discipline, the `decisions.md`
 entry shape, and the error handling — all of it lives there, not here.
-
-## Step 5: Report
-
-Mandatory summary line, regardless of outcome:
-
-```
-SCANNED {time} — Step 7.12 broken-reference sweep: {T} rename/delete targets, {H} surviving references, ceiling {ceiling}. Result: {A} repaired, {S} staged. Reversibility: high (separate commit).
-```
-
-Auto mode appends this line to `decisions.md`; interactive mode prints it inline. `0 targets` is a
-real result and is reported, not omitted — a silent skip is indistinguishable from a sweep that ran
-and found nothing, which is the reporting failure every other curation step in this skill already
-guards against.

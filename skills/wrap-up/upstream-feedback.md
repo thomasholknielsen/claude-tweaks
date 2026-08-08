@@ -1,4 +1,6 @@
-# Upstream Feedback (D5) — /wrap-up Step 7.11
+# Upstream Feedback (D5) — judge file
+
+Judge file for the `upstream` registry row (`Upstream feedback`), loaded per that row when its gate opens. The gate, the scope, and the row's `SCANNED` line are **engine-owned** — see `curation-engine.md`; this file is judgment only. The row's disposition is `stage`: **every** finding it emits carries `"action": "staged"`.
 
 Stage-and-surface procedure for every learning `_shared/learning-routing.md` resolves to **D5** —
 a defect or gap belonging to an upstream dependency rather than to this project.
@@ -29,21 +31,3 @@ interactive mode, `summary-template.md`'s Upstream feedback section — by invok
 Filing is never auto-resolved regardless of mode: `_shared/auto-mode-contract.md` lists upstream
 feedback among what `auto` does not silence, on the grounds that it publishes privately-derived
 content to a public repository. It is **not** exempt under `unattended-tier`.
-
-## Step 3: Standalone wrap-up has no console to stage for
-
-When no run directory resolves, no Review Console will ever read a staged file here — the same
-reasoning `ledger/resolve-gate.md` applies to a standalone ledger item. Skip the `STAGED` line and
-the `staged/` file entirely; present the proposal directly in `summary-template.md`'s Upstream
-feedback section and invoke `/claude-tweaks:feedback` on approval there instead.
-
-## Mandatory summary
-
-Emitted every run regardless of outcome:
-
-```
-SCANNED {time} — Step 7.11 upstream feedback: {N} learnings classified, {M} resolved D5 ({D} defect / {G} gap), self-reference: {collapsed|not applicable}. Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it
-inline.
