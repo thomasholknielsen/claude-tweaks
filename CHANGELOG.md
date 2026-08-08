@@ -39,6 +39,33 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.69.0 — wrap-up computes what it leaves outstanding, instead of narrating it
+
+A session's leftovers used to survive only as prose in a transcript: a red suite, an
+unreaped branch, a PR missing its release triple. Nothing read that prose, so the items
+were rediscovered later or not at all.
+
+`bin/residue.js` and `bin/lib/residue/` now compute them. Six probes — worktrees,
+branches, claim refs, open PRs, the test suite, this repo's release triple — produce a
+shared finding shape carrying a `remedy` (`auto` or `record`) and an honest `ran` flag:
+a probe that could not run renders `unknown` with its reason and is never folded into a
+clean verdict. `/wrap-up` runs the sweep ahead of Step 8.5, writing each finding as a
+ledger item so that gate's existing per-item forced disposition resolves it — the sweep
+became the producer the standalone case never had, rather than a second disposition
+mechanism beside it. `/tidy` Step 4.5 consumes the same probes.
+
+The report gains `Outstanding` (no row may render without `Fixed` / `Filed as #N` /
+`Accepted — reason`), `Routed` (destinations named, never their content restated), and a
+one-line `Verdict`. `skills/_shared/scratch-worktree.md` documents the provision → merge
+→ act → ff-merge → tear-down path a `worktree.always` project needs once its feature
+worktree is gone.
+
+Two conflated signals were separated across four wrap-up files: *a record was identified*
+(from an argument, branch name, or commit trailer) versus *a materialized header exists on
+disk*. Before this, `/claude-tweaks:wrap-up #N` run standalone silently skipped record
+closure, acceptance labeling, unblocked-records, and claim release — every one of them
+gated on a header a standalone run never has.
+
 ## v6.68.2 — the /research deps fallback stops naming context7
 
 context7 is retired from this user's toolchain, and the deps-fallback sentence in
