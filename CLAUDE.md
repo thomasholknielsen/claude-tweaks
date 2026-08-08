@@ -167,7 +167,7 @@ npm run test:perf                   # Timing budgets (perf/) — deliberately ex
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
 
-Per-suite test invocations, the `bin/*.js` CLIs (the four health sweeps plus `record-graph` and `wrap-up-state`), and the evals harness commands are in `docs/plugin-structure.md`.
+Per-suite test invocations, the `bin/*.js` CLIs (the four health sweeps plus `record-graph`, `wrap-up-state`, and `release`), and the evals harness commands are in `docs/plugin-structure.md`.
 
 ### Subagent Contract (v4.2+)
 
