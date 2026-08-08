@@ -1,0 +1,53 @@
+// bin/lib/model-profiles/tests/table-pinning.test.js
+//
+// Pins the contract's Model Selection table to PROFILES, the GATE_COVERAGE
+// precedent. Reads live prose deliberately (IL-80 exception): the coverage
+// table is a declared contract whose update IS the intended action.
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const { PROFILES, effortLine } = require('../profiles');
+
+const CONTRACT = path.join(__dirname, '..', '..', '..', '..', 'skills', '_shared', 'subagent-output-contract.md');
+
+function modelSelectionSection() {
+  const text = fs.readFileSync(CONTRACT, 'utf8');
+  const start = text.indexOf('## Model Selection');
+  assert.ok(start !== -1, 'contract must contain a ## Model Selection section');
+  const end = text.indexOf('\n## ', start + 1);
+  return text.slice(start, end === -1 ? undefined : end);
+}
+
+function tableRows(section) {
+  return section.split('\n')
+    .filter((l) => /^\| (Fast|Standard|Capable|Frontier) \|/.test(l))
+    .map((l) => l.split('|').map((c) => c.trim()).filter(Boolean));
+}
+
+test('the contract table rows match PROFILES exactly', () => {
+  const rows = tableRows(modelSelectionSection());
+  assert.strictEqual(rows.length, 4, 'exactly four profile rows');
+  for (const [name, model, effort] of rows) {
+    const key = name.toLowerCase();
+    assert.ok(PROFILES[key], `row "${name}" has a PROFILES entry`);
+    assert.strictEqual(model, PROFILES[key].model, `${name}: model`);
+    assert.strictEqual(effort === '—' ? null : effort, PROFILES[key].effort, `${name}: effort`);
+  }
+});
+
+test('the Frontier row states its constraints', () => {
+  const rows = tableRows(modelSelectionSection());
+  const frontier = rows.find((r) => r[0] === 'Frontier');
+  assert.match(frontier[3], /Singleton-only/);
+  assert.match(frontier[3], /degrades to Capable/i);
+});
+
+test('the section cites the resolver CLI and the effortLine template shape', () => {
+  const section = modelSelectionSection();
+  assert.match(section, /node bin\/resolve-profile\.js/);
+  assert.match(section, /\[Use: \{Profile\}\]/);
+  // effortLine's rendered form for high must be derivable from the pinned template
+  assert.strictEqual(effortLine('high'), '[Effort: high — apply high-level reasoning depth to this task.]');
+});
