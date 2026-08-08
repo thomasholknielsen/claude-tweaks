@@ -70,7 +70,13 @@ For each completed branch (in order):
    - Option 2 — `label`: `"Skip this branch"`, `description`: `"merge remaining branches first, come back to this one"`
    - Option 3 — `label`: `"Abort remaining merges"`, `description`: `"I'll handle merges manually"`
 
-   If `worktree.always: true` is set, don't resolve "Resolve now" directly in the main checkout — `Edit`/`Write` there is denied regardless of `close-run` (see above). Instead: `git worktree add` a scratch worktree off `{base-branch}`, re-run `git merge {branch}` there, resolve and commit inside that worktree (a linked worktree, so both gates pass), verify, fast-forward the main checkout to the result (`git merge --ff-only` — ungated, and creates no new commit), then remove the scratch worktree.
+   If `worktree.always: true` is set, don't resolve "Resolve now" directly in the main checkout — `Edit`/`Write` there is denied regardless of `close-run` (see above). Instead, provision a scratch worktree off `{base-branch}` per `_shared/scratch-worktree.md` §2 (native `EnterWorktree` when available, `git worktree add` under `.worktrees/` as the documented fallback only — never under `.claude/worktrees/`, that section's own ADR-0004 domain rule), re-run `git merge {branch}` there, resolve and commit inside that worktree (a linked worktree, so both gates pass), verify, then fast-forward the main checkout to the result the same way `_shared/scratch-worktree.md` §5 does — verifying the branch in the same compound command so a concurrent session that switched it underfoot can't merge onto the wrong branch (`[IL-05]`; same shape as the precedent in `dispatch/settle-and-merge.md`):
+
+   ```bash
+   [ "$(git branch --show-current)" = "{base-branch}" ] && git merge --ff-only <sha>
+   ```
+
+   `<sha>` is the scratch worktree's HEAD after resolving and committing — resolve it there with `git rev-parse HEAD` and paste the literal value in; shell state doesn't survive between separate Bash calls (`_shared/scratch-worktree.md` §7). `git merge` itself is ungated and this fast-forward creates no new commit. Tear the scratch worktree down via `ExitWorktree` per that file's §6 — never a raw `git worktree remove`, which fails on the worktree's own live lock (`[IL-58]`).
 
 ### Post-Merge Summary
 
