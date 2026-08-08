@@ -35,12 +35,12 @@ const SIGNAL_COUNT_REASONS = {
     closed: 'no ADR candidates found',
   },
   d4Count: {
-    open: (n) => `${n} insight${n === 1 ? '' : 's'} classified D4`,
-    closed: 'no insights classified D4',
+    open: (n) => `${n} insight${n === 1 ? '' : 's'} routed to memory`,
+    closed: 'no insights routed to memory',
   },
   d5Count: {
-    open: (n) => `${n} learning${n === 1 ? '' : 's'} classified D5`,
-    closed: 'no learnings classified D5',
+    open: (n) => `${n} learning${n === 1 ? '' : 's'} routed upstream`,
+    closed: 'no learnings routed upstream',
   },
 };
 

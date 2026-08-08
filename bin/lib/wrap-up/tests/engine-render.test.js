@@ -114,22 +114,59 @@ test('renderTrace throws when a detail field smuggles forbidden vocabulary', () 
   assert.throws(() => renderTrace(state), /forbidden vocabulary/);
 });
 
-test('CONCERN: engine-plan.js gateReason for closed memory/upstream rows collides with the vocabulary guard', () => {
-  // engine-record.js's initState sets results[id].detail = row.gateReason
-  // verbatim for closed rows. engine-plan.js's real gateReason for a closed
-  // memory/upstream row is "no insights classified D4" / "no learnings
-  // classified D5" (SIGNAL_COUNT_REASONS) — which matches
-  // FORBIDDEN_VOCABULARY's /\bD[0-5]\b/. A real production run reaching
-  // renderTrace on either row therefore throws. This test pins that the
-  // guard does fire on the literal production string, so the collision is
-  // caught here rather than only in production.
-  const wl = makeWorklist();
+// Fixed: engine-plan.js's SIGNAL_COUNT_REASONS for d4Count/d5Count used to
+// read "... classified D4" / "... classified D5", which — once copied
+// verbatim into results[id].detail by engine-record.js's initState for a
+// closed row — tripped FORBIDDEN_VOCABULARY's /\bD[0-5]\b/ on every real
+// wrap-up run. Reworded to "routed to memory" / "routed upstream" in
+// engine-plan.js. These two tests are the producer-side guard: every
+// gateReason engine-plan.js can actually produce (both the closed variant
+// and, for memory/upstream, the open variant) must pass FORBIDDEN_VOCABULARY
+// when it flows through renderTrace exactly as engine-record.js's initState
+// would deliver it (detail = gateReason).
+function resultsFromGateReasons(worklist) {
+  const results = {};
+  for (const row of worklist.rows) {
+    results[row.id] = {
+      rowId: row.id,
+      target: row.target,
+      result: row.gate === 'closed' ? 'na' : 'clean',
+      detail: row.gateReason,
+    };
+  }
+  return results;
+}
+
+test('every gateReason with all gates closed passes FORBIDDEN_VOCABULARY (renderTrace does not throw)', () => {
+  const closedFacts = {
+    isRepo: true, changedFiles: [], renamedDeleted: [],
+    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
+    journeysExist: false, journeyFiles: [],
+    claudeMdCommandRenamed: false, renamedOrDeleted: false,
+  };
+  const wl = buildWorklist({ facts: closedFacts, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.ok(wl.rows.every((r) => r.gate === 'closed'), 'fixture must close every gate');
+  const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
+  assert.doesNotThrow(() => renderTrace(state));
+});
+
+test('memory/upstream gateReason with signals open (recorded clean) passes FORBIDDEN_VOCABULARY', () => {
+  const closedFacts = {
+    isRepo: true, changedFiles: [], renamedDeleted: [],
+    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
+    journeysExist: false, journeyFiles: [],
+    claudeMdCommandRenamed: false, renamedOrDeleted: false,
+  };
+  const wl = buildWorklist({ facts: closedFacts, signals: { d4Count: 2, d5Count: 3 }, ceremonyProfile: 'standard', budgets: {} });
   const memoryRow = wl.rows.find((r) => r.id === 'memory');
-  assert.match(memoryRow.gateReason, /\bD4\b/); // documents the real string
-  const results = makeMixedResults();
-  results.memory = { rowId: 'memory', target: 'Memory', result: 'na', detail: memoryRow.gateReason };
-  const state = { version: 1, worklist: wl, results };
-  assert.throws(() => renderTrace(state), /forbidden vocabulary/);
+  const upstreamRow = wl.rows.find((r) => r.id === 'upstream');
+  assert.strictEqual(memoryRow.gate, 'open');
+  assert.strictEqual(upstreamRow.gate, 'open');
+  assert.strictEqual(memoryRow.gateReason, '2 insights routed to memory');
+  assert.strictEqual(upstreamRow.gateReason, '3 learnings routed upstream');
+
+  const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
+  assert.doesNotThrow(() => renderTrace(state));
 });
 
 test('FORBIDDEN_VOCABULARY exports exactly the five specified patterns', () => {
