@@ -124,7 +124,7 @@ bin/lib/residue/
   render.js                    emit the Outstanding rows
   tests/                       + frozen fixtures
 skills/_shared/scratch-worktree.md    provision → merge → act → ff-merge → tear down
-skills/wrap-up/residue-sweep.md       the procedure Step 8.7 points at
+skills/wrap-up/residue-sweep.md       the procedure Step 8.5's preamble points at (not Step 8.7 — see Consumers below)
 ```
 
 ### Consumers
@@ -365,7 +365,7 @@ skills/wrap-up/residue-sweep.md
 
 | File | Change |
 |---|---|
-| `skills/wrap-up/SKILL.md` | Step 8.7 pointer + record-signal split — **382 bytes of headroom** (40,578 of 40,960) |
+| `skills/wrap-up/SKILL.md` | ~~Step 8.7 pointer~~ Step 8.5 preamble fold + record-signal split — **382 bytes of headroom** (40,578 of 40,960) (superseded — see Consumers above) |
 | `skills/wrap-up/summary-template.md` | `Outstanding` (with `Generate from:`) + `Routed`; Verdict line |
 | `skills/wrap-up/cleanup-procedures.md` | record-signal split at its header-gated rows |
 | `skills/tidy/scan-procedures.md` | Steps 4.5 / 4.7 / 4.8 become probe consumers |
@@ -378,7 +378,7 @@ skills/wrap-up/residue-sweep.md
 
 | Risk | Mitigation |
 |---|---|
-| `skills/wrap-up/SKILL.md` has 382 bytes of headroom; Step 8.7 plus the signal split may not fit | Measured before the edit. If it does not fit, an extraction lands first — this is a hard precondition, not a discovery |
+| `skills/wrap-up/SKILL.md` has 382 bytes of headroom; ~~Step 8.7~~ the Step 8.5 fold plus the signal split may not fit | Measured before the edit. If it does not fit, an extraction lands first — this is a hard precondition, not a discovery |
 | Re-running the suite is the slowest probe | Timeout plus a policy lever; never an unconditional run |
 | First run on a repo with accumulated residue files a batch | Cap it, and **report the cap** — no silent truncation |
 | Scratch worktree fails mid-remedy, leaving a dirty tree | The `SessionStart` reaper collects it; remedies are individually committed so partial progress survives |
