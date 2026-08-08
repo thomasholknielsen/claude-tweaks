@@ -39,6 +39,32 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.65.2 — the reaper's staleness check looks at the whole worktree
+
+Closes #199, a defect in v6.65.0 found by its own whole-branch review.
+
+The check that decides whether a dead-PID lock means "abandoned" read the worktree root
+and its immediate entries only. Directory mtimes do not propagate upward, so an in-place
+write to `wt/a/b/c.js` moves nothing above it — depth was never a safe proxy for activity.
+
+Measured against this repository's live worktrees rather than argued: `fix-132-routine-branch`
+reported 25.3h idle while its newest write was 22.5h old, four levels down in
+`.claude-tweaks/pipelines/{run}/events.jsonl`, which the hooks touch on every tool call.
+Under the 24-hour grace period that is the difference between keeping a worktree and
+unlocking and deleting it.
+
+Now recursive, skipping `.git` (git's own bookkeeping — and `hasLocalOnlyContent` runs
+`git status` inside the worktree, so an admin-dir signal would be perturbed by the reaper
+itself) and `node_modules`. Bounded at 5000 entries; exhausting the budget returns null,
+which reads as **not** stale and keeps the worktree, because a partial answer is precisely
+the defect being replaced.
+
+The cheaper signal tried first — the worktree's git index mtime — was measured and
+rejected: it reported 25.3h, identical to the shallow scan, because that session's recent
+activity was hook writes rather than git commands. A full walk costs ~900 entries and
+20-50ms here, against the ~0.64s per candidate the two git calls already cost, behind a
+cap of three.
+
 ## v6.65.1 — the renumber rule stops erasing releases that already shipped
 
 The Releasing section told you to renumber a CHANGELOG heading whenever a collision forced a new
