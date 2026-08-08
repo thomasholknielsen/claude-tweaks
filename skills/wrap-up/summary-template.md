@@ -13,6 +13,12 @@ by:code-health / by:harness-health / by:journey-health / by:docs-health /
 by:capture / by:dispatch, or "human" when absent. Omit entirely in
 conversation mode and for legacy spec-file-mode runs.}
 
+### Verdict
+
+{One line: what shipped, where it is now, and what blocks it. State the
+push status from the State block's own measurement — never assert "it
+landed" from memory.}
+
 ### State
 
 Render VERBATIM from the helper — do not compose these facts from memory:
@@ -103,15 +109,36 @@ Render cleanup rows from `cleanup-procedures.md`'s canonical list, filtered by
 Condition. Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred there are
 skipped here too.
 
-### Manual Steps Required
-| # | What | Where | Status |
-|---|------|-------|--------|
-| 1 | {description} | {source} | Filed as #{n} |
-(or omit the section entirely — nothing to do outside the codebase.)
+### Outstanding ({n})
+| # | What | Kind | Disposition |
+|---|------|------|-------------|
+| 1 | {subject — evidence} | {kind} | {Fixed — `{hash}` \| Filed as #{n} \| Accepted — {reason}} |
+(or omit the section entirely — every probe ran and found nothing.)
 
 > Complete these after merging. Each row is a real, trackable record
 > (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in
 > this transcript.
+
+Generate from: the residue sweep's ledger items (`residue-sweep.md`, run ahead
+of Step 8.5), Step 4's routed leftover sections, and any ledger item resolved
+to `Acknowledge`.
+
+No row may render without a disposition. A blank Disposition cell is the
+untracked transcript note this section exists to eliminate. A probe that could
+not run renders as `unknown` with its reason — never folded into an omitted
+section, which would read as "nothing outstanding".
+
+### Routed ({n})
+| Learning | Destination |
+|---|---|
+| {one line} | {CLAUDE.md [IL-nn] \| docs/x.md \| record #{n} \| Memory \| Upstream issue} |
+
+Generate from: every learning routed by Steps 6-7.11, named by destination.
+
+Name the destination; never restate what landed there. This is the existing
+rule under Evidence ("Do NOT restate an insight that already became a Decisions
+row") given a section of its own. A learning with no destination is visibly
+missing from this table, which is the point.
 
 ### Evidence
 
@@ -128,13 +155,15 @@ Skill updates — {N} applied, {M} staged, {K} new-skill candidates
 `## Next Actions` in SKILL.md. Do NOT render them here.)
 ```
 
-**Conversation mode.** When no materialized header exists for this run
-(`SKILL.md`'s Conversation-based row), render the SAME four-part shape with the
-record-keyed pieces dropped: the `## Wrap-Up:` heading takes the work's topic
-instead of `Record #{n} — {title}`; the `Origin:` line, the `Record` and
-`Ledger` State lines, and any `Operational` row about closing a record or
-deleting plans are all omitted. State, Actions Performed, Decisions, and
-Evidence render identically to record mode — the closure line does not.
+**Conversation mode.** When no record is identified for this run (`SKILL.md`
+Step 1's Conversation-based row — no `#`-prefixed argument, git commit/branch
+reference, or, as fallback, materialized header resolved one), render the SAME
+section shape with the record-keyed pieces dropped: the `## Wrap-Up:` heading
+takes the work's topic instead of `Record #{n} — {title}`; the `Origin:` line,
+the `Record` and `Ledger` State lines, and any `Operational` row about closing
+a record or deleting plans are all omitted. Verdict, State, Actions Performed,
+Decisions, Outstanding, Routed, and Evidence render identically to record
+mode — the closure line does not.
 
 This variant is not optional. Its absence is what caused a conversation-based
 run to compose its report from the steps it had just executed, surfacing
