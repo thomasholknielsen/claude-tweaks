@@ -4,7 +4,7 @@
 
 **Goal:** Give `/claude-tweaks:wrap-up` a close-time residue sweep so outstanding work acquires a tracked disposition instead of surviving as prose in a transcript.
 
-**Architecture:** A new `bin/lib/residue/` module computes findings from git and forge state via injectable runners (the pattern `bin/lib/wrap-up/state.js` already uses). `bin/residue.js` is its CLI. `/wrap-up` gains Step 8.7 and `/tidy` re-points three existing steps at the same probes, so the scans exist once in JavaScript. The report template gains `Outstanding` (every row carrying a disposition) and `Routed` (pointers to durable destinations).
+**Architecture:** A new `bin/lib/residue/` module computes findings from git and forge state via injectable runners (the pattern `bin/lib/wrap-up/state.js` already uses). `bin/residue.js` is its CLI. `/wrap-up` runs the sweep as a preamble to Step 8.5, whose existing nothing-left-behind gate then forces each finding's disposition; `/tidy` re-points three existing steps at the same probes, so the scans exist once in JavaScript. The report template gains `Outstanding` (every row carrying a disposition) and `Routed` (pointers to durable destinations).
 
 **Tech Stack:** Node 18+, `node --test`, CommonJS, `git` CLI, `gh` CLI (optional — absence degrades to `unknown`, never to "clean").
 
@@ -1267,11 +1267,16 @@ git commit -m "Assert health-core's pure/stateful boundary instead of trusting i
 
 ---
 
-### Task 8: Wrap-up Step 8.7 and the record-signal split
+### Task 8: Wrap-up residue sweep and the record-signal split
+
+**REVISED after the first attempt hit the size ceiling.** A standalone `## Step 8.7` was measured at 723 bytes against 382 of headroom — nearly double, before the signal split's 167. The revision is not a workaround for the budget; it is the better design the budget forced into view.
+
+**The residue sweep feeds Step 8.5's existing gate instead of adding a parallel one.** Step 8.5's nothing-left-behind gate is already per-item forced disposition, and its `Acknowledge` path already creates a real record — precisely the guarantee this feature wants. It skips only when no ledger exists, which is the standalone case by definition. So the sweep becomes the producer that case lacks: its findings are written as ledger items, and the existing three-phase resolve gate forces each one's disposition. No second disposition rule to keep in sync.
 
 **Files:**
-- Modify: `skills/wrap-up/SKILL.md`
-- Create: `skills/wrap-up/residue-sweep.md`
+- Modify: `skills/wrap-up/SKILL.md` (Step 8.5 preamble + signal split)
+- Create: `skills/wrap-up/residue-sweep.md` (already drafted in the first attempt — 5,895 bytes, uncommitted)
+- Modify: `skills/wrap-up/cleanup-procedures.md`, `skills/wrap-up/execution-and-verification.md`, `skills/wrap-up/verification-brief.md` — the three files the design doc's Modified table named but the first plan revision failed to schedule (`[IL-56]`)
 
 **Interfaces:**
 - Consumes: Task 6's `bin/residue.js` CLI contract.
@@ -1290,25 +1295,17 @@ Create `skills/wrap-up/residue-sweep.md` with: the CLI invocation (`node "${CLAU
 
 State explicitly: a probe reporting `ran: false` renders `unknown` with its reason and is never folded into a "nothing outstanding" conclusion — the same rule Step 7.9 already applies to `audit not run`.
 
-- [ ] **Step 3: Add Step 8.7 to SKILL.md**
+- [ ] **Step 3: Add the sweep as a Step 8.5 preamble (NOT a new step)**
 
-Insert after Step 8.6's closing `---`, before `## Step 9`. Keep it to a gated pointer — the procedure lives in the sub-file:
+**Hard budget: the total SKILL.md growth across Steps 3 and 5 must be ≤ 382 bytes.** Measure after each edit. There is no SCANNED summary line — the ledger items ARE the audit trail, which is what makes this fit; do not add one back.
+
+Insert at the top of `## Step 8.5`, before its existing "Run the resolve gate" line. Target ≤ 215 bytes including the blank line:
 
 ```markdown
-## Step 8.7: Residue Sweep
-
-Compute what this work leaves outstanding — stale worktrees and merged branches, claim refs
-outliving their record, open PRs, a red suite, an incomplete release triple — so each acquires a
-tracked disposition instead of a transcript note.
-
-**Gate the read.** Always run the sweep; read `residue-sweep.md` in this skill's directory when it
-returns at least one finding or at least one probe reporting `unknown`. A fully clean sweep emits
-the summary line below and skips the read.
-
-    SCANNED {time} — Step 8.7 residue sweep: {N} findings ({A} auto, {R} record), {U} probe(s) unknown. Reversibility: high.
-
-`{U}` is never omitted: a probe that could not run is `unknown`, not clean.
+**Residue sweep first.** Run `residue-sweep.md` in this skill's directory: it writes what this work leaves outstanding as ledger items, so this gate has something to enforce on a standalone run.
 ```
+
+Then amend Step 8.5's existing skip condition, which currently reads that the gate is skipped when the ledger "doesn't exist (standalone wrap-up, …), or exists but is empty". That sentence is now wrong for a standalone run: the sweep may have just created the ledger. Adjust it minimally so the skip is conditioned on the ledger being empty **after** the sweep has run, not on the run being standalone. Keep the edit small — rewording, not rewriting.
 
 - [ ] **Step 4: Measure the size after the edit**
 
@@ -1328,9 +1325,17 @@ For **each** occurrence, restate the criterion against the new question: does th
 
 Do not bulk-assign. `[IL-101]`: the last time one set was reused as the gate for a second question, three of four answers matched and the fourth was the largest bucket in the repo.
 
+- [ ] **Step 5b: Apply the split to the three files the first revision failed to schedule**
+
+`skills/wrap-up/cleanup-procedures.md`, `execution-and-verification.md`, and `verification-brief.md` carry the identical conflation at the sites governing **claim release**, **record closure**, and **acceptance labeling**. The design doc's Modified table named `cleanup-procedures.md`; the plan's own Files list dropped it, and the other two were never scheduled at all (`[IL-56]`).
+
+These are not optional. Without them `/claude-tweaks:wrap-up #185` standalone still silently skips record closure and acceptance labeling — the headline case this task exists to fix. Apply the same per-site criterion restatement as Step 5; these files have no size ceiling.
+
 - [ ] **Step 6: Verify the split by scenario, not by grep**
 
-Hand-trace `/claude-tweaks:wrap-up #185` invoked standalone (no `$PIPELINE_RUN_DIR`, no `${RUN_DIR}/work/*-spec.md`). Walk the literal edited text and confirm: record closure runs, acceptance labeling runs, unblocked-records runs, claim release runs, and no step attempts to read a header field. A grep cannot answer this — the defect is a step that silently skips.
+Hand-trace `/claude-tweaks:wrap-up #185` invoked standalone (no `$PIPELINE_RUN_DIR`, no `${RUN_DIR}/work/*-spec.md`). Walk the literal edited text across ALL FOUR files and confirm: record closure runs, acceptance labeling runs, unblocked-records runs, claim release runs, and no step attempts to read a header field. A grep cannot answer this — the defect is a step that silently skips.
+
+Also trace the ledger path: on a standalone run with no pre-existing ledger, confirm the sweep's findings create one, and that Step 8.5's amended skip condition then lets the gate run rather than skipping on "standalone".
 
 - [ ] **Step 7: Re-measure and commit**
 
@@ -1349,8 +1354,16 @@ git commit -m "Give wrap-up a residue sweep and separate record identity from he
 - Modify: `skills/wrap-up/summary-template.md`
 
 **Interfaces:**
-- Consumes: Task 6's renderer output; Task 8's Step 8.7 findings.
+- Consumes: Task 6's renderer output; the residue findings Task 8 writes as ledger items ahead of Step 8.5.
 - Produces: nothing downstream — this is the user-facing surface.
+
+- [ ] **Step 0: Fix the conversation-mode selector — a live bug Task 8's split exposed**
+
+`summary-template.md`'s **Conversation mode** paragraph currently opens: *"When no materialized header exists for this run (`SKILL.md`'s Conversation-based row)…"*. That restates the pre-split equivalence — header-absence means conversation mode — which Task 8 just retired.
+
+Consequence today: for `/claude-tweaks:wrap-up #185` invoked standalone, Steps 1, 8 and 10 all correctly treat the run as record-based, but Step 9 reads this sentence literally and renders the **conversation-mode** template — dropping the `Record #{n}` heading and the Origin / Record / Ledger lines for a run that has a record.
+
+Re-key the selector on **record identity**, matching Task 8's split: conversation mode is for a run where no record was identified (no argument, no branch/commit reference, no header), not merely one with no materialized header. Keep the rest of the paragraph as-is.
 
 - [ ] **Step 1: Replace the Manual Steps Required section**
 
@@ -1363,8 +1376,9 @@ In `skills/wrap-up/summary-template.md`, replace the `### Manual Steps Required`
 | 1 | {subject — evidence} | {kind} | {Fixed — `{hash}` | Filed as #{n} | Accepted — {reason}} |
 (or omit the section entirely — every probe ran and found nothing.)
 
-Generate from: Step 8.7's residue sweep (`bin/residue.js`), Step 4's routed
-leftover sections, and any ledger item resolved to `Acknowledge`.
+Generate from: the residue sweep's ledger items (`residue-sweep.md`, run ahead
+of Step 8.5), Step 4's routed leftover sections, and any ledger item resolved
+to `Acknowledge`.
 
 No row may render without a disposition. A blank Disposition cell is the
 untracked transcript note this section exists to eliminate. A probe that could
@@ -1471,6 +1485,16 @@ git commit -m "Add the shared scratch-worktree procedure for post-teardown remed
 - Produces: nothing downstream.
 
 **Convention note:** `_shared/health-finding-shapes.md` establishes that each consumer writes its shared *prose* out in full inline. So this task does NOT replace `/tidy`'s wording with a pointer to wrap-up's. It replaces `/tidy`'s hand-run git commands with the shared CLI, keeping `/tidy`'s own recommendation vocabulary and its own inline explanation.
+
+- [ ] **Step 0: Fix two scratch-worktree instructions that predate `_shared/scratch-worktree.md`**
+
+Both were found by Task 10's reviewer and confirmed against the live files. Neither is a stylistic tidy-up.
+
+**(a) `skills/tidy/SKILL.md` line ~199 — a provable functional bug.** Its `worktree.always` branch says to remove the scratch worktree *"mirroring Step 4.5's own worktree cleanup"*, and Step 4.5 uses raw `git -C "{REPO_ROOT}" worktree remove {path}`. That is valid only for worktrees the session is **not** standing in. The scratch worktree is by definition the one it just worked inside, so the harness holds a live lock and the raw remove exits 128 — the exact case `[IL-58]` was narrowed to cover, and the reason `cleanup-procedures.md` Section C step 4 distinguishes the two. Repoint the whole branch at `_shared/scratch-worktree.md`, whose §6 already states `ExitWorktree` is the only remedy here.
+
+**(b) `skills/flow/worktree-merge.md` line ~73 — a missing branch guard.** Its fast-forward step is a bare `git merge --ff-only` with no `git branch --show-current` verification in the same compound command. That is `[IL-05]` precisely: concurrent sessions switch the main checkout's branch underfoot. Add the guard, matching the shape in `_shared/scratch-worktree.md` §5 and the precedent in `dispatch/settle-and-merge.md`. Its `git worktree add` also names no directory — make it cite `_shared/scratch-worktree.md` §2 rather than leaving the domain choice implicit (ADR-0004).
+
+Do not restate the procedure in either file — cite `_shared/scratch-worktree.md`. That is the whole point of Task 10 having created it.
 
 - [ ] **Step 1: Re-point Step 4.5**
 
@@ -1590,9 +1614,10 @@ Review the whole branch diff, specifically for the seams per-task review cannot 
 
 - Does every probe's return shape carry the fields `render.js` reads (`[IL-04]`)?
 - Does `residue-sweep.md`'s described CLI invocation match `bin/residue.js`'s actual argument parsing?
-- Does Task 9's template reference sections Task 8's Step 8.7 actually produces?
+- Does Task 9's template reference sections Task 8's sweep actually produces?
+- **And the reverse direction, which is a named finding, not a generic sweep:** `skills/wrap-up/SKILL.md` Step 9 (line ~337) describes the summary as "State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Evidence". Task 9 added Verdict, Outstanding, and Routed. Add all three to that sentence — `[IL-60]`, a consumer's own "what this contains" sentence must name a new subsection or the subsection silently no-ops. Measured cost 30 bytes; SKILL.md was 40,862 of 40,960 after Task 8, so this lands at 40,892 with 68 to spare. **Re-measure before and after — do not assume the budget survived later tasks.** A Task 9 reviewer swept every other consumer of `summary-template.md` and found no further stale descriptions, so this is the only one.
 - Did Task 11 leave `/tidy` prose asserting the OLD hand-run behavior anywhere it was not edited (`[IL-10]`)?
-- Grep the repo for prose describing wrap-up's reach that Step 8.7 has now widened (`[IL-93]`).
+- Grep the repo for prose describing wrap-up's reach that the sweep has now widened (`[IL-93]`) — including any surviving mention of a "Step 8.7", which was designed, measured against the size ceiling, and replaced by the Step 8.5 fold. A reference to a step that never shipped is the clearest form of this hazard.
 
 - [ ] **Step 3: Re-verify the version is free**
 

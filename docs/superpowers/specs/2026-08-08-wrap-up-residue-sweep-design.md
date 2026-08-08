@@ -129,7 +129,7 @@ skills/wrap-up/residue-sweep.md       the procedure Step 8.7 points at
 
 ### Consumers
 
-- **`/wrap-up`** — new Step 8.7, `--scope blast-radius`.
+- **`/wrap-up`** — ~~new Step 8.7, `--scope blast-radius`~~. **Superseded during execution, twice.** Step 8.7 was measured at 723 bytes against 382 of headroom in `skills/wrap-up/SKILL.md`; the sweep instead runs as a preamble to the existing Step 8.5, writing findings as ledger items so that gate's per-item forced disposition handles them — less machinery, and it closes the gap this design itself identified (Step 8.5 skips when no ledger exists, which is the standalone case). And the scope is `repo`, not `blast-radius`: every suite finding is `scope: 'observed'` by construction, so `blast-radius` would have made `/wrap-up` structurally unable to report a red suite — the headline item this feature exists to catch.
 - **`/tidy`** — Steps 4.5 / 4.7 / 4.8 call the same probes with `--scope repo`.
 - **`release.js`** is guarded by the `manifest.name === 'claude-tweaks'` check `post-tool-use.js`
   already uses, so adopters get the other five probes and no false release nags.
