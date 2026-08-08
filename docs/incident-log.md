@@ -744,4 +744,18 @@ The records built first held their premises. The damage was strictly a function 
 
 The generalizable rule: in a repository with concurrent sessions shipping, a work record's factual claims have a shelf life measured in hours. Re-verify each record's Current State against the live tree immediately before *its own* build, not once at run start — that per-record re-check is what caught #178 and #179 before either wasted a build. `[IL-20]`'s "check divergence periodically" is necessary but not sufficient here: the hazard is not only merge conflict, it is that a record's own stated facts stop being true while it waits its turn.
 
+## IL-110 — A count borrowed from an adjacent set stood in for one that could not be enumerated
+
+On 2026-08-08 a session researching claude.ai Routines called `RemoteTrigger {action: "list"}` to inventory live routines. The response returned roughly nineteen triggers with `has_more: true` and a `next_cursor` set — and the tool exposes no cursor parameter, so later pages were unreachable. That limitation was already documented, in `routine/create-and-update.md` CREATE Step 4 source (b).
+
+Two routines on that page were health sweeps: `memenu-app-code-health-daily` and `memenu-app-harness-health-daily`. The session then wrote, twice, that "two of the four live health-sweep routines" carry a `notifications` setting and "the other two notify nobody."
+
+The "four" came from nowhere in the measurement. It was borrowed from an adjacent set — the four health-sweep *skills* (`code-health`, `harness-health`, `journey-health`, `docs-health`) — and reused as a count of *routines*. The two sets are not in correspondence: the plugin ships **six** routine templates, adding `dispatch` and `tidy`; this repository had **zero** instantiated routine records; and every routine observed belonged to a different project's account. The true count remains unknown, because the response paginates.
+
+The first instance was caught before filing. The second reached a filed issue body (#210) and was corrected only during `/claude-tweaks:specify` shaping, which rewrites Current State and so forced a re-read of the claim. The `## Original request` block preserves the wrong version verbatim, per shaping's own rule.
+
+What makes this one hard to catch is that the borrowed number is plausible, adjacent, and internally consistent with a real set. It is not a guess or a typo — it survives a re-read because it corresponds to something true, just not to the thing being counted. The pagination then guarantees no check can refute it: there is no query that returns "four is wrong."
+
+The generalizable rule: when a lookup cannot enumerate its domain, state no total for that domain at all — report what was observed and say the rest is unreachable. And never let a neighbouring set's cardinality supply a number the measurement did not produce. `[IL-67]` covers the pagination limitation itself and its mitigation; this is the reporting failure sitting on top of it. `[IL-40]` covers a restated cardinality drifting out of date; this one was never right to begin with.
+
 
