@@ -49,6 +49,17 @@ The term also collided inside this repo. `/claude-tweaks:research` does prior-ar
 
 Behavior is unchanged: same procedure, same three outcomes, same `doc-convention.adr` key. The dated design doc and plan keep the old vocabulary as the historical record they are, with a pointer at the top of the spec naming the current file so the reference does not dangle. ADR 0013 keeps its filename and title for the same reason — an accepted decision record is dated evidence, superseded rather than edited — and gains a pointer note instead.
 
+## v6.64.3 — never shipped; the number the rename WIP carried before landing as v6.68.1
+
+`main`'s tip never reported this version, so no install could ever have run it. The
+preserved-WIP commit that carried it (`e2a583f0`, an `[IL-46]` preservation) was renumbered
+to v6.68.1 at the merge — but that merge put the WIP commit on `main`'s first-parent chain,
+so the coverage gate's git walk sees the number anyway. Recorded here and in
+`docs/shipped-versions.tsv` (source `wip-never-shipped`) because a walk-visible version with
+no entry is indistinguishable from a skipped changelog step, and the record's failure
+asymmetry deliberately prefers one unnecessary entry over an erasable release
+(`bin/lib/shipped-record.js`). The work itself is written up under v6.68.1.
+
 ## v6.68.0 — /research gains a verify mode that grounds a design before it is written
 
 Closes the loop `/claude-tweaks:challenge` used to open: assumptions were surfaced and then nothing
