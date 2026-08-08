@@ -10,7 +10,7 @@ const path = require('node:path');
 
 const PURE_MODULES = [
   'dedup.js', 'finding-validation.js', 'fingerprint.js', 'budget.js',
-  'rotation.js', 'mark.js', 'churn-report.js', 'frontmatter-list.js',
+  'rotation.js', 'mark.js', 'churn-report.js', 'frontmatter-list.js', 'runs.js',
 ];
 const FORBIDDEN = ['fs', 'node:fs', 'child_process', 'node:child_process', './durable-state', './cache'];
 
@@ -23,7 +23,8 @@ for (const mod of PURE_MODULES) {
       violations, [],
       `${mod} is in the pure set but requires ${violations.join(', ')}. `
       + 'Either the import is wrong, or this module belongs in the stateful set — '
-      + 'moving it means auditing every consumer that relies on its purity (bin/lib/residue/ does).',
+      + 'moving it means auditing every consumer that relies on its purity (bin/lib/residue/, '
+      + 'for example, requires fingerprint.js and finding-validation.js specifically).',
     );
   });
 }
