@@ -1,4 +1,4 @@
-# Prior-Art Detection for Documentation Genres
+# Existing-Convention Detection for Documentation Genres
 
 Canonical contract for the question no doc-creating path used to ask: **does this repo already have its own convention for the genre I am about to write?**
 
@@ -21,12 +21,12 @@ Skip entirely when that genre's answer is already recorded in `.claude-tweaks/po
 ## Procedure
 
 1. **Glob** the intended directory plus the genre's declared aliases.
-2. **Fewer than 3 files — no prior art.** Use the plugin's form and emit nothing. An empty or near-empty directory cannot establish a convention, and a one-file sample is exactly where inference misleads.
+2. **Fewer than 3 files — no existing convention.** Use the plugin's form and emit nothing. An empty or near-empty directory cannot establish a convention, and a one-file sample is exactly where inference misleads.
 3. **Parse** the filenames for a grammar: prefix, separator, numbering, zero-pad width. A conflict requires **at least 3 files agreeing** on a grammar that differs from the plugin's. Fewer agreeing, or no parseable grammar, is not a conflict — proceed with the plugin's form.
 4. **Look for a project skill** covering the genre: glob `.claude/skills/*/SKILL.md` and read only each file's frontmatter `description` — the same cheap pass `harness-health/library-shape-analysis.md` specifies, not a full-body read. A description matching the genre's declared keywords means that skill states the project's convention for **shape**.
 5. **Emit a conflict record** carrying: genre, the plugin's form, the found form, one sample filename, the file count, and the project-skill path when one was found.
 
-Outcomes are `plugin` (no prior art, or prior art that agrees), `project` (a recorded answer says defer), or `conflict` (prior art disagrees and nothing is recorded yet).
+Outcomes are `plugin` (no existing convention, or one that agrees), `project` (a recorded answer says defer), or `conflict` (the repo's existing convention disagrees and nothing is recorded yet).
 
 ## Resolving "project form"
 

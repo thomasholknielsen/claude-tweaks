@@ -32,7 +32,7 @@ Capture the *why* behind significant decisions made during this work — distinc
    - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
    - Tradeoffs accepted during `/review` and reflection insights about approach
 2. **Run the ADR gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
-3. **Resolve the path before proposing it.** If `doc-convention.adr` is set in `.claude-tweaks/policy.yml`, use the recorded answer and skip detection entirely. Otherwise read `_shared/prior-art-detection.md` and run its procedure for the `adr` genre against `docs/decisions/` and that genre's declared aliases. The result is a resolved path plus one of three outcomes: `plugin`, `project`, or `conflict`.
+3. **Resolve the path before proposing it.** If `doc-convention.adr` is set in `.claude-tweaks/policy.yml`, use the recorded answer and skip detection entirely. Otherwise read `_shared/existing-convention-detection.md` and run its procedure for the `adr` genre against `docs/decisions/` and that genre's declared aliases. The result is a resolved path plus one of three outcomes: `plugin`, `project`, or `conflict`.
 4. For each decision that passes the gate, propose creating the resolved path, using the ADR skeleton in `_shared/diataxis-genre-templates.md`.
 
 → Collect each as: `[adr] {resolved-path} — {decision title}`

@@ -6,7 +6,7 @@ This is the single source of truth for the ADR and Journey templates — `_share
 
 ## Genre declarations
 
-What each genre claims about placement and naming, and whether a doc-creating path runs `_shared/prior-art-detection.md` before writing one. "Owns filename" means the plugin prescribes a filename grammar, not merely content.
+What each genre claims about placement and naming, and whether a doc-creating path runs `_shared/existing-convention-detection.md` before writing one. "Owns filename" means the plugin prescribes a filename grammar, not merely content.
 
 | Genre | Owns filename | Detection | Aliases to glob | Project-skill keywords |
 |---|---|---|---|---|

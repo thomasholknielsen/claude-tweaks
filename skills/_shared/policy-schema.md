@@ -75,7 +75,7 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
-| `doc-convention.adr` | `policy.yml` | `/claude-tweaks:wrap-up` Step 6.2, via `_shared/prior-art-detection.md` | unset (detect and ask on conflict) | Which convention wins when this repo's existing decision records disagree with the plugin's. `plugin` conforms forward, `project` resolves form from the corpus and any project skill. Written *by* the plugin after the user answers once at the Review Console — never a key a project fills in up front. Records **which source wins**, not a grammar, which is what keeps it flat-encodable |
+| `doc-convention.adr` | `policy.yml` | `/claude-tweaks:wrap-up` Step 6.2, via `_shared/existing-convention-detection.md` | unset (detect and ask on conflict) | Which convention wins when this repo's existing decision records disagree with the plugin's. `plugin` conforms forward, `project` resolves form from the corpus and any project skill. Written *by* the plugin after the user answers once at the Review Console — never a key a project fills in up front. Records **which source wins**, not a grammar, which is what keeps it flat-encodable |
 
 ## Harness-health budgets
 

@@ -3,6 +3,13 @@
 Design doc. Written 2026-08-07. Supersedes and absorbs
 `2026-08-07-adr-convention-precedence-design.md`, which becomes Phase 1 (#187).
 
+> **Naming note (6.64.3).** This document, and the plan it feeds, call the contract
+> `_shared/prior-art-detection.md` and use "prior art" for the concept. Both were renamed
+> shortly after shipping — the file is `_shared/existing-convention-detection.md`, and the
+> concept is "the repo's existing convention". The term was patent-law jargon that did not
+> survive first contact with a reader. The text below is left as written, as a dated design
+> doc should be; only this pointer is current.
+
 ## The gap
 
 claude-tweaks has a coherent documentation posture already — verified, not assumed:

@@ -39,6 +39,14 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.64.3 — the convention-detection contract loses its patent-law jargon
+
+`_shared/prior-art-detection.md` is now `_shared/existing-convention-detection.md`, and the concept it names is "the repo's existing convention" rather than "prior art". Six live references swept — `_shared/decision-records.md`, `_shared/diataxis-genre-templates.md`, `_shared/policy-schema.md`, `wrap-up/config-updates.md`, `wrap-up/SKILL.md`, `docs/skill-graph.md`.
+
+Renamed one release after shipping, because the maintainer read the term and asked what it meant. "Prior art" is precise borrowed jargon — patent law, meaning evidence that something existed before a claimed invention — and precision is not the same as legibility. An agent meeting that reference cold in a lazy-loaded `_shared/` fragment has no surrounding context to recover the meaning from, which is the specific failure the plugin's own naming conventions exist to prevent. The cost of renaming rises with every skill that cites it, so it was worth paying immediately rather than after Phase 2 (#194) adds more consumers.
+
+Behavior is unchanged: same procedure, same three outcomes, same `doc-convention.adr` key. The dated design doc and plan keep the old vocabulary as the historical record they are, with a pointer at the top of the spec naming the current file so the reference does not dangle.
+
 ## v6.64.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
 
 Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
