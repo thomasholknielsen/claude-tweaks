@@ -43,7 +43,7 @@ Then, immediately before **each individual create** — parent included, and not
 
 ### Parent record
 
-One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's phase table). Type is always `feature` — the parent is a summary record, not agent-sized work: **parents never get `ready`**, and they carry no `risk:*`/`effort:*` scoring at all.
+One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's phase table). Type is always `feature` — the parent is a summary record, not agent-sized work: **parents never get `ready`**, and they carry no `risk:*`/`size:*` scoring at all.
 
 Parent body = design summary: the problem, the chosen approach, the key decisions, and why the alternatives lost. This is deliberately not the design doc pasted verbatim — it's the durable digest that has to survive Step 7 deleting the design doc. Prefix it with a one-line metadata block, `Surface: {value}` — reuse whatever Step 2.5a's whole-design-doc detection already produced (the canonical value list lives in `spec-template.md`). The parent never carries `Design-intent:` — parents are never built or polished directly, so creative intent has nothing to attach to.
 
@@ -113,7 +113,7 @@ family is accepted.
 
 ### Leaves
 
-**Only leaves get `ready`** — and only leaves carry `risk:*`/`effort:*` scoring; the parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
+**Only leaves get `ready`** — and only leaves carry `risk:*`/`size:*` scoring; the parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
 
 **Tasks never become records.** A leaf's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the leaf's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
 
@@ -121,9 +121,9 @@ family is accepted.
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
-**Scoring** — judge each leaf's `risk` and `effort` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `effort` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per leaf; the tiers become `$LEAF_RISK`/`$LEAF_EFFORT` below.
+**Scoring** — judge each leaf's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per leaf; the tiers become `$LEAF_RISK`/`$LEAF_SIZE` below.
 
-**Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this leaf's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/effort-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$LEAF_CEREMONY` below.
+**Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this leaf's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/size-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$LEAF_CEREMONY` below.
 
 **Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this leaf's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `framing:baked` on the leaf and fold the RATIONALE's named assumptions into that leaf's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Leaves have no `## Original request` block, so the composed body is the whole input here.
 
@@ -147,30 +147,30 @@ Reuse this same `$UNIT_SLUG` value below for both the fingerprint and, under `wo
 node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const p=recordPayload({
     title: process.argv[1], body: process.argv[2], type: process.argv[3],
-    risk: process.argv[4], effort: process.argv[5], ceremony: process.argv[6], ready: true,
+    risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], ready: true,
     fingerprint: process.argv[7]
   });
   require('fs').writeFileSync('/tmp/specify-leaf-payload.json', JSON.stringify(p))" \
-  "$LEAF_TITLE" "$LEAF_BODY" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "$LEAF_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
+  "$LEAF_TITLE" "$LEAF_BODY" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_SIZE" "$LEAF_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
 
 node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-leaf-payload.json','utf8')).body)" > /tmp/specify-leaf-body.md
 ```
 
 `recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-leaf-body.md` above already carries it, so both drivers below write the same fingerprinted text.
 
-Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`effort:{tier}`/`ceremony:{tier}` pair in use, plus `framing:baked` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
+Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` pair in use, plus `framing:baked` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
-**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `framing` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `effort:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `framing:baked` is added separately, below the create blocks, once the Framing verdict is known:
+**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `framing` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `size:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `framing:baked` is added separately, below the create blocks, once the Framing verdict is known:
 
 ```bash
 # work-types: native
 LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
   --type "$LEAF_TYPE" \
-  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label "ceremony:$LEAF_CEREMONY" --label ready)
+  --label "risk:$LEAF_RISK" --label "size:$LEAF_SIZE" --label "ceremony:$LEAF_CEREMONY" --label ready)
 
 # work-types: labels
 LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
-  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label "ceremony:$LEAF_CEREMONY" --label ready \
+  --label "risk:$LEAF_RISK" --label "size:$LEAF_SIZE" --label "ceremony:$LEAF_CEREMONY" --label ready \
   --label "type:$LEAF_TYPE")
 
 LEAF_NUM=$(basename "$LEAF_URL")
@@ -187,9 +187,9 @@ LEAF_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'
     slug: process.argv[1],
     title: process.argv[2],
     body,
-    facets: { type: process.argv[3], risk: process.argv[4], effort: process.argv[5], ceremony: process.argv[6], stage: 'ready' }
+    facets: { type: process.argv[3], risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], stage: 'ready' }
   });
-  console.log(record.id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "$LEAF_CEREMONY")
+  console.log(record.id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_SIZE" "$LEAF_CEREMONY")
 ```
 
 Add a `facets.framing: true` key to the object above only when this leaf's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.framing` is genuinely absent on the common `open` case.

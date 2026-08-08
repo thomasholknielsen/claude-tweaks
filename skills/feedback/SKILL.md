@@ -189,7 +189,7 @@ gh issue create --repo thomasholknielsen/claude-tweaks \
 
 Omit `--label` entirely otherwise and say
 why — never substitute a guessed label, and never apply the repository's own
-internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `effort:*`),
+internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
 which belongs to records that moved through its in-repo pipeline.
 
 On failure, do not silently drop the payload. Report the `gh` error verbatim,

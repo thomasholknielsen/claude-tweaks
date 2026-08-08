@@ -10,11 +10,11 @@ Read this when a run actually reaches Step 7 — a firing that finds nothing due
 
 Every harness-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:harness-health`; classification folds into the scoring axis instead of staying a producer-specific label the gate must know:
 
-| Classification | risk | effort |
+| Classification | risk | size |
 |---|---|---|
-| `additive` | `risk:low` | `effort:low` |
-| `restructural` | `risk:medium` | `effort:high` |
-| kind `new-skill` (no classification-driven scoring) | unscored — no `risk:*` label | unscored — no `effort:*` label |
+| `additive` | `risk:low` | `size:low` |
+| `restructural` | `risk:medium` | `size:high` |
+| kind `new-skill` (no classification-driven scoring) | unscored — no `risk:*` label | unscored — no `size:*` label |
 
 `new-skill` candidates file with no scoring labels by design — there is no classification-driven
 tier to guess from a kind that carries no scoring evidence. `/claude-tweaks:assess-agent-autonomy`'s
@@ -49,8 +49,8 @@ Before filing, bootstrap only the label families this run applies, with real des
 # [["by:harness-health", "Origin: filed by the harness-health skill"],
 #  ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
 #  ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],
-#  ["effort:low",        "Scoring: small, agent-sized change"],
-#  ["effort:high",       "Scoring: large change — consider decomposition before building"],
+#  ["size:low",          "Scoring: small, agent-sized change"],
+#  ["size:high",         "Scoring: large change — consider decomposition before building"],
 #  ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
 #  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["harness-health:additive",     "Safe, mechanical patch - additive change with no removed behavior"],
@@ -81,15 +81,15 @@ For each survivor disposed as "File issue" (every payload if "Apply all recommen
 ```bash
 # Example: an additive finding, work-types: native
 gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive
+  --label by:harness-health --label risk:low --label size:low --label ready --label harness-health:additive
 
 # Same finding, work-types: labels
 gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive --label type:task
+  --label by:harness-health --label risk:low --label size:low --label ready --label harness-health:additive --label type:task
 ```
 
-**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:harness-health`, and omit `ready`, `risk:*` and `effort:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
+**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:harness-health`, and omit `ready`, `risk:*` and `size:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
 
-Apply the same branch to every payload regardless of classification/kind — a `restructural` payload's call carries `risk:medium`/`effort:high`/`harness-health:restructural` instead, and a `new-skill` payload's call carries only `by:harness-health`/`ready`/`harness-health:new-skill` (no scoring labels), per the mapping table above; only the `--type task` vs. `--label type:task` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
+Apply the same branch to every payload regardless of classification/kind — a `restructural` payload's call carries `risk:medium`/`size:high`/`harness-health:restructural` instead, and a `new-skill` payload's call carries only `by:harness-health`/`ready`/`harness-health:new-skill` (no scoring labels), per the mapping table above; only the `--type task` vs. `--label type:task` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
 
 In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.

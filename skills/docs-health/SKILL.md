@@ -136,10 +136,10 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings /tmp/docs-heal
 
 Every docs-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:docs-health`; classification folds into the scoring axis:
 
-| Classification | risk | effort |
+| Classification | risk | size |
 |---|---|---|
-| `additive` | `risk:low` | `effort:low` |
-| `restructural` | `risk:medium` | `effort:high` |
+| `additive` | `risk:low` | `size:low` |
+| `restructural` | `risk:medium` | `size:high` |
 
 Every filed finding is **born-`ready`** — docs-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/docs-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification-derived diagnostic label (`docs-health:additive` / `docs-health:restructural`) after the canonical labels — the emitted label set is exactly `by:docs-health` + scoring + `ready` + the diagnostic label.
 
@@ -175,8 +175,8 @@ Before filing, bootstrap only the label families this run applies, with real des
 # [["by:docs-health",  "Origin: filed by the docs-health skill"],
 #  ["risk:low",         "Scoring: low blast radius — safe for autonomous build"],
 #  ["risk:medium",      "Scoring: moderate blast radius — review before merge recommended"],
-#  ["effort:low",       "Scoring: small, agent-sized change"],
-#  ["effort:high",      "Scoring: large change — consider decomposition before building"],
+#  ["size:low",         "Scoring: small, agent-sized change"],
+#  ["size:high",        "Scoring: large change — consider decomposition before building"],
 #  ["ready",            "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
 #  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["docs-health:additive",     "Safe, mechanical patch — additive change with no removed content"],
@@ -197,16 +197,16 @@ For each survivor disposed as "File issue" (every payload if "Apply all recommen
 ```bash
 # work-types: native
 gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:docs-health --label risk:low --label effort:low --label ready --label docs-health:additive
+  --label by:docs-health --label risk:low --label size:low --label ready --label docs-health:additive
 
 # work-types: labels
 gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:docs-health --label risk:low --label effort:low --label ready --label docs-health:additive --label type:task
+  --label by:docs-health --label risk:low --label size:low --label ready --label docs-health:additive --label type:task
 ```
 
-**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:docs-health`, and omit `ready`, `risk:*` and `effort:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
+**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:docs-health`, and omit `ready`, `risk:*` and `size:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
 
-Apply the same branch to every payload regardless of classification — a `restructural` payload's call carries `risk:medium`/`effort:high`/`docs-health:restructural` instead. `/docs-health` never edits anything directly; matching `/code-health`/`/harness-health`, it only ever judges and files.
+Apply the same branch to every payload regardless of classification — a `restructural` payload's call carries `risk:medium`/`size:high`/`docs-health:restructural` instead. `/docs-health` never edits anything directly; matching `/code-health`/`/harness-health`, it only ever judges and files.
 
 In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 

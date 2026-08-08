@@ -89,7 +89,7 @@ awaiting sign-off." and stop — do not call `AskUserQuestion` — when recall f
 Almost always this yields exactly one candidate — skip straight to Step 2 with it. On the rare
 occasion this session did 2+ genuinely distinct, uncorrelated units of work, walk each through
 Step 2 in sequence — no batch table, no bulk-decision question, since session-recall entries
-never carry the `risk:*`/`effort:*` data a pre-fill would need.
+never carry the `risk:*`/`size:*` data a pre-fill would need.
 
 ### `#N` given: single-record lookup
 

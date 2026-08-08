@@ -32,7 +32,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 - You want a synthesized read of what's in the backlog — narrative + thematic clusters, a critical/risk-value/cleanup view, or a recommendation for what to build next — `overview` mode.
 - You want a copy-pasteable hand-off block to parallelize shaping or building a chosen batch across terminals — `overview` mode.
 
-Not for: shaping record bodies or stamping `risk:*`/`effort:*` (`/claude-tweaks:specify`'s job), claiming or building anything (`/claude-tweaks:dispatch`'s job), or filing/closing records.
+Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:specify`'s job), claiming or building anything (`/claude-tweaks:dispatch`'s job), or filing/closing records.
 
 ## Input
 

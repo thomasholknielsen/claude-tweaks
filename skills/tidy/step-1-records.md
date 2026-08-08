@@ -87,9 +87,9 @@ A watched-path match is a signal to look again, not proof the record still needs
 
 ### Shape 4 — ready record missing scoring
 
-`facets.stage === 'ready'` and (`facets.risk === null` or `facets.effort === null`). Labels are projection, not truth (`_shared/work-record.md`) — a `ready` record reaching this state without scoring usually means the label was hand-added on GitHub rather than stamped by `/claude-tweaks:specify`'s Shaping mode or a health skill's born-ready filing. `/claude-tweaks:backlog refine`'s own grant sub-stage would flag the identical gap reactively when it next pulls the `ready` queue; this surfaces it proactively during hygiene instead of waiting for a refine run.
+`facets.stage === 'ready'` and (`facets.risk === null` or `facets.size === null`). Labels are projection, not truth (`_shared/work-record.md`) — a `ready` record reaching this state without scoring usually means the label was hand-added on GitHub rather than stamped by `/claude-tweaks:specify`'s Shaping mode or a health skill's born-ready filing. `/claude-tweaks:backlog refine`'s own grant sub-stage would flag the identical gap reactively when it next pulls the `ready` queue; this surfaces it proactively during hygiene instead of waiting for a refine run.
 
-→ Collect each as: `[scoring] {title} — missing {risk|effort|both} — flag for scoring (/claude-tweaks:specify re-stamps it)`
+→ Collect each as: `[scoring] {title} — missing {risk|size|both} — flag for scoring (/claude-tweaks:specify re-stamps it)`
 
 ### Shape 5 — `bot:blocked` needing re-triage
 

@@ -59,7 +59,7 @@ notes: >
   --area flag is passed, so next-slice always picks the highest-priority slice
   automatically. See skills/code-health/SKILL.md's "Routine Configuration" section for
   the --budget / token-cap tuning guidance this template doesn't need to restate. Filed
-  issues are born-ready — each carries risk:<tier>/effort:<tier> labels and the ready
+  issues are born-ready — each carries risk:<tier>/size:<tier> labels and the ready
   label already applied at filing time, so they land directly in the authorization
   gate's worklist with no manual tiering step; a human still needs to periodically run
   `/claude-tweaks:backlog refine` to actually authorize (grant auto:build/auto:merge)
