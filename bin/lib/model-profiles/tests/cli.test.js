@@ -80,6 +80,43 @@ test('unknown profile exits non-zero naming it', () => {
   );
 });
 
+test('a value-taking flag at end-of-args exits 1 naming the flag', () => {
+  const dir = tmpProject(null);
+  assert.throws(
+    () => execFileSync('node', [CLI, 'standard', '--stance'], { cwd: dir, encoding: 'utf8' }),
+    (e) => e.status === 1 && /--stance requires a value/.test(String(e.stderr)),
+  );
+  assert.throws(
+    () => execFileSync('node', [CLI, 'standard', '--run-dir'], { cwd: dir, encoding: 'utf8' }),
+    (e) => e.status === 1 && /--run-dir requires a value/.test(String(e.stderr)),
+  );
+});
+
+test('a value-taking flag does not swallow the following flag as its value', () => {
+  const dir = tmpProject(null);
+  assert.throws(
+    () => execFileSync(
+      'node', [CLI, 'frontier', '--stance', '--unattended', '--run-dir', '/tmp/x'],
+      { cwd: dir, encoding: 'utf8' },
+    ),
+    (e) => e.status === 1 && /--stance requires a value/.test(String(e.stderr)),
+  );
+});
+
+test('a failing tally append exits 1 naming the problem, with no stack trace', () => {
+  const dir = tmpProject(null);
+  const missing = path.join(dir, 'no', 'such', 'dir');
+  assert.throws(
+    () => execFileSync('node', [CLI, 'frontier', '--run-dir', missing], { cwd: dir, encoding: 'utf8' }),
+    (e) => {
+      const err = String(e.stderr);
+      return e.status === 1
+        && /cannot append frontier tally/.test(err)
+        && !/\n\s+at /.test(err); // no stack frames
+    },
+  );
+});
+
 test('malformed policy exits non-zero naming the problem', () => {
   const dir = tmpProject('frontier-run-cap: soon\n');
   assert.throws(
