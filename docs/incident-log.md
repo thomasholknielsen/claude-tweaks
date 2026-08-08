@@ -254,7 +254,15 @@ Don't run raw `git worktree remove` on a worktree created via `EnterWorktree` �
 `EnterWorktree` provenance. Counter-evidence: seven unlocked, harness-created worktrees
 under `.claude/worktrees/` were removed with the raw git form on the first attempt, no
 lock error. The rule below now reads as locked-only; `bin/lib/hooks/worktree-reap.js`
-unlocks first when the lock's owning pid is provably dead, and never otherwise.
+unlocks first when the lock's owning pid is provably dead **and** the worktree has been
+untouched for 24h, and never otherwise.
+
+**Which remedy applies to which worktree.** The reaper is not a remedy for the worktree a
+session is standing in: that lock's pid is live, so `lockVerdict` returns `in-use` and the
+reaper correctly skips it — and a session's own worktree at `/wrap-up` time always has a
+live pid. `ExitWorktree` (`action: "remove"`) remains the only remedy for that case, and
+`skills/wrap-up/cleanup-procedures.md` Section C step 4 names it. The reaper covers the
+other case: a worktree whose owning session is gone, which nothing else collects.
 
 ## IL-59 — The marketplace-mirror half of a release
 

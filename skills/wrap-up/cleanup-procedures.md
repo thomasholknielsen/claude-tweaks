@@ -61,11 +61,13 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
 5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
    already in the main checkout — run directories are anchored there at creation
-   (`_shared/pipeline-run-dir.md`, Anchoring). Move them into the archive path with a
-   plain `mv`, same destination as `work/`'s but without `git mv` since they were never
-   tracked. This is identical for worktree-strategy and `current-branch` runs; the
-   two-branch split it replaces existed only because the worktree strategy used to hold
-   the sole copy.
+   (`_shared/pipeline-run-dir.md`, Anchoring), and for a run that predates anchoring,
+   Section C step 3.5's transitional guard has already copied it there and re-pointed
+   `$RUN_DIR`. Either way `$RUN_DIR` names a main-checkout path by the time this step
+   runs. Move them into the archive path with a plain `mv`, same destination as
+   `work/`'s but without `git mv` since they were never tracked. This is identical for
+   worktree-strategy and `current-branch` runs; the two-branch split it replaces existed
+   only because the worktree strategy used to hold the sole copy.
 6. Skipped staged items remain in the archive; they are NOT silently dropped.
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
@@ -125,13 +127,64 @@ If the build used worktree git strategy, clean up the worktree directory:
    - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
    - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
      - **Merged, PR created, or discarded** → proceed to step 4.
-     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 4-5 below entirely for this spec (do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
+     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 3.5-5 below entirely for this spec (do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
    — the carrier is the final wrap-up commit message instead: include the same
    `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
    branch (the operative instruction lives in wrap-up SKILL.md Step 10's commit procedure,
    since Section C is skipped when no worktree exists).
-4. Remove the worktree: `git worktree remove {path}`.
+3.5. **Transitional guard — a run directory whose only copy is inside this worktree.**
+   Run directories created since run-dir anchoring shipped (2026-08-07, `_shared/pipeline-run-dir.md`'s
+   Anchoring section) live under the **main checkout**, so Section B step 5 can rely on the copy
+   being there and removing a worktree cannot destroy it. Runs created *before* that hold their
+   only copy of `config.yml`, `decisions.md`, `events.jsonl` and `staged/` inside the worktree,
+   where step 4 below deletes them permanently — there is no git history to recover from, the
+   same shape as `[IL-46]`. Copy them out first, from inside the worktree:
+
+   ```bash
+   # pwd -P on every side: on macOS the same directory reaches you as both
+   # /var/... and /private/var/..., and an unresolved prefix test silently
+   # never matches — the guard then looks like a clean no-op while the state
+   # it exists to save is still inside the worktree.
+   WT=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+   MAIN=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd -P)
+   RUN_REAL=$(cd "$RUN_DIR" 2>/dev/null && pwd -P)
+   case "${RUN_REAL:+$RUN_REAL/}" in
+     "$WT"/*)
+       DEST="$MAIN/.claude-tweaks/pipelines/$(basename "$RUN_REAL")"
+       mkdir -p "$DEST"
+       for f in config.yml decisions.md events.jsonl run-state.json ephemeral-server.txt staged; do
+         [ -e "$RUN_REAL/$f" ] && cp -R "$RUN_REAL/$f" "$DEST/"
+       done
+       RUN_DIR="$DEST"
+       ;;
+   esac
+   ```
+
+   Copy the gitignored half only — **not `work/`**. Materialized headers are git-tracked and
+   reach the main checkout by merge (`_shared/pipeline-run-dir.md`, Anchoring); copying them
+   would leave untracked duplicates that Section B step 4's `git mv` then fails on. Re-point
+   `$RUN_DIR` at the copy, as above: Sections D and E and Section B's archival all read it
+   after this point. A run whose `$RUN_DIR` is empty or already outside the worktree is a
+   no-op, so this is inert on every run created after anchoring shipped.
+
+   **Removal condition** (`[IL-85]` — a compatibility path with no stated end date is never
+   collected): delete this step once no live worktree still holds an un-archived pre-anchoring
+   run directory. Verify by running, from the main checkout,
+   `find . -path "*/.claude/worktrees/*/.claude-tweaks/pipelines/*" -maxdepth 6 -type d` and
+   confirming every hit is a run whose directory also exists under the main checkout's own
+   `.claude-tweaks/pipelines/`. Delete unconditionally after **2026-11-07** regardless — three
+   months is longer than any worktree in this repo's history has stayed live, and a
+   pre-anchoring run still sitting in a worktree by then is abandoned state, not live state.
+4. Remove the worktree. Use **`ExitWorktree`** (`action: "remove"`) for the worktree this
+   session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
+   fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock
+   either — it returns `in-use` and skips, correctly, because a session's own worktree at
+   wrap-up time always has a live pid. `ExitWorktree` is the only remedy for that case. Verify
+   `git rev-parse HEAD` matches on both the worktree branch and the branch it merged into
+   before passing `discard_changes: true` (`[IL-45]`). For a worktree this session does **not**
+   occupy and that `git worktree list --porcelain` shows unlocked, `git worktree remove {path}`
+   is fine.
 5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
 If no worktree exists for this spec, skip this section silently.
