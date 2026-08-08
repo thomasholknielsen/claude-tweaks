@@ -101,12 +101,19 @@ function buildFixture() {
   return { tmp, remote, authoring, stale };
 }
 
+// A fresh empty directory for one test's own filesystem state. Numbered under
+// the shared fixture root so `after()`'s single rmSync collects every one.
+function caseDir() {
+  const dir = path.join(FIXTURE.tmp, `case-${CASE_SEQ++}`);
+  fs.mkdirSync(dir);
+  return dir;
+}
+
 // Copies the pristine fixture so each test gets an independent, mutable pair of
 // checkouts. `remote.git` stays put and both clones reference it by absolute
 // path, so a filesystem copy of a clone remains a working repo.
 function useFixture() {
-  const dir = path.join(FIXTURE.tmp, `case-${CASE_SEQ++}`);
-  fs.mkdirSync(dir);
+  const dir = caseDir();
   const stale = path.join(dir, 'stale');
   const authoring = path.join(dir, 'authoring');
   fs.cpSync(FIXTURE.stale, stale, { recursive: true });
@@ -205,10 +212,8 @@ test('an uncommitted local edit keeps the working copy authoritative even when b
 test('a model-only difference between local and upstream is reported as a significant field', () => {
   // A dedicated remote, not the shared FIXTURE one: the shared bare repo is
   // read by every other test in this file via `origin/main`, and pushing a
-  // `model` field onto it here would leak into their comparisons too. Scoped
-  // under FIXTURE.tmp purely so the suite's `after()` hook cleans it up.
-  const dir = path.join(FIXTURE.tmp, `case-${CASE_SEQ++}`);
-  fs.mkdirSync(dir);
+  // `model` field onto it here would leak into their comparisons too.
+  const dir = caseDir();
   const remote = path.join(dir, 'remote.git');
   const repo = path.join(dir, 'repo');
   git(dir, 'init', '--bare', '--initial-branch=main', remote);
@@ -322,8 +327,7 @@ test('freshnessNote is null exactly when the comparison was verified', () => {
 });
 
 test('a project with no records directory at all is handled, not thrown on', () => {
-  const dir = path.join(FIXTURE.tmp, `case-${CASE_SEQ++}`);
-  fs.mkdirSync(dir);
+  const dir = caseDir();
   git(dir, 'init', '--quiet', '--initial-branch=main', dir);
   fs.writeFileSync(path.join(dir, 'README.md'), '# empty\n');
   git(dir, 'add', '-A');
