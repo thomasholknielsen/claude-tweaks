@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { isWorktreeAlwaysOn } = require('../bin/lib/policy');
+const { isWorktreeAlwaysOn, readIntegrationBranch } = require('../bin/lib/policy');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-policy-'));
@@ -65,4 +65,26 @@ test('garbage trailing content that is not a # comment is still rejected', () =>
   const repo = tmpRepo();
   writePolicy(repo, 'worktree.always: true and some other text\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+});
+
+test('readIntegrationBranch: key present -> returns the branch name', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'integration-branch: staging\n');
+  assert.strictEqual(readIntegrationBranch(repo), 'staging');
+});
+
+test('readIntegrationBranch: key absent -> null', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true\n');
+  assert.strictEqual(readIntegrationBranch(repo), null);
+});
+
+test('readIntegrationBranch: no policy file at all -> null', () => {
+  assert.strictEqual(readIntegrationBranch(tmpRepo()), null);
+});
+
+test('readIntegrationBranch: key present with a trailing comment is tolerated', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'integration-branch: dev  # not main, see CLAUDE.md\n');
+  assert.strictEqual(readIntegrationBranch(repo), 'dev');
 });
