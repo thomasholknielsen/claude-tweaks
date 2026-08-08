@@ -51,7 +51,10 @@ AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (blocker: {cate
 
 **Standalone run (no pipeline run directory resolves — see `_shared/pipeline-run-dir.md`):**
 there is no `staged/` directory or `decisions.md` to write to, and no Review Console to later
-reconcile a staged file into a real record (Step 8.6 never runs). Apply Phase 3's standalone
+reconcile a staged file into a real record. Note what the reason is **not**: the console is no
+longer mode-gated — it runs in every mode, including interactive and standalone wrap-up. It is
+absent here because this is `/claude-tweaks:ledger resolve` invoked outside any `/flow` or
+`/wrap-up` run at all, so no wrap-up ever executes to render one. Apply Phase 3's standalone
 "create directly instead of staging" behavior inline here instead — create the record now via
 the same dual-driver contract Phase 3 uses (`gh issue create` / `local-store.js`'s `writeRecord`),
 and surface the auto-routing decision in this run's summary output in place of the `decisions.md`
@@ -117,7 +120,7 @@ For each item, apply the user-chosen disposition. **Each new work record (`parke
 - `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
 - `Defer` → stage a record proposal at `{run-dir}/staged/ledger-record-{slug}.md` (`Title:`/`Type:`/`Labels:` header + body, same shape as `leftover-{slug}.md` — see `wrap-up/leftover-routing.md` step 3): `parked`, a `Trigger:` line from the user-stated trigger, an `Origin: ledger resolve gate` line, and affected files. Update ledger status to `deferred`. Resolves on per-item approval at the Wrap-Up (or Flow) Review Console's Queue writes section, which runs in every mode. The console creates the record (`gh issue create` under `work-backend: github-issues`, or `local-store.js`'s `writeRecord` under `work-backend: local-files`)
 - `Keep` → same staging shape, backlog (no `Trigger:` line, no stage label), `Origin: ledger resolve gate` line, and short context. Update ledger status to `deferred` (with note `→ backlog` in Resolution column). Same two-surface resolution as `Defer` above
-- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `unattended-tier: on`, apply Phase 2's narrowing check inline here too (there is no Step 8.6 to centralize the auto-file decision through in this standalone path).
+- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `unattended-tier: on`, apply Phase 2's narrowing check inline here too (no wrap-up runs on this path, so there is no Review Console to centralize the auto-file decision through).
 - `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
 - `Acknowledge` (ops items only) → **stages a record proposal**, same shape as `Keep` above (backlog, no `Trigger:` line), but `Origin: ledger resolve gate (acknowledged)` and `Type: task` — an ops item is action still outstanding, just not something the agent can perform, so unlike `Accept`/`Drop` it must not disappear once the ledger file is deleted at cleanup. Update ledger status to `acknowledged` (unchanged from before — this only adds the staged proposal, it doesn't rename the status). Same two-surface resolution as `Defer`/`Keep`.
 - `Drop` → mark as `accepted` with reason "dropped per user — no longer relevant"

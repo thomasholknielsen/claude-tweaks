@@ -2,7 +2,7 @@
 
 Cheap knowledge-capture procedure for `light` mode (invoked by `/claude-tweaks:wrap-up` Phase 1 when `config.yml`'s `ceremony-profile` is `fast-lane`, or standalone with the `light` keyword).
 
-Light mode is a narrowed subset of full mode — see `full-mode.md` for the Near-misses/Fresh-start lens definitions this mode reuses verbatim; Surprises, Approach, and Tradeoff Review are dropped. **Why those two survive:** they are the lenses that can still catch a defect. Near-misses surfaces what almost went wrong, and Fresh-start asks what a second attempt would do differently — both read the finished work and can produce a Safety regression finding, which is what trips the ceremony escape hatch (`wrap-up/SKILL.md` Step 3.5). Surprises, Approach, and the Tradeoff Review are narrative: valuable on a substantial change, pure fixed cost on the small ones `fast-lane` is for.
+Light mode is a narrowed subset of full mode — see `full-mode.md` for the Near-misses/Fresh-start lens definitions this mode reuses verbatim; Surprises, Approach, and Tradeoff Review are dropped. **Why those two survive:** they are the lenses that can still catch a defect. Near-misses surfaces what almost went wrong, and Fresh-start asks what a second attempt would do differently — both read the finished work and can produce a Safety regression finding, which is what trips the ceremony escape hatch (`wrap-up/SKILL.md`'s Phase 1). Surprises, Approach, and the Tradeoff Review are narrative: valuable on a substantial change, pure fixed cost on the small ones `fast-lane` is for.
 
 ## Step 2: Run Lenses — Light Mode (2 lenses, no tradeoff review)
 
@@ -25,7 +25,7 @@ Light mode does not run the Tradeoff Review sub-step — a `fast-lane` record's 
 
 ### Auto mode (policy-driven routing)
 
-Identical to full mode — auto-mode routing (including the mandatory Safety regression KEPT-PROMPT routing) is shared across every mode, mode-independent: see the auto-routing table in SKILL.md Step 3. **If a Safety regression finding fires here, this triggers the ceremony escape hatch** (`wrap-up/SKILL.md` Step 3.5, which is the escape hatch) — `/claude-tweaks:wrap-up` checks for this immediately after this step completes and downgrades `ceremony-profile` to `standard` for the remainder of the run when it fires.
+Identical to full mode — auto-mode routing (including the mandatory Safety regression KEPT-PROMPT routing) is shared across every mode, mode-independent: see the auto-routing table in SKILL.md Step 3. **If a Safety regression finding fires here, this triggers the ceremony escape hatch** (`wrap-up/SKILL.md`'s Phase 1 ceremony escape hatch) — `/claude-tweaks:wrap-up` checks for this immediately after this step completes and downgrades `ceremony-profile` to `standard` for the remainder of the run when it fires.
 
 ### Interactive mode (batch user routing)
 

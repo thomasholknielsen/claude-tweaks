@@ -1,6 +1,6 @@
 # Wrap-Up Cleanup Procedures
 
-Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up`'s Phase 4 — its cleanup-planning step, its phase-trace report checklist, and its execution step — and by `review-console.md` (the Cleanup actions section of the Review Console — the ninth of its named batch sections). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
+Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up`'s Phase 4 — its cleanup-planning step, its phase-trace report checklist, and its execution step — and by `review-console.md` (the Cleanup actions section of the Review Console — the last of its named batch sections). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
 
 ## Canonical cleanup list
 

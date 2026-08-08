@@ -40,7 +40,7 @@ The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s
 |-------|------|
 | `/claude-tweaks:init` | Phase 8.5's missing-doc detection may flag `docs/decisions/` as a gap in the Tier-3 doc taxonomy and backlog a work record pointing at this file's template — it does not create the folder or file itself (`init/docs-structure.md`'s Registry Creation Procedure only ever creates `docs/REGISTRY.md`; see `wrap-up/docs-health-integration.md`'s D2 section). |
 | `/claude-tweaks:deepen` | **Flags** candidates. Step 4 names each interface trade-off's cost/benefit; when a trade-off is genuinely hard-to-reverse, surprising, and a real choice (the same ADR gate below), it's tagged `[ADR-candidate]` for `/wrap-up` to pick up — does NOT write the file itself. |
-| `/claude-tweaks:wrap-up` | **Applies the gate and writes.** Step 6.2 collects decisions surfaced during build/review/reflection (plus any `[ADR-candidate]` from `/deepen`), runs the ADR gate, and proposes ADR creation. Proposed ADRs are routed through the Step 9 batch table / Review Console like any other configuration update — never written silently. |
+| `/claude-tweaks:wrap-up` | **Applies the gate and writes.** Its Decision records curation row (`wrap-up/adr-curation.md`) collects decisions surfaced during build/review/reflection (plus any `[ADR-candidate]` from `/deepen`), runs the ADR gate, and proposes ADR creation. Proposed ADRs are routed through the Review Console like any other configuration update — never written silently. |
 
 ## Auto-mode
 
