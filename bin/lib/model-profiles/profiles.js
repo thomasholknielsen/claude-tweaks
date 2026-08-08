@@ -40,6 +40,12 @@ function profileOfModel(model) {
   return name;
 }
 
+// Every degrade path lands on the same profile (capable) — only the reason
+// differs, so it becomes the `degraded:{reason}` source tag.
+function degrade(reason) {
+  return { ...PROFILES.capable, source: `degraded:${reason}` };
+}
+
 // Pure: no fs, no process, no I/O. The CLI owns all of that.
 // Six stages in fixed order — table default, policy row, cliOverride, stance,
 // model-ceiling, frontier gates — with the last transform that changed the
@@ -92,8 +98,7 @@ function resolve(profile, opts = {}) {
     const shifted = shiftEffort(effort, stance === 'economy' ? -1 : 1);
     if (shifted !== effort) { effort = shifted; source = 'stance'; }
     if (stance === 'economy' && profileOfModel(model) === 'frontier') {
-      ({ model, effort } = { ...PROFILES.capable });
-      source = 'degraded:stance';
+      ({ model, effort, source } = degrade('stance'));
     }
   }
 
@@ -109,11 +114,9 @@ function resolve(profile, opts = {}) {
   if (profileOfModel(model) === 'frontier') {
     const cap = policy['frontier-run-cap'] !== undefined ? policy['frontier-run-cap'] : 3;
     if (opts.unattended) {
-      ({ model, effort } = { ...PROFILES.capable });
-      source = 'degraded:unattended';
+      ({ model, effort, source } = degrade('unattended'));
     } else if ((opts.frontierUsed || 0) >= cap) {
-      ({ model, effort } = { ...PROFILES.capable });
-      source = 'degraded:cap';
+      ({ model, effort, source } = degrade('cap'));
     }
   }
 
