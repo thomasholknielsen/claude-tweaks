@@ -155,3 +155,23 @@ test('mainCheckoutRoot: a path in no repository at all returns null', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-norepo-'));
   assert.strictEqual(mainCheckoutRoot(dir), null);
 });
+
+test('mainCheckoutRoot: a stat failure that is NOT ENOENT returns null instead of walking up to an ancestor repo', () => {
+  // ENOENT is the ordinary walk-up case ("no .git here, look higher"). Every
+  // other errno means we could not LOOK, which is a different fact: continuing
+  // the walk hands back an ANCESTOR repository's root, and worktree-reap.js
+  // then enumerates and removes worktrees belonging to that repo.
+  if (process.getuid && process.getuid() === 0) return; // root bypasses mode bits
+  const repo = gitRepo();
+  const blocked = path.join(repo, 'blocked');
+  fs.mkdirSync(blocked);
+  fs.chmodSync(blocked, 0o000); // statSync(blocked/.git) -> EACCES
+  try {
+    // Precondition: the walk-up WOULD find a repo one level higher, so a null
+    // here can only come from the errno branch, not from "nothing to find".
+    assert.strictEqual(mainCheckoutRoot(repo), safeReal(repo));
+    assert.strictEqual(mainCheckoutRoot(blocked), null);
+  } finally {
+    fs.chmodSync(blocked, 0o755);
+  }
+});

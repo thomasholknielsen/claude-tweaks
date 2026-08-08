@@ -45,12 +45,15 @@ function run(ctx) {
     // computes internally), so policy lookup and the HEAD fallback below both
     // land on the real repository, not the caller's local vantage point.
     const repoRoot = wtDetect.mainCheckoutRoot(ctx.cwd);
-    // policy.yml's integration-branch when set; otherwise the repository's own
-    // HEAD branch. Never hardcode `main` — this plugin runs against projects
-    // using a dev -> staging -> main model, where main is the one branch
-    // nothing should be measured against (_shared/integration-branch.md).
-    const integration =
-      (repoRoot && policy.readIntegrationBranch(repoRoot)) || reaper.defaultBranchOf(repoRoot);
+    // The canonical ladder, via reaper.resolveIntegrationBranch — policy.yml's
+    // `integration-branch:` then refs/remotes/origin/HEAD, and never the main
+    // checkout's current branch (`_shared/integration-branch.md`'s own named
+    // anti-pattern: a concurrent session switches it underfoot). Never hardcode
+    // `main` either — this plugin runs against projects using a
+    // dev -> staging -> main model, where main is the one branch nothing should
+    // be measured against. Unresolved means reap nothing: this consumer's
+    // recorded fallback in that fragment's per-consumer table.
+    const integration = reaper.resolveIntegrationBranch(repoRoot);
     if (!integration) throw new Error('no integration branch');
     const { reaped, skipped } = reaper.reapWorktrees({ cwd: ctx.cwd, integration });
     // log tier (CLAUDE.md Hooks: block/warn/inform/log) — write to
@@ -73,7 +76,11 @@ function run(ctx) {
           reaped.map((p) => `- ${path.basename(p)}`).join('\n'),
       );
     }
-    const notable = skipped.filter((s) => s.reason !== 'in use by a live session');
+    // Reasons that describe the normal state of a healthy repo (a live
+    // session's own worktree, the `.worktrees/` domain this reaper does not
+    // own, a stale-pid lock still inside its grace period) are logged but not
+    // reprinted on every session start — see QUIET_SKIP_REASONS.
+    const notable = skipped.filter((s) => !reaper.QUIET_SKIP_REASONS.has(s.reason));
     if (notable.length) {
       parts.push(
         'claude-tweaks: worktree(s) left in place:\n' +

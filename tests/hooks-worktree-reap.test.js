@@ -1,11 +1,24 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseWorktreeList, isPidAlive, lockVerdict, isContentIdentical, reapWorktrees } = require('../bin/lib/hooks/worktree-reap');
+const {
+  parseWorktreeList, isPidAlive, lockVerdict, isStale, isContentIdentical, reapWorktrees,
+  resolveIntegrationBranch, ORPHAN_GRACE_MS, MAX_EXAMINED_PER_RUN, REASON, QUIET_SKIP_REASONS,
+} = require('../bin/lib/hooks/worktree-reap');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
+const { gitRepo, linkedWorktreeOf, harnessWorktreeOf } = require('./helpers/git-fixtures');
+
+// Backdate everything newestMtimeMs() looks at (the worktree root plus its
+// immediate entries), so a fixture created seconds ago reads as untouched for
+// longer than the orphan grace period.
+function backdate(wtPath, ms) {
+  const when = new Date(Date.now() - ms);
+  for (const p of [wtPath, ...fs.readdirSync(wtPath).map((e) => path.join(wtPath, e))]) {
+    try { fs.lutimesSync(p, when, when); } catch { fs.utimesSync(p, when, when); }
+  }
+}
 
 // gitRepo() runs a bare `git init`, so the initial branch is whatever the
 // machine's init.defaultBranch says — `main` on some, `master` on others.
@@ -175,15 +188,15 @@ test('isContentIdentical: an unresolvable branch is not identical', () => {
   assert.strictEqual(isContentIdentical(main, 'no-such-branch', defaultBranch(main)), false);
 });
 
-test('reapWorktrees: removes a merged, clean, unlocked linked worktree', () => {
+test('reapWorktrees: removes a merged, clean, unlocked harness worktree', () => {
   const main = gitRepo();
   const base = defaultBranch(main);
-  const wt = linkedWorktreeOf(main);
+  const wt = harnessWorktreeOf(main);
   const before = fs.existsSync(wt);
   assert.strictEqual(before, true);
 
   const res = reapWorktrees({ cwd: main, integration: base });
-  // linkedWorktreeOf() already returns fs.realpathSync(wt), so `wt` is
+  // harnessWorktreeOf() already returns fs.realpathSync(wt), so `wt` is
   // already canonical here — re-resolving it via realpathSync would throw
   // ENOENT, since reapWorktrees() has already deleted the directory by now.
   assert.deepStrictEqual(res.reaped, [wt]);
@@ -200,7 +213,7 @@ test('reapWorktrees: never removes the main checkout', () => {
 test('reapWorktrees: skips a worktree holding unmerged commits', () => {
   const main = gitRepo();
   const base = defaultBranch(main);
-  const wt = linkedWorktreeOf(main);
+  const wt = harnessWorktreeOf(main);
   fs.writeFileSync(path.join(wt, 'x.txt'), 'x');
   execFileSync('git', ['add', 'x.txt'], { cwd: wt });
   execFileSync('git', ['commit', '-q', '-m', 'unmerged'], { cwd: wt });
@@ -214,7 +227,7 @@ test('reapWorktrees: skips a worktree holding unmerged commits', () => {
 test('reapWorktrees: skips a worktree carrying untracked or ignored content', () => {
   const main = gitRepo();
   const base = defaultBranch(main);
-  const wt = linkedWorktreeOf(main);
+  const wt = harnessWorktreeOf(main);
   fs.writeFileSync(path.join(wt, 'scratch-notes.md'), 'decision pending');
 
   const res = reapWorktrees({ cwd: main, integration: base });
@@ -226,43 +239,96 @@ test('reapWorktrees: skips a worktree carrying untracked or ignored content', ()
 test('reapWorktrees: never removes the worktree the caller is standing in', () => {
   const main = gitRepo();
   const base = defaultBranch(main);
-  const wt = linkedWorktreeOf(main);
+  const wt = harnessWorktreeOf(main);
   const res = reapWorktrees({ cwd: wt, integration: base });
   assert.deepStrictEqual(res.reaped, []);
   assert.strictEqual(fs.existsSync(wt), true);
 });
 
-// The five tests above all exercise freshly-created, never-locked worktrees,
-// so lockVerdict() always evaluates to 'free' inside reapWorktrees() itself —
-// lockVerdict is well covered in isolation against synthetic {locked, pid}
-// fixtures (above), but nothing proved the *wiring* at the loop's own
-// verdict-dispatch: a regression that inverted or dropped that condition
-// would still pass every other test here. These two drive 'in-use' and
-// 'orphaned' through reapWorktrees() itself, via a real `git worktree lock`.
+// ─── C2: the harness-owned domain is the only domain ───────────────────────
+//
+// `.worktrees/` (and anything else outside `<main>/.claude/worktrees/`) belongs
+// to superpowers' finishing-a-development-branch per ADR-0004, and the design's
+// Non-goals say so explicitly. It matters far more than a scoping nicety:
+// worktrees in that domain are created by raw `git worktree add` and are
+// therefore NEVER locked, so lock resolution — the guard that protects a live
+// session — is structurally absent for the whole domain. Without the filter, a
+// fresh, unlocked, commit-less worktree someone is actively standing in clears
+// criteria 4 and 5 trivially and is removed.
 
-test('reapWorktrees: a worktree locked by a live session is skipped, never removed', () => {
+test('reapWorktrees: a worktree outside .claude/worktrees/ is skipped, with a reason naming the domain', () => {
   const main = gitRepo();
   const base = defaultBranch(main);
-  const wt = linkedWorktreeOf(main);
-  // process.pid is guaranteed alive for the duration of this test.
-  execFileSync(
-    'git',
-    ['worktree', 'lock', '--reason', `claude session test (pid ${process.pid} start Fri Aug  7 14:40:15 2026)`, wt],
-    { cwd: main },
-  );
+  const outside = linkedWorktreeOf(main); // raw `git worktree add` shape, never locked
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, [], 'a worktree outside the harness domain must never be reaped');
+  assert.strictEqual(fs.existsSync(outside), true);
+  const entry = res.skipped.find((s) => s.path === fs.realpathSync(outside));
+  assert.ok(entry, 'the out-of-domain worktree must still be accounted for in skipped');
+  assert.match(entry.reason, /\.claude[/\\]worktrees/, 'the skip reason must name the domain');
+  assert.strictEqual(entry.reason, REASON.OUT_OF_DOMAIN);
+});
+
+test('reapWorktrees: the domain filter does not shadow an in-domain worktree in the same repo', () => {
+  // Control for the test above: proves the filter selects rather than disables.
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const outside = linkedWorktreeOf(main);
+  const inside = harnessWorktreeOf(main);
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, [inside]);
+  assert.strictEqual(fs.existsSync(outside), true);
+});
+
+test('reapWorktrees: a sibling directory named like the domain but outside the main root is not in it', () => {
+  // The domain is resolved against the MAIN checkout root, not matched as a
+  // substring — a path merely CONTAINING `.claude/worktrees` is not a member.
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const decoyParent = path.join(main, '..', path.basename(main) + '-decoy', '.claude', 'worktrees');
+  fs.mkdirSync(decoyParent, { recursive: true });
+  const decoy = path.join(decoyParent, 'wt');
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', decoy, '-b', 'decoy-branch']);
 
   const res = reapWorktrees({ cwd: main, integration: base });
   assert.deepStrictEqual(res.reaped, []);
-  assert.strictEqual(fs.existsSync(wt), true);
-  assert.match(res.skipped.find((s) => s.path === fs.realpathSync(wt)).reason, /in use/);
+  assert.strictEqual(fs.existsSync(decoy), true);
+  assert.strictEqual(res.skipped.find((s) => s.path === fs.realpathSync(decoy)).reason, REASON.OUT_OF_DOMAIN);
 });
 
-test('reapWorktrees: a worktree locked by a dead pid is unlocked and reaped', () => {
+// ─── C3: an orphaned lock alone is not evidence the worktree is finished ────
+//
+// The lock's pid is stamped once at creation, so a session resumed after a
+// process restart carries a pid that no longer exists while the session lives.
+// A "Kept as-is" worktree (wrap-up cleanup-procedures.md, Section C step 3) is
+// merged and clean, so criteria 4 and 5 both pass and the lock is all that is
+// left. The design's failure analysis covered pid REUSE and missed pid CHANGE.
+
+test('isStale: a just-created directory is not stale', () => {
+  const main = gitRepo();
+  assert.strictEqual(isStale(main), false);
+});
+
+test('isStale: a directory untouched for longer than the grace period is stale', () => {
+  const main = gitRepo();
+  backdate(main, ORPHAN_GRACE_MS + 60_000);
+  assert.strictEqual(isStale(main), true);
+});
+
+test('isStale: an unreadable path cannot prove staleness, so it is not stale', () => {
+  assert.strictEqual(isStale('/this/path/should/not/exist/anywhere/xyz'), false);
+});
+
+test('reapWorktrees: a dead-pid lock on a RECENTLY MODIFIED worktree is refused, not reaped', () => {
   const main = gitRepo();
   const base = defaultBranch(main);
-  const wt = linkedWorktreeOf(main);
-  // 2^22 is above the default pid_max on both macOS and Linux — the same
-  // deterministic "definitely dead" pid the lockVerdict tests above use.
+  const wt = harnessWorktreeOf(main);
+  // 2^22 is above the default pid_max on both macOS and Linux — a pid no
+  // process can hold, so lockVerdict() says 'orphaned'. The worktree is merged
+  // and clean, so criteria 4 and 5 pass. Only staleness stands between this
+  // worktree and deletion, and it was created moments ago.
   execFileSync(
     'git',
     ['worktree', 'lock', '--reason', 'claude session test (pid 4194304 start Fri Aug  7 09:00:00 2026)', wt],
@@ -270,8 +336,136 @@ test('reapWorktrees: a worktree locked by a dead pid is unlocked and reaped', ()
   );
 
   const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, [], 'a stale pid on a live worktree must not authorize removal');
+  assert.strictEqual(fs.existsSync(wt), true);
+  assert.strictEqual(res.skipped.find((s) => s.path === wt).reason, REASON.RECENT);
+});
+
+test('reapWorktrees: a worktree locked by a dead pid AND untouched past the grace period is unlocked and reaped', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = harnessWorktreeOf(main);
+  execFileSync(
+    'git',
+    ['worktree', 'lock', '--reason', 'claude session test (pid 4194304 start Fri Aug  7 09:00:00 2026)', wt],
+    { cwd: main },
+  );
+  // `git worktree lock` writes into the ADMIN directory, not the worktree, so
+  // backdating after it is safe — newestMtimeMs deliberately ignores the admin
+  // dir (see its header comment).
+  backdate(wt, ORPHAN_GRACE_MS + 60_000);
+
+  const res = reapWorktrees({ cwd: main, integration: base });
   // Reaching `reaped` at all proves the `git worktree unlock` step ran first —
   // `git worktree remove` refuses outright on a still-locked worktree.
   assert.deepStrictEqual(res.reaped, [wt]);
   assert.strictEqual(fs.existsSync(wt), false);
+});
+
+// ─── M-c: the own-cwd guard fails CLOSED ───────────────────────────────────
+
+test('reapWorktrees: an unresolvable cwd reaps nothing (the own-ground guard fails closed)', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = harnessWorktreeOf(main);
+  // A path that does not exist: mainCheckoutRoot() still walks up to `main`, so
+  // the repo resolves fine and every candidate is enumerated — but safeReal()
+  // on the cwd returns null, so "is this the caller's own ground?" is
+  // unanswerable. The original `here && (...)` form short-circuited to FALSE
+  // there, i.e. "not our ground", and the worktree became a candidate.
+  const res = reapWorktrees({ cwd: path.join(main, 'no-such-dir'), integration: base });
+  assert.deepStrictEqual(res.reaped, [], 'an unprovable cwd must reap nothing');
+  assert.strictEqual(fs.existsSync(wt), true);
+});
+
+// ─── I4: bounded per-invocation git fan-out ────────────────────────────────
+
+test('reapWorktrees: examines at most MAX_EXAMINED_PER_RUN candidates and defers the rest', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const made = [];
+  for (let i = 0; i < MAX_EXAMINED_PER_RUN + 2; i += 1) made.push(harnessWorktreeOf(main));
+
+  const first = reapWorktrees({ cwd: main, integration: base });
+  assert.strictEqual(first.reaped.length, MAX_EXAMINED_PER_RUN, 'the cap bounds one invocation');
+  assert.strictEqual(first.deferred, 2, 'candidates past the cap are deferred, not skipped or lost');
+
+  // Reaping is idempotent across sessions, so the cap only ever defers work.
+  const second = reapWorktrees({ cwd: main, integration: base });
+  assert.strictEqual(second.reaped.length, 2);
+  assert.strictEqual(second.deferred, 0);
+  for (const wt of made) assert.strictEqual(fs.existsSync(wt), false);
+});
+
+// ─── I2: the canonical integration-branch ladder ───────────────────────────
+
+test('resolveIntegrationBranch: policy.yml\'s integration-branch wins', () => {
+  const main = gitRepo();
+  fs.mkdirSync(path.join(main, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(main, '.claude-tweaks', 'policy.yml'), 'integration-branch: staging\n');
+  assert.strictEqual(resolveIntegrationBranch(main), 'staging');
+});
+
+test('resolveIntegrationBranch: never falls back to the main checkout\'s current branch', () => {
+  // No policy key and no origin/HEAD -> nothing resolves. The current branch is
+  // deliberately NOT a source (integration-branch.md's named anti-pattern): a
+  // concurrent session switches it underfoot, and the reaper DELETES on the
+  // answer. A probe reaped a worktree holding genuinely unmerged work for
+  // exactly this reason.
+  const main = gitRepo();
+  assert.ok(defaultBranch(main), 'precondition: the repo does have a current branch');
+  assert.strictEqual(resolveIntegrationBranch(main), null);
+});
+
+test('resolveIntegrationBranch: falls back to refs/remotes/origin/HEAD, stripped of the remote prefix', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  // The on-disk shape `git remote set-head origin -a` produces, built locally so
+  // the fixture needs no network: a real remote-tracking ref plus a symbolic
+  // origin/HEAD pointing at it.
+  execFileSync('git', ['-C', main, 'update-ref', `refs/remotes/origin/${base}`, 'HEAD']);
+  execFileSync('git', ['-C', main, 'symbolic-ref', 'refs/remotes/origin/HEAD', `refs/remotes/origin/${base}`]);
+  assert.strictEqual(resolveIntegrationBranch(main), base);
+});
+
+test('resolveIntegrationBranch: a null repo root resolves nothing', () => {
+  assert.strictEqual(resolveIntegrationBranch(null), null);
+});
+
+test('QUIET_SKIP_REASONS covers exactly the reasons that describe a healthy repo', () => {
+  // session-start.js filters its "worktree(s) left in place" report on this set.
+  // A reason that is NOT here gets reprinted on every session start, so adding
+  // one silently is how the reaper becomes noise.
+  assert.deepStrictEqual(
+    [...QUIET_SKIP_REASONS].sort(),
+    [REASON.IN_USE, REASON.OUT_OF_DOMAIN, REASON.RECENT].sort(),
+  );
+});
+
+// The reapWorktrees tests above exercise freshly-created, never-locked
+// worktrees, so lockVerdict() always evaluates to 'free' inside reapWorktrees()
+// itself — lockVerdict is well covered in isolation against synthetic
+// {locked, pid} fixtures (above), but nothing proved the *wiring* at the loop's
+// own verdict-dispatch: a regression that inverted or dropped that condition
+// would still pass every other test here. This drives 'in-use' through
+// reapWorktrees() itself, via a real `git worktree lock`; the 'orphaned' half
+// is driven by the two grace-period tests in the C3 block above.
+
+test('reapWorktrees: a worktree locked by a live session is skipped, never removed', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = harnessWorktreeOf(main);
+  // process.pid is guaranteed alive for the duration of this test.
+  execFileSync(
+    'git',
+    ['worktree', 'lock', '--reason', `claude session test (pid ${process.pid} start Fri Aug  7 14:40:15 2026)`, wt],
+    { cwd: main },
+  );
+  // Backdated so staleness cannot be what saves it — only the live pid can.
+  backdate(wt, ORPHAN_GRACE_MS + 60_000);
+
+  const res = reapWorktrees({ cwd: main, integration: base });
+  assert.deepStrictEqual(res.reaped, []);
+  assert.strictEqual(fs.existsSync(wt), true);
+  assert.match(res.skipped.find((s) => s.path === fs.realpathSync(wt)).reason, /in use/);
 });

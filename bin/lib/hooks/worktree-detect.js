@@ -53,7 +53,18 @@ function mainCheckoutRoot(p) {
   while (dir) {
     const gitPath = path.join(dir, '.git');
     let st = null;
-    try { st = fs.statSync(gitPath); } catch { /* keep walking up */ }
+    try {
+      st = fs.statSync(gitPath);
+    } catch (e) {
+      // ENOENT is the ordinary walk-up case: no .git here, look one level up.
+      // Anything else (EACCES on an unreadable directory, ELOOP, EIO) means we
+      // could not LOOK, which is not the same fact — continuing the walk past
+      // it can hand back an ANCESTOR repository's root, and the reaper then
+      // enumerates and removes worktrees belonging to that repo. Unknown
+      // resolves to null, the value every caller already treats as "fall back
+      // to cwd-relative behavior" rather than acting on.
+      if (!e || e.code !== 'ENOENT') return null;
+    }
     if (st && st.isDirectory()) return safeReal(dir);
     if (st && st.isFile()) {
       let raw;
