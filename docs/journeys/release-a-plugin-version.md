@@ -28,4 +28,4 @@ files:
 
 ### 3. If it aborts — read the conflict list, don't override — terminal
 - **Action:** A collision abort names each conflicting source (`worktree-branch: … claims vX.Y.Z`, `plan-claim: …`) and prints `Suggested renumber: vX.Y.Z`. A divergence abort means someone pushed during compose — rebase and re-run.
-- **Expect:** No partial state: aborts happen before the commit (collision, stray staged file) or before the push (divergence). Never force; never renumber a version that already shipped (see CLAUDE.md's Releasing judgment calls).
+- **Expect:** No partial state: aborts happen before the commit (collision, stray staged file) or before the push (divergence). Never force; never renumber a version that already shipped (see docs/releasing.md's judgment calls).

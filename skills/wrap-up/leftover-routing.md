@@ -47,7 +47,7 @@ When the pipeline run directory exists (see `_shared/pipeline-run-dir.md` for th
 
 ## Interactive mode (per-item user input)
 
-For each unfinished section that genuinely cannot be finished, first present a summary table (dense multi-row data, per CLAUDE.md's Multi-item decisions convention):
+For each unfinished section that genuinely cannot be finished, first present a summary table (dense multi-row data, per docs/skill-authoring.md's Multi-item decisions convention):
 
 ```
 | # | Section | Status | Why not finish now |

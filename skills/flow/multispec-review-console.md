@@ -154,7 +154,7 @@ Immediately after presenting the console tables above, call `AskUserQuestion` wi
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 6, modify 8, revert 2\")."`
 - Option 3 — `label`: `"Stop and re-engage"`, `description`: `"Pause; resume after manual review."`
 
-If "Override specific items" is chosen, the skip/modify list is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field.
+If "Override specific items" is chosen, the skip/modify list is ordinary free-text chat in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field.
 
 Queue writes (Q1, Q2, …), Memory updates (M1, M2, …), and Upstream feedback (U1, U2, …) are all handled separately from the three terminal options above — none of them is ever part of that decision, regardless of which option is chosen. After the user selects option 1 or 2, prompt each per-item row individually — one small `AskUserQuestion` call per `Q#`/`M#`/`U#` item, issued separately (never batched into a single call, and never batched across specs or across sections).
 

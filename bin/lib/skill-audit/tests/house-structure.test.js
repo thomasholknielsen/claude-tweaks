@@ -10,8 +10,9 @@
 //
 // Deliberately NOT checked here:
 //   - `## Component-Skill Contract` — only component skills carry it
-//     (CLAUDE.md's Component-skill contract section), so it is a per-skill
-//     rule, not a corpus rule. The health skills' own suites still assert it.
+//     (docs/skill-authoring.md's Component-skill contract section), so it is
+//     a per-skill rule, not a corpus rule. The health skills' own suites
+//     still assert it.
 //   - `$PIPELINE_RUN_DIR` — same reason; it is the CSC's detection signal.
 //   - Per-skill required tokens, CLI invocation shapes, sub-file contracts —
 //     those belong to the skill's own suite.
@@ -30,10 +31,10 @@ const { sectionIndex, EMOJI_RE } = require('../../health-core/tests/skill-md-hou
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const SKILLS_DIR = path.join(ROOT, 'skills');
 
-// CLAUDE.md's "Interaction style directive" section: this exact line, byte for
-// byte, after the frontmatter of every skill. Asserting the whole line (not
-// just the `> **Interaction style:**` prefix) is what makes "identical across
-// all skills" enforceable.
+// docs/skill-authoring.md's "Interaction style directive" section: this exact
+// line, byte for byte, after the frontmatter of every skill. Asserting the
+// whole line (not just the `> **Interaction style:**` prefix) is what makes
+// "identical across all skills" enforceable.
 const INTERACTION_STYLE =
   '> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option '
   + 'marked Recommended. Multi-item → batch table with recommendations pre-filled, then '

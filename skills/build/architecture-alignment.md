@@ -10,7 +10,7 @@ Common Step 4.5 of `/claude-tweaks:build`. Compare what was actually built to wh
 
 ## Classification
 
-Classify every deviation, then present ONE batch decision table (per CLAUDE.md "Multi-item decisions" convention). Pre-fill a recommended classification per row and offer "apply all / override."
+Classify every deviation, then present ONE batch decision table (per docs/skill-authoring.md's "Multi-item decisions" convention). Pre-fill a recommended classification per row and offer "apply all / override."
 
 For each deviation, the three valid classifications are:
 

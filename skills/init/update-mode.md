@@ -170,7 +170,7 @@ Then call `AskUserQuestion`:
   CLAUDE.md will continue to have no effect"`
 
 On "Override specific items," the user's per-key corrections arrive as ordinary free-text in the
-next message, per CLAUDE.md's Multi-item Decisions convention — not the tool's `Other` field.
+next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field.
 
 **Applying.** This is a **staged offer, never an autonomous edit** — the same rule the
 Work-Record Backend Drift section above states, and for the same reason: CLAUDE.md is never
@@ -254,8 +254,8 @@ Each returned record resolves to one of five verdicts (see `skills/routine/SKILL
 
   On "Apply all recommended," invoke `/claude-tweaks:routine update <skill>
   --defaults --source init` once per Drifted record. On "Override specific items," follow up
-  with the per-item choices as ordinary free-text in the next message, per CLAUDE.md's
-  Multi-item Decisions convention (not the tool's `Other` field). On any outcome except "Skip
+  with the per-item choices as ordinary free-text in the next message, per docs/skill-authoring.md's
+  Multi-item decisions convention (not the tool's `Other` field). On any outcome except "Skip
   entirely," log to `decisions.md` (or the inventory summary, if this project has no active
   pipeline run dir):
   ```
