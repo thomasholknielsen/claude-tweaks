@@ -23,8 +23,8 @@ The stage file holds the fully drafted **and already scrubbed** body. Scrubbing 
 time, not at filing time — the approver reads what will actually be published, and a body scrubbed
 later is a body nobody approved.
 
-Filing happens on approval — at the Review Console's `On approval` step (Step 8.6), or, in
-interactive mode, `summary-template.md`'s Upstream feedback section — by invoking
+Filing happens on approval — at the Review Console's `On approval` step
+(`review-console.md`'s Upstream feedback section, which runs in every mode) — by invoking
 `/claude-tweaks:feedback` per approved row. Step 10 only confirms the filing landed; see
 `execution-and-verification.md`.
 

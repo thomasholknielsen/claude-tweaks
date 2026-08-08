@@ -16,7 +16,7 @@ STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibili
 ```
 
 The stage file holds the complete proposed memory file **plus** its `MEMORY.md` index line, so the
-Review Console (or, in interactive mode, `summary-template.md`'s Memory updates section) can show
+Review Console (`review-console.md`'s Memory updates section, which runs in every mode) can show
 exactly what would be written. A proposal missing the index line is incomplete: a memory file with
 no index entry is never loaded, so staging one without the other stages something that would not
 work.

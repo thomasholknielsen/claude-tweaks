@@ -4,9 +4,12 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 ## When to run
 
-- **`auto` or `hybrid` mode** — run if a pipeline run directory exists for this work AND `MULTISPEC_REVIEW_DEFER` is unset
-- **`auto` or `hybrid` mode with `MULTISPEC_REVIEW_DEFER=1`** — **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory.
-- **`interactive` mode** — skip; decisions were resolved in-flow
+- **Every mode — `auto`, `hybrid`, interactive, standalone** — run whenever a pipeline run directory exists for this work, which is every run from Phase 1 onward (`SKILL.md`'s "Establish the run directory (unconditional)"). Mode is not a condition on this console; the run directory is.
+- **`MULTISPEC_REVIEW_DEFER=1`** — the one exception: **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory, and the Multi-spec defer protocol below.
+
+In interactive and standalone runs this console replaces the batch decision the report template used to present after it — same tables, same single terminal `AskUserQuestion`, same per-item `Q#`/`M#`/`U#` drills. `summary-template.md` now renders only the record of what was decided here, never a second decision point.
+
+**Hard gate.** Check the response you are about to send: does it already contain the numbered console tables as literal rendered markdown, with a row for every item? If not, render them now, in this response, before the tool call.
 
 ## Dry-run mode (`--dry-run`)
 
@@ -184,11 +187,11 @@ When `MULTISPEC_REVIEW_DEFER=1` is set (by `/flow` multi-spec orchestration):
 4. Proceed to Step 9 (Present Consolidated Summary) — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
 5. Skip the run-directory archival in Step 5 — the parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated console completes
 
-This is the *only* condition under which `/wrap-up` skips Step 8.6 when a run directory exists. Single-spec auto/hybrid always runs the per-spec console.
+This is the *only* condition under which `/wrap-up` skips Step 8.6 when a run directory exists. Every single-spec run — in any mode — always runs the per-spec console.
 
 ## Locate the pipeline run directory
 
-See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If resolution returns empty (no env var, no matching directory), skip the console entirely (standalone wrap-up, or pre-v4.6 pipeline).
+See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Resolution is unchanged; an empty result is **unreachable after Phase 1**, which creates a run directory on every run when none was inherited. If it happens anyway, do not skip the console — treat it as the prose-fallback case: present the same findings inline in this response, gathered from what this run itself produced rather than from `decisions.md` and `staged/`, and take the same terminal decision below.
 
 ## Read inputs
 
@@ -274,6 +277,8 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 > Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `staged/review-contested-{N}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
 
+Generate the next five sections — Skill updates, Documentation updates, Journey updates, Reference repairs, and Configuration updates — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence). The shapes below are the contract that output satisfies, and the prose-fallback template when the engine did not run.
+
 #### Skill updates (from Step 7)
 
 | # | Skill | Section | Change |
@@ -351,6 +356,13 @@ approval is forbidden per `_shared/auto-mode-contract.md`'s work-record-creation
 write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto
 the unified record system — its own destination) lives in the producing skill's own staged
 file; this table only needs enough to render the prompt.
+
+**Where the `Q#` rows come from.** Every file in `{run-dir}/staged/` carrying a
+`Title:`/`Type:`/`Labels:` header is a queue write — `ledger-record-*.md`
+(`ledger/resolve-gate.md` Phase 3's `Defer` / `Keep` / `Acknowledge` dispositions, including the
+ones `nothing-left-behind.md`'s Ops acknowledgment stages), `leftover-*.md`, and any other
+producer's staged proposal. Identify them by that header, not by filename, so a new producer is
+picked up without editing this file.
 
 | Q# | Destination | What | Source |
 |---|---|---|---|
@@ -435,9 +447,11 @@ Halt before applying. Leave the run directory intact. User resumes with `/claude
 
 If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes, memory updates, or upstream feedback proposals are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 9 (Present Consolidated Summary).
 
+Cleanup rows that are unconditional bookkeeping — run-dir archival, `cleanup-procedures.md` item 8 — do **not** count as cleanup actions for this test; archival executes regardless, undisplayed, as bookkeeping. Without that carve-out the fast path could never fire, since item 8's condition now holds on every run.
+
 ## Hard requirements
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing.
+- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
 - **An `[adr-convention]` row is also per-item**, despite sitting inside Configuration updates. Never fold it into "Approve all" and never pick one of its three options as a default — an unanswered row blocks the `[adr]` rows from the same run rather than resolving them, because their paths depend on the answer.
