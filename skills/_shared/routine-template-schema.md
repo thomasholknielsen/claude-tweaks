@@ -111,6 +111,7 @@ Written per-project, after a successful `RemoteTrigger create` or `update`. Proj
 | `routine_id` | string | yes | The trigger/routine ID from `RemoteTrigger`'s create response. Source of truth for subsequent `update`/`get`/`run` calls — never re-derive or guess this. |
 | `template` | string | yes | Which skill's template this came from (matches the directory under `skills/`). |
 | `template_version` | integer | yes | The template's `template_version` at the time this record was written. Compared against the template's current value to detect drift. |
+| `model` | string | yes | The template's `model` value at the time this record was last written (create or update). Compared against the upstream copy to detect drift, same as `template_version`. |
 | `created_at` | string | yes | ISO 8601 UTC timestamp of creation (or last update). |
 | `schedule` | string | yes | The `cron_expression` actually chosen at instantiation (may differ from the template's `default_schedule`). |
 | `console_url` | string | yes | The claude.ai routine URL from the create/update response. |
