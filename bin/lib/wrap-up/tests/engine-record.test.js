@@ -215,6 +215,55 @@ test('recordResult rejects a findings entry with an invalid kind or summary', ()
   );
 });
 
+test("recordResult rejects action:'applied' on a stage-only row (claude-md) — nothing recorded", () => {
+  const runDir = makeRunDir();
+  const telemetryPath = path.join(runDir, 'outcomes.tsv');
+  // Open the claude-md gate (normally closed under the shared FACTS fixture)
+  // via its fact trigger, so the disposition check — not the gate check — is
+  // what's under test here. claude-md's disposition is 'stage-only'.
+  const worklist = buildWorklist({
+    facts: { ...FACTS, claudeMdCommandRenamed: true }, signals: {}, ceremonyProfile: 'standard', budgets: {},
+  });
+  initState({ runDir, worklist, now: FIXED_NOW, telemetryPath });
+
+  const payload = {
+    version: 1, rowId: 'claude-md', result: 'findings', gapDetection: 'run',
+    findings: [{ kind: 'additive', summary: 'update a rule', targetPath: 'CLAUDE.md', action: 'applied', stagePath: null, commit: null }],
+  };
+
+  assert.throws(
+    () => recordResult({ runDir, payload, now: FIXED_NOW, telemetryPath }),
+    /stage-only/
+  );
+
+  // Nothing partially recorded: no state entry, no SCANNED line, no telemetry.
+  const state = readState(runDir);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(state.results, 'claude-md'), false);
+
+  const decisionsBefore = fs.readFileSync(decisionsPath(runDir), 'utf8');
+  assert.doesNotMatch(decisionsBefore, /CLAUDE\.md & rules: gate open/);
+
+  const tsv = fs.readFileSync(telemetryPath, 'utf8');
+  assert.doesNotMatch(tsv, /\tclaude-md\topen\t/);
+});
+
+test("recordResult still records action:'applied' fine on an apply-or-stage row (skills) — inversion guard", () => {
+  const runDir = makeRunDir();
+  const worklist = makeWorklist(); // skills is 'apply-or-stage' and open under the shared FACTS
+  initState({ runDir, worklist, now: FIXED_NOW });
+
+  const payload = {
+    version: 1, rowId: 'skills', result: 'findings', gapDetection: 'run',
+    findings: [{ kind: 'additive', summary: 'add a note', targetPath: 'skills/x/SKILL.md', action: 'applied', stagePath: null, commit: null }],
+  };
+
+  assert.doesNotThrow(() => recordResult({ runDir, payload, now: FIXED_NOW }));
+
+  const state = readState(runDir);
+  assert.strictEqual(state.results.skills.result, 'findings');
+  assert.strictEqual(state.results.skills.findings[0].action, 'applied');
+});
+
 test('recordResult still accepts a fully valid mixed applied+staged findings payload', () => {
   // Inverted check: confirms the new per-entry validation doesn't reject the
   // previously-passing mixed applied+staged case.

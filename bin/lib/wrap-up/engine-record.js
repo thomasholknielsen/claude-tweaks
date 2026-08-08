@@ -162,6 +162,26 @@ function validatePayload(payload) {
   }
 }
 
+// A row's disposition (from REGISTRY, via the worklist row) governs whether
+// findings may be auto-applied. 'stage' and 'stage-only' rows — e.g.
+// claude-md, memory, upstream — exist precisely because their findings must
+// never land without a human seeing them first (claude-md: CLAUDE.md/rules
+// edits are ceremony-gated by design). validatePayload alone can't check
+// this: disposition lives on the worklist row, not the payload, so this
+// runs in recordResult once the row is in hand — after the closed/
+// already-recorded checks, before anything is written.
+function validateDispositionForRow(payload, row) {
+  if (payload.result !== 'findings') return;
+  if (row.disposition !== 'stage' && row.disposition !== 'stage-only') return;
+  payload.findings.forEach((finding, index) => {
+    if (finding.action === 'applied') {
+      throw new Error(
+        `recordResult: payload.findings[${index}].action cannot be 'applied' — row '${payload.rowId}' has disposition '${row.disposition}'`
+      );
+    }
+  });
+}
+
 // ---- public API -----------------------------------------------------------
 
 function initState({ runDir, worklist, now, telemetryPath }) {
@@ -204,6 +224,8 @@ function recordResult({ runDir, payload, now, dryRun, telemetryPath }) {
   if (state.results[payload.rowId]) {
     throw new Error(`recordResult: row '${payload.rowId}' was already recorded`);
   }
+
+  validateDispositionForRow(payload, row);
 
   const findings = Array.isArray(payload.findings) ? payload.findings : [];
   const read = Array.isArray(payload.read) ? payload.read : [];
