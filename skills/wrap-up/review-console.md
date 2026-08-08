@@ -211,8 +211,8 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 
 If `unattended-tier: on` (see `_shared/unattended-tier.md`), before building any of the tables
 below: for every queue-write proposal already staged (from ledger Phase 2's narrowing, leftover
-routing's own Step 4, or `/reflect`'s tangential-idea routing Step 3 — all three run earlier in
-`/wrap-up`'s own phase order, before this console) create the record directly via the same `gh issue
+routing's staging (Phase 3), or `/reflect`'s tangential-idea routing Step 3 — all three run earlier
+in `/wrap-up`'s own phase order, before this console) create the record directly via the same `gh issue
 create` / `local-store.js` path "On approval" step 5 below already uses, log it as `AUTO` instead
 of `STAGED`, and list it under **Auto-applied** instead of **Queue writes**. On a fully-on run
 with no ambiguous residue, the Queue writes section below therefore renders empty.
