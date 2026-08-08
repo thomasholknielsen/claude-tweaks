@@ -61,7 +61,7 @@ const { REGISTRY, rowById, ROW_IDS } = require('../registry');
 test('registry has the 8 rows in canonical order', () => {
   assert.deepStrictEqual(ROW_IDS, [
     'skills', 'docs', 'journeys', 'claude-md', 'decision-records',
-    'memory', 'upstream', 'references',
+    'references', 'memory', 'upstream',
   ]);
 });
 
@@ -103,9 +103,9 @@ The 8 rows, with these exact values (targets are user-facing strings; judges are
 | `journeys` | `Journeys` | `journey-curation.md` | `apply-or-stage` | facts anyOf `journeysExist` | frontmatter-overlap |
 | `claude-md` | `CLAUDE.md & rules` | `claude-md-curation.md` | `stage-only` | facts anyOf `claudeMdCommandRenamed` orSignals `dontCandidate`, `contradictedConvention`, `incidentRecorded` | fixed: `CLAUDE.md`, `.claude/rules/` |
 | `decision-records` | `Decision records` | `adr-curation.md` | `stage` | signals key `adrCandidateCount` nonZero | signals |
+| `references` | `Broken references` | `reference-sweep.md` | `apply-or-stage` | facts anyOf `renamedOrDeleted` | renamed-deleted |
 | `memory` | `Memory` | `memory-curation.md` | `stage` | signals key `d4Count` nonZero | signals |
 | `upstream` | `Upstream feedback` | `upstream-feedback.md` | `stage` | signals key `d5Count` nonZero | signals |
-| `references` | `Broken references` | `reference-sweep.md` | `apply-or-stage` | facts anyOf `renamedOrDeleted` | renamed-deleted |
 
 Gate philosophy (record as a header comment): fact-gates are deterministic and computed by `facts.js`; where the true condition is a judgment (e.g. "cohesive multi-file pattern"), the fact-gate is the deterministic **superset** (`multiFileDiff`: 2+ changed files) and the judge applies the real criterion — a gate that opens slightly too often is safe (the judge returns clean), a gate that misses is the silent skip this engine exists to prevent. Signal-gates take model-supplied booleans/counts because no program can compute "a Don't candidate emerged from reflection".
 

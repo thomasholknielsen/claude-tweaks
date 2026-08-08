@@ -62,9 +62,9 @@ The nine rows, in order (ordering is load-bearing — Memory and Upstream are le
 | Journeys | Any `docs/journeys/*.md` exists | `files:` frontmatter ∩ diff (deterministic, no budget) | `journey-curation.md` | apply/stage |
 | CLAUDE.md & rules | Union of 6.1's convention triggers + 7.9's audit triggers (Don't candidate, renamed command, contradicted convention, incident recorded) | CLAUDE.md + `.claude/rules/` | `claude-md-curation.md` (new; merges 6.1 + 7.9) | **stage-only** (standing CLAUDE.md exception) |
 | Decision records | Three-factor ADR gate (unchanged) | Decisions surfaced this run | `adr-curation.md` (new; from 6.2) | stage |
+| Broken references | `git diff --diff-filter=RD` non-empty OR renamed headings | Repo-wide survivors of renamed/deleted targets | `reference-sweep.md` | apply/stage (initiative budget) |
 | Memory | Any insight classifies D4 after earlier rows claimed theirs | Unrouted insights | `memory-curation.md` | stage |
 | Upstream feedback | Any learning classifies D5 | D5 learnings; self-reference collapse intact | `upstream-feedback.md` | stage |
-| Broken references | `git diff --diff-filter=RD` non-empty OR renamed headings | Repo-wide survivors of renamed/deleted targets | `reference-sweep.md` | apply/stage (initiative budget) |
 
 (Eight structural rows; "nine" in conversation counted 6.1 and 6.2 separately — the merged CLAUDE.md row absorbs 6.1, and ADRs are their own row. The registry table above is authoritative.)
 
