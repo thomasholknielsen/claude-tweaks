@@ -58,6 +58,8 @@ const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):[ \t]*(.+)$/gm;
 
 const BY_RE = /^by:(.+)$/;
 const RISK_LABEL_RE = /^risk:(.+)$/;
+const SIZE_LABEL_RE = /^size:(.+)$/;
+// Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
 const EFFORT_LABEL_RE = /^effort:(.+)$/;
 const PRIORITY_LABEL_RE = /^priority:(.+)$/;
 const CEREMONY_LABEL_RE = /^ceremony:(.+)$/;
@@ -68,17 +70,17 @@ function oneOf(name, value, allowed) {
   }
 }
 
-// classification -> risk/effort scoring axis fold, shared by every health
+// classification -> risk/size scoring axis fold, shared by every health
 // producer's issue-payload.js (docs-health, harness-health; journey-health
 // uses its own severity-based fold instead, see journey-health/issue-payload.js):
-// additive is a safe, mechanical patch (low risk, low effort); restructural
-// needs human review and more effort. A finding kind that's deliberately
+// additive is a safe, mechanical patch (low risk, small change); restructural
+// needs human review and is a bigger change. A finding kind that's deliberately
 // unscored (e.g. harness-health's "new-skill") looks this map up and gets
 // `undefined` back rather than consulting it at all — callers gate that
 // themselves, this map has no "unscored" entry.
 const CLASSIFICATION_SCORING = {
-  additive: { risk: 'low', effort: 'low' },
-  restructural: { risk: 'medium', effort: 'high' },
+  additive: { risk: 'low', size: 'low' },
+  restructural: { risk: 'medium', size: 'high' },
 };
 
 // Returns a backtick fence at least one character longer than the longest run
@@ -98,10 +100,13 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, effort?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, size?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
-function recordPayload({ title, body, type, origin, risk, effort, ceremony, framing, ready, parked, priority, fingerprint } = {}) {
+// The emit side is size-only: there is no `effort` parameter, and no code path
+// here writes an effort:* label. The read side's effort:* fallback
+// (parseRecordFacets below) is deliberately one-directional.
+function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -114,7 +119,7 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, fram
     throw new Error('a record cannot be both ready and parked');
   }
 
-  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, framing:baked, ready, parked, priority:*.
+  // Deterministic emission order: by:*, risk:*, size:*, ceremony:*, framing:baked, ready, parked, priority:*.
   const labels = [];
 
   if (origin !== undefined) {
@@ -125,9 +130,9 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, fram
     oneOf('risk', risk, TIERS);
     labels.push(`risk:${risk}`);
   }
-  if (effort !== undefined) {
-    oneOf('effort', effort, TIERS);
-    labels.push(`effort:${effort}`);
+  if (size !== undefined) {
+    oneOf('size', size, TIERS);
+    labels.push(`size:${size}`);
   }
   if (ceremony !== undefined) {
     oneOf('ceremony', ceremony, CEREMONY_TIERS);
@@ -172,7 +177,11 @@ function normalizeLabelNames(labels) {
 // combinations (e.g. both 'ready' and 'parked' present resolves to 'ready').
 // Acceptance has no such precedence — the three demo:* labels are mutually exclusive
 // by construction, so a plain last-match-in-array-wins assignment (same style as
-// origin/risk/effort/priority below) is enough.
+// origin/risk/size/priority below) is enough.
+// The size facet is the one exception to last-match-in-array-wins: size:* always
+// beats a pre-rename effort:* label whichever order they appear in, so the effort
+// value is only held aside during the pass and applied afterward, and never when a
+// size:* label was found.
 // Shared-key defaults come from facet-shape.js — local-store.js's defaultFacets
 // builds on the same shape (plus its own local-only keys). Add a new shared
 // facet key there, not independently here.
@@ -180,6 +189,7 @@ function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
   const facets = sharedFacetDefaults();
+  let effortFallback = null;
 
   for (const name of names) {
     if (name === LABELS.READY) {
@@ -233,9 +243,15 @@ function parseRecordFacets(labels) {
       facets.risk = risk[1];
       continue;
     }
+    const size = SIZE_LABEL_RE.exec(name);
+    if (size && TIERS.includes(size[1])) {
+      facets.size = size[1];
+      continue;
+    }
+    // Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
     const effort = EFFORT_LABEL_RE.exec(name);
     if (effort && TIERS.includes(effort[1])) {
-      facets.effort = effort[1];
+      if (effortFallback === null) effortFallback = effort[1];
       continue;
     }
     const ceremony = CEREMONY_LABEL_RE.exec(name);
@@ -249,6 +265,8 @@ function parseRecordFacets(labels) {
       continue;
     }
   }
+
+  if (facets.size === null) facets.size = effortFallback;
 
   return facets;
 }

@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  recordPayload, TYPE_LABELS,
+  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseFamilyLeaves,
 } = require('../record');
@@ -10,9 +10,9 @@ const {
 test('recordPayload assembles labels for a born-ready health record', () => {
   const result = recordPayload({
     title: 't', body: 'b', type: 'task', origin: 'code-health',
-    risk: 'low', effort: 'low', ready: true, fingerprint: 'ch:abc',
+    risk: 'low', size: 'low', ready: true, fingerprint: 'ch:abc',
   });
-  assert.deepStrictEqual(result.labels, ['by:code-health', 'risk:low', 'effort:low', 'ready']);
+  assert.deepStrictEqual(result.labels, ['by:code-health', 'risk:low', 'size:low', 'ready']);
   assert.strictEqual(result.type, 'task');
   assert.strictEqual(result.body, 'b\n\n<!-- work-fingerprint: ch:abc -->');
 });
@@ -66,8 +66,15 @@ test('recordPayload throws on unknown risk', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', risk: 'critical' }), /risk/);
 });
 
-test('recordPayload throws on unknown effort', () => {
-  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', effort: 'gigantic' }), /effort/);
+test('recordPayload throws on unknown size', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', size: 'gigantic' }), /size/);
+});
+
+// The emit side is size-only: `effort` is no longer a recordPayload parameter, so a
+// caller still passing it contributes nothing (its own suite is what catches that).
+test('recordPayload ignores a legacy effort argument and emits no effort:* label', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', effort: 'low' });
+  assert.deepStrictEqual(result.labels, []);
 });
 
 test('recordPayload throws on unknown priority', () => {
@@ -95,12 +102,12 @@ test('TYPE_LABELS has exactly 3 pairs naming type:bug|feature|task with descript
 });
 
 test('recordPayload emits ceremony:{tier} when ceremony is supplied', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'fast-lane', ready: true });
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'fast-lane', ready: true });
   assert.ok(result.labels.includes('ceremony:fast-lane'));
 });
 
 test('recordPayload emits no ceremony:* label when ceremony is omitted', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low' });
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low' });
   assert.ok(!result.labels.some((l) => l.startsWith('ceremony:')));
 });
 
@@ -108,30 +115,41 @@ test('recordPayload throws on unknown ceremony value', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', ceremony: 'medium' }), /ceremony/);
 });
 
-test('recordPayload emits labels in order: by:*, risk:*, effort:*, ceremony:*, ready, parked, priority:*', () => {
+test('recordPayload emits labels in order: by:*, risk:*, size:*, ceremony:*, ready, parked, priority:*', () => {
   const result = recordPayload({
     title: 't', body: 'b', type: 'task', origin: 'capture',
-    risk: 'low', effort: 'low', ceremony: 'standard', ready: true, priority: 'high',
+    risk: 'low', size: 'low', ceremony: 'standard', ready: true, priority: 'high',
   });
-  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'ready', 'priority:high']);
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
 test('recordPayload emits framing:baked when framing is truthy', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true });
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true });
   assert.ok(result.labels.includes('framing:baked'));
 });
 
 test('recordPayload emits no framing:baked label when framing is omitted', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', ready: true });
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', ready: true });
   assert.ok(!result.labels.includes('framing:baked'));
 });
 
 test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
   const result = recordPayload({
     title: 't', body: 'b', type: 'task', origin: 'capture',
-    risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+    risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
   });
-  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+});
+
+// The classification -> scoring-axis fold the health issue-payload builders read:
+// its second axis is the size facet, so its key is `size`, not `effort`.
+test('CLASSIFICATION_SCORING folds each classification onto a risk/size pair', () => {
+  assert.deepStrictEqual(CLASSIFICATION_SCORING.additive, { risk: 'low', size: 'low' });
+  assert.deepStrictEqual(CLASSIFICATION_SCORING.restructural, { risk: 'medium', size: 'high' });
+});
+
+test('CLASSIFICATION_SCORING has no entry for a deliberately unscored kind', () => {
+  assert.strictEqual(CLASSIFICATION_SCORING['new-skill'], undefined);
 });
 
 // AC 2 — dual-marker extraction
@@ -187,7 +205,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -213,7 +231,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
+    origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -231,14 +249,45 @@ test('parseRecordFacets: a null or undefined entry in the labels array is skippe
   assert.strictEqual(result.risk, 'high');
 });
 
-test('parseRecordFacets: {name} label objects for risk/effort/priority, unmatched wontfix ignored', () => {
+test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched wontfix ignored', () => {
   const result = parseRecordFacets([
-    { name: 'risk:high' }, { name: 'effort:low' }, { name: 'priority:medium' }, { name: 'wontfix' },
+    { name: 'risk:high' }, { name: 'size:low' }, { name: 'priority:medium' }, { name: 'wontfix' },
   ]);
   assert.strictEqual(result.risk, 'high');
-  assert.strictEqual(result.effort, 'low');
+  assert.strictEqual(result.size, 'low');
   assert.strictEqual(result.priority, 'medium');
   assert.strictEqual(result.stage, 'backlog');
+});
+
+// AC — the size facet, and its permanent effort:* read-side fallback
+
+test('parseRecordFacets: size:* is the primary label for the size facet', () => {
+  assert.strictEqual(parseRecordFacets(['size:high']).size, 'high');
+  assert.strictEqual(parseRecordFacets(['size:medium']).size, 'medium');
+  assert.strictEqual(parseRecordFacets(['size:low']).size, 'low');
+});
+
+test('parseRecordFacets: a pre-rename effort:* label still resolves to facets.size', () => {
+  assert.strictEqual(parseRecordFacets(['effort:high']).size, 'high');
+});
+
+test('parseRecordFacets: facets.effort is never populated — the facet is size', () => {
+  assert.strictEqual(parseRecordFacets(['size:high']).effort, undefined);
+  assert.strictEqual(parseRecordFacets(['effort:high']).effort, undefined);
+});
+
+test('parseRecordFacets: size:* wins over effort:* when both are present, in either array order', () => {
+  assert.strictEqual(parseRecordFacets(['size:low', 'effort:high']).size, 'low');
+  assert.strictEqual(parseRecordFacets(['effort:high', 'size:low']).size, 'low');
+});
+
+test('parseRecordFacets: an out-of-range size:* value leaves the facet null and does not fall back to effort:*', () => {
+  assert.strictEqual(parseRecordFacets(['size:gigantic']).size, null);
+  assert.strictEqual(parseRecordFacets(['effort:gigantic']).size, null);
+});
+
+test('parseRecordFacets: size defaults to null when neither label is present', () => {
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).size, null);
 });
 
 test('parseRecordFacets: malformed ready+parked resolves deterministically to ready (ready > parked)', () => {
