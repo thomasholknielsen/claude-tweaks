@@ -16,9 +16,9 @@ function renderOutstanding({ results = [], dispositions = {}, cap = DEFAULT_CAP 
   const shown = findings.slice(0, cap);
   if (shown.length) {
     lines.push(`### Outstanding (${findings.length})`, '');
-    lines.push('| # | What | Kind | Disposition |', '|---|------|------|-------------|');
+    lines.push('| # | What | Kind | Remedy | Disposition |', '|---|------|------|--------|-------------|');
     shown.forEach((f, i) => {
-      lines.push(`| ${i + 1} | ${f.subject} — ${f.evidence} | ${f.kind} | ${dispositions[f.id] || 'NEEDS DISPOSITION'} |`);
+      lines.push(`| ${i + 1} | ${f.subject} — ${f.evidence} | ${f.kind} | ${f.remedy} | ${dispositions[f.id] || 'NEEDS DISPOSITION'} |`);
     });
     if (findings.length > shown.length) {
       lines.push('', `> ${findings.length - shown.length} more not shown (cap ${cap}).`);

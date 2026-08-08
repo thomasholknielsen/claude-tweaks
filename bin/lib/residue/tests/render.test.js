@@ -11,6 +11,12 @@ test('a finding with a disposition renders it', () => {
   assert.match(out, /Fixed — a1b2c3d/);
 });
 
+test('the table names its remedy column and shows each finding\'s remedy value', () => {
+  const out = renderOutstanding({ results: [{ ran: true, findings: [BRANCH] }], dispositions: {} });
+  assert.match(out, /\| # \| What \| Kind \| Remedy \| Disposition \|/, 'the header must name a Remedy column');
+  assert.match(out, /\| 1 \| .* \| branch \| auto \| NEEDS DISPOSITION \|/, 'the row must render the finding\'s own remedy value');
+});
+
 test('a finding without a disposition renders NEEDS DISPOSITION, never blank', () => {
   const out = renderOutstanding({ results: [{ ran: true, findings: [BRANCH] }], dispositions: {} });
   assert.match(out, /NEEDS DISPOSITION/);
