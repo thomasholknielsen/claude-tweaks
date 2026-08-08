@@ -39,6 +39,31 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.70.0 — the Setup script, not the declaration, is what installs a plugin in the cloud
+
+A project could declare `claude-tweaks` in its `.claude/settings.json`, have `/init` Step 14
+generate `scripts/claude-cloud-setup.sh`, and still get `Unknown command` for every skill in a
+claude.ai/code session. Measured inside a live sandbox whose clone carried the declaration, with
+network access **Full** and the marketplace repo clonable from the VM: `~/.claude/plugins/` did
+not exist at all. The declaration is a permission; the Setup script is the installer — and the
+only flow that attached it did so for environments it created *for routines*. Interactive
+sessions use whichever environment the composer has selected, which nothing here had ever
+touched `[IL-111]`.
+
+- `routine/guided-environment-creation.md` gains an **Ensure-setup-script** procedure that opens
+  an existing environment from the session composer (chip → Cloud → hover → gear) and attaches
+  the invocation, appending rather than overwriting when the field already holds unrelated
+  content. Also records that extension pairing can drop between `list_connected_browsers` and
+  `select_browser`, so the listing must be re-read immediately before selecting.
+- `/init` Step 14 now offers to run that procedure after generating the script, instead of only
+  telling the user to paste it by hand.
+- Step 14's prose no longer implies declaring is sufficient, and its "First exposure" caveat no
+  longer advises waiting for a self-heal: it gives `ls ~/.claude/plugins/` as the discriminator
+  between "nothing installed, waiting won't help" and the genuinely transient case.
+- This repo now runs its own Step 14: `scripts/claude-cloud-setup.sh`, a `## Cloud parity`
+  CLAUDE.md section, and `superpowers@claude-plugins-official` added to a declaration that
+  previously named only `claude-tweaks` — a hard dependency its own skills call constantly.
+
 ## v6.69.0 — wrap-up computes what it leaves outstanding, instead of narrating it
 
 A session's leftovers used to survive only as prose in a transcript: a red suite, an

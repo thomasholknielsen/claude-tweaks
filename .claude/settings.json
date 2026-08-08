@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "claude-tweaks@claude-tweaks-marketplace": true
+    "claude-tweaks@claude-tweaks-marketplace": true,
+    "superpowers@claude-plugins-official": true
   }
 }
