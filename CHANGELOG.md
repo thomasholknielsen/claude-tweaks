@@ -39,6 +39,44 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.68.0 — /research gains a verify mode that grounds a design before it is written
+
+Closes the loop `/claude-tweaks:challenge` used to open: assumptions were surfaced and then nothing
+checked them. `/claude-tweaks:research verify` answers them against real sources first.
+
+- **`verify` mode on `/claude-tweaks:research`** (#176) — a leading positional mode token, following
+  `assess-agent-autonomy`'s precedent rather than overloading `--mode=`, which already means depth
+  tier. New `skills/research/verify-mode.md` carries input resolution, the consequence filter, the
+  question-shape split, and auto-mode behavior; the bare-topic web-survey path is untouched.
+  - The **consequence filter** is the whole cost-control mechanism: for each candidate question,
+    *if the answer surprised me, would the design change?* Two outcomes only — research it, or drop
+    it and log the drop. No budget knob and no per-source authorization, so a topic where nothing
+    diverges costs nothing and a topic on new ground authorizes more work automatically.
+  - Depth tiers (`quick|standard|deep|ultradeep`) are rescoped to bound **survey breadth only**;
+    they do not govern falsifiable questions, which are settled by whether a source falsifies them.
+  - Resolved deferred decision: `verify` is **not** reachable from `/claude-tweaks:flow`. `/flow`
+    consumes ready leaf records, which are post-design by construction, so grounding there is
+    structurally too late.
+- **Source registry, parallel dispatch, and verdict shape** (#177) — new
+  `skills/research/source-registry.md`. Nine sources keyed by **what each can falsify**, not by which
+  tool they use, so three entries that all run `grep` stay distinct. A question routes to every source
+  that could falsify it; multiple sources per question is the normal case. `human` is an exclusive
+  terminator that dispatches no agent. Verdicts carry `claim`, `outcome`, `source`, per-source
+  `confidence`, `provenance`, and the `checked-at` sha — confidence per source, never per report, so a
+  grep-verified fact cannot lend its credibility to a blog post beside it.
+- **IL-45 now prescribes a content check** (#106) — `git diff <branch> <default-branch>` returning
+  empty, rather than SHA identity. A rebase- or squash-merge rewrites the commits, so a SHA check can
+  never pass however cleanly the branch landed, and this repo's merge convention favors rebase.
+- **Three new rules from the build itself** — `[IL-105]` gains its mechanism for content assertions
+  (negate the prose and assert the regex fails; 11 assertions in one run survived a presence check),
+  plus `[IL-106]` (no long-running command between an implementer's last edit and its commit — 4 of 4
+  stalled there) and `[IL-107]` (a record's stated facts expire while it waits its turn in a long
+  batch — 11 upstream releases during one run destroyed one record and falsified two others').
+
+Record #178 was closed as obsolete during this build: upstream reshaped `/claude-tweaks:challenge`
+mid-run and deleted the Brainstorming Brief it existed entirely to modify. Its surviving idea — a
+three-value verification outcome — shipped in #177's verdict shape instead. The write-back half is
+recorded as unowned in `verify-mode.md`'s Output section.
 ## v6.67.1 — dispatch can group /specify-produced records again
 
 Closes #154. `extractKeyFiles` branched on the four health-sweep origin labels and fell
