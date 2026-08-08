@@ -1,7 +1,9 @@
 // bin/lib/issues/grouping.js
 // Pure: partition claimed issues into groups whose target files overlap, and
 // extract the file(s) an issue concerns straight from its body — used at
-// dispatch time, before any spec exists to read a "Key Files" section from.
+// dispatch time. Health-sweep records are read from their origin-specific
+// header lines; every other record (a /specify-produced leaf, a /capture
+// record) is read from the `### Key Files` subsection its body already carries.
 'use strict';
 
 const { normalizeLabelNames } = require('./record');
@@ -72,6 +74,49 @@ function extractBoldHeaderFile(body) {
   return targetHeader ? [targetHeader[1]] : [];
 }
 
+// The `### Key Files` subsection lives under `## Technical Approach` in every
+// record /claude-tweaks:specify shapes (skills/specify/spec-template.md), one
+// backticked path per list item followed by an optional annotation:
+//   - `path/to/file.md` (create)
+//   - `path/to/other.md` (modify — why, with commas, **and bold**)
+// Tolerates `##`..`####` so a re-nested body still parses; the section always
+// ends at the next heading of any level (Gotchas routinely names files in
+// backticks, and scraping those would union records on an incidental mention).
+const KEY_FILES_HEADING_RE = /^#{2,4}[ \t]+Key Files[ \t]*$/;
+const ANY_HEADING_RE = /^#{1,6}[ \t]/;
+const LIST_ITEM_RE = /^[ \t]*[-*][ \t]+(.+)$/;
+const BACKTICKED_RE = /`([^`]+)`/;
+// spec-template.md ships the literal "- `{path}` — {what changes}". A record
+// still carrying the unfilled template must not union with every other one.
+const TEMPLATE_PLACEHOLDER_RE = /^\{.*\}$/;
+
+// Extracts the paths listed under a body's `### Key Files` subsection, or []
+// when the body has no such subsection — the documented absence case, not an
+// error (skills/specify/decomposition-mode.md: records without one "contribute
+// nothing to the map — skip silently").
+function extractKeyFilesSection(body) {
+  const lines = body.split('\n');
+  const start = lines.findIndex((line) => KEY_FILES_HEADING_RE.test(line));
+  if (start === -1) return [];
+
+  const files = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (ANY_HEADING_RE.test(lines[i])) break;
+    const item = LIST_ITEM_RE.exec(lines[i]);
+    if (!item) continue;
+    // First backticked span wins: it drops the trailing annotation, and an item
+    // naming an alternative (``- `a/tests/` or `tests/` ``) yields the primary
+    // path rather than both. Matching the annotation would also re-introduce
+    // code-health's comma-splitting bug on "(modify — Step 1, Step 2)".
+    const backticked = BACKTICKED_RE.exec(item[1]);
+    if (!backticked) continue;
+    const file = backticked[1].trim();
+    if (!file || TEMPLATE_PLACEHOLDER_RE.test(file)) continue;
+    files.push(file);
+  }
+  return files;
+}
+
 // issue: { body, labels } shaped like `gh api .../issues/{n}` output.
 // Returns string[] of file paths, [] when nothing is extractable.
 function extractKeyFiles(issue) {
@@ -112,7 +157,15 @@ function extractKeyFiles(issue) {
     return extractBoldHeaderFile(body);
   }
 
-  return [];
+  // Fallthrough — every record that is not one of the four health sweeps: a
+  // /claude-tweaks:specify-produced leaf, a /claude-tweaks:capture record, a
+  // hand-filed one. These carry no by:* origin header to key off, but a shaped
+  // body already lists its targets under `### Key Files`.
+  //
+  // This must stay BELOW the four branches above, which all return early. An
+  // origin-labelled record whose body happens to contain a `### Key Files`
+  // heading is still read from its own header line, not from here ([IL-83]).
+  return extractKeyFilesSection(body);
 }
 
 // Parses a comma-joined, optionally "#"-prefixed issue-number argument (the

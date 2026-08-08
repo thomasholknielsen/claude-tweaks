@@ -28,7 +28,7 @@ the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list li
 
 - You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
 - `/claude-tweaks:help`'s dashboard told you a specific `#N` is awaiting sign-off (Stage 4.7) — including an autonomously `auto:merge`'d record already closed — and you want to walk through that one record now.
-- `/claude-tweaks:tidy`'s `acceptance-gap` rows (Step 4.8) named an `#N` that closed with no disposition at all — no brief, no label, and typically no session anywhere that remembers it. Step 1 reconstructs one from the closing commit.
+- `/claude-tweaks:tidy`'s `acceptance-gap` rows — Step 4.8 under `work-backend: github-issues`, Step 1's Shape 8 under `local-files` — named a record that closed with no disposition at all: no brief, no label or `acceptance:` facet, and typically no session anywhere that remembers it. Step 1 reconstructs one from the closing commit.
 - You keep having to ask "how do I test this" days after a build finished — this skill surfaces the brief `/wrap-up` already wrote at build time, so you never re-derive it.
 - Some of what you're reviewing has no interactive surface at all (docs, config, a harness or skill file) — this skill still gives it a lightweight human look, just not a click-through.
 
@@ -116,14 +116,16 @@ through this same branch exactly like any other label-backed entry. Two things c
 that gate: `/wrap-up`'s own eager path (closing the family's last leaf), or `/claude-tweaks:tidy`'s
 `Open family gate` action backstopping a family that missed it (surfaced by
 `_shared/github-pr-scan.md`'s `family-gate` scope under `work-backend: github-issues`, or by
-`tidy/scan-procedures.md` Step 1's Shape 7 under `local-files`) — all of them write the identical
+`tidy/step-1-records.md`'s Shape 7 under `local-files`) — all of them write the identical
 `demo:pending` + brief, so this branch never needs to know or care which one ran.
 
 If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
 and closed by a `Fixes #N` commit, never reaching `/wrap-up`'s Step 10), recover that **closing
 commit** before reaching for session recall. This is the population `/claude-tweaks:tidy`'s
-`acceptance-gap` scope surfaces, and it is by construction *other* sessions' work — recall will
-have nothing, but the commit that closed the record is still on disk:
+`acceptance-gap` sweep surfaces — its `github-pr-scan.md` scope under `work-backend:
+github-issues`, `tidy/step-1-records.md`'s Shape 8 under `local-files` — and it is by construction
+*other* sessions' work. Recall will have nothing, but the commit that closed the record is still
+on disk, and this recovery reads git rather than the backend, so it is identical on both drivers:
 
 ```bash
 git log --perl-regexp -i \
@@ -258,7 +260,7 @@ for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
 - Option 2 — the label names the section it actually walks: `"See it yourself"` when the brief's `### See it yourself` entry point resolved and browser tools are available, `"Verify it yourself"` when the brief carries `### Verify it yourself (manual)`. Offer it under either condition, never both labels at once; `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
-- Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a closing-commit reconstruction (never carried `demo:pending` — there is nothing to leave): `label`: `"Skip for now"`, `description`: `"Nothing is written — it still has no demo:* label, so /claude-tweaks:tidy's acceptance-gap scan will surface it again"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
+- Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a closing-commit reconstruction (never carried `demo:pending` — there is nothing to leave): `label`: `"Skip for now"`, `description`: `"Nothing is written — it still carries no acceptance disposition, so /claude-tweaks:tidy's acceptance-gap scan will surface it again"` (true on both drivers — the disposition is a `demo:*` label under `github-issues` and an `acceptance:` facet under `local-files`, and each driver has its own sweep for it). For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
 ### Option 2 ("See it yourself" / "Verify it yourself"): pre-flight, then live or manual
 

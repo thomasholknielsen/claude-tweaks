@@ -7,6 +7,34 @@ const { execFileSync, spawnSync } = require('node:child_process');
 
 const { installWrapper, buildWrapperSource } = require('../bin/install-statusline-wrapper.js');
 
+// Every spawn below runs a real `node` process. The budget used to be 5s, which
+// is generous idle and far too tight under this repo's normal working mode:
+// several parallel worktree sessions, any of which may be running the full suite.
+// It was measured failing at 5005ms — the process had not misbehaved, it had not
+// finished starting.
+//
+// The budget is only half the fix. `spawnSync` reports a timeout as
+// `status: null`, and every assertion here reads `status` — so a timeout
+// surfaced as `expected exit 0, got status=null`, which reads as "the wrapper
+// crashed" and sent three separate investigations after a contract that was
+// never broken. `runWrapper` fails on the timeout first, in its own words, so
+// the two causes can never again be confused for each other.
+const SPAWN_TIMEOUT_MS = 30_000;
+
+function runWrapper(scriptPath, tmpHome) {
+  const result = spawnSync(process.execPath, [scriptPath], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: tmpHome },
+    timeout: SPAWN_TIMEOUT_MS,
+  });
+  assert.ok(
+    !(result.error && result.error.code === 'ETIMEDOUT'),
+    `node did not finish within ${SPAWN_TIMEOUT_MS}ms — machine load, not a wrapper defect. `
+      + 'Re-run this file on its own before treating it as a failure.',
+  );
+  return result;
+}
+
 test('installWrapper writes the wrapper script under the injected homedir, not the real home', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-'));
 
@@ -55,11 +83,7 @@ test('the written wrapper script actually runs and exits 0 when no cached versio
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-run-'));
   const targetPath = installWrapper(tmpHome);
 
-  const result = spawnSync(process.execPath, [targetPath], {
-    encoding: 'utf8',
-    env: { ...process.env, HOME: tmpHome },
-    timeout: 5000,
-  });
+  const result = runWrapper(targetPath, tmpHome);
 
   assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
   assert.strictEqual(result.signal, null, 'wrapper must not crash/be killed by a signal');
@@ -122,11 +146,7 @@ test('the wrapper runs the cached statusline in-process (no second Node spawn) w
     ].join('\n'),
   );
 
-  const result = spawnSync(process.execPath, [wrapperPath], {
-    encoding: 'utf8',
-    env: { ...process.env, HOME: tmpHome },
-    timeout: 5000,
-  });
+  const result = runWrapper(wrapperPath, tmpHome);
 
   assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
   assert.strictEqual(
@@ -151,11 +171,7 @@ test('the wrapper falls back to spawning a child process for a cached version th
     ].join('\n'),
   );
 
-  const result = spawnSync(process.execPath, [wrapperPath], {
-    encoding: 'utf8',
-    env: { ...process.env, HOME: tmpHome },
-    timeout: 5000,
-  });
+  const result = runWrapper(wrapperPath, tmpHome);
 
   assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
   assert.notStrictEqual(

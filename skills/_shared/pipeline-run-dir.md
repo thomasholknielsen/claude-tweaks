@@ -8,8 +8,8 @@ Operational reference for skills that need to locate the active pipeline run dir
 
 1. **`PIPELINE_RUN_DIR` env var** — set explicitly by `/flow` when orchestrating. Use this when present (preferred path).
 2. **Most-recent matching directory** — when the env var is unset, find the most recent directory under `.claude-tweaks/pipelines/` whose `spec-slug` segment matches the current spec or topic.
-3. **Record-mode materialization exception** — when neither step 1 nor step 2 resolves AND the invocation is `/claude-tweaks:build #{n}` running standalone (no `/flow` parent), create a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-record-{n}-standalone/` via `skills/flow/materialize.md`'s own fallback, purely as artifact storage for the materialized file. This is a mode-independent branch keyed on the invocation itself, distinct from step 4's auto-mode allowlist below: it fires regardless of mode — materialization needs somewhere to write the file whether or not `auto` is active — and `/build` is not itself on the step 4 allowlist.
-4. **Standalone auto fallback** — when steps 1-3 don't resolve AND the skill is running in `auto` mode AND the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:backlog`), create a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` with `decisions.md` and `staged/`. The audit log stays on; the skill auto-resolves per project policy in `.claude-tweaks/policy.yml`. The dir is presented in a Pending Review section at the end of the skill's report (no separate Review Console — this is the bookend-end for a standalone run).
+3. **Record-mode materialization exception** — when neither step 1 nor step 2 resolves AND the invocation is `/claude-tweaks:build #{n}` running standalone (no `/flow` parent), create a standalone run dir at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{n}-standalone/` via `skills/flow/materialize.md`'s own fallback, purely as artifact storage for the materialized file. `$RUN_ROOT` is the **main checkout** root resolved by the Anchoring section below, not the current directory — a bare relative path builds the run dir inside whatever worktree happens to be cwd, which is exactly what anchoring exists to prevent. This is a mode-independent branch keyed on the invocation itself, distinct from step 4's auto-mode allowlist below: it fires regardless of mode — materialization needs somewhere to write the file whether or not `auto` is active — and `/build` is not itself on the step 4 allowlist.
+4. **Standalone auto fallback** — when steps 1-3 don't resolve AND the skill is running in `auto` mode AND the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:backlog`), create a standalone run dir at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` (same `$RUN_ROOT` as step 3, as the Bash snippet below already builds it) with `decisions.md` and `staged/`. The audit log stays on; the skill auto-resolves per project policy in `.claude-tweaks/policy.yml`. The dir is presented in a Pending Review section at the end of the skill's report (no separate Review Console — this is the bookend-end for a standalone run).
 
    `/reflect`, `/journeys`, `/visual-review`, and `/simplify` are NOT on this allowlist — they are component skills whose own Component-Skill Contract gates auto-mode behavior on `$PIPELINE_RUN_DIR` already being set by a parent (`/build`, `/review`, `/wrap-up`, or `/flow`). None of them implement a standalone-run-dir fallback; invoked directly with no active pipeline run, they fall through to step 5 (interactive mode) like any other non-allowlisted skill.
 
@@ -18,18 +18,50 @@ Operational reference for skills that need to locate the active pipeline run dir
 
 The resolved directory contains `config.yml` (Manifesto answers / policy — absent for standalone runs), `decisions.md` (auto-decision log), `staged/` (proposals awaiting the Review Console / Pending Review section), `run-state.json` (hook-maintained status/worktree assignment; terminal = status `clean`), and `events.jsonl` (hook-appended typed events). Full layout and lifecycle in `auto-mode-contract.md`.
 
+## Anchoring
+
+Run directories live under the **main checkout's** `.claude-tweaks/pipelines/`, never a
+linked worktree's. Resolve the root once, before any path is built:
+
+```bash
+RUN_ROOT=$(git rev-parse --git-common-dir)
+RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
+```
+
+Resolved from the main checkout, `$RUN_ROOT` lands on the repo root and nothing changes —
+the raw `--git-common-dir` output varies with cwd (`.git` at the root, `../../.git` from a
+subdirectory), but the `cd`+`pwd` above normalizes either form to the same absolute path.
+Resolved from inside a linked worktree, it lands on the main checkout instead. Every path
+below is built from `$RUN_ROOT`, not from the current directory.
+
+Two consequences, both load-bearing:
+
+- **A worktree never holds the only copy** of `config.yml`, `decisions.md`,
+  `events.jsonl` or `staged/`. Removing a worktree therefore cannot destroy pipeline
+  state, which is what makes automatic reaping (`bin/lib/hooks/worktree-reap.js`, fired from
+  `session-start.js`) safe. Run directories that predate anchoring are the one exception, and
+  `skills/wrap-up/cleanup-procedures.md` Section C step 3.5 carries the transitional guard that
+  copies them out before a worktree is removed.
+- **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
+  and must be committed onto the feature branch; it reaches the main checkout by merge.
+
+The `worktree.always` PreToolUse gate permits writes to this path from anywhere — see the
+one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
+`git commit` issued from the main checkout is still denied.
+
 ## Bash snippet (resolution)
 
 ```bash
+RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 RUN_DIR="${PIPELINE_RUN_DIR:-}"
 if [ -z "$RUN_DIR" ]; then
-  RUN_DIR=$(find .claude-tweaks/pipelines/ -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
+  RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
 fi
 if [ -z "$RUN_DIR" ] && [ "$MODE" = "auto" ] && [ -n "$STANDALONE_SKILL" ]; then
   # Standalone auto fallback — see resolution order step 4 (step 3, the record-mode
   # materialization exception, is /build-specific and handled separately in materialize.md)
   TS=$(date -u +%Y-%m-%dT%H%M%S)
-  RUN_DIR=".claude-tweaks/pipelines/${TS}-${STANDALONE_SKILL}-standalone"
+  RUN_DIR="$RUN_ROOT/.claude-tweaks/pipelines/${TS}-${STANDALONE_SKILL}-standalone"
   mkdir -p "$RUN_DIR/staged"
   touch "$RUN_DIR/decisions.md"
 fi

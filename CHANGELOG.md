@@ -39,13 +39,216 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.64.3 — the convention-detection contract loses its patent-law jargon
+## v6.68.1 — the convention-detection contract loses its patent-law jargon
 
 `_shared/prior-art-detection.md` is now `_shared/existing-convention-detection.md`, and the concept it names is "the repo's existing convention" rather than "prior art". Six live references swept — `_shared/decision-records.md`, `_shared/diataxis-genre-templates.md`, `_shared/policy-schema.md`, `wrap-up/config-updates.md`, `wrap-up/SKILL.md`, `docs/skill-graph.md`.
 
-Renamed one release after shipping, because the maintainer read the term and asked what it meant. "Prior art" is precise borrowed jargon — patent law, meaning evidence that something existed before a claimed invention — and precision is not the same as legibility. An agent meeting that reference cold in a lazy-loaded `_shared/` fragment has no surrounding context to recover the meaning from, which is the specific failure the plugin's own naming conventions exist to prevent. The cost of renaming rises with every skill that cites it, so it was worth paying immediately rather than after Phase 2 (#194) adds more consumers.
+Renamed because the maintainer read the term and asked what it meant. "Prior art" is precise borrowed jargon — patent law, meaning evidence that something existed before a claimed invention — and precision is not the same as legibility. An agent meeting that reference cold in a lazy-loaded `_shared/` fragment has no surrounding context to recover the meaning from, which is the specific failure the plugin's own naming conventions exist to prevent. The cost of renaming rises with every skill that cites it, so it was worth paying before Phase 2 (#194) adds more consumers.
 
-Behavior is unchanged: same procedure, same three outcomes, same `doc-convention.adr` key. The dated design doc and plan keep the old vocabulary as the historical record they are, with a pointer at the top of the spec naming the current file so the reference does not dangle.
+The term also collided inside this repo. `/claude-tweaks:research` does prior-art lookup in the ordinary sense — external libraries, standards, vendors — and `docs/skill-graph.md` carried both meanings a hundred lines apart. Only one of them was about documentation genres.
+
+Behavior is unchanged: same procedure, same three outcomes, same `doc-convention.adr` key. The dated design doc and plan keep the old vocabulary as the historical record they are, with a pointer at the top of the spec naming the current file so the reference does not dangle. ADR 0013 keeps its filename and title for the same reason — an accepted decision record is dated evidence, superseded rather than edited — and gains a pointer note instead.
+
+## v6.68.0 — /research gains a verify mode that grounds a design before it is written
+
+Closes the loop `/claude-tweaks:challenge` used to open: assumptions were surfaced and then nothing
+checked them. `/claude-tweaks:research verify` answers them against real sources first.
+
+- **`verify` mode on `/claude-tweaks:research`** (#176) — a leading positional mode token, following
+  `assess-agent-autonomy`'s precedent rather than overloading `--mode=`, which already means depth
+  tier. New `skills/research/verify-mode.md` carries input resolution, the consequence filter, the
+  question-shape split, and auto-mode behavior; the bare-topic web-survey path is untouched.
+  - The **consequence filter** is the whole cost-control mechanism: for each candidate question,
+    *if the answer surprised me, would the design change?* Two outcomes only — research it, or drop
+    it and log the drop. No budget knob and no per-source authorization, so a topic where nothing
+    diverges costs nothing and a topic on new ground authorizes more work automatically.
+  - Depth tiers (`quick|standard|deep|ultradeep`) are rescoped to bound **survey breadth only**;
+    they do not govern falsifiable questions, which are settled by whether a source falsifies them.
+  - Resolved deferred decision: `verify` is **not** reachable from `/claude-tweaks:flow`. `/flow`
+    consumes ready leaf records, which are post-design by construction, so grounding there is
+    structurally too late.
+- **Source registry, parallel dispatch, and verdict shape** (#177) — new
+  `skills/research/source-registry.md`. Nine sources keyed by **what each can falsify**, not by which
+  tool they use, so three entries that all run `grep` stay distinct. A question routes to every source
+  that could falsify it; multiple sources per question is the normal case. `human` is an exclusive
+  terminator that dispatches no agent. Verdicts carry `claim`, `outcome`, `source`, per-source
+  `confidence`, `provenance`, and the `checked-at` sha — confidence per source, never per report, so a
+  grep-verified fact cannot lend its credibility to a blog post beside it.
+- **IL-45 now prescribes a content check** (#106) — `git diff <branch> <default-branch>` returning
+  empty, rather than SHA identity. A rebase- or squash-merge rewrites the commits, so a SHA check can
+  never pass however cleanly the branch landed, and this repo's merge convention favors rebase.
+- **Three new rules from the build itself** — `[IL-105]` gains its mechanism for content assertions
+  (negate the prose and assert the regex fails; 11 assertions in one run survived a presence check),
+  plus `[IL-106]` (no long-running command between an implementer's last edit and its commit — 4 of 4
+  stalled there) and `[IL-107]` (a record's stated facts expire while it waits its turn in a long
+  batch — 11 upstream releases during one run destroyed one record and falsified two others').
+
+Record #178 was closed as obsolete during this build: upstream reshaped `/claude-tweaks:challenge`
+mid-run and deleted the Brainstorming Brief it existed entirely to modify. Its surviving idea — a
+three-value verification outcome — shipped in #177's verdict shape instead. The write-back half is
+recorded as unowned in `verify-mode.md`'s Output section.
+## v6.67.1 — dispatch can group /specify-produced records again
+
+Closes #154. `extractKeyFiles` branched on the four health-sweep origin labels and fell
+through to `return []` for everything else, so every `/claude-tweaks:specify` leaf and
+every `/claude-tweaks:capture` record reported zero key files. `groupByFileOverlap` then
+emitted singletons regardless of real overlap — defeating the collision guard
+`/claude-tweaks:dispatch` relies on to keep two agents out of the same files.
+
+Measured against live records rather than argued: #146 and #150 both returned `[]` while
+genuinely sharing `skills/design-wrapper/SKILL.md` and
+`skills/design-wrapper/impeccable-plugin.md`. Dispatch would have built them in two
+separate worktrees, both editing those two files. Not hypothetical — it is why this
+repository's own nine-record dispatch program was scheduled by hand instead.
+
+Now parses the `### Key Files` subsection `spec-template.md` already documents: first
+backticked span per list item, trailing `(modify — …)` annotations discarded, section
+terminated at the next heading so backticked paths in Gotchas are not scraped. Placed
+strictly below the four health branches, which all return early, so an origin-labelled
+record whose body happens to carry a `### Key Files` heading still reads from its own
+header line (`[IL-83]`).
+
+Tested against frozen fixtures of the two record bodies rather than live issue text, so
+the test does not become a scheduled failure the next time someone edits an issue
+(`[IL-80]`). Re-verified against the live records after the fix: 6 and 5 paths, two
+shared, one group instead of two singletons.
+
+Originally authored on `worktree-fix-154-extract-key-files` (PR #182), which had drifted
+173 commits behind `main` while its session ended. Cherry-picked onto current `main`
+unchanged, and renumbered from 6.65.3 when `main` shipped past it mid-flight.
+
+## v6.67.0 — the acceptance backstops both work on the local-files driver
+
+`/claude-tweaks:tidy` has two acceptance backstops: `family-gate` (a decomposition family is
+complete but its parent carries no disposition) and `acceptance-gap` (a closed record carries
+no disposition at all). Both lived in `_shared/github-pr-scan.md`, a file the Detection Ladder
+gates on `gh` reachability, and both queried GitHub labels — so under `work-backend:
+local-files` neither existed. v6.63.0 gave `family-gate` a local twin. This closes the other
+one, and pays the structural debt that made room for it.
+
+- **`acceptance-gap` gains a local-files twin** as Shape 8 in `/claude-tweaks:tidy` Step 1,
+  emitting the same `[acceptance-gap]` prefix every consumer is already wired for. It feeds
+  `needsBackstop` from `bin/lib/issues/acceptance.js` rather than reimplementing the
+  disposition taxonomy, translating `facets.closed` → CLOSED, `facets.acceptance` → the label
+  form, and `facets.parent !== null` → `hasParent`. Decomposed leaves stay suppressed on this
+  driver too: their acceptance lives on the family's parent, and surfacing them would flood the
+  report. A closed *parent* does surface — leaves are suppressed, parents never are, matching
+  the GitHub twin.
+- **`skills/tidy/scan-procedures.md` was 549 bytes from the ceiling**, so Shape 8 could not be
+  appended — the file would have overshot by 5,155 bytes and failed
+  `bin/lib/skill-audit/tests/context-cost.js`'s gate outright. Step 1's rules were extracted to
+  `skills/tidy/step-1-records.md`, split by step because every external citation names a step or
+  one of its shapes and none names a driver. The record scan now loads 20,747 bytes instead of
+  40,411 (-49%), and the eight non-record scopes load 27,402 (-32%). The honest cost:
+  `--scope=specs` and a full unscoped run load both files, since Step 5 stayed behind — those
+  paths are +19%.
+- Corrected a duplicate `## v6.61.2` heading that had reached `main` and was failing
+  `tests/changelog-coverage.test.js` for every session. The renumbered work's content lives
+  under **v6.64.2**; the 6.61.2 slot keeps the restoration record that points at it, and the
+  one detail the duplicate carried that its stub did not — the recovered text's `[IL-104]`
+  citation, which shipped as `[IL-105]` — was re-homed rather than dropped.
+## v6.65.2 — the reaper's staleness check looks at the whole worktree
+
+Closes #199, a defect in v6.65.0 found by its own whole-branch review.
+
+The check that decides whether a dead-PID lock means "abandoned" read the worktree root
+and its immediate entries only. Directory mtimes do not propagate upward, so an in-place
+write to `wt/a/b/c.js` moves nothing above it — depth was never a safe proxy for activity.
+
+Measured against this repository's live worktrees rather than argued: `fix-132-routine-branch`
+reported 25.3h idle while its newest write was 22.5h old, four levels down in
+`.claude-tweaks/pipelines/{run}/events.jsonl`, which the hooks touch on every tool call.
+Under the 24-hour grace period that is the difference between keeping a worktree and
+unlocking and deleting it.
+
+Now recursive, skipping `.git` (git's own bookkeeping — and `hasLocalOnlyContent` runs
+`git status` inside the worktree, so an admin-dir signal would be perturbed by the reaper
+itself) and `node_modules`. Bounded at 5000 entries; exhausting the budget returns null,
+which reads as **not** stale and keeps the worktree, because a partial answer is precisely
+the defect being replaced.
+
+The cheaper signal tried first — the worktree's git index mtime — was measured and
+rejected: it reported 25.3h, identical to the shallow scan, because that session's recent
+activity was hook writes rather than git commands. A full walk costs ~900 entries and
+20-50ms here, against the ~0.64s per candidate the two git calls already cost, behind a
+cap of three.
+
+## v6.65.1 — the renumber rule stops erasing releases that already shipped
+
+The Releasing section told you to renumber a CHANGELOG heading whenever a collision forced a new
+version, justified by "an entry naming a version that never reached `main` is an orphan." That
+justification only holds for a number that never shipped.
+
+It happened **twice in one day**, to two different sessions. `e4a79904` applied the rule literally
+to 6.62.0 — which *had* reached `main`'s tip — so moving its heading to 6.64.0 deleted the record of
+a real release, and step 3's "renumber this line too" took the `docs/shipped-versions.tsv` line with
+it. The identical thing had already happened to 6.61.2 (`a5476a4b`), renumbered to 6.64.2. Both were
+found the same way: `tests/changelog-coverage.test.js` failing on a version the git walk can still
+see with nothing to match it against. 6.62.0 was restored in 6.64.1; 6.61.2 is restored here, both
+from their original release commits rather than reconstructed.
+
+The recurrence is the argument. One session mis-applying a rule is a mistake; two independent
+sessions doing it inside 24 hours is the rule being wrong.
+
+- **Steps 2 and 3 now split on whether the old number reached `main`'s tip.** Never shipped →
+  renumber, as before. Shipped → keep the old entry and add a second one for the new number,
+  pointing at it rather than duplicating the body, since a duplicate heading is its own parse
+  failure in that same test. Step 3 carries the matching split for the tsv line, and says which
+  half of the mistake is the damaging one: that file is the authority for what shipped (`[IL-95]`),
+  so a deleted line is the real loss and the changelog gap is merely what surfaces it.
+
+No new Don't. The person who erased 6.62.0 was following the Releasing section literally, and that
+section is already in the always-loaded file — a Don't bullet would be a second copy of the same
+instruction, and an incident-log entry with no rule behind it is an orphan by this repo's own
+definition.
+
+## v6.65.0 — a worktree stops being the only place its pipeline state lives, and finished ones get reaped
+
+Closes #185. Removing a git worktree was dangerous for one reason: it could hold the
+only copy of a run's `config.yml`, `decisions.md`, `events.jsonl` and `staged/`. So
+nothing dared, and 21 accumulated here in a month while three files disagreed about
+which command was even allowed.
+
+**Run directories now anchor to the main checkout at creation.** Resolved from a linked
+worktree's `.git` file — which is a plain file naming the shared checkout — so it costs
+no subprocess on a path every hook invocation crosses. This changes *when* run state
+reaches the main checkout, not *where* it ends up: `wrap-up` already copied it out at
+cleanup, and doing that at cleanup is precisely why a skipped cleanup lost it. That
+copy-out is now **deleted**, along with the ordering rule protecting it, rather than
+duplicated into a second consumer. `work/{n}-spec.md` stays in the worktree — it is
+git-tracked and reaches `main` by merge.
+
+**`SessionStart` reaps worktrees that are finished.** Five conditions, all required: a
+linked worktree under `.claude/worktrees/`; not the caller's own directory or a
+subdirectory of it; no live owner; content-identical to the resolved integration branch;
+and nothing in `git status --porcelain --ignored`. Any ambiguity surfaces instead of
+acting. There is no policy key to disable it — the predicate is the safety mechanism, so
+every branch of it fails closed.
+
+Two things made this decidable that were not obvious:
+
+- **The owning PID is in the lock reason.** `git worktree list --porcelain` reports
+  `locked claude session <name> (pid 29881 start …)`, so "is this in use, or did its
+  session die?" is a `process.kill(pid, 0)` call rather than a guess. A dead PID alone
+  is still not enough — a session resumed after a process restart carries a stale one —
+  so an orphaned lock must also be untouched for 24 hours.
+- **Merge state is content identity, not ancestry.** `git merge-base --is-ancestor`
+  returns false for a branch merged with `gh pr merge --rebase`, permanently, because
+  rebasing rewrites the SHAs while the content lands intact. This repository favors
+  rebase merges, so an ancestry check would have refused to reap the common case, and
+  no test would have failed. See #106, the same trap one layer over.
+
+**`[IL-58]` is narrowed to the locked case.** The incident was real but generalized a
+locked worktree's failure into a claim about `EnterWorktree` provenance; seven unlocked
+harness-created worktrees removed cleanly with the raw git form on the first attempt.
+`/tidy` Step 4.5 is correct as written again, and `ExitWorktree` is named as the remedy
+for a session's own worktree — the case the reaper deliberately never touches.
+
+A transitional guard in `wrap-up` copies out any run directory that still resolves inside
+a worktree, for runs created before this shipped. It is dated for removal, and it is the
+one piece here that could not be covered by a test, so it was executed against a
+multi-spec fixture instead — which is how it was caught copying a fixed list of filenames
+and missing the per-record `spec-{n}/` directories beside them.
 
 ## v6.64.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
 
@@ -154,6 +357,19 @@ here, and the renumber note in CLAUDE.md's Releasing section for the rule this c
 outside: renumber the heading when the old number never reached `main`, and add a second entry
 when it did.
 
+
+## v6.61.2 — the wrap-up helper's fix, first shipped under this number
+
+Bookkeeping restoration, not new work — the same renumber-after-ship loss as v6.62.0 below.
+Released as 6.61.2 in `a5476a4b` and reached `main`'s tip under that number; a later collision
+renumbered the work to 6.64.2 and moved its CHANGELOG heading and `docs/shipped-versions.tsv`
+line along with it, erasing the record of a real release.
+
+See **v6.64.2** above for what the release contains; the two numbers carry the same work.
+Restored in 6.65.1, which also fixed the rule that caused both losses. The recovered text
+carried one correction: it cited `[IL-104]` for the checks rule, which shipped as `[IL-105]`
+after a collision renumber — `IL-104` is a different incident. This is the `[IL-94]`/`[IL-99]`
+shape the coverage gate exists to catch, and it caught it.
 
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 

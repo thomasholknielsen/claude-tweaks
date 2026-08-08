@@ -48,7 +48,7 @@ Emit `[pr]` rows per the Output Contract.
 
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
-Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/scan-procedures.md` Step 1).
+Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/step-1-records.md`).
 
 > **Parallel execution:** Use parallel tool calls aggressively — items 1, 3, 4, 5, 6, 7, and 8 below, plus each open PR's own review-thread query in item 2, are independent gh/bash calls with no dependency on one another and should run concurrently.
 
@@ -77,7 +77,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    ```
 
    - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull (`skills/backlog/refine-mode.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:backlog refine` owns that).
-   - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `scan-procedures.md` Step 1 Shape 5).
+   - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `tidy/step-1-records.md`'s Shape 5).
    - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
    Surface all three as the `[queue]` Output Contract row below — bare counts only, per the Output Contract's own documented shape. No per-record enumeration is produced or needed here.
@@ -95,7 +95,7 @@ Findings and recommendations (tidy Action Vocabulary):
 | `by:{skill}` issue stale (>4 weeks, the flagged code/target/journey/doc has since changed or been removed) — `{skill}` is any of `code-health`/`harness-health`/`journey-health`/`docs-health` | Close (GitHub) — superseded |
 | `by:{skill}` issue still valid | Suggest `/claude-tweaks:backlog refine` or Capture to backlog — all four health skills are report-only and never apply patches directly (see each skill's own SKILL.md Anti-Patterns table), so a still-valid issue always needs a human-routed fix regardless of which skill filed it |
 
-Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
+Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/step-1-records.md` for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
 
 ## Scope: `triage-queue` (consumed by /help Stage 4.6)
 
@@ -151,6 +151,15 @@ without ever receiving a `demo:*` label is invisible to `acceptance-queue` and w
 disappear from the backlog with no disposition on record. Classification is entirely
 `needsBackstop`'s (`bin/lib/issues/acceptance.js`) — this scope does not reimplement the
 label taxonomy; see that module or `_shared/work-record.md` for what the labels mean.
+
+**This scope finds `work-backend: github-issues` records only**, for the same reason the
+`family-gate` scope below does: it reads GitHub labels, and the Detection Ladder above skips this
+whole file whenever `gh` is unreachable — it checks remote/install/auth, never `work-backend`. The
+`local-files` twin of this sweep is `tidy/step-1-records.md`'s Shape 8, reading the record store
+through `queryRecords` and translating `facets.closed`/`facets.acceptance`/`facets.parent` into
+the same `needsBackstop` call. It emits the identical `[acceptance-gap]` row at the identical
+severity and recommends the identical `/claude-tweaks:demo` invocation, so no consumer
+distinguishes the two.
 
 Record set: closed records from the last 30 days. The `date` fallback covers both platforms this
 plugin runs on — BSD `date` (macOS, this project's development platform) uses `-v-30d`; GNU `date`
@@ -312,7 +321,7 @@ simply gets zero rows back. Item 8 above states the same posture for its own cou
 What the Ladder does decide is the genuinely `gh`-absent case — no remote, `gh` not installed, or
 not authenticated — where it skips this entire file, this scope included. That is what makes a
 `gh`-gated file the wrong home for a sweep needing no `gh` at all, so the `local-files` twin of
-this sweep lives in `tidy/scan-procedures.md` Step 1 (Shape 7), reading the record store through
+this sweep lives in `tidy/step-1-records.md` (Shape 7), reading the record store through
 `queryRecords`. It emits the identical `[family-gate]` row and feeds the identical
 `Open family gate` action, so no consumer distinguishes the two.
 
@@ -491,7 +500,7 @@ Two collection prefixes for PR/code-health/harness-health/journey-health/docs-he
 - `[acceptance-gap]` — closed records with no acceptance disposition (`acceptance-gap` scope above): `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
 - `[family-gate]` — decomposition families with every leaf closed and no acceptance disposition on the parent (`family-gate` scope above): `[family-gate] #{n}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #{n}`
 
-Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
+Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/step-1-records.md`).
 
 Severity mapping (Template A Severity column):
 

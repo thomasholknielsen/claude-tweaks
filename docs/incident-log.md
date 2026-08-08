@@ -196,7 +196,11 @@ Don't resolve a merge conflict against an upstream *structural* refactor (a file
 
 ## IL-45 — ExitWorktree's commit-count refusal
 
-Don't take `ExitWorktree`'s commit-count refusal ("N commits... discard permanently") at face value when the worktree branch was already merged/fast-forwarded into `main` — the check counts commits against the branch's original fork point, not `main`'s current tip, so it warns even when nothing would actually be lost. Verify `git rev-parse HEAD` is identical on both the worktree branch and `main` before overriding with `discard_changes: true`.
+Don't take `ExitWorktree`'s commit-count refusal ("N commits... discard permanently") at face value when the worktree branch was already integrated into `main` — the check counts commits against the branch's original fork point, not `main`'s current tip, so it warns even when nothing would actually be lost.
+
+**Verify by content, not by SHA.** The obvious check — "is `git rev-parse HEAD` identical on both?" — only passes when the branch was fast-forwarded or merged with a merge commit. Under `gh pr merge --rebase` (or `--squash`), integration *rewrites* the commits: the branch and `main` hold byte-identical content under permanently different hashes, so a SHA-identity check can never pass, however cleanly the branch landed. That is the dangerous direction to fail in — a reader following it literally must either refuse to clean up (orphaned worktrees accumulate) or skip verification entirely, losing the protection this entry exists to provide. This repo's merge convention favors rebase, so it is the common case here, not an edge case.
+
+Compare content instead: `git diff <branch> <default-branch>` returning no output means nothing would be lost, whichever strategy integrated it. `git rev-parse <branch>^{tree}` against `git rev-parse <default-branch>^{tree}` is the same check as a single comparison. Bit PR #103, where `git log main..<branch>` reported 1 "unmerged" commit and the SHAs differed, while `git diff <branch> main -- <the changed files>` returned nothing at all.
 
 ## IL-46 — Gitignored scratch files destroyed by worktree cleanup
 
@@ -249,6 +253,20 @@ Don't scope a feature meant to prevent an empirically-observed failure to only d
 ## IL-58 — Raw git worktree remove on an EnterWorktree worktree
 
 Don't run raw `git worktree remove` on a worktree created via `EnterWorktree` — it fails with "cannot remove a locked working tree" (harness-managed lock, not a plain git worktree), even though `superpowers:finishing-a-development-branch`'s own documented cleanup procedure only shows the raw git form. Use `ExitWorktree` instead; verify `git rev-parse HEAD` matches on both the worktree branch and the branch it merged into before passing `discard_changes: true`.
+
+**Narrowed 2026-08-07.** The failure is specific to a **locked** worktree, not to
+`EnterWorktree` provenance. Counter-evidence: seven unlocked, harness-created worktrees
+under `.claude/worktrees/` were removed with the raw git form on the first attempt, no
+lock error. The rule below now reads as locked-only; `bin/lib/hooks/worktree-reap.js`
+unlocks first when the lock's owning pid is provably dead **and** the worktree has been
+untouched for 24h, and never otherwise.
+
+**Which remedy applies to which worktree.** The reaper is not a remedy for the worktree a
+session is standing in: that lock's pid is live, so `lockVerdict` returns `in-use` and the
+reaper correctly skips it — and a session's own worktree at `/wrap-up` time always has a
+live pid. `ExitWorktree` (`action: "remove"`) remains the only remedy for that case, and
+`skills/wrap-up/cleanup-procedures.md` Section C step 4 names it. The reaper covers the
+other case: a worktree whose owning session is gone, which nothing else collects.
 
 ## IL-59 — The marketplace-mirror half of a release
 
@@ -680,5 +698,50 @@ During the 6.60.0 wrap-up-report build, five separate checks reported success wh
 The common shape: each check's green and its red were indistinguishable, so passing carried no information. Four of the five were introduced while fixing one of the others — a check written under time pressure to close out a prior finding is exactly the check least likely to have had its own failure mode considered, because the attention in the moment is on the thing it guards, not on the guard itself.
 
 The generalizable rule: before trusting a check, name what its red output would look like and confirm the check can actually produce it — a count-based grep that a failure also satisfies, a suite that never loaded the file it means to test, and a sweep that silently drops part of its input all report identically whether or not the thing they check is true. A check that cannot fail is not a stricter check; it is no check, wearing one's shape.
+
+**Extension — the mechanism, for content assertions (6.65.0, records #176/#177).** "Name what its red would look like" is the principle; for the most common check type in this repo it has a concrete procedure, and eleven instances in one run showed that naming it is not enough on its own. Across four plans, eleven test assertions over markdown prose had to be re-anchored after failing a discrimination check — every one authored by the plan author, not the implementers. The cause is structural: a regex written immediately after the prose it guards matches *that* prose by construction, so a pre-dispatch check that the regex matches is guaranteed green and carries no information.
+
+Two sub-classes appeared, and the obvious defence catches only one. **Over-broad token match:** `/candidate/i` matched three unrelated places; `/drop/i` matched eleven and still passed when the guarded table row was inverted to "Drop it silently." — the exact opposite of the requirement; `/read-only/i` survived flipping "the agents are read-only" to "may write", because "bounded read-only commands" later in the same paragraph kept it green; `/BLOCKED/` survived deleting the entire four-value status line it existed to guard. **Over-wide proximity window:** `/node_modules[\s\S]{0,200}denied/i` — the real span was 45 characters, and 200 still matched prose inverted to "fully supported… nothing has ever been denied".
+
+A *presence* check (does the regex match the planned prose?) cannot catch either class, because both match by construction. The check that works is **inversion**: negate the planned prose and assert the regex *fails*. Introduced mid-run, it caught two more before dispatch on its first outing — including `/checked-at/`, which survived prose reading "we deliberately omit any checked-at stamping" — and it is what surfaced the over-wide-window class at all. Note also that a multi-assertion test short-circuits: inverting several claims at once only proves whichever assertion fails first, so inversions must be run one claim at a time.
+
+## IL-106 — A worktree was created three times from a base older than the last fetch
+
+Across one session on 2026-08-07/08, `EnterWorktree` produced a worktree whose base was behind `origin/main` three separate times. The first two were caught only by `tests/changelog-coverage.test.js`, which failed with "1 version(s) shipped on origin/main with no CHANGELOG entry" — the branch had been cut before that session's *own* previous release, so its `CHANGELOG.md` and `docs/shipped-versions.tsv` were missing an entry the session itself had written an hour earlier.
+
+The third occurrence is the informative one. Having drawn the lesson "fetch before `EnterWorktree`," the session did exactly that: `git fetch origin main` reported `origin/main` at `b7ceaeda` / 6.64.2, and `EnterWorktree` immediately afterward produced a worktree at `0816fe0d` / 6.60.0 — four releases behind the ref that had just been fetched into the same repository. So the base is not "whatever `origin/main` said at creation time," and fetching first does not fix it. The remedy that works is unconditional and after the fact: `git merge origin/main` inside the new worktree before doing anything else, every time.
+
+Why it stayed invisible: nothing about a stale base looks wrong. The worktree has a clean tree, a plausible `main`-derived history, and a passing test suite — the base is only wrong *relative to work that landed since*, which is invisible from inside. On a repo with one active session it would rarely matter; this repo runs six or more concurrently and ships several versions an hour, so "behind by four releases" is a normal amount of drift for a worktree created minutes ago.
+
+The generalizable rule: treat a newly created worktree's base as unknown rather than current, and merge the integration branch into it as the first action — a fetch beforehand is not equivalent, because the worktree's base is not resolved from the ref the fetch updated.
+
+## IL-107 — A finished nine-task implementation was nearly redone from scratch
+
+A session picked up record #185 (worktree reaping), read its plan, created a worktree, wrote the SDD ledger, and began the pre-flight scan before discovering — incidentally, in `git worktree list --porcelain` output gathered for an unrelated safety question — a sibling worktree named `worktree-reaping-impl` holding eleven commits that implemented all nine of the plan's tasks, including a fix its own review had already caught. The owning session (pid 30559) was still alive, 15h22m in. Its branch was unpushed and unmerged, so `origin/main`, the record's labels, and the claim refs all showed the work as untouched.
+
+Every check the project already prescribes came back clean: no branch matched `*114*`-style patterns for the record, `git ls-remote origin "refs/claims/*"` returned nothing, the record carried no `bot:in-progress`, and no commit on any ref mentioned it. The work was invisible to all of them precisely because it was *in progress* — claims are taken by `/dispatch`, and a session working a record by hand takes none.
+
+What made it visible was the worktree list, and specifically the lock line: `EnterWorktree` locks each worktree with a reason carrying the owning pid (`locked claude session <name> (pid NNNNN start ...)`), so a live sibling is detectable by parsing that pid and checking it with `ps`. That is the same mechanism `bin/lib/hooks/worktree-reap.js` uses to decide whether a worktree is orphaned — the signal already existed and was already trusted for a destructive decision; it simply was not being consulted before starting work.
+
+The generalizable rule: before starting work on a record, enumerate worktrees and their lock-owning pids, not just branches, claims, and labels. Unpushed work by a live session is invisible to every remote-facing signal, and the more concurrent sessions a repo runs, the more likely the record you just picked is already someone's half-finished branch.
+## IL-108 — Four of four implementer subagents stalled at a background wait, uncommitted
+
+During the 6.65.0 build (records #176/#177/#106), every one of four implementer dispatches stopped without committing. Each brief said: make the edits, run the focused tests, run `npm test`, then commit. Each started the full suite, parked waiting for its completion notification, and reported back having done everything except the commit — leaving work **staged or merely modified** in a shared worktree. The controller verified each diff and finished the commit itself all four times.
+
+The cause is dispatch *shape*, not agent quality. A multi-minute wait placed between an implementer's last edit and its commit obligation hands it a natural stopping point that is not "done", and the harness's own completion-notification model makes stopping there look correct. Adding an explicit "do not park on a background wait; poll it yourself" instruction to the fourth brief changed nothing.
+
+Two second-order costs followed. Because several suites then ran concurrently — the controller's plus the implementers' — one test failure could not be attributed: `tests/install-statusline-wrapper.test.js` carries a 5000 ms `spawnSync` timeout on a nested double Node spawn and fails intermittently under the suite's own parallelism. It took three separate measurements to establish it was neither load contention from the controller's runs nor the new tests, and two intermediate conclusions were wrong. And one controller brief mistakenly listed four files to stage when the fix touched five; only the stall prevented the fifth from being silently dropped.
+
+The generalizable rule: keep slow, shared-resource work in the controller. An implementer commits after its focused tests; the full suite runs centrally afterward. This is the same family as `[IL-43]` (parallel implementers race on one index) and `[IL-51]` (dispatch edit-only when fan-out is wide) — in each case the fix is to move the contended step up to the coordinator rather than to instruct the subagent harder.
+
+## IL-109 — A long multi-record run decayed its own records' premises
+
+The 6.65.0 run took seven records in one `/claude-tweaks:flow` invocation. `origin/main` shipped **eleven times** while it ran (6.50.1 → 6.64.2), requiring ten rebases. Two records' premises expired mid-run as a direct result, and a third's already-reviewed output was falsified after it passed review.
+
+Record #178 was destroyed outright: upstream reshaped `/claude-tweaks:challenge` into a `framing-check` component plus a `--lens` escape hatch, deleting the Brainstorming Brief that #178 existed entirely to add a `falsified` value to. A grep of `skills/challenge/SKILL.md` for every anchor the record cited — `Key Assumptions Surfaced`, `Open Questions for Brainstorming`, `Brainstorming Brief`, `Save the Brief`, `verified/unverified` — returned zero. It was closed as obsolete. Record #179 needed an amendment posted to it: its first deliverable names the `/challenge → verify → brainstorming` edge that upstream removed from two files, so implemented as written it would have re-established a deleted edge across five; its README premise was already false (`grep -c research README.md` → 0); and all four of its `docs/skill-graph.md` anchors had shifted. Record #176's shipped prose asserted a lifecycle that no longer existed and had to be re-grounded in a later commit.
+
+The records built first held their premises. The damage was strictly a function of how long each record waited between shaping and building — which makes batch size the lever, not record quality.
+
+The generalizable rule: in a repository with concurrent sessions shipping, a work record's factual claims have a shelf life measured in hours. Re-verify each record's Current State against the live tree immediately before *its own* build, not once at run start — that per-record re-check is what caught #178 and #179 before either wasted a build. `[IL-20]`'s "check divergence periodically" is necessary but not sufficient here: the hazard is not only merge conflict, it is that a record's own stated facts stop being true while it waits its turn.
 
 

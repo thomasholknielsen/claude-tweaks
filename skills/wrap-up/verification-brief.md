@@ -54,7 +54,7 @@ Every step from **Enumerate the family's leaves** onward is shared, unchanged, b
 - **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open family gate` action**, on either
   driver: `tidy/actions-github-issues.md` executing on a `[family-gate]` finding from
   `_shared/github-pr-scan.md`'s `family-gate` scope, or `tidy/actions-local-files.md` executing
-  on one from `tidy/scan-procedures.md` Step 1's Shape 7. Both arrive already holding the
+  on one from `tidy/step-1-records.md`'s Shape 7. Both arrive already holding the
   **parent** number directly (`$PARENT_NUM` — a `family:parent`-labeled issue number, or a
   `family-parent: true` record's id), read straight from their own scan. Skip **Resolve the
   parent** and **Self-inclusion rule** below entirely — there is no leaf mid-close in this entry,
@@ -351,8 +351,9 @@ Resolve `{base}` (used here and in Step 3 below) by `summary-template.md`'s `{ba
 
 Classify the changed-file list for this run (`git diff --name-only {base}...HEAD`, or the
 materialized header's file list) through the shared classifier — the same one
-`bin/lib/issues/acceptance.js` exports for `/claude-tweaks:tidy`'s acceptance-gap scan
-(`_shared/github-pr-scan.md`), so the two never drift apart:
+`bin/lib/issues/acceptance.js` exports for `/claude-tweaks:tidy`'s acceptance-gap scan on either
+driver (`_shared/github-pr-scan.md`'s scope under `github-issues`, `tidy/step-1-records.md`'s
+Shape 8 under `local-files`), so they never drift apart:
 
 ```bash
 node -e "

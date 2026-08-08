@@ -4,6 +4,12 @@
 - **Date:** 2026-08-07
 - **Context:** #187 — an ADR filename convention conflicting silently with a consuming repo's own
 
+> **Naming note (6.68.1).** This record's title and filename say "prior art"; the contract it
+> decided is now `_shared/existing-convention-detection.md`, and the concept is "the repo's
+> existing convention". Both are unchanged here on purpose — an accepted decision record is
+> dated evidence of what was decided and in what words, superseded rather than edited. The
+> decision itself is untouched by the rename.
+
 ## Context
 
 `_shared/decision-records.md` stated `docs/decisions/NNNN-{kebab-slug}.md` as a fact. A consuming repo had sixteen ADRs named `ADR-{n}-{kebab-title}.md`, its own committed `architecture-decision` skill, and a `docs/REGISTRY.md` indexing them. The first passing ADR gate there would have produced a seventeenth file in a grammar matching neither the other sixteen nor the registry.

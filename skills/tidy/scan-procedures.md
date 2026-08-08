@@ -1,167 +1,23 @@
 # Tidy — Scan Procedures
 
-Per-step scan rules for `/claude-tweaks:tidy`. Each scan reads a single data source and collects findings in the `[type] item — detail — recommendation` format. The parallel dispatcher inlines the relevant section into each agent's prompt so agents have everything they need (subagents cannot read sibling files).
+Per-step scan rules for `/claude-tweaks:tidy`. Each scan reads a single data source and collects findings in the `[type] item — detail — recommendation` format. The parallel dispatcher inlines the relevant section into each agent's prompt so agents have everything they need (subagents cannot read sibling files). Step 1 is the one exception to "a section of this file": it lives in `step-1-records.md`, inlined whole, and only the stub below remains here.
 
-Step numbering matches `SKILL.md`. The order below mirrors execution order. There is no Step 2 — Steps 1 and 2 merged into one record scan (below); the rest of the numbering is unchanged so existing cross-references from other skills (`/claude-tweaks:dispatch`, `wrap-up/cleanup-procedures.md`) keep pointing at the right step.
+Step numbering matches `SKILL.md`. The order below mirrors execution order. There is no Step 2 — Steps 1 and 2 merged into one record scan (now `step-1-records.md`); the rest of the numbering is unchanged so existing cross-references from other skills (`/claude-tweaks:dispatch`, `wrap-up/cleanup-procedures.md`) keep pointing at the right step.
 
 ---
 
 ## Step 1: Audit Work Records
 
-Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). A missing flag is treated as `local-files`.
+**Extracted — read `step-1-records.md` in this skill's directory.** That file carries this
+step's whole procedure: the `work-backend` resolution, the shared queue fetch, the unsynced-
+fallback pull, the staleness clock, and every finding shape. Nothing of Step 1 remains here —
+this heading survives so that an external reference naming "`scan-procedures.md` Step 1", or one
+of its shapes, still resolves in one hop.
 
-One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
-
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands, and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json`, and no `{EXTRA_FIELDS}` needed for this fetch — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
-
-Also pull any local fallback records left behind by a failed GitHub write — these feed the Sync shape below:
-
-```bash
-node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  console.log(JSON.stringify(queryRecords('specs', { unsynced: true })));
-" > /tmp/tidy-unsynced.json
-```
-
-Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only). Conversely, Shape 7 (family gate due) fires **only** under this driver — its `github-issues` counterpart is Step 4.8's `family-gate` scope, which reads GitHub issues.
-
-**Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock and
-Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 below already
-documents). Bands are computed by `classifyStaleness(ageMs, thresholdMs)`
-(`bin/lib/issues/record-buckets.js`) against the resolved `record-staleness-weeks` threshold
-(default 4 weeks): `fresh` below half the threshold, `review` from half the threshold up to
-and including the threshold itself, `stale` beyond it. Shapes 1 and 2 below are the only
-consumers of this scale — Step 3's design-doc age rows and Step 4.7's claim-staleness
-rows read different data sources and are not governed by `record-staleness-weeks`.
-
-The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
-come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js')`
-(`bin/lib/issues/record-buckets.js`).
-
-### Shape 1 — backlog record stale
-
-`isBacklog(record)` (`bin/lib/issues/record-buckets.js`) — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
-
-| Age | Default Recommendation |
-|-----|----------------------|
-| Fresh | Keep |
-| Review | Keep (unless clearly stale) |
-| Stale | Delete or Promote |
-
-**Decomposition parents are exempt — always `Keep`, at every age.** A record carrying `family:parent` (`github-issues`) or `facets.familyParent === true` (`local-files`) is `isBacklog` by construction and forever: `/claude-tweaks:specify` never gives a parent a stage label and nothing ever promotes one, so every live parent crosses the staleness threshold and lands on `Delete or Promote` while its family is still being built — and `Delete` here is `gh issue close --reason "not planned"`, which destroys the family's only acceptance checkpoint. Leaves landing weeks apart is the dominant workflow, so a parent going stale mid-family is the common case, not the edge one. Give the row the reason inline (`Keep — decomposition parent, gated by the family-gate sweep, not by staleness`) rather than dropping it silently, so a reader sees why one stale-looking record is being left alone. **Name the sweep the resolved driver actually uses** — Step 4.8's `family-gate` scope under `github-issues`, **Shape 7 below** under `local-files` — since citing Step 4.8 on a project that never runs it points the reader at a sweep that will never produce the row it promises. Either way, that sweep is what acts on parents and this shape must not race it with a contradictory recommendation for the same record; under `local-files` they are not even separate agents — Shape 7 runs in this same Step 1 prompt, so a `Delete or Promote` row here would contradict a `[family-gate]` row this same agent emits in the same reply.
-
-→ Collect each as: `[backlog] {title} — {age} — {recommendation}`
-
-### Shape 2 — parked trigger met
-
-`isParked(record)` (`bin/lib/issues/record-buckets.js`). Judge the trigger live — the same evidence `_shared/github-pr-scan.md`'s `repo-wide` scope already reads, so this shape and that procedure never disagree:
-
-| Trigger status | Default Recommendation |
-|---------------|----------------------|
-| Milestone attached, `milestoneDueOn` is in the past | Promote (re-run `/claude-tweaks:specify`) |
-| A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), and that commit's own diff/message does not already resolve the record's described problem | Promote |
-| A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), **and that commit's own diff/message already resolves the record's described problem** | Delete — already implemented (cite the resolving commit SHA in the closing comment) |
-| Neither trigger met, not yet `Stale` (per the staleness clock above) | Keep |
-| Neither trigger met, `Stale` (per the staleness clock above) | Re-evaluate or delete |
-| Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state |
-
-A watched-path match is a signal to look again, not proof the record still needs work — read the matching commit's diff and message before recommending Promote. A commit that merely touches the watched path is not evidence the underlying problem is solved; only a commit whose content demonstrably addresses what the record describes counts as resolved. Conflating the two risks recommending `/claude-tweaks:specify` on a record whose work is already done, producing a redundant decomposition.
-
-→ Collect each as: `[parked] {title} — {recommendation}`
-
-`local-files`: the same trigger lives as body prose — `local-store.js`'s facet schema carries no dedicated trigger/milestone/watched-paths keys, so a locally parked record's `**Trigger:**` (and, when file-shaped, `**Watched paths:**`) line is read straight out of the record body, judged exactly the same way.
-
-### Shape 3 — unsynced local record
-
-`work-backend: github-issues` only. Every record `/tmp/tidy-unsynced.json` returned (`facets.unsynced === true`) is a local fallback from a failed GitHub write — `/claude-tweaks:capture`'s or `/claude-tweaks:specify`'s failure path (`_shared/work-record.md`). This is F9 from the program promise register: it covers `specs/{id}-{slug}.md` records with `unsynced: true` facets, exactly the artifact `/capture` and `/specify` already promise `/tidy` reconciles.
-
-→ Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
-
-### Shape 4 — ready record missing scoring
-
-`facets.stage === 'ready'` and (`facets.risk === null` or `facets.effort === null`). Labels are projection, not truth (`_shared/work-record.md`) — a `ready` record reaching this state without scoring usually means the label was hand-added on GitHub rather than stamped by `/claude-tweaks:specify`'s Shaping mode or a health skill's born-ready filing. `/claude-tweaks:backlog refine`'s own grant sub-stage would flag the identical gap reactively when it next pulls the `ready` queue; this surfaces it proactively during hygiene instead of waiting for a refine run.
-
-→ Collect each as: `[scoring] {title} — missing {risk|effort|both} — flag for scoring (/claude-tweaks:specify re-stamps it)`
-
-### Shape 5 — `bot:blocked` needing re-triage
-
-`isBotBlocked(record)` (`bin/lib/issues/record-buckets.js`; `work-backend: github-issues` only — the local driver's `facets.bot.blocked` is always `false`, per `facet-shape.js`'s shared defaults, so this predicate never fires there). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
-
-→ Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:backlog refine`
-
-### Shape 6 — flagged code demonstrably gone
-
-Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/docs-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6/7) — unchanged by this merge. It's listed in this file only so the finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
-
-### Shape 7 — decomposition family gate due
-
-**`work-backend: local-files` only.** Finds decomposition families whose every leaf has closed
-but whose parent carries no acceptance disposition yet — the population
-`/claude-tweaks:wrap-up`'s Family-Gate Procedure (`wrap-up/verification-brief.md`) gates eagerly
-when it closes a family's last leaf. A family whose last leaf closes any other way — by hand, or
-by a run that ended before wrap-up — never reaches that eager path; this shape catches it after.
-
-It is the local twin of Step 4.8's `family-gate` scope (`_shared/github-pr-scan.md`) — same
-finding, same `[family-gate]` prefix, same `Open family gate` action; only the store differs. It
-lives in this step rather than that file because that file is skipped whole whenever `gh` is
-absent, and a sweep needing no `gh` must not inherit that skip; that scope's own header states
-the full reasoning, including what its Detection Ladder does and does not gate on.
-
-Classification is entirely `familyGateState`'s (`bin/lib/issues/acceptance.js`) — do not
-reimplement it. That predicate is backend-agnostic: it takes `{leaves, parentLabels}`, and a
-local parent's disposition translates to the one-element `['demo:' + facets.acceptance]` (empty
-when unset), exactly as `wrap-up/verification-brief.md`'s **Evaluate the gate** does for this
-driver.
-
-It needs its own query, not Step 1's shared fetch: that fetch returns open records only and
-carries no leaf-to-parent index, and a family's leaves are closed by definition when its gate is
-due.
-
-```bash
-node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { familyGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const parents = queryRecords('specs', { familyParent: true });
-  const families = parents.map((p) => {
-    const leafRecords = [
-      ...queryRecords('specs', { parent: p.id }),
-      ...queryRecords('specs', { parent: p.id, closed: true }),
-    ];
-    return {
-      id: p.id,
-      title: p.title,
-      path: p.path,
-      parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
-      leaves: leafRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' })),
-    };
-  });
-  families
-    .filter((f) => familyGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
-    .forEach((f) => console.log(f.path + '\t[family-gate] ' + f.id + ': ' + f.title + ' — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo ' + f.id));
-"
-```
-
-Each line is `{path}<TAB>{finding}` — the path fills the row's `Path:Line` column (`SKILL.md`'s
-Tidy-specific column semantics: the local record path on this driver, where `github-issues` rows
-carry `#{n}`), the rest is the finding.
-
-Both `queryRecords` shapes are deliberate. `{ familyParent: true }` returns **open** parents only
-(closed records are excluded unless the filter names `closed`) — the right set, since a closed
-parent was already dispositioned and closed by `/claude-tweaks:demo`, and it mirrors the
-`github-issues` scope's `--state open` fetch. The leaf listing is the open+closed two-call merge
-for the same reason: one call alone drops every closed leaf, exactly the ones that make a gate
-due. No fetch-limit or truncation warning applies, unlike the API-paging twin — `queryRecords`
-reads the whole `specs/` directory every call.
-
-→ Collect each as: `[family-gate] {id}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo {id}`
-
-Severity `info` — with several open decompositions this is a standing backlog, not a defect
-count, and Step 6 caps rows highest-severity-first (the same tier and reason as its
-`github-issues` twin). The recommendation is the `Open family gate` action, staged at every
-aggressiveness tier and never writing `demo:approved`/`demo:changes-requested`, which is why the
-row still ends with `/claude-tweaks:demo {id}`; `actions-local-files.md`'s `## Open family gate`
-and `step-6-auto.md`'s row carry that action's execution, its staging reasoning, and what it
-does not cover.
+The dispatcher inlines `step-1-records.md` **whole** into the Work Records agent's prompt, the
+same way it inlines a section of this file into every other scan agent's. `--scope=backlog` and
+`--scope=specs` are the only scopes that select it (`SKILL.md`'s Scope Selection); no other step
+reads Step 1's output except Step 5, which runs sequentially in the main thread afterwards.
 
 ## Step 3: Audit Design Docs
 
@@ -210,6 +66,21 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
 
+A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
+is using it. Surface it as `locked — manual review required`.
+
+`SessionStart`'s reaper (`bin/lib/hooks/worktree-reap.js`) collects *some* of these
+unattended, but its reach is deliberately narrower than this step's, so do not read a
+still-locked worktree as one the reaper has already judged. It only considers worktrees
+under `{REPO_ROOT}/.claude/worktrees/` (ADR-0004's harness-owned domain — `.worktrees/`
+belongs to superpowers' `finishing-a-development-branch`), it unlocks only when the lock's
+owning pid is provably dead **and** nothing in the worktree has been modified for 24h, and
+it reaps nothing at all on a repo where its own integration-branch resolution comes up empty
+(`_shared/integration-branch.md` — the reaper's row in the per-consumer fallback table; it
+may consult only the `integration-branch:` policy key and `origin/HEAD`, never the checked-out
+branch). Anything still locked at `/tidy` time is therefore in use, unrecognized, recently
+active, out of the reaper's domain, or on a repo where the reaper is inert.
+
 ## Step 4.6: Audit Doc Registry
 
 Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
@@ -225,7 +96,12 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 
 ## Step 4.7: Audit Issue Claims
 
-**Working-directory discipline:** every command in this step (and in any dispatched parallel agent) — the claim-ref listing below and both backstops that use `find .claude-tweaks/pipelines` — MUST be anchored to `{REPO_ROOT}` (resolved via `git rev-parse --show-toplevel` in the dispatcher before any agent fires, the same resolution Step 4.5 already documents). Anchor with `cd "{REPO_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored `find .claude-tweaks/pipelines/...` doesn't error from the wrong cwd, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. `gh` commands need the same anchor: `gh` infers the target repo from the cwd's git remote, so a wrong cwd can point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
+**Working-directory discipline:** every command in this step (and in any dispatched parallel agent) MUST be anchored, but the three commands below do not all take the *same* anchor:
+
+- The claim-ref listing and the `gh issue list` backstop take `{REPO_ROOT}` — `git rev-parse --show-toplevel`, the same resolution Step 4.5 documents. `gh` infers the target repo from the cwd's git remote, and either checkout has the same remote.
+- **Both backstops that run `find .claude-tweaks/pipelines` take `{RUN_ROOT}` instead** — the **main checkout** root, resolved as `RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)` (`_shared/pipeline-run-dir.md`'s Anchoring section). Run directories are anchored to the main checkout at creation, so from inside a linked worktree `--show-toplevel` names the worktree — which holds no `.claude-tweaks/pipelines/` at all — and the `find` returns zero. Resolved from the main checkout the two are the same path, so this only ever matters when `/tidy` runs from a worktree.
+
+Anchor with `cd "{REPO_ROOT}" &&` / `cd "{RUN_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored (or wrongly-anchored) `find .claude-tweaks/pipelines/...` doesn't error, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. A wrong cwd can also point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
 
 Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
 `gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
@@ -280,7 +156,7 @@ audit trail" section), so they survive on disk at `.claude-tweaks/pipelines/**/w
 runs) — in both live and archived (`.claude-tweaks/pipelines/archive/`) run directories:
 
 ```bash
-cd "{REPO_ROOT}" && find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
+cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
   grep -q "^parked-at-shaping: true$" "$header" || continue
   n=$(grep -m1 "^record:" "$header" | sed 's/^record: *//')
   [ -z "$n" ] && continue
@@ -327,7 +203,7 @@ skill-name filter, so it matches all of them equally). A `worktree.always`-block
 silently-skipped log write leaves no trace anywhere except an empty file:
 
 ```bash
-cd "{REPO_ROOT}" && find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
+cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
   STATUS=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1]+'/run-state.json','utf8')).status)}catch(e){console.log('unknown')}" "$RUN_DIR")
   [ "$STATUS" = "clean" ] || continue
   SIZE=$(wc -c < "$RUN_DIR/decisions.md" 2>/dev/null || echo 0)
@@ -350,7 +226,7 @@ Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **
 
 The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
-The `acceptance-gap` scope finds closed records with no acceptance label at all — a different gap than the `acceptance-queue` scope `/help` Stage 4.7 uses, which only sees records already flagged `demo:pending`. Its recommendation is always "run `/claude-tweaks:demo #{n}`" — never one of the Action Vocabulary's atomic actions, since disposing a closed record is a judgment call for a human, not this step.
+The `acceptance-gap` scope finds closed records with no acceptance label at all — a different gap than the `acceptance-queue` scope `/help` Stage 4.7 uses, which only sees records already flagged `demo:pending`. Its recommendation is always "run `/claude-tweaks:demo #{n}`" — never one of the Action Vocabulary's atomic actions, since disposing a closed record is a judgment call for a human, not this step. It covers `work-backend: github-issues` only; under `local-files` the same finding comes from Step 1's **Shape 8** (`step-1-records.md`), exactly as `family-gate` comes from Shape 7 there.
 
 The `family-gate` scope finds decomposition families whose every leaf has closed but whose parent carries no acceptance disposition — the backstop for a family that missed `/claude-tweaks:wrap-up`'s eager gate (a leaf closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches that eager path). Unlike `acceptance-gap`, its recommendation **is** one of the Action Vocabulary's atomic actions — `Open family gate` — which composes and posts the parent's Verification Brief and applies `demo:pending`, reusing `wrap-up/verification-brief.md`'s Family-Gate Procedure rather than a second copy of that logic (`tidy/actions-github-issues.md`'s `## Open family gate`). It never applies `demo:approved`/`demo:changes-requested` — that verdict stays exclusively `/claude-tweaks:demo`'s job, so the finding still ends with "then run `/claude-tweaks:demo #{n}`" even once approved.
 
