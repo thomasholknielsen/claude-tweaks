@@ -107,6 +107,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommended fixes"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
+**Hard gate.** Check the response you are about to send: does it already contain the `### Code Review Findings` table above as literal rendered markdown, with a row for every finding? If not, render it now, in this response, before the tool call — "Apply all" with no table above it leaves the user approving an unnamed set of fixes.
+
 If "Override specific items" is chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field.
 
 **Recommendation rules** (interactive mode — severity-to-route mapping in `auto` mode is the table at the top of this file):

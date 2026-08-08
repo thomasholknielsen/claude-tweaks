@@ -220,6 +220,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
+**Hard gate.** Check the response you are about to send: does it already contain the Findings & Ideas table above as literal rendered markdown, with a row for every finding? If not, render it now, in this response, before the tool call — "Apply all" with no table above it leaves the user approving an unnamed set of UI findings.
+
 The **Source** column traces each finding to its origin step (Health, Performance, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
 
 **Recommendation rules for Issues:**
