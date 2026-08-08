@@ -67,6 +67,8 @@ On a hit:
 
 Never propose more than one new doc per genuinely new subsystem — if the new subsystem spans multiple genres worth of content (e.g. both a How-To and a Reference), propose each as its own row rather than one doc trying to be two genres.
 
+**Known narrowing — a project with no `docs/` tree never gets a D2 proposal.** The Docs registry row's gate is `docs/` existing and non-empty, so on a project with no docs tree at all this file is never read and D2 never runs — even though D2 is precisely the check that would create the first doc. Accepted: `/claude-tweaks:init` Phase 8.5 covers first-doc scaffolding for such a project. The narrowing is stated here, beside the check it narrows, because the gate that causes it lives in the registry (`bin/lib/wrap-up/registry.js`) and the engine, not in this file.
+
 Declare **"No documentation updates needed"** only when D0 finds no domain-overlap docs (or the registry is absent/empty), D1's full scope (touched + domain-overlap) produces no findings, and D2 finds no missing-doc gap.
 
 ## Gotcha: Step 9's standalone template is not split

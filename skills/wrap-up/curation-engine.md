@@ -110,6 +110,8 @@ One payload per open row, on stdin:
 
 Fail any one and the finding stages. An applied finding is committed on its own, which is what the `SCANNED` line's `Reversibility: high (separate commit)` asserts; its hash goes in `commit`.
 
+**These four are necessary, not sufficient.** A judge file may impose stricter conditions of its own, and clearing this precondition never overrides them — the standing example is `reference-sweep.md`, whose repairs additionally bind to the `autonomy` ceiling and the `_shared/initiative-budget.md` floor rule. When a judge's own conditions and this precondition disagree, the finding stages.
+
 **Stage-only and stage rows.** `CLAUDE.md & rules` (`stage-only`), `Decision records`, `Memory`, and `Upstream feedback` (`stage`) emit **every** finding with `"action": "staged"`. The engine does not enforce this — it will record an `applied` finding on any row — so the constraint is the judge's to honor, and each of those judge files restates it in its own header.
 
 **The `SCANNED` line.** The engine writes it, one per row, to `decisions.md`. Reproduced here only so the prose fallback (section 6) can write it by hand:

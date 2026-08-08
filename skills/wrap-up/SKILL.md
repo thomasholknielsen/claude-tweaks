@@ -54,7 +54,7 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 
 #### Resuming a halted Review Console
 
-`resume` recovers a run halted at the Review Console's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Phase 4's Review Console, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop. Because Phase 1 creates a run directory on every run, `resume` recovers standalone runs too, not just pipeline ones.
+`resume` recovers a run halted at the Review Console's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Phase 4's Review Console, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop. Because Phase 1 creates a run directory on every run, a standalone run is now *eligible* for `resume` — but only on the same precondition as any other: its `run-state.json` must carry `status: interrupted`, which the hooks layer stamps on interruption. When no such run exists, `resume` reports none found and stops, exactly as before.
 
 #### Flags
 
@@ -96,12 +96,17 @@ if [ -z "$RUN_DIR" ]; then
   touch "$RUN_DIR/decisions.md"
   printf '{"status":"active","createdBy":"wrap-up-standalone"}\n' > "$RUN_DIR/run-state.json"
 fi
-export PIPELINE_RUN_DIR="$RUN_DIR"
+echo "$RUN_DIR"
 ```
 
-`$SPEC_SLUG` follows that file's conventions — `record-{n}` in record mode, a short topic slug in conversation mode. The run is created `status: active` and closes through the normal archival path (Phase 4's cleanup item 8), so E1 enforcement and the interrupted-run reaper see nothing unusual.
+`$SPEC_SLUG` follows that file's conventions — `record-{n}` in record mode, a short topic slug in conversation mode. The run is created `status: active` and closes through the normal archival path (Phase 4's cleanup item 8), so E1 enforcement and the interrupted-run reaper see nothing unusual. An `export` inside this snippet does **not** survive into the next Bash call — each later phase that needs the path re-resolves it with the same `_shared/pipeline-run-dir.md` snippet, which is why the run dir must be recorded as a fact of this run rather than relied on as environment state.
 
-The `createdBy: wrap-up-standalone` stamp is the **Component-Skill Contract signal**, and it is stateful by design: it records at creation time whether this run inherited its directory or made one, so the contract never has to re-infer that from an env var the rest of the run has since set. Every later phase reads `$PIPELINE_RUN_DIR`.
+**Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran:
+
+- `$PIPELINE_RUN_DIR` was already set at invocation, or an existing directory resolved at step 2 whose `run-state.json` does not carry `createdBy: wrap-up-standalone` → **inherited**.
+- This run created the directory (the `createdBy: wrap-up-standalone` stamp is written above) → **created**.
+
+Carry that verdict as a run-scoped fact for the rest of the run, alongside the run dir path itself, and state it in the Phase 1 report table. **Never re-read it from disk later.** Phase 4's cleanup item 8 archives the run directory, so by the time the Component-Skill Contract is consulted the `run-state.json` this determination came from has usually moved to `.claude-tweaks/pipelines/archive/{run-id}/` — a re-read at that point fails on exactly the standalone runs that must render Next Actions.
 
 ### Reflect (formerly Step 3)
 
@@ -109,7 +114,7 @@ Read `config.yml`'s `ceremony-profile` from the run directory. Run `/claude-twea
 - **Scope** — files changed during this work
 - **Ledger phase** — `wrap-up`
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
-- **`--source wrap-up`** — always, since Phase 1 sets `$PIPELINE_RUN_DIR` on every run and it can no longer distinguish a parent invocation on its own — see `/claude-tweaks:reflect`'s Component-Skill Contract
+- **`--source wrap-up`** — always: reflect's `$PIPELINE_RUN_DIR` signal now resolves the same way on every wrap-up run, so the explicit flag is the stable statement of the same fact — see `/claude-tweaks:reflect`'s Component-Skill Contract
 
 Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — those two are the lenses that can still produce a Safety regression finding, which is what the ceremony escape hatch below keys on; the rest are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
 
@@ -151,7 +156,7 @@ One mechanism, one registry, one engine. Every knowledge asset wrap-up curates i
 
 This table is the human-readable half of `bin/lib/wrap-up/registry.js`; `tests/wrap-up-registry-pin.test.js` fails when the two drift. Adding a curation target means adding a row in both places and a judge file beside this one.
 
-**Ordering is load-bearing.** Memory and Upstream feedback are judged **last**, after every earlier row has recorded its result — including Broken references, which precedes them in registry order. They are the learning-routing fallback destinations: their input is the set of learnings *no earlier row claimed*, so judging them early routes a learning to memory that a skill update, CLAUDE.md, or a decision record was about to absorb.
+**Ordering is load-bearing** — see `curation-engine.md`'s invocation sequence for the rule and why.
 
 **CLAUDE.md & rules never auto-applies.** Its disposition is `stage-only` — every finding on that row stages for the Review Console regardless of confidence or reversibility, per the standing CLAUDE.md exception in `_shared/harness-health-analysis.md`. Decision records, Memory, and Upstream feedback are `stage` for the same reason at lower force: they propose, they never write.
 
@@ -282,11 +287,15 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 The signal is **who created the run directory**, not whether one exists — Phase 1 guarantees one either way, so `$PIPELINE_RUN_DIR` being set is no longer evidence of a parent.
 
-When the run directory was **inherited** — `$PIPELINE_RUN_DIR` was already set at invocation, or the resolved `run-state.json` lacks `createdBy: wrap-up-standalone` — `/claude-tweaks:wrap-up` is running inside a `/claude-tweaks:flow` pipeline. In that case:
+**Consult Phase 1's determination, do not re-derive it.** Phase 1 decided inherited-vs-created once, at run-dir resolution time, and carried it forward as a run-scoped fact. By the time this contract is consulted, cleanup item 8 has usually archived the directory, so `run-state.json` is no longer where Phase 1 read it.
+
+When the run directory was **inherited**, `/claude-tweaks:wrap-up` is running inside a `/claude-tweaks:flow` pipeline. In that case:
 - Omit the `## Next Actions` block — the parent `/claude-tweaks:flow` renders its own pipeline summary.
 - The Review Console honors `$MULTISPEC_REVIEW_DEFER` — if set, skip the per-spec console and let `/claude-tweaks:flow`'s consolidated console handle approvals.
 
-When **this run created** its own run directory (`run-state.json` carries `createdBy: wrap-up-standalone`), `/claude-tweaks:wrap-up` runs standalone — render Next Actions as usual.
+When **this run created** its own run directory, `/claude-tweaks:wrap-up` runs standalone — render Next Actions as usual.
+
+**A missing determination resolves to created.** If Phase 1's verdict is somehow unavailable and a `run-state.json` read is attempted as a last resort, an absent or unreadable file resolves to **created** — render Next Actions. The failure must fall toward showing the user their handoff: a suppressed handoff on a standalone run is silent and looks like the skill simply ended, while a redundant one inside `/claude-tweaks:flow` is visible and harmless.
 
 ## Anti-Patterns
 
