@@ -39,9 +39,43 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.62.0 — the plugin's doc conventions notice when a repo already has its own
+## v6.64.0 — the plugin's doc conventions notice when a repo already has its own
 
 - **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
+
+## v6.63.0 — the family gate reaches dispatched groups and the local-files driver
+
+Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavioral.
+
+- **A dispatched multi-leaf family now gets its eager gate.** `/claude-tweaks:dispatch`
+  labels before the single merge that carries every `Fixes #{issue}`, and the gate's
+  self-inclusion rule was singular — "the leaf this run is closing counts as `CLOSED`" —
+  so every sibling evaluated with its siblings still open, `familyGateState` returned
+  `incomplete` for all of them, and nothing was labeled: not the leaves, not the parent.
+  The rule now takes a caller-supplied `$CLOSING_LEAVES` set, and a leaf-side entry that
+  supplies none defaults to the one-element set rather than the empty one — so the group
+  case is a strict widening of the old rule, not a replacement that can silently no-op.
+- **`work-backend: local-files` gains a `family-gate` backstop.** Both sweeps lived in
+  `_shared/github-pr-scan.md`, a file the Detection Ladder gates on `gh` reachability, so
+  a local-files family whose last leaf closed outside `/claude-tweaks:wrap-up` had no
+  eager path *and* no backstop. `/claude-tweaks:tidy` Step 1 gains Shape 7, alongside the
+  driver-scoped shapes already there, emitting the same `[family-gate]` prefix every
+  consumer is already wired for, with an `Open family gate` counterpart in
+  `actions-local-files.md`. Staged at every tier, like its GitHub twin: opening a gate
+  **latches** — once written, `familyGateState` reads `gated` forever and both paths
+  no-op — so an auto-applied brief would become the input to a human sign-off with its
+  own cause erased from the data (`[IL-96]`'s shape).
+- Corrected the driver-specific claims the above made stale: Step 7.5's verification row
+  (unrunnable on the driver it was meant to verify), Shape 1's parent exemption (which
+  named the wrong sibling and, on that driver, a sibling running in its own agent), and
+  five restatements of a `gh`-reachability justification that conflated the Detection
+  Ladder's three checks with `work-backend` — the Ladder never checks the driver
+  (`[IL-24]`).
+- Doc repairs: the design doc's Problem section no longer contradicts its own
+  Measured-state table about how many callers write `demo:pending`, and `README.md`,
+  `docs/plugin-structure.md` and `docs/skill-graph.md` stop describing the procedure as
+  Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
+  parent.
 
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 
