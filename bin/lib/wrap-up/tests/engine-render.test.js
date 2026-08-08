@@ -58,16 +58,11 @@ function makeMixedResults() {
         { kind: 'repair', summary: 'build/setup.md -> build/worktree-setup.md', targetPath: 'tests/paths.test.js', action: 'applied', stagePath: null, commit: 'def5678' },
       ],
     },
-    // NOTE: real gateReason text for these two rows (engine-plan.js's
-    // SIGNAL_COUNT_REASONS) literally reads "no insights classified D4" /
-    // "no learnings classified D5" — which trips FORBIDDEN_VOCABULARY's
-    // /\bD[0-5]\b/ pattern when copied verbatim into `detail` by
-    // engine-record.js's initState. That is a real cross-task collision
-    // (flagged separately), not something to reproduce in this fixture: the
-    // pinned-table test below asserts clean render output, so its fixture
-    // uses benign phrasing instead of the literal production gateReason.
-    memory: { rowId: 'memory', target: 'Memory', result: 'na', detail: 'no insights found' },
-    upstream: { rowId: 'upstream', target: 'Upstream feedback', result: 'na', detail: 'no learnings found' },
+    // memory/upstream detail below is the real (post-fix) closed-gate
+    // gateReason text from engine-plan.js's SIGNAL_COUNT_REASONS — see the
+    // dedicated producer-side guard tests further down for why that matters.
+    memory: { rowId: 'memory', target: 'Memory', result: 'na', detail: 'no insights routed to memory' },
+    upstream: { rowId: 'upstream', target: 'Upstream feedback', result: 'na', detail: 'no learnings routed upstream' },
   };
 }
 
@@ -80,8 +75,8 @@ const EXPECTED_TRACE = [
   "| CLAUDE.md & rules | 1 applied, 2 staged | Fetch-first rule; IL carve-out; new Don't |",
   '| Decision records | n/a | no ADR candidates found |',
   '| Broken references | 2 applied | Fixed 2 broken links |',
-  '| Memory | n/a | no insights found |',
-  '| Upstream feedback | n/a | no learnings found |',
+  '| Memory | n/a | no insights routed to memory |',
+  '| Upstream feedback | n/a | no learnings routed upstream |',
 ].join('\n');
 
 test('renderTrace pins the exact phase-trace table for a mixed fixture (clean, n/a, findings, MISSING)', () => {
@@ -119,11 +114,26 @@ test('renderTrace throws when a detail field smuggles forbidden vocabulary', () 
 // verbatim into results[id].detail by engine-record.js's initState for a
 // closed row — tripped FORBIDDEN_VOCABULARY's /\bD[0-5]\b/ on every real
 // wrap-up run. Reworded to "routed to memory" / "routed upstream" in
-// engine-plan.js. These two tests are the producer-side guard: every
-// gateReason engine-plan.js can actually produce (both the closed variant
-// and, for memory/upstream, the open variant) must pass FORBIDDEN_VOCABULARY
-// when it flows through renderTrace exactly as engine-record.js's initState
-// would deliver it (detail = gateReason).
+// engine-plan.js. The three tests below are the producer-side guard, and
+// together they exercise every gateReason string engine-plan.js's
+// evaluateGate() can actually produce and hand to renderTrace as `detail`
+// (mirroring engine-record.js's initState, which copies gateReason verbatim
+// for a closed row):
+//   - all-gates-closed: every FACT_REASONS.closed / SIGNAL_COUNT_REASONS.closed
+//     string, across all 8 rows.
+//   - memory/upstream-open: the two SIGNAL_COUNT_REASONS.open strings that
+//     were the actual collision (d4Count/d5Count).
+//   - all-gates-open (below): every FACT_REASONS.open string reachable, plus
+//     the remaining SIGNAL_COUNT_REASONS.open string (adrCandidateCount).
+// One gap remains, by construction rather than oversight: claude-md's gate
+// is `{kind:'facts', anyOf:['claudeMdCommandRenamed'], orSignals:[...]}`,
+// and evaluateGate() returns on the first satisfied *fact* before ever
+// consulting orSignals — so SIGNAL_BOOL_REASONS's three strings
+// (dontCandidate/contradictedConvention/incidentRecorded) can only become a
+// row's gateReason when claudeMdCommandRenamed is false, which no "make
+// every gate open" fixture can express alongside a true fact. None of the
+// three strings contains any FORBIDDEN_VOCABULARY token by inspection, but
+// that claim is unverified by a render test today.
 function resultsFromGateReasons(worklist) {
   const results = {};
   for (const row of worklist.rows) {
@@ -164,6 +174,24 @@ test('memory/upstream gateReason with signals open (recorded clean) passes FORBI
   assert.strictEqual(upstreamRow.gate, 'open');
   assert.strictEqual(memoryRow.gateReason, '2 insights routed to memory');
   assert.strictEqual(upstreamRow.gateReason, '3 learnings routed upstream');
+
+  const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
+  assert.doesNotThrow(() => renderTrace(state));
+});
+
+test('every gateReason with all gates open passes FORBIDDEN_VOCABULARY (renderTrace does not throw)', () => {
+  const openFacts = {
+    isRepo: true, changedFiles: ['src/a.js', 'src/b.js'], renamedDeleted: ['old.md', 'moved.md'],
+    skillsLibraryExists: true, multiFileDiff: true, docsTreeNonEmpty: true,
+    journeysExist: true, journeyFiles: ['docs/journeys/j1.md', 'docs/journeys/j2.md'],
+    claudeMdCommandRenamed: true, renamedOrDeleted: true,
+  };
+  const openSignals = {
+    dontCandidate: true, contradictedConvention: true, incidentRecorded: true,
+    adrCandidateCount: 5, d4Count: 2, d5Count: 3,
+  };
+  const wl = buildWorklist({ facts: openFacts, signals: openSignals, ceremonyProfile: 'standard', budgets: {} });
+  assert.ok(wl.rows.every((r) => r.gate === 'open'), 'fixture must open every gate');
 
   const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
   assert.doesNotThrow(() => renderTrace(state));
