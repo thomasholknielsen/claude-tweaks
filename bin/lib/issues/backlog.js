@@ -30,14 +30,14 @@ const riskBandOf = (r) => (r.facets.risk && TIERS.includes(r.facets.risk) ? RANK
 const byCreatedAtAsc = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
 
 // records[] -> { scored: records[], unscored: records[] }. Scored = carries both
-// risk:* and effort:* (the two labels /specify's shaping and the health skills'
+// risk:* and size:* (the two labels /specify's shaping and the health skills'
 // born-ready filing always stamp together). Order within each bucket is preserved
 // from the input array — callers sort afterward per mode.
 function splitScoredUnscored(records) {
   const scored = [];
   const unscored = [];
   for (const r of records) {
-    if (r.facets.risk && r.facets.effort) scored.push(r);
+    if (r.facets.risk && r.facets.size) scored.push(r);
     else unscored.push(r);
   }
   return { scored, unscored };
@@ -64,11 +64,11 @@ function rankRiskValue(records) {
   return { ranked, unscored: unscored.slice().sort(byCreatedAtAsc) };
 }
 
-// records[] -> records[] filtered to effort:low, sorted by priority band then
+// records[] -> records[] filtered to size:low, sorted by priority band then
 // oldest-createdAt-first.
 function filterCleanup(records) {
   return records
-    .filter((r) => r.facets.effort === 'low')
+    .filter((r) => r.facets.size === 'low')
     .sort((a, b) => bandOf(a) - bandOf(b) || byCreatedAtAsc(a, b));
 }
 

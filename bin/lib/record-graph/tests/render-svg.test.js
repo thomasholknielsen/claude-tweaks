@@ -31,7 +31,7 @@ test('renderSvg draws one rect+text group per record, using var()-bound fill/str
   assert.match(output, /stroke="var\(--vz-rg-border-blocked\)"/);
   assert.match(output, /stroke-dasharray="4 3"/);
   assert.match(output, /<tspan[^>]*>#20 Ready record blocked by #10<\/tspan>/);
-  assert.match(output, /<tspan[^>]*>R:low E:medium<\/tspan>/);
+  assert.match(output, /<tspan[^>]*>R:low S:medium<\/tspan>/);
 });
 
 test('renderSvg draws one line per edge between the two node rects', () => {

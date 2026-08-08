@@ -32,8 +32,8 @@ function typeOf(record) {
 }
 
 function scoringBadge(facets) {
-  if (facets.risk == null && facets.effort == null) return null;
-  return `R:${facets.risk || '?'} E:${facets.effort || '?'}`;
+  if (facets.risk == null && facets.size == null) return null;
+  return `R:${facets.risk || '?'} S:${facets.size || '?'}`;
 }
 
 function badgesFor(record) {

@@ -4,7 +4,7 @@
 // from /help's prose-only rules so both consumers compute the identical order).
 // Tie-break order: priority band (high first) -> unblocks-count (most other
 // candidates in the same input array it unblocks, first) -> file-overlap-free
-// (no shared keyFiles with another candidate in the array, first) -> effort band
+// (no shared keyFiles with another candidate in the array, first) -> size band
 // (low first) -> hasPlan (true first). Every input this needs (the unblocks
 // graph, file-overlap groups, hasPlan) must be precomputed by the caller and
 // attached to each candidate — this function does no I/O, mirroring record.js
@@ -15,9 +15,9 @@ const { PRIORITIES, TIERS, parseDependencies } = require('./record');
 const { groupByFileOverlap } = require('./grouping');
 
 const RANK = { high: 0, medium: 1, low: 2 };
-const EFFORT_ORDER = { low: 0, medium: 1, high: 2 };
+const SIZE_ORDER = { low: 0, medium: 1, high: 2 };
 const priorityBandOf = (c) => (c.facets.priority && PRIORITIES.includes(c.facets.priority) ? RANK[c.facets.priority] : 3);
-const effortBandOf = (c) => (c.facets.effort && TIERS.includes(c.facets.effort) ? EFFORT_ORDER[c.facets.effort] : 3);
+const sizeBandOf = (c) => (c.facets.size && TIERS.includes(c.facets.size) ? SIZE_ORDER[c.facets.size] : 3);
 
 // candidates[] -> Map<id, count>. For each candidate, how many OTHER candidates
 // in the SAME input array declare `Blocked by #{candidate.id}` in their body
@@ -54,7 +54,7 @@ function rankNextToBuild(candidates) {
     priorityBandOf(a) - priorityBandOf(b) ||
     unblocksCountOf.get(b.id) - unblocksCountOf.get(a.id) ||
     Number(overlapping.has(a.id)) - Number(overlapping.has(b.id)) ||
-    effortBandOf(a) - effortBandOf(b) ||
+    sizeBandOf(a) - sizeBandOf(b) ||
     Number(b.hasPlan) - Number(a.hasPlan)
   );
 }
