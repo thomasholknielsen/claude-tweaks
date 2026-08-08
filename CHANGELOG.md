@@ -48,7 +48,7 @@ network access **Full** and the marketplace repo clonable from the VM: `~/.claud
 not exist at all. The declaration is a permission; the Setup script is the installer — and the
 only flow that attached it did so for environments it created *for routines*. Interactive
 sessions use whichever environment the composer has selected, which nothing here had ever
-touched `[IL-111]`.
+touched `[IL-113]`.
 
 - `routine/guided-environment-creation.md` gains an **Ensure-setup-script** procedure that opens
   an existing environment from the session composer (chip → Cloud → hover → gear) and attaches
