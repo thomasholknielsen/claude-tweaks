@@ -79,6 +79,18 @@ test('stance never promotes a model upward', () => {
   assert.strictEqual(resolve('capable', { stance: 'max-rigor' }).model, 'opus');
 });
 
+// Beyond the plan's ten: the ten leave the stage-3 -> stage-4 ordering unpinned.
+// A build with stance applied before cliOverride passes all ten, yet lets a
+// cli-requested frontier survive economy stance — the guard's whole purpose.
+test('stance applies after cliOverride, not before', () => {
+  const cliFrontier = resolve('standard', { cliOverride: { model: 'fable' }, stance: 'economy' });
+  assert.strictEqual(cliFrontier.model, 'opus');
+  assert.strictEqual(cliFrontier.source, 'degraded:stance');
+  const cliEffort = resolve('standard', { cliOverride: { effort: 'high' }, stance: 'max-rigor' });
+  assert.strictEqual(cliEffort.effort, 'xhigh');
+  assert.strictEqual(cliEffort.source, 'stance');
+});
+
 test('unknown profile and unknown stance throw with the name in the message', () => {
   assert.throws(() => resolve('turbo', {}), /turbo/);
   assert.throws(() => resolve('standard', { stance: 'frugal' }), /frugal/);
