@@ -334,7 +334,7 @@ In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outri
 
 ## Step 9: Present Consolidated Summary
 
-Render one consolidated summary of this run — State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Evidence — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
+Render one consolidated summary of this run — Verdict, State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Outstanding, Routed, Evidence — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
 
 **Read the template.** Read `summary-template.md` in this skill's directory for the standalone multi-record batch variant, the full render template, the conversation-mode variant, the conditional batch-decision branch with its `AskUserQuestion` shape, the three per-item sections that sit beside that batch but outside it (Queue writes `Q#`, Memory updates `M#`, Upstream feedback `U#` — each approved and executed one row at a time), and both closure lines (record mode and the legacy spec-file alias). Step 9 always runs, so this read is unconditional.
 
