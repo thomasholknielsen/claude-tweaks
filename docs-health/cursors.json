@@ -1,5 +1,8 @@
 {
   "doc:REGISTRY": {
     "lastAuditedMs": 1786221895568
+  },
+  "doc:decisions/0001-deepen-standalone-and-flow-survey": {
+    "lastAuditedMs": 1786224217322
   }
 }
