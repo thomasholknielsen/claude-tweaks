@@ -681,4 +681,24 @@ The common shape: each check's green and its red were indistinguishable, so pass
 
 The generalizable rule: before trusting a check, name what its red output would look like and confirm the check can actually produce it — a count-based grep that a failure also satisfies, a suite that never loaded the file it means to test, and a sweep that silently drops part of its input all report identically whether or not the thing they check is true. A check that cannot fail is not a stricter check; it is no check, wearing one's shape.
 
+## IL-106 — A worktree was created three times from a base older than the last fetch
+
+Across one session on 2026-08-07/08, `EnterWorktree` produced a worktree whose base was behind `origin/main` three separate times. The first two were caught only by `tests/changelog-coverage.test.js`, which failed with "1 version(s) shipped on origin/main with no CHANGELOG entry" — the branch had been cut before that session's *own* previous release, so its `CHANGELOG.md` and `docs/shipped-versions.tsv` were missing an entry the session itself had written an hour earlier.
+
+The third occurrence is the informative one. Having drawn the lesson "fetch before `EnterWorktree`," the session did exactly that: `git fetch origin main` reported `origin/main` at `b7ceaeda` / 6.64.2, and `EnterWorktree` immediately afterward produced a worktree at `0816fe0d` / 6.60.0 — four releases behind the ref that had just been fetched into the same repository. So the base is not "whatever `origin/main` said at creation time," and fetching first does not fix it. The remedy that works is unconditional and after the fact: `git merge origin/main` inside the new worktree before doing anything else, every time.
+
+Why it stayed invisible: nothing about a stale base looks wrong. The worktree has a clean tree, a plausible `main`-derived history, and a passing test suite — the base is only wrong *relative to work that landed since*, which is invisible from inside. On a repo with one active session it would rarely matter; this repo runs six or more concurrently and ships several versions an hour, so "behind by four releases" is a normal amount of drift for a worktree created minutes ago.
+
+The generalizable rule: treat a newly created worktree's base as unknown rather than current, and merge the integration branch into it as the first action — a fetch beforehand is not equivalent, because the worktree's base is not resolved from the ref the fetch updated.
+
+## IL-107 — A finished nine-task implementation was nearly redone from scratch
+
+A session picked up record #185 (worktree reaping), read its plan, created a worktree, wrote the SDD ledger, and began the pre-flight scan before discovering — incidentally, in `git worktree list --porcelain` output gathered for an unrelated safety question — a sibling worktree named `worktree-reaping-impl` holding eleven commits that implemented all nine of the plan's tasks, including a fix its own review had already caught. The owning session (pid 30559) was still alive, 15h22m in. Its branch was unpushed and unmerged, so `origin/main`, the record's labels, and the claim refs all showed the work as untouched.
+
+Every check the project already prescribes came back clean: no branch matched `*114*`-style patterns for the record, `git ls-remote origin "refs/claims/*"` returned nothing, the record carried no `bot:in-progress`, and no commit on any ref mentioned it. The work was invisible to all of them precisely because it was *in progress* — claims are taken by `/dispatch`, and a session working a record by hand takes none.
+
+What made it visible was the worktree list, and specifically the lock line: `EnterWorktree` locks each worktree with a reason carrying the owning pid (`locked claude session <name> (pid NNNNN start ...)`), so a live sibling is detectable by parsing that pid and checking it with `ps`. That is the same mechanism `bin/lib/hooks/worktree-reap.js` uses to decide whether a worktree is orphaned — the signal already existed and was already trusted for a destructive decision; it simply was not being consulted before starting work.
+
+The generalizable rule: before starting work on a record, enumerate worktrees and their lock-owning pids, not just branches, claims, and labels. Unpushed work by a live session is invisible to every remote-facing signal, and the more concurrent sessions a repo runs, the more likely the record you just picked is already someone's half-finished branch.
+
 
