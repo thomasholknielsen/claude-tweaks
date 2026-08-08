@@ -17,9 +17,15 @@ const { probeClaims } = require('./lib/residue/probes/claims');
 const { probeSuite } = require('./lib/residue/probes/suite');
 const { probeRelease } = require('./lib/residue/probes/release');
 const { renderOutstanding } = require('./lib/residue/render');
+const { filterResultsByScope } = require('./lib/residue/scope-filter');
 
 function parseArgs(argv) {
-  const out = { base: null, scope: 'blast-radius', integrationBranch: 'origin/main', json: false, noSuite: false };
+  // 'repo' is the default deliberately: it is what this CLI has always done
+  // (--scope was parsed but never read), so defaulting to it keeps every
+  // existing caller and documented behavior valid. It also means a red-suite
+  // finding (always `scope: 'observed'`) is never hidden by default — the
+  // whole reason this feature exists.
+  const out = { base: null, scope: 'repo', integrationBranch: 'origin/main', json: false, noSuite: false };
   for (let i = 0; i < argv.length; i++) {
     const next = argv[i + 1];
     if (argv[i] === '--base' && next && !next.startsWith('--')) { out.base = next; i += 1; continue; }
@@ -44,7 +50,7 @@ function runner(cwd) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.base) {
-    process.stderr.write('usage: residue.js --base <commit-ish> [--scope blast-radius|repo] [--integration-branch <ref>] [--no-suite] [--json]\n');
+    process.stderr.write('usage: residue.js --base <commit-ish> [--scope repo|blast-radius] [--integration-branch <ref>] [--no-suite] [--json]\n');
     process.exit(2);
   }
   const cwd = process.cwd();
@@ -81,14 +87,14 @@ function main() {
   // executable — so it gets the raw `run`, like probeForge/probeClaims.
   // Passing `git` here yields `git git show …`, and the probe then reports
   // ran:false on every invocation of a perfectly healthy repo.
-  const results = [
+  const results = filterResultsByScope([
     probeWorktrees({ scope }),
     probeBranches({ scope, integrationBranch: opts.integrationBranch, run: git }),
     probeForge({ scope, run }),
     probeClaims({ scope, run }),
     suiteResult,
     probeRelease({ scope, manifest, run }),
-  ];
+  ], opts.scope);
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify({ scope, results }, null, 2)}\n`);
