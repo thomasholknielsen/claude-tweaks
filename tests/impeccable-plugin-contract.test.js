@@ -198,11 +198,10 @@ test('the CLI entrypoint accepts no flags', { skip }, () => {
   // impeccable-plugin.md states the entrypoint never reads process.argv. Prove
   // it behaviourally: flags that would be meaningful to any other CLI must be
   // inert here — neither honoured nor rejected.
-  const bare = spawnSync(process.execPath, [script], { cwd: REPO_ROOT, encoding: 'utf8' });
-  const flagged = spawnSync(process.execPath, [script, '--json', '--target', 'src/', '--nonsense'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-  });
+  const run = (args) => spawnSync(process.execPath, [script, ...args], { cwd: REPO_ROOT, encoding: 'utf8' });
+
+  const bare = run([]);
+  const flagged = run(['--json', '--target', 'src/', '--nonsense']);
 
   assert.strictEqual(bare.status, 0, `bare invocation must exit 0; stderr: ${bare.stderr}`);
   assert.strictEqual(bare.stderr, '', 'nothing may go to stderr on the happy path');
@@ -215,13 +214,40 @@ test('the CLI entrypoint accepts no flags', { skip }, () => {
     ['critique', 'devServer', 'git', 'scan', 'setup'],
     'stdout must carry the same five-key object regardless of arguments'
   );
-  // scan is the only key a --target flag could plausibly have narrowed. It did
-  // not, which is why scan.targets can never substitute for a scoped call.
-  assert.deepStrictEqual(
-    JSON.parse(bare.stdout).scan,
-    parsed.scan,
-    'a --target flag changed scan — the no-injection-point claim in impeccable-plugin.md would be false'
+
+  // The direct form of the claim, and the only one that holds regardless of what
+  // the working tree is doing: had the entrypoint read argv, `--target src/`
+  // would be the scan target.
+  assert.notDeepStrictEqual(
+    parsed.scan.targets,
+    ['src/'],
+    '--target was honoured — the no-injection-point claim in impeccable-plugin.md would be false'
   );
+
+  // The full-object comparison is strictly stronger — it would catch an argv
+  // effect that happened not to look like `['src/']` — but it is only meaningful
+  // when the two runs observed the same repository, and that is not something
+  // this test can assume. `resolveScan` returns
+  // `{ targets: changed.slice(0, 50), via: 'git-changes' }` whenever the tree is
+  // dirty, so any write under REPO_ROOT between the two spawns changes the
+  // answer. This repo's normal working mode is several parallel worktree
+  // sessions, so that happens, and it surfaced as this very assertion's message
+  // — blaming argv handling for concurrent git churn.
+  //
+  // Gating on `via === 'git-changes'` for both runs is NOT sufficient: a dirty
+  // tree gives both runs that same `via` while their target lists differ, which
+  // is precisely the observed failure. Only `via: 'root'` is a basis that cannot
+  // vary between two spawns, so the comparison runs there and is skipped
+  // otherwise. The deterministic `--target` assertion above carries the claim in
+  // either case; this is an additional net, never the only one.
+  const bareScan = JSON.parse(bare.stdout).scan;
+  if (bareScan.via === 'root' && parsed.scan.via === 'root') {
+    assert.deepStrictEqual(
+      bareScan,
+      parsed.scan,
+      'a --target flag changed scan — the no-injection-point claim in impeccable-plugin.md would be false'
+    );
+  }
 });
 
 // ─── Layer 3 is not redundant with scan.targets (PERMANENT) ─────────────────
