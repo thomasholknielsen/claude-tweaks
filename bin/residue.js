@@ -10,6 +10,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { resolveScope } = require('./lib/residue/scope');
+const { hasTestScript } = require('./lib/residue/detect-test-script');
 const { probeWorktrees } = require('./lib/residue/probes/worktrees');
 const { probeBranches } = require('./lib/residue/probes/branches');
 const { probeForge } = require('./lib/residue/probes/forge');
@@ -77,9 +78,16 @@ function main() {
   // but it is NOT a failure to run, and saying so would read as an environment
   // problem the user did not have. probeSuite's own contract has no third
   // outcome, so the honest reason is supplied here, where the choice was made.
+  // Same logic for a missing test script: `npm test` with no `scripts.test`
+  // key exits non-zero for a reason that has nothing to do with this repo's
+  // code, so check the script exists BEFORE ever invoking npm — verified
+  // live: a directory with no package.json used to report a fabricated
+  // "test suite exit 254" finding instead of `unknown`.
   const suiteResult = opts.noSuite
     ? { ran: false, reason: 'skipped via --no-suite', findings: [] }
-    : probeSuite({ scope, run: suiteRun });
+    : hasTestScript(cwd)
+      ? probeSuite({ scope, run: suiteRun })
+      : { ran: false, reason: 'no test command detected', findings: [] };
 
   // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
   // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
