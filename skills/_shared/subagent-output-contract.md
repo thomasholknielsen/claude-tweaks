@@ -13,7 +13,7 @@ This contract is **dispatch correctness** discipline. A dispatched agent is not 
 3. **A result you cannot parse is a result you will paraphrase.** Free-form prose from three agents gets merged by the dispatcher's summary rather than by its content — inventing severities, dropping findings, smoothing over disagreement. Templates A/B/C keep aggregation mechanical.
 4. **A model mismatch surfaces as a wrong answer, not just a bill.** An under-powered agent on judgment work returns confident nonsense shaped exactly like a finding.
 
-The contract addresses all four — **input discipline** (below), **the status protocol**, **output templates** (Templates A/B/C), and **model selection** (per-dispatch tier guidance) — and adds **working-directory discipline**, the same principle applied to the filesystem: an agent whose CWD the dispatcher merely assumed lands real commits on the wrong branch while the dispatcher's own `git status` looks fine.
+The contract addresses all four — **input discipline** (below), **the status protocol**, **output templates** (Templates A/B/C), and **model selection** (per-dispatch profile guidance) — and adds **working-directory discipline**, the same principle applied to the filesystem: an agent whose CWD the dispatcher merely assumed lands real commits on the wrong branch while the dispatcher's own `git status` looks fine.
 
 Following it also costs less to run, and the templates are deliberately compact. Treat that as a welcome side effect, never as the justification: a dispatch that saves tokens while returning an unroutable, unparseable, or context-contaminated result has bought nothing. The one sizing rule here (inherited project context, under Input Discipline) exists to stop a fan-out from being wider than it is worth — not to price the protocol.
 
@@ -205,7 +205,7 @@ In a Form B blockquote:
 
 ```
 > **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns findings in Template A format. Assemble results after all agents complete.
-> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then Template A. Pick the cheapest model tier that fits ({Fast | Standard | Capable}). Inline the template literally; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then Template A. Pick the cheapest work profile that fits ({Fast | Standard | Capable | Frontier}) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
 ```
 
 In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it. Concrete example:
