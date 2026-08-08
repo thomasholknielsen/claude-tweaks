@@ -82,6 +82,12 @@ function resolve(profile, opts = {}) {
     source = 'cli';
   }
 
+  // Both value sources above are external text (a policy.yml row, a caller's
+  // override) and neither is schema-checked upstream. An unrecognised effort
+  // would otherwise pass through shiftEffort's indexOf as -1 and resolve to the
+  // scale's floor — a typo silently downgrading rigor instead of failing.
+  if (effort !== null && !EFFORT_SCALE.includes(effort)) throw new Error(`unknown effort "${effort}"`);
+
   if (stance !== 'default') {
     const shifted = shiftEffort(effort, stance === 'economy' ? -1 : 1);
     if (shifted !== effort) { effort = shifted; source = 'stance'; }

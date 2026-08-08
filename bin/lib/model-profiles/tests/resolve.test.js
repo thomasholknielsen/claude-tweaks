@@ -115,3 +115,16 @@ test('unknown profile and unknown stance throw with the name in the message', ()
   assert.throws(() => resolve('turbo', {}), /turbo/);
   assert.throws(() => resolve('standard', { stance: 'frugal' }), /frugal/);
 });
+
+test('an unknown effort throws from either value source, and never resolves silently', () => {
+  assert.throws(
+    () => resolve('standard', { policy: { 'model-profiles': { standard: { effort: 'hgih' } } } }),
+    /hgih/);
+  assert.throws(() => resolve('standard', { cliOverride: { effort: 'turbo' } }), /turbo/);
+  // Regression for the documented probe: a typo'd effort under max-rigor used to
+  // resolve `low` — shiftEffort's indexOf returned -1 and the clamp floored it,
+  // so a typo asking for MORE rigor delivered the least. It must throw instead.
+  assert.throws(() => resolve('standard', {
+    policy: { 'model-profiles': { standard: { effort: 'hgih' } } }, stance: 'max-rigor',
+  }), /hgih/);
+});

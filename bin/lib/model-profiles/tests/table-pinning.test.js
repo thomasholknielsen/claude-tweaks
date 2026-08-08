@@ -44,10 +44,20 @@ test('the Frontier row states its constraints', () => {
   assert.match(frontier[3], /degrades to Capable/i);
 });
 
+// The prose template the Dispatching paragraph publishes. Pinning it as a
+// literal here is what stops prose and function drifting apart: the first
+// assertion below fails if the contract's wording moves, the second if
+// effortLine's does. Neither passes on its own.
+const EFFORT_TEMPLATE = '[Effort: {level} — apply {level}-level reasoning depth to this task.]';
+
 test('the section cites the resolver CLI and the effortLine template shape', () => {
   const section = modelSelectionSection();
   assert.match(section, /node bin\/resolve-profile\.js/);
   assert.match(section, /\[Use: \{Profile\}\]/);
-  // effortLine's rendered form for high must be derivable from the pinned template
+  assert.ok(section.includes(EFFORT_TEMPLATE),
+    'the Dispatching paragraph must publish effortLine\'s literal template');
+  // Substituting the placeholder must reproduce what the function emits.
+  assert.strictEqual(EFFORT_TEMPLATE.replaceAll('{level}', 'high'), effortLine('high'));
+  // effortLine's rendered form for high, derived independently of the template.
   assert.strictEqual(effortLine('high'), '[Effort: high — apply high-level reasoning depth to this task.]');
 });
