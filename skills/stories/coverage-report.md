@@ -69,3 +69,5 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Add the suggested journey: field to every listed story"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to skip"`
 - Option 3 — `label`: `"Skip all"`, `description`: `"I'll link journeys manually"`
+
+**Hard gate.** Check the response you are about to send: does it already contain the `### Suggested Journey Links` table above as literal rendered markdown, with a row for every suggestion? If not, render it now, in this response, before the tool call — "Apply all" with no table above it leaves the user approving an unnamed set of story-to-journey links.

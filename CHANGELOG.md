@@ -39,6 +39,19 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.70.1 — a cold sandbox's non-install could pass `claude-cloud-setup.sh`'s own verify loop as "ok"
+
+The verify-and-repair loop `claude-cloud-setup.sh` runs after installing plugins (added for `#129`
+to catch a script that reports success without actually landing anything) gated its drift check on
+whether a catalog version could be resolved to compare against. On a sandbox's first-ever cold run,
+the marketplace catalog lookup can fail for the same underlying reason nothing installed — which
+degrades to the same "nothing to compare against" sentinel a marketplace with no declared version
+legitimately produces, and the guard silently treated both as "nothing to repair." Confirmed live:
+the first Routine firing on a freshly-provisioned dedicated environment showed all four
+provisioning steps (including "Ran setup script") completed successfully, yet the plugin was not
+installed. Fixed by making "nothing installed on disk" an unconditional drift signal, independent
+of whether a catalog version was resolvable. See `[IL-115]`.
+
 ## v6.70.0 — the Setup script, not the declaration, is what installs a plugin in the cloud
 
 A project could declare `claude-tweaks` in its `.claude/settings.json`, have `/init` Step 14

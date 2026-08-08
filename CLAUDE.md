@@ -110,9 +110,9 @@ A release touches **both** this repo and the separate marketplace repo (`thomash
 1. A version number is claimed by whatever **ships** first — never reserved for an unexecuted plan. Before bumping, `git fetch origin main` first, then check `git log --oneline -5 origin/main -- .claude-plugin/plugin.json` (not just local history) for a bump landed by another concurrent session, **and** grep unexecuted plans under `docs/superpowers/plans/` for version literals: a plan naming your number gets renumbered, not your shipped work. Also check every sibling worktree branch for a committed-but-unmerged bump (`git worktree list`, then `git log --oneline main..<branch> -- .claude-plugin/plugin.json`) — with parallel worktree sessions as the norm here, that is the likeliest collision, and a bump can land there *after* your own pre-check cleared. **And check local `main` itself** (`git show main:.claude-plugin/plugin.json`): it can sit far ahead of `origin/main` with already-executed bumps that are on no branch, in no plan, and invisible to `git log origin/main` `[IL-98]`. Do this before writing a version into *prose* (CLAUDE.md, code comments, CHANGELOG), not just before editing `plugin.json` — local `git log` alone is blind to any bump that landed upstream after your last fetch/merge, including ones bundled inside an unrelated feature PR. Two sessions bumping to the same next version merges with no textual conflict (the field resolves to the same string either way), so the collision only surfaces semantically, as two features claiming one version number. If one landed after you branched (locally or on `origin/main`), renumber yours to the next free version first. Then bump `version` in `.claude-plugin/plugin.json` here; commit + push `main`.
 2. Add the release's `CHANGELOG.md` entry **in the same commit as the bump**, as `## v{version} — {one-line summary}` directly under the `# Changelog` header (newest first). The exact heading shape is load-bearing, not cosmetic: `bin/lib/changelog.js`'s parser requires a strict `X.Y.Z` and the em-dash title, and `/claude-tweaks:init`'s upgrade notice silently skips any release whose heading it can't read. `tests/changelog-coverage.test.js` fails the suite when the manifest's version has no entry, when a heading is unparseable or duplicated, or when any version that shipped on `origin/main` is undocumented — so a deferred entry is a red suite, not a forgotten step. If a version collision forces a renumber, **check whether the old number reached `main`'s tip before touching its heading.** It did not → renumber the heading, since an entry naming a version that never reached `main` is what the coverage gate calls an orphan. It did → the old number *shipped*: keep its entry and add a second one for the new number, pointing at it rather than duplicating its body (a duplicate heading is its own parse failure). Renumbering a shipped version's heading erases a real release, and the coverage gate then fails on a version the git walk can still see with nothing to match it against — which is exactly what happened to 6.62.0 in `e4a79904`, recovered in 6.64.1.
 3. Append the version to `docs/shipped-versions.tsv` **in the same commit as the bump**, as `{version}\t{YYYY-MM-DD}\trelease`. That file — not a git walk — is the authority for which versions shipped, and step 2's coverage gate reads it. Reconstructing the answer from `git rev-list --first-parent` was tried and removed in v6.45.0: it is unstable, not merely lossy, because a branch that merges `main` into itself and is then pushed as `main` moves everything `main` carried since the fork point onto the merge's second parent, where the walk never looks (#144, `[IL-95]`). If a version collision forces a renumber, apply step 2's shipped-vs-never-shipped split to this line too: renumber it when the old number never reached `main`'s tip, **add a second line** when it did. This file is the authority for what shipped, so deleting a shipped version's line is the more damaging half of that mistake — the changelog gap is merely what surfaces it.
-4. In the marketplace repo, edit `.claude-plugin/marketplace.json`:
+4. In the marketplace repo, `git fetch origin main` and read the current values **from `origin/main`, not the working checkout**, before editing anything. That checkout is a second clone nobody keeps current, and its staleness is silent: `git status` reports clean against the stale tracking ref. A release mirrored from it bumps `metadata.version` to a number already taken and can assert in its own commit message that a prior release never mirrored when it did (`[IL-104]`, hit again in 6.70.0). Then edit `.claude-plugin/marketplace.json`:
    - `plugins[].version` **mirrors this plugin's version** (e.g., `4.17.0`).
-   - `metadata.version` is the **marketplace's own independent scheme** (currently `2.x`) — bump it on catalog changes, not in lockstep with the plugin.
+   - `metadata.version` is the **marketplace's own independent scheme** (currently `2.x`) — bump it on catalog changes, not in lockstep with the plugin. Derive the next value from what `origin/main` currently holds, never from the working copy.
    - Keep `plugins[].description` aligned with `plugin.json`'s description.
    - Commit + push `main`.
 
@@ -140,10 +140,32 @@ All hook registrations route through `bin/hooks.js <event>` — one dispatcher, 
 
 Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption): `_shared/git-discipline.md`, `_shared/subagent-output-contract.md`, `_shared/pipeline-run-dir.md`, `_shared/auto-mode-contract.md`, `build/worktree-setup.md`, `flow/worktree-merge.md`, `dispatch/SKILL.md` (auto-merge gate clears the run's worktree assignment via `close-run` before merging into the main checkout), `wrap-up/cleanup-procedures.md`, `wrap-up/SKILL.md`, `wrap-up/review-console.md`.
 
+## Philosophy
+
+- **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
+- **Assume zero cost.** Decide as if implementation is free. Never choose an inferior design because the better one "isn't worth the effort."
+- **Assume zero time.** Decide as if implementation is instant. Never choose a shortcut because the proper approach "takes too long."
+- **No implicit deferrals.** When something needs doing, either do it now or explicitly file a backlog work record (via `/claude-tweaks:capture`) with scope and context. Never silently skip work or leave TODO comments without a corresponding backlog record.
+
+Established codebase distributed to real users via a versioned plugin marketplace. Contract changes (skill frontmatter shape, hook payloads, work-record schema, `_shared/*.md` conventions consumed by multiple skills) follow the same expand-contract discipline as a public API: add the new, migrate every consumer across the repo, remove the old — never a silent breaking rename. A deprecated behavior gets a recorded removal condition (see the Don'ts rule on this), not an indefinite compatibility shim. Prefer stability over novelty in shipped skill contracts — adopt new conventions in new skills first, then migrate existing ones deliberately, with the incident log recording what each migration cost.
+
+## Working Approach
+
+How to execute any task here. These apply project-wide unless a more specific rule or instruction overrides them; use judgment on trivial tasks.
+
+- **Think before coding.** State assumptions; ask rather than guess when uncertain. Push back when a simpler approach exists. Stop when confused.
+- **Honest, not agreeable.** When the user proposes a direction, pressure-test it before agreeing — name the weakest assumption first, not the strengths. State disagreement plainly: no flattery openers, no hedging, no reflexive reassurance. If you genuinely can't find a flaw, say so rather than manufacturing one.
+- **Simplicity first.** Write the minimum correct code for what was asked — nothing speculative, no abstractions for single-use code. ("Do it properly" above means correct, not more.)
+- **Surgical changes.** Touch only what the task requires. Don't reformat or "improve" adjacent code. Match the surrounding style.
+- **Goal-driven.** Define success criteria up front and loop until they're verified, rather than following steps blindly.
+- **Read before you write.** Before adding code, read the file's exports, immediate callers, and shared utilities — duplicate logic usually already exists nearby.
+- **Checkpoint multi-step work.** After each significant step, state what's done, what's verified, and what's left. Don't build on a state you can't describe back.
+- **Fail loud.** "Done" is wrong if anything was skipped; "tests pass" is wrong if any were skipped. Surface uncertainty and partial results — never hide them.
+
 ## Commands
 
 ```bash
-npm test                            # Full suite — tests/ plus every bin/lib/*/tests/ directory
+npm test                            # Full suite — tests/, every bin/lib/*/tests/ directory, plus tools/upstream-drift/tests/
 npm run test:perf                   # Timing budgets (perf/) — deliberately excluded from npm test, see docs/plugin-structure.md
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
@@ -170,6 +192,10 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
 
+## Design integration
+
+diagram-suggestions: enabled
+
 ## Cloud parity
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config. Two things are required, and the declaration alone is not enough: this project's `.claude/settings.json#enabledPlugins` (paired with `extraKnownMarketplaces`) says what a sandbox may load, and the Setup script below is what actually installs it.
@@ -182,12 +208,23 @@ Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes wi
 ## Work records
 
 work-backend: github-issues
+work-types: labels
+
+## claude-tweaks Pipeline
+
+**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/superpowers:writing-plans`.
+
+**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
+
+**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.
+
+**Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
 ## Don'ts
 
 Rules only — each is a rule plus one clause of why. Where a rule carries an `[IL-nn]` tag, the full post-mortem behind it (which build it bit, how it was caught, what it cost) is in `docs/incident-log.md`.
 
-**Adding one:** write the incident-log entry first, then compress to the rule — writing the rule first pads it, and this file is paid for per dispatched agent, not per session. Allocate the next free `IL-nn`; never renumber, gaps are fine. **Removing one:** `/claude-tweaks:harness-health`'s rule-expiry check proposes it, and only on positive evidence the hazard can no longer occur — a rule nobody has violated lately is usually one that is working. The incident-log entry stays even when its rule goes.
+**Adding one:** write the incident-log entry first, then compress to the rule — writing the rule first pads it, and this file is paid for per dispatched agent, not per session. Allocate the next free `IL-nn`; gaps are fine. Never renumber a number that reached `main` — but `IL-nn` is a monotonic counter in a repo with concurrent sessions, so re-check it against `origin/main` immediately before pushing, exactly as the Releasing section's version pre-check does: if another session's entry landed on your number first, renumber **yours** to the next free one, move it below theirs, and sweep your own citations only (6.70.0 hit this). **Removing one:** `/claude-tweaks:harness-health`'s rule-expiry check proposes it, and only on positive evidence the hazard can no longer occur — a rule nobody has violated lately is usually one that is working. The incident-log entry stays even when its rule goes.
 
 - Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `## Next Actions` blocks with pre-filled commands
 - Don't add per-item decision prompts for lists — use batch tables with "apply all / override"
@@ -325,3 +362,6 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't batch many records into one `/flow` run where concurrent sessions ship — a record's stated facts expire while it waits its turn. Eleven releases in one run destroyed one record and falsified two others' anchors. Re-verify each record's premise immediately before its own build `[IL-109]`
 - Don't state a total for a domain your lookup can't enumerate, and never let a neighbouring set's cardinality supply it — a borrowed count is plausible and unrefutable, so it survives every re-read; the four health-sweep *skills* stood in for a paginated routine list twice `[IL-110]`
 - Don't ship the config that *grants* a capability as the fix without finding what exercises it, and don't assume that exerciser covers every consumer class — `enabledPlugins` is a permission, the Setup script is the installer, and it was only ever attached to routine environments, so a fully-declared repo got nothing in an interactive session `[IL-113]`
+- Don't hand-roll a fix in a domain this plugin already automates — grep `skills/` for the capability before building it. `/init` Step 14 and `guided-environment-creation.md` had shipped the cloud-parity mechanism for months; a whole session rediscovered it, and this repo had never run that step on itself `[IL-113]`
+- Don't trust a "render this, then call the tool" instruction to bind itself at runtime — nothing stops the tool firing from a response that never rendered the content, and an approval never implies a differently-scoped write is also authorized. State an explicit pre-call check for the first; a dedicated per-decision approval for the second. Same shape as `[IL-102]` one layer up, at the interaction boundary instead of the serialization one `[IL-114]`
+- Don't gate a repair loop's drift check on "a comparison value could be resolved" — a resolution *failure* and a legitimate *absence* can both degrade to the same sentinel, and `claude-cloud-setup.sh`'s verify loop let a cold sandbox's total non-install pass as "ok" because the catalog lookup that would have flagged it failed for the same underlying reason nothing installed. Gate on the unambiguous signal (`installed === "none"`) directly, never only on whether something else could be compared against it `[IL-115]`

@@ -84,6 +84,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Apply all recommended"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change and to what"`
 
+**Hard gate.** Check the response you are about to send: does it already contain the overlap analysis table above as literal rendered markdown, with a row for every overlap? If not, render it now, in this response, before the tool call — "Apply all recommended" with no table above it leaves the user approving an unnamed set of spec-overlap resolutions.
+
 The recommendation column pre-fills based on coverage type: `Already exists` → Skip; `Partial overlap` → Companion. The user can pick "Apply all recommended" to accept all in one decision, or "Override specific items" and follow up with which #s to change in ordinary free-text conversation. Policy-driven equivalent in auto mode (above).
 
 For **Gap** items, proceed directly to Step 2 (decompose into work units).

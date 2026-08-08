@@ -105,6 +105,14 @@ calling procedure's own concern, not this one's — `skills/wrap-up/residue-swee
 instance, records the landed `sha` as that finding's `fixed` resolution and leaves publishing
 to whatever push step the surrounding workflow already runs.
 
+**That push is itself a covered write.** `git push origin {integration-branch}` targets a
+`commit`/`push` action, so it is denied the same way from the main checkout — regardless of
+which of the two forms above landed the merge. Run it from inside a worktree instead (this
+one, if it is still live, or a fresh throwaway one otherwise); which branch that worktree has
+checked out doesn't matter, since `{integration-branch}` is a shared ref in the common `.git`
+and `git push origin {integration-branch}` pushes it from any worktree regardless of what that
+worktree's own `HEAD` points at.
+
 If neither form succeeds — `{integration-branch}` is checked out somewhere unreachable, or the
 merge itself conflicts — stop and surface it rather than forcing a resolution. This procedure
 solves the write-legality problem; a genuine merge conflict here is the same judgment call any

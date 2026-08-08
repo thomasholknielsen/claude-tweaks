@@ -1,0 +1,20 @@
+# Doc Registry
+
+> Maps documentation to the code areas it covers. Created by /init, maintained by /build and /wrap-up.
+> When code matching an Auto-detect pattern changes, the corresponding doc should be reviewed and updated.
+
+## Tier: 3
+
+| Doc | Covers | Auto-detect |
+|-----|--------|-------------|
+| README.md | Project overview, install, skill index | `.claude-plugin/plugin.json`, `skills/**/SKILL.md` |
+| CLAUDE.md | How to work in this codebase — stack, structure, conventions, philosophy, releasing, Don'ts | `.claude-plugin/plugin.json`, `package.json`, `skills/_shared/*.md` |
+| docs/getting-started.md | Full skill reference — every `/claude-tweaks:*` command with its behavior | `skills/**/SKILL.md` |
+| docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `skills/**`, `bin/**` |
+| docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `skills/**/SKILL.md` |
+| docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts` |
+| docs/shipped-versions.tsv | Authoritative record of every shipped version + date | `.claude-plugin/plugin.json`, `CHANGELOG.md` |
+| docs/github-issues-integration-review.md | GitHub-issues work-record backend design review | `bin/lib/issues/**` |
+| docs/decisions/*.md | Architecture Decision Records — hard-to-reverse, surprising trade-offs | *(no auto-detect — written deliberately by /wrap-up's ADR gate)* |
+| docs/diagrams/*.html | Generated visual diagrams | *(no auto-detect — generated on demand by `/claude-tweaks:visualize`)* |
+| docs/journeys/*.md | User/developer journeys backing agent e2e testing | *(no auto-detect — see per-journey `files:` frontmatter instead)* |

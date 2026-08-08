@@ -76,10 +76,15 @@ for spec in $PLUGIN_SPECS; do
     const catalog = mkt && read(mkt.installLocation + "/.claude-plugin/marketplace.json");
     const declared = catalog && (catalog.plugins || []).find((p) => p.name === pluginName);
     // Not every marketplace declares a per-plugin version (claude-plugins-official does not).
-    // An absent declaration is nothing to compare against, not evidence of drift.
+    // An absent declaration is nothing to compare against, not evidence of drift — but that
+    // guard must not also swallow a total non-install. On a cold sandbox, the marketplace
+    // list/read above can fail for the same underlying reason nothing got installed (first-run
+    // race, marketplace not yet resolvable), which degrades `expected` to "unversioned" too —
+    // indistinguishable, by this variable alone, from a marketplace that legitimately has no
+    // version field. `installed === "none"` is unambiguous either way and must win.
     const expected = (declared && declared.version) || "unversioned";
 
-    const drift = expected !== "unversioned" && installed !== expected;
+    const drift = installed === "none" || (expected !== "unversioned" && installed !== expected);
     console.log([installed, expected, drift ? "DRIFT" : "ok", (entry && entry.installPath) || "-"].join("\t"));
   ' "$spec" || true)
   # `|| true` inside the substitution, because this loop is diagnostic-and-repair, not a

@@ -4,6 +4,15 @@
 - **Date:** 2026-07-31
 - **Context:** Cloud Routine Environment Freshness & Per-Project Dedication (`docs/superpowers/specs/2026-07-31-cloud-routine-environment-freshness-design.md`), Task 3 fix round 1
 
+> **Scope note (6.70.0).** A fourth procedure, `Ensure-setup-script`, now exists in
+> `guided-environment-creation.md`. It is **not** the fourth procedure rejected under
+> "Alternatives considered" below: that one would have *created an environment* with no routine to
+> attach, and remains rejected for the reason given. `Ensure-setup-script` creates nothing — it
+> opens an environment that already exists and edits its Setup script field, and it targets the
+> environment *interactive sessions* use rather than any routine's. Neither the decision nor its
+> revisit trigger is affected. Left unedited below on purpose, per `[ADR-0013]`'s superseded-rather-
+> than-edited convention.
+
 ## Context
 
 No API can create, list, or configure a Claude Code cloud "environment" — it's a human-browser,
