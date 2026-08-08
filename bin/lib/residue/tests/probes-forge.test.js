@@ -8,7 +8,7 @@ function stubRunner(responses) {
 }
 
 const SCOPE = { ran: true, reason: null, base: 'a1b2c3d', headBranch: 'worktree-feat', branches: [], worktrees: [] };
-const PR_LIST = 'gh pr list --state open --json number,title,headRefName';
+const PR_LIST = 'gh pr list --state open --json number,title,headRefName --limit 100';
 const PRS = JSON.stringify([
   { number: 182, title: 'Read Key Files', headRefName: 'worktree-fix-154' },
   { number: 198, title: 'Reaping', headRefName: 'worktree-feat' },
@@ -24,6 +24,17 @@ test('an open PR for another lane is reported but not auto-remediable', () => {
   const other = findings.find((f) => f.subject === 'PR #182');
   assert.strictEqual(other.remedy, 'record', 'residue must not act on another lane PR');
   assert.strictEqual(other.scope, 'observed');
+});
+
+test('the PR list call caps at 100, matching this repo\'s other gh pr list call sites', () => {
+  // gh's implicit default is 30 and truncates silently (`_shared/github-pr-scan.md`).
+  let capturedArgv = null;
+  const run = (argv) => {
+    capturedArgv = argv;
+    return PRS;
+  };
+  probeForge({ scope: SCOPE, run });
+  assert.deepStrictEqual(capturedArgv, ['gh', 'pr', 'list', '--state', 'open', '--json', 'number,title,headRefName', '--limit', '100']);
 });
 
 test('a missing gh does not run, rather than reporting a clean forge', () => {

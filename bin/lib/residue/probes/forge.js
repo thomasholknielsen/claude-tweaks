@@ -6,7 +6,10 @@ function probeForge({ scope, run } = {}) {
   if (!scope || !scope.ran) {
     return { ran: false, reason: (scope && scope.reason) || 'scope unresolved', findings: [] };
   }
-  const argv = ['gh', 'pr', 'list', '--state', 'open', '--json', 'number,title,headRefName'];
+  // `gh`'s implicit default is 30 and truncates silently — `_shared/github-pr-scan.md`'s
+  // documented convention, matched here with the same `--limit 100` this repo's other
+  // `gh pr list --state open` call sites use.
+  const argv = ['gh', 'pr', 'list', '--state', 'open', '--json', 'number,title,headRefName', '--limit', '100'];
   const out = run(argv);
   if (out === null) return { ran: false, reason: 'gh unavailable or not authenticated', findings: [] };
 
