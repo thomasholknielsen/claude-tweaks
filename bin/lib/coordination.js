@@ -35,12 +35,6 @@ const RED_TEAM_PERSONAS = [
   },
 ];
 
-const MOA_AGGREGATOR_INSTRUCTION =
-  'Read N candidate responses below. Identify what each captures that the others miss. ' +
-  'Produce a single output that incorporates the strongest elements of each. ' +
-  'Do not list which proposer contributed which idea. ' +
-  'Do not produce an analysis of the proposers.';
-
 function severityBucket(severity) {
   // Case-insensitive: a dispatched agent's transcription may capitalize the
   // severity value (normalizeFinding's own header-key handling below already
@@ -244,26 +238,6 @@ function buildRedTeamDispatch(specContent, tier = 'Standard') {
   };
 }
 
-function buildMoADispatch(taskScope, proposerCount, proposerTier = 'Standard', aggregatorTier = 'Capable') {
-  const proposerPrompt = `${taskScope}\n\n[Use: ${proposerTier} model — MoA proposer.]`;
-  const proposers = Array.from({ length: proposerCount }, (_, i) => ({
-    role: `proposer-${i + 1}`,
-    prompt: proposerPrompt,
-  }));
-  return {
-    layer1: { tier: proposerTier, agentCount: proposerCount, agents: proposers, parallel: true },
-    layer2: {
-      tier: aggregatorTier,
-      agentCount: 1,
-      parallel: false,
-      buildAggregatorPrompt(proposerOutputs) {
-        const numbered = proposerOutputs.map((o, i) => `### Candidate ${i + 1}\n${o}`).join('\n\n');
-        return `${MOA_AGGREGATOR_INSTRUCTION}\n\n${numbered}\n\n[Use: ${aggregatorTier} model — MoA aggregator.]`;
-      },
-    },
-  };
-}
-
 module.exports = {
   // Constants
   LINE_TOLERANCE_REPRODUCTION,
@@ -271,7 +245,6 @@ module.exports = {
   REPRODUCTION_AGENT_COUNT,
   DEBATE_AGENT_COUNT,
   RED_TEAM_PERSONAS,
-  MOA_AGGREGATOR_INSTRUCTION,
   // Comparison / aggregation logic
   severityBucket,
   parsePathLine,
@@ -286,5 +259,4 @@ module.exports = {
   buildReproductionDispatch,
   buildDebateDispatch,
   buildRedTeamDispatch,
-  buildMoADispatch,
 };

@@ -48,7 +48,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
 | **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
-| **Acceptance** | `demo:pending` \| `demo:approved` \| `demo:changes-requested` — or no label | Labels — `demo:pending` set by `/claude-tweaks:wrap-up`, resolved to `demo:approved`/`demo:changes-requested` by `/claude-tweaks:demo`; independent of Stage and of the issue's own open/closed state |
+| **Acceptance** | `demo:pending` \| `demo:approved` \| `demo:changes-requested` — or no label | Labels — `demo:pending` is written by every skill the permission matrix below grants it to (more than one, and the matrix is the list; do not restate a single writer here), resolved to `demo:approved`/`demo:changes-requested` by `/claude-tweaks:demo` alone; independent of Stage and of the issue's own open/closed state |
 
 **Origin axis, the two no-label cases:** a human filing directly on GitHub carries no `by:*`
 label (absence = human-filed). Records created as side effects of other skills (e.g.
@@ -76,6 +76,8 @@ are about to apply.
 | Acceptance (3) | `demo:pending`, `demo:approved`, `demo:changes-requested` | Acceptance |
 | Closure (1) | `wontfix` | re-filing suppression |
 | Upstream (1) | `upstream-candidate` | marks a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate |
+| Structure (1) | `family:parent` | marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `family-gate` sweep (`_shared/github-pr-scan.md`); never carried by a leaf |
+| Framing (1) | `framing:baked` | Marks a record whose stated problem names a solution that was never traded off; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
 
 Labels are reserved for these axes. Type is NOT a label family when the host supports native
@@ -99,11 +101,11 @@ hold as written whatever the ceiling says.
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
 | **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`effort:*` | nothing | `auto:*`, `bot:*`, `parked` |
 | **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`); `ready` **only** under `autonomy: trusted`+ when `producer:capture`'s trust verdict is `clean` (see `_shared/autonomy-ceiling.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`; `ready` whenever either half of that condition fails — at `supervised` (the default), or on any verdict but `clean` |
-| **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, `ceremony:*` (always — no unscored state), Type | `parked` (promotion) | `auto:*`, `bot:*` |
+| **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, `ceremony:*` (always — no unscored state), `framing:baked` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `family:parent` (decomposition parents only, never leaves) | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`effort:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
-| **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready` |
-| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*` |
+| **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling), `demo:pending` (group auto-merge gate, `dispatch/settle-and-merge.md` — reuses `/wrap-up`'s own `verification-brief.md` procedure, including its family-gate routing, so on a parent-linked leaf the label lands on the parent instead) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready`, `demo:approved`, `demo:changes-requested` |
+| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open family gate action, either driver — the local twin writes the parent's `acceptance: pending` facet; both reuse `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |
 | **Executors** (`/flow`, `/build`) | nothing | nothing | `auto:*`, `ready` |
 | **`/wrap-up`** | `demo:pending` | `bot:in-progress` (claim release) | `auto:*`, `ready`, `demo:approved`, `demo:changes-requested` |
 | **`/demo`** | `demo:approved`, `demo:changes-requested` | `demo:pending` (on resolution) | `auto:*`, `ready`, `bot:*`, adding `demo:pending` itself |
@@ -148,7 +150,22 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   driver, which has no comment mechanism — a `## Verification Brief` body section) with what
   changed, why, and how to verify it. This happens **regardless of merge timing** — an
   `auto:merge`'d record still gets `demo:pending` on its now-closed issue, enabling retrospective
-  sign-off.
+  sign-off. Two headless paths perform the identical write without passing through wrap-up's
+  Step 10: wrap-up's own auto-merge short-circuit (`wrap-up/review-console.md`) and
+  `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`), both by
+  invoking the same `wrap-up/verification-brief.md` procedure. For a decomposition family, that
+  procedure applies one gate on the **parent**, once every leaf is closed — never on individual
+  leaves, and identically on all three of those paths, since the routing lives in the procedure
+  rather than in any caller.
+- `/claude-tweaks:tidy`'s `Open family gate` action is the backstop for the same write, on both
+  drivers: when a family's last leaf closes without ever reaching `/claude-tweaks:wrap-up`
+  (`auto:merge`, a hand-close, a dispatch run that ended early), `/tidy` finds the un-gated
+  parent and, once approved, applies the same disposition — reusing the identical Family-Gate
+  Procedure rather than a second copy of it. Only the sweep that surfaces it differs by driver:
+  `_shared/github-pr-scan.md`'s `family-gate` scope under `github-issues`, and
+  `tidy/scan-procedures.md` Step 1's Shape 7 under `local-files` — the first queries the
+  `family:parent` label, which no local record carries, and its file is skipped entirely whenever
+  `gh` is absent, so the local sweep cannot live there.
 - `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
   record's brief per invocation (open or closed) and resolves the label to `demo:approved` or
   `demo:changes-requested` — `/claude-tweaks:help` (Stage 4.7) is the sole discovery surface for
@@ -230,10 +247,8 @@ A decomposition of `>= promise-register-min-leaves` leaves (Config keys, below) 
 maintained by `/claude-tweaks:review`'s Step 1.6 on every parent-linked leaf's own review — not
 gated on the leaves being built together in one multi-spec `/flow` batch, since the dominant
 workflow dispatches leaves independently, possibly weeks apart. This formalizes the ad hoc
-"promise register" pattern from the spec 13-23 build (see
-`docs/superpowers/specs/2026-07-15-cross-spec-promise-tracking-design.md`), which caught 3 real
-cross-spec breaks but previously lived in a gitignored pipeline directory and died with the run
-that created it.
+"promise register" pattern from the spec 13-23 build, which caught 3 real cross-spec breaks but
+previously lived in a gitignored pipeline directory and died with the run that created it.
 
 **The register** lives on the parent as two GitHub primitives, not a new file: a
 `## Cross-Spec Promises` table in the body (current-state truth, edited in place) and issue
@@ -300,7 +315,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
-| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the acceptance backstops — surfaces closed records with no disposition (`acceptance-gap`) and opens the gate on complete-but-un-gated decomposition families (the `family-gate` sweep — a `github-pr-scan.md` scope under `github-issues`, a Step 1 shape under `local-files` — plus the `Open family gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief) |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 | `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |

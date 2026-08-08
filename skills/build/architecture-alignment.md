@@ -47,7 +47,7 @@ Apply the `Architecture alignment (/build Common Step 4.5)` row from the silence
 
 - Design mode with no formal spec (no stated architecture to compare against)
 - The plan was trivial (< 3 tasks, single-file changes)
-- `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a deliberate bet on `ceremony-check`'s upfront judgment, not an oversight; the safety net for "this was gnarlier than it looked" is `/claude-tweaks:review` and `/claude-tweaks:reflect`'s safety-regression check, both unaffected by `ceremony-profile` and both evaluated against the real, finished diff (see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`'s Escape Hatch section). Standalone `/build` (no `config.yml`) always falls back to the first two conditions alone.
+- `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a deliberate bet on `ceremony-check`'s upfront judgment, not an oversight; the safety net for "this was gnarlier than it looked" is `/claude-tweaks:review` and `/claude-tweaks:reflect`'s safety-regression check, both unaffected by `ceremony-profile` and both evaluated against the real, finished diff (the escape hatch itself is `wrap-up/SKILL.md` Step 3.5, which downgrades `ceremony-profile` to `standard` for the rest of the run when either fires). Standalone `/build` (no `config.yml`) always falls back to the first two conditions alone.
 
 ## Skill Observation
 

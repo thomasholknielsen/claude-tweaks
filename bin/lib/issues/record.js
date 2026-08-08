@@ -21,6 +21,7 @@ const LABELS = {
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
+  FRAMING_BAKED: 'framing:baked',
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
@@ -43,6 +44,10 @@ const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-finge
 
 // Line-anchored 'Blocked by #N' dependency declarations (multiline).
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
+
+// Parent task-list entries (work-links: body-text), written by /specify as
+// '- [ ] #{leafNum}' and checked off over time — both box states count.
+const FAMILY_LEAF_RE = /^- \[[ xX]\] #(\d+)\b/gm;
 
 // Line-anchored 'Blocked by #N: {text}' assumption declarations (multiline) —
 // a separate, additive sibling to DEP_RE/parseDependencies below, never a
@@ -93,10 +98,10 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, effort?, ceremony?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, effort?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
-function recordPayload({ title, body, type, origin, risk, effort, ceremony, ready, parked, priority, fingerprint } = {}) {
+function recordPayload({ title, body, type, origin, risk, effort, ceremony, framing, ready, parked, priority, fingerprint } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -109,7 +114,7 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, read
     throw new Error('a record cannot be both ready and parked');
   }
 
-  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, ready, parked, priority:*.
+  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, framing:baked, ready, parked, priority:*.
   const labels = [];
 
   if (origin !== undefined) {
@@ -128,6 +133,7 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, read
     oneOf('ceremony', ceremony, CEREMONY_TIERS);
     labels.push(`ceremony:${ceremony}`);
   }
+  if (framing) labels.push(LABELS.FRAMING_BAKED);
   if (ready) labels.push(LABELS.READY);
   if (parked) labels.push(LABELS.PARKED);
   if (priority !== undefined) {
@@ -212,6 +218,10 @@ function parseRecordFacets(labels) {
       facets.acceptance = 'changes-requested';
       continue;
     }
+    if (name === LABELS.FRAMING_BAKED) {
+      facets.framing = true;
+      continue;
+    }
 
     const by = BY_RE.exec(name);
     if (by && ORIGINS.includes(by[1])) {
@@ -252,6 +262,24 @@ function parseDependencies(body) {
   const seen = new Set();
   const result = [];
   for (const match of body.matchAll(DEP_RE)) {
+    const n = Number(match[1]);
+    if (!seen.has(n)) {
+      seen.add(n);
+      result.push(n);
+    }
+  }
+  return result;
+}
+
+// parent body -> deduped array of leaf issue numbers from its task list, in order
+// of first appearance. Mid-line occurrences don't count, exactly as with DEP_RE.
+// Under work-links: native the parent body carries no task list at all — that
+// caller reads sub_issues from the API and never calls this.
+function parseFamilyLeaves(body) {
+  if (typeof body !== 'string' || !body) return [];
+  const seen = new Set();
+  const result = [];
+  for (const match of body.matchAll(FAMILY_LEAF_RE)) {
     const n = Number(match[1]);
     if (!seen.has(n)) {
       seen.add(n);
@@ -339,5 +367,5 @@ module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
-  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock,
+  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseFamilyLeaves,
 };

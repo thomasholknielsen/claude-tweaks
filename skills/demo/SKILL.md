@@ -100,9 +100,24 @@ gh issue view {n} --json number,title,body,labels,url,state
 ```
 
 If the result carries the `demo:pending` label, fetch its Verification Brief: the last issue
-comment containing `## Verification Brief` (`gh issue view {n} --json comments -q
-'.comments[-1].body'` if only one build/demo cycle occurred; otherwise search all comments for
-the last one containing that heading). Go straight to Step 2 with it.
+comment **containing** `## Verification Brief`. Fetch every comment (`gh issue view {n} --json
+comments`) and take the last one carrying that heading — test the heading, never assume the
+position. A `.comments[-1]` shortcut holds only when the brief happens to be the most recent
+comment, which nothing about the record predicts: any later reply or bot notification displaces
+it, and a decomposition parent whose gate was completed by the Family-Gate Procedure's
+already-posted-brief branch (`wrap-up/verification-brief.md`'s **Apply the gate**) received its
+label with no comment posted at all, leaving its brief arbitrarily far from last. Go straight to
+Step 2 with it.
+
+This `#N` may itself be a decomposition parent gated by the Family-Gate Procedure
+(`wrap-up/verification-brief.md`) rather than a single build, in which case its Verification
+Brief covers the whole family's primary path rather than one diff, but resolves and renders
+through this same branch exactly like any other label-backed entry. Two things can have applied
+that gate: `/wrap-up`'s own eager path (closing the family's last leaf), or `/claude-tweaks:tidy`'s
+`Open family gate` action backstopping a family that missed it (surfaced by
+`_shared/github-pr-scan.md`'s `family-gate` scope under `work-backend: github-issues`, or by
+`tidy/scan-procedures.md` Step 1's Shape 7 under `local-files`) — all of them write the identical
+`demo:pending` + brief, so this branch never needs to know or care which one ran.
 
 If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
 and closed by a `Fixes #N` commit, never reaching `/wrap-up`'s Step 10), recover that **closing
@@ -345,9 +360,9 @@ record left mid-decision and unmentioned.
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
 the first swap this run.
 
-- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant.
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `family:parent` in its labels (`work-backend: github-issues`) or `facets.familyParent === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the family was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
 - **Request changes** — prompt for a short reason inline, then:
-  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`.
+  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`. For a decomposition parent — `family:parent` in its labels (`work-backend: github-issues`) or `facets.familyParent === true` (`work-backend: local-files`), the same two-driver test the Approve branch above uses — nothing further follows this: the parent stays open, since a changes-requested verdict means the family's work is not done.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
      spec-shaped), Type `bug` by default (override to `feature`/`task` when the reason clearly
      describes new scope, not a defect), no `by:*` label — instead a body line

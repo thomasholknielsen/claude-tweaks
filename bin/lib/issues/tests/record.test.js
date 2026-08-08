@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
-  buildNativeDependencyQuery, hasOpenNativeBlocker,
+  buildNativeDependencyQuery, hasOpenNativeBlocker, parseFamilyLeaves,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -116,6 +116,24 @@ test('recordPayload emits labels in order: by:*, risk:*, effort:*, ceremony:*, r
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
+test('recordPayload emits framing:baked when framing is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true });
+  assert.ok(result.labels.includes('framing:baked'));
+});
+
+test('recordPayload emits no framing:baked label when framing is omitted', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', effort: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('framing:baked'));
+});
+
+test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+  const result = recordPayload({
+    title: 't', body: 'b', type: 'task', origin: 'capture',
+    risk: 'low', effort: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+  });
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'effort:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+});
+
 // AC 2 — dual-marker extraction
 
 test('extractFingerprint reads the legacy code-health-fingerprint marker', () => {
@@ -169,7 +187,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, effort: null, ceremony: null, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -195,7 +213,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, effort: null, ceremony: null, priority: null, stage: 'backlog',
+    origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null,
   });
@@ -267,6 +285,17 @@ test('parseRecordFacets: ceremony:standard sets facets.ceremony', () => {
 
 test('parseRecordFacets: ceremony defaults to null when the label is absent', () => {
   assert.strictEqual(parseRecordFacets([]).ceremony, null);
+});
+
+// AC — framing axis (challenge framing-check, presence-only label)
+
+test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+});
+
+test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).framing, false);
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
 });
 
 // AC 5 — dependencies
@@ -417,4 +446,21 @@ test('specShapedBody throws on a missing or empty section', () => {
   assert.throws(() => specShapedBody({ header: 'h', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
   assert.throws(() => specShapedBody({ header: 'h', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
   assert.throws(() => specShapedBody({ header: 'h', currentState: [], deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
+});
+
+test('parseFamilyLeaves reads a parent task list', () => {
+  const body = 'Design summary\n\n- [ ] #46\n- [x] #47\n- [ ] #48\n';
+  assert.deepEqual(parseFamilyLeaves(body), [46, 47, 48]);
+});
+
+test('parseFamilyLeaves ignores mid-line mentions and dedupes', () => {
+  // Mirrors parseDependencies: only a line-anchored entry declares a leaf.
+  const body = 'see - [ ] #99 inline\n- [ ] #46\n- [ ] #46\n';
+  assert.deepEqual(parseFamilyLeaves(body), [46]);
+});
+
+test('parseFamilyLeaves returns empty for absent or non-string bodies', () => {
+  assert.deepEqual(parseFamilyLeaves(''), []);
+  assert.deepEqual(parseFamilyLeaves(undefined), []);
+  assert.deepEqual(parseFamilyLeaves('no task list here'), []);
 });

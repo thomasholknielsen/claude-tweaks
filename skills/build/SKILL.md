@@ -11,9 +11,9 @@ argument-hint: "[#<n>|<design-doc-path>|<topic>] [subagent|batched] [auto] [work
 Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it, and capture the journeys it enables. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                       ↑                                          ^^^^ YOU ARE HERE ^^^^   ↑
-                                                                                       └── or skip directly ──────────────────────────────────────────────┘
+/claude-tweaks:init → /claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                            ↑                                          ^^^^ YOU ARE HERE ^^^^   ↑
+                                                            └── or skip directly ──────────────────────────────────────────────┘
 ```
 
 ## When to Use
@@ -67,7 +67,7 @@ Materialize the record into a spec-shaped build file via `skills/flow/materializ
 
 ### Spec Step 2: Check for Existing Plan
 
-Search `docs/superpowers/plans/` for a plan matching this spec (by number, topic, or date) — this is where `/superpowers:writing-plans` actually writes execution plans (see Spec Step 3 below); `docs/plans/` holds claude-tweaks pipeline state (briefs, ledger, audit caches), not plans.
+Search `docs/superpowers/plans/` for a plan matching this spec (by number, topic, or date) — this is where `/superpowers:writing-plans` actually writes execution plans (see Spec Step 3 below); `docs/plans/` holds claude-tweaks pipeline state (ledger, audit caches), not plans.
 
 #### If a plan exists:
 
@@ -120,7 +120,6 @@ Proceed to **Common Step 2**.
 ### Design Step 1: Read the Design Doc
 
 - Read the full design doc
-- If a brainstorming brief exists (`docs/plans/*-brief.md` for the same topic), read it too — it contains debiased constraints and assumptions from `/claude-tweaks:challenge`
 - Scan the codebase for existing files, schemas, APIs, and patterns relevant to the design
 
 ### Design Step 2: Check for Existing Plan
@@ -136,7 +135,6 @@ Invoke the `/superpowers:writing-plans` skill. After it saves the plan file, **s
 
 Context to provide to `/superpowers:writing-plans`:
 - The full design doc content
-- The brainstorming brief (if it exists) — especially constraints and assumptions
 - Relevant codebase context (existing files, patterns, schemas)
 
 <IMPORTANT>

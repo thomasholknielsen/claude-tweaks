@@ -11,10 +11,10 @@ argument-hint: "[--scope=<name>[,<name>...]] [--dry-run]"
 Periodic backlog hygiene to keep the spec system healthy. Run when the backlog feels cluttered, before a brainstorming session, or on a regular cadence.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                          ↑
-                                               [ /claude-tweaks:tidy ] (maintenance loop)
-                                            ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                               ↑
+                    [ /claude-tweaks:tidy ] (maintenance loop)
+                 ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
@@ -51,6 +51,7 @@ Rules:
 
 - **Unknown scope name** — stop before dispatching anything and report the invalid name(s) alongside this table. Do not partially run a request that mixes one valid and one invalid name.
 - **`backlog` and `specs` both draw from Step 1's single record-scan query** (the former Steps 1 and 2 merged into one record scan — see "Scan steps" below) — `specs` additionally pulls in Step 5's sizing review over `ready` records, mirroring the pre-merge `specs` scope's Step 2+5 grouping. No other scope pulls in another — Step 5.5 (`patterns`) is self-contained (git-log only) and no longer depends on Step 1's output, so it doesn't imply `specs`.
+- **`[family-gate]` findings sit in a different scope on each driver** — Step 4.8 (`github`) under `work-backend: github-issues`, Step 1 (`backlog`, and `specs` through it) under `work-backend: local-files`, since the local sweep reads the record store rather than the GitHub API. `--scope=github` surfaces no family gates on the local driver, and `--scope=backlog` surfaces none on the GitHub one; an unscoped run covers both regardless.
 - **Scoped runs use the identical Step 6 report/approval, Step 7 execution, and Step 7.5 verification** as a full sweep — only the set of findings feeding them is narrower. The Step 7 commit message names the scope explicitly (see Step 7.5 below); an unscoped full run's commit message is unchanged.
 
 ## Steps 1-4.9 and 5.5: Scan Everything
@@ -59,7 +60,7 @@ Rules:
 
 Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model does. A step whose scan rules are substantial enough to inline, or that does real `gh` work, earns a Task agent. Steps 4, 4.6, and 4.9 are none of those — their entire rule set is a four-row table over a `Glob` of the plan directories, a single `Read` of `docs/REGISTRY.md`, and one Skill-tool call that shells out to a JSON-emitting script, respectively — so dispatching them as agents would pay the full inherited `CLAUDE.md` cost to run one `Glob`. They run in the main thread instead.
 
-> **Parallel execution:** Dispatch the agent-backed steps selected by the active scope (Steps 1, 3, 4.5, 4.7, 4.8, and 5.5 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (Work Records, Design Docs + Briefs, Git, Issue Claims, GitHub PRs/Issues, Patterns). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. Step 5.5 has no data dependency on any other step (git-log only), so it joins the parallel batch directly — its output is simply slotted into the correct Step 6 report section afterward. Step 5 is the one step that stays sequential: it depends on Step 1's record-scan results (its `ready`, unclaimed rows), which is why `specs` pulls in both Step 1 and Step 5 (per "Scope Selection" above), and it runs only after the parallel batch (including Step 1) completes. Assemble all findings into the Step 6 report.
+> **Parallel execution:** Dispatch the agent-backed steps selected by the active scope (Steps 1, 3, 4.5, 4.7, 4.8, and 5.5 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (Work Records, Design Docs, Git, Issue Claims, GitHub PRs/Issues, Patterns). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. Step 5.5 has no data dependency on any other step (git-log only), so it joins the parallel batch directly — its output is simply slotted into the correct Step 6 report section afterward. Step 5 is the one step that stays sequential: it depends on Step 1's record-scan results (its `ready`, unclaimed rows), which is why `specs` pulls in both Step 1 and Step 5 (per "Scope Selection" above), and it runs only after the parallel batch (including Step 1) completes. Assemble all findings into the Step 6 report.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
@@ -96,13 +97,13 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
-| 1 | Open work records — `gh issue list` facet-parsed by `record.js`'s `parseRecordFacets` (`github-issues`), or `local-store.js`'s `queryRecords('specs', {})` (`local-files`); those two plus `writeRecord` are the whole record driver in `bin/lib/issues/{record,local-store}.js` | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` |
-| 3 | `docs/superpowers/specs/*-design.md`, `docs/plans/*-brief.md` | `[doc]` |
+| 1 | Open work records — `gh issue list` facet-parsed by `record.js`'s `parseRecordFacets` (`github-issues`), or `local-store.js`'s `queryRecords('specs', {})` (`local-files`); those two plus `writeRecord` are the whole record driver in `bin/lib/issues/{record,local-store}.js`. Under `local-files` only, Shape 7 adds its own open+closed `queryRecords` pass over decomposition families | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` / `[family-gate]` (`local-files` only — Step 4.8 emits it on the other driver) |
+| 3 | `docs/superpowers/specs/*-design.md` | `[doc]` |
 | 4 (main thread, parallel with the agent batch) | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 (main thread, parallel with the agent batch) | `docs/REGISTRY.md` | `[registry]` |
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
-| 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope), plus closed records with no acceptance disposition per that file's `acceptance-gap` scope | `[pr]`, `[gh-issue]`, `[acceptance-gap]` |
+| 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope), plus closed records with no acceptance disposition per that file's `acceptance-gap` scope, plus decomposition families complete but ungated per that file's `family-gate` scope | `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[family-gate]` |
 | 4.9 (main thread, parallel with the agent batch) | `/claude-tweaks:design-wrapper doctor --source tidy` — the project's own Impeccable artifacts | `[doctor]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |
 | 5.5 (parallel, independent of every other step) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
@@ -115,9 +116,9 @@ There is no Step 2 — it merged into Step 1 (see Scope Selection above). The re
 
 Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., deleting a backlog record without creating the destination artifact).
 
-**Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), and remove an orphaned `bot:in-progress` (Step 4.7's backstop). Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
+**Label writes this skill is permitted.** Add or remove `parked` (Defer action, and the trigger-met wake), remove an orphaned `bot:in-progress` (Step 4.7's backstop), and add `demo:pending` (Open family gate action — on `work-backend: local-files` the equivalent write is the parent record's `acceptance: pending` facet). Never `demo:approved`/`demo:changes-requested` — those stay `/claude-tweaks:demo`'s job, always human-verdict-gated. Never touch an `auto:*` label — authorization stays `/claude-tweaks:backlog refine`'s job. See `_shared/work-record.md`'s permission matrix for the canonical row.
 
-**Backend probe.** Four actions execute differently per driver. Read `work-backend` first (per `_shared/work-record.md`'s Config keys table), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
+**Backend probe.** Five actions read `work-backend` before executing: four vary by driver behavior (`Delete`, `Defer`, `Absorb`, `Open family gate` — both `actions-*.md` files carry a matching section), and one exists on `work-backend: github-issues` only, with no `local-files` counterpart at all (`Sync to GitHub`). Read `work-backend` first (per `_shared/work-record.md`'s Config keys table), then read exactly one of `actions-github-issues.md` / `actions-local-files.md` in this skill's directory for the procedures the Execution column defers to. The rest behave identically on both drivers and stay inline below.
 
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
@@ -127,11 +128,12 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 | **Promote** | Ready for `/claude-tweaks:specify` | No mutation on either backend — the record already exists and is the durable pointer; recommend `/claude-tweaks:specify {ref}` directly (`#{n}` under `github-issues`, the bare id under `local-files`). `/specify`'s Shaping mode removes `parked` (if present) and stamps `ready` on the record in place — see `_shared/work-record.md` and `specify/SKILL.md`'s Shaping mode; there is no separate entry to delete. If a record is re-parked after promotion (a later `/tidy` Defer) and still gets dispatched, `/flow`'s materialization step stamps `parked-at-shaping: true` on the build-time header (`flow/materialize.md`), and `/wrap-up`'s Section E restores `parked` on an abandoned outcome — Step 4.7's backstop (`scan-procedures.md`) catches a restoration that silently failed. | No — record unchanged, mutation deferred to `/specify` |
 | **Keep** | No action needed | None | No |
 | **Sync to GitHub** | A local record carries `unsynced: true` while `work-backend: github-issues` — mirror it to an issue now | `work-backend: github-issues` only — see `actions-github-issues.md`'s `## Sync to GitHub`. Has no `local-files` counterpart | Yes — moves to GitHub, local file deleted |
+| **Open family gate** | A decomposition family is complete (every leaf closed) but its parent carries no acceptance disposition yet — compose the parent's Verification Brief, then mark the parent `demo:pending` (`acceptance: pending` under `local-files`) | Per `work-backend` — see the resolved Action Execution file's `## Open family gate`. Both reuse `wrap-up/verification-brief.md`'s Family-Gate Procedure via its parent-side entry; only the scan that surfaces the finding differs (`_shared/github-pr-scan.md`'s `family-gate` scope under `github-issues`, `scan-procedures.md` Step 1's Shape 7 under `local-files`) | No — comment + label (GitHub) / one record-file write (local); never closes the parent |
 | **Close (GitHub)** | Open PR or issue is stale or superseded — close it upstream | (1) Comment on the PR/issue explaining why (the comment is the audit trail — never close silently), (2) `gh pr close {n}` / `gh issue close {n}` | N/A — GitHub state |
 | **Resolve thread** | Review-thread concern was addressed by a later commit | GraphQL `resolveReviewThread` mutation — only with commit evidence (a commit touching the flagged lines) | N/A — GitHub state |
 | **Capture** | PR feedback or GitHub issue needs local follow-up | Files a new backlog record (no stage label / no `stage:` facet) via `/claude-tweaks:capture`'s own write path, referencing the PR/thread/issue URL | No — creates a backlog record |
 
-`Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `work-backend` — they behave identically on both drivers.
+`Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `work-backend` — they behave identically on both drivers. `Open family gate` is the exception among these last four: it runs on both drivers but writes differently on each, so it is resolved through the Backend probe above rather than executed inline.
 
 ### Why "Promote" keeps the record in place
 
@@ -185,6 +187,8 @@ After all actions are applied, verify every decision was fully executed. Present
 - [x] Captured: "{title}" — new backlog record with source URL (PR/thread/issue link)
 - [x] Closed (GitHub): PR #{n} / issue #{n} — explanatory comment posted, state re-queried as `CLOSED` (`gh pr view {n} --json state` / `gh issue view {n} --json state`)
 - [x] Resolved thread: PR #{n} — thread re-queried as `isResolved: true`
+- [x] Opened family gate: "{title}" — parent #{n} carries a brief comment headed `## Verification Brief` (the template's own first line) and `demo:pending` in its labels, both re-queried (`gh issue view {n} --json labels,comments`); comment present before label, per the invariant (`github-issues`)
+- [x] Opened family gate: "{title}" — parent record `specs/{id}-{slug}.md` re-read (`readRecord`) and found to carry a `## Verification Brief` section in its body and `acceptance: pending` in its frontmatter. No ordering invariant to check here: the action writes both in one composed `writeRecord`, so a partially-applied gate is not a reachable state on this driver (`local-files`)
 - [ ] FAILED: "{title}" — {what went wrong}
 ```
 

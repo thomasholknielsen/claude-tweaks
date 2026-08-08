@@ -39,6 +39,264 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.64.0 — the plugin's doc conventions notice when a repo already has its own
+
+- **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
+
+## v6.63.0 — the family gate reaches dispatched groups and the local-files driver
+
+Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavioral.
+
+- **A dispatched multi-leaf family now gets its eager gate.** `/claude-tweaks:dispatch`
+  labels before the single merge that carries every `Fixes #{issue}`, and the gate's
+  self-inclusion rule was singular — "the leaf this run is closing counts as `CLOSED`" —
+  so every sibling evaluated with its siblings still open, `familyGateState` returned
+  `incomplete` for all of them, and nothing was labeled: not the leaves, not the parent.
+  The rule now takes a caller-supplied `$CLOSING_LEAVES` set, and a leaf-side entry that
+  supplies none defaults to the one-element set rather than the empty one — so the group
+  case is a strict widening of the old rule, not a replacement that can silently no-op.
+- **`work-backend: local-files` gains a `family-gate` backstop.** Both sweeps lived in
+  `_shared/github-pr-scan.md`, a file the Detection Ladder gates on `gh` reachability, so
+  a local-files family whose last leaf closed outside `/claude-tweaks:wrap-up` had no
+  eager path *and* no backstop. `/claude-tweaks:tidy` Step 1 gains Shape 7, alongside the
+  driver-scoped shapes already there, emitting the same `[family-gate]` prefix every
+  consumer is already wired for, with an `Open family gate` counterpart in
+  `actions-local-files.md`. Staged at every tier, like its GitHub twin: opening a gate
+  **latches** — once written, `familyGateState` reads `gated` forever and both paths
+  no-op — so an auto-applied brief would become the input to a human sign-off with its
+  own cause erased from the data (`[IL-96]`'s shape).
+- Corrected the driver-specific claims the above made stale: Step 7.5's verification row
+  (unrunnable on the driver it was meant to verify), Shape 1's parent exemption (which
+  named the wrong sibling and, on that driver, a sibling running in its own agent), and
+  five restatements of a `gh`-reachability justification that conflated the Detection
+  Ladder's three checks with `work-backend` — the Ladder never checks the driver
+  (`[IL-24]`).
+- Doc repairs: the design doc's Problem section no longer contradicts its own
+  Measured-state table about how many callers write `demo:pending`, and `README.md`,
+  `docs/plugin-structure.md` and `docs/skill-graph.md` stop describing the procedure as
+  Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
+  parent.
+
+## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
+
+Seven citations across six live skill files pointed at
+`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`, deleted under
+ADR-0007. Every agent reading those skills was sent to a file that does not exist (closes
+#114). `docs/skill-graph.md` cited it too, as live rationale — that one was in neither the
+record's list nor its historical-exclusion list.
+
+**Nothing was blanket-repointed at the amending doc**, which is the obvious fix and the wrong
+one. `2026-07-20-lifecycle-ceremony-tiering-design.md` *references* the escape hatch but never
+defines it — it says those parts "still apply as written", pointing back at the deleted file.
+Repointing there would have produced a second dangling pointer that reads as fixed.
+
+So each site was resolved by what it actually cited:
+
+- **Behavior** now points at the skill that implements it — the ceremony escape hatch is
+  `wrap-up/SKILL.md` Step 3.5, the `ceremony-check` contract is
+  `assess-agent-autonomy/SKILL.md`'s own mode section.
+- **Rationale** was restated inline where it was short enough to carry — why `/reflect`'s light
+  mode keeps Near-misses and Fresh-start and drops the rest: those two can still produce the
+  Safety regression finding the escape hatch keys on, and the others are narrative.
+- **Lever definitions** point at `_shared/policy-schema.md`.
+
+This follows a precedent already sitting one row above the replaced `skill-graph.md` entry:
+*"Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the
+previous anchor was a design doc, and it was pruned."* Anchoring live prose to a dated design
+doc is the defect, not the particular doc that got deleted.
+
+References remaining in `docs/superpowers/plans/`, `CHANGELOG.md`, and the amending design doc
+are historical record and stay. The amending doc's own stale citations are flagged at the live
+pointer in `skill-graph.md` rather than rewritten in place — a dated design doc says what was
+true when it was written.
+
+## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
+
+`/claude-tweaks:specify` cuts a design along layer lines, which produces a serial chain
+of leaves where no single leaf is demoable and every failure lands on the seam *between*
+them — the one place per-leaf review cannot see by construction. The record that should
+have held the family-level verdict, the parent, held nothing: it sat in a double blind
+spot, invisible to `/help` Stage 4.7 (which needs `demo:pending`, and parents never
+reached `/wrap-up` to get it) and to `/tidy` Step 4.8 (whose `needsBackstop` requires
+`CLOSED`, and nothing anywhere closed a parent).
+
+- **The parent now carries one gate for the whole family.** A leaf with a resolvable
+  parent no longer receives its own `demo:pending`; when the last leaf closes,
+  `/claude-tweaks:wrap-up` composes the parent's Verification Brief — one item per
+  `## Cross-Spec Promises` row, plus a walkthrough of the feature's primary path — and
+  applies `demo:pending`. `/claude-tweaks:demo` resolves the verdict and, on approve,
+  **closes the parent**, which nothing in the system previously ever did.
+- **A backstop for the families the eager path misses.** `/claude-tweaks:tidy` gains a
+  `family-gate` scope and an `Open family gate` action: a leaf closed via `auto:merge`,
+  by hand, or by a dispatch that ended early never runs `/wrap-up`, so the sweep finds
+  complete-but-un-gated families and opens the gate. The gate is opened, never resolved
+  — the disposition stays staged and human-only at every `tidy-aggressiveness` tier,
+  because the auto-mode contract forbids unattended API writes.
+- **The family is the unit of evidence, not just of acceptance.** `needsBackstop` and
+  `trustRows` both gained an explicit-boolean `hasParent` check, so a decomposed family
+  contributes one graded record — its parent — rather than N un-dispositioned leaves.
+  Without it, seven unexamined leaves plus one approved parent would have satisfied the
+  trust table's sample floor on the strength of a single click.
+- Parents become enumerable via a `family:parent` label (`github-issues`) and a
+  `familyParent` facet (`local-files`); `bin/lib/issues/record.js` gains
+  `parseFamilyLeaves`, and `bin/lib/issues/acceptance.js` gains `familyGateState`.
+
+This narrows v6.50.0's guarantee deliberately: every closed record **that is not a
+decomposed leaf**, plus every completed family, reaches an explicit disposition. The
+unit moves from record to family; silence is still not a valid outcome for a family.
+
+The branch's own history is the argument for the feature. Its whole-branch review caught
+a defect that existed in neither side alone — v6.57.1 added two callers of
+`verification-brief.md` that bypass Step 10, where the leaf-skip condition lived, so
+merging upstream would have reinstated per-leaf labeling and silently defeated the
+design. The condition now lives in that procedure's own header, where every caller
+inherits it (`[IL-02]`).
+
+## v6.60.0 — the wrap-up report states what is true of the repository, not what the run remembers
+
+`skills/wrap-up/summary-template.md` rendered exactly one shape, keyed to `## Wrap-Up: Record #{n}`.
+`SKILL.md` declares two modes and told conversation-based runs only what to *skip*, never what their
+summary looks like — so a run with no record had no template to follow and composed its report from
+the steps it had just executed. That is why one read as a step log: internal `D1`-`D5` route codes as
+a table column, five lines of scan telemetry at the same weight as the one scan that found something,
+decisions mixed with settled cleanup, a `git rebase` disclosed inside a table cell's rationale column,
+and the fact that the commit had never left the machine arriving as a postscript below the table.
+
+- **New `bin/wrap-up-state.js` + `bin/lib/wrap-up/`** — reads branch, commit count, and pushed-vs-unpushed
+  from git, and classifies `git reflog` into report-worthy history operations (a rebase collapses to one
+  row; `reset` always reports, since reflog cannot distinguish `--hard` from `--soft`; fast-forward merges
+  drop). Every field is present even when unknown, because a field that disappears reads as an absent fact
+  rather than an unknown one — the mechanism behind the original "it landed."
+- **The report is now State / Actions Performed / Decisions / Evidence.** State is rendered from the helper
+  rather than composed; a new `History` action type carries git operations that were previously disclosed,
+  if at all, as a rationale for something else. Route codes never reach the reader — destinations are named.
+  Full `SCANNED` lines stay in `decisions.md`; the summary carries a one-line roll-up.
+- **A conversation-mode variant**, which is the gap that caused all of the above.
+- Scope base resolves against the **integration branch** (`_shared/integration-branch.md`'s ladder), not
+  GitHub's default-branch pointer — the display-fact distinction `[IL-91]`'s neighbours already record.
+
+`skills/wrap-up/SKILL.md` shrank while the feature grew.
+
+## v6.59.1 — two rules from the framing-gate build, where a written instruction outran its mechanism
+
+Wrap-up capture for v6.58.0. Both rules come from defects that survived per-task review and
+were caught only by someone opening the file the prose pointed at.
+
+- `[IL-102]` — an instruction was added to `/claude-tweaks:specify`'s procedure three times
+  while the mechanism a few lines below (a `gh issue edit` block, a `gh issue create` block,
+  and `local-store.js`'s frontmatter serializer) never carried it. Two of the three landed
+  *while fixing the first*. The new Don't: find the nearest thing that executes and confirm it
+  carries the item — "the step above says to do it" is not a mechanism.
+- `[IL-103]` — the `risk:*`/`ceremony:*` omit-rule idiom was copied for a presence-only marker
+  whose common case is absence, producing a command block that stamped it on every record. The
+  new Don't: state a neighbouring convention's common case before adopting it; where yours
+  differs, the default must invert.
+
+No behavior change — CLAUDE.md, `docs/incident-log.md`, and two project memory files only.
+
+## v6.59.0 — a run can repair the references its own change broke
+
+Phase 4 of the earned-autonomy design. `CLAUDE.md`'s Don'ts prescribe the same sweep by hand
+in five separate rules (`[IL-10]`, `[IL-17]`, `[IL-21]`, `[IL-52]`, `[IL-93]`), every one
+recording the same failure: when a change renames or removes something, references to the old
+name survive in files the change never touched, and task-scoped review cannot see them by
+construction. `/claude-tweaks:wrap-up` now runs that sweep itself.
+
+- **Step 7.12, the broken-reference sweep** (`wrap-up/reference-sweep.md`) — computes the run's
+  rename/move/delete set, greps for surviving references to the old names, and reports every
+  hit. At `autonomy: supervised`, the default, it stages all of them and applies nothing, so
+  the step is pure detection for any project that has not opted in.
+- **The in-run initiative budget** (`_shared/initiative-budget.md`,
+  `bin/lib/issues/initiative-budget.js`) — at `trusted`/`unattended`, up to three of those
+  repairs apply during the run instead of waiting for approval, capped at 2 files and 20 lines
+  each, in their own commit with an `Initiative-Fix:` trailer so `/claude-tweaks:review` is
+  never handed unrequested edits mixed into the diff it was asked to review.
+
+**The carve-out is causal, not size-based.** `_shared/auto-mode-contract.md` keeps "code
+modifications outside the skill's documented scope" in what `auto` never silences, because that
+row exists to stop a skill reaching outward to make its own work succeed. A pointer repair is
+the inverse: the reference is broken *because of* this run, and the change is not finished while
+it still points at what the run moved. A gap the run merely *noticed* is still filed, never
+fixed, at every ceiling — losing that distinction would turn the budget into a licence to make
+small edits anywhere.
+
+This is the ceiling's second authorized behavior and the first that is **not** trust-gated. An
+unfiled repair generates no record, so it has no provenance class and can never appear in the
+trust table; requiring a `clean` verdict would ship it permanently inert. Its safety comes from
+being mechanically checkable and capped instead — `_shared/autonomy-ceiling.md` states this
+explicitly so a later reader does not "fix" the asymmetry by adding a floor nothing could clear.
+
+Ambiguity always stages: two plausible targets, or an old name that still legitimately exists,
+means the repair is judged rather than checked, and the budget's premise does not hold. Test
+files are excluded outright — retargeting an assertion at a renamed path is how "repair" becomes
+"silence the check".
+
+Also extracts `wrap-up` Steps 7.10 and 7.11 to `memory-curation.md` and `upstream-feedback.md`.
+The new step pushed `SKILL.md` past the 40 KB per-invocation ceiling that
+`bin/lib/skill-audit/tests/context-cost.test.js` enforces; two separate sub-files rather than
+one shared bucket, since two stubs citing sections of a single file makes every stub pay for
+the whole thing.
+
+## v6.58.0 — /challenge becomes an inline framing gate instead of a brief producer
+
+`/claude-tweaks:challenge` was a human-run stage that dispatched seven parallel proposers
+plus an aggregator and saved a Brainstorming Brief to `docs/plans/*-brief.md`. It had
+produced exactly one brief in the repo's history, and its nominal primary consumer
+(`/superpowers:brainstorming`, a third-party skill) never read the file — its documented
+deletion step had never fired either. The judgment was sound; the shape was wrong.
+
+- `/claude-tweaks:challenge` is now two modes. `framing-check` is a component invoked only
+  by `/claude-tweaks:specify`, rendering `FRAMING: open | solution-baked` plus a rationale.
+  `--lens=<n[,n...]>` is a human-invoked escape hatch that applies one of the seven
+  debiasing lenses in conversation. The seven lenses survive; only the machinery around
+  them is gone. The file dropped from 19.3 KB to under 10 KB.
+- A `solution-baked` verdict now stamps a presence-only `framing:baked` marker and folds
+  the surfaced assumptions into the record's own `## Gotchas` — read by `/specify`,
+  `/build`, and `/flow` by construction, rather than a separate file needing discovery.
+  Absence is the clean state; there is no `framing:open`.
+- The verdict surfaces as an informational `Framing` column in `/claude-tweaks:backlog
+  refine`'s existing batch table and a flag in `/claude-tweaks:help`'s scan, which now
+  reads the stamped verdict instead of guessing from record titles. **Net new user-facing
+  prompts: zero.** Three flows lost an option; none gained one.
+- Both drivers carry the verdict: a `framing:baked` label under `work-backend:
+  github-issues`, a `framing` facet under `work-backend: local-files`, bridged through
+  `sharedFacetDefaults()` and `parseRecordFacets` so the two shapes agree.
+- Mode 4 (Layered MoA) is removed from `_shared/multi-agent-coordination.md` and
+  `bin/lib/coordination.js` — `/challenge` was its only consumer. Three coordination modes
+  remain. `docs/plans/2026-07-08-worktree-directory-convention-brief.md` is deliberately
+  retained on disk; ADR 0004 cites it.
+
+## v6.57.1 — auto-merged records get their acceptance label instead of closing silently
+
+Both auto-merge short-circuits bypass `/claude-tweaks:wrap-up` Step 10, which is where
+acceptance labeling lives — so a record that auto-merged closed with no `demo:pending`
+and no Verification Brief. `_shared/work-record.md` says the opposite: an `auto:merge`'d
+record still gets the label on its now-closed issue, to enable retrospective sign-off.
+Nothing enforced it, and `#141` is the case that made it visible.
+
+- `wrap-up/review-console.md`'s single-record fast-lane short-circuit and
+  `dispatch/settle-and-merge.md`'s group Auto-merge gate now each run
+  `verification-brief.md`'s procedure and apply `demo:pending` **before** merging. The
+  merge carries the closing keyword, so after it lands the record is closed and the
+  branch has moved on — order is the fix, not an implementation detail. On the group
+  path it is one brief and one label per record: the merge decision is group-wide, but
+  acceptance is per-record and members differ in testability.
+- `--dry-run` covers the new writes. That branch's skip list named only `git merge` and
+  `git push`, which would have let a live label write and brief comment escape preview
+  mode — the same shape as the defect being fixed, in mirror image.
+
+The defect survived because it sat between three separately-true completeness claims:
+the console's "nothing this console would have shown is discarded" (about console
+content), dispatch's "nothing wrap-up found is dropped" (about findings), and the
+console's rule covering "every cleanup action that would otherwise run in Step 10"
+(about cleanup items). Acceptance labeling is an action, not console content, not a
+finding, and not a cleanup item — so every claim stayed true while the category none of
+them covered was dropped on every auto-merge. Both claims now state what they do not
+cover, so the next thing added to Step 10 has to be checked rather than assumed.
+
+Found by measuring Phase 4's premises before planning it: 129 closed records across 10
+provenance classes, zero acceptance verdicts, 0% coverage in every cell.
+
 ## v6.57.0 — the autonomy ceiling becomes real, and the trust verdict becomes safe to read
 
 Phase 3 of the earned-autonomy design. Phase 2 shipped a per-class trust table that

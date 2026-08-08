@@ -1,6 +1,6 @@
 # Decision Records (ADRs)
 
-Canonical contract for when and how the workflow captures an Architecture Decision Record. Referenced by `/claude-tweaks:wrap-up` (Step 6.2, writes ADRs for qualifying decisions) and `/claude-tweaks:challenge` (flags ADR candidates in the brief). `/claude-tweaks:init` Phase 8.5 may flag `docs/decisions/` as a missing doc and backlog a pointer to this file's template (it never creates the folder or a file itself); the `docs/decisions/` folder is first created in practice when `/claude-tweaks:wrap-up` Step 6.2 writes the first ADR file into it.
+Canonical contract for when and how the workflow captures an Architecture Decision Record. Referenced by `/claude-tweaks:wrap-up` (Step 6.2, writes ADRs for qualifying decisions). `/claude-tweaks:init` Phase 8.5 may flag `docs/decisions/` as a missing doc and backlog a pointer to this file's template (it never creates the folder or a file itself); the `docs/decisions/` folder is first created in practice when `/claude-tweaks:wrap-up` Step 6.2 writes the first ADR file into it.
 
 ## Why this exists
 
@@ -28,20 +28,19 @@ docs/decisions/NNNN-{kebab-slug}.md
 
 `NNNN` is a zero-padded sequence (`0001`, `0002`, …) — find the highest existing number under `docs/decisions/` and increment. Slug describes the decision, not the feature (`0007-soft-delete-accounts`, not `0007-accounts-feature`).
 
+**This is the plugin's convention and the default everywhere.** It is not a claim about what any given repo already does. Before proposing a path, `/claude-tweaks:wrap-up` Step 6.2 runs `_shared/prior-art-detection.md` against `docs/decisions/`: a repo whose existing decision records follow a different grammar gets the conflict surfaced once at the Review Console and the answer recorded in `doc-convention.adr`, rather than a seventeenth file in a seventeenth style. A repo with no decision records, or one already following this convention, never sees a prompt.
+
 ## Template
 
-The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s ADR section — read that file for the current skeleton. This file owns the gate, location convention, and who-reads-who-writes contract above; the template body is shared with `/claude-tweaks:init`'s missing-doc scaffolding and `/claude-tweaks:wrap-up`'s missing-doc detection, so it lives in one place rather than three.
-
-`Status` is `accepted` for a decision being recorded after the fact. If a later ADR overturns this one, change this file's status to `superseded by NNNN` rather than deleting it — the trail is the value.
+The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s ADR section — read that file for the current skeleton. This file owns the gate, location convention, and who-reads-who-writes contract above; the template body is shared with `/claude-tweaks:init`'s missing-doc scaffolding and `/claude-tweaks:wrap-up`'s missing-doc detection, so it lives in one place rather than three. That skeleton also owns the `Status` value and the supersede form; this file does not restate them.
 
 ## Who reads, who writes
 
 | Skill | Role |
 |-------|------|
 | `/claude-tweaks:init` | Phase 8.5's missing-doc detection may flag `docs/decisions/` as a gap in the Tier-3 doc taxonomy and backlog a work record pointing at this file's template — it does not create the folder or file itself (`init/docs-structure.md`'s Registry Creation Procedure only ever creates `docs/REGISTRY.md`; see `wrap-up/docs-health-integration.md`'s D2 section). |
-| `/claude-tweaks:challenge` | **Flags** candidates. When a framing decision in the brief passes the ADR gate, tag it `[ADR-candidate]` in "Constraints to Carry Forward" — but does NOT write the file (the decision isn't final pre-brainstorm). |
 | `/claude-tweaks:deepen` | **Flags** candidates. Step 4 names each interface trade-off's cost/benefit; when a trade-off is genuinely hard-to-reverse, surprising, and a real choice (the same ADR gate below), it's tagged `[ADR-candidate]` for `/wrap-up` to pick up — does NOT write the file itself. |
-| `/claude-tweaks:wrap-up` | **Applies the gate and writes.** Step 6.2 collects decisions surfaced during build/review/reflection (plus any `[ADR-candidate]` from the brief or from `/deepen`), runs the ADR gate, and proposes ADR creation. Proposed ADRs are routed through the Step 9 batch table / Review Console like any other configuration update — never written silently. |
+| `/claude-tweaks:wrap-up` | **Applies the gate and writes.** Step 6.2 collects decisions surfaced during build/review/reflection (plus any `[ADR-candidate]` from `/deepen`), runs the ADR gate, and proposes ADR creation. Proposed ADRs are routed through the Step 9 batch table / Review Console like any other configuration update — never written silently. |
 
 ## Auto-mode
 

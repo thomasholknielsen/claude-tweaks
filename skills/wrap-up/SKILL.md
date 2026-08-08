@@ -43,7 +43,7 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 
 ### Flags
 
-- **`--dry-run`** — run the full analysis (reflection, leftover routing, config/skill scans, the Step 8.6 auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `git merge` / `git push` calls. Console and summary tables render as previews of what *would* happen instead of records of what *did*. See `review-console.md`'s "Dry-run mode" section and Step 10's dry-run note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
+- **`--dry-run`** — run the full analysis (reflection, leftover routing, config/skill scans, the Step 8.6 auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `gh issue edit` / `gh issue comment` / `git merge` / `git push` calls — the three `gh` shapes cover both Step 10's acceptance labeling and the Step 8.6 auto-merge branch's own copy of it. Console and summary tables render as previews of what *would* happen instead of records of what *did*. See `review-console.md`'s "Dry-run mode" section and Step 10's dry-run note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
 - **`--skill-budget <n>`** — override Step 7.2's default domain-overlap skill-read cap (top ~5, or top ~2 under a `fast-lane` ceremony profile) for this invocation only. See `skill-curation.md` 7.2.
 - **`--doc-budget <n>`** — override Step 7.7's default domain-overlap doc-read cap (top ~3, or top ~1 under a `fast-lane` ceremony profile) for this invocation only. See `docs-health-integration.md`'s domain-overlap scan (D0).
 
@@ -82,7 +82,7 @@ When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Ru
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
 - **`--source wrap-up`** — only when no pipeline run directory exists (standalone wrap-up has no `$PIPELINE_RUN_DIR` to signal parent invocation on its own) — see `/claude-tweaks:reflect`'s Component-Skill Contract
 
-Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the rationale. See `/claude-tweaks:reflect` for details on both.
+Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — those two are the lenses that can still produce a Safety regression finding, which is what Step 3.5's escape hatch keys on; the rest are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
 
 If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved.
 
@@ -136,7 +136,7 @@ When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3
 
 If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs both sub-scans as before.
 
-**Gate the read.** When the pre-check above did not fire, read `config-updates.md` in this skill's directory for both sub-scans in full — 6.1 CLAUDE.md and Rules (which conventions qualify, the size budget, and the write-the-incident-account-before-the-rule discipline for a new Don't) and 6.2 Decision Records (candidate gathering, the three-factor ADR gate from `_shared/decision-records.md`, and the `docs/decisions/NNNN-{slug}.md` proposal). Neither sub-scan writes anything; both only collect rows, which surface at the Step 8.6 Review Console or Step 9's batch table. When the pre-check fired, skip the read entirely.
+**Gate the read.** When the pre-check above did not fire, read `config-updates.md` in this skill's directory for both sub-scans in full — 6.1 CLAUDE.md and Rules (which conventions qualify, the size budget, and the write-the-incident-account-before-the-rule discipline for a new Don't) and 6.2 Decision Records (candidate gathering, the three-factor ADR gate from `_shared/decision-records.md`, and the ADR path proposal, which Step 6.2 resolves via `_shared/prior-art-detection.md` rather than asserting). Neither sub-scan writes anything; both only collect rows, which surface at the Step 8.6 Review Console or Step 9's batch table. When the pre-check fired, skip the read entirely.
 
 ---
 
@@ -230,32 +230,12 @@ Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/
 
 ## Step 7.10: Memory curation (D4)
 
-Classify every reflection insight and ledger learning not already routed by
-Steps 6-7.9 through `_shared/learning-routing.md`. For each that resolves to
-**D4**, dedup against `MEMORY.md` per the contract, then stage — never write
-directly:
-
-```
-STAGED {time} — Step 7.10: memory file proposed "{name}" ({type}). Reversibility: high (stage path: staged/wrap-up-memory-{N}.md).
-```
-
-The stage file holds the complete proposed memory file plus its `MEMORY.md`
-index line, so the Review Console (or, in interactive mode, `summary-template.md`'s
-Memory updates section) can show exactly what would be written.
-
-**Standalone wrap-up** (no run directory resolves): no Review Console will ever
-read a staged file here — the same reasoning `ledger/resolve-gate.md` applies to
-a standalone ledger item — so skip the `STAGED` line and `staged/` file entirely;
-present the proposal directly in `summary-template.md`'s Memory updates section
-and write the memory file on approval there instead.
-
-**No memory directory available.** D4 is unavailable when the invoking
-assistant's system prompt states no memory directory for this project — but
-the lesson is never dropped for that reason alone: re-run the classifier from
-rule 4 **here** and act on the result in this step. A D1/D2 outcome stages as
-a configuration or skill update alongside Steps 6/7's own output; a D3
-outcome becomes a queue-write proposal, staged the way `ledger/resolve-gate.md`
-Phase 3 stages `Keep`/`Defer`, for the Review Console to create on approval.
+**Gate the read.** Classify every reflection insight and ledger learning not already routed by
+Steps 6–7.9 through `_shared/learning-routing.md`. When none resolves to **D4**, emit the summary
+line below with `0` resolved and skip this step. Otherwise read `memory-curation.md` in this
+skill's directory for the full procedure — the dedup-and-stage rule and its `STAGED` line, the
+standalone-wrap-up path, and the re-classification table for when no memory directory is available
+(the lesson is never dropped for that reason alone).
 
 **Mandatory summary**, emitted every run regardless of outcome:
 
@@ -267,27 +247,11 @@ Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interacti
 
 ## Step 7.11: Upstream feedback (D5)
 
-For every learning that `_shared/learning-routing.md` resolves to **D5**, run
-the contract's self-reference check first. When it collapses D5, re-classify and
-handle the result in the appropriate earlier step instead.
-
-Otherwise stage one proposal per learning — never file during the run:
-
-```
-STAGED {time} — Step 7.11: upstream {defect|gap} report proposed for {component}. Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).
-```
-
-The stage file holds the fully drafted **and already scrubbed** body. Filing
-happens on approval — at the Review Console's `On approval` step (Step 8.6),
-or, in interactive mode, `summary-template.md`'s Upstream feedback section —
-by invoking `/claude-tweaks:feedback` per approved row. Step 10 only confirms
-the filing landed; see `execution-and-verification.md`.
-
-**Standalone wrap-up** (no run directory resolves): no Review Console will ever
-read a staged file here — the same reasoning `ledger/resolve-gate.md` applies to
-a standalone ledger item — so skip the `STAGED` line and `staged/` file entirely;
-present the proposal directly in `summary-template.md`'s Upstream feedback
-section and invoke `/claude-tweaks:feedback` on approval there instead.
+**Gate the read.** When `_shared/learning-routing.md` resolved **no** learning to D5, there is
+nothing to stage: emit the summary line below with `0` resolved and skip this step. Otherwise read
+`upstream-feedback.md` in this skill's directory for the full procedure — the self-reference check
+that can collapse D5, the stage-never-file rule and its `STAGED` line, and the standalone-wrap-up
+path that has no console to stage for.
 
 **Mandatory summary**, emitted every run regardless of outcome:
 
@@ -296,6 +260,27 @@ SCANNED {time} — Step 7.11 upstream feedback: {N} learnings classified, {M} re
 ```
 
 Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it inline.
+
+## Step 7.12: Broken-reference sweep
+
+Find references pointing at something **this run renamed, moved, or removed**, and — when the
+`autonomy` ceiling allows — repair them within the initiative budget. Unlike Step 7.7's D1 this
+scans files this run did **not** touch, where orphans live and task-scoped review cannot reach.
+
+**Gate the read.** Compute the rename/move/delete set (`git diff --diff-filter=RD --name-status
+{base}...HEAD`) plus any heading or anchor a modified file renamed. Empty means no orphan can
+exist: emit the summary with `0 targets` and skip — read neither file. Otherwise read
+`reference-sweep.md` in this skill's directory, which owns the procedure and, at
+`trusted`/`unattended`, defers to `_shared/initiative-budget.md` for the floor rule.
+
+Mandatory summary line, regardless of outcome:
+
+```
+SCANNED {time} — Step 7.12 broken-reference sweep: {T} rename/delete targets, {H} surviving references, ceiling {ceiling}. Result: {A} repaired, {S} staged. Reversibility: high (separate commit).
+```
+
+Auto mode appends this line to `decisions.md`; interactive mode prints it inline. `0 targets` is a
+real result and is reported, never omitted.
 
 ## Step 8: Analyze Next Steps (record-based only)
 
@@ -345,9 +330,9 @@ In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outri
 
 ## Step 9: Present Consolidated Summary
 
-Render one consolidated summary of this run — reflection insights, implementation status, the filtered cleanup checklist, configuration updates, manual steps, skill updates, and the Actions Performed table — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
+Render one consolidated summary of this run — State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Evidence — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
 
-**Read the template.** Read `summary-template.md` in this skill's directory for the standalone multi-record batch variant, the full render template, the conditional batch-decision branch with its `AskUserQuestion` shape, the three per-item sections that sit beside that batch but outside it (Queue writes `Q#`, Memory updates `M#`, Upstream feedback `U#` — each approved and executed one row at a time), and both closure lines (record mode and the legacy spec-file alias). Step 9 always runs, so this read is unconditional.
+**Read the template.** Read `summary-template.md` in this skill's directory for the standalone multi-record batch variant, the full render template, the conversation-mode variant, the conditional batch-decision branch with its `AskUserQuestion` shape, the three per-item sections that sit beside that batch but outside it (Queue writes `Q#`, Memory updates `M#`, Upstream feedback `U#` — each approved and executed one row at a time), and both closure lines (record mode and the legacy spec-file alias). Step 9 always runs, so this read is unconditional.
 
 Next Actions are rendered as a top-level `## Next Actions` section after Step 10's verification — see the section near the end of this file. They replace the old single-line handoff with a context-signal-driven table.
 
@@ -413,4 +398,4 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | Proposing generic skill updates with no concrete anchor | Every update must trace to a ledger entry, a reflection insight, or a changed-file observation — unanchored ones read as hallucinated |
 | Mixing skill updates into the doc/CLAUDE.md batch table | They require full file reads and Update Mode patches — own decision table in Step 7 |
 | Writing an ADR for every decision | ADRs are valuable because rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so; zero per wrap-up is normal |
-| Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — triviality gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step |
+| Treating `demo:pending` as optional for "trivial" record-mode work | Triviality is not an exemption — it gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step. The one record class that *does* skip its own label is a leaf with a resolvable parent, and that is the gate moving to the family's parent, not going away |
