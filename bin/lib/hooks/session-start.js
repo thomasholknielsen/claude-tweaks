@@ -55,7 +55,7 @@ function run(ctx) {
     // recorded fallback in that fragment's per-consumer table.
     const integration = reaper.resolveIntegrationBranch(repoRoot);
     if (!integration) throw new Error('no integration branch');
-    const { reaped, skipped } = reaper.reapWorktrees({ cwd: ctx.cwd, integration });
+    const { reaped, skipped, deferred } = reaper.reapWorktrees({ cwd: ctx.cwd, integration });
     // log tier (CLAUDE.md Hooks: block/warn/inform/log) — write to
     // ctx.ownedRun, NOT ctx.runDir. runDir is the enforcement-scoped "newest
     // non-terminal run regardless of owner"; ownedRun is the narrower run
@@ -68,6 +68,12 @@ function run(ctx) {
       }
       for (const s of skipped) {
         ctxLib.appendEvent(ownedRun.dir, 'worktree-reap-skipped', { path: s.path, reason: s.reason, integration }, ownedRun.attribution);
+      }
+      // Candidates the per-run cap never examined. Without this the audit trail
+      // cannot distinguish "nothing else to consider" from "stopped counting" —
+      // a silent truncation reads as full coverage (CLAUDE.md: no silent caps).
+      if (deferred) {
+        ctxLib.appendEvent(ownedRun.dir, 'worktree-reap-deferred', { count: deferred, cap: reaper.MAX_EXAMINED_PER_RUN, integration }, ownedRun.attribution);
       }
     }
     if (reaped.length) {

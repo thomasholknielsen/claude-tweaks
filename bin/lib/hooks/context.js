@@ -40,6 +40,16 @@ function* iterRunDirsWithState(cwd) {
   // no .claude-tweaks/. One anchor means every session resolves the same run
   // set. Falls back to cwd when the main checkout can't be determined — that
   // is the pre-anchoring behavior, so an unknown answer changes nothing.
+  //
+  // That fallback is reachable from inside a worktree, not only outside a repo:
+  // mainCheckoutRoot returns null for an unreadable or unparseable `.git` file
+  // as well as for "no repo here". In the worktree case this un-anchors and
+  // reads the worktree's own pipelines dir. Deliberately not guarded further —
+  // distinguishing the two would cost either a git spawn (this path runs on
+  // every hook invocation) or a second walk, and the state it can reach is the
+  // one a worktree with a broken `.git` file actually has. The scenario it
+  // matters for is wrap-up's transitional copy-out guard, which does its own
+  // `pwd -P` resolution rather than trusting this one.
   const start = cwd || process.cwd();
   const root = wtDetect.mainCheckoutRoot(start) || start;
   const base = path.join(root, '.claude-tweaks', 'pipelines');

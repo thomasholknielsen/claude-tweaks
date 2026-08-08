@@ -153,9 +153,14 @@ If the build used worktree git strategy, clean up the worktree directory:
      "$WT"/*)
        DEST="$MAIN/.claude-tweaks/pipelines/$(basename "$RUN_REAL")"
        mkdir -p "$DEST"
-       for f in config.yml decisions.md events.jsonl run-state.json ephemeral-server.txt staged; do
-         [ -e "$RUN_REAL/$f" ] && cp -R "$RUN_REAL/$f" "$DEST/"
-       done
+       # Everything except `work/` — never a filename allowlist. A multi-spec run
+       # nests one `spec-{n}/` directory per record, each with its own
+       # decisions.md and staged/, alongside files like manifest.yml that no
+       # fixed list anticipates. An allowlist copies the top-level names and
+       # leaves the rest for step 4 to destroy — this guard failing silently in
+       # exactly the way it exists to prevent. -mindepth/-maxdepth rather than
+       # BSD's `-depth 1`, which GNU find reads as a path argument.
+       find "$RUN_REAL" -mindepth 1 -maxdepth 1 ! -name work -exec cp -R {} "$DEST/" \;
        RUN_DIR="$DEST"
        ;;
    esac
