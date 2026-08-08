@@ -39,6 +39,37 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.67.0 — the acceptance backstops both work on the local-files driver
+
+`/claude-tweaks:tidy` has two acceptance backstops: `family-gate` (a decomposition family is
+complete but its parent carries no disposition) and `acceptance-gap` (a closed record carries
+no disposition at all). Both lived in `_shared/github-pr-scan.md`, a file the Detection Ladder
+gates on `gh` reachability, and both queried GitHub labels — so under `work-backend:
+local-files` neither existed. v6.63.0 gave `family-gate` a local twin. This closes the other
+one, and pays the structural debt that made room for it.
+
+- **`acceptance-gap` gains a local-files twin** as Shape 8 in `/claude-tweaks:tidy` Step 1,
+  emitting the same `[acceptance-gap]` prefix every consumer is already wired for. It feeds
+  `needsBackstop` from `bin/lib/issues/acceptance.js` rather than reimplementing the
+  disposition taxonomy, translating `facets.closed` → CLOSED, `facets.acceptance` → the label
+  form, and `facets.parent !== null` → `hasParent`. Decomposed leaves stay suppressed on this
+  driver too: their acceptance lives on the family's parent, and surfacing them would flood the
+  report. A closed *parent* does surface — leaves are suppressed, parents never are, matching
+  the GitHub twin.
+- **`skills/tidy/scan-procedures.md` was 549 bytes from the ceiling**, so Shape 8 could not be
+  appended — the file would have overshot by 5,155 bytes and failed
+  `bin/lib/skill-audit/tests/context-cost.js`'s gate outright. Step 1's rules were extracted to
+  `skills/tidy/step-1-records.md`, split by step because every external citation names a step or
+  one of its shapes and none names a driver. The record scan now loads 20,747 bytes instead of
+  40,411 (-49%), and the eight non-record scopes load 27,402 (-32%). The honest cost:
+  `--scope=specs` and a full unscoped run load both files, since Step 5 stayed behind — those
+  paths are +19%.
+- Corrected a duplicate `## v6.61.2` heading that had reached `main` and was failing
+  `tests/changelog-coverage.test.js` for every session. The renumbered work's content lives
+  under **v6.64.2**; the 6.61.2 slot keeps the restoration record that points at it, and the
+  one detail the duplicate carried that its stub did not — the recovered text's `[IL-104]`
+  citation, which shipped as `[IL-105]` — was re-homed rather than dropped.
+
 ## v6.65.1 — the renumber rule stops erasing releases that already shipped
 
 The Releasing section told you to renumber a CHANGELOG heading whenever a collision forced a new
@@ -232,7 +263,10 @@ renumbered the work to 6.64.2 and moved its CHANGELOG heading and `docs/shipped-
 line along with it, erasing the record of a real release.
 
 See **v6.64.2** above for what the release contains; the two numbers carry the same work.
-Restored in 6.65.1, which also fixed the rule that caused both losses.
+Restored in 6.65.1, which also fixed the rule that caused both losses. The recovered text
+carried one correction: it cited `[IL-104]` for the checks rule, which shipped as `[IL-105]`
+after a collision renumber — `IL-104` is a different incident. This is the `[IL-94]`/`[IL-99]`
+shape the coverage gate exists to catch, and it caught it.
 
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 
@@ -266,36 +300,6 @@ References remaining in `docs/superpowers/plans/`, `CHANGELOG.md`, and the amend
 are historical record and stay. The amending doc's own stale citations are flagged at the live
 pointer in `skill-graph.md` rather than rewritten in place — a dated design doc says what was
 true when it was written.
-
-## v6.61.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
-
-Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
-
-- `bin/lib/wrap-up/state.js` — `pushed` returned a definite `false` when the upstream resolved
-  but the paired `rev-list` did not, making "not pushed" indistinguishable from "could not tell".
-  It is now `boolean | null`, and `render.js` prints `push status unknown ({upstream})` for the
-  null case rather than borrowing `UNPUSHED` — claiming unpushed when you do not know is the
-  same defect facing the other way.
-- `bin/wrap-up-state.js` — `parseArgs` consumed a following flag as `--since`'s value, so
-  `--since --json HEAD~5` silently dropped both. It now exits 2 instead.
-- `skills/wrap-up/summary-template.md` — the exit-2 path added in v6.60.0 had no consumer-side
-  instruction, so a wrong `{base}` could cost the whole State block; and the record-mode closure
-  line still asserted "its plans and ledger have been deleted" unconditionally, while the
-  conversation-mode line beside it was already measured. Both fixed.
-- `skills/wrap-up/verification-brief.md` — the `{base}` pointer named the wrong step.
-- `[IL-105]` — **Don't treat a check's green as evidence before naming what its red would look
-  like.** Five checks in the v6.60.0 build reported success while the thing they checked was
-  false: a `grep -c` that a failing test satisfies identically, four mechanical checks green on a
-  feature whose one required value was undefined, a deleted-line sweep that dropped every input
-  line beginning with `-`, and a reviewer who examined a command and judged it correct without
-  checking the branch it named. Four of the five were introduced while fixing one of the others.
-
-> **Entry restored 2026-08-08.** This release's bump reached `main` but its CHANGELOG entry and
-> `shipped-versions.tsv` line did not, leaving `tests/changelog-coverage.test.js` red on `main`
-> for anyone who ran it. Recovered verbatim from the release commit `a5476a4b`, with one
-> correction: the entry cited `[IL-104]` for the checks rule, which shipped as `[IL-105]` after a
-> collision renumber — `IL-104` is a different incident. This is the `[IL-94]`/`[IL-99]` shape the
-> coverage gate exists to catch, and it caught it.
 
 ## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
 
