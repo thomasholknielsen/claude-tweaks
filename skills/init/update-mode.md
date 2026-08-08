@@ -227,10 +227,14 @@ longer an open surface by the time this comparison is computable.
 
 Unlike the checks above, this isn't a CLAUDE.md/policy.yml marker — it audits the project's
 instantiated cloud Routines (`.claude-tweaks/routines/*.yml`) against the templates they were
-created from. Skip this entire check if `.claude-tweaks/routines/` doesn't exist — nothing is
-instantiated yet, most commonly a project that has never run `/claude-tweaks:routine create`.
-
-Run `/claude-tweaks:routine status --all --source init`.
+created from. Run `/claude-tweaks:routine status --all --source init`, and skip this entire
+check when it reports "no routines instantiated in this project yet" — nothing is instantiated,
+most commonly a project that has never run `/claude-tweaks:routine create`. Do **not** gate that
+skip on `.claude-tweaks/routines/` existing locally: those records are committed, so on a
+checkout behind the integration branch the directory can be absent here while every record
+exists upstream, and this check would skip the very project that most needs it (#190). STATUS
+resolves that union itself (`skills/routine/record-freshness.md`), which is why the emptiness
+question belongs to its output rather than to a directory test here.
 
 Each returned record resolves to one of five verdicts (see `skills/routine/SKILL.md`'s STATUS
 `--all` mode for the full detection logic): In sync, Drifted, Orphaned, Stale, or Malformed.
@@ -257,6 +261,13 @@ Each returned record resolves to one of five verdicts (see `skills/routine/SKILL
   ```
   AUTO {time} — Update Mode: re-synced {M} of {N} drifted routine(s) to their current templates.
   ```
+  **Exclude from the bulk auto-fix any Drifted record whose STATUS row was read from the
+  integration branch** (its Detail carries `— read from {ref}`). `/claude-tweaks:routine update`
+  hard-stops on exactly that condition, since every step past it writes from a stale copy, so
+  offering "Apply all recommended" over such a record queues an invocation that cannot succeed.
+  Present those rows in the advisory group below instead, with the recourse STATUS named: pull
+  the checkout current, then re-run. This is a stale *checkout*, not stale records — the records
+  are already correct where they live.
 - **Orphaned**, **Stale**, and **Malformed** records are presented as flagged advisories
   only — no bulk auto-fix offered, since none has a safe default action (Orphaned suggests
   manual investigation — was the skill renamed, delete and recreate under the new name;
@@ -273,7 +284,9 @@ without that table needing its own edit.
 
 ### Routine Relevance
 
-Skip entirely if `.claude-tweaks/routines/` doesn't exist (same gate as Routine Drift above).
+Skip entirely when the Routine Drift check above found no routines (same gate — reuse its
+already-resolved record set rather than re-testing for the local directory, which on a checkout
+behind the integration branch answers about this checkout instead of the project, #190).
 Otherwise, read `${CLAUDE_PLUGIN_ROOT}/skills/harness-health/routine-relevance-analysis.md`
 and apply its procedure directly against this project's instantiated records — this is the
 one place `/init` reaches into a harness-health-owned file outside that skill's own
@@ -311,14 +324,15 @@ requires reading git history and judging diffs, not checking a marker's existenc
 
 ### Routine Environment Dedication
 
-Skip entirely if `.claude-tweaks/routines/` doesn't exist (same gate as Routine Drift and Routine
-Relevance above).
+Skip entirely when the Routine Drift check above found no routines (same gate as Routine Drift
+and Routine Relevance above — reuse its resolved record set, not a local-directory test, #190).
 
 Build "this project's own routine set" from two complementary sources, unioned and deduplicated by
 `trigger_id` (a routine found by both counts once):
 
-(a) **Project-local records** (already known to exist, from the gate above): for each
-`.claude-tweaks/routines/*.yml`, its `routine_id` field is a `trigger_id`. For any such `trigger_id`
+(a) **Project-local records** (already known to exist, from the gate above): for each record in
+that set — which spans the working checkout *and* the integration branch, so a routine recorded
+upstream is still audited here — its `routine_id` field is a `trigger_id`. For any such `trigger_id`
 not already present among source (b)'s `list` results below, call `RemoteTrigger {action: "get",
 trigger_id: record.routine_id}` to learn its `job_config.ccr.environment_id` (skip a record whose
 `get` call fails — that routine was deleted out-of-band; read-only here, no cleanup offered). This

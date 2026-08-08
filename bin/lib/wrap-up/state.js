@@ -63,8 +63,10 @@ function readState({ cwd, since, run } = {}) {
     behind,
     // Pushed requires a known upstream AND nothing ahead of it. Absent an
     // upstream there is nowhere for the work to have gone, so it is unpushed —
-    // not unknown.
-    pushed: Boolean(upstream) && ahead === 0,
+    // not unknown. But WITH an upstream, a failed ahead/behind read must stay
+    // null rather than collapse to a definite false — an unmeasured push state
+    // is exactly the unknown this module exists to keep representable.
+    pushed: upstream ? (ahead === null ? null : ahead === 0) : false,
     commitsInScope,
     linkedWorktree: Boolean(gitDir && commonDir && gitDir !== commonDir),
   };

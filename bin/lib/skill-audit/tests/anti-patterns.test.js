@@ -326,5 +326,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   arithmetic that would have "confirmed" 371 was available and agreed with
   //   both sides; it was wrong. Nothing evicted: `git diff --diff-filter=M --
   //   'skills/*/SKILL.md' | grep -cE '^-\|'` is 0 across the merge.
-  assert.strictEqual(total, 372);
+  //   372 -> 374, #190 (routine record freshness). Two rows added to
+  //   skills/routine/SKILL.md: reading `.claude-tweaks/routines/*.yml` straight
+  //   from the working checkout, and gating a stop on "behind" rather than on a
+  //   verified comparison. A third `+|` line in that diff is the pre-existing
+  //   duplicate-routine row edited in place, not an addition — net +2, which is
+  //   why the raw added-line count (3) and the delta (2) disagree.
+  //   Measured, not summed: `extractAntiPatternRows` run over every
+  //   `git show HEAD:skills/*/SKILL.md` gave 372 and over the working tree gave
+  //   374. Nothing evicted — the diff's only `^-\|` line is that edited row,
+  //   whose replacement is present.
+  assert.strictEqual(total, 374);
 });

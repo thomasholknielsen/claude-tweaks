@@ -69,6 +69,15 @@ test('renderState singularises one commit and pluralises the rest', () => {
   assert.match(two, /2 commits,/);
 });
 
+test('renderState reports push status unknown, not UNPUSHED, when pushed is null', () => {
+  const out = renderState({
+    state: { ...UNPUSHED, pushed: null },
+    ops: [], since: 'a1b2c3d', sinceDate: '2026-08-07 09:14',
+  });
+  assert.match(out, /Branch\s+main — 1 commit, push status unknown \(origin\/dev\)/);
+  assert.doesNotMatch(out, /UNPUSHED/);
+});
+
 test('renderState reports an attached branch with no upstream as UNPUSHED rather than unknown', () => {
   const out = renderState({
     state: { ...UNPUSHED, upstream: null, ahead: null, commitsInScope: 3 },

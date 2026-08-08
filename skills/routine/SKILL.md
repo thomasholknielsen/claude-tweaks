@@ -53,6 +53,8 @@ Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status`), then read e
 
 `create` and `update` additionally read `schedule-resolution.md` for CREATE Step 5's sub-steps (5a's cron-to-cadence classification, 5b-5d's interactive picker). `update --defaults` skips schedule re-resolution entirely and never reads it; `status` never reaches it at all.
 
+**All three modes** read `record-freshness.md` before touching `.claude-tweaks/routines/*.yml`. Those records are a committed artifact, so the branch they are committed to — not the working checkout — is where one actually lives; reading the checkout directly reports drift that does not exist and, at CREATE Step 3, mints a duplicate live routine that `RemoteTrigger` cannot delete (#190). It is its own file precisely because all three modes need it and `status --all` must not be made to load `create-and-update.md` to get it. The check is fail-open: offline, no remote, or no branch resolved all degrade to the pre-#190 working-checkout read, so the skill stays fully usable without a network.
+
 Step numbering inside those files is unchanged from before the split, so cross-references from other skills that name a step by number (`/claude-tweaks:init`'s Step 15 and Update Mode, `_shared/routine-diagnostic-probe.md`, `guided-environment-creation.md`) still resolve — via the three stubs below.
 
 ### CREATE `<skill>`
@@ -87,7 +89,9 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 |---------|--------------|
 | Writing `environment_id` or a repo URL into a skill's `routine-template.yml` | Templates ship across every project and account — one account's environment or one project's repo makes them wrong everywhere else |
 | Skipping the review gate because the assembled body "looks right" | `RemoteTrigger create` has no delete counterpart — a mistaken routine runs live until manually removed at claude.ai/code/routines |
-| Creating a second routine for a project+skill that already has an instantiated record | Duplicates double-run the same work — check `.claude-tweaks/routines/{name}.yml` first and route to `update` |
+| Creating a second routine for a project+skill that already has an instantiated record | Duplicates double-run the same work — resolve existence over the union of this checkout and the integration branch (`record-freshness.md`) first, then route to `update` |
+| Reading `.claude-tweaks/routines/*.yml` straight from the working checkout | Those records are committed, so a checkout behind the integration branch reports drift that does not exist — and then feeds it into a live `RemoteTrigger update` and a record rewrite. A record committed upstream is invisible to that read entirely, which is how CREATE mints the duplicate the row above forbids (#190) |
+| Gating a stop on "the checkout is behind" rather than on a verified comparison | A failed fetch means unknown, not stale. Blocking on it would make `/claude-tweaks:routine status` unusable offline — a worse regression than the misreport being fixed |
 | Committing account-specific values into the instantiated record | Its schema excludes `environment_id` and MCP credentials so it stays safe to commit |
 | Treating `--dry-run`'s assembled body as already created | Nothing is created, updated, or written until the non-dry-run path's final API call and record write |
 | Caching `environment_id` under `~/.claude-tweaks/` | Harness-owned runtime state — use the project-local `.claude-tweaks/routine-environment-cache.yml` instead (checked before CREATE Step 4's local-records and `RemoteTrigger list` sources) |

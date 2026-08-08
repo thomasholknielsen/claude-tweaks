@@ -15,7 +15,7 @@ const { renderState } = require('./lib/wrap-up/render');
 function parseArgs(argv) {
   const out = { since: null, json: false };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--since' && i + 1 < argv.length) { out.since = argv[i + 1]; i += 1; continue; }
+    if (argv[i] === '--since' && i + 1 < argv.length && !argv[i + 1].startsWith('--')) { out.since = argv[i + 1]; i += 1; continue; }
     if (argv[i] === '--json') { out.json = true; continue; }
   }
   return out;
