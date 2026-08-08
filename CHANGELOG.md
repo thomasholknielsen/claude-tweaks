@@ -108,6 +108,20 @@ Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavior
   Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
   parent.
 
+## v6.62.0 — prior-art detection, first shipped under this number
+
+Bookkeeping restoration, not new work. The prior-art-detection feature was released as 6.62.0 in
+`8275bfa5` and reached `main`'s tip under that number. A later collision renumbered it to 6.64.0
+and moved the CHANGELOG heading with it — correct for a version that never shipped, but 6.62.0
+*had* shipped, so the move erased the record of a real release rather than an orphan. The git walk
+in `tests/changelog-coverage.test.js` still sees 6.62.0 and had no entry to match it against.
+
+See **v6.64.0** above for what the release actually contains; the two numbers carry the same work.
+Restored while merging #190 — see `[IL-95]` for why `docs/shipped-versions.tsv` is the authority
+here, and the renumber note in CLAUDE.md's Releasing section for the rule this case sits just
+outside: renumber the heading when the old number never reached `main`, and add a second entry
+when it did.
+
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 
 Seven citations across six live skill files pointed at
