@@ -47,7 +47,7 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.ok(payloads[0].labels.includes('by:docs-health'));
   assert.ok(payloads[0].labels.includes('ready'));
   assert.ok(payloads[0].labels.includes('risk:medium'));
-  assert.ok(payloads[0].labels.includes('effort:high'));
+  assert.ok(payloads[0].labels.includes('size:high'));
   assert.strictEqual(payloads[0].type, 'task');
   assert.ok(payloads[0].body.includes('<!-- work-fingerprint: docshealth-'));
 });

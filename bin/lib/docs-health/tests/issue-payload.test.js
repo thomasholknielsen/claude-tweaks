@@ -22,17 +22,17 @@ function finding(overrides = {}) {
   };
 }
 
-test('toIssuePayload for a restructural finding maps classification to risk:medium/effort:high, ready, and appends the diagnostic label last', () => {
+test('toIssuePayload for a restructural finding maps classification to risk:medium/size:high, ready, and appends the diagnostic label last', () => {
   const payload = toIssuePayload(finding());
-  assert.deepStrictEqual(payload.labels, ['by:docs-health', 'risk:medium', 'effort:high', 'ready', 'docs-health:restructural']);
+  assert.deepStrictEqual(payload.labels, ['by:docs-health', 'risk:medium', 'size:high', 'ready', 'docs-health:restructural']);
   assert.ok(payload.title.includes('decisions/0007-foo'));
   assert.ok(payload.body.includes('12 skills'));
   assert.ok(payload.body.includes('14 skills'));
 });
 
-test('toIssuePayload for an additive finding maps classification to risk:low/effort:low', () => {
+test('toIssuePayload for an additive finding maps classification to risk:low/size:low', () => {
   const payload = toIssuePayload(finding({ classification: 'additive' }));
-  assert.deepStrictEqual(payload.labels, ['by:docs-health', 'risk:low', 'effort:low', 'ready', 'docs-health:additive']);
+  assert.deepStrictEqual(payload.labels, ['by:docs-health', 'risk:low', 'size:low', 'ready', 'docs-health:additive']);
 });
 
 test('toIssuePayload carries type: task', () => {
@@ -149,17 +149,17 @@ test('toIssuePayload uses the minimal 3-backtick fence when oldString/newString 
 
 // ── CLASSIFICATION_SCORING lookup must degrade gracefully, not throw ────────
 // Regression: an unmapped classification used to be dereferenced directly
-// (scoring.risk/scoring.effort), throwing a TypeError instead of degrading
-// to risk/effort: undefined the way harness-health/issue-payload.js's
+// (scoring.risk/scoring.size), throwing a TypeError instead of degrading
+// to risk/size: undefined the way harness-health/issue-payload.js's
 // identical lookup already does. Unreachable through the real validated
 // pipeline today (docs-health's CLASSIFICATION_VALUES matches
 // CLASSIFICATION_SCORING's two keys exactly), but toIssuePayload itself must
 // not crash on an out-of-map value from any caller that bypasses validation.
 
-test('toIssuePayload does not throw for a classification absent from CLASSIFICATION_SCORING, and omits risk/effort labels', () => {
+test('toIssuePayload does not throw for a classification absent from CLASSIFICATION_SCORING, and omits risk/size labels', () => {
   const payload = toIssuePayload(finding({ classification: 'cosmetic' }));
   assert.ok(!payload.labels.some((l) => l.startsWith('risk:')), 'risk label must be omitted, not a stale/wrong value');
-  assert.ok(!payload.labels.some((l) => l.startsWith('effort:')), 'effort label must be omitted, not a stale/wrong value');
+  assert.ok(!payload.labels.some((l) => l.startsWith('size:')), 'size label must be omitted, not a stale/wrong value');
   assert.ok(payload.labels.includes('docs-health:cosmetic'));
 });
 

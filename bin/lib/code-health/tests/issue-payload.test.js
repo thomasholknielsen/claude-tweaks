@@ -67,10 +67,10 @@ const V2_FINDING = {
   acceptance: 'getUser adds caching, authorization, or enrichment; or is removed.',
 };
 
-test('v2 labels are by:code-health + risk:<tier> + effort:<tier> + ready (no per-criterion label)', () => {
+test('v2 labels are by:code-health + risk:<tier> + size:<tier> + ready (no per-criterion label)', () => {
   assert.deepStrictEqual(
     toIssuePayloadV2(V2_FINDING).labels,
-    ['by:code-health', 'risk:high', 'effort:low', 'ready'],
+    ['by:code-health', 'risk:high', 'size:low', 'ready'],
   );
 });
 

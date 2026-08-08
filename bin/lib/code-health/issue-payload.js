@@ -44,7 +44,7 @@ function toIssuePayload(finding) {
 // it back off a label, and per-criterion labels are the class that hit GitHub's 100-char cap.
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:code-health,
-// colon-form risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
+// colon-form risk:*/size:* scoring, born-ready, Type task, work-fingerprint marker.
 function toIssuePayloadV2(finding) {
   const relatedBlocks = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
     ? [`Also affects: ${finding.relatedAnchors.map((a) => `\`${a}\``).join(', ')}`]
@@ -64,7 +64,10 @@ function toIssuePayloadV2(finding) {
     type: 'task',
     origin: 'code-health',
     risk: finding.risk,
-    effort: finding.effort,
+    // The record facet is `size` (renamed from effort, #217). finding.effort is
+    // code-health's own judge-output vocabulary and is deliberately NOT renamed
+    // — only the record side moved, so the value crosses here.
+    size: finding.effort,
     ready: true,
     fingerprint: finding.id,
   });

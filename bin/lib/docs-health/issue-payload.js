@@ -5,9 +5,9 @@
 // Label/marker/type assembly delegates to recordPayload
 // (bin/lib/issues/record.js) — the shared work-record taxonomy
 // (skills/_shared/work-record.md): origin by:docs-health, colon-form
-// risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
+// risk:*/size:* scoring, born-ready, Type task, work-fingerprint marker.
 // fenceFor/fencedBlock (GitHub-fence-safe code-block wrapper) and
-// CLASSIFICATION_SCORING (classification -> risk/effort fold) also live in
+// CLASSIFICATION_SCORING (classification -> risk/size fold) also live in
 // record.js — shared with harness-health/issue-payload.js rather than
 // copy-pasted.
 const {
@@ -50,12 +50,17 @@ function toIssuePayload(finding) {
   // Guard with optional chaining, matching harness-health/issue-payload.js's
   // identical CLASSIFICATION_SCORING lookup — an unmapped classification
   // (a future value added to docs-health's own CLASSIFICATION_VALUES without
-  // a matching CLASSIFICATION_SCORING entry) must degrade to risk/effort:
+  // a matching CLASSIFICATION_SCORING entry) must degrade to risk/size:
   // undefined (recordPayload's `if (risk !== undefined)` guard simply omits
   // the label), not throw and abort the whole validate-findings batch.
   const scoring = CLASSIFICATION_SCORING[finding.classification];
   const risk = scoring?.risk;
-  const effort = scoring?.effort;
+  // The record facet is `size` (renamed from effort, #217), and
+  // CLASSIFICATION_SCORING's second axis moved with it. Only the record side
+  // was renamed — each health skill's own finding vocabulary is untouched
+  // (docs-health folds `classification`; code-health's judge still emits
+  // `finding.effort`, which its call site passes through as `size`).
+  const size = scoring?.size;
 
   const payload = recordPayload({
     title,
@@ -63,7 +68,7 @@ function toIssuePayload(finding) {
     type: 'task',
     origin: 'docs-health',
     risk,
-    effort,
+    size,
     ready: true,
     fingerprint: finding.id,
   });

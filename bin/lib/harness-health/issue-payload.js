@@ -4,9 +4,9 @@
 // network. The skill hands the payload to the gh CLI itself.
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:harness-health,
-// colon-form risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
+// colon-form risk:*/size:* scoring, born-ready, Type task, work-fingerprint marker.
 // fenceFor/fencedBlock (GitHub-fence-safe code-block wrapper) and
-// CLASSIFICATION_SCORING (classification -> risk/effort fold) also live in
+// CLASSIFICATION_SCORING (classification -> risk/size fold) also live in
 // record.js — shared with docs-health/issue-payload.js rather than
 // copy-pasted. kind: 'new-skill' never consults CLASSIFICATION_SCORING — it
 // stays deliberately unscored (see below).
@@ -62,11 +62,16 @@ function toIssuePayload(finding) {
   }
 
   const diagnosticLabel = isNewSkill ? 'harness-health:new-skill' : `harness-health:${finding.classification}`;
-  // new-skill is unscored by design (no risk/effort) — the gate flags "needs scoring"
+  // new-skill is unscored by design (no risk/size) — the gate flags "needs scoring"
   // rather than inheriting a guessed tier from a kind that carries no evidence for one.
   const scoring = isNewSkill ? undefined : CLASSIFICATION_SCORING[finding.classification];
   const risk = scoring?.risk;
-  const effort = scoring?.effort;
+  // The record facet is `size` (renamed from effort, #217), and
+  // CLASSIFICATION_SCORING's second axis moved with it. Only the record side
+  // was renamed — each health skill's own finding vocabulary is untouched
+  // (harness-health folds `classification`; code-health's judge still emits
+  // `finding.effort`, which its call site passes through as `size`).
+  const size = scoring?.size;
 
   // No spread after this call — the final return below picks fields explicitly.
   const payload = recordPayload({
@@ -75,7 +80,7 @@ function toIssuePayload(finding) {
     type: 'task',
     origin: 'harness-health',
     risk,
-    effort,
+    size,
     ready: true,
     fingerprint: finding.id,
   });
