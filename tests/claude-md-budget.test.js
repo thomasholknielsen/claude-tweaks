@@ -10,7 +10,7 @@ const path = require('node:path');
 // holds 139 bullets carrying 116 immutable [IL-nn] tags, each pinned to a real
 // incident and never renumbered once shipped, which is a ~28 KB floor at the
 // mandated rule+clause shape (the spec's ~90-rule estimate undercounted this).
-// BUDGET_BYTES is measured-landing (51,809 B) rounded up to the next KiB (52 KiB)
+// BUDGET_BYTES is measured-landing (51,809 B) rounded up to the next KiB (51 KiB = 52,224 B)
 // plus 2 KiB headroom. Shrinking further means fewer bullets — rule-expiry via
 // /claude-tweaks:harness-health, or merging duplicate-tag pairs — which needs its
 // own decision, not a quiet edit here.
