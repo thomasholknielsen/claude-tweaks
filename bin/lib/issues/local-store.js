@@ -4,7 +4,7 @@
 // style bin/lib/policy.js uses — the plugin ships zero runtime npm deps, so there
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
-// risk, effort, ceremony, framing, priority, stage, grants{build,merge}, bot{inProgress,
+// risk, size, ceremony, framing, priority, stage, grants{build,merge}, bot{inProgress,
 // blocked}, acceptance — plus type, parent, familyParent, blockedBy, unsynced, closed,
 // closedAt); the github driver's callers get type/parent/blockedBy from the issue JSON
 // itself, not from labels. No network calls.
@@ -88,8 +88,15 @@ function parseBracketList(raw) {
 
 // fmLines -> facets. Unrecognized lines are silently skipped (permissive
 // line-regex parser, matching bin/lib/policy.js's style).
+//
+// The size facet is the one key not resolved by the plain last-matching-line-wins
+// rule every other key here uses: a `size:` line always beats a pre-rename
+// `effort:` line whichever order the two appear in, so the effort value is only
+// held aside during the pass and applied afterward, and never when a `size:` line
+// was found. Same deferred-apply shape as record.js's parseRecordFacets.
 function parseFrontmatterLines(fmLines) {
   const facets = defaultFacets();
+  let effortFallback = null;
 
   for (const rawLine of fmLines) {
     const line = rawLine.trim();
@@ -99,7 +106,10 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^type:\s*(.+)$/.exec(line))) { facets.type = m[1].trim(); continue; }
     if ((m = /^origin:\s*(.+)$/.exec(line))) { facets.origin = m[1].trim(); continue; }
     if ((m = /^risk:\s*(.+)$/.exec(line))) { facets.risk = m[1].trim(); continue; }
-    if ((m = /^effort:\s*(.+)$/.exec(line))) { facets.effort = m[1].trim(); continue; }
+    if ((m = /^size:\s*(.+)$/.exec(line))) { facets.size = m[1].trim(); continue; }
+    // Read-side effort: fallback — PERMANENT cross-project support (other repos' records keep effort: frontmatter); removable only at a major version that drops pre-rename repo support. [IL-85]
+    // Last such line wins among repeats, exactly as the pre-rename effort: parse did.
+    if ((m = /^effort:\s*(.+)$/.exec(line))) { effortFallback = m[1].trim(); continue; }
     if ((m = /^ceremony:\s*(.+)$/.exec(line))) { facets.ceremony = m[1].trim(); continue; }
     if ((m = /^framing:\s*(true|false)$/.exec(line))) { facets.framing = m[1] === 'true'; continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
@@ -120,6 +130,8 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^unsynced:\s*(true|false)$/.exec(line))) { facets.unsynced = m[1] === 'true'; continue; }
     if ((m = /^acceptance:\s*(.+)$/.exec(line))) { facets.acceptance = m[1].trim(); continue; }
   }
+
+  if (facets.size === null) facets.size = effortFallback;
 
   return facets;
 }
@@ -161,12 +173,17 @@ function readRecord(filePath) {
 // when null, no 'family-parent' when false, no 'blocked-by' when empty. `bot` is
 // never written — it isn't a file-backed facet for the local driver. Array
 // syntax is exactly '[a, b]'.
+//
+// The emit side is size-only: no code path here writes an 'effort:' line, so a
+// legacy record migrates its key the first time anything rewrites it. The read
+// side's effort: fallback (parseFrontmatterLines above) is deliberately
+// one-directional.
 function serializeFrontmatter(facets) {
   const lines = [];
   if (facets.type) lines.push(`type: ${facets.type}`);
   if (facets.origin) lines.push(`origin: ${facets.origin}`);
   if (facets.risk) lines.push(`risk: ${facets.risk}`);
-  if (facets.effort) lines.push(`effort: ${facets.effort}`);
+  if (facets.size) lines.push(`size: ${facets.size}`);
   if (facets.ceremony) lines.push(`ceremony: ${facets.ceremony}`);
   if (facets.framing) lines.push('framing: true');
   if (facets.priority) lines.push(`priority: ${facets.priority}`);
