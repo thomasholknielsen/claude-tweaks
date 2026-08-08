@@ -188,6 +188,17 @@ test('record without --run-dir exits 2', () => {
   assert.match(r.stderr, /usage: wrap-up-engine\.js/);
 });
 
+test('record against a run dir with no engine-state.json exits 2 (not 1, not 0), naming engine-state.json', () => {
+  const runDir = makeRunDir(); // never plan'd — no engine-state.json
+  const payload = JSON.stringify({ version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' });
+  const r = run(['record', '--run-dir', runDir, '--dry-run'], { input: payload });
+  assert.strictEqual(r.status, 2);
+  assert.notStrictEqual(r.status, 1);
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stderr, /engine-state\.json/);
+  assert.strictEqual(r.stdout, '');
+});
+
 test('record rejects a payload that fails engine-record validation with exit 1', () => {
   const runDir = planFreshRunDir();
   const payload = JSON.stringify({ version: 1, rowId: 'skills', result: 'bogus', gapDetection: 'run' });

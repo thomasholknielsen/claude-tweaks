@@ -170,6 +170,16 @@ function runPlan(args) {
 function runRecord(args) {
   if (!args.runDir) usageExit();
 
+  // Same precondition render checks: a run dir with no engine-state.json
+  // means plan never ran (or the run dir was wiped) — that's a malformed
+  // invocation, not a bad payload, so it must exit 2 like render's identical
+  // check, not fall through to recordResult's readEngineState() throwing
+  // inside the generic catch below (which would misreport it as exit 1).
+  if (!fs.existsSync(path.join(args.runDir, 'engine-state.json'))) {
+    process.stderr.write(`wrap-up-engine.js record: no engine-state.json in ${args.runDir} — run plan first\n`);
+    process.exit(2);
+  }
+
   const raw = readStdin();
   let payload;
   try {
