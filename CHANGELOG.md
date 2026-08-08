@@ -39,7 +39,7 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.61.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
+## v6.64.1 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
 
 Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
 
@@ -61,6 +61,83 @@ Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept d
   feature whose one required value was undefined, a deleted-line sweep that dropped every input
   line beginning with `-`, and a reviewer who examined a command and judged it correct without
   checking the branch it named. Four of the five were introduced while fixing one of the others.
+
+## v6.64.0 — the plugin's doc conventions notice when a repo already has its own
+
+- **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
+
+## v6.63.0 — the family gate reaches dispatched groups and the local-files driver
+
+Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavioral.
+
+- **A dispatched multi-leaf family now gets its eager gate.** `/claude-tweaks:dispatch`
+  labels before the single merge that carries every `Fixes #{issue}`, and the gate's
+  self-inclusion rule was singular — "the leaf this run is closing counts as `CLOSED`" —
+  so every sibling evaluated with its siblings still open, `familyGateState` returned
+  `incomplete` for all of them, and nothing was labeled: not the leaves, not the parent.
+  The rule now takes a caller-supplied `$CLOSING_LEAVES` set, and a leaf-side entry that
+  supplies none defaults to the one-element set rather than the empty one — so the group
+  case is a strict widening of the old rule, not a replacement that can silently no-op.
+- **`work-backend: local-files` gains a `family-gate` backstop.** Both sweeps lived in
+  `_shared/github-pr-scan.md`, a file the Detection Ladder gates on `gh` reachability, so
+  a local-files family whose last leaf closed outside `/claude-tweaks:wrap-up` had no
+  eager path *and* no backstop. `/claude-tweaks:tidy` Step 1 gains Shape 7, alongside the
+  driver-scoped shapes already there, emitting the same `[family-gate]` prefix every
+  consumer is already wired for, with an `Open family gate` counterpart in
+  `actions-local-files.md`. Staged at every tier, like its GitHub twin: opening a gate
+  **latches** — once written, `familyGateState` reads `gated` forever and both paths
+  no-op — so an auto-applied brief would become the input to a human sign-off with its
+  own cause erased from the data (`[IL-96]`'s shape).
+- Corrected the driver-specific claims the above made stale: Step 7.5's verification row
+  (unrunnable on the driver it was meant to verify), Shape 1's parent exemption (which
+  named the wrong sibling and, on that driver, a sibling running in its own agent), and
+  five restatements of a `gh`-reachability justification that conflated the Detection
+  Ladder's three checks with `work-backend` — the Ladder never checks the driver
+  (`[IL-24]`).
+- Doc repairs: the design doc's Problem section no longer contradicts its own
+  Measured-state table about how many callers write `demo:pending`, and `README.md`,
+  `docs/plugin-structure.md` and `docs/skill-graph.md` stop describing the procedure as
+  Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
+  parent.
+
+## v6.62.0 — the plugin's doc conventions notice when a repo already has its own
+
+- **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
+
+  *(Entry restored in 6.64.1. It was written in `8275bfa5` alongside the bump and the shipped-versions line, then lost from both files by a later merge — the `[IL-95]` shape, caught by `changelog-coverage`.)*
+
+## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
+
+Seven citations across six live skill files pointed at
+`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`, deleted under
+ADR-0007. Every agent reading those skills was sent to a file that does not exist (closes
+#114). `docs/skill-graph.md` cited it too, as live rationale — that one was in neither the
+record's list nor its historical-exclusion list.
+
+**Nothing was blanket-repointed at the amending doc**, which is the obvious fix and the wrong
+one. `2026-07-20-lifecycle-ceremony-tiering-design.md` *references* the escape hatch but never
+defines it — it says those parts "still apply as written", pointing back at the deleted file.
+Repointing there would have produced a second dangling pointer that reads as fixed.
+
+So each site was resolved by what it actually cited:
+
+- **Behavior** now points at the skill that implements it — the ceremony escape hatch is
+  `wrap-up/SKILL.md` Step 3.5, the `ceremony-check` contract is
+  `assess-agent-autonomy/SKILL.md`'s own mode section.
+- **Rationale** was restated inline where it was short enough to carry — why `/reflect`'s light
+  mode keeps Near-misses and Fresh-start and drops the rest: those two can still produce the
+  Safety regression finding the escape hatch keys on, and the others are narrative.
+- **Lever definitions** point at `_shared/policy-schema.md`.
+
+This follows a precedent already sitting one row above the replaced `skill-graph.md` entry:
+*"Calibration cases live in `merge-check` Step 2, deliberately not in the design doc — the
+previous anchor was a design doc, and it was pruned."* Anchoring live prose to a dated design
+doc is the defect, not the particular doc that got deleted.
+
+References remaining in `docs/superpowers/plans/`, `CHANGELOG.md`, and the amending design doc
+are historical record and stay. The amending doc's own stale citations are flagged at the live
+pointer in `skill-graph.md` rather than rewritten in place — a dated design doc says what was
+true when it was written.
 
 ## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
 

@@ -36,7 +36,10 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
 Step 10, which is where acceptance labeling normally happens, so this branch must perform it
 itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
-Step 10 would. That file owns the routing: a record with a resolvable parent goes to its
+Step 10 would. This short-circuit closes exactly one record, so pass that record's own number as
+`$CLOSING_LEAVES` — the one-element closing-leaf set that file's **Self-inclusion rule** reads
+(`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
+file owns the routing: a record with a resolvable parent goes to its
 Family-Gate Procedure (the family's parent gets the one gate; this leaf gets none), and
 everything else goes through its Steps 1-4 — bootstrap, testability, the Step 2.5 safety-net
 gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
@@ -198,6 +201,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 
 - The console has **up to nine named batch sections** — Auto-applied, Pending review, Low-confidence findings, Contested findings, Skill updates, Documentation updates, Journey updates, Configuration updates, Cleanup actions (the two coordination-derived sections — Low-confidence findings, Contested findings — render only when non-empty — see `wrap-up/SKILL.md`'s own "up to nine sections" summary of this same console). Together they use a **single global sequence** starting at #1: every row across every present section has a unique number, with no restart between sections.
 - Three sections sit outside the global sequence because they require per-item approval and are NOT part of the global "Approve all" choice: **Queue writes** (`Q1`, `Q2`, …), **Memory updates** (`M1`, `M2`, …), and **Upstream feedback** (`U1`, `U2`, …). Each uses its own prefixed sequence, and none is ever counted into the nine batch sections above.
+- **One row type is per-item without being its own section:** an `[adr-convention]` row (Step 6.2) renders inside Configuration updates and keeps its global number, but carries a three-way choice rather than approve/reject, so "Approve all" leaves it unanswered. It is the one exception to the otherwise-clean split between batch sections and per-item sections — see the Configuration updates section below for its render shape and for what it blocks while unanswered.
 - This applies to both the example below and any real Console output. Do not restart numbering within the global sequence.
 
 ## Unattended-tier auto-file (runs before rendering)
@@ -313,6 +317,22 @@ silence hides exactly that.
 |---|---|---|---|
 | 15 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
+An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below. Render it as:
+
+```
+#16  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
+
+     plugin form  : 0017-slack-transport.md
+     found (16)   : ADR-016-slack-integration-strategy.md
+     project skill: .claude/skills/architecture-decision/SKILL.md
+
+     1  Conform forward   — new files use the plugin's form   -> doc-convention.adr: plugin
+     2  Migrate           — rename all 16, fix REGISTRY rows and inbound links
+     3  Keep project form — resolve from this repo             -> doc-convention.adr: project
+```
+
+Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
+
 #### Cleanup actions (executed in Step 10 after approval)
 
 Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filtered by Condition (e.g., omit the worktree row when no worktree strategy was used). Each row gets a globally-unique # in the shared batch-section sequence (see Numbering rules above). Example:
@@ -420,3 +440,4 @@ If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
 - **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing.
+- **An `[adr-convention]` row is also per-item**, despite sitting inside Configuration updates. Never fold it into "Approve all" and never pick one of its three options as a default — an unanswered row blocks the `[adr]` rows from the same run rather than resolving them, because their paths depend on the answer.

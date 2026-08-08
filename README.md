@@ -69,7 +69,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
                             deleted too — a record-mode build's materialized file
                             stays on the branch as committed audit trail instead;
                             applies demo:pending + posts a Verification Brief on
-                            the record — record mode only)
+                            the record — or, for a leaf of a /specify
+                            decomposition, on the family's parent once the last
+                            leaf closes; record mode only)
      │
   ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per invocation: a specific #N, or this session's own unrecorded work via session-recall) ┈┈
 ```
