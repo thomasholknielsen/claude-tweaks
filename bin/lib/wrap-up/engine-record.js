@@ -138,6 +138,25 @@ function validatePayload(payload) {
     if (!Array.isArray(payload.findings) || payload.findings.length === 0) {
       throw new Error(`recordResult: payload.findings must be a non-empty array when result is 'findings' (rowId '${payload.rowId}')`);
     }
+    // Each entry drives formatResultText/hasAppliedFinding/telemetryOutcome,
+    // all of which filter on f.action — an unvalidated model judgment output
+    // with a malformed or missing 'action' would silently render as 0
+    // applied/0 staged in the permanent decisions.md audit line while
+    // findings.length still counts it. Validate every entry.
+    payload.findings.forEach((finding, index) => {
+      if (!finding || typeof finding !== 'object') {
+        throw new Error(`recordResult: payload.findings[${index}] must be an object (rowId '${payload.rowId}')`);
+      }
+      if (finding.action !== 'applied' && finding.action !== 'staged') {
+        throw new Error(`recordResult: payload.findings[${index}].action must be 'applied' or 'staged' (rowId '${payload.rowId}')`);
+      }
+      if (typeof finding.kind !== 'string' || !finding.kind) {
+        throw new Error(`recordResult: payload.findings[${index}].kind must be a non-empty string (rowId '${payload.rowId}')`);
+      }
+      if (typeof finding.summary !== 'string' || !finding.summary) {
+        throw new Error(`recordResult: payload.findings[${index}].summary must be a non-empty string (rowId '${payload.rowId}')`);
+      }
+    });
   } else if (payload.findings !== undefined && !Array.isArray(payload.findings)) {
     throw new Error(`recordResult: payload.findings must be an array (rowId '${payload.rowId}')`);
   }

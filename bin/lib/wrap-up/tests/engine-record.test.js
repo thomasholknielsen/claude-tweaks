@@ -164,6 +164,82 @@ test('recordResult rejects missing/mistyped required fields', () => {
   );
 });
 
+test('recordResult rejects a findings entry with a missing/malformed action, naming the entry', () => {
+  const runDir = makeRunDir();
+  const worklist = makeWorklist();
+  initState({ runDir, worklist, now: FIXED_NOW });
+
+  const payload = {
+    version: 1, rowId: 'journeys', result: 'findings', gapDetection: 'run',
+    findings: [
+      { kind: 'additive', summary: 'valid entry', targetPath: 'docs/journeys/j1.md', action: 'applied', stagePath: null, commit: null },
+      { kind: 'new', summary: 'missing action', targetPath: 'docs/journeys/j2.md' /* no action */ },
+    ],
+  };
+
+  assert.throws(
+    () => recordResult({ runDir, payload, now: FIXED_NOW }),
+    /findings\[1\]\.action/
+  );
+
+  // Rejected outright — nothing partially recorded for the row.
+  const state = readState(runDir);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(state.results, 'journeys'), false);
+});
+
+test('recordResult rejects a findings entry with an invalid kind or summary', () => {
+  const runDir = makeRunDir();
+  const worklist = makeWorklist();
+  initState({ runDir, worklist, now: FIXED_NOW });
+
+  assert.throws(
+    () => recordResult({
+      runDir, now: FIXED_NOW,
+      payload: {
+        version: 1, rowId: 'journeys', result: 'findings', gapDetection: 'run',
+        findings: [{ kind: '', summary: 'x', targetPath: 'p', action: 'applied' }],
+      },
+    }),
+    /findings\[0\]\.kind/
+  );
+
+  assert.throws(
+    () => recordResult({
+      runDir, now: FIXED_NOW,
+      payload: {
+        version: 1, rowId: 'journeys', result: 'findings', gapDetection: 'run',
+        findings: [{ kind: 'additive', summary: '', targetPath: 'p', action: 'applied' }],
+      },
+    }),
+    /findings\[0\]\.summary/
+  );
+});
+
+test('recordResult still accepts a fully valid mixed applied+staged findings payload', () => {
+  // Inverted check: confirms the new per-entry validation doesn't reject the
+  // previously-passing mixed applied+staged case.
+  const runDir = makeRunDir();
+  const telemetryPath = path.join(runDir, 'outcomes.tsv');
+  const worklist = makeWorklist();
+  initState({ runDir, worklist, now: FIXED_NOW, telemetryPath });
+
+  const payload = {
+    version: 1, rowId: 'journeys', result: 'findings',
+    read: [{ path: 'docs/journeys/j1.md', mode: 'full' }],
+    findings: [
+      { kind: 'additive', summary: 'x', targetPath: 'docs/journeys/j1.md', action: 'applied', stagePath: null, commit: null },
+      { kind: 'new', summary: 'y', targetPath: 'docs/journeys/j2.md', action: 'staged', stagePath: 'staged/x.md', commit: null },
+    ],
+    gapDetection: 'not-run', detail: 'two changes',
+  };
+
+  assert.doesNotThrow(() => recordResult({ runDir, payload, now: FIXED_NOW, telemetryPath }));
+
+  const state = readState(runDir);
+  assert.strictEqual(state.results.journeys.result, 'findings');
+  assert.strictEqual(state.results.journeys.findings.length, 2);
+});
+
 test('derived fields cannot be clobbered by the payload (no {...payload} spread)', () => {
   const runDir = makeRunDir();
   const worklist = makeWorklist();
