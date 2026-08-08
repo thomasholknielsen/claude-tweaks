@@ -54,6 +54,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
+**Hard gate.** Check the response you are about to send: does it already contain the `### Reflection Insights` table as literal rendered markdown, with a row for every insight? If not, this is not "the table was presented earlier" or "the user can infer the list from context" — render it now, in this response, before the tool call. `AskUserQuestion` cannot carry the table itself (`CLAUDE.md`'s Multi-item decisions convention), so a response with the tool call but no table above it has shown the user "Apply all" with nothing to apply it to.
+
 **Routing guide.** Classify every insight through the ordered procedure in
 `skills/_shared/learning-routing.md` — that file is the single source of truth
 for destinations and their precedence. Do not restate its table here.
@@ -63,7 +65,12 @@ naming explicitly:
 
 - **D4 (memory)** — the insight is about the user, or is an environment fact
   with no owning artifact. Written per the contract's memory write procedure,
-  staged for approval, never auto-applied.
+  staged for approval, never auto-applied. **Approving this insights batch
+  (even "Apply all") only approves routing the insight to D4 — it is not
+  approval to write the memory file.** The write always waits for its own
+  separate, per-item approval (`wrap-up/memory-curation.md`,
+  `summary-template.md`'s Memory updates section) — never perform the write
+  as part of applying this batch's result.
 - **D5 (upstream)** — the insight is about a claude-tweaks skill or contract and
   would hold in any project using the plugin. Routed to
   `/claude-tweaks:feedback`.
@@ -79,6 +86,6 @@ that genuinely serves two audiences is two insights, stated separately.
 - **Capture** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on. Routes to `/claude-tweaks:capture`, which files it as a fresh backlog work record.
 - **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
 
-If any insight is "Implement now", handle it after the user approves the batch table, before returning control to the parent or presenting Next Actions.
+If any insight is "Implement now", handle it after the user approves the batch table, before returning control to the parent or presenting Next Actions — **except a D4 outcome**, whose write is gated separately as described above; do not write a memory file at this point.
 
 > **Always present the batch table in interactive mode**, even when every insight routes to "Implement now." Interactive mode means *ask the user* — the confirmation is the contract, not a formality. Skipping it (because the routing looks uniform or obvious) would be contract drift: auto-apply behavior belongs in auto mode, governed by the `Reflect insight routing` row of `_shared/auto-mode-contract.md`'s silences table.
