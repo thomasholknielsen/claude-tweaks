@@ -1,0 +1,25 @@
+name: Agent task
+description: File a task an agent pipeline can build directly (claude-tweaks issue-sourced batch)
+title: "[task] "
+body:
+  - type: textarea
+    id: current-state
+    attributes:
+      label: Current State
+      description: What exists today, and what is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: What should exist when this is done
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How to verify it is done
+    validations:
+      required: true

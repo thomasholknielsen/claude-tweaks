@@ -1,0 +1,7 @@
+routine_id: "trig_018KxxhETPjXWmpcTBmi2j4R"
+template: tidy
+template_version: 6
+created_at: "2026-08-08T19:38:52Z"
+schedule: "0 4 * * 0"
+console_url: "https://claude.ai/code/routines/trig_018KxxhETPjXWmpcTBmi2j4R"
+branch: "main"

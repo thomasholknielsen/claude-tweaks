@@ -140,10 +140,32 @@ All hook registrations route through `bin/hooks.js <event>` — one dispatcher, 
 
 Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption): `_shared/git-discipline.md`, `_shared/subagent-output-contract.md`, `_shared/pipeline-run-dir.md`, `_shared/auto-mode-contract.md`, `build/worktree-setup.md`, `flow/worktree-merge.md`, `dispatch/SKILL.md` (auto-merge gate clears the run's worktree assignment via `close-run` before merging into the main checkout), `wrap-up/cleanup-procedures.md`, `wrap-up/SKILL.md`, `wrap-up/review-console.md`.
 
+## Philosophy
+
+- **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
+- **Assume zero cost.** Decide as if implementation is free. Never choose an inferior design because the better one "isn't worth the effort."
+- **Assume zero time.** Decide as if implementation is instant. Never choose a shortcut because the proper approach "takes too long."
+- **No implicit deferrals.** When something needs doing, either do it now or explicitly file a backlog work record (via `/claude-tweaks:capture`) with scope and context. Never silently skip work or leave TODO comments without a corresponding backlog record.
+
+Established codebase distributed to real users via a versioned plugin marketplace. Contract changes (skill frontmatter shape, hook payloads, work-record schema, `_shared/*.md` conventions consumed by multiple skills) follow the same expand-contract discipline as a public API: add the new, migrate every consumer across the repo, remove the old — never a silent breaking rename. A deprecated behavior gets a recorded removal condition (see the Don'ts rule on this), not an indefinite compatibility shim. Prefer stability over novelty in shipped skill contracts — adopt new conventions in new skills first, then migrate existing ones deliberately, with the incident log recording what each migration cost.
+
+## Working Approach
+
+How to execute any task here. These apply project-wide unless a more specific rule or instruction overrides them; use judgment on trivial tasks.
+
+- **Think before coding.** State assumptions; ask rather than guess when uncertain. Push back when a simpler approach exists. Stop when confused.
+- **Honest, not agreeable.** When the user proposes a direction, pressure-test it before agreeing — name the weakest assumption first, not the strengths. State disagreement plainly: no flattery openers, no hedging, no reflexive reassurance. If you genuinely can't find a flaw, say so rather than manufacturing one.
+- **Simplicity first.** Write the minimum correct code for what was asked — nothing speculative, no abstractions for single-use code. ("Do it properly" above means correct, not more.)
+- **Surgical changes.** Touch only what the task requires. Don't reformat or "improve" adjacent code. Match the surrounding style.
+- **Goal-driven.** Define success criteria up front and loop until they're verified, rather than following steps blindly.
+- **Read before you write.** Before adding code, read the file's exports, immediate callers, and shared utilities — duplicate logic usually already exists nearby.
+- **Checkpoint multi-step work.** After each significant step, state what's done, what's verified, and what's left. Don't build on a state you can't describe back.
+- **Fail loud.** "Done" is wrong if anything was skipped; "tests pass" is wrong if any were skipped. Surface uncertainty and partial results — never hide them.
+
 ## Commands
 
 ```bash
-npm test                            # Full suite — tests/ plus every bin/lib/*/tests/ directory
+npm test                            # Full suite — tests/, every bin/lib/*/tests/ directory, plus tools/upstream-drift/tests/
 npm run test:perf                   # Timing budgets (perf/) — deliberately excluded from npm test, see docs/plugin-structure.md
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
@@ -170,6 +192,10 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
 
+## Design integration
+
+diagram-suggestions: enabled
+
 ## Cloud parity
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config. Two things are required, and the declaration alone is not enough: this project's `.claude/settings.json#enabledPlugins` (paired with `extraKnownMarketplaces`) says what a sandbox may load, and the Setup script below is what actually installs it.
@@ -182,6 +208,17 @@ Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes wi
 ## Work records
 
 work-backend: github-issues
+work-types: labels
+
+## claude-tweaks Pipeline
+
+**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/superpowers:writing-plans`.
+
+**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
+
+**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.
+
+**Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
 ## Don'ts
 
@@ -326,3 +363,5 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't state a total for a domain your lookup can't enumerate, and never let a neighbouring set's cardinality supply it — a borrowed count is plausible and unrefutable, so it survives every re-read; the four health-sweep *skills* stood in for a paginated routine list twice `[IL-110]`
 - Don't ship the config that *grants* a capability as the fix without finding what exercises it, and don't assume that exerciser covers every consumer class — `enabledPlugins` is a permission, the Setup script is the installer, and it was only ever attached to routine environments, so a fully-declared repo got nothing in an interactive session `[IL-113]`
 - Don't hand-roll a fix in a domain this plugin already automates — grep `skills/` for the capability before building it. `/init` Step 14 and `guided-environment-creation.md` had shipped the cloud-parity mechanism for months; a whole session rediscovered it, and this repo had never run that step on itself `[IL-113]`
+- Don't trust a "render this, then call the tool" instruction to bind itself at runtime — nothing stops the tool firing from a response that never rendered the content, and an approval never implies a differently-scoped write is also authorized. State an explicit pre-call check for the first; a dedicated per-decision approval for the second. Same shape as `[IL-102]` one layer up, at the interaction boundary instead of the serialization one `[IL-114]`
+- Don't gate a repair loop's drift check on "a comparison value could be resolved" — a resolution *failure* and a legitimate *absence* can both degrade to the same sentinel, and `claude-cloud-setup.sh`'s verify loop let a cold sandbox's total non-install pass as "ok" because the catalog lookup that would have flagged it failed for the same underlying reason nothing installed. Gate on the unambiguous signal (`installed === "none"`) directly, never only on whether something else could be compared against it `[IL-115]`
