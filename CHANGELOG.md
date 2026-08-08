@@ -39,6 +39,36 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.67.1 — dispatch can group /specify-produced records again
+
+Closes #154. `extractKeyFiles` branched on the four health-sweep origin labels and fell
+through to `return []` for everything else, so every `/claude-tweaks:specify` leaf and
+every `/claude-tweaks:capture` record reported zero key files. `groupByFileOverlap` then
+emitted singletons regardless of real overlap — defeating the collision guard
+`/claude-tweaks:dispatch` relies on to keep two agents out of the same files.
+
+Measured against live records rather than argued: #146 and #150 both returned `[]` while
+genuinely sharing `skills/design-wrapper/SKILL.md` and
+`skills/design-wrapper/impeccable-plugin.md`. Dispatch would have built them in two
+separate worktrees, both editing those two files. Not hypothetical — it is why this
+repository's own nine-record dispatch program was scheduled by hand instead.
+
+Now parses the `### Key Files` subsection `spec-template.md` already documents: first
+backticked span per list item, trailing `(modify — …)` annotations discarded, section
+terminated at the next heading so backticked paths in Gotchas are not scraped. Placed
+strictly below the four health branches, which all return early, so an origin-labelled
+record whose body happens to carry a `### Key Files` heading still reads from its own
+header line (`[IL-83]`).
+
+Tested against frozen fixtures of the two record bodies rather than live issue text, so
+the test does not become a scheduled failure the next time someone edits an issue
+(`[IL-80]`). Re-verified against the live records after the fix: 6 and 5 paths, two
+shared, one group instead of two singletons.
+
+Originally authored on `worktree-fix-154-extract-key-files` (PR #182), which had drifted
+173 commits behind `main` while its session ended. Cherry-picked onto current `main`
+unchanged, and renumbered from 6.65.3 when `main` shipped past it mid-flight.
+
 ## v6.67.0 — the acceptance backstops both work on the local-files driver
 
 `/claude-tweaks:tidy` has two acceptance backstops: `family-gate` (a decomposition family is
