@@ -39,7 +39,7 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.64.3 — the renumber rule stops erasing releases that already shipped
+## v6.65.1 — the renumber rule stops erasing releases that already shipped
 
 The Releasing section told you to renumber a CHANGELOG heading whenever a collision forced a new
 version, justified by "an entry naming a version that never reached `main` is an orphan." That
@@ -67,6 +67,54 @@ No new Don't. The person who erased 6.62.0 was following the Releasing section l
 section is already in the always-loaded file — a Don't bullet would be a second copy of the same
 instruction, and an incident-log entry with no rule behind it is an orphan by this repo's own
 definition.
+
+## v6.65.0 — a worktree stops being the only place its pipeline state lives, and finished ones get reaped
+
+Closes #185. Removing a git worktree was dangerous for one reason: it could hold the
+only copy of a run's `config.yml`, `decisions.md`, `events.jsonl` and `staged/`. So
+nothing dared, and 21 accumulated here in a month while three files disagreed about
+which command was even allowed.
+
+**Run directories now anchor to the main checkout at creation.** Resolved from a linked
+worktree's `.git` file — which is a plain file naming the shared checkout — so it costs
+no subprocess on a path every hook invocation crosses. This changes *when* run state
+reaches the main checkout, not *where* it ends up: `wrap-up` already copied it out at
+cleanup, and doing that at cleanup is precisely why a skipped cleanup lost it. That
+copy-out is now **deleted**, along with the ordering rule protecting it, rather than
+duplicated into a second consumer. `work/{n}-spec.md` stays in the worktree — it is
+git-tracked and reaches `main` by merge.
+
+**`SessionStart` reaps worktrees that are finished.** Five conditions, all required: a
+linked worktree under `.claude/worktrees/`; not the caller's own directory or a
+subdirectory of it; no live owner; content-identical to the resolved integration branch;
+and nothing in `git status --porcelain --ignored`. Any ambiguity surfaces instead of
+acting. There is no policy key to disable it — the predicate is the safety mechanism, so
+every branch of it fails closed.
+
+Two things made this decidable that were not obvious:
+
+- **The owning PID is in the lock reason.** `git worktree list --porcelain` reports
+  `locked claude session <name> (pid 29881 start …)`, so "is this in use, or did its
+  session die?" is a `process.kill(pid, 0)` call rather than a guess. A dead PID alone
+  is still not enough — a session resumed after a process restart carries a stale one —
+  so an orphaned lock must also be untouched for 24 hours.
+- **Merge state is content identity, not ancestry.** `git merge-base --is-ancestor`
+  returns false for a branch merged with `gh pr merge --rebase`, permanently, because
+  rebasing rewrites the SHAs while the content lands intact. This repository favors
+  rebase merges, so an ancestry check would have refused to reap the common case, and
+  no test would have failed. See #106, the same trap one layer over.
+
+**`[IL-58]` is narrowed to the locked case.** The incident was real but generalized a
+locked worktree's failure into a claim about `EnterWorktree` provenance; seven unlocked
+harness-created worktrees removed cleanly with the raw git form on the first attempt.
+`/tidy` Step 4.5 is correct as written again, and `ExitWorktree` is named as the remedy
+for a session's own worktree — the case the reaper deliberately never touches.
+
+A transitional guard in `wrap-up` copies out any run directory that still resolves inside
+a worktree, for runs created before this shipped. It is dated for removal, and it is the
+one piece here that could not be covered by a test, so it was executed against a
+multi-spec fixture instead — which is how it was caught copying a fixed list of filenames
+and missing the per-record `spec-{n}/` directories beside them.
 
 ## v6.64.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
 
@@ -184,7 +232,7 @@ renumbered the work to 6.64.2 and moved its CHANGELOG heading and `docs/shipped-
 line along with it, erasing the record of a real release.
 
 See **v6.64.2** above for what the release contains; the two numbers carry the same work.
-Restored in 6.64.3, which also fixed the rule that caused both losses.
+Restored in 6.65.1, which also fixed the rule that caused both losses.
 
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 

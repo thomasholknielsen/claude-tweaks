@@ -49,12 +49,13 @@ Rank 6 is deliberately per-consumer, because they degrade differently. In every 
 | `/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up` | Merge target and push target | `git remote show origin` / `gh api default_branch`, as today |
 | `/claude-tweaks:assess-agent-autonomy` | `merge-base` for blast radius | `gh api default_branch`, as today; an unresolvable value is already the documented `needs-human` inconclusive-read case |
 | `/claude-tweaks:build`, `/claude-tweaks:flow` | Expected fork point | Upstream of the current branch, else `origin/HEAD`, as today |
+| `SessionStart` worktree reaper (`bin/lib/hooks/session-start.js` → `bin/lib/hooks/worktree-reap.js`) — the one non-skill consumer | The branch a finished worktree's content must already be in before the worktree is removed | **Reap nothing.** Only rank 3 and rank 5's *GitHub-default* half are available to it: a hook has no explicit argument, no routine template, and no reader for rank 4's prose, and rank 5's *current-branch* half is excluded outright by the anti-pattern below. Nothing resolved means no safe measurement, and here the consequence of measuring against a guess is a deletion rather than a warning — a probe removed a worktree holding genuinely unmerged work purely because the main checkout had been switched underfoot |
 
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---------|--------------|
 | Resolving the GitHub default branch inline instead of citing this file | That is exactly how four sites came to answer one question four different ways, with nothing objecting. `tests/integration-branch-conformance.test.js` fails on a new un-cited resolver |
-| Using the branch the main checkout currently has checked out | A concurrent session switches it underfoot — the reason `/claude-tweaks:dispatch`'s merge guard exists at all |
+| Using the branch the main checkout currently has checked out | A concurrent session switches it underfoot — the reason `/claude-tweaks:dispatch`'s merge guard exists at all, and why the `SessionStart` reaper reaps nothing rather than falling back to it |
 | Pinning the current branch inside a linked worktree | It is a throwaway isolation branch; it will not exist when a routine fires or a later run merges |
 | Treating rank 4's CLAUDE.md read as a config-key lookup | It reads prose describing a branching model, not a `key: value` line. Design B's policy.yml consolidation does not remove it |

@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoInfo, findPolicyFile, safeReal } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot } = require('../bin/lib/hooks/worktree-detect');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 test('nearestExistingDir: existing directory returns itself', () => {
@@ -116,4 +116,62 @@ test('findPolicyFile: policy file present several directories up returns that an
   const target = path.join(nested, 'file.txt');
   assert.strictEqual(findPolicyFile(target), dir);
   assert.notStrictEqual(findPolicyFile(target), nested);
+});
+
+test('mainCheckoutRoot: from the main checkout returns its own root', () => {
+  const main = gitRepo();
+  assert.strictEqual(mainCheckoutRoot(main), safeReal(main));
+});
+
+test('mainCheckoutRoot: from inside a linked worktree returns the MAIN checkout, not the worktree', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.strictEqual(mainCheckoutRoot(wt), safeReal(main));
+  // The discriminating half: a naive implementation returns the worktree.
+  assert.notStrictEqual(mainCheckoutRoot(wt), safeReal(wt));
+});
+
+test('mainCheckoutRoot: from a nested path inside a linked worktree still returns the main checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const nested = path.join(wt, 'a', 'b');
+  fs.mkdirSync(nested, { recursive: true });
+  assert.strictEqual(mainCheckoutRoot(nested), safeReal(main));
+});
+
+test('mainCheckoutRoot: a .git file pointing outside .git/worktrees/ (submodule shape) returns null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sub-'));
+  fs.writeFileSync(path.join(dir, '.git'), 'gitdir: /somewhere/.git/modules/thing\n');
+  assert.strictEqual(mainCheckoutRoot(dir), null);
+});
+
+test('mainCheckoutRoot: an unparseable .git file returns null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bad-'));
+  fs.writeFileSync(path.join(dir, '.git'), 'not a gitdir line\n');
+  assert.strictEqual(mainCheckoutRoot(dir), null);
+});
+
+test('mainCheckoutRoot: a path in no repository at all returns null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-norepo-'));
+  assert.strictEqual(mainCheckoutRoot(dir), null);
+});
+
+test('mainCheckoutRoot: a stat failure that is NOT ENOENT returns null instead of walking up to an ancestor repo', () => {
+  // ENOENT is the ordinary walk-up case ("no .git here, look higher"). Every
+  // other errno means we could not LOOK, which is a different fact: continuing
+  // the walk hands back an ANCESTOR repository's root, and worktree-reap.js
+  // then enumerates and removes worktrees belonging to that repo.
+  if (process.getuid && process.getuid() === 0) return; // root bypasses mode bits
+  const repo = gitRepo();
+  const blocked = path.join(repo, 'blocked');
+  fs.mkdirSync(blocked);
+  fs.chmodSync(blocked, 0o000); // statSync(blocked/.git) -> EACCES
+  try {
+    // Precondition: the walk-up WOULD find a repo one level higher, so a null
+    // here can only come from the errno branch, not from "nothing to find".
+    assert.strictEqual(mainCheckoutRoot(repo), safeReal(repo));
+    assert.strictEqual(mainCheckoutRoot(blocked), null);
+  } finally {
+    fs.chmodSync(blocked, 0o755);
+  }
 });
