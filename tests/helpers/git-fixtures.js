@@ -61,7 +61,11 @@ function gitRepo() {
   return fs.realpathSync(dir);
 }
 
-// A linked worktree of `main` (itself created via gitRepo()).
+// A linked worktree of `main` (itself created via gitRepo()), placed OUTSIDE
+// the main checkout — the shape raw `git worktree add` produces. Deliberately
+// not in the harness domain: bin/lib/hooks/worktree-reap.js only reaps
+// `<main>/.claude/worktrees/`, so this is also the fixture for "a worktree the
+// reaper must refuse to touch."
 function linkedWorktreeOf(main) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-parent-'));
   const wt = path.join(parent, 'wt');
@@ -69,4 +73,16 @@ function linkedWorktreeOf(main) {
   return fs.realpathSync(wt);
 }
 
-module.exports = { gitRepo, linkedWorktreeOf, fixtureGit, FIXTURE_TIMEOUT_MS };
+// A linked worktree inside the harness-owned domain — `<main>/.claude/worktrees/<name>`,
+// where the native EnterWorktree tool puts them (ADR-0004). This is the only
+// domain bin/lib/hooks/worktree-reap.js will consider.
+let harnessWorktreeSeq = 0;
+function harnessWorktreeOf(main, name) {
+  const leaf = name || `wt-${process.pid}-${harnessWorktreeSeq++}`;
+  const wt = path.join(main, '.claude', 'worktrees', leaf);
+  fs.mkdirSync(path.dirname(wt), { recursive: true });
+  fixtureGit(['-C', main, 'worktree', 'add', '-q', wt, '-b', `wt-branch-${leaf}`]);
+  return fs.realpathSync(wt);
+}
+
+module.exports = { gitRepo, linkedWorktreeOf, harnessWorktreeOf, fixtureGit, FIXTURE_TIMEOUT_MS };

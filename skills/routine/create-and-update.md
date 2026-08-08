@@ -30,7 +30,14 @@ Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@g
 
 Derive `REPO_SLUG` from the resolved URL's `{repo}` segment: lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, and trim leading/trailing `-`. Set `PREFIXED_NAME = "{REPO_SLUG}-{template.routine_name}"` (e.g. repo `claude-tweaks` + `routine_name: code-health-daily` → `claude-tweaks-code-health-daily`). Use `PREFIXED_NAME` everywhere the rest of this workflow refers to the routine's name or the record's filename — never the template's bare `routine_name` alone.
 
-**Step 3 — Idempotency check.** Check whether `.claude-tweaks/routines/{PREFIXED_NAME}.yml` already exists in the current project. If it does, stop this workflow and continue at UPDATE below instead — never create a second routine for the same project+skill combination.
+**Step 3 — Idempotency check.** Does a record for `{PREFIXED_NAME}` already exist for this project? Answer it against the **union** of the working checkout and the branch this project commits records to — not the working checkout alone. Run `record-freshness.md` in this skill's directory (Steps F1-F2) and read the entry for `{PREFIXED_NAME}.yml`, then apply its Step F3 CREATE disposition:
+
+- `presence: both` or `local-only` → a record exists: stop this workflow and continue at UPDATE below, exactly as before.
+- `presence: upstream-only` → **STOP** with F3's BLOCKED message. The record is committed on the integration branch and merely absent from this checkout; creating now mints a second live routine for the same project+skill, and `RemoteTrigger` has no delete counterpart to undo it (#190).
+- No entry on either side → no record exists: proceed to Step 4.
+- `verified: false` (offline, no remote, no such ref, no branch resolved) → fall back to the working-checkout-only existence check exactly as this step behaved before, and print `freshnessNote` once. Never stop on an unverified comparison.
+
+Never create a second routine for the same project+skill combination.
 
 **Step 4 — Resolve `environment_id`, or defer to guided creation.** If `--environment <id>` was passed, use it directly — skip every other source below, including the guided-creation branch (an explicit `--environment` always wins). Otherwise, if `--refresh-environment` was passed, skip the cache and both `RemoteTrigger`-backed sources too — source (a) and source (b) below — go straight to asking the user directly which environment to use (the same direct-user-input prompt Step 8's guided-flow-unavailable fallback uses below), then continue to the cache-write step below with the freshly chosen value, overwriting whatever the cache file already held. Otherwise: check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, use it silently — no confirmation prompt. Otherwise, try two complementary sources, in this order, and use whichever yields a value first:
 
@@ -139,9 +146,15 @@ Report the console URL to the user.
 
 **Step 0 — Worktree check.** Same as CREATE Step 0 — run it here too, since `update` is often invoked directly rather than routed from CREATE's idempotency check, and Step 7 below writes the instantiated record just as CREATE Step 9 does.
 
-**Step 1.** Load the template the same way as CREATE Step 1 (if missing, stop with the same message). Resolve the repo URL and derive `PREFIXED_NAME` the same way as CREATE Step 2. Require an existing `.claude-tweaks/routines/{PREFIXED_NAME}.yml` for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists, tell the user to run `create <skill>` first and stop.
+**Step 1.** Load the template the same way as CREATE Step 1 (if missing, stop with the same message). Resolve the repo URL and derive `PREFIXED_NAME` the same way as CREATE Step 2.
 
-**Step 2.** Compare the template's `template_version` (already read in Step 1) against the instantiated record's `template_version` — if they match and the user hasn't asked to change anything else, report "already in sync" and stop.
+Then run `record-freshness.md` in this skill's directory (Steps F1-F2) and apply its Step F3 UPDATE disposition **before** the require-a-record check below — that ordering is load-bearing. On a stale checkout the record does exist, just not here, so the "run `create` first" message below is wrong and sends the user into CREATE Step 3's duplicate-minting path; F3's CREATE and UPDATE stops interlock to close that loop. Stop when the comparison is `verified` **and** this record's `authority` is `upstream` **and** either its `presence` is `upstream-only` or its `fields` list is non-empty: every remaining step writes (Step 6 issues a live `RemoteTrigger update`, Step 7 rewrites the record), and both would be assembled from the stale copy (#190). A behind checkout whose copy of *this* record is identical on both sides is not a stop — that is the common case after any unrelated commit. An unverified comparison is never a stop; print `freshnessNote` once and continue.
+
+Where the comparison is verified and this record's `authority` is `upstream`, read the record from `upstream` for the rest of this workflow rather than from the working tree.
+
+Require an existing record for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists on either side, tell the user to run `create <skill>` first and stop.
+
+**Step 2.** Compare the template's `template_version` (already read in Step 1) against the instantiated record's `template_version` — the authoritative copy Step 1 resolved, which on a behind checkout is the integration branch's, not the working tree's. If they match and the user hasn't asked to change anything else, report "already in sync" and stop.
 
 A matching version is not on its own sufficient to stop, because the branch can change with no template edit behind it. Run Step 3's branch resolution before deciding — it is greps plus local git, no network and no `RemoteTrigger` call — and treat either of these as "something else to change," continuing to Step 3 proper: an explicit `--branch`, or a resolved branch that differs from the record's `branch` field. Without this, a project that has already re-synced to the current template and *then* adds `integration-branch` to `policy.yml` gets "already in sync" and a live routine still auditing the wrong tree — the exact migration this field exists to enable.
 

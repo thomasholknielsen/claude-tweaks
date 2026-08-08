@@ -26,4 +26,17 @@ function isWorktreeAlwaysOn(repoRoot) {
   return raw.split('\n').some((line) => /^worktree\.always:\s*true(\s*#.*)?$/.test(line.trim()));
 }
 
-module.exports = { isWorktreeAlwaysOn };
+// `integration-branch: <name>` — where finished work lands. Unset on most
+// projects, where each consumer falls back to the repository's own default
+// branch. Trailing `# comment` tolerated, same as isWorktreeAlwaysOn.
+function readIntegrationBranch(repoRoot) {
+  const raw = readPolicyFile(repoRoot);
+  if (!raw) return null;
+  for (const line of raw.split('\n')) {
+    const m = /^integration-branch:\s*([^\s#]+)(\s*#.*)?$/.exec(line.trim());
+    if (m) return m[1];
+  }
+  return null;
+}
+
+module.exports = { isWorktreeAlwaysOn, readIntegrationBranch };

@@ -39,6 +39,142 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.65.1 — the renumber rule stops erasing releases that already shipped
+
+The Releasing section told you to renumber a CHANGELOG heading whenever a collision forced a new
+version, justified by "an entry naming a version that never reached `main` is an orphan." That
+justification only holds for a number that never shipped.
+
+It happened **twice in one day**, to two different sessions. `e4a79904` applied the rule literally
+to 6.62.0 — which *had* reached `main`'s tip — so moving its heading to 6.64.0 deleted the record of
+a real release, and step 3's "renumber this line too" took the `docs/shipped-versions.tsv` line with
+it. The identical thing had already happened to 6.61.2 (`a5476a4b`), renumbered to 6.64.2. Both were
+found the same way: `tests/changelog-coverage.test.js` failing on a version the git walk can still
+see with nothing to match it against. 6.62.0 was restored in 6.64.1; 6.61.2 is restored here, both
+from their original release commits rather than reconstructed.
+
+The recurrence is the argument. One session mis-applying a rule is a mistake; two independent
+sessions doing it inside 24 hours is the rule being wrong.
+
+- **Steps 2 and 3 now split on whether the old number reached `main`'s tip.** Never shipped →
+  renumber, as before. Shipped → keep the old entry and add a second one for the new number,
+  pointing at it rather than duplicating the body, since a duplicate heading is its own parse
+  failure in that same test. Step 3 carries the matching split for the tsv line, and says which
+  half of the mistake is the damaging one: that file is the authority for what shipped (`[IL-95]`),
+  so a deleted line is the real loss and the changelog gap is merely what surfaces it.
+
+No new Don't. The person who erased 6.62.0 was following the Releasing section literally, and that
+section is already in the always-loaded file — a Don't bullet would be a second copy of the same
+instruction, and an incident-log entry with no rule behind it is an orphan by this repo's own
+definition.
+
+## v6.65.0 — a worktree stops being the only place its pipeline state lives, and finished ones get reaped
+
+Closes #185. Removing a git worktree was dangerous for one reason: it could hold the
+only copy of a run's `config.yml`, `decisions.md`, `events.jsonl` and `staged/`. So
+nothing dared, and 21 accumulated here in a month while three files disagreed about
+which command was even allowed.
+
+**Run directories now anchor to the main checkout at creation.** Resolved from a linked
+worktree's `.git` file — which is a plain file naming the shared checkout — so it costs
+no subprocess on a path every hook invocation crosses. This changes *when* run state
+reaches the main checkout, not *where* it ends up: `wrap-up` already copied it out at
+cleanup, and doing that at cleanup is precisely why a skipped cleanup lost it. That
+copy-out is now **deleted**, along with the ordering rule protecting it, rather than
+duplicated into a second consumer. `work/{n}-spec.md` stays in the worktree — it is
+git-tracked and reaches `main` by merge.
+
+**`SessionStart` reaps worktrees that are finished.** Five conditions, all required: a
+linked worktree under `.claude/worktrees/`; not the caller's own directory or a
+subdirectory of it; no live owner; content-identical to the resolved integration branch;
+and nothing in `git status --porcelain --ignored`. Any ambiguity surfaces instead of
+acting. There is no policy key to disable it — the predicate is the safety mechanism, so
+every branch of it fails closed.
+
+Two things made this decidable that were not obvious:
+
+- **The owning PID is in the lock reason.** `git worktree list --porcelain` reports
+  `locked claude session <name> (pid 29881 start …)`, so "is this in use, or did its
+  session die?" is a `process.kill(pid, 0)` call rather than a guess. A dead PID alone
+  is still not enough — a session resumed after a process restart carries a stale one —
+  so an orphaned lock must also be untouched for 24 hours.
+- **Merge state is content identity, not ancestry.** `git merge-base --is-ancestor`
+  returns false for a branch merged with `gh pr merge --rebase`, permanently, because
+  rebasing rewrites the SHAs while the content lands intact. This repository favors
+  rebase merges, so an ancestry check would have refused to reap the common case, and
+  no test would have failed. See #106, the same trap one layer over.
+
+**`[IL-58]` is narrowed to the locked case.** The incident was real but generalized a
+locked worktree's failure into a claim about `EnterWorktree` provenance; seven unlocked
+harness-created worktrees removed cleanly with the raw git form on the first attempt.
+`/tidy` Step 4.5 is correct as written again, and `ExitWorktree` is named as the remedy
+for a session's own worktree — the case the reaper deliberately never touches.
+
+A transitional guard in `wrap-up` copies out any run directory that still resolves inside
+a worktree, for runs created before this shipped. It is dated for removal, and it is the
+one piece here that could not be covered by a test, so it was executed against a
+multi-spec fixture instead — which is how it was caught copying a fixed list of filenames
+and missing the per-record `spec-{n}/` directories beside them.
+
+## v6.64.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
+
+Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
+
+- `bin/lib/wrap-up/state.js` — `pushed` returned a definite `false` when the upstream resolved
+  but the paired `rev-list` did not, making "not pushed" indistinguishable from "could not tell".
+  It is now `boolean | null`, and `render.js` prints `push status unknown ({upstream})` for the
+  null case rather than borrowing `UNPUSHED` — claiming unpushed when you do not know is the
+  same defect facing the other way.
+- `bin/wrap-up-state.js` — `parseArgs` consumed a following flag as `--since`'s value, so
+  `--since --json HEAD~5` silently dropped both. It now exits 2 instead.
+- `skills/wrap-up/summary-template.md` — the exit-2 path added in v6.60.0 had no consumer-side
+  instruction, so a wrong `{base}` could cost the whole State block; and the record-mode closure
+  line still asserted "its plans and ledger have been deleted" unconditionally, while the
+  conversation-mode line beside it was already measured. Both fixed.
+- `skills/wrap-up/verification-brief.md` — the `{base}` pointer named the wrong step.
+- `[IL-105]` — **Don't treat a check's green as evidence before naming what its red would look
+  like.** Five checks in the v6.60.0 build reported success while the thing they checked was
+  false: a `grep -c` that a failing test satisfies identically, four mechanical checks green on a
+  feature whose one required value was undefined, a deleted-line sweep that dropped every input
+  line beginning with `-`, and a reviewer who examined a command and judged it correct without
+  checking the branch it named. Four of the five were introduced while fixing one of the others.
+
+## v6.64.1 — /claude-tweaks:routine reads its records from the branch they live on
+
+`.claude-tweaks/routines/*.yml` is a committed artifact, but all three of `/claude-tweaks:routine`'s
+modes read it straight from the working checkout with no fetch. A checkout behind its integration
+branch therefore reported drift that did not exist — and then fed that stale read into real writes
+(#190). Reported from a live run where all six of a project's routines showed as needing an update
+while the integration branch already had every one of them current; the checkout was 119 commits
+behind, with nothing in `git status` indicating it.
+
+- **`skills/routine/record-freshness.md`** — one procedure, cited by all three call sites. Resolves
+  the branch of record per `_shared/integration-branch.md` (starting at rank 3: `--branch` and
+  `template.branch` name the branch a routine *audits*, which is a different question), then compares
+  the working copy against it over the **union** of both sides.
+- **`compareRoutineRecords` / `readRoutineRecordsAtRef`** (`bin/lib/routine-template-parser.js`) —
+  the comparison itself, so the fix is testable rather than prose-only. Reads records at a ref via
+  `git ls-tree`/`git show` without touching the working tree.
+- **CREATE Step 3 is the one that mattered.** A record committed upstream was invisible to a
+  working-tree read, so the idempotency check routed to CREATE and minted a *second live routine* —
+  the duplicate the skill's own Anti-Patterns table forbids, which `RemoteTrigger` has no delete
+  action to undo. Existence is now the union, and an upstream-only record hard-stops with both
+  recovery commands. UPDATE stops on the same evidence (every step past it writes). STATUS never
+  stops: it enumerates the union, computes each verdict against the authoritative copy, and names
+  which tree it read.
+- **Fail-open by construction.** No remote, no network, a fetch past its timeout, or no branch
+  resolved all degrade to the pre-#190 working-checkout read and print one line saying so. Both
+  stops are gated on a *verified* comparison, so `/claude-tweaks:routine status` still works offline
+  — a naive fetch at the top of three steps would have been a worse regression than the bug.
+
+Distinct from #11 (the cloud sandbox's checkout at firing time) and #132 (which branch a routine
+audits); this is the local skill invocation reading stale project state.
+
+
+## v6.64.0 — the plugin's doc conventions notice when a repo already has its own
+
+- **Prior-art detection for documentation genres** — new `skills/_shared/prior-art-detection.md` is the canonical contract for the question no doc-creating path used to ask: does this repo already have its own convention for the genre about to be written? `/claude-tweaks:wrap-up` Step 6.2 now resolves an ADR's path through it instead of asserting `docs/decisions/NNNN-{kebab-slug}.md`, so a repo whose decision records follow a different grammar gets one three-way Review Console choice — conform forward, migrate, or keep the project's form — rather than a second grammar in the same directory. A repo with no decision records, or one already matching, never sees a prompt. The answer records in the new `doc-convention.adr` policy key, which stores which source wins rather than a grammar, keeping it flat-encodable. `_shared/diataxis-genre-templates.md` gains a per-genre declaration table; only ADR is wired, and rows marked Phase 2 say so explicitly, since a row claiming detection with no consumer is a promise nothing keeps. The evidence behind the corpus-versus-project-skill split: a 16-ADR corpus measured 16/16 consistent on filename grammar but 9/5/2 on one heading's casing, so filenames may be inferred and sections may not. Review Console numbering gained its first per-item row inside a batch section, and its Approve-all rules were amended to cover it. Recorded as ADR 0013.
+
 ## v6.63.0 — the family gate reaches dispatched groups and the local-files driver
 
 Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavioral.
@@ -73,6 +209,31 @@ Four follow-ups to v6.61.0's parent-record acceptance gate, two of them behavior
   Step-10-only or as labeling "the record" when for a decomposed leaf it labels the
   parent.
 
+## v6.62.0 — prior-art detection, first shipped under this number
+
+Bookkeeping restoration, not new work. The prior-art-detection feature was released as 6.62.0 in
+`8275bfa5` and reached `main`'s tip under that number. A later collision renumbered it to 6.64.0
+and moved the CHANGELOG heading with it — correct for a version that never shipped, but 6.62.0
+*had* shipped, so the move erased the record of a real release rather than an orphan. The git walk
+in `tests/changelog-coverage.test.js` still sees 6.62.0 and had no entry to match it against.
+
+See **v6.64.0** above for what the release actually contains; the two numbers carry the same work.
+Restored while merging #190 — see `[IL-95]` for why `docs/shipped-versions.tsv` is the authority
+here, and the renumber note in CLAUDE.md's Releasing section for the rule this case sits just
+outside: renumber the heading when the old number never reached `main`, and add a second entry
+when it did.
+
+
+## v6.61.2 — the wrap-up helper's fix, first shipped under this number
+
+Bookkeeping restoration, not new work — the same renumber-after-ship loss as v6.62.0 below.
+Released as 6.61.2 in `a5476a4b` and reached `main`'s tip under that number; a later collision
+renumbered the work to 6.64.2 and moved its CHANGELOG heading and `docs/shipped-versions.tsv`
+line along with it, erasing the record of a real release.
+
+See **v6.64.2** above for what the release contains; the two numbers carry the same work.
+Restored in 6.65.1, which also fixed the rule that caused both losses.
+
 ## v6.61.3 — skill files stop citing a design doc that was deleted a month ago
 
 Seven citations across six live skill files pointed at
@@ -105,6 +266,36 @@ References remaining in `docs/superpowers/plans/`, `CHANGELOG.md`, and the amend
 are historical record and stay. The amending doc's own stale citations are flagged at the live
 pointer in `skill-graph.md` rather than rewritten in place — a dated design doc says what was
 true when it was written.
+
+## v6.61.2 — the wrap-up helper stops claiming a fact it did not measure, and a rule for checks that cannot fail
+
+Follow-ups deferred from v6.60.0's reviews, plus the rule the whole build kept demonstrating.
+
+- `bin/lib/wrap-up/state.js` — `pushed` returned a definite `false` when the upstream resolved
+  but the paired `rev-list` did not, making "not pushed" indistinguishable from "could not tell".
+  It is now `boolean | null`, and `render.js` prints `push status unknown ({upstream})` for the
+  null case rather than borrowing `UNPUSHED` — claiming unpushed when you do not know is the
+  same defect facing the other way.
+- `bin/wrap-up-state.js` — `parseArgs` consumed a following flag as `--since`'s value, so
+  `--since --json HEAD~5` silently dropped both. It now exits 2 instead.
+- `skills/wrap-up/summary-template.md` — the exit-2 path added in v6.60.0 had no consumer-side
+  instruction, so a wrong `{base}` could cost the whole State block; and the record-mode closure
+  line still asserted "its plans and ledger have been deleted" unconditionally, while the
+  conversation-mode line beside it was already measured. Both fixed.
+- `skills/wrap-up/verification-brief.md` — the `{base}` pointer named the wrong step.
+- `[IL-105]` — **Don't treat a check's green as evidence before naming what its red would look
+  like.** Five checks in the v6.60.0 build reported success while the thing they checked was
+  false: a `grep -c` that a failing test satisfies identically, four mechanical checks green on a
+  feature whose one required value was undefined, a deleted-line sweep that dropped every input
+  line beginning with `-`, and a reviewer who examined a command and judged it correct without
+  checking the branch it named. Four of the five were introduced while fixing one of the others.
+
+> **Entry restored 2026-08-08.** This release's bump reached `main` but its CHANGELOG entry and
+> `shipped-versions.tsv` line did not, leaving `tests/changelog-coverage.test.js` red on `main`
+> for anyone who ran it. Recovered verbatim from the release commit `a5476a4b`, with one
+> correction: the entry cited `[IL-104]` for the checks rule, which shipped as `[IL-105]` after a
+> collision renumber — `IL-104` is a different incident. This is the `[IL-94]`/`[IL-99]` shape the
+> coverage gate exists to catch, and it caught it.
 
 ## v6.61.0 — a decomposition's parent record is the family's acceptance checkpoint
 

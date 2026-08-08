@@ -136,7 +136,7 @@ When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3
 
 If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs both sub-scans as before.
 
-**Gate the read.** When the pre-check above did not fire, read `config-updates.md` in this skill's directory for both sub-scans in full — 6.1 CLAUDE.md and Rules (which conventions qualify, the size budget, and the write-the-incident-account-before-the-rule discipline for a new Don't) and 6.2 Decision Records (candidate gathering, the three-factor ADR gate from `_shared/decision-records.md`, and the `docs/decisions/NNNN-{slug}.md` proposal). Neither sub-scan writes anything; both only collect rows, which surface at the Step 8.6 Review Console or Step 9's batch table. When the pre-check fired, skip the read entirely.
+**Gate the read.** When the pre-check above did not fire, read `config-updates.md` in this skill's directory for both sub-scans in full — 6.1 CLAUDE.md and Rules (which conventions qualify, the size budget, and the write-the-incident-account-before-the-rule discipline for a new Don't) and 6.2 Decision Records (candidate gathering, the three-factor ADR gate from `_shared/decision-records.md`, and the ADR path proposal, which Step 6.2 resolves via `_shared/prior-art-detection.md` rather than asserting). Neither sub-scan writes anything; both only collect rows, which surface at the Step 8.6 Review Console or Step 9's batch table. When the pre-check fired, skip the read entirely.
 
 ---
 

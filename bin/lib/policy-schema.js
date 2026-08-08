@@ -39,6 +39,7 @@ const POLICY_KEYS = [
   { key: 'section-confirmation', type: 'enum', values: ['adaptive', 'per-section', 'batch'], default: 'adaptive' },
   { key: 'merge-check', type: 'boolean', default: true },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised' },
+  { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
 ];
 
 function readFileSafe(filePath) {

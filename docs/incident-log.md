@@ -250,6 +250,20 @@ Don't scope a feature meant to prevent an empirically-observed failure to only d
 
 Don't run raw `git worktree remove` on a worktree created via `EnterWorktree` — it fails with "cannot remove a locked working tree" (harness-managed lock, not a plain git worktree), even though `superpowers:finishing-a-development-branch`'s own documented cleanup procedure only shows the raw git form. Use `ExitWorktree` instead; verify `git rev-parse HEAD` matches on both the worktree branch and the branch it merged into before passing `discard_changes: true`.
 
+**Narrowed 2026-08-07.** The failure is specific to a **locked** worktree, not to
+`EnterWorktree` provenance. Counter-evidence: seven unlocked, harness-created worktrees
+under `.claude/worktrees/` were removed with the raw git form on the first attempt, no
+lock error. The rule below now reads as locked-only; `bin/lib/hooks/worktree-reap.js`
+unlocks first when the lock's owning pid is provably dead **and** the worktree has been
+untouched for 24h, and never otherwise.
+
+**Which remedy applies to which worktree.** The reaper is not a remedy for the worktree a
+session is standing in: that lock's pid is live, so `lockVerdict` returns `in-use` and the
+reaper correctly skips it — and a session's own worktree at `/wrap-up` time always has a
+live pid. `ExitWorktree` (`action: "remove"`) remains the only remedy for that case, and
+`skills/wrap-up/cleanup-procedures.md` Section C step 4 names it. The reaper covers the
+other case: a worktree whose owning session is gone, which nothing else collects.
+
 ## IL-59 — The marketplace-mirror half of a release
 
 Don't stop to ask before completing the marketplace-mirror half of a release — the Releasing section above already authorizes both repo pushes as one action ("a release touches **both** this repo and the separate marketplace repo"). Pausing after only bumping `plugin.json` turns one documented step into two turns and risks the mirror silently never happening if the follow-up reply is a bare "yes" with no restated specifics. Bumped `plugin.json` to 6.17.0, pushed, and only flagged the marketplace mirror as a question afterward — costing an extra round-trip for a step the file already pre-authorizes.
@@ -656,4 +670,49 @@ That is strictly worse than the bug it replaced. `framing:baked` means *this rec
 The idiom was not wrong; importing it was. `risk`/`effort`/`ceremony` are tiered facets a record almost always carries, so defaulting the flag *present* and documenting when to omit is right for them. `framing:baked` is a presence-only marker whose common case is absence, so the default had to be inverted: show the block without the flag, and document when to add it. Two conventions that look identical on the page encode opposite assumptions about which case is normal.
 
 The generalizable rule: before reusing a neighbouring convention, state its common case out loud and check that yours matches. Where they differ, the shape must invert — the default in an example block is not cosmetic, it is the instruction most readers will follow unchanged. This is the prose analogue of `[IL-101]`'s reused-set hazard: there, one set answered two questions whose answers differed; here, one idiom served two fields whose default cases differed. In both, nothing reads wrong, which is what makes them survive review.
+
+## IL-104 — Committed project state was read from the working checkout, which had no way to know it was stale
+
+`.claude-tweaks/routines/*.yml` is a committed artifact — `.gitignore` carves it out of the `.claude-tweaks/` rule with a comment saying exactly that. All three modes of `/claude-tweaks:routine` nevertheless read it straight from the working checkout with no fetch. On a checkout behind its integration branch, every one of them therefore described a tree that was not the project's.
+
+The reported run (#190) had all six of a project's routines showing as needing an update: four at template v2 against a v4 template, two at v3 against v5, none carrying `branch:`, one schedule mismatch, one filename/name mismatch. The integration branch already had all six current, with `branch:` present and the rename done. Nothing was wrong except where the skill was looking.
+
+What makes this worth an entry is not the misreport — it is that **nothing in the checkout could reveal the problem**. `git status` printed a clean tree and `## main...origin/main` with no behind-marker, because ahead/behind is computed against `refs/remotes/origin/main`, a local cache that only a fetch updates. The checkout was 119 commits behind. `git branch -vv` reads the same stale ref and is equally blind. The one command a person would reach for to check is the one that cannot answer.
+
+The stale read then fed writes. UPDATE's confirm gate asked the user to adjudicate drift that did not exist; Step 6 issued a live `RemoteTrigger update` assembled from the stale record, and Step 7 rewrote the record from the same input, staging a real regression for commit. Worst was CREATE Step 3: a record committed upstream is simply *absent* from a stale checkout, so the idempotency check routed to CREATE and minted a duplicate live routine — the outcome the skill's own Anti-Patterns table forbids, and one `RemoteTrigger` has no delete action to undo.
+
+A second instance was found in the same session while fixing the first: `/claude-tweaks:init`'s Update Mode skipped its entire Routine Drift check when `.claude-tweaks/routines/` did not exist **locally** — so on a stale checkout it skipped the project that most needed it, and two sibling checks hung off that gate by reference.
+
+The near-miss inside the fix is worth recording too. The first draft resolved the comparison branch with the full `_shared/integration-branch.md` ladder. Ranks 1-2 (`--branch`, `template.branch`) name the branch a routine *audits*, which is a different question from where its records are committed — using them would have compared records against the wrong tree, reintroducing the same defect inside its own fix. Nothing in the suite would have failed; it was caught by reasoning, and is now filed as #193.
+
+The generalizable rule: reading a committed artifact from the working tree is only correct once the checkout is known to be current, and no local git command establishes that. Fetch first, or read the artifact from the ref directly. The corollary that makes it safe: gate any resulting stop on a *verified* comparison, so a failed fetch degrades to the old behavior instead of blocking an offline session — unknown is not stale.
+
+## IL-105 — Five checks reported success while the thing they checked was false
+
+During the 6.60.0 wrap-up-report build, five separate checks reported success while the thing they checked was false. (1) The originating incident: a `/tidy` sweep used an unquoted `--include=*.md`, zsh expanded it, grep never ran, and the run read as a clean zero-result sweep. (2) The plan verified a newly-added test glob with `grep -c "reflog"` — a *failing* test prints its name too, so the check was green either way, and it guarded a step that deliberately broke the classifier. (3) `{base}`, the one value the State block's command requires, was undefined everywhere; four mechanical checks (four parts present, D-codes contained, byte ceiling, preserved-behavior tail) all passed on a feature that could not run. (4) An `[IL-87]` deleted-line sweep silently skipped two lines that began with `-`, which grep parsed as options — it would have reported "clean" having never examined part of its input. (5) The fix wave introduced `{default-branch}`, resolved from GitHub's default-branch pointer; a reviewer examined it and judged it "correct either way," which was true of the *command* and wrong about the *branch it named*. Only the full suite's `integration-branch-conformance` test caught it, and every agent had been told to skip that suite for its 25-minute runtime.
+
+The common shape: each check's green and its red were indistinguishable, so passing carried no information. Four of the five were introduced while fixing one of the others — a check written under time pressure to close out a prior finding is exactly the check least likely to have had its own failure mode considered, because the attention in the moment is on the thing it guards, not on the guard itself.
+
+The generalizable rule: before trusting a check, name what its red output would look like and confirm the check can actually produce it — a count-based grep that a failure also satisfies, a suite that never loaded the file it means to test, and a sweep that silently drops part of its input all report identically whether or not the thing they check is true. A check that cannot fail is not a stricter check; it is no check, wearing one's shape.
+
+## IL-106 — A worktree was created three times from a base older than the last fetch
+
+Across one session on 2026-08-07/08, `EnterWorktree` produced a worktree whose base was behind `origin/main` three separate times. The first two were caught only by `tests/changelog-coverage.test.js`, which failed with "1 version(s) shipped on origin/main with no CHANGELOG entry" — the branch had been cut before that session's *own* previous release, so its `CHANGELOG.md` and `docs/shipped-versions.tsv` were missing an entry the session itself had written an hour earlier.
+
+The third occurrence is the informative one. Having drawn the lesson "fetch before `EnterWorktree`," the session did exactly that: `git fetch origin main` reported `origin/main` at `b7ceaeda` / 6.64.2, and `EnterWorktree` immediately afterward produced a worktree at `0816fe0d` / 6.60.0 — four releases behind the ref that had just been fetched into the same repository. So the base is not "whatever `origin/main` said at creation time," and fetching first does not fix it. The remedy that works is unconditional and after the fact: `git merge origin/main` inside the new worktree before doing anything else, every time.
+
+Why it stayed invisible: nothing about a stale base looks wrong. The worktree has a clean tree, a plausible `main`-derived history, and a passing test suite — the base is only wrong *relative to work that landed since*, which is invisible from inside. On a repo with one active session it would rarely matter; this repo runs six or more concurrently and ships several versions an hour, so "behind by four releases" is a normal amount of drift for a worktree created minutes ago.
+
+The generalizable rule: treat a newly created worktree's base as unknown rather than current, and merge the integration branch into it as the first action — a fetch beforehand is not equivalent, because the worktree's base is not resolved from the ref the fetch updated.
+
+## IL-107 — A finished nine-task implementation was nearly redone from scratch
+
+A session picked up record #185 (worktree reaping), read its plan, created a worktree, wrote the SDD ledger, and began the pre-flight scan before discovering — incidentally, in `git worktree list --porcelain` output gathered for an unrelated safety question — a sibling worktree named `worktree-reaping-impl` holding eleven commits that implemented all nine of the plan's tasks, including a fix its own review had already caught. The owning session (pid 30559) was still alive, 15h22m in. Its branch was unpushed and unmerged, so `origin/main`, the record's labels, and the claim refs all showed the work as untouched.
+
+Every check the project already prescribes came back clean: no branch matched `*114*`-style patterns for the record, `git ls-remote origin "refs/claims/*"` returned nothing, the record carried no `bot:in-progress`, and no commit on any ref mentioned it. The work was invisible to all of them precisely because it was *in progress* — claims are taken by `/dispatch`, and a session working a record by hand takes none.
+
+What made it visible was the worktree list, and specifically the lock line: `EnterWorktree` locks each worktree with a reason carrying the owning pid (`locked claude session <name> (pid NNNNN start ...)`), so a live sibling is detectable by parsing that pid and checking it with `ps`. That is the same mechanism `bin/lib/hooks/worktree-reap.js` uses to decide whether a worktree is orphaned — the signal already existed and was already trusted for a destructive decision; it simply was not being consulted before starting work.
+
+The generalizable rule: before starting work on a record, enumerate worktrees and their lock-owning pids, not just branches, claims, and labels. Unpushed work by a live session is invisible to every remote-facing signal, and the more concurrent sessions a repo runs, the more likely the record you just picked is already someone's half-finished branch.
+
 

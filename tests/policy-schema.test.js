@@ -19,8 +19,8 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 33);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 33);
+  assert.strictEqual(POLICY_KEYS.length, 34);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 34);
 });
 
 test('integration-branch is a recognized string key with no default', () => {
@@ -220,6 +220,26 @@ test('malformed policy.yml (unparseable) is treated as absent, not thrown', () =
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'policy.yml'), Buffer.from([0xff, 0xfe, 0x00, 0x01]));
   assert.doesNotThrow(() => auditPolicy(repo));
+});
+
+test('doc-convention.adr is an enum with no default — unset means "detect and ask"', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'doc-convention.adr');
+  assert.ok(key, 'doc-convention.adr missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'enum');
+  assert.deepStrictEqual(key.values, ['plugin', 'project']);
+  assert.strictEqual(key.default, undefined, 'unset is a meaningful third state: the question has not been asked yet');
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'doc-convention.adr: project\n');
+  const ok = auditPolicy(repo);
+  assert.deepStrictEqual(ok.invalidValues, []);
+  assert.deepStrictEqual(ok.unrecognizedKeys, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'doc-convention.adr: whatever-the-repo-does\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'doc-convention.adr');
 });
 
 test('mixed policy.yml + CLAUDE.md content is read independently, both audited together', () => {

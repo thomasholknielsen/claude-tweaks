@@ -22,6 +22,10 @@ function branchValue(s) {
   const n = s.commitsInScope;
   const commits = n === null || n === undefined ? `${UNKNOWN} commits` : `${n} commit${n === 1 ? '' : 's'}`;
   if (!s.upstream) return `${head} — ${commits}, UNPUSHED (no upstream)`;
+  // pushed is boolean|null: null means the upstream resolved but the
+  // ahead/behind read failed, so the push state was never measured. Say so —
+  // printing UNPUSHED here would claim a definite false for an unknown.
+  if (s.pushed === null) return `${head} — ${commits}, push status unknown (${s.upstream})`;
   return s.pushed
     ? `${head} — ${commits}, pushed to ${s.upstream}`
     : `${head} — ${commits}, UNPUSHED (${s.upstream})`;

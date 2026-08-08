@@ -28,11 +28,11 @@ docs/decisions/NNNN-{kebab-slug}.md
 
 `NNNN` is a zero-padded sequence (`0001`, `0002`, …) — find the highest existing number under `docs/decisions/` and increment. Slug describes the decision, not the feature (`0007-soft-delete-accounts`, not `0007-accounts-feature`).
 
+**This is the plugin's convention and the default everywhere.** It is not a claim about what any given repo already does. Before proposing a path, `/claude-tweaks:wrap-up` Step 6.2 runs `_shared/prior-art-detection.md` against `docs/decisions/`: a repo whose existing decision records follow a different grammar gets the conflict surfaced once at the Review Console and the answer recorded in `doc-convention.adr`, rather than a seventeenth file in a seventeenth style. A repo with no decision records, or one already following this convention, never sees a prompt.
+
 ## Template
 
-The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s ADR section — read that file for the current skeleton. This file owns the gate, location convention, and who-reads-who-writes contract above; the template body is shared with `/claude-tweaks:init`'s missing-doc scaffolding and `/claude-tweaks:wrap-up`'s missing-doc detection, so it lives in one place rather than three.
-
-`Status` is `accepted` for a decision being recorded after the fact. If a later ADR overturns this one, change this file's status to `superseded by NNNN` rather than deleting it — the trail is the value.
+The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s ADR section — read that file for the current skeleton. This file owns the gate, location convention, and who-reads-who-writes contract above; the template body is shared with `/claude-tweaks:init`'s missing-doc scaffolding and `/claude-tweaks:wrap-up`'s missing-doc detection, so it lives in one place rather than three. That skeleton also owns the `Status` value and the supersede form; this file does not restate them.
 
 ## Who reads, who writes
 

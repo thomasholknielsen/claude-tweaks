@@ -32,8 +32,11 @@ Capture the *why* behind significant decisions made during this work — distinc
    - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
    - Tradeoffs accepted during `/review` and reflection insights about approach
 2. **Run the ADR gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
-3. For each decision that passes, propose creating `docs/decisions/NNNN-{slug}.md` using the template in `_shared/decision-records.md` (find the highest existing `NNNN` and increment).
+3. **Resolve the path before proposing it.** If `doc-convention.adr` is set in `.claude-tweaks/policy.yml`, use the recorded answer and skip detection entirely. Otherwise read `_shared/prior-art-detection.md` and run its procedure for the `adr` genre against `docs/decisions/` and that genre's declared aliases. The result is a resolved path plus one of three outcomes: `plugin`, `project`, or `conflict`.
+4. For each decision that passes the gate, propose creating the resolved path, using the ADR skeleton in `_shared/diataxis-genre-templates.md`.
 
-→ Collect each as: `[adr] docs/decisions/NNNN-{slug}.md — {decision title}`
+→ Collect each as: `[adr] {resolved-path} — {decision title}`
+
+→ On a `conflict` outcome, additionally collect exactly one row per run: `[adr-convention] docs/decisions/ — {plugin form} vs {found form} ({N} existing)`. This row requires per-item approval and is **not** covered by "Approve all" (see `review-console.md`). Until it is answered, no `[adr]` row from this run may be written — the resolved path depends on the answer.
 
 ADR proposals are routed through the Step 9 batch table / Review Console alongside other configuration updates — never written silently. Most wrap-ups produce **zero** ADRs; that is correct. ADRs are valuable because they are rare.

@@ -403,6 +403,7 @@ depends on them.
 | `_shared/learning-routing.md` | Steps 6/7 classify every candidate/seed through this contract before collecting it; Steps 7.10/7.11 own the D4/D5 stage-and-surface, writing memory files per its "Memory write procedure (D4)" and staging upstream proposals for `/feedback`. |
 | `_shared/initiative-budget.md` | Step 7.12's broken-reference sweep (`reference-sweep.md`) is the only consumer. At `supervised` it stages every candidate and applies nothing; at `trusted`/`unattended` it applies up to three capped pointer repairs in their own `Initiative-Fix:` commit. Step 10 confirms that commit rather than re-applying it, and approved *staged* repairs go in Step 10's own commit with no trailer. |
 | `_shared/autonomy-ceiling.md` | Supplies the ceiling Step 7.12 resolves. This is the ceiling's second authorized behavior and the only one that is **not** trust-gated — an unfiled repair has no provenance class, so `permittedGrants`'s floor cannot apply and the budget's own caps are the gate instead. |
+| `_shared/prior-art-detection.md` | Step 6.2 resolves an ADR's path through this contract before proposing it, so a repo with its own decision-record convention gets one Review Console choice instead of a second grammar in `docs/decisions/`. The answer records in `doc-convention.adr`; Step 10 writes the resolved path, or executes an approved migration. Sole consumer today — the contract's genre table marks every other genre Phase 2 with no consumer. |
 
 ## Provenance
 
