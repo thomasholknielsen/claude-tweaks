@@ -36,7 +36,7 @@ fixture:
     - local-record:
         slug: ready-and-scored
         title: "Add input validation to the signup form"
-        facets: { stage: "ready", risk: "low", effort: "small" }
+        facets: { stage: "ready", risk: "low", size: "low" }
     - local-record:
         slug: never-shaped
         title: "Investigate flaky CI"

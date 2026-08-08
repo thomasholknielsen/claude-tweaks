@@ -27,7 +27,7 @@ fixture:
     - local-record:
         slug: authorized-and-ready
         title: "Add rate limiting to the login endpoint"
-        facets: { stage: "ready", risk: "low", effort: "small", grants: { build: true } }
+        facets: { stage: "ready", risk: "low", size: "low", grants: { build: true } }
 skill_invocation:
   prompt: "/claude-tweaks:dispatch"
 assertions:

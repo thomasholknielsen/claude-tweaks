@@ -62,11 +62,11 @@ function canonicalLabelsFromBootstrapDoc() {
 // Every real label description this plan introduces or keeps must pass — a single place
 // that would have caught the bot:in-progress (commit 54ab897) and code-health:*
 // criterion (this plan's Task 3) 100-char overruns before they shipped.
-// The by:*/risk:*/effort:*/ceremony:*/parked/ready/auto:*/bot:*/demo:*/wontfix/priority:*
+// The by:*/risk:*/size:*/ceremony:*/parked/ready/auto:*/bot:*/demo:*/wontfix/priority:*
 // rows come from label-bootstrap.md's live canonical LABELS_JSON below — that supersedes the
 // six retired code-health:risk-*/code-health:effort-* rows this array used to hand-check
 // (no code anywhere emits those anymore; see the [cross-file] finding this replaces) and adds
-// the risk:*/effort:*/by:* cap coverage those retired rows never carried. The health-engine
+// the risk:*/size:*/by:* cap coverage those retired rows never carried. The health-engine
 // diagnostic labels below are not part of that shared taxonomy and stay hand-typed here.
 const REAL_LABEL_DESCRIPTIONS = [
   ['code-health', 'Filed by the code-health engine — a systematic maintainability finding'],
