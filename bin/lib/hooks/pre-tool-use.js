@@ -56,9 +56,23 @@ const GATE_COVERAGE = Object.freeze({
 // The gate's one path-prefix exemption. `.claude-tweaks/pipelines/` holds
 // plugin-owned pipeline bookkeeping — run config, the auto-decision log,
 // staged proposals — which is gitignored and is not the project work this
-// gate exists to isolate. Without the exemption, /wrap-up cannot copy a run's
-// audit state out of a worktree before removing it, so decisions.md is
-// destroyed on every run of every worktree.always project (#138).
+// gate exists to isolate.
+//
+// Why it is load-bearing TODAY: run directories are anchored to the MAIN
+// checkout at creation (`_shared/pipeline-run-dir.md`, Anchoring), so a
+// pipeline running inside a worktree writes config.yml / decisions.md /
+// events.jsonl / staged/ to a path OUTSIDE its own isolated checkout, by
+// design — that anchoring is what stops a worktree ever holding the only copy
+// of a run's audit trail, and what makes automatic worktree reaping safe.
+// Without this exemption the gate denies every one of those writes on every
+// worktree.always project, and the audit trail is lost at the source rather
+// than at teardown.
+//
+// The exemption's ORIGINAL justification (#138) was different: /wrap-up used
+// to copy a run's audit state out of the worktree just before removing it, and
+// that copy-out needed to write into the main checkout. That step was deleted
+// once anchoring made it unnecessary. The reason changed; the exemption did
+// not — do not read the dead justification as evidence this can be removed.
 const PIPELINE_STATE_DIR = path.join('.claude-tweaks', 'pipelines');
 
 // Fails CLOSED, deliberately: anything this cannot prove sits under the repo's

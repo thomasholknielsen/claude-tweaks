@@ -250,6 +250,20 @@ Don't scope a feature meant to prevent an empirically-observed failure to only d
 
 Don't run raw `git worktree remove` on a worktree created via `EnterWorktree` — it fails with "cannot remove a locked working tree" (harness-managed lock, not a plain git worktree), even though `superpowers:finishing-a-development-branch`'s own documented cleanup procedure only shows the raw git form. Use `ExitWorktree` instead; verify `git rev-parse HEAD` matches on both the worktree branch and the branch it merged into before passing `discard_changes: true`.
 
+**Narrowed 2026-08-07.** The failure is specific to a **locked** worktree, not to
+`EnterWorktree` provenance. Counter-evidence: seven unlocked, harness-created worktrees
+under `.claude/worktrees/` were removed with the raw git form on the first attempt, no
+lock error. The rule below now reads as locked-only; `bin/lib/hooks/worktree-reap.js`
+unlocks first when the lock's owning pid is provably dead **and** the worktree has been
+untouched for 24h, and never otherwise.
+
+**Which remedy applies to which worktree.** The reaper is not a remedy for the worktree a
+session is standing in: that lock's pid is live, so `lockVerdict` returns `in-use` and the
+reaper correctly skips it — and a session's own worktree at `/wrap-up` time always has a
+live pid. `ExitWorktree` (`action: "remove"`) remains the only remedy for that case, and
+`skills/wrap-up/cleanup-procedures.md` Section C step 4 names it. The reaper covers the
+other case: a worktree whose owning session is gone, which nothing else collects.
+
 ## IL-59 — The marketplace-mirror half of a release
 
 Don't stop to ask before completing the marketplace-mirror half of a release — the Releasing section above already authorizes both repo pushes as one action ("a release touches **both** this repo and the separate marketplace repo"). Pausing after only bumping `plugin.json` turns one documented step into two turns and risks the mirror silently never happening if the follow-up reply is a bare "yes" with no restated specifics. Bumped `plugin.json` to 6.17.0, pushed, and only flagged the marketplace mirror as a question afterward — costing an extra round-trip for a step the file already pre-authorizes.
