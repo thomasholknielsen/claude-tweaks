@@ -51,6 +51,18 @@ test('frontier tally: counts prior lines, appends on frontier result only', () =
   assert.strictEqual(fs.readFileSync(tally, 'utf8').split('\n').filter(Boolean).length, 3);
 });
 
+// The six tests above only ever write frontier-prefixed lines, so a mutation
+// probe found the `startsWith('frontier\t')` filter unguarded — counting every
+// non-empty line passed all of them. Three unrelated lines must not read as
+// three frontier uses against the cap.
+test('frontier tally counts only frontier-prefixed lines', () => {
+  const dir = tmpProject(null);
+  const runDir = path.join(dir, 'run');
+  fs.mkdirSync(runDir);
+  fs.writeFileSync(path.join(runDir, 'frontier-tally.log'), 'note\ta\nnote\tb\nnote\tc\n');
+  assert.strictEqual(run(['frontier', '--run-dir', runDir], dir).model, 'fable');
+});
+
 test('--unattended degrades frontier and appends nothing', () => {
   const dir = tmpProject(null);
   const runDir = path.join(dir, 'run');
