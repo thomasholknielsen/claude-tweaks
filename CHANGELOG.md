@@ -39,6 +39,16 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.68.2 — the /research deps fallback stops naming context7
+
+context7 is retired from this user's toolchain, and the deps-fallback sentence in
+`skills/research/source-registry.md` was its one functional citation in the plugin: it now
+names WebFetch of the dependency's public documentation as the mechanism. The pinned test
+regex in `tests/research/skill-md.test.js` is tightened in step — its alternation would
+otherwise keep passing on a term the prose no longer contains. All shadcn support is
+untouched: the dead MCP the cleanup started from was a user-level `shadcn.io` entry,
+unrelated to `/init` Step 13's official `npx shadcn@latest mcp` wiring.
+
 ## v6.68.1 — the convention-detection contract loses its patent-law jargon
 
 `_shared/prior-art-detection.md` is now `_shared/existing-convention-detection.md`, and the concept it names is "the repo's existing convention" rather than "prior art". Six live references swept — `_shared/decision-records.md`, `_shared/diataxis-genre-templates.md`, `_shared/policy-schema.md`, `wrap-up/config-updates.md`, `wrap-up/SKILL.md`, `docs/skill-graph.md`.
