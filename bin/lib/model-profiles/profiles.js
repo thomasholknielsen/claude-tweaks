@@ -54,14 +54,29 @@ function resolve(profile, opts = {}) {
   let effort = PROFILES[profile].effort;
   let source = 'default';
 
+  // Stages 2 and 3 both claim `source` only when they moved the result — the
+  // rule is "last transform that CHANGED it", so an inert row stays silent.
+  // What counts as inert differs between them, and deliberately so.
   const row = (policy['model-profiles'] || {})[profile];
   if (row) {
+    const was = { model, effort };
     if (row.model !== undefined) model = row.model;
     if (row.effort !== undefined) effort = row.effort;
-    source = 'policy';
+    // A policy row is inert unless a value actually differs: a file that
+    // redundantly restates the table's own pair changed nothing anywhere.
+    if (model !== was.model || effort !== was.effort) source = 'policy';
   }
+
+  // A cliOverride's *presence* is load-bearing in a way a policy row's is not:
+  // stage 5 skips the model-ceiling clamp whenever one is supplied. So naming a
+  // field changes the outcome even when it restates the value already resolved
+  // — `--model opus` on `capable` under `model-ceiling: standard` resolves opus
+  // precisely because it was asked for, and `source: 'cli'` is what records
+  // that. Only an override naming no field at all is inert, and it is then
+  // inert everywhere: `cliNames`, not `cli`, also gates the ceiling skip below.
   const cli = opts.cliOverride;
-  if (cli) {
+  const cliNames = !!cli && (cli.model !== undefined || cli.effort !== undefined);
+  if (cliNames) {
     if (cli.model !== undefined) model = cli.model;
     if (cli.effort !== undefined) effort = cli.effort;
     source = 'cli';
@@ -77,7 +92,7 @@ function resolve(profile, opts = {}) {
   }
 
   const ceiling = policy['model-ceiling'];
-  if (ceiling && !cli) {
+  if (ceiling && !cliNames) {
     if (!PROFILES[ceiling]) throw new Error(`unknown model-ceiling "${ceiling}"`);
     if (PROFILE_ORDER.indexOf(profileOfModel(model)) > PROFILE_ORDER.indexOf(ceiling)) {
       ({ model, effort } = { ...PROFILES[ceiling] });

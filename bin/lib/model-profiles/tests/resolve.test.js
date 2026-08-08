@@ -91,6 +91,26 @@ test('stance applies after cliOverride, not before', () => {
   assert.strictEqual(cliEffort.source, 'stance');
 });
 
+test('an empty row claims no source at either stage', () => {
+  assert.strictEqual(
+    resolve('standard', { policy: { 'model-profiles': { standard: {} } } }).source, 'default');
+  assert.strictEqual(resolve('standard', { cliOverride: {} }).source, 'default');
+});
+
+test('a policy row restating the table values exactly claims no source', () => {
+  const policy = { 'model-profiles': { standard: { model: 'sonnet', effort: 'high' } } };
+  assert.strictEqual(resolve('standard', { policy }).source, 'default');
+  // Only the unchanged field is inert — a row changing one field still claims.
+  const half = { 'model-profiles': { standard: { model: 'sonnet', effort: 'low' } } };
+  assert.strictEqual(resolve('standard', { policy: half }).source, 'policy');
+});
+
+test('an empty cliOverride is inert at the ceiling stage too, not just for source', () => {
+  const r = resolve('capable', { policy: { 'model-ceiling': 'standard' }, cliOverride: {} });
+  assert.strictEqual(r.model, 'sonnet');
+  assert.strictEqual(r.source, 'ceiling');
+});
+
 test('unknown profile and unknown stance throw with the name in the message', () => {
   assert.throws(() => resolve('turbo', {}), /turbo/);
   assert.throws(() => resolve('standard', { stance: 'frugal' }), /frugal/);
