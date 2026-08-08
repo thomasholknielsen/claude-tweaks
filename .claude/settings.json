@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-tweaks-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "thomasholknielsen/claude-tweaks-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "claude-tweaks@claude-tweaks-marketplace": true
+  }
+}
