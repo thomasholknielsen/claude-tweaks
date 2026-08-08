@@ -41,7 +41,7 @@ test('unparseable gh output does not run, rather than throwing', () => {
 
 test('a claim ref for a closed record is reported as auto-releasable', () => {
   const run = stubRunner({
-    'git for-each-ref --format=%(refname) refs/claims': 'refs/claims/issue-185',
+    'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref': 'refs/claims/issue-185',
     'gh issue view 185 --json state': JSON.stringify({ state: 'CLOSED' }),
   });
   const { findings } = probeClaims({ scope: SCOPE, run });
@@ -51,14 +51,14 @@ test('a claim ref for a closed record is reported as auto-releasable', () => {
 
 test('a claim ref for an open record is not residue', () => {
   const run = stubRunner({
-    'git for-each-ref --format=%(refname) refs/claims': 'refs/claims/issue-185',
+    'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref': 'refs/claims/issue-185',
     'gh issue view 185 --json state': JSON.stringify({ state: 'OPEN' }),
   });
   assert.deepStrictEqual(probeClaims({ scope: SCOPE, run }).findings, []);
 });
 
 test('an unreadable record state leaves the claim alone', () => {
-  const run = stubRunner({ 'git for-each-ref --format=%(refname) refs/claims': 'refs/claims/issue-185' });
+  const run = stubRunner({ 'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref': 'refs/claims/issue-185' });
   const r = probeClaims({ scope: SCOPE, run });
   assert.deepStrictEqual(r.findings, [], 'releasing a claim whose state is unknown could unclaim live work');
   assert.strictEqual(r.ran, true, 'the scan itself ran; it simply had nothing provable');

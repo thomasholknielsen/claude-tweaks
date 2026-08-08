@@ -6,8 +6,8 @@ function probeClaims({ scope, run } = {}) {
   if (!scope || !scope.ran) {
     return { ran: false, reason: (scope && scope.reason) || 'scope unresolved', findings: [] };
   }
-  const refs = run(['git', 'for-each-ref', '--format=%(refname)', 'refs/claims']);
-  if (refs === null) return { ran: false, reason: 'could not read refs/claims', findings: [] };
+  const refs = run(['gh', 'api', 'repos/{owner}/{repo}/git/matching-refs/claims/', '-q', '.[].ref']);
+  if (refs === null) return { ran: false, reason: 'could not list claim refs (gh unavailable or not authenticated)', findings: [] };
 
   const findings = [];
   for (const ref of refs.split('\n').filter(Boolean)) {
