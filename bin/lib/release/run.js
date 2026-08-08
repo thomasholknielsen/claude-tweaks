@@ -14,15 +14,14 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
     throw new Error(`version collision on v${version}:\n${lines.join('\n')}\nSuggested renumber: v${result.suggested}. Resolve and re-run.`);
   }
 
-  const manifestPath = RELEASE_FILES[0];
-  const changelogPath = RELEASE_FILES[1];
+  const [manifestPath, changelogPath, shippedPath] = RELEASE_FILES;
   const newManifest = bumpManifest(deps.readFile(manifestPath), version);
   const newChangelog = stubChangelogEntry(deps.readFile(changelogPath), version, summary);
 
   if (dryRun) {
     log(`[dry-run] would bump ${manifestPath} to v${version}`);
     log(`[dry-run] would stub CHANGELOG heading "## v${version} — ${summary}"`);
-    log(`[dry-run] would append "${version}\t${date}\trelease" to docs/shipped-versions.tsv`);
+    log(`[dry-run] would append "${version}\t${date}\trelease" to ${shippedPath}`);
     log('[dry-run] would commit the trio, verify ancestry, push origin main, and mirror the marketplace');
     return { version, pushed: false, mirrored: false };
   }
