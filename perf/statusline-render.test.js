@@ -61,7 +61,7 @@ test('statusline render cost stays under 250ms above bare-Node startup', () => {
   // threshold would have passed, so this is a tighter bound than the one it replaces.
   const control = bestOf(3, runControlSpawn);
   const absolute = bestOf(3, () => runStatusline({
-    model: { display_name: 'Sonnet 4.6' },
+    model: { display_name: 'Sonnet 5' },
     context_window: { used_percentage: 18 },
   }));
   const renderCost = absolute - control;
