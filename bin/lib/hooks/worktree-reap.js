@@ -134,28 +134,51 @@ function lockVerdict(entry) {
   return isPidAlive(entry.pid) ? 'in-use' : 'orphaned';
 }
 
-// Newest modification time visible in the worktree's own working tree: the
-// root directory plus its immediate entries, so a change anywhere at depth 1
-// or 2 registers. Deliberately does NOT read the git admin directory —
-// hasLocalOnlyContent() below runs `git status` INSIDE the worktree, which can
-// rewrite the index, so an admin-dir signal would be perturbed by the reaper
-// itself and every candidate would look freshly touched.
-//
-// Returns null when the directory cannot be read at all, which isStale()
-// resolves to "cannot prove staleness" — i.e. not stale, so not reapable.
+// Skipped wholesale. `.git` is git's own bookkeeping, and hasLocalOnlyContent()
+// below runs `git status` INSIDE the worktree, which can rewrite the index — an
+// admin-dir signal would be perturbed by the reaper itself, making every
+// candidate look freshly touched. `node_modules` is enormous and is never
+// evidence of a human being present.
+const MTIME_SCAN_SKIP = new Set(['.git', 'node_modules']);
+
+// A pathological tree must not turn a per-candidate check into an unbounded
+// SessionStart cost. Measured on this repo, a worktree is ~900 entries and
+// 20-50ms, so this is ~5x headroom. Exhausting it returns null, which reads as
+// NOT stale and keeps the worktree — a partial answer is precisely the defect
+// this replaced (#199): a scan seeing only part of the tree reports stale while
+// the part it never looked at is fresh.
+const MTIME_SCAN_BUDGET = 5000;
+
+// Newest mtime anywhere in the worktree, or null when that cannot be
+// determined. Recursive, deliberately: the shallow depth-1 scan this replaces
+// reported a live worktree in this very repo as 24.5h idle when its actual
+// newest write was 22.5h old, four levels down. Directory mtimes do not
+// propagate upward, so an in-place write to `wt/a/b/c.js` moves nothing above
+// it — depth alone was never a safe proxy for activity.
 function newestMtimeMs(wtPath) {
   let newest = null;
+  let budget = MTIME_SCAN_BUDGET;
   const bump = (p) => {
     try {
       const st = fs.lstatSync(p);
       if (newest === null || st.mtimeMs > newest) newest = st.mtimeMs;
     } catch { /* unreadable entry — ignore, the others still speak */ }
   };
-  let entries;
-  try { entries = fs.readdirSync(wtPath); } catch { return null; }
+  const walk = (dir) => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return true; }
+    for (const e of entries) {
+      if (MTIME_SCAN_SKIP.has(e.name)) continue;
+      if (budget-- <= 0) return false;
+      const p = path.join(dir, e.name);
+      bump(p);
+      if (e.isDirectory() && !walk(p)) return false;
+    }
+    return true;
+  };
+  try { fs.readdirSync(wtPath); } catch { return null; }
   bump(wtPath);
-  for (const e of entries) bump(path.join(wtPath, e));
-  return newest;
+  return walk(wtPath) ? newest : null;
 }
 
 // Has nothing happened in this worktree for at least `graceMs`? See
