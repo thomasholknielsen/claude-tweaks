@@ -351,8 +351,9 @@ Resolve `{base}` (used here and in Step 4 below) by `summary-template.md`'s `{ba
 
 Classify the changed-file list for this run (`git diff --name-only {base}...HEAD`, or the
 materialized header's file list) through the shared classifier — the same one
-`bin/lib/issues/acceptance.js` exports for `/claude-tweaks:tidy`'s acceptance-gap scan
-(`_shared/github-pr-scan.md`), so the two never drift apart:
+`bin/lib/issues/acceptance.js` exports for `/claude-tweaks:tidy`'s acceptance-gap scan on either
+driver (`_shared/github-pr-scan.md`'s scope under `github-issues`, `tidy/step-1-records.md`'s
+Shape 8 under `local-files`), so they never drift apart:
 
 ```bash
 node -e "

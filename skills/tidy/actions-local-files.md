@@ -73,8 +73,8 @@ the gate is the precondition for that verdict, not the verdict itself, which is 
 recommendation still ends with `/claude-tweaks:demo {id}` even once the gate is open.
 
 **What this does not cover.** Only families. The sibling backstop — `acceptance-gap`, closed
-records with no disposition that are *not* decomposed leaves — still has no `local-files`
-equivalent anywhere; it remains a `_shared/github-pr-scan.md` scope reading GitHub issues. A
-locally-closed standalone record therefore reaches a disposition only if `/claude-tweaks:wrap-up`
-applied one as it closed. Say so if asked why such a record shows no acceptance state; do not
-imply a sweep will pick it up.
+records with no disposition that are *not* decomposed leaves — is a scan, not an action: it has a
+`local-files` twin (`step-1-records.md`'s **Shape 8**), but that shape recommends
+`/claude-tweaks:demo {id}` and mutates nothing, so no `## acceptance-gap` section belongs in this
+file or in `actions-github-issues.md`. Approving one of its rows executes no procedure here;
+the disposition itself is `/claude-tweaks:demo`'s, applied only after a human verdict.

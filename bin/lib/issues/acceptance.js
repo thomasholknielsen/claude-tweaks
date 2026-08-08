@@ -12,7 +12,9 @@ const ACCEPTANCE_BY_LABEL = [
 
 // Paths with no interactive verification surface. This module is the source of that
 // classification — skills/wrap-up/verification-brief.md Step 2, skills/demo/SKILL.md Step 1,
-// and _shared/github-pr-scan.md's acceptance-gap scope all call in rather than restate it.
+// and the acceptance-gap sweep on both work-record drivers (_shared/github-pr-scan.md's scope
+// under github-issues, skills/tidy/step-1-records.md's Shape 8 under local-files) all call in
+// rather than restate it.
 //
 // Deliberately absent: "backend code with no route/component/page touched." That category is
 // not decidable from a path list. In the layouts this runs against, UI and backend share a

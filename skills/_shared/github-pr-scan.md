@@ -152,6 +152,15 @@ disappear from the backlog with no disposition on record. Classification is enti
 `needsBackstop`'s (`bin/lib/issues/acceptance.js`) — this scope does not reimplement the
 label taxonomy; see that module or `_shared/work-record.md` for what the labels mean.
 
+**This scope finds `work-backend: github-issues` records only**, for the same reason the
+`family-gate` scope below does: it reads GitHub labels, and the Detection Ladder above skips this
+whole file whenever `gh` is unreachable — it checks remote/install/auth, never `work-backend`. The
+`local-files` twin of this sweep is `tidy/step-1-records.md`'s Shape 8, reading the record store
+through `queryRecords` and translating `facets.closed`/`facets.acceptance`/`facets.parent` into
+the same `needsBackstop` call. It emits the identical `[acceptance-gap]` row at the identical
+severity and recommends the identical `/claude-tweaks:demo` invocation, so no consumer
+distinguishes the two.
+
 Record set: closed records from the last 30 days. The `date` fallback covers both platforms this
 plugin runs on — BSD `date` (macOS, this project's development platform) uses `-v-30d`; GNU `date`
 (Linux, cloud Routine sandboxes) uses `-d '30 days ago'`.

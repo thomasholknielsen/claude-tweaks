@@ -31,7 +31,7 @@ node -e "
 " > /tmp/tidy-unsynced.json
 ```
 
-Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only). Conversely, Shape 7 (family gate due) fires **only** under this driver — its `github-issues` counterpart is Step 4.8's `family-gate` scope, which reads GitHub issues.
+Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only). Conversely, the two acceptance backstops — Shape 7 (family gate due) and Shape 8 (closed record with no disposition) — fire **only** under this driver; their `github-issues` counterparts are Step 4.8's `family-gate` and `acceptance-gap` scopes, which read GitHub issues. Both also run their own `queryRecords` pass rather than reading the fetch above, since both look at closed records and that fetch returns open ones.
 
 **Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock and
 Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 already
@@ -170,3 +170,85 @@ aggressiveness tier and never writing `demo:approved`/`demo:changes-requested`, 
 row still ends with `/claude-tweaks:demo {id}`; `actions-local-files.md`'s `## Open family gate`
 and `step-6-auto.md`'s row carry that action's execution, its staging reasoning, and what it
 does not cover.
+
+### Shape 8 — closed record with no acceptance disposition
+
+**`work-backend: local-files` only.** Finds records that closed carrying no acceptance
+disposition at all — work that shipped and disappeared with nothing on record about whether it
+actually solved the problem. Its `github-issues` counterpart is Step 4.8's `acceptance-gap` scope
+(`_shared/github-pr-scan.md`), and this shape exists for the same reason Shape 7 does: that scope
+queries GitHub labels, and its whole file is skipped whenever `gh` is unreachable — its Detection
+Ladder gates on remote/install/auth, never on the driver — so a sweep that needs no `gh` must not
+inherit that skip. Same `[acceptance-gap]` prefix, same recommendation, same severity, so no
+consumer distinguishes the two; only the store differs.
+
+This is the backstop, not the eager path. `/claude-tweaks:wrap-up` applies a disposition as it
+closes a record it owns (`wrap-up/verification-brief.md`); a record closed any other way — by
+hand, by a `closed: true` frontmatter edit, by a run that ended before wrap-up — never reaches
+that path, and with no sweep here would stay invisible permanently.
+
+Classification is entirely `needsBackstop`'s (`bin/lib/issues/acceptance.js`) — do not reimplement
+the disposition taxonomy. That predicate is backend-agnostic: it reads `{state, labels,
+hasParent}`, and a local record translates as `facets.closed === true` → `state: 'CLOSED'`,
+`facets.acceptance` → the one-element `['demo:' + facets.acceptance]` and empty when unset (the
+identical translation Shape 7 and `wrap-up/verification-brief.md`'s `local-files` paths already
+use), and `facets.parent !== null` → `hasParent`.
+
+**Excluding decomposed leaves is load-bearing, not a refinement.** `needsBackstop` returns `false`
+for anything passed `hasParent: true`, because a leaf's acceptance lives on its family's parent —
+Shape 7's population — and never on the leaf. Drop that translation and every leaf of every closed
+family lands here as a row, flooding the report with exactly the records another shape already
+covers. That is the same reason the `github-issues` scope resolves its own leaf set before
+filtering.
+
+It needs its own query, not Step 1's shared fetch: that fetch returns open records only, and every
+record this shape looks at is closed by definition.
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  queryRecords('specs', { closed: true })
+    .filter((r) => {
+      const closedAt = Date.parse(r.facets.closedAt);
+      return Number.isNaN(closedAt) || closedAt >= cutoff;
+    })
+    .filter((r) => needsBackstop({
+      state: r.facets.closed ? 'CLOSED' : 'OPEN',
+      labels: r.facets.acceptance ? ['demo:' + r.facets.acceptance] : [],
+      hasParent: r.facets.parent !== null,
+    }))
+    .forEach((r) => console.log(r.path + '\t[acceptance-gap] ' + r.id + ': ' + r.title + ' — closed with no acceptance disposition — recommend /claude-tweaks:demo ' + r.id));
+"
+```
+
+Each line is `{path}<TAB>{finding}`, the same shape Shape 7 emits — the path fills the row's
+`Path:Line` column (`SKILL.md`'s Tidy-specific column semantics: the local record path on this
+driver, where `github-issues` rows carry `#{n}`), the rest is the finding.
+
+`{ closed: true }` is required, not decorative. `queryRecords` mirrors `gh issue list --state
+open` and drops every closed record unless the filter names `closed`
+(`bin/lib/issues/local-store.js`), so the bare `queryRecords('specs', {})` this step's shared
+fetch uses returns exactly zero of this shape's population — silently, with no error to say so.
+No fetch-limit or truncation warning applies, unlike the API-paging twin: `queryRecords` reads the
+whole `specs/` directory every call.
+
+The 30-day window matches the `github-issues` scope's own closed-record set, so the two drivers
+report the same population rather than diverging by store. It reads `closed-at:`, which
+`closeRecord` stamps — **and deliberately keeps every record whose `closedAt` is absent or
+unparseable.** A record closed by a hand-edited `closed: true` with no timestamp is precisely the
+un-dispositioned, nobody-remembers-it case this backstop exists for, so the bound fails open,
+toward surfacing; filtering on a missing timestamp would drop the shape's best population.
+
+→ Collect each as: `[acceptance-gap] {id}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo {id}`
+
+Severity `info` — the same tier and the same reason as its `github-issues` twin: on a project that
+closes records ad hoc this is a standing backlog rather than a defect count, and Step 6 caps rows
+highest-severity-first, so any tier above `info` would permanently evict actionable rows beneath
+it. Unlike Shape 7, the recommendation is **not** one of the Action Vocabulary's atomic actions —
+this shape mutates nothing at all, on either driver. It recommends `/claude-tweaks:demo {id}` and
+stops there, because disposing a closed record is a human judgment about whether shipped work
+solved the problem. It is staged at every aggressiveness tier for that reason (`step-6-auto.md`'s
+Acceptance-gap row, which covers both drivers), the auto-mode contract keeping that judgment off
+what `auto` silences.
