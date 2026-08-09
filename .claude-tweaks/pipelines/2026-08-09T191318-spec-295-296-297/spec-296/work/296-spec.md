@@ -122,8 +122,14 @@ main checkout, independent of any one session.
 
 1. For a dispatched group, two distinct Task() invocations occur — verifiable in the dispatching
    session's own tool-call history — not one.
-2. The second Task's agent, given only the record number and `CLAIM_RUN_ID`, locates and resumes
-   the first Task's run directory and worktree with no other input.
+2. The second Task's agent, given only the record number(s), `CLAIM_RUN_ID`, and `PIPELINE_RUN_DIR`
+   (all three substituted as literal placeholders in its dispatch prompt — none is a summary of the
+   first call's findings), locates and resumes the first Task's run directory and worktree with no
+   other input. (Revised during build: this AC originally assumed `_shared/pipeline-run-dir.md`'s
+   spec-slug matching alone would resume the run with no extra input. Build-time review found that
+   assumption false — `/flow` always creates a fresh run directory unless handed one explicitly —
+   so the mechanism now threads `PIPELINE_RUN_DIR` through the same inline-substitution channel as
+   `CLAIM_RUN_ID`. See Build Notes.)
 3. The fixture-based test (Deliverables) confirms the second call's review re-derives its verdict
    from artifact content rather than trusting a planted false claim, whether that claim was
    written to a fixture transcript or a fixture `decisions.md`/ledger entry.
@@ -192,5 +198,25 @@ Singleton/Bundle-group and gate-paragraph rewrite, plus the fix-round's executio
 correction) are scoped to different regions of the same file and do not touch the
 `[Use: ...]` line. Disjoint.
 
+Architecture Alignment (2026-08-10, post final-review + re-review fix rounds): the final
+whole-branch review found AC2's original "spec-slug matching alone resumes the run" claim
+false — `/flow` always creates a fresh `PIPELINE_RUN_DIR` unless one is already set to an
+existing directory on entry. Fixed by threading `PIPELINE_RUN_DIR` through the same
+inline-substitution channel as `CLAIM_RUN_ID` (never an exported shell variable — a
+dispatched Task agent inherits no environment) and adding an adopt-if-set branch to `/flow`
+Step 3 (`flow/steps-and-gates.md`'s "Adopting an inherited run directory"). AC2 above
+updated to match. This went through two review rounds before the full sending+receiving
+chain was verified connected (first round fixed the sending half only and was not caught
+until a second scoped re-review traced the chain end-to-end) — a direct guard test
+(`tests/dispatch-flow-rundir-handoff.test.js`) now pins both halves so a future edit to
+either side fails the suite rather than shipping silently a third time.
+
+A residual risk surfaced during the fix rounds and filed separately rather than fixed here
+(out of this leaf's scope — a mitigation would touch the ledger resolve gate or add new
+`unattended-tier` scope): the first-call-failure teardown path (`/flow {target} wrap-up`,
+routed through wrap-up's own cleanup per `[IL-116]`) itself reaches `/flow`'s nothing-left-
+behind ledger gate, which is not silenced by `auto` and requires per-item human input a
+headless `dispatch next` firing cannot supply. Tracked as
+https://github.com/thomasholknielsen/claude-tweaks/issues/298.
 
 <!-- work-fingerprint: dispatch-autonomy-model:split-build-review-task-calls -->
