@@ -280,13 +280,13 @@ Work through the selected group(s) in the order Step 3's selection already estab
 
 Export `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) before invoking `/claude-tweaks:flow`. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different, later-created) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
 
-**Singleton group** `[123]` — the agent's job is exactly today's single-record dispatch: invoke `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123`.
+**Two Task() calls per group, not one.** The agent's job is now split: a first call runs `/claude-tweaks:flow {target} build,test` and stops; only on a clean `build-test-ok` outcome does a second, entirely fresh Task() call run `/claude-tweaks:flow {target} review,polish,wrap-up`. This gives the reviewing agent genuine conversational isolation from the build — a live dispatch test found build/test/review running in one continuous context, defeating `/review`'s own adversarial multi-lens contract. See `task-prompt.md` in this skill's directory for both calls' full templates — read it and inline the content verbatim, do not paraphrase.
 
-**Bundle group** `[123, 456]` — a granted record is already spec-shaped (`ready` + spec-shaped body per `_shared/work-record.md`); there is no per-member `/specify` pre-step to run first. That derivation loop is deleted — bundle materialization is `/flow`'s own concern (an opaque executor from dispatch's point of view):
+**Singleton group** `[123]` — first call: `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123 build,test`. Second call (gated): `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123 review,polish,wrap-up`.
 
-```bash
-CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456"
-```
+**Bundle group** `[123, 456]` — a granted record is already spec-shaped (`ready` + spec-shaped body per `_shared/work-record.md`); there is no per-member `/specify` pre-step to run first. First call: `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456" build,test`. Second call (gated): `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456" review,polish,wrap-up`.
+
+**The gate between calls:** dispatch the second call only if the first call's status line was `DONE` or `DONE_WITH_CONCERNS` and its `OUTCOME` was `build-test-ok`. A `NEEDS_CONTEXT`/`BLOCKED` status, an `OUTCOME` of `build-test-failed`/`build-test-blocked`, or no parseable report at all means the second call is never dispatched for that group this firing — route to `skills/dispatch/settle-and-merge.md`'s Settle procedure instead, the same as any other HARD-GATE failure.
 
 Each group's `Task()` prompt is defined in `task-prompt.md` in this skill's directory — read it and inline its content verbatim into your `Task()` tool call (per `_shared/subagent-output-contract.md`'s input discipline: minimal input, literal output template inlined, no conversation history). Do not paraphrase or summarize the template; the exact wording is load-bearing for the four-value status line and output format contracts downstream skills parse.
 
