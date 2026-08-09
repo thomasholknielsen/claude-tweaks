@@ -41,7 +41,7 @@ RATIONALE: {one paragraph stating the chain actually walked, including where it 
 
 `systemic` — the chain surfaced something above the proximate cause: a convention with no enforcement, a fixture or API shape that invites misuse, a missing gate, a process step nobody codified.
 
-**Ambiguity resolves to `terminal`.** This is deliberately the opposite direction from most verdict-rendering conventions in this project (which resolve toward caution/flagging) — here, more caution would mean manufacturing a `systemic` finding for a chain that didn't actually surface one. A missed `systemic` costs a rule that doesn't get written; a false `systemic` trains the reader to stop trusting the column, which is worse, because it erodes every future verdict along with this one.
+**Ambiguity resolves to `terminal`.** This is deliberately the opposite direction from most verdict-rendering conventions in this project (which resolve toward caution/flagging) — here, more caution would mean manufacturing a `systemic` finding for a chain that didn't actually surface one. A missed `systemic` costs a rule that doesn't get written; a false `systemic` is worse — it erodes trust in the column, tainting every future verdict along with this one.
 
 ## Executor
 
