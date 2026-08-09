@@ -6,5 +6,9 @@
   "__gapScan": {
     "lastScannedSha": null,
     "lastScannedMs": 1786278725563
+  },
+  "library-shape:library-shape": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786281312841
   }
 }
