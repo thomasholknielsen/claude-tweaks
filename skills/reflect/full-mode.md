@@ -54,7 +54,7 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
-**Hard gate.** Check the response you are about to send: does it already contain the `### Reflection Insights` table as literal rendered markdown, with a row for every insight? If not, this is not "the table was presented earlier" or "the user can infer the list from context" — render it now, in this response, before the tool call. `AskUserQuestion` cannot carry the table itself (`CLAUDE.md`'s Multi-item decisions convention), so a response with the tool call but no table above it has shown the user "Apply all" with nothing to apply it to.
+**Hard gate.** Check the response you are about to send: does it already contain the `### Reflection Insights` table as literal rendered markdown, with a row for every insight? If not, this is not "the table was presented earlier" or "the user can infer the list from context" — render it now, in this response, before the tool call. `AskUserQuestion` cannot carry the table itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with the tool call but no table above it has shown the user "Apply all" with nothing to apply it to.
 
 **Routing guide.** Classify every insight through the ordered procedure in
 `skills/_shared/learning-routing.md` — that file is the single source of truth

@@ -97,7 +97,7 @@ Call `AskUserQuestion`:
 
 Patch bodies are template-sourced.
 
-**Sequencing:** Present Contract Drift batch first; after resolution, present Stale/Drifted/Gaps batch. Per CLAUDE.md interaction patterns, never present more than one batch decision table per message.
+**Sequencing:** Present Contract Drift batch first; after resolution, present Stale/Drifted/Gaps batch. Per docs/skill-authoring.md's Interaction patterns, never present more than one batch decision table per message.
 
 ### Stale (fix or remove)
 

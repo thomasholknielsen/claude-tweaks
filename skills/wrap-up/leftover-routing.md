@@ -51,7 +51,7 @@ Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the re
 
 Run this drill when a human is present (interactive or standalone wrap-up). In `auto` and `hybrid` runs the `leftover-default` policy lookup above supplies the disposition instead, and nothing is asked here.
 
-For each unfinished section that genuinely cannot be finished, first present a summary table (dense multi-row data, per CLAUDE.md's Multi-item decisions convention):
+For each unfinished section that genuinely cannot be finished, first present a summary table (dense multi-row data, per docs/skill-authoring.md's Multi-item decisions convention):
 
 ```
 | # | Section | Status | Why not finish now |
