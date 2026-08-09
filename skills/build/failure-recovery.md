@@ -15,7 +15,7 @@ Referenced from Common Step 2 of `/claude-tweaks:build`. Loaded only when an exe
 
 ## Behavioral bugs (distinct from execution-skill failures)
 
-The table above covers *execution-skill* failures (the Superpowers chain itself breaking). A **behavioral bug** — code that runs but produces the wrong result, a failing test that reflects a real defect — is different. See `_shared/reproduce-first-discipline.md` for the canonical reproduce-first procedure (build a deterministic pass/fail signal before touching code, fix the confirmed cause, escalate rather than guess if it can't be reproduced).
+The table above covers *execution-skill* failures (the Superpowers chain itself breaking). A **behavioral bug** — code that runs but produces the wrong result, a failing test that reflects a real defect — is different. See `_shared/reproduce-first-discipline.md` for the canonical reproduce-first procedure (build a deterministic pass/fail signal before touching code, fix the confirmed cause, escalate rather than guess if it can't be reproduced; once green, walk the causal-depth chain per the discipline's step 3).
 
 ## Project-Specific Context
 

@@ -115,6 +115,7 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 **Severity:** {low | med | high}
 **Reversibility:** {high | med | low}
 **Source:** {full | hindsight | light} mode, lens "{lens name}"
+**Causal:** {terminal | systemic — omit this line entirely when the finding did not go through a causal-depth chain walk}
 **Files:** {comma-separated paths or "general"}
 
 ## Finding

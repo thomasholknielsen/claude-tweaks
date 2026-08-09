@@ -1,6 +1,6 @@
 # Causal-Depth Contract
 
-Referenced from `_shared/reproduce-first-discipline.md` (step 3, the hot path — a behavioral bug's confirmed cause) and `skills/reflect/full-mode.md`'s Near-misses lens (the cold path — a recorded near-miss surfaced at wrap-up). Canonical statement of the domain-jumping why-chain: the step that asks not just "what caused this" but "why was this possible" — turning a fixed bug into a dead bug class, the same move behind every `[IL-nn]` rule in this project's CLAUDE.md.
+Referenced from `_shared/reproduce-first-discipline.md` (step 3, the hot path — a behavioral bug's confirmed cause) and `reflect/full-mode.md`'s Near-misses lens (the cold path — a recorded near-miss surfaced at wrap-up). Canonical statement of the domain-jumping why-chain: the step that asks not just "what caused this" but "why was this possible" — turning a fixed bug into a dead bug class, the same move behind every `[IL-nn]` rule in this project's CLAUDE.md.
 
 ## Input
 
@@ -13,7 +13,7 @@ Two entry points, two evidentiary bars:
 
 Starting from the input's proximate cause, ask **"why was this possible?"** up to **3 times**. Each answer may jump domains — code → convention → process → tooling — that domain jump is the point: a code-level fix stops at the code, but the *reason the code was wrong* is often a convention with no enforcement, a missing gate, or a process step nobody codified.
 
-Stop before the third why, or before starting a why at all, when either is true:
+Stop before the *next* why — including possibly the first — when either is true:
 
 - **The next answer would leave what this project can change** — a language runtime quirk, an upstream dependency's documented behavior, a one-off human error with no recurring mechanism. There's nothing to bind a rule to past that point.
 - **The next answer would be speculation, not evidence** — you're guessing at organizational intent or a process nobody can confirm, rather than reading it off the code, the commit history, or the convention that's actually in the repo.
@@ -51,10 +51,13 @@ The agent that performed the fix (debugging path) or ran the reflect pass (near-
 
 No new file, store, or destination. Write behavior:
 
-- **When a pipeline run dir exists** (`$PIPELINE_RUN_DIR` resolved, per `_shared/pipeline-run-dir.md`): every invocation writes exactly one line to that run's `decisions.md`, per `_shared/auto-decision-log.md`'s schema — `SCANNED {time} — causal-depth: terminal — {one-line rationale}` for a `terminal` verdict, `STAGED {time} — causal-depth: systemic — {one-line rationale}` for a `systemic` one (the `STAGED` tag reflects that routing, below, defers the finding rather than acting on it directly).
+- **When a pipeline run dir exists** (`$PIPELINE_RUN_DIR` resolved, per `_shared/pipeline-run-dir.md`): every invocation writes exactly one `SCANNED` line to that run's `decisions.md`, per `_shared/auto-decision-log.md`'s schema — `SCANNED {time} — causal-depth[{path}]: {verdict} — {one-line rationale}. Reversibility: N/A.`, where `{path}` is `debug` (the reproduce-first-discipline.md binding) or `near-miss` (the reflect Near-misses binding), and `{verdict}` is `terminal` or `systemic`. `SCANNED` is used for both verdicts — this line is a record of the chain having been walked, not a proposal awaiting approval, so it never claims `STAGED`'s semantics (a written artifact in `staged/` for Review Console Apply/Skip/Modify).
 - **When no run dir resolves** (a standalone debugging session, an ad hoc reflect pass with no active pipeline): the finding surfaces inline in the conversation instead. It is not logged, and does not count toward the removal condition below.
-- **On `systemic`**, route the finding through `_shared/learning-routing.md`'s classifier by name — that file decides the destination (D1–D5); this contract introduces no new one.
+- **On `systemic`**, route the finding through `_shared/learning-routing.md`'s classifier by name — that file decides the destination (D1–D5) and owns whatever staging or write that destination requires. This contract introduces no new destination and writes no staged artifact of its own; the `SCANNED` line above is the only write causal-depth itself performs.
+- **Carrying the verdict into reflect's Step 3.** When the near-miss path renders a verdict, it travels with the finding via the `**Causal:** {terminal | systemic}` field in `reflect/SKILL.md`'s stage-file format (Step 3) — the finding's own stage file or ledger entry carries the verdict, not a separate causal-depth artifact.
 
 ## Removal condition
 
-If the archived pipeline runs of a full release cycle (`.claude-tweaks/pipelines/archive/`) contain **20 or more** `decisions.md` lines tagged `causal-depth` with zero `systemic` verdicts surviving routing, propose removing the debugging-path binding (the `reproduce-first-discipline.md` step 3 citation) via `/claude-tweaks:harness-health`'s rule-expiry check. Standalone, no-run-dir invocations are uncounted by construction (they write nothing) — the count reflects logged pipeline runs only, and the contract states that explicitly so the figure is never inflated by assuming coverage it doesn't have.
+The condition is evaluated by direct count of the `SCANNED … causal-depth[debug]:` lines logged across a project's archived pipeline runs (`.claude-tweaks/pipelines/archive/`) — a count derivable straight from the log line's own verdict field, with no dependency on what happened downstream in routing. If **20 or more** such lines exist with **zero** `systemic` verdicts among them, the debugging-path binding (the `reproduce-first-discipline.md` step 3 citation) is a candidate for removal.
+
+This condition is evaluated by a human, or surfaced as an ordinary observation in a `/claude-tweaks:reflect` or `/claude-tweaks:harness-health` pass and filed as a backlog work record via `/claude-tweaks:capture` for review — not by an automated `harness-health` rule-expiry finding: that mechanism's `intent: "remove"` classification is scoped to `assetType: "claude-md"` (CLAUDE.md Don'ts bullets only), and does not reach a `skills/_shared/*.md` contract file. Archive compaction (`/tidy` folds `decisions.md` content from runs older than 30 days into monthly rollups) means a strict "full release cycle" window may undercount older, compacted runs — treat the count as a lower bound, not an exact figure. Standalone, no-run-dir invocations are uncounted by construction (they write nothing).

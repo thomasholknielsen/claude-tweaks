@@ -44,12 +44,12 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 ```
 ### Reflection Insights
 
-| # | Insight | Recommended Destination |
-|---|---------|------------------------|
-| 1 | {description} | Implement now -> CLAUDE.md Don'ts |
-| 2 | {description} | Implement now -> Skill: {name} |
-| 3 | {description} | Defer — bigger, not relevant now |
-| 4 | {description} | Capture — needs brainstorming |
+| # | Insight | Causal | Recommended Destination |
+|---|---------|--------|------------------------|
+| 1 | {description} | {terminal/systemic/—} | Implement now -> CLAUDE.md Don'ts |
+| 2 | {description} | {terminal/systemic/—} | Implement now -> Skill: {name} |
+| 3 | {description} | {terminal/systemic/—} | Defer — bigger, not relevant now |
+| 4 | {description} | {terminal/systemic/—} | Capture — needs brainstorming |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:

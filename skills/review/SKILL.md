@@ -412,7 +412,7 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 - Code simplification runs on changed files only — never expand scope to unrelated code
 - Skip review lenses that don't apply to the type of change
 - This skill reviews the *current work* — it is not a codebase-wide audit
-- When a confirmed bug finding needs a fix that isn't a one-line mechanical correction, follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before applying the change — don't guess at fixes during routing
+- When a confirmed bug finding needs a fix that isn't a one-line mechanical correction, follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before applying the change — don't guess at fixes during routing; once the fix is confirmed, walk the causal-depth chain per the discipline's step 3.
 
 ## Next Actions
 

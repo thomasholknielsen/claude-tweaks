@@ -268,7 +268,7 @@ depends on them.
 |---|---|
 | `/feedback` | Insights classified via `_shared/learning-routing.md` that resolve to D5 route to `/feedback` for upstream filing. |
 | `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
-| `skills/_shared/causal-depth.md` | `full-mode.md`'s Near-misses lens walks this why-chain on every near-miss finding before Step 3 routing — `light-mode.md` inherits the binding by reusing the same lens definition verbatim, with no separate edge. |
+| `skills/_shared/causal-depth.md` | `full-mode.md`'s Near-misses lens walks this why-chain on every near-miss finding before Step 3 routing. `light-mode.md` deliberately does not inherit this — it only reuses full-mode's lens table row definitions, not the separate Chain Walk subsection added after the table; light mode intentionally trims ceremony for `fast-lane` wrap-ups. |
 | `_shared/learning-routing.md` | Routes every insight/finding through this contract's classifier instead of reflect's own destination table; hindsight mode additionally tags a D4/D5 ledger entry `[route: D4]`/`[route: D5]` for `/wrap-up`'s Skills curation row to pick up and hand on. |
 
 ## research
