@@ -158,6 +158,35 @@ function renderConsoleSections(state, { startAt = 1 } = {}) {
   return { markdown, nextNumber: n };
 }
 
+function renderConsoleSectionsMulti(specStates, { startAt = 1 } = {}) {
+  let n = startAt;
+  const blocks = [];
+
+  for (const spec of SECTION_SPECS) {
+    const tableLines = ['| # | Spec | Target | Change | Disposition |', '|---|---|---|---|---|'];
+    let any = false;
+    for (const { specId, state } of specStates) {
+      const results = (state && state.results) || {};
+      for (const rowId of spec.rowIds) {
+        const entry = results[rowId];
+        if (entry && entry.result === 'findings') {
+          for (const finding of entry.findings || []) {
+            tableLines.push(`| ${n} | ${specId} | ${finding.targetPath} | ${finding.summary} | ${dispositionFor(finding)} |`);
+            n += 1;
+            any = true;
+          }
+        }
+      }
+    }
+    if (!any) continue;
+    blocks.push(`#### ${spec.title}\n\n${tableLines.join('\n')}`);
+  }
+
+  const markdown = blocks.join('\n\n');
+  assertCleanVocabulary(markdown, 'renderConsoleSectionsMulti');
+  return { markdown, nextNumber: n };
+}
+
 // ---- strict-mode completeness check ----------------------------------
 
 function strictCheck(state) {
@@ -169,4 +198,4 @@ function strictCheck(state) {
   return { ok: missing.length === 0, missing };
 }
 
-module.exports = { renderTrace, renderConsoleSections, strictCheck, FORBIDDEN_VOCABULARY };
+module.exports = { renderTrace, renderConsoleSections, renderConsoleSectionsMulti, strictCheck, FORBIDDEN_VOCABULARY };

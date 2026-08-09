@@ -387,3 +387,107 @@ test('renderConsoleSections throws when a finding summary smuggles forbidden voc
   const state = { version: 1, worklist: makeWorklist(), results };
   assert.throws(() => renderConsoleSections(state, { startAt: 1 }), /forbidden vocabulary/);
 });
+
+// ---- renderConsoleSectionsMulti -------------------------------------------
+
+const { renderConsoleSectionsMulti } = require('../engine-render');
+
+function makeConsoleResultsB() {
+  return {
+    skills: {
+      rowId: 'skills', target: 'Skills', result: 'findings', detail: '1 change',
+      findings: [
+        { kind: 'additive', summary: 'Add anti-pattern row (spec B)', targetPath: '.claude/skills/other/SKILL.md', action: 'applied', stagePath: null, commit: 'ccc3333' },
+      ],
+    },
+    docs: { rowId: 'docs', target: 'Docs', result: 'na', detail: 'no changes' },
+    journeys: { rowId: 'journeys', target: 'Journeys', result: 'clean', detail: 'Read 1', findings: [] },
+    'claude-md': { rowId: 'claude-md', target: 'CLAUDE.md & rules', result: 'na', detail: 'no changes' },
+    'decision-records': { rowId: 'decision-records', target: 'Decision records', result: 'na', detail: 'no ADR candidates found' },
+    references: { rowId: 'references', target: 'Broken references', result: 'na', detail: 'no broken references' },
+    memory: { rowId: 'memory', target: 'Memory', result: 'na', detail: 'no insights routed to memory' },
+    upstream: { rowId: 'upstream', target: 'Upstream feedback', result: 'na', detail: 'no learnings routed upstream' },
+  };
+}
+
+test('renderConsoleSectionsMulti merges N specs into one table per section, Spec column right after #, rows in specStates order', () => {
+  const stateA = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const stateB = { version: 1, worklist: makeWorklist(), results: makeConsoleResultsB() };
+  const { markdown, nextNumber } = renderConsoleSectionsMulti(
+    [{ specId: '157', state: stateA }, { specId: '159', state: stateB }],
+    { startAt: 1 },
+  );
+
+  // One "Skill updates" heading total (merged, not one per spec).
+  const skillHeadings = markdown.match(/#### Skill updates/g) || [];
+  assert.strictEqual(skillHeadings.length, 1);
+
+  // Header row: # | Spec | Target | Change | Disposition
+  assert.match(markdown, /^\| # \| Spec \| Target \| Change \| Disposition \|$/m);
+
+  // Spec 157's skills row (2 findings) precedes spec 159's skills row (1 finding) within the section.
+  const skillsSection = markdown.split('#### Skill updates')[1].split('####')[0];
+  const specColumnValues = [...skillsSection.matchAll(/^\| \d+ \| (\d+) \|/gm)].map((m) => m[1]);
+  assert.deepStrictEqual(specColumnValues, ['157', '157', '159']);
+
+  // Continuous numbering across specs and sections: 157 contributes 2 (skills) + 3+1 (config) + 2 (refs) = 8 rows; 159 contributes 1 (skills) = 1 row. Total 9 rows, startAt 1 -> nextNumber 10.
+  assert.strictEqual(nextNumber, 10);
+});
+
+test('renderConsoleSectionsMulti: a spec contributing zero findings to a section contributes zero rows to it', () => {
+  const stateA = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const stateB = { version: 1, worklist: makeWorklist(), results: makeConsoleResultsB() };
+  const { markdown } = renderConsoleSectionsMulti(
+    [{ specId: '157', state: stateA }, { specId: '159', state: stateB }],
+    { startAt: 1 },
+  );
+  // stateB has zero Configuration-updates findings -> only 157's 4 rows appear there.
+  const configSection = markdown.split('#### Configuration updates')[1].split('#### Reference repairs')[0];
+  const specColumnValues = [...configSection.matchAll(/^\| \d+ \| (\d+) \|/gm)].map((m) => m[1]);
+  assert.deepStrictEqual(specColumnValues, ['157', '157', '157', '157']);
+});
+
+test('renderConsoleSectionsMulti omits a section entirely when every given spec has zero findings for it', () => {
+  const resultsA = makeConsoleResults();
+  resultsA.skills = { rowId: 'skills', target: 'Skills', result: 'na', detail: 'no changes' };
+  const stateA = { version: 1, worklist: makeWorklist(), results: resultsA };
+
+  const resultsB = makeConsoleResultsB();
+  resultsB.skills = { rowId: 'skills', target: 'Skills', result: 'na', detail: 'no changes' };
+  const stateB = { version: 1, worklist: makeWorklist(), results: resultsB };
+
+  const { markdown } = renderConsoleSectionsMulti(
+    [{ specId: '157', state: stateA }, { specId: '159', state: stateB }],
+    { startAt: 1 },
+  );
+  assert.doesNotMatch(markdown, /#### Skill updates/);
+});
+
+test('renderConsoleSectionsMulti runs assertCleanVocabulary over the full merged output', () => {
+  const stateA = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const resultsB = makeConsoleResultsB();
+  resultsB.skills.findings[0].summary = 'D0 domain-overlap smuggled in (spec B)';
+  const stateB = { version: 1, worklist: makeWorklist(), results: resultsB };
+  assert.throws(
+    () => renderConsoleSectionsMulti([{ specId: '157', state: stateA }, { specId: '159', state: stateB }], { startAt: 1 }),
+    /forbidden vocabulary/,
+  );
+});
+
+test('renderConsoleSectionsMulti defaults startAt to 1 when omitted', () => {
+  const stateA = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const { markdown } = renderConsoleSectionsMulti([{ specId: '157', state: stateA }], {});
+  assert.match(markdown, /^\| 1 \|/m);
+});
+
+test('renderConsoleSectionsMulti does NOT deduplicate two entries sharing the same specId', () => {
+  const stateA = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const { markdown } = renderConsoleSectionsMulti(
+    [{ specId: '157', state: stateA }, { specId: '157', state: stateA }],
+    { startAt: 1 },
+  );
+  const skillsSection = markdown.split('#### Skill updates')[1].split('####')[0];
+  const specColumnValues = [...skillsSection.matchAll(/^\| \d+ \| (\d+) \|/gm)].map((m) => m[1]);
+  // stateA's skills row has 2 findings; passed twice under the same id -> 4 rows, all tagged 157.
+  assert.deepStrictEqual(specColumnValues, ['157', '157', '157', '157']);
+});
