@@ -69,7 +69,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/stories` | Existing `stories/*.yaml`, `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
-| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, a new backlog or `parked` work record (GitHub issue or local file, per `work-backend`) for leftover work, `docs/decisions/*.md` (ADRs, Step 6.2). Invokes `/reflect` (full mode). | Plan files, ledger. The build's materialized spec file stays committed as audit trail. |
+| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, a new backlog or `parked` work record (GitHub issue or local file, per `work-backend`) for leftover work, `docs/decisions/*.md` (ADRs, from the Decision records curation row). Invokes `/reflect` (full mode). | Plan files, ledger. The build's materialized spec file stays committed as audit trail. |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 
 ## Open Items Ledger
@@ -85,12 +85,12 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `.cl
 | File | Written by | Read by |
 |---|---|---|
 | `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile |
-| `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up` Step 8.6 (Wrap-Up Review Console) |
-| `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up` Step 8.6 |
+| `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up`'s Phase 4 (Wrap-Up Review Console) |
+| `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up`'s Phase 4 |
 
 The directory is **collision-safe** across parallel agents (multiple `/flow` runs in the same checkout each get their own `{ISO-timestamp}-{spec-slug}` directory). Downstream skills locate the active run via the `PIPELINE_RUN_DIR` env var or by selecting the most recent matching directory.
 
-After successful pipeline closure, `/wrap-up` Step 10 moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
+After successful pipeline closure, `/wrap-up`'s Phase 4 execution step moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
 
 ## Within-Session Context
 

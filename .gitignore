@@ -32,4 +32,5 @@ node_modules/
 .claude-tweaks/docs-health/
 .claude-tweaks/routine-environment-cache.yml
 .claude-tweaks/init-state.yml
+.claude-tweaks/wrap-up-outcomes.tsv
 **/__pycache__/

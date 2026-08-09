@@ -2,7 +2,7 @@
 
 Canonical procedure for the acceptance-labeling action: applying `demo:pending` and posting
 the Verification Brief. Record mode only (a record is identified for this run, per
-`/claude-tweaks:wrap-up` Step 1 — a materialized header is not required) — conversation-based
+`/claude-tweaks:wrap-up` Phase 1 — a materialized header is not required) — conversation-based
 work has no work record to label, so this procedure does not run for it.
 
 ## Routing — read this before anything else, whatever invoked this file
@@ -13,7 +13,7 @@ wrong by omission). Four call sites exist today:
 
 | Caller | Arrives holding |
 |---|---|
-| `/claude-tweaks:wrap-up` Step 10's Acceptance-labeling bullet (`wrap-up/execution-and-verification.md`) | one **leaf**, mid-close |
+| `/claude-tweaks:wrap-up` Phase 4 execution's Acceptance-labeling bullet (`wrap-up/execution-and-verification.md`) | one **leaf**, mid-close |
 | `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | one **leaf**, mid-close |
 | `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | one **leaf** per group member, mid-close — plus the group's whole closing-leaf set (see the Self-inclusion rule) |
 | `/claude-tweaks:tidy`'s `Open family gate` action (`tidy/actions-github-issues.md`, or `tidy/actions-local-files.md` on that driver) | a **parent** number (`$PARENT_NUM`) directly |
@@ -21,7 +21,7 @@ wrong by omission). Four call sites exist today:
 **Whatever invoked this file: if the record in hand has a resolvable parent, run the
 Family-Gate Procedure below in place of — not alongside — Steps 1-4.** A decomposed leaf never
 carries its own `demo:pending`; the family's parent carries one gate for all of them. This
-holds on every path equally, including the two that bypass Step 10 entirely: an `auto:merge`'d
+holds on every path equally, including the two that bypass Phase 4's execution step entirely: an `auto:merge`'d
 leaf is precisely the population `_shared/github-pr-scan.md`'s `family-gate` backstop scope
 exists to catch, so giving it its own gate here would both defeat the family gate and falsify
 that scope's stated reason for existing. `auto:merge` governs merge timing only — it does not
@@ -45,7 +45,7 @@ Every step from **Enumerate the family's leaves** onward is shared, unchanged, b
 — only how the caller arrives at `$PARENT_NUM` differs, and there are exactly two shapes:
 
 - **Leaf-side entry** — the three mid-close callers in the Routing table above
-  (`/claude-tweaks:wrap-up` Step 10, `/claude-tweaks:wrap-up`'s auto-merge short-circuit, and
+  (`/claude-tweaks:wrap-up`'s Phase 4 execution step, `/claude-tweaks:wrap-up`'s auto-merge short-circuit, and
   `/claude-tweaks:dispatch`'s group auto-merge gate, the last running this procedure once per
   group member). Each arrives holding a **leaf** number, plus `$CLOSING_LEAVES` — the set of
   leaf numbers its own run is closing, which the **Self-inclusion rule** below reads (one
@@ -202,7 +202,7 @@ single-leaf case is the one-element set.
 
 | Leaf-side caller | `$CLOSING_LEAVES` |
 |---|---|
-| `/claude-tweaks:wrap-up` Step 10 (`wrap-up/execution-and-verification.md`) | the one leaf this run is closing |
+| `/claude-tweaks:wrap-up` Phase 4 execution (`wrap-up/execution-and-verification.md`) | the one leaf this run is closing |
 | `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | the one leaf this run is closing |
 | `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | **every** member of the group, on every one of its per-member invocations — that gate's single merge carries one `Fixes #{issue}` line per record, so the whole group closes together |
 
@@ -252,8 +252,8 @@ Decomposition rules); **What shipped** — one-paragraph summary of what was del
 assembled leaves; **Confirmed** — parts 1 and 2 above, in place of Step 4's testable/non-testable
 branches; **`{poster}`** in the template's own footer — substitute the **skill** actually
 running *this* composition (see the Routing table above), never hardcode
-`` `/claude-tweaks:wrap-up` ``: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Step 10
-or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate,
+`` `/claude-tweaks:wrap-up` ``: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Phase 4's
+execution step or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate,
 `` `/claude-tweaks:tidy` `` for the backstop entry. Omit **See it yourself** and
 **Verify it yourself (manual)** — part 2's walkthrough
 already names the entry point inline within Confirmed.
@@ -400,9 +400,9 @@ field (`review-summary-template.md`). Branch on its value:
 | No `/review` summary available for this run (standalone `/wrap-up`, no recent `/review` run) | No signal exists | Treat as `Recommended` — trigger the gate below |
 
 **Trigger the gate** (`Recommended` / no-summary / `Skipped — no UI changes` cases): invoke
-`/claude-tweaks:visual-review` now, passing `--source wrap-up` (this run has no `$PIPELINE_RUN_DIR`
-of its own to signal parent invocation on — the same fallback `skills/wrap-up/SKILL.md` Step 3
-already passes to `/claude-tweaks:reflect` for standalone wrap-up), using the same mode
+`/claude-tweaks:visual-review` now, passing `--source wrap-up` (the explicit flag is the stable
+statement of parent invocation — the same one `skills/wrap-up/SKILL.md`'s Phase 1 reflect pass
+already passes to `/claude-tweaks:reflect` on every run), using the same mode
 resolution `/review` Step 6 already applies — `journey:{name}` when a journey was named (by the
 recommendation, or by matching
 `docs/journeys/*.md` against the changed files), otherwise page mode against the resolved
@@ -525,13 +525,13 @@ _Posted by {poster}. Resolve with `/claude-tweaks:demo`._
 
 `{poster}` is the **skill** that invoked this file, on this default (Step 1-4) path exactly as on
 the Family-Gate Procedure's — never hardcode `` `/claude-tweaks:wrap-up` ``. Per the Routing
-table at the top of this file: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Step 10 or
-the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate, and
+table at the top of this file: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Phase 4's
+execution step or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate, and
 — on the Family-Gate Procedure's parent-side entry only — `` `/claude-tweaks:tidy` ``. The string
 is outward-facing (posted as a GitHub comment, or embedded in a local record body), so a
 `/tidy`-posted parent brief claiming `/wrap-up` posted it would be wrong on exactly the population
 the backstop exists for: families that never reached `/wrap-up`. The same applies to a
-`/dispatch`-posted brief: that path never reached `/wrap-up` Step 10 either.
+`/dispatch`-posted brief: that path never reached `/wrap-up`'s Phase 4 execution step either.
 
 `work-backend: github-issues` — write the rendered template to
 `/tmp/verification-brief-{issue}.md`, then:

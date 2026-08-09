@@ -7,7 +7,7 @@ the whole judge procedure to run the mechanical checks below was pure waste. Thi
 self-sufficient: a memory audit reads it and nothing else from that procedure.
 
 **One consumer:** `/claude-tweaks:harness-health`'s Step 3, `target.kind === 'memory'` branch.
-`/claude-tweaks:wrap-up` Step 7 and `/claude-tweaks:init` Phase 3/6 are skill-only and never
+`/claude-tweaks:wrap-up`'s Skills curation row and `/claude-tweaks:init` Phase 3/6 are skill-only and never
 pass a `memory` target, so neither ever reads this file.
 
 ## Finding fields for a memory finding

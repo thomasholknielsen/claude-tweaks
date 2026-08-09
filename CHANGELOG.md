@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.71.0 — wrap-up rebuilt as four phases: a code engine now runs curation and renders the report
+
+The wrap-up skill's 17 numbered steps become four phases (ESTABLISH → ROUTE → SETTLE → CLOSE), and the seven-plus hand-written curation steps collapse into one declarative registry (`bin/lib/wrap-up/registry.js`, 8 rows) driven by a new engine (`bin/wrap-up-engine.js`: `plan` computes gates and scopes deterministically, `record` validates judge payloads and writes the single uniform `SCANNED` audit line plus a per-row outcomes TSV, `render` emits the phase-trace tables and console sections — so the report can no longer drift, because the model never formats it). The Review Console now runs in every mode: Phase 1 creates a pipeline run directory unconditionally, retiring the fragmented standalone path (Step 9 batch decision + per-item asks) and the standalone-has-no-console branches. A pinning test (`tests/wrap-up-registry-pin.test.js`) locks the SKILL.md registry table to the code registry; `config-updates.md` split into `claude-md-curation.md` + `adr-curation.md`; six judge files slimmed to judgment-only; a repo-wide sweep re-pointed every step-number reference to the phase architecture. The motivating failure was v6.70.0's own wrap-up report: seven mandatory `SCANNED` templates rendered in seven drifted formats.
+
 ## v6.70.1 — a cold sandbox's non-install could pass `claude-cloud-setup.sh`'s own verify loop as "ok"
 
 The verify-and-repair loop `claude-cloud-setup.sh` runs after installing plugins (added for `#129`

@@ -336,5 +336,34 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   `git show HEAD:skills/*/SKILL.md` gave 372 and over the working tree gave
   //   374. Nothing evicted — the diff's only `^-\|` line is that edited row,
   //   whose replacement is present.
-  assert.strictEqual(total, 374);
+  //
+  //   374 -> 368, the wrap-up phase-architecture consolidation. The FIRST
+  //   deliberate eviction on this counter since the v6.36.0 legacy purge, and
+  //   the only entry here that removes more rows than it adds. Rewriting
+  //   wrap-up/SKILL.md's 17 numbered steps as four phases + a curation registry
+  //   + a code engine retired nine per-step curation guards and added three
+  //   engine-era ones: net -6, entirely in that one file.
+  //   Measured, not summed, per-file across `origin/main...HEAD`:
+  //   origin/main totals 374 (so the literal above was right there) and HEAD
+  //   totals 368; the ONLY file with a nonzero delta is wrap-up/SKILL.md,
+  //   19 -> 13. No other skill moved, so nothing was lost in conflict
+  //   resolution while this branch merged upstream.
+  //   The eviction is legitimate because the hazards were not dropped, they
+  //   moved from prose guard to mechanism — `bin/lib/wrap-up/` now enforces
+  //   what these nine rows used to ask the model to remember. Removed:
+  //   "Scanning the entire skill library every wrap-up" (scope selection is
+  //   engine-owned), "Skipping skill curation because nothing was
+  //   ledger-tagged" and "Gating skill-curation.md's read on `.claude/skills/
+  //   *.md` alone" (registry.js evaluates that gate), "Skipping doc curation
+  //   because nothing was directly touched", the three "Declaring 'no X
+  //   updates needed' with no logged scan scope" rows and "Letting a closed
+  //   sub-file gate suppress the step's `SCANNED` summary line" (engine-plan.js
+  //   pre-resolves every closed row and writes its SCANNED line before the
+  //   model reads anything), and "Mixing skill updates into the doc/CLAUDE.md
+  //   batch table" (engine-render.js's SECTION_SPECS emits one section per
+  //   rowId). Added: "Skipping a registry row because its gate looks obviously
+  //   closed", "Composing the Phase 2 trace or SCANNED lines by hand when the
+  //   engine is available", "Treating engine failure as permission to skip
+  //   curation" — the three hazards the mechanism itself introduces.
+  assert.strictEqual(total, 368);
 });

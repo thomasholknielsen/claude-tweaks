@@ -46,7 +46,7 @@ Include actual commands that work in this project.}
 
 ## Update Mode
 
-For each skill classified **drifted** or **gap** in Phase 3, apply the full procedure in `_shared/harness-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up` Step 7 and the standalone `/claude-tweaks:harness-health` routine use for judging drift and proposing patches. That file owns the dimension check, evidence pre-checks, the tightened patch format (exact `oldString`/`newString`, required for reliable auto-apply), the new-skill qualification gate, and the verify gate — do not duplicate them here.
+For each skill classified **drifted** or **gap** in Phase 3, apply the full procedure in `_shared/harness-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up`'s Skills curation row and the standalone `/claude-tweaks:harness-health` routine use for judging drift and proposing patches. That file owns the dimension check, evidence pre-checks, the tightened patch format (exact `oldString`/`newString`, required for reliable auto-apply), the new-skill qualification gate, and the verify gate — do not duplicate them here.
 
 For approved gap skills that qualify as new-skill candidates (per the shared fragment's qualification gate), generate the full SKILL.md as in Initial Mode, above — the shared fragment's `proposedBody` field uses that same template.
 

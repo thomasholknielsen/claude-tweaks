@@ -36,7 +36,7 @@ When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Executio
    git-strategy: worktree
    ```
 3. Fallback — `subagent` + `worktree`
-4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes deviations per the auto-mode contract: Beneficial→AUTO (log spec edit commit), Update the spec→STAGED, Fix now→KEPT-PROMPT. Decisions that warrant human judgment are staged to the Wrap-Up Review Console (Step 8.6) rather than stopping the pipeline mid-flow — see `_shared/auto-mode-contract.md` for the silences inventory and the HARD-GATE exemption list.
+4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes deviations per the auto-mode contract: Beneficial→AUTO (log spec edit commit), Update the spec→STAGED, Fix now→KEPT-PROMPT. Decisions that warrant human judgment are staged to the Wrap-Up Review Console rather than stopping the pipeline mid-flow — see `_shared/auto-mode-contract.md` for the silences inventory and the HARD-GATE exemption list.
 
 ## Input
 

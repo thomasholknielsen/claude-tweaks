@@ -294,7 +294,7 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 
 Only generate skills for patterns that **actually exist and are actively used** in the codebase. Aspirational skills (e.g., testing for a project with no tests) should have been captured as backlog work records in Phase 4 — do not generate SKILL.md files for them.
 
-For the complete SKILL.md template and depth guide, read `skill-template.md` in this skill's directory. For the drift-patch procedure and quality gates applied to drifted/gap skills, read `_shared/harness-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up` Step 7 and the standalone `/claude-tweaks:harness-health` routine use.
+For the complete SKILL.md template and depth guide, read `skill-template.md` in this skill's directory. For the drift-patch procedure and quality gates applied to drifted/gap skills, read `_shared/harness-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up`'s Skills curation row and the standalone `/claude-tweaks:harness-health` routine use.
 
 ---
 
@@ -318,7 +318,7 @@ For the literal prompt, the skeleton-file and work-record templates, and the del
 
 ## Phase 8.5: Create Doc Registry
 
-Create the documentation registry that maps project docs to the code areas they cover. This registry is consumed by `/build` (Step 6.5) to auto-update docs when relevant code changes, and by `/wrap-up` (Step 7.7) for final sweep and registry maintenance.
+Create the documentation registry that maps project docs to the code areas they cover. This registry is consumed by `/build` (Step 6.5) to auto-update docs when relevant code changes, and by `/wrap-up` (its Docs curation row) for final sweep and registry maintenance.
 
 **Use the confirmed doc tier** from Phase 3 — do not re-detect.
 
