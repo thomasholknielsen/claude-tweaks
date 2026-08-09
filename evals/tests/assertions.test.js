@@ -279,6 +279,65 @@ test('verdict-matches: case tolerance — VERDICT written in a different case st
   assert.strictEqual(result.pass, true, result.message);
 });
 
+// --- filter-outcome-matches.js: research verify's per-candidate keep/drop outcome ---
+
+test('filter-outcome-matches: passes when every kept/dropped token matches', () => {
+  const result = runAssertion(
+    {
+      resultText: [
+        'Q-WEBHOOK: KEEP — answers lead to structurally different pipelines.',
+        'Q-TTL: DROP — the module is rebuilt per-run either way.',
+      ].join('\n'),
+    },
+    { type: 'filter-outcome-matches', kept: ['Q-WEBHOOK'], dropped: ['Q-TTL'] },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
+test('filter-outcome-matches: fails naming the first mismatched token', () => {
+  const result = runAssertion(
+    {
+      resultText: [
+        'Q-WEBHOOK: DROP — no divergence found.',
+        'Q-TTL: DROP — the module is rebuilt per-run either way.',
+      ].join('\n'),
+    },
+    { type: 'filter-outcome-matches', kept: ['Q-WEBHOOK'], dropped: ['Q-TTL'] },
+  );
+  assert.strictEqual(result.pass, false);
+  assert.ok(result.message.includes('Q-WEBHOOK'), result.message);
+});
+
+test('filter-outcome-matches: fails when a token never appears in the result', () => {
+  const result = runAssertion(
+    { resultText: 'Q-TTL: DROP — the module is rebuilt per-run either way.' },
+    { type: 'filter-outcome-matches', kept: ['Q-WEBHOOK'], dropped: ['Q-TTL'] },
+  );
+  assert.strictEqual(result.pass, false);
+  assert.ok(result.message.includes('Q-WEBHOOK'), result.message);
+});
+
+test('filter-outcome-matches: multiple mentions takes the outcome nearest the token\'s last mention', () => {
+  const result = runAssertion(
+    {
+      resultText: [
+        'Considering Q-WEBHOOK — this could go either way, tentatively DROP.',
+        'On reflection, Q-WEBHOOK: KEEP — answers lead to structurally different pipelines.',
+      ].join('\n'),
+    },
+    { type: 'filter-outcome-matches', kept: ['Q-WEBHOOK'], dropped: [] },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
+test('filter-outcome-matches: negation — flipping the expected direction turns a passing case red', () => {
+  const resultText = 'Q-WEBHOOK: KEEP — answers lead to structurally different pipelines.';
+  const passing = runAssertion({ resultText }, { type: 'filter-outcome-matches', kept: ['Q-WEBHOOK'], dropped: [] });
+  assert.strictEqual(passing.pass, true, passing.message);
+  const negated = runAssertion({ resultText }, { type: 'filter-outcome-matches', kept: [], dropped: ['Q-WEBHOOK'] });
+  assert.strictEqual(negated.pass, false, 'negating the expected outcome must flip pass to fail');
+});
+
 test('parseFindingsTable: a gate table with no Severity column (e.g. Spec Compliance) is skipped, not parsed as findings', () => {
   const textWithGateTableFirst = `
 ### Spec Compliance

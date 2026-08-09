@@ -13,6 +13,7 @@ import { toolInputIncludes } from './tool-input-includes.js';
 import { contextCostRegression } from './context-cost-regression.js';
 import { routingDestinationMatches } from './routing-destination-matches.js';
 import { verdictMatches } from './verdict-matches.js';
+import { filterOutcomeMatches } from './filter-outcome-matches.js';
 
 // Registry mapping a scenario assertion's `type` field to its implementation.
 // Each fn takes (context, params) -> {pass, message}. context is built once
@@ -34,6 +35,7 @@ const ASSERTIONS = {
   'context-cost-regression': (ctx, params) => contextCostRegression(ctx, params),
   'routing-destination-matches': (ctx, params) => routingDestinationMatches(ctx.resultText, params),
   'verdict-matches': (ctx, params) => verdictMatches(ctx.resultText, params),
+  'filter-outcome-matches': (ctx, params) => filterOutcomeMatches(ctx.resultText, params),
 };
 
 export function runAssertion(context, assertion) {
