@@ -181,3 +181,5 @@ unchanged.
 | `/claude-tweaks:review` lens 3a | Records a `review/skill` ledger entry; does not classify itself — `/claude-tweaks:wrap-up`'s Skills curation row classifies it afterward |
 | `/claude-tweaks:build` Common Step 4.5 | Classifies architecture-alignment learnings |
 | health sweeps | A finding whose subject is a claude-tweaks skill routes to D5 rather than a project issue |
+| `skills/_shared/causal-depth.md` | Routes a `systemic` verdict through this classifier by name on both the debugging-path and near-miss-path bindings. |
+| `_shared/reproduce-first-discipline.md` (step 3) | Reaches this classifier transitively via `causal-depth.md`, from every skill that cites the discipline (`/build`, `/test`, `/review`). |

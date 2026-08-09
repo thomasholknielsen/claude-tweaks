@@ -244,7 +244,7 @@ After code simplification, run the shared verification procedure (`skills/test/v
 
 **Note:** `/build` always runs verification (it is the *producer* of `VERIFICATION_PASSED`). The skip-if-recent rule in `test/verification.md` applies only to `/test` callers — never to this step. On a pass, also capture `VERIFICATION_SHA=$(git rev-parse HEAD)` — passed forward alongside `VERIFICATION_PASSED=true` so `/test`'s skip-if-recent check can detect a tree change between this step and its own invocation (see `verification.md`'s "Skip-if-recent" section) instead of trusting a bare boolean.
 
-If anything fails, fix it and commit the fix. **When a failure is a behavioral bug — not a mechanical type/lint error — follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before changing code** (reproduce on command, fix the confirmed cause, escalate rather than guess if it can't be reproduced) — see `failure-recovery.md` for the fuller recovery table this step falls back to.
+If anything fails, fix it and commit the fix. **When a failure is a behavioral bug — not a mechanical type/lint error — follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before changing code** (reproduce on command, fix the confirmed cause, escalate rather than guess if it can't be reproduced; once green, walk the causal-depth chain per the discipline's step 3) — see `failure-recovery.md` for the fuller recovery table this step falls back to.
 
 ### Common Step 5.5: Operational Checklist
 
