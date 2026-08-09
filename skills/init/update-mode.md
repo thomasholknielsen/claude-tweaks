@@ -28,6 +28,7 @@ Build an inventory of what's currently configured before scanning the codebase:
 - `project.maturity`: {value, or "not set" if the key is absent}
 - Recognized keys present: {count}
 - Recognized keys still in CLAUDE.md: {migratableKeys count from the Config Home Drift check below, or "none"}
+- Retired keys still in policy.yml: {renamedKeys count from the Renamed key drift check below, or "none"}
 
 ### Skills ({count})
 | Skill | Description trigger | Key file paths referenced |
@@ -192,6 +193,67 @@ them:
 
 On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table
 as an `Operational` row.
+
+#### Renamed key drift
+
+A second, distinct check inside the same Config Home Drift section — not a Total-drift double
+count with the `migratableKeys` check above, but a genuinely different failure mode: a key that has
+been retired from `POLICY_KEYS` entirely (e.g. `unattended-tier`, merged into `autonomy` — see
+`_shared/autonomy-ceiling.md`), still sitting in a project's live `.claude-tweaks/policy.yml`. Read
+`auditPolicy(repoRoot).renamedKeys` alongside the existing `migratableKeys` read above (same
+`node -e` invocation already returns both fields — no second call needed):
+
+```bash
+node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify(r.renamedKeys))"
+```
+
+An empty array means nothing to do — omit this check from the Drift Report entirely, matching the
+`migratableKeys` convention above: "An empty array means nothing to do — omit this check from the
+Drift Report entirely rather than reporting a clean result." Otherwise each entry carries `key`,
+`value`, `replacedBy`, `suggestedValue`, and `currentReplacementValue` (`bin/lib/policy-schema.js`'s
+shape — re-read it at build/run time rather than trusting this restatement, per `[IL-40]`).
+
+Each flagged `renamedKeys` entry counts toward the same Phase 1u.6 Total drift count the
+`migratableKeys` check above contributes to — a project whose only drift is a stale
+`unattended-tier` key must not take the early-exit fast path.
+
+Present a batch table (Key | Current value | Suggested replacement | Current `{replacedBy}` value
+or "not set"):
+
+| Key | Current value | Suggested replacement | Current `autonomy` value |
+|---|---|---|---|
+| `unattended-tier` | `on` | `autonomy: unattended` | not set |
+
+When `currentReplacementValue` is already set to something (the project has both the retired key
+and an explicit `autonomy` value), show both values and let the user pick which wins rather than
+silently overwriting an explicit existing setting — the same "show both, don't blind-rewrite"
+principle `migratableKeys`' `alsoInPolicy: true` differing-values handling above already applies.
+When `suggestedValue` is `null` (the retired key's value never unlocked anything the replacement's
+own default doesn't already match — `unattended-tier: off` is the shipped example), the offer is
+simply "remove this stray key," with no replacement value to set.
+
+Call `AskUserQuestion`:
+
+- `question`: `"{N} retired policy key(s) found in policy.yml. Migrate them?"`, `header`:
+  `"Renamed keys"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Remove the
+  retired key(s) and set the suggested replacement value(s), exactly as shown in the table above"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-key what happens
+  to each of the {N} entries — e.g. keep the existing replacement value instead of the suggestion"`
+- Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave policy.yml as-is — the retired
+  key(s) will continue to have no effect"`
+
+On "Override specific items," per-key corrections arrive as ordinary free-text in the next message,
+per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field.
+
+**Applying.** Same staged-offer discipline as `migratableKeys` above — never an autonomous edit.
+Under `--defaults`, or any invocation with no interactive human, present the diff in the report and
+apply nothing. Remove the retired key's line from `.claude-tweaks/policy.yml`; when a suggested
+value applies and no differing existing value blocked it, write (or replace in place, never
+append — the same reasoning as the "Key already present" case above) `{replacedBy}: {suggestedValue}`.
+
+On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
+`Operational` row.
 
 ### Maturity Drift
 
