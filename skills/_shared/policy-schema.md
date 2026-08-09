@@ -84,6 +84,12 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `harness-health.scoped-rule-budget` | `policy.yml` | `/claude-tweaks:harness-health` | `30` | Line-count budget for path-scoped `.claude/rules/*.md` files |
 | `harness-health.always-loaded-budget` | `policy.yml` | `/claude-tweaks:harness-health` | `150` | Line-count budget for CLAUDE.md and unscoped rule files |
 
+## Health-sweep filing
+
+| Key | Canonical home | Owner skill(s) | Default | Meaning |
+|---|---|---|---|---|
+| `health-open-cap` | `policy.yml` | `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:docs-health`, `/claude-tweaks:journey-health` — via `bin/lib/health-core/digest.js` | `10` | Per-origin open-singleton-finding cap. At or above this count, a brand-new finding that would otherwise file its own issue is appended to that origin's digest issue instead (see each skill's FILE step). A regressed-reopen always bypasses the cap. `0` or unset disables the throttle — unconditional filing, matching pre-#235 behavior |
+
 ## Auto-mode levers
 
 These 8 resolve from `policy.yml`. `/claude-tweaks:init` does not generate them into CLAUDE.md — omitting a lever means its default, so writing every lever out contradicts the "omit means default" principle.
