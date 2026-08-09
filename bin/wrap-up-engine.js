@@ -238,8 +238,8 @@ function runRender(args) {
       // `null`) parses without throwing above but would otherwise blow up as
       // an uncaught TypeError inside renderConsoleSectionsMulti — treat it
       // as the same failure-to-read case, same message format, exit 2.
-      if (state === null || typeof state !== 'object') {
-        process.stderr.write(`wrap-up-engine.js render: could not read spec state from ${p}: parsed value is not an object\n`);
+      if (state === null || typeof state !== 'object' || state.results === null || typeof state.results !== 'object') {
+        process.stderr.write(`wrap-up-engine.js render: could not read spec state from ${p}: parsed value is not a valid engine-state object\n`);
         process.exit(2);
       }
       specStates.push({ specId, state });
