@@ -128,7 +128,7 @@ Immediately after presenting the Manifesto table above, call `AskUserQuestion` w
 - Option 2 — `label`: `"Override"`, `description`: `"Reply with one or more #=value pairs from the valid-overrides list (e.g., 2=stop-and-ask, 7=medium) — see Override semantics below."`
 - Option 3 — `label`: `"Cancel pipeline"`, `description`: `"Abort; do not create the run directory."`
 
-If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field. At least one pair is required; a bare selection with no pairs is invalid and will re-prompt for the pair(s).
+If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field. At least one pair is required; a bare selection with no pairs is invalid and will re-prompt for the pair(s).
 
 ### Rendering rules for the preview
 

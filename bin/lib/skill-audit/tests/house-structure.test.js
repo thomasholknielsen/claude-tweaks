@@ -4,14 +4,15 @@
 //
 // The per-skill checks in bin/lib/{code,docs,harness,journey}-health/tests/
 // skill-md.test.js cover four skills; skills/research has its own. That left
-// the rest of skills/*/SKILL.md with nothing enforcing CLAUDE.md's documented
+// the rest of skills/*/SKILL.md with nothing enforcing docs/skill-authoring.md's documented
 // house structure at all. This file closes that gap: it applies the subset of
 // the house rules that holds for EVERY skill, to every skill.
 //
 // Deliberately NOT checked here:
 //   - `## Component-Skill Contract` — only component skills carry it
-//     (CLAUDE.md's Component-skill contract section), so it is a per-skill
-//     rule, not a corpus rule. The health skills' own suites still assert it.
+//     (docs/skill-authoring.md's Component-skill contract section), so it is
+//     a per-skill rule, not a corpus rule. The health skills' own suites
+//     still assert it.
 //   - `$PIPELINE_RUN_DIR` — same reason; it is the CSC's detection signal.
 //   - Per-skill required tokens, CLI invocation shapes, sub-file contracts —
 //     those belong to the skill's own suite.
@@ -30,10 +31,10 @@ const { sectionIndex, EMOJI_RE } = require('../../health-core/tests/skill-md-hou
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const SKILLS_DIR = path.join(ROOT, 'skills');
 
-// CLAUDE.md's "Interaction style directive" section: this exact line, byte for
-// byte, after the frontmatter of every skill. Asserting the whole line (not
-// just the `> **Interaction style:**` prefix) is what makes "identical across
-// all skills" enforceable.
+// docs/skill-authoring.md's "Interaction style directive" section: this exact
+// line, byte for byte, after the frontmatter of every skill. Asserting the
+// whole line (not just the `> **Interaction style:**` prefix) is what makes
+// "identical across all skills" enforceable.
 const INTERACTION_STYLE =
   '> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option '
   + 'marked Recommended. Multi-item → batch table with recommendations pre-filled, then '
@@ -110,14 +111,14 @@ for (const name of skills) {
     assert.ok(
       nextActions < antiPatterns,
       `skills/${name}/SKILL.md orders '## Next Actions' (${nextActions}) after `
-      + `'## Anti-Patterns' (${antiPatterns}); CLAUDE.md requires Next Actions first`,
+      + `'## Anti-Patterns' (${antiPatterns}); docs/skill-authoring.md requires Next Actions first`,
     );
   });
 
   test(`${name}: carries the standard interaction-style directive verbatim`, () => {
     assert.ok(
       readSkill(name).includes(INTERACTION_STYLE),
-      `skills/${name}/SKILL.md does not carry CLAUDE.md's exact interaction-style directive`,
+      `skills/${name}/SKILL.md does not carry docs/skill-authoring.md's exact interaction-style directive`,
     );
   });
 

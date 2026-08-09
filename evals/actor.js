@@ -13,7 +13,7 @@ import path from 'node:path';
 //
 // Default policy for AskUserQuestion: auto-select whichever option in each
 // question is labeled "(Recommended)" — claude-tweaks' own documented
-// AskUserQuestion convention (CLAUDE.md's Interaction patterns section marks
+// AskUserQuestion convention (docs/skill-authoring.md's Interaction patterns section marks
 // exactly one option this way on every call). answerOverrides lets a scenario
 // target a specific question (matched by a case-insensitive substring of its
 // `question` text) and supply a different answer, taking priority over the

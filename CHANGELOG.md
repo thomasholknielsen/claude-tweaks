@@ -39,6 +39,23 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.72.0 — Release automation CLI and CLAUDE.md context-budget shrink
+
+Release automation CLI and CLAUDE.md context-budget shrink.
+
+## v6.71.1 — the routine preamble self-heals before attempting a skill it already knows is missing
+
+Live-testing a Routine on a freshly-fixed environment surfaced a second, cheaper gap on top of `[IL-115]`'s
+fix: on a container where the plugin genuinely isn't installed, the standard preamble's resolved-build
+check correctly reports `unresolved`, but the prompt still attempted the skill kickoff first — a
+predictable "Unknown skill" failure — before investigating and self-healing via
+`bash scripts/claude-cloud-setup.sh`, observed costing several extra exploratory commands every firing.
+The preamble now runs `claude plugin list --json` unconditionally (verbose, so a transcript shows every
+installed plugin up front, not just claude-tweaks) and, when all four resolution rungs come up empty,
+self-heals immediately rather than after a wasted invocation attempt. Mirrored into the canonical block in
+`_shared/routine-template-schema.md` and all six `skills/*/routine-template.yml` templates, each with its
+`template_version` bumped — existing live routines pick this up via `/claude-tweaks:routine update <skill>`.
+
 ## v6.71.0 — wrap-up rebuilt as four phases: a code engine now runs curation and renders the report
 
 The wrap-up skill's 17 numbered steps become four phases (ESTABLISH → ROUTE → SETTLE → CLOSE), and the seven-plus hand-written curation steps collapse into one declarative registry (`bin/lib/wrap-up/registry.js`, 8 rows) driven by a new engine (`bin/wrap-up-engine.js`: `plan` computes gates and scopes deterministically, `record` validates judge payloads and writes the single uniform `SCANNED` audit line plus a per-row outcomes TSV, `render` emits the phase-trace tables and console sections — so the report can no longer drift, because the model never formats it). The Review Console now runs in every mode: Phase 1 creates a pipeline run directory unconditionally, retiring the fragmented standalone path (Step 9 batch decision + per-item asks) and the standalone-has-no-console branches. A pinning test (`tests/wrap-up-registry-pin.test.js`) locks the SKILL.md registry table to the code registry; `config-updates.md` split into `claude-md-curation.md` + `adr-curation.md`; six judge files slimmed to judgment-only; a repo-wide sweep re-pointed every step-number reference to the phase architecture. The motivating failure was v6.70.0's own wrap-up report: seven mandatory `SCANNED` templates rendered in seven drifted formats.
