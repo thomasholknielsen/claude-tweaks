@@ -174,7 +174,7 @@ function extractModuleExports(text) {
     const endLine = text.slice(0, closeIdx).split('\n').length;
     for (const rawToken of inner.split(',')) {
       const token = rawToken.trim();
-      if (token === '' || token.startsWith('...') || !IDENTIFIER_RE.test(token)) continue;
+      if (token === '' || !IDENTIFIER_RE.test(token)) continue;
       results.push({ symbol: token, startLine, endLine });
     }
     startRe.lastIndex = closeIdx;
