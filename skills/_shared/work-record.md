@@ -95,8 +95,24 @@ are about to apply.
 
 Labels are reserved for these axes. Type is NOT a label family when the host supports native
 Issue Types (`work-types: native`); producer-specific diagnostics (e.g.
-`code-health:<criterion>`) may exist as optional extras but carry no mechanical meaning in
-this contract.
+`docs-health:additive`, `journey-health:coverage`, `code-health:filing-failed`) may exist as
+optional extras but carry no mechanical meaning in this contract — no skill's dispatch, scoring,
+or routing decision reads one back. (`code-health:<criterion>` was the pre-#240 example here;
+code-health dropped per-criterion labels entirely once the criterion moved into the issue body's
+header line, partly because that label class hit GitHub's 100-char cap — see
+`bin/lib/code-health/issue-payload.js`.)
+
+**The taxonomy is closed (#239).** A new label family requires a documented consumer —
+somewhere in `skills/` or `bin/` that reads it back to make a decision — before a producer may
+start stamping it. "Decorative" producer-specific diagnostics of the kind named above are the
+one standing exception: they were grandfathered in as optional, human-readable categorization on
+an already-filed issue, not a precedent for adding more without a consumer. A label with a real
+mechanical consumer (`ready`, `auto:build`, `wontfix`, `family:parent`, `bot:blocked`,
+`demo:pending`, the `by:*` dedup keys, and `upstream-candidate` once `/claude-tweaks:feedback`'s
+Step 0 queue mode shipped — see `skills/feedback/SKILL.md`) is unaffected; this closes the door
+on filing a *new* write-only label the way `remembered.json`'s harness-health/docs-health gap and
+`upstream-candidate`'s original orphan state both did (#239) — both closed by giving the writer an
+actual reader rather than by deleting the write.
 
 ## Permission matrix
 

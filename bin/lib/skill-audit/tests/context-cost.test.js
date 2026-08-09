@@ -12,13 +12,18 @@ const {
   totalBytes,
   headroom,
 } = require('../context-cost.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../skill-catalog.js');
 
 const REPO = path.join(__dirname, '..', '..', '..', '..');
 const kb = (b) => (b / 1024).toFixed(1);
 
 test('measureSkills finds every shipped skill', () => {
   const skills = measureSkills(REPO);
-  assert.strictEqual(skills.length, 33);
+  // Directory-derived, not a hard-coded `33` -- see skill-catalog.js.
+  assert.strictEqual(skills.length, listSkillDirs(REPO).length);
+  for (const known of KNOWN_SKILLS) {
+    assert.ok(skills.some((s) => s.name === known), `measureSkills is missing known skill: ${known}`);
+  }
   assert.ok(skills.every((s) => s.bytes > 0));
 });
 

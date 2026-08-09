@@ -4,8 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { listSkillDirs, KNOWN_SKILLS } = require('../bin/lib/skill-audit/skill-catalog');
 
 const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const ROOT = path.join(__dirname, '..');
 
 const CANONICAL_DIRECTIVE =
   '> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked ' +
@@ -14,16 +16,19 @@ const CANONICAL_DIRECTIVE =
   'before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.';
 
 function skillNames() {
-  return fs
-    .readdirSync(SKILLS_DIR)
-    .filter((d) => fs.existsSync(path.join(SKILLS_DIR, d, 'SKILL.md')))
-    .sort();
+  return listSkillDirs(ROOT);
 }
 
 const read = (name) => fs.readFileSync(path.join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 
 test('every skill directory with a SKILL.md is discovered', () => {
-  assert.strictEqual(skillNames().length, 33);
+  // Directory-derived, not a hard-coded literal (was `33` -- see skill-catalog.js's
+  // header for why that stopped being a real check). The floor + known-name
+  // assertions are what actually catches a broken glob/filter.
+  assert.ok(skillNames().length >= 30, `expected the whole skill corpus, found ${skillNames().length}`);
+  for (const known of KNOWN_SKILLS) {
+    assert.ok(skillNames().includes(known), `corpus is missing a known skill: ${known}`);
+  }
 });
 
 test('every skill carries the canonical compressed interaction directive', () => {
@@ -77,9 +82,16 @@ test('no YOU ARE HERE marker survives in the 11 rewritten skills', () => {
   }
 });
 
-test('the 22 untouched skills keep their diagrams', () => {
+test('the skills outside LINEAR_DIAGRAM_SKILLS keep their diagrams', () => {
   const untouched = skillNames().filter((n) => !LINEAR_DIAGRAM_SKILLS.includes(n));
-  assert.strictEqual(untouched.length, 22);
+  // Directory-derived, not a hard-coded `22` -- this still catches a real
+  // regression: if LINEAR_DIAGRAM_SKILLS names a skill directory that no
+  // longer exists, the arithmetic below goes out of sync with the filter.
+  assert.strictEqual(
+    untouched.length,
+    skillNames().length - LINEAR_DIAGRAM_SKILLS.length,
+    'LINEAR_DIAGRAM_SKILLS contains a name that is not a real skill directory',
+  );
   for (const name of ['code-health', 'browse', 'help', 'dispatch', 'research']) {
     const lines = read(name).split('\n');
     const h1 = lines.findIndex((l) => /^# /.test(l));

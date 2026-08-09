@@ -102,7 +102,7 @@ When a pipeline run directory exists, route findings by category without prompti
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |
 | Convention drift, code smell, simplification opportunity | STAGED — write to `staged/reflect-{n}.md`. Surface at Wrap-Up Review Console. | `STAGED {time} — Step 3: convention finding "{summary}". Stage path: staged/reflect-{n}.md.` |
 | Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. The Wrap-Up Review Console's Queue writes section asks before creating the record (never autonomous), in every mode. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate. Surface at the Queue writes gate.` |
-| Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled by `/wrap-up`'s Skills curation row. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
+| Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled by `/claude-tweaks:wrap-up`'s Skills curation row. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
 
@@ -164,8 +164,8 @@ Number `{n}` is a per-run sequence counter — increment as each staged file is 
 
 | Context | Phase | Behavior |
 |---------|-------|----------|
-| Invoked by `/review` | `review/hindsight` | Write findings. Status: `open` for "Change now" (then `fixed` after changes); `deferred` for "Defer" and "Capture" (both result in a new backlog record — directly for Defer, via `/claude-tweaks:capture` for Capture); `accepted` for "Accept as-is" (state the reason in the entry body). |
-| Invoked by `/wrap-up` | `wrap-up` | Write insights. Status: `open` for "Implement now" (then `fixed` once implemented); `deferred` for "Defer" and "Capture" (both result in a new backlog record — directly for Defer, via `/claude-tweaks:capture` for Capture); `accepted` for "Don't capture" (state the reason in the entry body, per the Anti-Patterns table). |
+| Invoked by `/claude-tweaks:review` | `review/hindsight` | Write findings. Status: `open` for "Change now" (then `fixed` after changes); `deferred` for "Defer" and "Capture" (both result in a new backlog record — directly for Defer, via `/claude-tweaks:capture` for Capture); `accepted` for "Accept as-is" (state the reason in the entry body). |
+| Invoked by `/claude-tweaks:wrap-up` | `wrap-up` | Write insights. Status: `open` for "Implement now" (then `fixed` once implemented); `deferred` for "Defer" and "Capture" (both result in a new backlog record — directly for Defer, via `/claude-tweaks:capture` for Capture); `accepted` for "Don't capture" (state the reason in the entry body, per the Anti-Patterns table). |
 | Standalone, ledger exists | `reflect` | Write findings/insights to existing ledger, using the same status mapping as above. |
 | Standalone, no ledger | *(skip)* | Present findings without ledger tracking. |
 

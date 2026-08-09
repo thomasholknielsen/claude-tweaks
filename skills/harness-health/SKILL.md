@@ -114,6 +114,8 @@ Parse each issue body for its fingerprint marker. Fingerprint extraction reads t
 
 A matched issue carrying the `wontfix` label is a standing suppression decision: Step 6's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). It also persists that fingerprint to the durable `declined` slice on the `health-state` branch, so the suppression survives a later firing that cannot rebuild this index at all — the local `cache.json` is no help there, since a scheduled Routine's fresh container starts with an empty one.
 
+**Digest-mode fold.** Before writing `/tmp/harness-health-issues.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `harness-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 6 rather than being re-judged or re-digested.
+
 **Step 6 — VALIDATE, FINGERPRINT, DEDUP.**
 
 ```bash
@@ -137,7 +139,7 @@ Read `filing.md` in this skill's directory and apply it. It owns the whole filin
 
 **Step 8 — SUMMARIZE.**
 
-Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
+Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
 
 ## Routine Configuration
 

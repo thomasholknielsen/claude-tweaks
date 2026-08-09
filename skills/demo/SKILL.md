@@ -44,7 +44,7 @@ where the full outstanding list lives.
 
 ## Step 1: Resolve the one item
 
-`/demo` resolves one item at a time — never a sweep. `$ARGUMENTS` selects which path runs.
+`/claude-tweaks:demo` resolves one item at a time — never a sweep. `$ARGUMENTS` selects which path runs.
 
 ### No arguments: session-recall
 
@@ -81,7 +81,7 @@ it yourself` or `### Verify it yourself (manual)`):
   does for a non-testable record: concrete commands, file paths, or behavior actually run or
   checked this session, not a generic checklist.
 
-This path has no fetch step — there is no comment or record body to read from. A fresh `/demo`
+This path has no fetch step — there is no comment or record body to read from. A fresh `/claude-tweaks:demo`
 session with no memory of any unrecorded work naturally finds nothing here; that's expected, not
 a bug (session-recall never discovers *other* sessions' unrecorded work). Report "Nothing
 awaiting sign-off." and stop — do not call `AskUserQuestion` — when recall finds nothing.
@@ -113,14 +113,14 @@ This `#N` may itself be a decomposition parent gated by the Family-Gate Procedur
 (`wrap-up/verification-brief.md`) rather than a single build, in which case its Verification
 Brief covers the whole family's primary path rather than one diff, but resolves and renders
 through this same branch exactly like any other label-backed entry. Two things can have applied
-that gate: `/wrap-up`'s own eager path (closing the family's last leaf), or `/claude-tweaks:tidy`'s
+that gate: `/claude-tweaks:wrap-up`'s own eager path (closing the family's last leaf), or `/claude-tweaks:tidy`'s
 `Open family gate` action backstopping a family that missed it (surfaced by
 `_shared/github-pr-scan.md`'s `family-gate` scope under `work-backend: github-issues`, or by
 `tidy/step-1-records.md`'s Shape 7 under `local-files`) — all of them write the identical
 `demo:pending` + brief, so this branch never needs to know or care which one ran.
 
 If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
-and closed by a `Fixes #N` commit, never reaching `/wrap-up`'s Phase 4 execution step), recover that **closing
+and closed by a `Fixes #N` commit, never reaching `/claude-tweaks:wrap-up`'s Phase 4 execution step), recover that **closing
 commit** before reaching for session recall. This is the population `/claude-tweaks:tidy`'s
 `acceptance-gap` sweep surfaces — its `github-pr-scan.md` scope under `work-backend:
 github-issues`, `tidy/step-1-records.md`'s Shape 8 under `local-files` — and it is by construction
@@ -241,7 +241,7 @@ noise.
 
 **The malformed case is the one exception, and only barely.** The section is still omitted entirely
 — never a heading with only the blocks that parsed, since a half-rendered contract reads as complete
-— but that procedure requires the downgrade leave a trace, and `/demo` is standalone-only, so there
+— but that procedure requires the downgrade leave a trace, and `/claude-tweaks:demo` is standalone-only, so there
 is no `$PIPELINE_RUN_DIR` and no `decisions.md` to write it to. Say it instead in **one plain line**
 above the verdict, naming the file and which labels were found. Without it, an upstream block rename
 is indistinguishable from a record that simply never had a contract — which is exactly the silent
@@ -284,12 +284,12 @@ pre-flight check:
    `/claude-tweaks:browse`'s conventions directly — the same relationship
    `/claude-tweaks:visual-review` already has with `/claude-tweaks:browse`) and confirm the target
    page actually renders, not just an HTTP 200. If the page requires auth and credentials are
-   already resolvable (the Auth Vault, the same source `/stories` uses), attempt
+   already resolvable (the Auth Vault, the same source `/claude-tweaks:stories` uses), attempt
    login too. No configured credentials → skip the login check; reachability/render alone is
    still worth confirming.
 3. Close the session.
 
-Runs once per record per `/demo` session and is reused for the rest of that record's walkthrough.
+Runs once per record per `/claude-tweaks:demo` session and is reused for the rest of that record's walkthrough.
 
 **Pre-flight succeeds:** ask one short follow-up — `question`: `"Open a live session and show
 you, or give you the steps to check it yourself?"`, `header`: `"How to check"`, `multiSelect`:
@@ -321,8 +321,8 @@ changes / Skip for now, same as the live sub-choice above.
 **Pre-flight fails:** this is evidence, not a side quest to chase mid-conversation. Capture what
 broke (screenshot, console error) and fold it directly into this record's brief as grounds for
 **Request changes** — skip the live-vs-manual follow-up question entirely, a broken environment
-is broken either way. `/demo` never debugs or fixes the underlying application code itself — that
-stays out of scope the same way code-quality judgment already does (`/review`'s job).
+is broken either way. `/claude-tweaks:demo` never debugs or fixes the underlying application code itself — that
+stays out of scope the same way code-quality judgment already does (`/claude-tweaks:review`'s job).
 
 **Browser tools unavailable:** same fallback `verification-brief.md` already documents — skip
 without blocking, note visual verification wasn't available in this environment, proceed with
@@ -332,13 +332,13 @@ Approve / Request changes / Skip for now only (no "See it yourself" option at al
 
 If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
 existing behavior — a new feature, a change beyond what pre-flight needed to make the environment
-checkable — stop once (the first time this happens in this `/demo` session) before doing it. Call
+checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
 `AskUserQuestion` with `question`: `"That's new scope beyond what's being demoed here. Want me to
 capture it as a backlog item now and come back to your sign-off decision, or build it now as its
-own thing outside /demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
+own thing outside /claude-tweaks:demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Capture it"`, `description`: `"File it as a backlog item, then come back to your sign-off decision"`
-- Option 2 — `label`: `"Build it now"`, `description`: `"Build it now as its own thing, outside /demo"`
+- Option 2 — `label`: `"Build it now"`, `description`: `"Build it now as its own thing, outside /claude-tweaks:demo"`
 
 "Capture it" routes through the same follow-up-record mechanism Step 3's Request-changes branch
 already uses, with one difference: the body's `Origin:` line reads `Origin: demo scope-fork from
@@ -353,7 +353,7 @@ This record's verdict — not yet Approved/Request-changes/Skipped — must neve
 dropped because the conversation moves on, whether from a declined `AskUserQuestion`, a
 pre-flight failure that grows its own back-and-forth, a scope-fork detour above, or any other
 detour. Once any such detour concludes, before shifting to a new unrelated topic, restate that
-this record's decision is still outstanding and offer to resume. Never end a `/demo` run with a
+this record's decision is still outstanding and offer to resume. Never end a `/claude-tweaks:demo` run with a
 record left mid-decision and unmentioned.
 
 ## Step 3: Apply verdicts
@@ -372,7 +372,7 @@ the first swap this run.
      convention — plus the reason and a link back to the original. `work-backend: github-issues`:
      use the same `recordPayload` composition `/claude-tweaks:capture` uses
      (`bin/lib/issues/record.js`), just without invoking `/claude-tweaks:capture` itself —
-     and, unlike `/capture`'s own call, **omit the `origin` field entirely** rather than passing
+     and, unlike `/claude-tweaks:capture`'s own call, **omit the `origin` field entirely** rather than passing
      `origin:'demo'`: `record.js`'s `ORIGINS` enum has no `'demo'` entry, so passing it throws;
      omitting `origin` is also what keeps this follow-up label-free, consistent with the
      "no `by:*` label" requirement above (`recordPayload` only pushes a `by:*` label when
@@ -383,8 +383,8 @@ the first swap this run.
      stage: 'backlog' }` (`type` being `bug` or the overridden type). Compute `slug` via that
      same module's `deriveSlug(title, existingSlugs)`. Never `allocateId`+`writeRecord`
      separately — same allocateId+writeRecord race `capture/SKILL.md`'s Backend Selection
-     section documents (two near-simultaneous filings, e.g. two `/demo` "Request changes"
-     verdicts landing in the same run, or `/demo` racing a `/capture`/`/specify` decomposition,
+     section documents (two near-simultaneous filings, e.g. two `/claude-tweaks:demo` "Request changes"
+     verdicts landing in the same run, or `/claude-tweaks:demo` racing a `/claude-tweaks:capture`/`/claude-tweaks:specify` decomposition,
      can silently share one numeric id); see that section for the full call shape to mirror.
   3. Note the bidirectional link back on the original record. `work-backend: github-issues`:
      comment on the original issue with the new follow-up's issue number. `work-backend:
@@ -398,7 +398,7 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 - **Approve** — nothing written anywhere. The verdict lives in this conversation.
 - **Skip for now** — nothing written anywhere. Unlike a label-backed record, this will not
-  reappear in a future `/demo` run — a different session has no memory of this conversation to
+  reappear in a future `/claude-tweaks:demo` run — a different session has no memory of this conversation to
   recall from. This is the accepted tradeoff of not persisting anything, not a bug.
 - **Request changes** — the exact same follow-up-filing procedure as the label-backed path's
   Request changes above (step 2), reusing `recordPayload` (`work-backend: github-issues`) or
