@@ -118,6 +118,8 @@ Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/
 
 A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). It also persists that fingerprint to the durable `declined` slice on the `health-state` branch, so the suppression survives a later firing that cannot rebuild this index at all — the local `cache.json` is no help there, since a scheduled Routine's fresh container starts with an empty one.
 
+**Digest-mode fold.** Before writing `/tmp/docs-health-issues.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s Step 2 shape (`{PREFIX}` = `docs-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 5 rather than being re-judged or re-digested.
+
 **Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
 
 ```bash
@@ -143,7 +145,9 @@ Every docs-health record files onto the unified work record (`skills/_shared/wor
 
 Every filed finding is **born-`ready`** — docs-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/docs-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification-derived diagnostic label (`docs-health:additive` / `docs-health:restructural`) after the canonical labels — the emitted label set is exactly `by:docs-health` + scoring + `ready` + the diagnostic label.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
+**Drain-rate cap and digest mode.** Before filing any survivor whose Step 5 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s Step 9 shape (`{PREFIX}` = `docs-health`) — at or above the cap, the finding is appended to `docs-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
+
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue drain --root . > /tmp/docs-health-retry-payloads.json
@@ -212,7 +216,7 @@ In `--dry-run` mode, print what would be filed or reopened, and the `gh` command
 
 **Step 7 — SUMMARIZE.**
 
-Report: which target(s) were audited, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
+Report: which target(s) were audited, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s Step 10: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
 
 ## Routine Configuration
 

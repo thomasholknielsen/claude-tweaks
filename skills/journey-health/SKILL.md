@@ -133,6 +133,8 @@ Parse each issue body for its fingerprint marker. Fingerprint extraction reads t
 
 A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). It also persists that fingerprint to the durable `declined` slice on the `health-state` branch, so the suppression survives a later firing that cannot rebuild this index at all — the local `cache.json` is no help there, since a scheduled Routine's fresh container starts with an empty one.
 
+**Digest-mode fold.** Before writing `/tmp/journey-health-issues.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s Step 2 shape (`{PREFIX}` = `journey-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 5 rather than being re-judged or re-digested.
+
 **Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
 
 Findings from Steps 2-3 (light tier) and Step 3.5 (deep tier) use different `--tier`/`--target` cursor keys and must never share one `validate-findings` call — each tier's own target needs its own cursor recorded independently (same discipline `/code-health`'s multi-slice `--budget` runs use: one call per distinct target).
@@ -178,7 +180,9 @@ Every journey-health record files onto the unified work record (`skills/_shared/
 
 Effort is always `effort:medium` — a journey-health finding carries no scope/size signal (no files-changed count, no lines-changed estimate) the way a code-health or harness-health finding's own evidence does, so there is no deterministic basis to fold into a `low`/`high` split; `medium` is the flat, honest default for every finding this skill files. Type follows the finding's `category`: `regression-suspected` files as `bug` (the journey/story text is accurate — the implementation broke); `drift` and `coverage` file as `task` (documentation or coverage maintenance, not a defect). Every filed finding is **born-`ready`** — journey-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation (per the intro, records are not a separate lane). `toIssuePayload` (`bin/lib/journey-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the category-derived diagnostic label (`journey-health:drift` / `journey-health:coverage` / `journey-health:regression-suspected`) after the canonical labels — the emitted label set is exactly `by:journey-health` + `risk:<tier>` + `effort:medium` + `ready` + the diagnostic label, matching the table above.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `journey-health.js`, `{PREFIX}` = `journey-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
+**Drain-rate cap and digest mode.** Before filing any survivor whose Step 5 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s Step 9 shape (`{PREFIX}` = `journey-health`) — at or above the cap, the finding is appended to `journey-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
+
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `journey-health.js`, `{PREFIX}` = `journey-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue drain --root "${ROOT:-$PWD}" > /tmp/journey-health-retry-payloads.json
@@ -256,7 +260,7 @@ In `--dry-run` mode, print what would be filed or reopened, and the `gh` command
 
 **Step 7 — SUMMARIZE.**
 
-Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. When Step 3.5 ran, also report: which journey was deep-audited (or that nothing was due, or that it was skipped for missing `files:` entries), and the drift-vs-regression verdict for any live-check failure. List any new issue URLs.
+Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. When Step 3.5 ran, also report: which journey was deep-audited (or that nothing was due, or that it was skipped for missing `files:` entries), and the drift-vs-regression verdict for any live-check failure. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s Step 10: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
 
 ## Routine Configuration
 

@@ -11,6 +11,7 @@ const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispat
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
+const { makeCmdStatus } = require('./lib/health-core/remembered-status');
 const { decide } = require('./lib/harness-health/dedup');
 const { validateFinding } = require('./lib/harness-health/validate-finding');
 const { toIssuePayload } = require('./lib/harness-health/issue-payload');
@@ -32,6 +33,7 @@ const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
 const cmdMark = makeCmdMark({
   readCache, writeCache, readDurableState, writeDurableState, toolName: TOOL_NAME,
 });
+const cmdStatus = makeCmdStatus({ readDurableState });
 
 // Confidence rank: lower number = more urgent (highest priority to file).
 // Mirrors bin/lib/code-health/dedup.js's RISK_RANK convention/shape.
@@ -262,6 +264,7 @@ function main(argv) {
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
+  if (cmd === 'status') return cmdStatus(args);
   // args._[0] is always 'retry-queue' itself (parseArgs pushes every positional,
   // including the top-level subcommand, into args._) — the drain/update word
   // right after it is args._[1], the same offset validate-findings uses for its
@@ -274,7 +277,7 @@ function main(argv) {
     'usage: harness-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>] [--force-gap-scan], ' +
     'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--min-confidence <low|med|high>], ' +
-    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
+    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, status, ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
@@ -283,5 +286,5 @@ function main(argv) {
 if (require.main === module) main(process.argv.slice(2));
 
 module.exports = {
-  parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, CONFIDENCE_RANK, main,
+  parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdStatus, CONFIDENCE_RANK, main,
 };
