@@ -181,7 +181,9 @@ Runs only when the polish phase actually dispatches. Read `polish-execution.md` 
 
 ### Step 5: Present Pipeline Summary
 
-**Nothing-left-behind gate:** Run the resolve gate from `/claude-tweaks:ledger`. If any item has status `open`, present it for resolution -- no item may remain `open`. The pipeline cannot complete with unresolved items.
+**This whole step is conditional on `wrap-up` being in the resolved step list** — general, not caller-specific. A subset ending short of `wrap-up` (`build,test`, `build,test,review`, …) skips all of it — gate, both surveys, summary template — and renders the lightweight completion note in `steps-and-gates.md`'s **Partial step lists** section instead, which owns the rule and its rationale (an unfinished run must not assert completion; the ledger gate, never silenced by `auto`, cannot be answered headlessly mid-pipeline). Read it before rendering anything here.
+
+**Nothing-left-behind gate** (`wrap-up` in the step list only)**:** Run the resolve gate from `/claude-tweaks:ledger`. If any item has status `open`, present it for resolution -- no item may remain `open`. The pipeline cannot complete with unresolved items.
 
 **Creative Opportunities survey (v4.5.0).** Before rendering the summary, and when `no-creative` was not set (nor `creative-survey: off` in `.claude-tweaks/policy.yml`), run decline detection (compares prior recommendations cache against the new diff to suppress repeatedly-declined items), then invoke `/claude-tweaks:design-wrapper survey <changed-files>`. Returned recommendations render as a Creative Opportunities block (template below) before Next Actions; empty or `{skipped}` returns omit the block. When `no-creative` is set, skip decline detection and the survey call entirely and omit the block — mirrors `no-deepen`'s handling of the Depth Opportunities survey below.
 
@@ -189,7 +191,7 @@ Runs only when the polish phase actually dispatches. Read `polish-execution.md` 
 
 For both surveys' full procedures (wrapper/skill return handling, the depth pre-check and responsibility boundary) and the Creative Opportunities decline-detection algorithm, read `survey.md` in this skill's directory.
 
-On successful completion of all steps:
+On successful completion of all steps (`wrap-up` in the step list):
 
 ```markdown
 ## Flow: Pipeline Complete

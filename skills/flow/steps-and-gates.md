@@ -51,7 +51,29 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 - `review,build` — **invalid** (out of order)
 - `wrap-up,review` — **invalid** (out of order)
 
-**Intentional two-call consumer:** `/claude-tweaks:dispatch` Step 5 (refs #296) is a deliberate, supported consumer of this resume contract — not an incidental one. It splits one group's pipeline into two sequential `/flow` invocations against the same run: `/flow {target} build,test` (first call, stops after the test gate), then `/flow {target} review,polish,wrap-up` (second call, a fresh Task-tool dispatch with zero conversation history from the first, resuming the same run via `_shared/pipeline-run-dir.md`'s spec-slug matching). This is the two-call form the `review,polish,wrap-up` example above already covers (`polish,wrap-up` — "useful when iterating on polish manually" is the adjacent precedent for a mid-pipeline resume) — no new step-list grammar is introduced, only a new caller relying on the existing one.
+**Intentional two-call consumer:** `/claude-tweaks:dispatch` Step 5 (refs #296) is a deliberate, supported consumer of this resume contract — not an incidental one. It splits one group's pipeline into two sequential `/flow` invocations against the same run: `/flow {target} build,test` (first call, stops after the test gate), then `/flow {target} review,polish,wrap-up` (second call, a fresh Task-tool dispatch with zero conversation history from the first). The two calls share **one** run directory, and the mechanism is the `PIPELINE_RUN_DIR` env var — `_shared/pipeline-run-dir.md`'s resolution-order **step 1**, its documented preferred path: dispatch derives the run dir from the first call's reported `MANIFEST:` path and exports it on the second (see `dispatch/two-call-gate.md`). Spec-slug matching (that file's step 2) is *not* the mechanism and could not be — `/flow` never consults it, always creating and owning a fresh run directory (Step 3) when the env var is unset, which is exactly why the export is mandatory rather than a convenience. This is the two-call form the `review,polish,wrap-up` example above already covers (`polish,wrap-up` — "useful when iterating on polish manually" is the adjacent precedent for a mid-pipeline resume) — no new step-list grammar is introduced, only a new caller relying on the existing one.
+
+### Partial step lists — what Step 5 does when `wrap-up` is absent
+
+`flow/SKILL.md`'s Step 5 (Present Pipeline Summary) runs after whichever steps were requested, including a subset that stops short of `wrap-up`. **Everything in that step is conditional on `wrap-up` being in the resolved step list.** This is a general rule about partial step lists, not a special case for `/dispatch` or any other caller.
+
+When `wrap-up` is absent — `build,test`, `build,test,review`, `review` alone, any subset ending short of it — skip **all** of Step 5's normal content: the nothing-left-behind ledger gate, the Creative Opportunities survey, the Depth Opportunities survey, and the full Pipeline Summary template. Two reasons, both structural:
+
+- **The run is deliberately unfinished.** Rendering "Pipeline Complete" and resolving the ledger would assert a completion that has not happened.
+- **The ledger gate is un-answerable there.** It is not silenced by `auto` mode (`_shared/auto-mode-contract.md`'s "what auto never silences" list) and requires per-item resolution, so firing it mid-pipeline in a headless run — a scheduled `/claude-tweaks:dispatch next` firing has nobody present — is exactly the new mid-flow `auto` stop CLAUDE.md's Don'ts forbid.
+
+Ledger items simply stay `open` in the ledger *file*, a durable artifact by design, for whichever later invocation does include `wrap-up` to resolve. Nothing is silenced or dropped: only *when* the gate runs moves, onto the step list that reaches the step where resolution actually happens — which is what `ledger/resolve-gate.md` already assumes. Render this instead of everything else in Step 5:
+
+```markdown
+## Flow: Steps Complete
+
+Steps {resolved step list} complete for {spec/record}. This run is not finished — `wrap-up` was not in the step list, so the nothing-left-behind gate, the Creative/Depth surveys, and the Pipeline Summary are deferred to the invocation that includes it.
+
+{N} ledger item(s) remain open, held in the ledger file for that later invocation.
+Run directory: {PIPELINE_RUN_DIR}
+```
+
+Carrying `PIPELINE_RUN_DIR` in that note is load-bearing for any caller resuming this run: the resuming invocation must be handed this same directory (`_shared/pipeline-run-dir.md`'s resolution-order step 1), because a bare `/flow` invocation always creates a new one rather than finding this one.
 
 **Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility.
 
