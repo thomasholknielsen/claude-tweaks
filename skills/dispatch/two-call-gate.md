@@ -12,19 +12,21 @@ Derive the run directory from it — strip a trailing `/manifest.yml` or `/decis
 
 Dispatch the second call only if the first call's status line was `DONE` or `DONE_WITH_CONCERNS` **and** its `OUTCOME` was `build-test-ok`. Anything else — a `NEEDS_CONTEXT`/`BLOCKED` status, an `OUTCOME` of `build-test-failed`/`build-test-blocked`, or no parseable report at all — means the second call is never dispatched for that group this firing; go to section 5.
 
-## 3. Export `PIPELINE_RUN_DIR` before the second call
+## 3. Hand the run directory to the second call
 
-`/flow` **always creates and owns a fresh run directory** (`flow/SKILL.md` Step 3 and its Component-Skill Contract; `_shared/auto-mode-contract.md`: "Each `/flow` invocation gets a unique, per-run directory"). It has no existing-directory branch, and it never falls back to `_shared/pipeline-run-dir.md`'s step-2 spec-slug match — that step is what *downstream component skills* consult when the env var is unset, not what `/flow` itself does.
+`/flow` **creates and owns a fresh run directory whenever it is not handed an existing one** (`flow/SKILL.md` Step 3 and its Component-Skill Contract; `_shared/auto-mode-contract.md`: "Each `/flow` invocation gets a unique, per-run directory"). Its one existing-directory branch is the adopt-if-set case this handoff exists to trigger — `PIPELINE_RUN_DIR` already set at invocation and naming a directory that exists (`flow/steps-and-gates.md`'s **Adopting an inherited run directory**) — and it never falls back to `_shared/pipeline-run-dir.md`'s step-2 spec-slug match, which is what *downstream component skills* consult when the env var is unset, not what `/flow` itself does.
 
 Left alone, the second call would therefore start a **new, disconnected run**: the first call's `decisions.md` entries and `staged/` proposals would be orphaned, `/wrap-up`'s Review Console would consolidate none of build/test's auto-decisions (breaking the auto-mode contract's central promise), and the first run would never be `close-run`'d.
 
-So the dispatching session hands the run over explicitly — export it alongside the existing `CLAIM_RUN_ID`, before invoking the second call:
+So the dispatching session hands the run over explicitly — `{run-dir}` is substituted into the second call's command line, inline beside the existing `CLAIM_RUN_ID`, in the literal prompt `task-prompt.md` inlines verbatim:
 
 ```
 PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow {target} review,polish,wrap-up
 ```
 
-`_shared/pipeline-run-dir.md`'s resolution order **step 1** — the `PIPELINE_RUN_DIR` env var, "use this when present (preferred path)" — is exactly the mechanism this relies on. Nothing in that file changes; dispatch simply uses the path it already documents.
+**Inline in the command, not an env export in this session.** A dispatched Task agent is a clean room and inherits none of the dispatching session's environment (`_shared/subagent-output-contract.md`'s Input Discipline) — which is exactly why `CLAIM_RUN_ID` is already passed this way. Substituting `{run-dir}` is the same operation as substituting `{RUN_ID}` or the issue list.
+
+`_shared/pipeline-run-dir.md`'s resolution order **step 1** — the `PIPELINE_RUN_DIR` env var, "use this when present (preferred path)" — is exactly the mechanism this relies on, and `flow/SKILL.md` Step 3's adopt-if-set branch is what acts on it. Nothing in `pipeline-run-dir.md` changes; dispatch simply uses the path it already documents.
 
 **This does not violate the no-echo rule.** The second call's *prompt* still names only the record number(s) and `CLAIM_RUN_ID`, never a summary of what the first call did or found. A directory path is a resolution target, the same category as `CLAIM_RUN_ID` itself — not a finding. The second call still re-derives its own verdict from raw artifacts and treats every claim it reads inside that directory as unverified until checked against the artifact it claims to summarize (see `task-prompt.md`'s second-call template).
 

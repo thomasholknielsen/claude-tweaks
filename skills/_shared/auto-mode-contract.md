@@ -58,7 +58,7 @@ When in doubt: ask once at the Config Manifesto, then never again for the rest o
 
 ## Pipeline run directory: location and collision-safety
 
-Each `/flow` invocation gets a unique, per-run directory at:
+Each `/flow` **run** gets a unique, per-run directory at (one per run, not per invocation — an invocation handed an existing `PIPELINE_RUN_DIR` adopts that run instead of creating a second, per `flow/steps-and-gates.md`'s **Adopting an inherited run directory**):
 
 ```
 .claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/

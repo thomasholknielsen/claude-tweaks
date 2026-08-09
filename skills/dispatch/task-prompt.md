@@ -54,20 +54,21 @@ pipeline's own steps select their own models as usual.]
 
 **Only dispatch this call if the first call's status line was DONE or DONE_WITH_CONCERNS AND its OUTCOME was `build-test-ok`.** A `NEEDS_CONTEXT`/`BLOCKED` status, an `OUTCOME` of `build-test-failed`/`build-test-blocked`, or no parseable report at all means this second call is never dispatched — the first call's own agent settles its own failure (its template above instructs it to), and the dispatching session takes the terminal path in `two-call-gate.md` section 5 (fail-loud reporting plus the `/claude-tweaks:flow {target} wrap-up` teardown call).
 
-**Export `PIPELINE_RUN_DIR` on this call.** Derived from the first call's `MANIFEST:` path per `two-call-gate.md` sections 1 and 3, and non-negotiable: `/flow` always creates a fresh run directory of its own, so without it this call orphans everything the first call staged. If it cannot be derived, this call is not dispatched at all (section 4).
+**Substitute `{run-dir}` into this call's command line**, exactly as `{RUN_ID}` and `{issue list}` are substituted — not exported as a shell variable in the dispatching session, which would never reach the agent: a dispatched Task agent is a clean room that inherits no environment (`_shared/subagent-output-contract.md`'s Input Discipline), which is why `CLAIM_RUN_ID` is already passed inline the same way. The value is derived from the first call's `MANIFEST:` path per `two-call-gate.md` sections 1 and 3, and it is non-negotiable: `/flow` creates a fresh run directory of its own whenever it is not handed an existing one (`flow/SKILL.md` Step 3's adopt-if-set branch), so without it this call orphans everything the first call staged. If it cannot be derived, this call is not dispatched at all (section 4).
 
 This call's prompt names ONLY the record number(s), `CLAIM_RUN_ID`, and the `PIPELINE_RUN_DIR` path above — never a summary of the first call's outcome. All three are resolution targets, not findings; that is what keeps the no-echo rule intact while the run itself is handed over. It is a fresh Task-tool dispatch with zero conversation history from the first call, and its own review step must re-derive its verdict from raw artifacts (the actual diff, the actual test-output artifact — via the same shape `bin/lib/dispatch/artifact-verdict.js`'s `deriveTestVerdict` pins as a testable invariant) rather than trusting any claim the first call made, including claims written to `decisions.md`, ledger entries, or staged proposals the first call produced. File-based state is readable across the two calls even though conversation history is not — the instruction below states this explicitly because that distinction is easy to lose.
 
 ```
 Task scope: Execute claude-tweaks review+polish+wrap-up for this already-claimed file-overlap
 group of GitHub records: {issue list}. This firing's run id is: {RUN_ID}. Singleton -> run
-`CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{issue} review,polish,wrap-up`. Bundle -> run
-`CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#{n1},#{n2},..." review,polish,wrap-up` once,
-comma-joined. The dispatching session exports PIPELINE_RUN_DIR (derived from the first call's
-MANIFEST: path) alongside CLAIM_RUN_ID before this call, so _shared/pipeline-run-dir.md's
-resolution order step 1 -- the env var, its documented preferred path -- resumes the exact run
-the first call created rather than starting a new one. You need no other input about what that
-prior call did or found.
+`PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{issue}
+review,polish,wrap-up`. Bundle -> run `PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}"
+/claude-tweaks:flow "#{n1},#{n2},..." review,polish,wrap-up` once, comma-joined. The
+{run-dir} value substituted into those commands is the run directory the first call's /flow
+created; passing it on the command line is what makes this call resume that exact run rather
+than start a new one -- _shared/pipeline-run-dir.md's resolution order step 1 (the env var,
+its documented preferred path) feeding flow/SKILL.md Step 3's adopt-if-set branch. You need
+no other input about what that prior call did or found.
 
 CRITICAL: your review step must re-derive its verdict from raw artifacts -- the actual diff,
 the actual test-output log in the run directory -- never from a prior claim, whether that

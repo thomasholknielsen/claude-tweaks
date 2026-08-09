@@ -138,6 +138,8 @@ Any hard fail or rejection stops the pipeline before the Config Manifesto runs. 
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 
+**Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry and naming an existing directory is adopted (nothing created or re-initialized, levers read from its `config.yml`); set-but-missing or unset creates as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
+
 This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
 
 | Mode | Manifesto behavior |
@@ -149,7 +151,7 @@ This is the bookend "begin stop" that locks in policy for the rest of the pipeli
 
 **This is the first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). In default `auto` the begin-stop is informational only; the single user-facing stop is the Wrap-Up Review Console at the end. Regardless of mode, after this step no downstream skill re-asks the user about these levers — they read `config.yml` and apply.
 
-Export the directory you just created as `PIPELINE_RUN_DIR` so every downstream skill resolves this same run per `_shared/pipeline-run-dir.md`; a multi-spec run exports the per-spec `spec-{N}/` subdirectory instead of the parent (see `multi-spec.md`).
+Export that directory — created or adopted — as `PIPELINE_RUN_DIR` so every downstream skill resolves this same run per `_shared/pipeline-run-dir.md`; a multi-spec run exports the per-spec `spec-{N}/` subdirectory instead of the parent (see `multi-spec.md`).
 
 For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory.
 
@@ -298,7 +300,7 @@ Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as pa
 
 ## Component-Skill Contract
 
-`/claude-tweaks:dispatch` is the only skill that invokes `/claude-tweaks:flow` as a caller (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]` — see `dispatch/SKILL.md` Step 5, and the `/dispatch` section of `docs/skill-graph.md`). Unlike a nested component skill (`/simplify`, `/reflect`, `/deepen`, and the others this convention targets), `/flow` is never folded into a larger pipeline's own handoff — it always creates and owns its own `PIPELINE_RUN_DIR` (Step 3), whether invoked by a human directly or by `/claude-tweaks:dispatch`, and dispatch renders no console of its own that would supersede it (`dispatch/SKILL.md`'s Reporting section: a headless firing's durable trace is label state + `decisions.md`, not a rendered console). `/flow` therefore always renders its own outcome-conditional Next Actions (embedded in the success or failure template — see above), regardless of caller; there is no parent-vs-direct branch to detect.
+`/claude-tweaks:dispatch` is the only skill that invokes `/claude-tweaks:flow` as a caller (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]` — see `dispatch/SKILL.md` Step 5, and the `/dispatch` section of `docs/skill-graph.md`). Unlike a nested component skill (`/simplify`, `/reflect`, `/deepen`, and the others this convention targets), `/flow` is never folded into a larger pipeline's own handoff — it creates and owns its own `PIPELINE_RUN_DIR` (Step 3) unless invoked with one already set to an existing run directory — dispatch's second per-group call does, and `/flow` then resumes that run — and dispatch renders no console of its own that would supersede it (`dispatch/SKILL.md`'s Reporting section: a headless firing's durable trace is label state + `decisions.md`, not a rendered console). `/flow` therefore always renders its own outcome-conditional Next Actions (embedded in the success or failure template — see above), regardless of caller; there is no parent-vs-direct branch to detect.
 
 ## Anti-Patterns
 
