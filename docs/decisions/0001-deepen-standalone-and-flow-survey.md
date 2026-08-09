@@ -17,7 +17,7 @@ The plugin had no module-level architectural review — `/simplify` works at the
 ## Alternatives considered
 
 - **Merge into `/simplify`** — rejected. The two have opposite contracts: `/simplify` is automatic, behavior-preserving, applies in every build; `/deepen` is interactive, low-reversibility, must stage-not-apply in auto. Merging forces those opposites into one skill as mode-branching and corrupts simplify's clean auto-apply model — the dangerous failure being an architecture refactor auto-applied "because simplify always runs."
-- **A `/review deepen` mode** — rejected *for now*, but the weakest point of this decision and explicitly revisitable. `/review` is a gate, not a refactoring tool, so the two-stage apply loop sits awkwardly there. If the skill count starts feeling heavy, collapsing `/deepen` into a `/review` mode is the fallback (tracked in `specs/INBOX.md`).
+- **A `/review deepen` mode** — rejected *for now*, but the weakest point of this decision and explicitly revisitable. `/review` is a gate, not a refactoring tool, so the two-stage apply loop sits awkwardly there. If the skill count starts feeling heavy, collapsing `/deepen` into a `/review` mode is the fallback — file it as a backlog work record via `/claude-tweaks:capture` if revisited (this project's backlog now lives in GitHub issues, not a `specs/INBOX.md` file).
 - **Detection-only, no dedicated skill** (lens flags shallow modules, human refactors freehand) — rejected. Loses the enforced discipline (deletion test, leverage ranking, stage-don't-apply) that is the whole point.
 - **A full `deepen` pipeline step in `/flow`** — rejected. It could only ever stage in a hands-off run (Step 4 is interactive), adding latency for no applied work.
 
