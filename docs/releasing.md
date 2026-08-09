@@ -13,3 +13,7 @@ A release touches **both** this repo and the separate marketplace repo (`thomash
 - `metadata.version` in the marketplace catalog is the marketplace's own scheme — the mirror never touches it; bump it manually on catalog-shape changes only.
 
 The mechanics live in `bin/release.js` (`--help`) and `bin/lib/release/`.
+
+## After the push: the CI gate
+
+Every push to `main` (including the release script's own push) triggers the `test` workflow (`.github/workflows/test.yml`), which runs the full `npm test` suite on a full-history checkout. A red first run after a release means the shipped tree fails its own gates — check `gh run list --workflow test --limit 1` before shipping anything further.
