@@ -64,10 +64,10 @@ this block entirely rather than fetching anything.
 Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` the same way, substituting for
 `{resolved-window}` below — empty means the default (14) applies. If the `gh` call, the `git log`
 call, or the node block fails for any reason, file without `ready`: this path fails toward the
-default, never toward the grant (unchanged from before this leaf). `{resolved-window}` is passed as
-a `process.argv` arg after `--`, never spliced into the JS source itself, for the same reason F1's
-`node -e` wiring in `focus-mode.md` does — a value containing a quote character would otherwise
-break out of the JS string literal.
+default, never toward the grant (unchanged from before this leaf). `{resolved-window}` reaches the
+script as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a
+quote character would otherwise break out of the string literal, the same reason
+`code-health/focus-mode.md`'s F1 block passes its own values that way.
 
 ```bash
 gh issue list --state all --json number,labels,body,state,stateReason,closedAt --limit 1000 > /tmp/capture-trust-records.json

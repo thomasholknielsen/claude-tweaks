@@ -397,13 +397,11 @@ test('parseGitLog returns [] for empty or non-string input', () => {
 });
 
 test('regression: parseGitLog drops a fragment with no field separator instead of fabricating a garbage sha', () => {
-  // A truncated write (killed process, disk full) or a commit message
-  // containing a literal embedded record-separator byte can leave a
-  // fragment with no \x1f field separator at all. Slicing that fragment's
-  // text into a fake "sha" would fabricate a closing-commit candidate that
-  // can never match a real revert trailer — a fail-open hazard for the
-  // exact guarantee this module states about itself. Dropping the fragment
-  // is the fail-closed behavior.
+  // A truncated write, or a commit message containing a literal embedded
+  // record-separator byte, can leave a fragment with no \x1f at all. Slicing
+  // it into a fake "sha" would fabricate a closing-commit candidate no real
+  // revert trailer can ever match — fail-open against this module's own
+  // stated guarantee. Dropping the fragment is the fail-closed behavior.
   assert.deepEqual(parseGitLog('aaaabbbb'), []);
   assert.deepEqual(parseGitLog('good\x1fSubject\x1ejunk-with-no-separator\x1e'), [
     { sha: 'good', message: 'Subject' },

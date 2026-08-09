@@ -161,18 +161,20 @@ function parseGitLog(raw) {
   // separator, so every record but the first begins with a stray leading
   // `\n` once split — trim it off, or a closing commit's SHA never matches
   // a revert trailer naming the same (clean) SHA.
-  return text.split(RECORD_SEP).map((entry) => entry.trim()).filter(Boolean).map((entry) => {
-    const sep = entry.indexOf(FIELD_SEP);
-    // A fragment with no field separator (a truncated write, or an
-    // embedded record-separator byte splitting one commit's message into
-    // two fragments) has no sha to extract at all. Dropping it — rather
-    // than slicing garbage text into a fabricated "sha" — is what keeps
-    // this module fail-closed: a phantom sha could otherwise be returned
-    // as a closing commit, and since nothing would ever match it with a
-    // real revert trailer, a genuinely reverted record could grade known-good.
-    if (sep === -1) return null;
-    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
-  }).filter(Boolean);
+  return text
+    .split(RECORD_SEP)
+    .map((entry) => entry.trim())
+    // Drops empty fragments, and — deliberately — any fragment carrying no
+    // field separator at all (a truncated write, or an embedded
+    // record-separator byte splitting one commit's message in two). Slicing
+    // such a fragment into a fabricated "sha" is the fail-open hazard: no
+    // real revert trailer could ever name that phantom, so a genuinely
+    // reverted record could grade known-good.
+    .filter((entry) => entry.includes(FIELD_SEP))
+    .map((entry) => {
+      const sep = entry.indexOf(FIELD_SEP);
+      return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
+    });
 }
 
 // (record, gitLog) -> string[] of closing commit SHAs, [] when neither route
@@ -323,15 +325,14 @@ function trustRows(records, gitLog, now, policy) {
       cell.changesRequested += 1;
     } else if (disposition === 'none') {
       // No demo:* disposition at all — try the operational path before giving up.
-      // 'pending' is deliberately excluded from this branch: a demo:pending
-      // record has an outstanding, unresolved human-review request, which is
-      // itself a demo:* disposition (dispositionState distinguishes it from
-      // 'none') — it must not be silently promoted to known-good by the
-      // operational path just because a human hasn't gotten to /demo yet.
       const operational = resolveOperationalOutcome(record, gitLog, clock, windowDays);
       if (operational.known) cell.operationalGood += 1;
       else cell.undispositioned += 1;
     } else {
+      // 'pending' — an outstanding, unresolved human-review request. It IS a
+      // demo:* disposition, so it must never reach the operational path above
+      // and be silently promoted to known-good just because a human hasn't
+      // gotten to /demo yet. Any unrecognized state lands here too, undispositioned.
       cell.undispositioned += 1;
     }
 

@@ -163,10 +163,10 @@ node -e "
 
 Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
 for `{resolved-window}` above — an empty substitution is fine, `trustRows` and the policy-schema
-resolver it calls both treat an absent/empty value as "use the default (14)". Passed as a
-`process.argv` arg after `--`, never spliced into the JS source itself, for the same reason F1's
-`node -e` wiring in `focus-mode.md` does — a value containing a quote character would otherwise
-break out of the JS string literal.
+resolver it calls both treat an absent/empty value as "use the default (14)". It reaches the script
+as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a quote
+character would otherwise break out of the string literal, the same reason
+`code-health/focus-mode.md`'s F1 block passes its own values that way.
 
 Note the spread order: derived fields (`labels`, `hasParent`) come after the parsed spread, never
 before (`[IL-01]`).
