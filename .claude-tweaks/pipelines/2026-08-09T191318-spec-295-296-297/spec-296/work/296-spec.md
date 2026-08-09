@@ -170,5 +170,27 @@ main checkout, independent of any one session.
   run-dir + worktree resolution mechanism is filesystem/git-based), noted here only to rule the
   idea out explicitly rather than have it resurface at build time.
 
+## Build Notes
+
+wd-foreign-session safety re-verified against the actual hook code (2026-08-10):
+`bin/lib/hooks/pre-tool-use.js`'s worktree-assignment check contains an early
+`if (actual === assigned) continue;` allow (line 276) that runs BEFORE the foreign-session
+branch. Both of #296's two Task() calls inherit the same cwd (the dispatching session's
+currently-entered worktree for this group, unchanged between the two calls per #295's
+design — the dispatching session only switches worktrees between groups). So every commit
+either call makes has `actual === assigned`, and the foreign-session branch is never reached
+at all in the normal flow — stronger than this spec's own Deliverables assumed ("the
+resulting wd-foreign-session warn event does not block the commit"): the event does not fire
+in the first place. It would only fire if the second call's commits somehow targeted a
+worktree different from the first call's, which this design does not produce.
+
+#222 overlap re-verification at build start (2026-08-10): #222 remains open/unbuilt
+(confirmed via `gh issue view` — `state: OPEN`, `ready` label) — disjointness re-verified
+against its spec-declared Key Files only. #222 declares `skills/dispatch/SKILL.md`'s
+`[Use: {Profile}]` grammar line; this leaf's edits (Task 1's extraction, Task 3's
+Singleton/Bundle-group and gate-paragraph rewrite, plus the fix-round's execution-loop
+correction) are scoped to different regions of the same file and do not touch the
+`[Use: ...]` line. Disjoint.
+
 
 <!-- work-fingerprint: dispatch-autonomy-model:split-build-review-task-calls -->
