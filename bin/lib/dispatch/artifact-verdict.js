@@ -13,7 +13,20 @@ const fs = require('fs');
 function deriveTestVerdict({ rawTestOutputPath }) {
   const content = fs.readFileSync(rawTestOutputPath, 'utf8');
   const failMatch = content.match(/^# fail (\d+)$/m);
-  const failCount = failMatch ? Number(failMatch[1]) : 0;
+  // No `# fail N` summary line at all -- empty, truncated, or not TAP output.
+  // Defaulting that to failCount 0 would hand a PASSING verdict to whoever
+  // supplies the least evidence, which for a module whose whole job is
+  // resisting being fooled is the easiest way to fool it. Throw instead, same
+  // posture as the missing-file case readFileSync already throws on: an
+  // unreadable artifact and an unparseable one are the same failure to the
+  // caller, and neither is a pass.
+  if (!failMatch) {
+    throw new Error(
+      `deriveTestVerdict: no "# fail N" summary line in ${rawTestOutputPath} — `
+      + 'the artifact is empty, truncated, or not TAP output; refusing to infer a passing verdict',
+    );
+  }
+  const failCount = Number(failMatch[1]);
   return { passed: failCount === 0, failCount, source: 'raw-artifact' };
 }
 
