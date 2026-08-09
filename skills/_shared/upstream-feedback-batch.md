@@ -20,7 +20,15 @@ file). Issue one `multiSelect: true` `AskUserQuestion` call per chunk, sequentia
 parallel, so each chunk's answer is known before the next renders. Each chunk's options: `label`
 = the item's title, `description` = a one-line summary plus any dedup flag (literal format
 `⚠ possible duplicate: #{N}` when a dedup search found a match — never rendered as a separate
-`AskUserQuestion` call). All options are pre-checked by default.
+`AskUserQuestion` call).
+
+**No pre-selection exists.** The tool's `options` schema carries only `label`/`description`/
+`preview` — confirmed against the tool's own current schema, not assumed — so every option
+renders unchecked. Checking an item is the explicit per-item approval act; nothing is
+pre-authorized. This is stricter than a pre-checked design, not weaker: `[IL-114]`'s "an approval
+never implies a differently-scoped write is authorized" holds more cleanly when the affirmative
+act is checking, not un-checking. Submitting a chunk with some items unchecked declines exactly
+those — see Declining an item below.
 
 A batch of 6 renders as 2 calls (4, then 2); a batch of 4 or fewer renders as exactly 1 call. A
 batch of exactly 1 item is the degenerate single-chunk case — functionally unchanged from a
@@ -45,6 +53,10 @@ An unchecked item is logged as declined, never silently dropped:
 - **Wrap-up / multi-spec console path:** log the decline to the originating run's `decisions.md`
   with the user's stated reason, or `"declined, no reason given"` when none was offered — the
   same convention the console's `Q#`/`M#` sections already use.
+- **Direct single-item invocation (no `--queue`, not from a console):** the single-chunk case
+  still renders one confirm; not checking the item (or declining to submit) means nothing is
+  filed — the learning stays local, reported as declined at `/feedback`'s Step 9. No comment is
+  posted anywhere — there is no local `upstream-candidate` issue to comment on in this path.
 
 ## Editing an item
 

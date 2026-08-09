@@ -40,7 +40,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
-| `--pre-confirmed` | Boolean, presence-only (same shape as `--dry-run`). Skip Step 7's `AskUserQuestion` for this item — Step 6's scrub still reruns unconditionally as a drift check; on drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
+| `--pre-confirmed` | Takes the item's staged-file path plus the approved snapshot body (same shape as `--dry-run` otherwise: presence-only for the flag itself). Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
 
@@ -186,13 +186,23 @@ is the contract's degenerate single-chunk case; N items under `--queue` chunk pe
 rule. Never file without the resulting per-item confirmation, in any mode. Publishing to a public
 repository is outward-facing and effectively irreversible.
 
-**`--pre-confirmed`:** when present, skip the `AskUserQuestion` call for that item — but this
-step's scrub (Step 6) always reruns first, regardless of the flag, as a drift check against the
-staged file it was pre-confirmed from. If the rerun scrub produces content that differs from the
-staged, already-approved draft, `--pre-confirmed` does **not** apply for that one item: fall back
-to the normal `AskUserQuestion` confirm, showing the diff between the approved and rerun-scrubbed
-content, so the human re-approves the changed content specifically. This fallback is per-item — it
-never aborts sibling items in the same batch.
+**`--pre-confirmed`:** the caller passes both the item's staged-file path and the exact body text
+it rendered and got approval for (the approved snapshot) — not just a path reference. Before
+filing, two separate checks run:
+
+1. **Drift check** — re-read `staged/wrap-up-upstream-{N}.md` fresh from disk and compare its
+   current content, byte-for-byte, against the approved snapshot the caller passed. A mismatch
+   means the staged file changed after it was rendered and approved — fall back to the normal
+   `AskUserQuestion` confirm, showing the diff between the approved snapshot and the current
+   staged content, so the human re-approves the changed content specifically. This fallback is
+   per-item — it never aborts sibling items in the same batch.
+2. **Scrub rerun (unconditional)** — Step 6's scrub always reruns on the content that will
+   actually be filed (the current on-disk staged content) as a defense-in-depth safety net before
+   publishing, regardless of the drift check's outcome — a modification the drift check just
+   caught could have reintroduced content that needs scrubbing.
+
+When the drift check finds no mismatch, skip the `AskUserQuestion` call for that item and file
+after the safety-net scrub.
 
 **`--dry-run` takes precedence over `--pre-confirmed`** when both are passed: render every draft
 and the classified destination/kind, then stop — no `AskUserQuestion` call of any kind, matching
