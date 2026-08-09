@@ -69,3 +69,15 @@ cached). If no such reader is ever added, the cache remains inert infrastructure
 should be closed as won't-fix with that finding recorded.
 
 Related: #238
+
+## Build Finding — Enumeration and Disposition
+
+| Site | What it fetches | Verdict |
+|---|---|---|
+| `review/review-effort-derivation.md` step 2 | `risk:*`/`size:*` labels → review-effort tier | **needs-live (excluded by rule)** — the invalidation rule's own text: "a step that only needs to confirm current label state for a decision … reads live and does not consult or refresh this cache" |
+| `wrap-up/review-console.md` auto-merge gate; `wrap-up/SKILL.md:240` | live `auto:merge` labels | **needs-live (explicitly)** — the prose itself mandates re-reading live state, never the header projection |
+| `wrap-up/verification-brief.md` family gate | the **parent** record's comments/labels/leaf states | **not cacheable** — different record than the materialized one; staleness is the documented hazard it re-fetches to avoid |
+| `wrap-up/execution-and-verification.md` closure checks | post-mutation state (labels, comments) | **needs-live** — verifies that mutations just made actually landed; a cache defeats the check |
+| `demo`, `dispatch`, `backlog`, `tidy`, `specify`, `challenge`, `assess-agent-autonomy`, `_shared/github-write-transport.md` | various | **outside run-dir lifetime** (before `/flow` creates it or after `/wrap-up` archives it) or explicitly instructed not to trust caches (dispatch Step 4) |
+
+**Conclusion:** no cache-eligible reader exists, and none can: label readers are excluded by the rule's own carve-out, and every in-run need for the record's descriptive fields (title/body) is already served by the frozen `work/{n}-spec.md` artifact that materialization composes from the same fetch. Both consumer classes are closed off by construction, not by accident — so recording an "activation condition" (spec Deliverable 3's alternative) would be a condition that can never fire without first rewriting the invalidation rule itself. Per IL-85's no-inert-infrastructure discipline, the writer is removed.
