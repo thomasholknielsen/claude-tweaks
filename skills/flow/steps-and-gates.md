@@ -51,6 +51,8 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 - `review,build` — **invalid** (out of order)
 - `wrap-up,review` — **invalid** (out of order)
 
+**Intentional two-call consumer:** `/claude-tweaks:dispatch` Step 5 (refs #296) is a deliberate, supported consumer of this resume contract — not an incidental one. It splits one group's pipeline into two sequential `/flow` invocations against the same run: `/flow {target} build,test` (first call, stops after the test gate), then `/flow {target} review,polish,wrap-up` (second call, a fresh Task-tool dispatch with zero conversation history from the first, resuming the same run via `_shared/pipeline-run-dir.md`'s spec-slug matching). This is the two-call form the `review,polish,wrap-up` example above already covers (`polish,wrap-up` — "useful when iterating on polish manually" is the adjacent precedent for a mid-pipeline resume) — no new step-list grammar is introduced, only a new caller relying on the existing one.
+
 **Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility.
 
 **Polish bundled with re-verify:** If `polish` is in the step list, the re-verify gate runs automatically when polish modifies code. Users do not need to add a separate `re-verify` step. If a user includes the literal `re-verify` in the step list, treat it as a no-op (already bundled with polish) and note: "`re-verify` is bundled with `polish` — no separate step needed."
