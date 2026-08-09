@@ -36,6 +36,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const SKILL = read('skills', 'dispatch', 'SKILL.md');
 const SEQUENTIAL = read('skills', 'dispatch', 'sequential-execution.md');
 const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
+const SETTLE = read('skills', 'dispatch', 'settle-and-merge.md');
 
 // Scope the sweep to Step 5 rather than the whole SKILL.md: the retired model is a
 // Step 5 claim, and a whole-file sweep would be at the mercy of unrelated prose
@@ -76,6 +77,11 @@ const CALL_REGIONS = [
 const REGIONS = [
   ['skills/dispatch/SKILL.md (Step 5)', step5Region(SKILL)],
   ['skills/dispatch/sequential-execution.md', SEQUENTIAL],
+  // Fourth recurrence, and the reason this file is scanned at all: settle-and-merge.md
+  // narrates where Settle runs, and still said "each group's own Task agent" after the
+  // #296 split — the exact singular the pattern below was added to catch, in a file the
+  // sweep did not read. A guard that skips the file it is meant to guard is no guard.
+  ['skills/dispatch/settle-and-merge.md', SETTLE],
   ...CALL_REGIONS,
 ];
 

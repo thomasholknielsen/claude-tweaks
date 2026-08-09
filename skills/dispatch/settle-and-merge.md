@@ -6,7 +6,7 @@ Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the
 
 ## Step 6: Settle — on pipeline failure
 
-This procedure runs inside each group's own Task agent (Step 5), against that agent's own record(s) — not in dispatch's main thread.
+A group is dispatched as **two** sequential Task calls (Step 5). This procedure runs inside whichever of them handles the outcome being settled — the first call (`build,test`) when that call hits a HARD-GATE, the second (`review,polish,wrap-up`) on any path that reaches wrap-up — against that call's own record(s), never in dispatch's main thread.
 
 When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
