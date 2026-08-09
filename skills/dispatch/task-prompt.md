@@ -68,9 +68,10 @@ numbers in an intermediate commit message, write "refs #N" -- never "closes #N" 
 merge commit (close-via-merge, `_shared/issue-claims.md`).
 
 Working directory: the dispatching session is still in this group's worktree (unchanged since
-the first call) -- you inherit it. Do NOT create, enter, or switch worktrees. Echo `pwd` and
-`git rev-parse --show-toplevel` before any commit and verify both resolve to that inherited
-worktree; if they resolve to the main checkout instead, STOP and report BLOCKED.
+the first call) -- you inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
+/superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
+commit and verify both resolve to that inherited worktree; if they resolve to the main
+checkout instead, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
