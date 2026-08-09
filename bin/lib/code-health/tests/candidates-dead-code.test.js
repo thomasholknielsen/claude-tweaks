@@ -231,44 +231,54 @@ const { isReferenced } = require('../candidates-dead-code');
 
 // ── isReferenced ──────────────────────────────────────────────────────────────
 
+// isReferenced takes linesByFile (file -> array of lines), not raw text —
+// see the function's own header comment (Item 7: the caller precomputes the
+// split once and reuses it across every symbol's call, instead of
+// isReferenced re-splitting each file's text on every invocation). This
+// helper builds that shape from a plain {path: text} literal, which is a
+// friendlier shape for a fixture to author than an array-of-lines literal.
+function linesMap(entries) {
+  return new Map(Object.entries(entries).map(([file, text]) => [file, text.split('\n')]));
+}
+
 test('isReferenced: a symbol used elsewhere in another file is referenced', () => {
-  const contentsByFile = new Map([
-    ['lib/used.js', 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n'],
-    ['lib/caller.js', "const { usedFn } = require('./used');\nusedFn();\n"],
-  ]);
+  const linesByFile = linesMap({
+    'lib/used.js': 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n',
+    'lib/caller.js': "const { usedFn } = require('./used');\nusedFn();\n",
+  });
   const allFiles = ['lib/used.js', 'lib/caller.js'];
-  assert.strictEqual(isReferenced('usedFn', 'lib/used.js', { startLine: 3, endLine: 3 }, allFiles, contentsByFile), true);
+  assert.strictEqual(isReferenced('usedFn', 'lib/used.js', { startLine: 3, endLine: 3 }, allFiles, linesByFile), true);
 });
 
 test('isReferenced: a symbol with no use anywhere but its own export-block mention and definition line is NOT referenced', () => {
-  const contentsByFile = new Map([
-    ['lib/used.js', 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n'],
-    ['lib/caller.js', "const { usedFn } = require('./used');\nusedFn();\n"],
-  ]);
+  const linesByFile = linesMap({
+    'lib/used.js': 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n',
+    'lib/caller.js': "const { usedFn } = require('./used');\nusedFn();\n",
+  });
   const allFiles = ['lib/used.js', 'lib/caller.js'];
-  assert.strictEqual(isReferenced('deadFn', 'lib/used.js', { startLine: 3, endLine: 3 }, allFiles, contentsByFile), false);
+  assert.strictEqual(isReferenced('deadFn', 'lib/used.js', { startLine: 3, endLine: 3 }, allFiles, linesByFile), false);
 });
 
 test('isReferenced: a same-named identifier elsewhere in the tree is treated as a reference (accepted false-negative)', () => {
-  const contentsByFile = new Map([
-    ['lib/a.js', 'function helper() {}\nmodule.exports = { helper };\n'],
-    ['lib/unrelated.js', 'const helper = 42; // totally unrelated variable, same bare name\nconsole.log(helper);\n'],
-  ]);
+  const linesByFile = linesMap({
+    'lib/a.js': 'function helper() {}\nmodule.exports = { helper };\n',
+    'lib/unrelated.js': 'const helper = 42; // totally unrelated variable, same bare name\nconsole.log(helper);\n',
+  });
   const allFiles = ['lib/a.js', 'lib/unrelated.js'];
   // 'helper' is genuinely dead in lib/a.js's own sense, but the word-bounded
   // bare-symbol search cannot distinguish it from the unrelated identifier —
   // this is the spec's explicitly accepted false-negative policy.
-  assert.strictEqual(isReferenced('helper', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), true);
+  assert.strictEqual(isReferenced('helper', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, linesByFile), true);
 });
 
 test('isReferenced: the symbol\'s own function/const/class definition line is not itself counted as a use', () => {
-  const contentsByFile = new Map([
-    ['lib/a.js', 'const deadConst = 1;\nfunction deadFn() {}\nclass DeadClass {}\nmodule.exports = { deadConst, deadFn, DeadClass };\n'],
-  ]);
+  const linesByFile = linesMap({
+    'lib/a.js': 'const deadConst = 1;\nfunction deadFn() {}\nclass DeadClass {}\nmodule.exports = { deadConst, deadFn, DeadClass };\n',
+  });
   const allFiles = ['lib/a.js'];
-  assert.strictEqual(isReferenced('deadConst', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, contentsByFile), false);
-  assert.strictEqual(isReferenced('deadFn', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, contentsByFile), false);
-  assert.strictEqual(isReferenced('DeadClass', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, contentsByFile), false);
+  assert.strictEqual(isReferenced('deadConst', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, linesByFile), false);
+  assert.strictEqual(isReferenced('deadFn', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, linesByFile), false);
+  assert.strictEqual(isReferenced('DeadClass', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, linesByFile), false);
 });
 
 // Every isReferenced test above still passes with the boundary assertions
@@ -276,24 +286,24 @@ test('isReferenced: the symbol\'s own function/const/class definition line is no
 // substring of a longer identifier. This one fails under that mutation:
 // an unanchored search reads 'undead' and 'deadline' as uses of `dead`.
 test('isReferenced: a bare substring inside a longer identifier is not a reference', () => {
-  const contentsByFile = new Map([
-    ['lib/a.js', 'function dead() {}\nmodule.exports = { dead };\n'],
-    ['lib/b.js', 'console.log(undead, deadline);\n'],
-  ]);
+  const linesByFile = linesMap({
+    'lib/a.js': 'function dead() {}\nmodule.exports = { dead };\n',
+    'lib/b.js': 'console.log(undead, deadline);\n',
+  });
   const allFiles = ['lib/a.js', 'lib/b.js'];
-  assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), false);
+  assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, linesByFile), false);
 });
 
 // `$` is legal in a JS identifier (IDENTIFIER_RE accepts it) and is also a
 // regex metacharacter. Without escapeRegExp the pattern for `a$b` reads as
 // "a, end-of-line, b" and matches nothing, so the live symbol reports dead.
 test('isReferenced: a `$` inside the symbol name is matched literally, not as a regex anchor', () => {
-  const contentsByFile = new Map([
-    ['lib/a.js', 'function a$b() {}\nmodule.exports = { a$b };\n'],
-    ['lib/caller.js', "const { a$b } = require('./a');\na$b();\n"],
-  ]);
+  const linesByFile = linesMap({
+    'lib/a.js': 'function a$b() {}\nmodule.exports = { a$b };\n',
+    'lib/caller.js': "const { a$b } = require('./a');\na$b();\n",
+  });
   const allFiles = ['lib/a.js', 'lib/caller.js'];
-  assert.strictEqual(isReferenced('a$b', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), true);
+  assert.strictEqual(isReferenced('a$b', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, linesByFile), true);
 });
 
 // The two tests below pin why the boundaries are identifier-class lookarounds
@@ -303,24 +313,46 @@ test('isReferenced: a `$` inside the symbol name is matched literally, not as a 
 // Direction 1 (the forbidden one — a live symbol reported dead): `\b\$fn\b`
 // matches nothing anywhere, because no word boundary exists before a `$`.
 test('isReferenced: a symbol whose name starts with `$` is still found where it is used', () => {
-  const contentsByFile = new Map([
-    ['lib/a.js', 'function $fn() {}\nmodule.exports = { $fn };\n'],
-    ['lib/caller.js', "const { $fn } = require('./a');\n$fn();\n"],
-  ]);
+  const linesByFile = linesMap({
+    'lib/a.js': 'function $fn() {}\nmodule.exports = { $fn };\n',
+    'lib/caller.js': "const { $fn } = require('./a');\n$fn();\n",
+  });
   const allFiles = ['lib/a.js', 'lib/caller.js'];
-  assert.strictEqual(isReferenced('$fn', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), true);
+  assert.strictEqual(isReferenced('$fn', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, linesByFile), true);
 });
 
 // Direction 2 (the accepted one, fixed for free): `\bdead\b` DOES match inside
 // `$dead`, since the `$`-to-`d` transition is a word boundary — so a distinct
 // `$dead` identifier would mask a genuinely dead `dead`.
 test('isReferenced: an unrelated `$`-prefixed identifier is not a use of the bare symbol', () => {
-  const contentsByFile = new Map([
-    ['lib/a.js', 'function dead() {}\nmodule.exports = { dead };\n'],
-    ['lib/b.js', 'console.log($dead);\n'],
-  ]);
+  const linesByFile = linesMap({
+    'lib/a.js': 'function dead() {}\nmodule.exports = { dead };\n',
+    'lib/b.js': 'console.log($dead);\n',
+  });
   const allFiles = ['lib/a.js', 'lib/b.js'];
-  assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), false);
+  assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, linesByFile), false);
+});
+
+// Item 7 regression: linesByFile is precomputed once per scanDeadCode call
+// and reused across every symbol's isReferenced call — pin that reuse is
+// safe by calling isReferenced twice against the SAME linesByFile map for
+// two different symbols in the same file, and confirm neither call's result
+// depends on call order (a mutated/consumed-once cache would make the
+// second call see stale or missing data).
+test('isReferenced: the same linesByFile map is safely reused across multiple calls for different symbols', () => {
+  const linesByFile = linesMap({
+    'lib/a.js': 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n',
+    'lib/caller.js': "const { usedFn } = require('./a');\nusedFn();\n",
+  });
+  const allFiles = ['lib/a.js', 'lib/caller.js'];
+  const declRange = { startLine: 3, endLine: 3 };
+  assert.strictEqual(isReferenced('usedFn', 'lib/a.js', declRange, allFiles, linesByFile), true);
+  assert.strictEqual(isReferenced('deadFn', 'lib/a.js', declRange, allFiles, linesByFile), false);
+  // Re-run in reverse order against the identical map instance — same
+  // results either way confirms the map is read-only from isReferenced's
+  // perspective, safe for scanDeadCode's real multi-symbol reuse.
+  assert.strictEqual(isReferenced('deadFn', 'lib/a.js', declRange, allFiles, linesByFile), false);
+  assert.strictEqual(isReferenced('usedFn', 'lib/a.js', declRange, allFiles, linesByFile), true);
 });
 
 const { isFileOrphan, referencedFileSpecifiers } = require('../candidates-dead-code');
@@ -448,7 +480,7 @@ test('referencedFileSpecifiers: finds require, static import, side-effect import
 });
 
 const { execFileSync } = require('node:child_process');
-const { candidatesDeadCode, scanDeadCode, FOCUS_GENERATORS, listTrackedSourceFiles } = require('../candidates-dead-code');
+const { candidatesDeadCode, scanDeadCode, listTrackedSourceFiles, isGlobDiscoveredTestFile } = require('../candidates-dead-code');
 
 function gitInit(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);
@@ -593,16 +625,57 @@ test('AC2: a spread-based barrel re-export beyond one hop produces no candidate 
   assert.deepStrictEqual(candidates, []);
 });
 
-// ── FOCUS_GENERATORS registry ────────────────────────────────────────────────
+// ── Item 1: glob-discovered test files are excluded from orphan-file
+// candidacy (docs/plans/2026-08-09-code-health-focus-mode-dead-code-ledger.md
+// item #1) ───────────────────────────────────────────────────────────────────
 
-test('FOCUS_GENERATORS: registers "dead-code" mapped to scanDeadCode (the rich {candidates,scannedFiles,skippedFiles,discoveryFailed} shape)', () => {
-  assert.deepStrictEqual(Object.keys(FOCUS_GENERATORS), ['dead-code']);
-  const root = buildAc1Fixture();
-  const result = FOCUS_GENERATORS['dead-code'](root);
-  assert.ok(Array.isArray(result.candidates));
-  assert.strictEqual(typeof result.scannedFiles, 'number');
-  assert.ok(Array.isArray(result.skippedFiles));
-  assert.strictEqual(result.discoveryFailed, false);
+test('isGlobDiscoveredTestFile: matches this repo\'s own *.test.js/*.spec.js naming convention, at any depth', () => {
+  assert.strictEqual(isGlobDiscoveredTestFile('bin/lib/code-health/tests/candidates-dead-code.test.js'), true);
+  assert.strictEqual(isGlobDiscoveredTestFile('tests/hooks-dispatcher.test.js'), true);
+  assert.strictEqual(isGlobDiscoveredTestFile('lib/foo.spec.ts'), true);
+});
+
+test('isGlobDiscoveredTestFile: a non-test file, including one that merely lives in a tests/ directory, does not match', () => {
+  assert.strictEqual(isGlobDiscoveredTestFile('bin/lib/code-health/tests/helpers.js'), false);
+  assert.strictEqual(isGlobDiscoveredTestFile('bin/lib/color.js'), false);
+  assert.strictEqual(isGlobDiscoveredTestFile('lib/testing-utils.js'), false);
+});
+
+// (a) A glob-discovered test file that nothing require/imports by name would
+// read as an orphan under the old rule (nothing names it) — it must now be
+// excluded from orphan-file candidacy specifically, while a genuinely dead
+// export inside that same file is still caught (the exclusion is scoped to
+// file-orphan candidacy only, per the item's own instruction).
+test('Item 1: a glob-discovered test file is never an orphan-file candidate, but its own dead exports are still found', () => {
+  const root = tmpGitRepo();
+  fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+  // Nothing anywhere requires this file by name — under the pre-fix rule it
+  // would read as orphan-file. It also carries its own genuinely dead
+  // export, which must still surface.
+  fs.writeFileSync(
+    path.join(root, 'tests', 'sample.test.js'),
+    "const assert = require('node:assert');\nfunction helperDead() { return 1; }\nassert.ok(true);\nmodule.exports = { helperDead };\n",
+  );
+  const candidates = candidatesDeadCode(root);
+  assert.ok(!candidates.some((c) => c.kind === 'orphan-file' && c.file === 'tests/sample.test.js'), 'a glob-discovered test file must never be an orphan-file candidate');
+  assert.ok(
+    candidates.some((c) => c.kind === 'unreferenced-export' && c.file === 'tests/sample.test.js' && c.symbol === 'helperDead'),
+    'a genuinely dead export inside a glob-discovered test file must still be reported — the exclusion is file-orphan-only',
+  );
+});
+
+// (b) A genuinely orphaned NON-test file (does not match the test-glob
+// naming convention) must still be reported — the fix must not become a
+// blanket "skip anything under tests/" rule.
+test('Item 1: a genuinely orphaned file that is not a glob-discovered test file is still reported as an orphan-file candidate', () => {
+  const root = tmpGitRepo();
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'lib', 'unused-helper.js'), 'function neverCalled() { return 1; }\nmodule.exports = { neverCalled };\n');
+  const candidates = candidatesDeadCode(root);
+  assert.deepStrictEqual(
+    candidates.map((c) => `${c.file}:${c.kind}`),
+    ['lib/unused-helper.js:orphan-file'],
+  );
 });
 
 // ── Zero-candidates is a clean no-op, not a crash ───────────────────────────
@@ -714,11 +787,14 @@ test('each candidate carries evidence naming its own file and symbol', () => {
 // check here rather than left to prose (IL-102). Comment lines are stripped
 // first so the header's illustrative `require('./a')`-style examples don't
 // count as imports.
-test('cursor-neutrality: the module imports nothing beyond fs/path/child_process — never scope.js or next-slice', () => {
+test('cursor-neutrality: the module imports nothing beyond fs/path/child_process/./focus-generators — never scope.js or next-slice', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'candidates-dead-code.js'), 'utf8');
   const codeOnly = src.split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
   const imports = (codeOnly.match(/require\(\s*['"][^'"]+['"]\s*\)/g) || []).sort();
-  assert.deepStrictEqual(imports, ["require('child_process')", "require('fs')", "require('path')"]);
+  // './focus-generators' is the shared framework registry this module
+  // registers into (Item 6) — still never scope.js or next-slice, the two
+  // this guarantee actually cares about.
+  assert.deepStrictEqual(imports, ["require('./focus-generators')", "require('child_process')", "require('fs')", "require('path')"]);
 });
 
 // Behavioral counterpart to the source-grep test above (review finding: the

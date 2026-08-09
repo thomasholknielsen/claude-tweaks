@@ -59,12 +59,26 @@
 //     searched for references to other files' symbols either. They are
 //     reported by name and reason in `scanDeadCode`'s `skippedFiles`, so the
 //     gap is visible in the coverage report rather than implied away.
-//   - A test file that a runner discovers by glob or directory walk (e.g.
-//     `node --test tests/`) rather than by require/import is, structurally,
-//     an orphan to this scan: nothing statically names it. Whether that is
-//     noise or signal is a policy question for the consuming skill, not for
-//     this leaf — the generator reports what it finds, and the judge
-//     (SKILL.md Step 5) is the filter of record.
+//   - A test file matching this repo's own test-discovery naming convention
+//     (basename ending `.test.js`/`.test.ts`/`.spec.js`/etc. — see
+//     `isGlobDiscoveredTestFile` and `package.json`'s `test` script, whose
+//     globs are all `*.test.js` under a `tests/` directory) is EXCLUDED from
+//     orphan-file candidacy
+//     entirely, deliberately, as of this leaf's follow-up fix: such a file is
+//     never `require`d/`import`ed by name — `node --test`'s own glob
+//     discovery IS its reference — so treating it as a dead-file candidate
+//     was pure noise, not signal (219 candidates on this repo, ~99% test
+//     files, exhausting the judge's read budget before reaching the ~1
+//     genuine finding; see `docs/plans/2026-08-09-code-health-focus-mode-
+//     dead-code-ledger.md` item #1). The exclusion is scoped to file-orphan
+//     candidacy only: a matching test file's own `module.exports` symbols
+//     are still checked for `unreferenced-export` candidacy exactly like any
+//     other file, since that question (is this exported symbol used
+//     anywhere) is orthogonal to how the file itself gets loaded. A test
+//     file that is a genuinely-orphaned file by some OTHER naming
+//     convention (not matching the glob pattern) is still reported, same as
+//     before — this is a scope boundary, not a blanket "skip test
+//     directories" rule.
 //
 // Why there is no `grep`/`find` subprocess here. File discovery is one
 // `git ls-files` call — git's own authoritative .gitignore evaluation,
@@ -90,8 +104,25 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { registerGenerator } = require('./focus-generators');
 
 const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
+
+// True if `relFile`'s basename matches this repo's own test-discovery
+// naming convention — `*.test.js`/`*.test.ts`/etc., the pattern
+// `package.json`'s `test` script globs everywhere (`tests/*.test.js`,
+// `bin/lib/*/tests/*.test.js`, ...) and the one `node --test <dir>` itself
+// recognizes when given a directory to walk. A file matching this is
+// discovered by the test runner's own glob, never by a `require`/`import`
+// specifier naming it — so it is never a genuine file-orphan candidate (see
+// the module header's Coverage block). Name-based rather than a literal
+// read of `package.json`'s globs: a generic heuristic that holds for any
+// consumer repo following the widespread `*.test.js`/`*.spec.js` convention,
+// not just this one.
+const TEST_GLOB_BASENAME_RE = /\.(test|spec)\.(js|ts|tsx|jsx|mjs|cjs)$/;
+function isGlobDiscoveredTestFile(relFile) {
+  return TEST_GLOB_BASENAME_RE.test(relFile);
+}
 
 // Pulls substrings that look like a relative source-file path (ending in a
 // known extension) out of raw JSON/text — e.g.
@@ -259,14 +290,20 @@ function identifierBounded(escapedSymbol) {
 // definition line (wherever that lives). Identifier-bounded bare-symbol
 // search — an unrelated same-named identifier elsewhere reads as a reference
 // (accepted false-negative, IL-79-safe: never a decorated-token match).
-function isReferenced(symbol, declFile, declRange, allFiles, contentsByFile) {
+//
+// Takes `linesByFile` (file -> array of lines), not raw text: this function
+// is called once per exported symbol, so re-splitting every scanned file's
+// full text into lines on every call is O(symbols x files x lines) of
+// wasted re-work when the split result never changes across calls within
+// one scan. Callers precompute the split once (see `scanDeadCode`'s
+// `linesByFile` map) and reuse it across every symbol's `isReferenced` call.
+function isReferenced(symbol, declFile, declRange, allFiles, linesByFile) {
   const bounded = identifierBounded(escapeRegExp(symbol));
   const symbolRe = new RegExp(bounded);
   const declPatternRe = new RegExp(`\\b(function|class)\\s+${bounded}|\\b(const|let|var)\\s+${bounded}`);
   for (const file of allFiles) {
-    const text = contentsByFile.get(file);
-    if (!text) continue;
-    const lines = text.split('\n');
+    const lines = linesByFile.get(file);
+    if (!lines) continue;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!symbolRe.test(line)) continue;
@@ -402,6 +439,13 @@ function scanDeadCode(rootDir, opts = {}) {
   const files = discovery.files;
   const entrypoints = detectEntrypoints(rootDir, files);
   const contentsByFile = new Map();
+  // Lines split once per file, up front, and reused across every symbol's
+  // `isReferenced` call below — see `isReferenced`'s own header comment for
+  // why the split must not be redone per call. `isFileOrphan` deliberately
+  // does not consume this map: it scans each file's raw text once per
+  // candidate via `referencedFileSpecifiers`'s whole-text regex, never
+  // splitting into lines at all, so there is nothing to cache there.
+  const linesByFile = new Map();
   const skippedFiles = [];
   const scannable = [];
 
@@ -417,7 +461,9 @@ function scanDeadCode(rootDir, opts = {}) {
       skippedFiles.push({ file: rel, reason: 'binary-or-nul' });
       continue;
     }
-    contentsByFile.set(rel, buf.toString('utf8'));
+    const text = buf.toString('utf8');
+    contentsByFile.set(rel, text);
+    linesByFile.set(rel, text.split('\n'));
     scannable.push(rel);
   }
 
@@ -427,7 +473,7 @@ function scanDeadCode(rootDir, opts = {}) {
       skippedFiles.push({ file: rel, reason: 'entrypoint' });
       continue;
     }
-    if (isFileOrphan(rel, scannable, contentsByFile)) {
+    if (!isGlobDiscoveredTestFile(rel) && isFileOrphan(rel, scannable, contentsByFile)) {
       candidates.push({
         file: rel,
         kind: 'orphan-file',
@@ -437,7 +483,7 @@ function scanDeadCode(rootDir, opts = {}) {
     }
     const exportsFound = extractModuleExports(contentsByFile.get(rel));
     for (const { symbol, startLine, endLine } of exportsFound) {
-      const referenced = isReferenced(symbol, rel, { startLine, endLine }, scannable, contentsByFile);
+      const referenced = isReferenced(symbol, rel, { startLine, endLine }, scannable, linesByFile);
       if (!referenced) {
         candidates.push({
           file: rel,
@@ -461,21 +507,15 @@ function scanDeadCode(rootDir, opts = {}) {
 // exactly. Note this drops scannedFiles/skippedFiles (see the module
 // header's "why two functions" note) — callers that need scan coverage
 // (SKILL.md's zero-candidates report) go through `scanDeadCode` or the
-// `FOCUS_GENERATORS` registry instead.
+// `FOCUS_GENERATORS` registry (`./focus-generators.js`) instead.
 function candidatesDeadCode(rootDir, opts) {
   return scanDeadCode(rootDir, opts).candidates;
 }
 
-// The framework's focus-vertical registry (shared machinery this leaf
-// introduces, per the parent design doc): focus value -> generator function
-// returning the rich `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }`
-// shape, so SKILL.md's zero-candidates report (IL-115) works uniformly regardless
-// of which focus fired. Exactly one entry ships in this leaf — the other
-// three verticals (test-hygiene, abstraction-police, experiment-cleanup)
-// are separate leaves, blocked on this framework (see the spec's
-// Non-Goals); each adds its own key here rather than inventing a second
-// registry.
-const FOCUS_GENERATORS = { 'dead-code': scanDeadCode };
+// Registers this vertical's generator into the shared framework registry —
+// see `./focus-generators.js` for why that registry lives in its own
+// neutral module rather than here (review finding, ledger item #6).
+registerGenerator('dead-code', scanDeadCode);
 
 module.exports = {
   detectEntrypoints,
@@ -485,9 +525,9 @@ module.exports = {
   isReferenced,
   escapeRegExp,
   isFileOrphan,
+  isGlobDiscoveredTestFile,
   referencedFileSpecifiers,
   listTrackedSourceFiles,
   scanDeadCode,
   candidatesDeadCode,
-  FOCUS_GENERATORS,
 };

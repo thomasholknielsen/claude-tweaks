@@ -7,7 +7,7 @@ Referenced from `skills/code-health/SKILL.md`'s "Focus Mode" section. This file 
 The generator registry is the single source of truth for which `focus=` values are recognized — never hand-maintain a separate list here or in SKILL.md, since a list restated in two places drifts (IL-40):
 
 ```bash
-node -e "const {FOCUS_GENERATORS}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/candidates-dead-code.js'); console.log(Object.keys(FOCUS_GENERATORS).join(', '))"
+node -e "const {FOCUS_GENERATORS}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/focus-generators.js'); console.log(Object.keys(FOCUS_GENERATORS).join(', '))"
 ```
 
 If `$ARGUMENTS` names a `focus=` value not in that list, fail loud and stop — report the unrecognized value and the known values printed above. Do not guess or silently fall back to the generalist mode.
@@ -48,7 +48,7 @@ This is a sequencing requirement, not a formality. `ISSUES_FILE` is the only inp
 
 ```bash
 node -e "
-const { FOCUS_GENERATORS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/candidates-dead-code.js');
+const { FOCUS_GENERATORS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/focus-generators.js');
 const focus = process.argv[1];
 const root = process.argv[2];
 const gen = FOCUS_GENERATORS[focus];
@@ -94,9 +94,9 @@ touch /tmp/code-health-read-marker
 
 Then, for every distinct `file` named across `candidates`, read it in full under SKILL.md Step 3's existing 60 KB read-budget discipline — the byte-tracking, the bounded-read fallback past budget, and the "never silently skip, report deferred" rule all apply unchanged.
 
-**Expect to exhaust the budget, and say so.** A generator's candidate set is repo-wide, not slice-sized, so on any real repo it dwarfs the 60 KB budget rather than fitting inside it. Measured on this repo (2026-08): `focus=dead-code` returned 219 candidate files totalling ~1.6 MB — roughly five get a full read and the remaining ~213 are deferred to a bounded read. Because candidates arrive sorted file-then-symbol, the deferred tail is an *alphabetical* tail, not a low-value one: a run's one genuine finding can sort past the cutoff and never reach the judge at all.
+**The budget can still be exhausted on a large enough repo, and that should be said when it happens.** A generator's candidate set is repo-wide, not slice-sized, so a repo with many genuine candidates can outgrow the 60 KB budget even without noise. Because candidates arrive sorted file-then-symbol, a deferred tail is an *alphabetical* tail, not a low-value one: a run's genuine finding can sort past the cutoff and never reach the judge at all. Measured on this repo (2026-08, after `isGlobDiscoveredTestFile` excluded glob-discovered test files from orphan-file candidacy — `docs/plans/2026-08-09-code-health-focus-mode-dead-code-ledger.md` item #1): `focus=dead-code` returns 9 candidates, well inside the budget — the 219-candidate/~99%-test-file-noise problem this repo hit before that fix is resolved, not merely worked around.
 
-This is a known, unfixed limitation of focus mode at this repo's size or larger — do not minimize it. Report every deferred file per Step 3's rule and per Step 10, and never present a focus firing's findings as coverage of the candidate set: the judge saw the files that were actually read, not the ones the generator named.
+Report every deferred file per Step 3's rule and per Step 10 whenever the budget IS exhausted, and never present a focus firing's findings as coverage of the candidate set: the judge saw the files that were actually read, not the ones the generator named.
 
 ## F4 — Judge
 
