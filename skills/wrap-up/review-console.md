@@ -18,7 +18,7 @@ When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md`'s Phase 1
 - Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
 - Skip that same branch's acceptance labeling — no `demo:pending` label write and no Verification Brief comment. Compose the brief and print it as a preview line instead. It is a network write to a live record, so it is preview-only for the same reason the merge is; the bullet above names only the two git commands because they were the only writes on that path when it was written.
 - Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
-- Queue writes (`Q#` items), Memory updates (`M#` items), and Upstream feedback (`U#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead; under `--dry-run` no memory file is ever written and `/claude-tweaks:feedback` is never invoked.
+- Queue writes (`Q#` items) and Memory updates (`M#` items) still render for visibility, but their per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead; under `--dry-run` no memory file is ever written. Upstream feedback (`U#` items) still renders for visibility via `_shared/upstream-feedback-batch.md`'s chunked presentation, but the batch's `AskUserQuestion` call(s) are skipped — each item renders as "would create: {content}" instead; `/claude-tweaks:feedback --pre-confirmed` is never invoked under `--dry-run`.
 - Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
 - After presenting, stop — do not proceed to the phase-trace report or Phase 4's real execution step; report the preview as the run's final output.
 
@@ -388,8 +388,8 @@ Render this section only when the Memory curation row staged a memory-file propo
 Render this section only when the Upstream feedback curation row staged one or more upstream
 defect/gap reports (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise. Approval runs
 through `_shared/upstream-feedback-batch.md`'s shared batch contract — one or more `multiSelect`
-`AskUserQuestion` calls, chunked at 4 items per call, all pre-checked — instead of one call per
-item; see below for where this fires relative to the terminal decision.
+`AskUserQuestion` calls, chunked per that file's own rule, all pre-checked — instead of one call
+per item; see below for where this fires relative to the terminal decision.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
@@ -427,7 +427,7 @@ Applied to this example's two queue writes:
 
 None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#` or `M#` items, whether from the same section or different ones (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
 
-**Upstream feedback** — call into `_shared/upstream-feedback-batch.md`'s shared batch contract with this run's `U#` rows: render each item's full scrubbed draft (already available from `staged/wrap-up-upstream-*.md`), then issue the contract's chunked `multiSelect` `AskUserQuestion` call(s) — 4 items per call, all pre-checked. This is the dedicated per-decision approval for every checked item (`[IL-114]`): checking and submitting **authorizes filing now**, not shortlisting for later confirmation.
+**Upstream feedback** — call into `_shared/upstream-feedback-batch.md`'s shared batch contract with this run's `U#` rows: render each item's full scrubbed draft (already available from `staged/wrap-up-upstream-*.md`), then issue the contract's chunked `multiSelect` `AskUserQuestion` call(s), all pre-checked per that file's own rule. This is the dedicated per-decision approval for every checked item (`[IL-114]`): checking and submitting **authorizes filing now**, not shortlisting for later confirmation.
 
 ## On approval (option 1)
 
