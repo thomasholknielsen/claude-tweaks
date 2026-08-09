@@ -1,7 +1,7 @@
-# Sweep classification — record #262 (denominator: 124 files)
+# Sweep classification — record #262 (denominator: 126 files)
 
 Command: `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md'`
-Run at: `12bb612fa4d183715aabee1983511455d250cbae`
+Run at: `12bb612fa4d183715aabee1983511455d250cbae` (Task 1 baseline); denominator updated to 126 in fix round 2 to reflect two new citing files Task 2 legitimately added after that commit — see the Parity check section's fix-round history below.
 
 The third exclusion clause is self-reference: once this ledger file is committed, it necessarily contains the word "superpowers" dozens of times (it's a table classifying files that say "superpowers"), so it would otherwise match its own defining grep and inflate the count to 125. This mirrors the `docs/incident-log.md` exclusion already in the command — both are files that quote the search term about the files the command finds, not files that depend on superpowers content themselves.
 
@@ -28,7 +28,7 @@ The six known assertions (1–6) come from the plan brief verbatim. Assertions 7
 | 13 | `brainstorming`'s default design-doc write path | `` docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md `` | `skills/brainstorming/SKILL.md:29` (also `:107`) — confirmed |
 | 14 | `writing-plans`'s default plan write path | `` docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md `` | `skills/writing-plans/SKILL.md:18` — confirmed |
 
-**Addendum — grep-invisible pin, outside the 124-row denominator.** `skills/_shared/subagent-output-contract.md` never contains the literal string "superpowers" (`git grep -in superpowers -- skills/_shared/subagent-output-contract.md` returns nothing, confirmed), so the Step-1 enumeration command does not return it and it is correctly **excluded** from N=124. Per the plan brief's own instruction, assertion 1 is still live and pin-worthy for this file — the coupling (this file's four-status vocabulary mirrors SDD's implementer statuses) is exactly the kind of dependency that needs pinning precisely because it's invisible to a keyword sweep (`[IL-15]`). Task 2/4 should carry assertion 1 forward even though this file isn't one of the 124 rows below.
+**Addendum — grep-invisible pin, outside the 126-row denominator.** `skills/_shared/subagent-output-contract.md` never contains the literal string "superpowers" (`git grep -in superpowers -- skills/_shared/subagent-output-contract.md` returns nothing, confirmed), so the Step-1 enumeration command does not return it and it is correctly **excluded** from N=126. Per the plan brief's own instruction, assertion 1 is still live and pin-worthy for this file — the coupling (this file's four-status vocabulary mirrors SDD's implementer statuses) is exactly the kind of dependency that needs pinning precisely because it's invisible to a keyword sweep (`[IL-15]`). Task 2/4 should carry assertion 1 forward even though this file isn't one of the 126 rows below.
 
 ## Classification table
 
@@ -158,17 +158,21 @@ The six known assertions (1–6) come from the plan brief verbatim. Assertions 7
 | `skills/wrap-up/summary-template.md` | pin | Assertion 5 (per known verdict) — "SDD ledger" wording rides the `.superpowers/sdd/` workspace path assertion |
 | `tests/hooks-post-tool-use-design-doc.test.js` | inert | Test validates the local `DESIGN_DOC_PATH_RE` regex against fabricated fixture paths — never parses upstream content itself (the regex it tests is pinned separately, at `bin/lib/hooks/post-tool-use.js`) |
 | `tests/hooks-worktree-reap.test.js` | inert | Test validates the local reaper's domain-scoping logic against fabricated fixtures. Comment cites ADR-0004 as rationale (historical reference) — doesn't itself parse or depend on live upstream content (the actual dependency is pinned separately, at `bin/lib/hooks/worktree-reap.js`) |
+| `tools/upstream-drift/manifest.yml` | inert | New in fix round 2 (Task 2, commit `68aad511`, already merged) — added the `- name: superpowers` entry itself: a rationale comment (`:109`), the entry header (`:118`), the version-probe glob (`:122`), the upstream repo pointer (`:125`), and five `must-match`/`claims` assertion fields (`:139,149,151,165,177,179,181,183`) carrying literals this sweep itself derived and verified (assertions 2, 5, 9, 13, 14). This is the audit harness's own data — the thing that *records* verified upstream literals, not an unverified prose claim about upstream behavior. `tools/upstream-drift/checks.js` mechanically re-verifies every one of these literals against the installed artifact on every run, which is categorically different from the unverified-claim-that-breaks-silently class this sweep exists to catch: a literal drifting here fails loudly (a check turns `breach`), it doesn't break silently |
+| `tools/upstream-drift/tests/manifest.test.js` | inert | New in fix round 2 (Task 2, commit `68aad511`, already merged) — `'superpowers'` appears only as a third entry appended to the name-list assertion's expected array (`:402`, `['impeccable-cli', 'impeccable-plugin', 'superpowers']`). A test-fixture data value, not a claim about upstream behavior; no silent-breakage risk (a mismatch here is a loud, immediate test failure) |
 
 ## Verdict counts
 
-- Total rows: 124 (matches the Step 1 denominator)
+- Total rows: 126 (matches the Step 1 denominator, updated in fix round 2)
 - `pin`: 31
-- `inert`: 93
+- `inert`: 95
 
 ## Parity check
 
-Step 1 command line count (re-run at Step 4, corrected 3-clause form — see fix round 1 below): `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md' | wc -l` → **124**
-Table data rows (excluding header/separator): **124**
-Match: confirmed — no tree movement between Steps 1 and 3 in this session.
+Step 1 command line count, corrected 3-clause form, re-run current as of fix round 2: `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md' | wc -l` → **126**
+Table data rows (excluding header/separator): **126**
+Match: confirmed.
 
-**Fix round 1 (self-reference correction):** the original 2-clause command (matching the plan brief's Step 1 literal at commit time) returns **125** once this ledger file itself is committed — the ledger necessarily contains the word "superpowers" throughout its own table, so it matches its own defining grep. Added `':!docs/plans/2026-08-09-262-sweep-classification.md'` as a third exclusion clause (see the Command line above), mirroring the existing `docs/incident-log.md` self-reference exclusion. With the corrected 3-clause command, the count returns to 124, matching the table unchanged — no row content was affected, only the documented command.
+**Fix round 1 (self-reference correction):** the original 2-clause command (matching the plan brief's Step 1 literal at commit time) returns **125** once this ledger file itself is committed — the ledger necessarily contains the word "superpowers" throughout its own table, so it matches its own defining grep. Added `':!docs/plans/2026-08-09-262-sweep-classification.md'` as a third exclusion clause (see the Command line above), mirroring the existing `docs/incident-log.md` self-reference exclusion. With the corrected 3-clause command, the count returned to 124, matching the table unchanged at that point — no row content was affected, only the documented command.
+
+**Fix round 2 (Task-2-added citations):** after Task 2 (commit `68aad511`, already merged into this branch) added the `superpowers` entry to `tools/upstream-drift/manifest.yml` and extended `tools/upstream-drift/tests/manifest.test.js`'s name-list assertion, the corrected 3-clause command's live output moved from 124 to **126** — two genuinely new citing files, not a self-reference artifact like fix round 1. Per spec AC3, the ledger's row count must equal the command's output count *at build time*, not frozen at Task 1's original snapshot, so the correct fix is to classify the two new files (both `inert` — see their table rows above) rather than exclude them. Denominator, title, and verdict counts updated accordingly; re-running the command post-fix returns 126, matching the now-126-row table exactly.
