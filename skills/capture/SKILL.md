@@ -61,22 +61,41 @@ Resolve it as a **single decision, before filing**, and only under `work-backend
 `{resolved-ceiling}` — `supervised` when the key is absent. When it resolves to `supervised`, skip
 this block entirely rather than fetching anything.
 
+Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` the same way, substituting for
+`{resolved-window}` below — empty means the default (14) applies. If the `gh` call, the `git log`
+call, or the node block fails for any reason, file without `ready`: this path fails toward the
+default, never toward the grant (unchanged from before this leaf).
+
 ```bash
-gh issue list --state all --json number,labels,body,state,stateReason --limit 1000 > /tmp/capture-trust-records.json
+gh issue list --state all --json number,labels,body,state,stateReason,closedAt --limit 1000 > /tmp/capture-trust-records.json
+```
+
+Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
+its value for `{integration-branch}` below:
+
+```bash
+git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
 ```
 
 ```bash
 node -e "
+  const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
   const { trustRows } = require(root + '/bin/lib/issues/trust.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  const rawLog = fs.readFileSync('/tmp/capture-trust-git-log.txt', 'utf8');
+  const gitLog = rawLog.split('\x1e').filter(Boolean).map((entry) => {
+    const sep = entry.indexOf('\x1f');
+    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
+  });
+  const policy = { 'trust-revert-window-days': '{resolved-window}' };
   // This skill's own class. A fresh capture carries by:capture and no risk
   // score, and riskBand() bands an unscored record 'elevated' — so that is the
   // cell the record about to be filed will land in, and the only one that may
   // authorize it. Never read producer:capture|low here: it is a different class
   // with different evidence.
-  const row = trustRows(issues).find((r) => r.key === 'producer:capture|elevated');
+  const row = trustRows(issues, gitLog, Date.now(), policy).find((r) => r.key === 'producer:capture|elevated');
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const { bornReady, reason } = permittedGrants({ ceiling, row });
   console.log(JSON.stringify({ bornReady, reason, verdict: row ? row.verdict : 'no-cell' }));

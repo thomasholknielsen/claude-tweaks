@@ -145,14 +145,27 @@ as the `backlog-fetch-limit` substitution in the Fetch section this step already
 failure is quiet and in the safe direction, which is exactly why it needs stating: nothing errors,
 the console simply renders a false claim about live policy.
 
+Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
+for `{resolved-window}` below the same way — an empty substitution is fine, the default (14)
+applies. This block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section
+above — it must never shell its own separate `git log` call, or its verdicts could silently
+disagree with the trust table this same run just rendered from the identical underlying evidence.
+
 ```bash
 node -e "
+  const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
   const { trustRows, riskBand } = require(root + '/bin/lib/issues/trust.js');
   const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const rows = new Map(trustRows(issues).map((r) => [r.key, r]));
+  const rawLog = fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8');
+  const gitLog = rawLog.split('\x1e').filter(Boolean).map((entry) => {
+    const sep = entry.indexOf('\x1f');
+    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
+  });
+  const policy = { 'trust-revert-window-days': '{resolved-window}' };
+  const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const out = {};
   for (const issue of issues.filter((i) => i.state === 'OPEN')) {
