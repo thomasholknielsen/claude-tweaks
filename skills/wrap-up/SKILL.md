@@ -25,11 +25,26 @@ Lifecycle: `/claude-tweaks:review` → **`/claude-tweaks:wrap-up`** — last ste
 
 This skill handles reflection (capturing learnings), spec lifecycle (completion/cleanup), and knowledge routing (updating skills, CLAUDE.md, memory). It does NOT re-review code quality — that's `/claude-tweaks:review`'s job.
 
-## Step 1: Identify the Work Context
+Four phases, run in order:
+
+```
+Phase 1: ESTABLISH — what happened here?
+Phase 2: ROUTE     — where does each learning belong?  (engine + registry)
+Phase 3: SETTLE    — is anything left dangling?
+Phase 4: CLOSE     — decide, execute, hand off
+```
+
+---
+
+## Phase 1: ESTABLISH — what happened here?
+
+Establishes work identity, the run directory, and the reflection insight set that Phase 2 routes.
+
+### Identify the work context (formerly Step 1)
 
 Determine what type of work was completed:
 
-### If `$ARGUMENTS` is provided:
+#### If `$ARGUMENTS` is provided:
 
 - If it's exactly `resume` (case-insensitive), this is not conversation-based work — see "Resuming a halted Review Console" below instead of falling through to the branches below.
 - If it's a `#`-prefixed record reference (e.g., `#42` — the primary form) or a bare record id under `work-backend: local-files` (e.g., "42", "73"), strip the leading `#` if present, then proceed as **record-based work**.
@@ -37,17 +52,17 @@ Determine what type of work was completed:
 
 Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywhere in `$ARGUMENTS` alongside any of the above forms — strip them before applying the branches above. See "Flags" below.
 
-### Resuming a halted Review Console
+#### Resuming a halted Review Console
 
-`resume` recovers a run halted at Step 8.6's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Step 8.6, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop.
+`resume` recovers a run halted at the Review Console's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Phase 4's Review Console, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop. Because Phase 1 creates a run directory on every run, a standalone run is now *eligible* for `resume` — but only on the same precondition as any other: its `run-state.json` must carry `status: interrupted`, which the hooks layer stamps on interruption. When no such run exists, `resume` reports none found and stops, exactly as before.
 
-### Flags
+#### Flags
 
-- **`--dry-run`** — run the full analysis (reflection, leftover routing, config/skill scans, the Step 8.6 auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `gh issue edit` / `gh issue comment` / `git merge` / `git push` calls — the three `gh` shapes cover both Step 10's acceptance labeling and the Step 8.6 auto-merge branch's own copy of it. Console and summary tables render as previews of what *would* happen instead of records of what *did*. See `review-console.md`'s "Dry-run mode" section and Step 10's dry-run note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
-- **`--skill-budget <n>`** — override Step 7.2's default domain-overlap skill-read cap (top ~5, or top ~2 under a `fast-lane` ceremony profile) for this invocation only. See `skill-curation.md` 7.2.
-- **`--doc-budget <n>`** — override Step 7.7's default domain-overlap doc-read cap (top ~3, or top ~1 under a `fast-lane` ceremony profile) for this invocation only. See `docs-health-integration.md`'s domain-overlap scan (D0).
+- **`--dry-run`** — run the full analysis (reflection, the Phase 2 engine pass, leftover routing, the Review Console's auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `gh issue edit` / `gh issue comment` / `git merge` / `git push` calls — the three `gh` shapes cover both Phase 4's acceptance labeling and the auto-merge branch's own copy of it. Console and summary tables render as previews of what *would* happen instead of records of what *did*. Passed through to the engine, where it suppresses the telemetry append. See `review-console.md`'s "Dry-run mode" section and Phase 4's execution note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
+- **`--skill-budget <n>`** — override the Skills row's default domain-overlap skill-read cap (top ~5, or top ~2 under a `fast-lane` ceremony profile) for this invocation only. Passed to the engine as `--skill-budget n`.
+- **`--doc-budget <n>`** — override the Docs row's default domain-overlap doc-read cap (top ~3, or top ~1 under a `fast-lane` ceremony profile) for this invocation only. Passed to the engine as `--doc-budget n`.
 
-### If no arguments, detect from context:
+#### If no arguments, detect from context:
 
 1. Check recent git commits and the current branch name for record references
 2. Review conversation for references to records or features
@@ -58,40 +73,59 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 | **Record-based** | A record is identified for this run — a `#`-prefixed argument, a git commit/branch reference, or (fallback) a materialized header | Full lifecycle: record completion + plans + all assessments |
 | **Conversation-based** | No record, just work discussed | Assessments only (skip record/plan cleanup steps) |
 
-## Step 2: Summarize Completed Work
+### Summarize completed work (formerly Step 2)
 
-> Note: Spec compliance (deliverables + acceptance criteria) was already verified in `/claude-tweaks:review` Step 1. This step summarizes what was done — it does not re-verify.
+Summarize what was done — do not re-verify. Spec compliance (deliverables + acceptance criteria) was already verified in `/claude-tweaks:review` Step 1. For record-based work, list what was delivered at a high level and state the completion verdict: **100% complete** (confirmed by `/claude-tweaks:review`) → `github-issues`: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); `local-files`: the record file is marked `closed: true` in place (`cleanup-procedures.md` item 5); **partial** (review passed with minor gaps flagged) → identify what remains, which Phase 3's leftover routing consumes. For conversation-based work, review the conversation and recent commits to identify what was implemented and which key files changed.
 
-### For record-based work:
+### Establish the run directory (unconditional)
 
-Summarize the implementation against the record:
+**Every wrap-up run has a run directory from Phase 1 on.** This is a rule, not a branch: standalone or pipeline, record or conversation mode, one code path for staging, the audit log, and the Review Console in every mode.
 
-1. List what was delivered (high-level, not a re-audit)
-2. **100% complete** (confirmed by `/claude-tweaks:review`) → `github-issues`: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); `local-files`: the record file is marked `closed: true` in place (`cleanup-procedures.md` item 5)
-3. **Partial** (if `/claude-tweaks:review` passed with minor gaps flagged) → identify what remains
+Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section. When neither resolves, create one — the same shape as that file's step-4 snippet, plus the `run-state.json` stamp:
 
-### For conversation-based work:
+```bash
+RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
+RUN_DIR="${PIPELINE_RUN_DIR:-}"
+if [ -z "$RUN_DIR" ]; then
+  RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
+fi
+if [ -z "$RUN_DIR" ]; then
+  TS=$(date -u +%Y-%m-%dT%H%M%S)
+  RUN_DIR="$RUN_ROOT/.claude-tweaks/pipelines/${TS}-${SPEC_SLUG}-standalone"
+  mkdir -p "$RUN_DIR/staged"
+  touch "$RUN_DIR/decisions.md"
+  printf '{"status":"active","createdBy":"wrap-up-standalone"}\n' > "$RUN_DIR/run-state.json"
+fi
+echo "$RUN_DIR"
+```
 
-Review conversation and recent commits to identify what was implemented and which key files changed.
+`$SPEC_SLUG` follows that file's conventions — `record-{n}` in record mode, a short topic slug in conversation mode. The run is created `status: active` and closes through the normal archival path (Phase 4's cleanup item 8), so E1 enforcement and the interrupted-run reaper see nothing unusual. An `export` inside this snippet does **not** survive into the next Bash call — each later phase that needs the path re-resolves it with the same `_shared/pipeline-run-dir.md` snippet, which is why the run dir must be recorded as a fact of this run rather than relied on as environment state.
 
-## Step 3: Reflect on Implementation
+**Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran:
 
-When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Run `/claude-tweaks:reflect` in **light** mode when it is `fast-lane`; **full** mode otherwise (including standalone wrap-up, where no `config.yml` exists to read). Pass:
+- `$PIPELINE_RUN_DIR` was already set at invocation, or an existing directory resolved at step 2 whose `run-state.json` does not carry `createdBy: wrap-up-standalone` → **inherited**.
+- This run created the directory (the `createdBy: wrap-up-standalone` stamp is written above) → **created**.
+
+Carry that verdict as a run-scoped fact for the rest of the run, alongside the run dir path itself, and state it in the Phase 1 report table. **Never re-read it from disk later.** Phase 4's cleanup item 8 archives the run directory, so by the time the Component-Skill Contract is consulted the `run-state.json` this determination came from has usually moved to `.claude-tweaks/pipelines/archive/{run-id}/` — a re-read at that point fails on exactly the standalone runs that must render Next Actions.
+
+### Reflect (formerly Step 3)
+
+Read `config.yml`'s `ceremony-profile` from the run directory. Run `/claude-tweaks:reflect` in **light** mode when it is `fast-lane`; **full** mode otherwise (including standalone wrap-up, where no `config.yml` exists to read). Pass:
 - **Scope** — files changed during this work
 - **Ledger phase** — `wrap-up`
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
-- **`--source wrap-up`** — only when no pipeline run directory exists (standalone wrap-up has no `$PIPELINE_RUN_DIR` to signal parent invocation on its own) — see `/claude-tweaks:reflect`'s Component-Skill Contract
+- **`--source wrap-up`** — always: reflect's `$PIPELINE_RUN_DIR` signal now resolves the same way on every wrap-up run, so the explicit flag is the stable statement of the same fact — see `/claude-tweaks:reflect`'s Component-Skill Contract
 
-Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — those two are the lenses that can still produce a Safety regression finding, which is what Step 3.5's escape hatch keys on; the rest are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
+Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — those two are the lenses that can still produce a Safety regression finding, which is what the ceremony escape hatch below keys on; the rest are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
 
-If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved.
+If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved. The surviving insight set is Phase 2's input.
 
-## Step 3.5: Ceremony Escape Hatch (fast-lane runs only)
+### Ceremony escape hatch (formerly Step 3.5, fast-lane runs only)
 
 Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (including standalone wrap-up, where no `config.yml` exists). Otherwise, check both trigger conditions:
 
 - Did `/claude-tweaks:review`'s summary (passed into this run) contain a finding at any severity?
-- Did Step 3's reflect pass produce a Safety regression finding (`reflect/SKILL.md` Step 3's routing table)?
+- Did the reflect pass above produce a Safety regression finding (`reflect/SKILL.md` Step 3's routing table)?
 
 If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in place and log:
 
@@ -99,207 +133,61 @@ If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in 
 AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
 ```
 
-Steps 6 and 7 below read the (possibly just-downgraded) value fresh at their own point of use — no other propagation needed. This never re-runs Step 3 itself, or any build-side step already completed under the original `fast-lane` value — see the design doc's Escape Hatch section for why this is deliberate, not a gap.
+Phase 2 passes the (possibly just-downgraded) value to the engine as `--ceremony`, which is the only remaining consumer — no other propagation needed. This never re-runs the reflect pass itself, or any build-side step already completed under the original `fast-lane` value — see the design doc's Escape Hatch section for why this is deliberate, not a gap.
 
 ---
 
-## Step 4: Analyze Leftover Work (record-based only)
+## Phase 2: ROUTE — where does each learning belong?
+
+One mechanism, one registry, one engine. Every knowledge asset wrap-up curates is a row below; every row is evaluated on every run, open or closed, and every row's outcome is reported.
+
+### The registry
+
+| Target | Gate | Scope | Judge | Disposition |
+|--------|------|-------|-------|-------------|
+| Skills | `.claude/skills/` exists, or the diff changed 2+ files | Domain-overlap ranking, top 5 (fast-lane 2; `--skill-budget` overrides) | `skill-curation.md` | `apply-or-stage` |
+| Docs | `docs/` exists and is non-empty | Domain-overlap ranking, top 3 (fast-lane 1; `--doc-budget` overrides) | `docs-health-integration.md` | `apply-or-stage` |
+| Journeys | At least one `docs/journeys/*.md` exists | Journeys whose `files:` frontmatter overlaps the diff (deterministic, no cap) | `journey-curation.md` | `apply-or-stage` |
+| CLAUDE.md & rules | A `## Commands` line was renamed or removed since the base, or a don't-repeat candidate, a contradicted convention, or a recorded incident was signalled | `CLAUDE.md` plus `.claude/rules/` | `claude-md-curation.md` | `stage-only` |
+| Decision records | One or more decision candidates were signalled for the ADR gate | The decisions this run surfaced | `adr-curation.md` | `stage` |
+| Broken references | Renames/deletions in diff, or a renamed heading | Repo-wide references surviving a renamed or deleted target | `reference-sweep.md` | `apply-or-stage` |
+| Memory | One or more learnings were signalled as memory-bound | Learnings no earlier row claimed | `memory-curation.md` | `stage` |
+| Upstream feedback | One or more learnings were signalled as upstream-bound | Those learnings, after the self-reference check | `upstream-feedback.md` | `stage` |
+
+This table is the human-readable half of `bin/lib/wrap-up/registry.js`; `tests/wrap-up-registry-pin.test.js` fails when the two drift. Adding a curation target means adding a row in both places and a judge file beside this one.
+
+**Ordering is load-bearing** — see `curation-engine.md`'s invocation sequence for the rule and why.
+
+**CLAUDE.md & rules never auto-applies.** Its disposition is `stage-only` — every finding on that row stages for the Review Console regardless of confidence or reversibility, per the standing CLAUDE.md exception in `_shared/harness-health-analysis.md`. Decision records, Memory, and Upstream feedback are `stage` for the same reason at lower force: they propose, they never write.
+
+### Run the engine
+
+Read `curation-engine.md` in this skill's directory and execute its invocation sequence — it owns the plan/record/render commands, the payload contract, the parallel-dispatch rule, and the prose fallback. This read is unconditional: Phase 2 runs on every wrap-up.
+
+**Constructing `--signals`.** The engine computes every fact-based gate itself from git and the filesystem. It cannot compute the six judgment-derived signals, so Phase 1's outputs supply them at `plan` time:
+
+| Signal | Phase 1 source |
+|--------|----------------|
+| `dontCandidate` | A reflect insight, or a `[claude-md: …]`-tagged ledger entry, naming a pattern that should not be repeated |
+| `contradictedConvention` | This work's diff contradicts a convention CLAUDE.md's `## Conventions` section asserts |
+| `incidentRecorded` | An incident account was recorded for this work |
+| `adrCandidateCount` | Decisions surfaced by the reflect tradeoff review and the ledger, counted as candidates for the three-factor ADR gate |
+| `d4Count` | Reflect insights and ledger learnings that `_shared/learning-routing.md` classifies as memory-bound |
+| `d5Count` | Those it classifies as upstream-bound |
+
+Classify once, before `plan`, over Phase 1's whole insight set. The counts open the gate; the Memory and Upstream judges then narrow to whatever earlier rows left unclaimed, which is why they run last.
+
+**Engine failure is never permission to skip a row.** The prose fallback in `curation-engine.md` section 6 is unconditional and takes no diagnosis, and the report states which path ran.
+
+---
+
+## Phase 3: SETTLE — is anything left dangling?
+
+### Leftover work (formerly Step 4, record-based only)
 
 Identify unfinished spec sections that cannot be completed in the current work context. If at least one such section exists, read `leftover-routing.md` in this skill's directory and route them per that file — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics. If every spec section is complete, report "No leftover work to route" and skip this step entirely — do not read the file.
 
----
-
-## Step 5: Plan Cleanup Actions
-
-This step **plans** the cleanup — it does not execute. Actual deletions and archival run in Step 10 *after* the nothing-left-behind gate (Step 8.5) and the Review Console / batch decision (Step 8.6 or Step 9) approve them.
-
-Step 5 enumerates 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
-
-First check whether **any** of the 8 conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
-
-- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into Step 9's summary and Step 10's execution.
-- **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
-
-On any pipeline run, items 4 and 8 hold by construction, so this gate is open there. It closes only for conversation-based standalone wrap-up with no ledger, no worktree, and no run directory.
-
-## Step 6: Assess Configuration Updates
-
-> **Batch collection.** Step 6 collects potential CLAUDE.md/rules and decision-record updates in a single pass across two sub-scans (CLAUDE.md and Rules, Decision Records). No decisions are made here — everything is presented together in Step 9 for batch approval. Skill updates are handled separately in Step 7; documentation updates are handled separately in Step 7.7.
-
-### Fast-lane pre-check (skip condition)
-
-When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip both sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
-
-- `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` — it reads `f.path` off each element of the `files` array, so map each bare filename from `git diff --name-only` to `{path: f}` before calling it (a bare string has no `.path` and would otherwise silently classify as `isSensitive: false` regardless of content). Pass the registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob matching regardless of which patterns list it's fed, and is already fully tested.
-- The diff shows no added dependency in the project's own dependency manifest(s) — `package.json` (and any workspace-level equivalent), or `pyproject.toml`, `Cargo.toml`, `go.mod`, or equivalent for the project's stack (same manifest set `verification.md` Step 1 scans).
-- No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step 5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
-
-If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs both sub-scans as before.
-
-**Gate the read.** When the pre-check above did not fire, read `config-updates.md` in this skill's directory for both sub-scans in full — 6.1 CLAUDE.md and Rules (which conventions qualify, the size budget, and the write-the-incident-account-before-the-rule discipline for a new Don't) and 6.2 Decision Records (candidate gathering, the three-factor ADR gate from `_shared/decision-records.md`, and the ADR path proposal, which Step 6.2 resolves via `_shared/existing-convention-detection.md` rather than asserting). Neither sub-scan writes anything; both only collect rows, which surface at the Step 8.6 Review Console or Step 9's batch table. When the pre-check fired, skip the read entirely.
-
----
-
-## Step 7: Skill Curation
-
-Analyze whether project skills need updating, and whether the work warrants a **new** skill — based on what was built. This step runs standalone (not batched with Step 6) because it requires reading and comparing full skill files — a heavier weight of analysis.
-
-Unlike a pure consumer, Step 7 **generates** candidates from the work itself. Ledger entries (`build/skill`, `review/skill`, `[skill: …]`-tagged) and reflection insights are **seeds** that focus the analysis — but an independent, domain-scoped scan inspects the skills whose domain overlaps the changed files **even when nothing was tagged**, and gap detection looks for reusable patterns no skill covers. New-skill candidates are proposed when **≥2 of 3** criteria (reusability, complexity, project-specificity) are met — not all three.
-
-**Gate the read.** Read `skill-curation.md` in this skill's directory — the full procedure: seed gathering (7.1), the independent scan + gap detection (7.2), the dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — when **either** holds:
-
-- `.claude/skills/*.md` exists (there is a skill library to scan or patch), **or**
-- `git diff --name-only` against this work's base ref contains a *cohesive* set of files implementing one reusable pattern — 7.2's gap-detection precondition (multiple files implementing a single pattern, not scattered one-off edits).
-
-The second condition is not optional. `skill-curation.md` 7.2 step 2 calls a project with no skills "the strongest case for a first one" and requires gap detection to run even when `.claude/skills/` is absent — so the library's existence alone must never gate this read.
-
-When **neither** holds, skip the read and emit the mandatory summary line directly:
-
-```
-SCANNED {time} — Step 7 skill curation summary: 0 seeds, 0 skills read (no .claude/skills/ library present), gap detection: not run (no cohesive multi-file pattern in the diff).
-Result: 0 applied, 0 staged, 0 new-skill candidates (0/0).
-Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. `gap detection: not run` is deliberate — reporting `not found` for a check that never executed is the silent skip this summary exists to prevent.
-
-Skill curation declares "No skill updates needed" only when seeds, the independent scan, and gap detection all come up empty — never merely because no ledger entry was tagged, and even then a mandatory `SCANNED` summary line (naming the seed count, skills read, and gap-detection outcome — see `skill-curation.md` 7.6) is logged so the null result is auditable. Staged updates and new-skill candidates surface at the Wrap-Up Review Console (Step 8.6), or the interactive batch table per `skill-curation.md`.
-
-## Step 7.7: Documentation Curation
-
-Analyze whether project documentation needs updating, and detect documentation this work should have produced but didn't — based on what was actually built. This step runs standalone (not batched with Step 6) because it includes a domain-overlap scan across existing docs (reading relevant docs even when this work didn't touch them directly) in addition to the docs this work edited or created — a heavier weight of analysis than Step 6's CLAUDE.md/rules/ADR scans.
-
-**Fast-lane narrows breadth, never gates existence.** Same principle as Step 7's skill curation (`skill-curation.md`'s opening paragraph) — under `ceremony-profile: fast-lane`, the domain-overlap scan's cap shrinks (top-1 instead of top-3) but the scan itself always runs.
-
-**Gate the read.** If a `docs/` directory exists and is non-empty, read `docs-health-integration.md` in this skill's directory for the full procedure — registry maintenance (new/deleted/moved docs, stale Auto-detect patterns), the domain-overlap scan (D0) with its `docs/REGISTRY.md`-absent fallback and `--doc-budget` cap, the shared JUDGE application (D1) across both touched and domain-overlap docs, missing-documentation gap detection (D2), and the mandatory null-result summary line.
-
-If `docs/` does not exist or is empty, skip the read and emit the mandatory summary line directly:
-
-```
-SCANNED {time} — Step 7.7 documentation curation summary: 0 docs touched, 0 domain-overlap docs read (no docs/ tree present), gap detection: not run.
-Result: 0 applied, 0 staged, 0 restructural filed.
-Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. `gap detection: not run` is deliberate — see Step 7's equivalent note. Known narrowing: a project with no `docs/` tree at all never gets D2's missing-doc proposal, since D2 is what would create the first doc. Accepted for now — `/claude-tweaks:init` Phase 8.5 covers first-doc scaffolding for such a project.
-
-Documentation curation declares "No documentation updates needed" only when the domain-overlap scan (D0), the touched-docs judgment (D1), and the missing-doc gap detection (D2) all come up empty — never merely because nothing was flagged elsewhere — and even then a mandatory `SCANNED` summary line (naming docs touched, domain-overlap docs read, and gap-detection outcome — see `docs-health-integration.md`) is logged so the null result is auditable. Staged updates and restructural filings surface at the Wrap-Up Review Console (Step 8.6) in the "Documentation updates" section, or Step 9's generic Configuration Updates batch table in interactive/standalone mode (Step 9's template is intentionally not split further — see `docs-health-integration.md`'s own Gotcha note).
-
-## Step 7.8: Journey Curation
-
-Analyze whether journeys the current diff touches have drifted out of sync, and detect a persona-facing flow this work introduced with zero journey coverage — based on what was actually built, always recomputed fresh (no reuse of `/review`'s 3g-cov lens, which computes journey-to-story coverage, not diff overlap, and is purely informational with no persisted artifact to reuse). This step runs standalone (not batched with Step 6) for the same reason Steps 7 and 7.7 do — full-file reads and shared-criteria judgment, not a lightweight registry/CLAUDE.md scan.
-
-Unlike Step 7's skill curation and Step 7.7's documentation curation, journey scope-selection is a direct computation — `docs/journeys/*.md` whose `files:` frontmatter overlaps `git diff --name-only` against this work's base ref — not a ranked domain-overlap scan over the whole library. There is no `--journey-budget` flag and no fast-lane-narrows-the-cap behavior to document; the computation itself is cheap and deterministic regardless of ceremony profile.
-
-**Gate the read.** If `docs/journeys/*.md` matches at least one file, read `journey-curation.md` in this skill's directory for the full procedure — the fresh diff-vs-`files:`-frontmatter overlap computation, the inline application of `_shared/journey-self-review.md`'s four checks plus structural-validity check, missing-journey gap detection, and the mandatory null-result summary line.
-
-If no `docs/journeys/*.md` file exists, skip the read and emit the mandatory summary line directly:
-
-```
-SCANNED {time} — Step 7.8 journey curation summary: 0 journeys checked (none exist), self-review: n/a, gap detection: not run.
-Result: 0 fixed inline, 0 new journey(s) created, 0 gap(s) found.
-Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. `gap detection: not run` is deliberate — see Step 7's equivalent note. This gate is safe precisely because Step 7.8 is a **drift** check: `journey-curation.md`'s own framing calls it "a wrap-up-time safety net for drift introduced after build's own journey check ran," and drift presupposes an existing journey. First-journey *creation* is `/claude-tweaks:journeys`' job at build time, not this step's.
-
-Journey curation declares "No journey updates needed" only when no journey's `files:` frontmatter overlaps the diff AND missing-journey gap detection finds no persona-facing flow with zero coverage — and even then a mandatory summary line (naming journeys checked, self-review outcome per journey, and gap-detection outcome — see `journey-curation.md`) is logged so the null result is auditable. Findings surface at the Wrap-Up Review Console (Step 8.6) in the "Journey updates" section.
-
-## Step 7.9: CLAUDE.md Curation
-
-The end of a piece of work is when a convention changed, a command was renamed, or an incident happened — the moment CLAUDE.md is most likely to have gone stale, and the moment the context explaining why is still available. Rotation finds the same drift weeks later, cold.
-
-**Gate the read.** Run the audit when **any** of these holds:
-
-- `/claude-tweaks:reflect` or the ledger produced a Don't candidate (a `[claude-md: …]`-tagged ledger entry, or a reflection insight naming a pattern that should not be repeated)
-- A command listed in CLAUDE.md's `## Commands` section was renamed or removed in this work's diff
-- A convention asserted in CLAUDE.md's `## Conventions` section is contradicted by this work's diff
-- An incident account was recorded for this work
-
-When one holds, read `_shared/harness-health-analysis.md` and apply it with `assetType: claude-md` against the project's `CLAUDE.md` — the same procedure Step 7 applies to skills. Findings **stage**; they never auto-apply, per that file's standing CLAUDE.md exception.
-
-When **none** holds, skip the read and emit the mandatory summary line directly:
-
-```
-SCANNED {time} — Step 7.9 CLAUDE.md curation summary: audit not run (no CLAUDE.md-relevant signal in this work — no Don't candidate, no renamed command, no contradicted convention, no recorded incident).
-Result: 0 staged.
-Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. **`audit not run` is deliberate and must never be rendered as `no findings`** — a gate that never opened is indistinguishable from a clean CLAUDE.md unless the summary says which one happened. When the gate did open, the summary instead names the signal that opened it and the finding count, so the two cases are never confusable.
-
-## Step 7.10: Memory curation (D4)
-
-**Gate the read.** Classify every reflection insight and ledger learning not already routed by
-Steps 6–7.9 through `_shared/learning-routing.md`. When none resolves to **D4**, emit the summary
-line below with `0` resolved and skip this step. Otherwise read `memory-curation.md` in this
-skill's directory for the full procedure — the dedup-and-stage rule and its `STAGED` line, the
-standalone-wrap-up path, and the re-classification table for when no memory directory is available
-(the lesson is never dropped for that reason alone).
-
-**Mandatory summary**, emitted every run regardless of outcome:
-
-```
-SCANNED {time} — Step 7.10 memory curation: {N} insights classified, {M} resolved D4, {K} deduped against MEMORY.md. Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it inline.
-
-## Step 7.11: Upstream feedback (D5)
-
-**Gate the read.** When `_shared/learning-routing.md` resolved **no** learning to D5, there is
-nothing to stage: emit the summary line below with `0` resolved and skip this step. Otherwise read
-`upstream-feedback.md` in this skill's directory for the full procedure — the self-reference check
-that can collapse D5, the stage-never-file rule and its `STAGED` line, and the standalone-wrap-up
-path that has no console to stage for.
-
-**Mandatory summary**, emitted every run regardless of outcome:
-
-```
-SCANNED {time} — Step 7.11 upstream feedback: {N} learnings classified, {M} resolved D5 ({D} defect / {G} gap), self-reference: {collapsed|not applicable}. Reversibility: N/A.
-```
-
-Auto mode appends this line to `decisions.md` under the `SCANNED` tag; interactive mode prints it inline.
-
-## Step 7.12: Broken-reference sweep
-
-Find references pointing at something **this run renamed, moved, or removed**, and — when the
-`autonomy` ceiling allows — repair them within the initiative budget. Unlike Step 7.7's D1 this
-scans files this run did **not** touch, where orphans live and task-scoped review cannot reach.
-
-**Gate the read.** Compute the rename/move/delete set (`git diff --diff-filter=RD --name-status
-{base}...HEAD`) plus any heading or anchor a modified file renamed. Empty means no orphan can
-exist: emit the summary with `0 targets` and skip — read neither file. Otherwise read
-`reference-sweep.md` in this skill's directory, which owns the procedure and, at
-`trusted`/`unattended`, defers to `_shared/initiative-budget.md` for the floor rule.
-
-Mandatory summary line, regardless of outcome:
-
-```
-SCANNED {time} — Step 7.12 broken-reference sweep: {T} rename/delete targets, {H} surviving references, ceiling {ceiling}. Result: {A} repaired, {S} staged. Reversibility: high (separate commit).
-```
-
-Auto mode appends this line to `decisions.md`; interactive mode prints it inline. `0 targets` is a
-real result and is reported, never omitted.
-
-## Step 8: Analyze Next Steps (record-based only)
-
-Determine:
-1. **Newly unblocked records** — what can now be worked on? See below.
-2. **Parallel opportunities** — which specs have no dependencies?
-3. **Recommended next spec** — based on dependencies and logical flow
-
-Suggest running `/claude-tweaks:help` to see the full workflow status.
-
-### Newly unblocked records (record mode only)
-
-The record this run just closed is already known — `record: {n}`, resolved by Step 1 (the `#`-prefixed argument, a branch/commit reference, or a materialized header's `record:` field when one exists). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
-
-**Gate the read.** If this run is record-based work (Step 1's determination — record identity does not require a materialized header), read `unblocked-records.md` in this skill's directory — it holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, which has no record whose closure could unblock a dependent — skip this sub-step entirely and do not read the file.
-
----
-
-## Step 8.5: Nothing Left Behind (Gate)
+### Nothing left behind (formerly Step 8.5, gate)
 
 **Residue sweep first.** Run `residue-sweep.md` in this skill's directory: it writes what this
 work leaves outstanding as ledger items, so this gate has something to enforce on a standalone
@@ -311,40 +199,65 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 
 The same condition gates `nothing-left-behind.md` in this skill's directory — wrap-up's own wrapper around that gate: the item-existence rationale, the hard requirements (Phase 1 fix-exhaust before any user-facing output, Phase 2's mandatory per-item input, and what `auto` never silences), the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step with its `unattended-tier` branch. When the gate is closed, read neither file.
 
+The ledger resolve gate's own Phase 2 per-item input stays **outside** the Review Console, per `_shared/auto-mode-contract.md`'s never-silenced list.
+
+### Newly unblocked records (formerly Step 8, record mode only)
+
+Informational only — this feeds Phase 4's Next Actions and must never gate, block, or delay the wrap-up; on any error, log and continue. The record this run just closed is already known from Phase 1 (`record: {n}` — the `#`-prefixed argument, a branch/commit reference, or a materialized header's `record:` field when one exists); the question is whether closing it unblocked anything. **Gate the read.** If this run is record-based work (Phase 1's determination — record identity does not require a materialized header), read `unblocked-records.md` in this skill's directory, which holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, which has no record whose closure could unblock a dependent — skip this entirely and do not read the file. Parallel opportunities and the recommended next record fall out of the same lookup; `/claude-tweaks:help` shows the full workflow status.
+
 ---
 
-## Step 8.6: Wrap-Up Review Console (back-loaded review)
+## Phase 4: CLOSE — decide, execute, hand off
 
-The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with up to nine sections (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Documentation updates / Journey updates / Configuration updates / Cleanup actions) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty.
+### Plan cleanup actions (formerly Step 5)
 
-**Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to Step 9.
+This step **plans** the cleanup — it does not execute. Actual deletions and archival run at execution time *after* the nothing-left-behind gate and the Review Console approve them.
 
-Empty-console fast path: skip the console entirely and proceed to Step 9 when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending).
+Cleanup enumerates 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
 
-**Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, the Auto-merge short-circuit, the full console template with all nine section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement — when **either** holds:
+First check whether **any** of the 8 conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
 
-- The console runs: mode is `auto` or `hybrid`, a pipeline run directory exists, `MULTISPEC_REVIEW_DEFER` is unset, and the empty-console fast path above does not apply; **or**
+- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into the report and the execution step.
+- **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
+
+Item 8 now holds on **every** run — Phase 1 creates a run directory unconditionally — so this gate is always open in practice, and items 4 and 8 both hold by construction on a pipeline run. The "none holds" branch survives only as a degenerate guard for a run whose Phase 1 run-dir creation failed.
+
+### Wrap-Up Review Console (formerly Step 8.6)
+
+The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). **It runs in every mode**, reading the run directory Phase 1 guaranteed. It reads `decisions.md`, `staged/`, and `config.yml` from that directory, then presents one consolidated batch table with the named sections `review-console.md` heads (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Documentation updates / Journey updates / Configuration updates / Reference repairs / Cleanup actions) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty, as does Reference repairs. In interactive and standalone runs the console is what presents the cleanup, configuration, queue-write, memory and upstream proposals for approval — there is no separate batch decision.
+
+**Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to the report.
+
+Empty-console fast path: skip the console entirely and proceed to the report when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending). Unconditional bookkeeping rows — run-dir archival — do not count as cleanup actions for that test; archival executes regardless.
+
+**Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, the Auto-merge short-circuit, the full console template with every section table (including the conditionally-rendered Low-confidence, Contested findings, and Reference repairs sections), approval/override/stop semantics, and the sort-order requirement — when **either** holds:
+
+- The console runs: a run directory exists (always, after Phase 1), `MULTISPEC_REVIEW_DEFER` is unset, and the empty-console fast path above does not apply; **or**
 - This run has a materialized header (`${RUN_DIR}/work/*-spec.md`) whose issue carries a live `auto:merge` label (re-fetch via `gh issue view --json labels`).
 
-The second condition exists because the **Auto-merge short-circuit** lives in `review-console.md`, not in this file — it is not part of the console rendering it precedes. Without it, a run that qualified for the empty-console fast path would silently skip its authorized auto-merge. In practice the fast path cannot fire on such a run (it requires "no cleanup actions apply," while items 4 and 8 always apply when a run directory exists), so this is a belt-and-braces guard against a latent ordering hazard, not a live bug.
+The second condition exists because the **Auto-merge short-circuit** lives in `review-console.md`, not in this file — it is not part of the console rendering it precedes. Without it, a run that qualified for the empty-console fast path would silently skip its authorized auto-merge. In practice the fast path cannot fire on such a run — it requires "no cleanup actions apply," and a run with a materialized header is a pipeline run whose worktree row always applies — so this is a belt-and-braces guard against a latent ordering hazard, not a live bug.
 
-In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outright — do not read the file at all.
+### The phase-trace report (formerly Step 9)
 
----
+Render the report as the engine's own trace of this run, never as prose composed by hand:
 
-## Step 9: Present Consolidated Summary
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" render --run-dir "$PIPELINE_RUN_DIR" --section trace --strict
+```
 
-Render one consolidated summary of this run — Verdict, State (from `bin/wrap-up-state.js`), Actions Performed, Decisions, Outstanding, Routed, Evidence — then, **only when Step 8.6's Review Console did not run** (interactive mode, standalone wrap-up, or the empty-console fast path — and never under `MULTISPEC_REVIEW_DEFER=1`), present the cleanup + configuration batch decision, followed by the per-item Queue writes / Memory updates / Upstream feedback sections for any proposal staged during this run. Close with the archival line.
+(Substitute the re-resolved run-dir path — env assignments do not survive between calls.)
 
-**Read the template.** Read `summary-template.md` in this skill's directory for the standalone multi-record batch variant, the full render template, the conversation-mode variant, the conditional batch-decision branch with its `AskUserQuestion` shape, the three per-item sections that sit beside that batch but outside it (Queue writes `Q#`, Memory updates `M#`, Upstream feedback `U#` — each approved and executed one row at a time), and both closure lines (record mode and the legacy spec-file alias). Step 9 always runs, so this read is unconditional.
+Insert that output verbatim as the Phase 2 table. `--strict` prints the table first and then exits 2 if any worklist row has no recorded result, so a hole is visible *and* fatal. Under the prose fallback, compose the table by hand per `curation-engine.md` section 6 and caption it `(engine unavailable — prose fallback ran)`.
 
-Next Actions are rendered as a top-level `## Next Actions` section after Step 10's verification — see the section near the end of this file. They replace the old single-line handoff with a context-signal-driven table.
+**Read the template.** Read `summary-template.md` in this skill's directory for the report's full shape and its conversation-mode variant. This read is unconditional — the report renders on every run.
 
-## Step 10: Execute Approved Actions
+Next Actions are rendered as a top-level `## Next Actions` section after execution — see the section near the end of this file.
 
-Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`, filtered by Condition) plus the configuration, documentation, skill, and acceptance-labeling actions approved at the Review Console (Step 8.6) or the Step 9 batch decision — then verify each one landed before the closure line is emitted.
+### Execute approved actions (formerly Step 10)
 
-**Gate the read.** Read `execution-and-verification.md` in this skill's directory — the `--dry-run` preview branch, the `MULTISPEC_REVIEW_DEFER` skip list, the full apply list (documentation, CLAUDE.md/rules, D2 new docs, docs-health restructural filings, ADRs, skill updates, and acceptance labeling with its own gated read of `verification-brief.md`), the closing-keyword carrier commit, and the Verify-execution checklist — when at least one approved action exists: a cleanup row surviving Step 5's Condition filter, an approved configuration / documentation / skill update, an approved memory write or upstream filing, or record-mode acceptance labeling. When Step 5 reported "No cleanup actions apply" and nothing else was approved, report "No actions to execute" and skip the read — there is nothing to commit or verify.
+Execute the cleanup planned above (canonical list in `cleanup-procedures.md`, filtered by Condition) plus the configuration, documentation, skill, and acceptance-labeling actions approved at the Review Console — then verify each one landed before the closure line is emitted.
+
+**Gate the read.** Read `execution-and-verification.md` in this skill's directory — the `--dry-run` preview branch, the `MULTISPEC_REVIEW_DEFER` skip list, the full apply list (documentation, CLAUDE.md/rules, new docs, docs-health restructural filings, ADRs, skill updates, and acceptance labeling with its own gated read of `verification-brief.md`), the closing-keyword carrier commit, and the Verify-execution checklist — when at least one approved action exists: a cleanup row surviving the Condition filter, an approved configuration / documentation / skill update, an approved memory write or upstream filing, or record-mode acceptance labeling. When cleanup planning reported "No cleanup actions apply" and nothing else was approved, report "No actions to execute" and skip the read — there is nothing to commit or verify.
 
 ## Important Notes
 
@@ -356,14 +269,14 @@ Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`
 
 ## Next Actions
 
-When invoked by `/flow` (`$PIPELINE_RUN_DIR` is set), omit this block — the parent `/flow` renders its own Pipeline Summary + Next Actions after Step 9.
+When this run **inherited** its run directory (see the Component-Skill Contract below), omit this block — the parent `/claude-tweaks:flow` renders its own Pipeline Summary + Next Actions after the report.
 
 When invoked directly by a user (standalone wrap-up), resolve 2-4 options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply, never itself shown to the user or converted into an `AskUserQuestion` option:
 
 | Signal | Option |
 |--------|--------|
-| Next spec exists (Step 8) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
-| Newly unblocked records (Step 8's dependent check — `/tmp/wrapup-unblocked.json`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
+| Next spec exists (Phase 3's unblocked-records lookup) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
+| Newly unblocked records (Phase 3's dependent check — `/tmp/wrapup-unblocked.json`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
 | Always | `/claude-tweaks:help` — full pipeline status |
 
 Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
@@ -374,32 +287,32 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:wrap-up` is running inside a `/claude-tweaks:flow` pipeline. In that case:
-- Omit the `## Next Actions` block at the end of Step 9 — the parent `/claude-tweaks:flow` renders its own pipeline summary.
-- Step 8.6 (Review Console) honors `$MULTISPEC_REVIEW_DEFER` — if set, skip the per-spec console and let `/claude-tweaks:flow`'s consolidated console handle approvals.
+The signal is **who created the run directory**, not whether one exists — Phase 1 guarantees one either way, so `$PIPELINE_RUN_DIR` being set is no longer evidence of a parent.
 
-When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — render Next Actions as usual.
+**Consult Phase 1's determination, do not re-derive it.** Phase 1 decided inherited-vs-created once, at run-dir resolution time, and carried it forward as a run-scoped fact. By the time this contract is consulted, cleanup item 8 has usually archived the directory, so `run-state.json` is no longer where Phase 1 read it.
+
+When the run directory was **inherited**, `/claude-tweaks:wrap-up` is running inside a `/claude-tweaks:flow` pipeline. In that case:
+- Omit the `## Next Actions` block — the parent `/claude-tweaks:flow` renders its own pipeline summary.
+- The Review Console honors `$MULTISPEC_REVIEW_DEFER` — if set, skip the per-spec console and let `/claude-tweaks:flow`'s consolidated console handle approvals.
+
+When **this run created** its own run directory, `/claude-tweaks:wrap-up` runs standalone — render Next Actions as usual.
+
+**A missing determination resolves to created.** If Phase 1's verdict is somehow unavailable and a `run-state.json` read is attempted as a last resort, an absent or unreadable file resolves to **created** — render Next Actions. The failure must fall toward showing the user their handoff: a suppressed handoff on a standalone run is silent and looks like the skill simply ended, while a redundant one inside `/claude-tweaks:flow` is visible and harmless.
 
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---------|-------------|
 | Running wrap-up before review | Captures learnings from unvalidated work |
-| Deleting specs that aren't 100% complete | Leftover work needs routing first — use Step 4 |
+| Deleting specs that aren't 100% complete | Leftover work needs routing first — use Phase 3's leftover routing |
 | Adding every insight to CLAUDE.md | Size budget — route detail to skills, rules, or memory files |
 | Skipping reflection for "simple" work | It still surfaces surprises and near-misses |
 | Keeping design docs and plans after wrap-up | Consumed artifacts go stale — spec and code are the durable records |
 | Silently dropping insights with no obvious destination | Every insight needs an explicit decision — "don't capture" needs a user-stated reason |
 | Completing wrap-up with open ledger items | The nothing-left-behind gate: resolve every item before the summary |
-| Scanning the entire skill library every wrap-up | Step 7's scan is bounded to the ~5 skills overlapping the changed files (~2 under a fast-lane ceremony profile, plus seeded skills) — a whole-library audit is noise |
-| Skipping skill curation because nothing was ledger-tagged | Step 7's scan and gap detection run with zero seeds — candidates come from the work, not just tagged entries |
-| Declaring "no skill updates needed" with no logged scan scope | Unfalsifiable without a record of scan scope and ranking depth — Step 7's mandatory `SCANNED` line (`skill-curation.md` 7.6) makes it auditable |
-| Skipping doc curation because nothing was directly touched | Step 7.7's domain-overlap scan (D0) reads relevant docs this work didn't edit — skipping D0 skips the whole check |
-| Declaring "no documentation updates needed" with no logged scan scope | Unfalsifiable without a record of scan scope — Step 7.7's mandatory `SCANNED` line (`docs-health-integration.md`) makes it auditable |
-| Declaring "no journey updates needed" without checking `files:` frontmatter against the diff | Build-time `/journeys` and review's 3g-cov lens miss drift landing after their pass — only Step 7.8's fresh diff-vs-frontmatter recomputation catches it |
-| Letting a closed sub-file gate suppress the step's `SCANNED` summary line | Steps 7 / 7.7 / 7.8 / 7.9 gate the *read* of their procedure file, never the *reporting* — a closed gate still emits the line from the step's inline template with `gap detection: not run`; silence and "found nothing" are otherwise indistinguishable |
-| Gating `skill-curation.md`'s read on `.claude/skills/*.md` alone | `skill-curation.md` 7.2 step 2 requires gap detection even with no skills directory — Step 7's gate also opens on a cohesive multi-file diff |
+| Skipping a registry row because its gate looks obviously closed | The engine evaluates gates — a hand-skipped row is the silent skip render --strict exists to catch |
+| Composing the Phase 2 trace or SCANNED lines by hand when the engine is available | Seven hand-maintained formats drifting was this architecture's motivating failure — render owns the format |
+| Treating engine failure as permission to skip curation | The prose fallback in curation-engine.md is unconditional — the report states which path ran |
 | Proposing generic skill updates with no concrete anchor | Every update must trace to a ledger entry, a reflection insight, or a changed-file observation — unanchored ones read as hallucinated |
-| Mixing skill updates into the doc/CLAUDE.md batch table | They require full file reads and Update Mode patches — own decision table in Step 7 |
-| Writing an ADR for every decision | ADRs are valuable because rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so; zero per wrap-up is normal |
+| Writing an ADR for every decision | ADRs are valuable because rare — the Decision records row's three-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so; zero per wrap-up is normal |
 | Treating `demo:pending` as optional for "trivial" record-mode work | Triviality is not an exemption — it gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step. The one record class that *does* skip its own label is a leaf with a resolvable parent, and that is the gate moving to the family's parent, not going away |

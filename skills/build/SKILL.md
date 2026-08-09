@@ -220,7 +220,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
    - **Design mode:** file a backlog work record via `/claude-tweaks:capture`
 2. Note what unblocks them
 3. Append blocked items to the open items ledger (see `/claude-tweaks:ledger`) with phase `build/*` and status `open`
-4. These are resolved by the ledger resolve gate (`/claude-tweaks:ledger resolve`), run by `/claude-tweaks:wrap-up` Step 8.5 or `/claude-tweaks:flow` Step 5 — not by `/claude-tweaks:help`, which does not scan ledger files
+4. These are resolved by the ledger resolve gate (`/claude-tweaks:ledger resolve`), run by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate or `/claude-tweaks:flow` Step 5 — not by `/claude-tweaks:help`, which does not scan ledger files
 
 **Follow-up ideas (independent of blocking).** If, while implementing, you notice an opportunistic improvement or idea outside the current spec/design's scope — not blocking the current work, just observed in passing — file it via `/claude-tweaks:capture` as a fresh backlog work record before it's lost, rather than inflating this build's scope. This applies in both spec and design mode, and runs regardless of whether any part of the plan is actually blocked.
 

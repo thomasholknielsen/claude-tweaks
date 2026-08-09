@@ -84,7 +84,7 @@ Per the `/review` Step 3 Routing row in `_shared/auto-mode-contract.md`, severit
 When `review-severity-floor: medium`: auto-apply Low AND Medium; stage High; prompt Critical.
 When `review-severity-floor: none`: stage everything; never auto-apply.
 
-After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up` Step 8.6 surfaces staged items for batch approval.
+After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up`'s Phase 4 surfaces staged items for batch approval.
 
 ## Interactive mode (per-batch user input)
 

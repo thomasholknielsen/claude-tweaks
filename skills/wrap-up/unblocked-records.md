@@ -1,4 +1,4 @@
-# Step 8 — Newly Unblocked Records (record mode only)
+# Phase 3 — Newly Unblocked Records (record mode only)
 
 The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
 
@@ -98,4 +98,4 @@ node -e "
 "
 ```
 
-For every record in the resulting `/tmp/wrapup-unblocked.json`: log one line to `decisions.md` (`AUTO {time} — Step 8: closing #{n} unblocked #{m} ("{title}"). Reversibility: n/a (informational).`), and carry it forward as this run's "newly unblocked" signal — feeds the `## Next Actions` table in `SKILL.md` and the Pipeline Summary's Key Outputs.
+For every record in the resulting `/tmp/wrapup-unblocked.json`: log one line to `decisions.md` (`AUTO {time} — Unblocked records: closing #{n} unblocked #{m} ("{title}"). Reversibility: n/a (informational).`), and carry it forward as this run's "newly unblocked" signal — feeds the `## Next Actions` table in `SKILL.md` and the Pipeline Summary's Key Outputs.

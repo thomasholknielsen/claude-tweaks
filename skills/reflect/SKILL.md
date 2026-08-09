@@ -15,14 +15,14 @@ Step back from implementation and evaluate what was built through structured len
                                                      │                        │
                                                      └──────── /claude-tweaks:reflect ────────┘
                                                        component called from review (Step 4, hindsight mode)
-                                                       and wrap-up (Step 3, full or light mode)
+                                                       and wrap-up (Phase 1, full or light mode)
 ```
 
 ## When to Use
 
 - After any implementation work — you want a second look before moving on
 - During `/claude-tweaks:review` Step 4 — invoked in **hindsight** mode
-- During `/claude-tweaks:wrap-up` Step 3 — invoked in **full** mode, or **light** mode when the run's `ceremony-profile` is `fast-lane`
+- During `/claude-tweaks:wrap-up` Phase 1 — invoked in **full** mode, or **light** mode when the run's `ceremony-profile` is `fast-lane`
 - After a small fix, when a full four-lens pass is more ceremony than the change warrants — invoke standalone in **light** mode for a cheap two-lens pass
 - After a debugging session or refactor — capture what you learned
 - After conversation-based work that had no formal review
@@ -32,8 +32,8 @@ Step back from implementation and evaluate what was built through structured len
 | Mode | Lenses | Invoked by | Best for |
 |------|--------|------------|----------|
 | **hindsight** | Approach, Structure, Consolidation, Convention, Skills | `/claude-tweaks:review` Step 4 | Pre-ship "should we change something?" gate |
-| **full** | All four lenses (Surprises, Approach, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Step 3 | Post-review knowledge capture |
-| **light** | Near-misses, Fresh start (no tradeoff review) | `/claude-tweaks:wrap-up` Step 3, when `ceremony-profile: fast-lane`; or direct invocation with the `light` keyword | Cheap post-review capture for a fast-lane record, or a quick standalone pass after a small fix |
+| **full** | All four lenses (Surprises, Approach, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Phase 1 | Post-review knowledge capture |
+| **light** | Near-misses, Fresh start (no tradeoff review) | `/claude-tweaks:wrap-up` Phase 1, when `ceremony-profile: fast-lane`; or direct invocation with the `light` keyword | Cheap post-review capture for a fast-lane record, or a quick standalone pass after a small fix |
 | *(default)* | **full** when standalone | Direct invocation | General-purpose reflection |
 
 ## Input
@@ -101,8 +101,8 @@ When a pipeline run directory exists, route findings by category without prompti
 |---|---|---|
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |
 | Convention drift, code smell, simplification opportunity | STAGED — write to `staged/reflect-{n}.md`. Surface at Wrap-Up Review Console. | `STAGED {time} — Step 3: convention finding "{summary}". Stage path: staged/reflect-{n}.md.` |
-| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. The run's Queue writes surface asks before creating the record (never autonomous) — Wrap-Up Review Console in `auto`/`hybrid`, `wrap-up/summary-template.md`'s Queue writes section in interactive mode. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate. Surface at the Queue writes gate.` |
-| Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled in `/wrap-up` Step 7. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
+| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. The Wrap-Up Review Console's Queue writes section asks before creating the record (never autonomous), in every mode. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate. Surface at the Queue writes gate.` |
+| Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled by `/wrap-up`'s Skills curation row. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
 
@@ -184,7 +184,7 @@ When invoked directly (not by a parent skill), call `AskUserQuestion`:
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` or `light` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators) — or, when standalone `/review` or standalone `/wrap-up` has no run directory of its own to set, by an explicit `--source review` or `--source wrap-up` flag it passes instead (standalone `/review` per its own SKILL.md "always runs every step" including Step 4, with no `$PIPELINE_RUN_DIR` to set). When invoked by a parent (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Phase 1, `full` or `light` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators) — or by an explicit `--source review` or `--source wrap-up` flag the parent passes instead. `/claude-tweaks:wrap-up` passes `--source wrap-up` on **every** run, standalone included, since its Phase 1 now creates a run directory unconditionally and `$PIPELINE_RUN_DIR` alone no longer distinguishes a pipeline from a standalone wrap-up; standalone `/review` passes `--source review` because it has no run directory of its own to set (per its own SKILL.md "always runs every step" including Step 4). When invoked by a parent (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
 
 ## Anti-Patterns
 

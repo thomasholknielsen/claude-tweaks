@@ -2,7 +2,7 @@
 
 Canonical contract for the question no doc-creating path used to ask: **does this repo already have its own convention for the genre I am about to write?**
 
-Read by `/claude-tweaks:wrap-up` Step 6.2 (`wrap-up/config-updates.md`) before it proposes an ADR path. The per-genre declarations it keys off live in `_shared/diataxis-genre-templates.md`.
+Read by `/claude-tweaks:wrap-up`'s Decision records curation row (`wrap-up/adr-curation.md`) before it proposes an ADR path. The per-genre declarations it keys off live in `_shared/diataxis-genre-templates.md`.
 
 ## Why this exists
 

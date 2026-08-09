@@ -24,7 +24,7 @@ Manage the open items ledger that tracks findings, operational tasks, and observ
 - Called by other skills to create, append, update, query, or resolve ledger items
 - Standalone: inspect the current ledger (`/claude-tweaks:ledger`)
 - Standalone: trigger the nothing-left-behind gate (`/claude-tweaks:ledger resolve`)
-- When you want to check for unresolved items outside the automatic resolve gates (`/claude-tweaks:wrap-up` Step 8.5, `/claude-tweaks:flow` Step 5) — `/claude-tweaks:help` does not scan ledger files itself
+- When you want to check for unresolved items outside the automatic resolve gates (`/claude-tweaks:wrap-up`'s Phase 3 ledger gate, `/claude-tweaks:flow` Step 5) — `/claude-tweaks:help` does not scan ledger files itself
 
 ## Input
 
@@ -179,11 +179,11 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
 
 ### Delete
 
-Delete the ledger file after all items are resolved. Called by `/claude-tweaks:wrap-up` Step 10 (planned in Step 5).
+Delete the ledger file after all items are resolved. Called at `/claude-tweaks:wrap-up`'s Phase 4 execution step (planned in that phase's cleanup-planning step).
 
 Only delete when the resolve gate has passed — all items must have terminal statuses.
 

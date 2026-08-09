@@ -151,7 +151,7 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   changed, why, and how to verify it. This happens **regardless of merge timing** — an
   `auto:merge`'d record still gets `demo:pending` on its now-closed issue, enabling retrospective
   sign-off. Two headless paths perform the identical write without passing through wrap-up's
-  Step 10: wrap-up's own auto-merge short-circuit (`wrap-up/review-console.md`) and
+  Phase 4 execution step: wrap-up's own auto-merge short-circuit (`wrap-up/review-console.md`) and
   `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`), both by
   invoking the same `wrap-up/verification-brief.md` procedure. For a decomposition family, that
   procedure applies one gate on the **parent**, once every leaf is closed — never on individual
