@@ -4,5 +4,8 @@
   },
   "doc:decisions/0001-deepen-standalone-and-flow-survey": {
     "lastAuditedMs": 1786224217322
+  },
+  "doc:decisions/0002-issue-claims-atomic-ref-lock": {
+    "lastAuditedMs": 1786255588915
   }
 }
