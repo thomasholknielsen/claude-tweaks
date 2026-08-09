@@ -6,6 +6,8 @@
 
 See also: [`docs/diagrams/github-issues-lifecycle.html`](diagrams/github-issues-lifecycle.html) for the architecture overview this review is based on.
 
+> **Superseded in part.** This is a dated report, kept as a record of what was found on 2026-07-11 — its findings are not re-verified against later code. Its `/claude-tweaks:wrap-up` citations in particular predate the wrap-up phase architecture, which replaced that skill's numbered steps with four phases plus a curation registry; read any `wrap-up/SKILL.md Step N` reference below as naming the step that existed then, not a current anchor.
+
 ## The throughline
 
 Four systemic patterns explain most of what follows — worth fixing as a batch rather than one finding at a time:

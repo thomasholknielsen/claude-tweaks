@@ -1,6 +1,6 @@
 # Journey Self-Review Criteria
 
-Shared checklist for judging whether a journey file (`docs/journeys/{name}.md`) still holds together — used at *write time* by `/claude-tweaks:journeys` Step 3.5 (right after creating or updating a journey), at *audit time* by `/claude-tweaks:journey-health`'s light tier (periodically, for journeys nobody has touched recently), and at *wrap-up time* by `/claude-tweaks:wrap-up` Step 7.8 (`journey-curation.md`, for journeys the just-completed work's diff touches). All three consumers apply the same four checks; each layers its own response mechanism on top, documented in that consumer's own workflow.
+Shared checklist for judging whether a journey file (`docs/journeys/{name}.md`) still holds together — used at *write time* by `/claude-tweaks:journeys` Step 3.5 (right after creating or updating a journey), at *audit time* by `/claude-tweaks:journey-health`'s light tier (periodically, for journeys nobody has touched recently), and at *wrap-up time* by `/claude-tweaks:wrap-up`'s Journeys curation row (`journey-curation.md`, for journeys the just-completed work's diff touches). All three consumers apply the same four checks; each layers its own response mechanism on top, documented in that consumer's own workflow.
 
 ## The four checks
 

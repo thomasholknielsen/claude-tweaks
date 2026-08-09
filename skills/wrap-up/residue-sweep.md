@@ -1,6 +1,6 @@
-# Residue Sweep — Step 8.5 preamble procedure
+# Residue Sweep — Phase 3 ledger-gate preamble procedure
 
-Run by Step 8.5's preamble, before the resolve gate. Computes what this work leaves outstanding
+Run by Phase 3's ledger gate as its preamble, before the resolve gate. Computes what this work leaves outstanding
 by re-scanning the repository at close time, rather than trusting whatever the session happened
 to remember and write into the transcript — then writes each finding into this run's ledger, so
 the ledger's own three-phase resolve gate (`ledger/resolve-gate.md`) has something to enforce on
@@ -16,7 +16,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {
 `bin/residue.js` defaults `--integration-branch` to the literal string `origin/main`, which is
 correct for this repo and wrong for any adopter whose integration branch differs. Resolve `{ref}`
 via `skills/_shared/integration-branch.md`'s canonical ladder before invoking the CLI, the same
-resolution the Step 8.6 auto-merge short-circuit already performs.
+resolution the Review Console's auto-merge short-circuit already performs.
 
 Add `--no-suite` when the project's full test command already ran earlier in this same wrap-up
 (e.g. via `/claude-tweaks:test`) and re-running it would only cost time without new information —
@@ -26,8 +26,8 @@ CLI's own markdown table.
 
 ### Resolving `{base}`
 
-Identical to `summary-template.md`'s existing three-rule base-resolution ladder (State block,
-Step 9) — reuse that ladder by reference rather than restating it here; a second copy drifts from
+Identical to `summary-template.md`'s existing three-rule base-resolution ladder (its State block)
+— reuse that ladder by reference rather than restating it here; a second copy drifts from
 the first the next time either is touched.
 
 ## Writing findings to the ledger
@@ -39,7 +39,7 @@ matching an existing item's phase and description is a duplicate, not a second r
 file exists yet for this run (the standalone case this preamble exists for), create it now via the
 ledger's own Create operation before adding the first item.
 
-**There is no second disposition mechanism here.** Step 8.5's existing three-phase resolve gate
+**There is no second disposition mechanism here.** Phase 3's existing three-phase resolve gate
 (`ledger/resolve-gate.md`) is what assigns each item's eventual disposition, exactly as it already
 does for every other ledger producer (build, test, review, reflect):
 
@@ -85,7 +85,7 @@ skipped probe.
 A probe reporting `ran: false` (no `gh`, an unresolvable scope, a test command that would not run)
 is added as an `observation`-status ledger item, not `open` — there is nothing for Phase 1 or 2 to
 resolve, but `observation` still counts in the ledger's own status summary (`Open: N | Fixed: N |
-... | Observation: N`), so it is never silently dropped. This is the same rule Step 7.9 already
-applies to `audit not run`: a check that never ran is not the same fact as a check that ran clean,
+... | Observation: N`), so it is never silently dropped. This is the same rule the CLAUDE.md & rules
+curation row already applies to `audit not run`: a check that never ran is not the same fact as a check that ran clean,
 and folding the two into one "nothing outstanding" read is exactly the failure this procedure
 exists to prevent.

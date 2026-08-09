@@ -58,4 +58,4 @@ Then, for each finding below, apply the Step 2.5 triage (auto-executable / auth-
 - **Auth-gap items** surface the one-time `{tool} login` command. In `auto` mode, seed as `ops` with `(reason-not-auto: auth-not-configured)`.
 - **Truly manual items** (no CLI, or destructive ops requiring explicit signoff) seed as `ops` with the matching `(reason-not-auto: …)` qualifier. De-duplicate against existing `ops` items.
 
-Items that remain `open` after this step carry through to the final summary and are acknowledged in wrap-up (Step 8.5).
+Items that remain `open` after this step carry through to the final summary and are acknowledged at wrap-up's Phase 3 ledger gate.

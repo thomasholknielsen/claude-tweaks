@@ -49,8 +49,8 @@ Pipeline config snapshot:
 - AUTO 14:52:08 — Step 6: applied 2 journey link suggestions (mechanical mapping). Files: stories/login.yml, stories/logout.yml.
 
 ## /wrap-up
-- AUTO 15:02:18 — Step 4 leftover routing: 2 sections routed to `defer` per policy. Detail: error-handling-edge-cases (cannot finish — external API spec), localization-pass (deferred to spec 45).
-- AUTO 15:02:24 — Step 7 skill updates: applied 1 additive change (new anti-pattern in `auth/SKILL.md`). Restructure to `session-management/SKILL.md` staged at `staged/wrap-up-skill-restructure.md` for review.
+- AUTO 15:02:18 — Leftover routing: 2 sections routed to `defer` per policy. Detail: error-handling-edge-cases (cannot finish — external API spec), localization-pass (deferred to spec 45).
+- AUTO 15:02:24 — Skills row: applied 1 additive change (new anti-pattern in `auth/SKILL.md`). Restructure to `session-management/SKILL.md` staged at `staged/wrap-up-skill-restructure.md` for review.
 ```
 
 ## Entry schema
@@ -112,7 +112,7 @@ The Review Console reads the log file for the current pipeline run:
 2. Read `{run-dir}/decisions.md`
 3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED
 4. List staged artifacts from `{run-dir}/staged/`
-5. Present in the Review Console (see `/wrap-up` Step 8.6)
+5. Present in the Review Console (see `/wrap-up`'s Phase 4)
 
 ## Archival on completion
 
