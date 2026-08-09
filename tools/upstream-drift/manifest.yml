@@ -114,7 +114,8 @@ dependencies:
   # tasks-per-work-unit sizing — no upstream literal encodes a task count
   # (writing-plans' granularity vocabulary is per-step: "bite-sized",
   # "2-5 minutes"); the sizing is local convention, its skill references bare
-  # invocations (inert).
+  # invocations — but the file itself is pinned separately, via assertion 13
+  # (its own, unrelated git rm/add commands).
   - name: superpowers
     kind: claude-plugin
     installed-probe:
@@ -128,6 +129,9 @@ dependencies:
       - "skills/subagent-driven-development/SKILL.md"
       - "skills/subagent-driven-development/implementer-prompt.md"
       - "skills/brainstorming/SKILL.md"
+      - "skills/using-git-worktrees/SKILL.md"
+      - "skills/finishing-a-development-branch/SKILL.md"
+      - "skills/writing-plans/SKILL.md"
     assertions:
       - file: "skills/_shared/subagent-output-contract.md"
         claims: "the four-status vocabulary mirrors SDD's implementer statuses"
