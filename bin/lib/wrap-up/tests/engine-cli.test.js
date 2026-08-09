@@ -269,6 +269,41 @@ test('render --section console with two --spec-state flags prints one merged tab
   assert.match(r.stdout, /^\| 1 \| 157 \|/m);
 });
 
+test('render --section console with --spec-state AND --run-dir exits 2 with usage on stderr', () => {
+  const runDir = planFreshRunDir();
+  const r = run(['render', '--run-dir', runDir, '--section', 'console', '--spec-state', `157=${path.join(runDir, 'engine-state.json')}`]);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /usage: wrap-up-engine\.js/);
+});
+
+test('render --section trace with --spec-state exits 2 with usage on stderr', () => {
+  const runDir = planFreshRunDir();
+  const r = run(['render', '--section', 'trace', '--spec-state', `157=${path.join(runDir, 'engine-state.json')}`]);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /usage: wrap-up-engine\.js/);
+});
+
+test('render --spec-state with a nonexistent path exits 2 naming the failing path, not a stack trace', () => {
+  const r = run(['render', '--section', 'console', '--spec-state', '157=/nonexistent/path.json']);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /157=\/nonexistent\/path\.json|\/nonexistent\/path\.json/);
+  assert.doesNotMatch(r.stderr, /at Object\.<anonymous>/); // not a raw Node stack trace
+});
+
+test('render --spec-state with invalid JSON content exits 2 naming the failing path', () => {
+  const badPath = path.join(makeRunDir(), 'bad.json');
+  fs.writeFileSync(badPath, '{not-json');
+  const r = run(['render', '--section', 'console', '--spec-state', `157=${badPath}`]);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, new RegExp(badPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+test('render --spec-state value with no "=" exits 2 with usage on stderr', () => {
+  const r = run(['render', '--section', 'console', '--spec-state', '157']);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /usage: wrap-up-engine\.js/);
+});
+
 test('render without --run-dir exits 2', () => {
   const r = run(['render']);
   assert.strictEqual(r.status, 2);

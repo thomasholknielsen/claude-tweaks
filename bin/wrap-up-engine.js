@@ -29,6 +29,7 @@ const USAGE = [
   'usage: wrap-up-engine.js plan --run-dir <dir> --base <sha> [--ceremony <profile>] [--skill-budget n] [--doc-budget n] [--signals <json>] [--dry-run]',
   '       wrap-up-engine.js record --run-dir <dir> [--dry-run]   (payload JSON on stdin)',
   '       wrap-up-engine.js render --run-dir <dir> [--strict] [--section trace|console] [--start-at n]',
+  '       wrap-up-engine.js render --section console --spec-state <id>=<path> [--spec-state <id>=<path> ...] [--start-at n] [--strict]   (no --run-dir)',
   '',
 ].join('\n');
 
@@ -215,14 +216,27 @@ function runRender(args) {
   }
 
   if (args.specStates.length > 0) {
+    if (section !== 'console') usageExit(); // AC9: --spec-state only valid with --section console
+    if (args.runDir) usageExit(); // AC8: --spec-state and --run-dir are mutually exclusive
+
     const specStates = [];
     for (const raw of args.specStates) {
       const eq = raw.indexOf('=');
+      if (eq === -1) usageExit(); // AC13: value must be id=path
+
       const specId = raw.slice(0, eq);
       const p = raw.slice(eq + 1);
-      const state = JSON.parse(fs.readFileSync(p, 'utf8'));
+      let state;
+      try {
+        state = JSON.parse(fs.readFileSync(p, 'utf8'));
+      } catch (e) {
+        // AC12: name the failing path, exit 2, never an uncaught exception.
+        process.stderr.write(`wrap-up-engine.js render: could not read engine-state.json from ${p}: ${e.message}\n`);
+        process.exit(2);
+      }
       specStates.push({ specId, state });
     }
+
     const { markdown } = renderConsoleSectionsMulti(specStates, { startAt: args.startAt !== null ? Number(args.startAt) : 1 });
     process.stdout.write(`${markdown}\n`);
     return;
