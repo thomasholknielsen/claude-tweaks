@@ -458,3 +458,126 @@ test('isClosingCommitReverted returns false for an empty or missing git log', ()
   assert.equal(isClosingCommitReverted(['sha-1'], 1, []), false);
   assert.equal(isClosingCommitReverted(['sha-1'], 1, undefined), false);
 });
+
+function sha40(n) {
+  return n.toString(16).padStart(40, '0');
+}
+
+function operationalFixture(number, daysAgo) {
+  return {
+    number,
+    labels: ['by:capture', 'risk:low'],
+    body: '',
+    state: 'CLOSED',
+    closedAt: closedDaysAgo(daysAgo),
+  };
+}
+
+function commitFor(number) {
+  return { sha: sha40(number), message: `refs #${number}` };
+}
+
+test('AC1: operational evidence clears MIN_SAMPLES and grades a class that was insufficient-evidence', () => {
+  const records = Array.from({ length: MIN_SAMPLES }, (_, i) => operationalFixture(i + 1, 15));
+  const gitLog = records.map((r) => commitFor(r.number));
+
+  const short = trustRows(records.slice(0, MIN_SAMPLES - 1), gitLog, NOW, {});
+  assert.equal(short[0].verdict, 'insufficient-evidence');
+
+  const full = trustRows(records, gitLog, NOW, {});
+  assert.equal(full[0].total, MIN_SAMPLES);
+  assert.equal(full[0].operationalGood, MIN_SAMPLES);
+  assert.equal(full[0].dispositioned, MIN_SAMPLES);
+  assert.equal(full[0].verdict, 'clean');
+});
+
+test('AC2: the revert window is inclusive at the boundary, both directions', () => {
+  const atBoundaryRecords = Array.from({ length: MIN_SAMPLES }, (_, i) => operationalFixture(i + 1, 14));
+  const atBoundaryLog = atBoundaryRecords.map((r) => commitFor(r.number));
+  const atBoundary = trustRows(atBoundaryRecords, atBoundaryLog, NOW, {});
+  assert.equal(atBoundary[0].operationalGood, MIN_SAMPLES);
+
+  const oneShortRecords = Array.from({ length: MIN_SAMPLES }, (_, i) => operationalFixture(i + 1, 13));
+  const oneShortLog = oneShortRecords.map((r) => commitFor(r.number));
+  const belowBoundary = trustRows(oneShortRecords, oneShortLog, NOW, {});
+  assert.equal(belowBoundary[0].operationalGood, 0);
+  assert.equal(belowBoundary[0].undispositioned, MIN_SAMPLES);
+});
+
+test('AC3: a reverted closing commit does not count as known-good', () => {
+  const record = operationalFixture(1, 30);
+  const gitLog = [commitFor(1), { sha: sha40(999), message: `This reverts commit ${sha40(1)}.` }];
+  const rows = trustRows([record], gitLog, NOW, {});
+  assert.equal(rows[0].operationalGood, 0);
+  assert.equal(rows[0].undispositioned, 1);
+});
+
+test('AC4: no discoverable closing commit contributes nothing, asserted explicitly', () => {
+  const record = operationalFixture(1, 30);
+  const rows = trustRows([record], [], NOW, {});
+  assert.equal(rows[0].operationalGood, 0);
+  assert.equal(rows[0].undispositioned, 1);
+});
+
+test('AC5: a configured window widens what counts; the default applies when absent; malformed falls back', () => {
+  const record = operationalFixture(1, 15);
+  const gitLog = [commitFor(1)];
+
+  const wider = trustRows([record], gitLog, NOW, { 'trust-revert-window-days': 21 });
+  assert.equal(wider[0].operationalGood, 0, '15-day-old merge must not count under a 21-day window');
+
+  const defaulted = trustRows([record], gitLog, NOW, {});
+  assert.equal(defaulted[0].operationalGood, 1, 'the default (14 days) still applies when the key is absent');
+
+  const malformed = trustRows([record], gitLog, NOW, { 'trust-revert-window-days': 0 });
+  assert.equal(malformed[0].operationalGood, 1, 'a malformed value (0) falls back to the default rather than throwing');
+});
+
+test('AC7: a reopened-then-reclosed record counts against its latest close; still-open contributes nothing', () => {
+  const reclosed = operationalFixture(1, 20);
+  const gitLog = [commitFor(1)];
+  const closedRows = trustRows([reclosed], gitLog, NOW, {});
+  assert.equal(closedRows[0].operationalGood, 1);
+
+  const stillOpen = { ...reclosed, state: 'OPEN' };
+  const openRows = trustRows([stillOpen], gitLog, NOW, {});
+  assert.equal(openRows.length, 0, 'an open record forms no cell at all — trust is about outcomes');
+});
+
+test('AC8: two closing commits, one reverted, disqualifies the whole record (all-or-nothing)', () => {
+  const record = { ...operationalFixture(1, 30), closingCommitShas: [sha40(1), sha40(2)] };
+  const gitLog = [{ sha: sha40(999), message: `This reverts commit ${sha40(2)}.` }];
+  const rows = trustRows([record], gitLog, NOW, {});
+  assert.equal(rows[0].operationalGood, 0);
+});
+
+test('gotcha: one operational known-good among 39 unknowns must not grade a class clean', () => {
+  const good = operationalFixture(1, 30);
+  const rest = Array.from({ length: 39 }, (_, i) => operationalFixture(i + 2, 1)); // too young to count
+  const records = [good, ...rest];
+  const gitLog = [commitFor(1), ...rest.map((r) => commitFor(r.number))];
+  const rows = trustRows(records, gitLog, NOW, {});
+  assert.equal(rows[0].total, 40);
+  assert.equal(rows[0].operationalGood, 1);
+  assert.equal(rows[0].dispositioned, 1);
+  assert.equal(rows[0].verdict, 'insufficient-evidence', 'MIN_VERDICTS=5 must still gate a single operational sample');
+});
+
+test('backward compatibility: trustRows(records) with no gitLog/now/policy behaves exactly as before', () => {
+  const rows = trustRows([
+    { number: 1, labels: ['by:capture', 'risk:low'], body: '', state: 'CLOSED', closedAt: '2020-01-01T00:00:00Z' },
+  ]);
+  assert.equal(rows[0].undispositioned, 1);
+  assert.equal(rows[0].operationalGood, 0);
+  assert.equal(rows[0].verdict, 'insufficient-evidence');
+});
+
+test('demo-descent still wins over operational evidence when both are present', () => {
+  // A demo:approved record never falls through to the operational path —
+  // dispositionState resolves it first, exactly as before this leaf.
+  const record = { ...operationalFixture(1, 30), labels: ['by:capture', 'risk:low', 'demo:approved'] };
+  const gitLog = [commitFor(1)];
+  const rows = trustRows([record], gitLog, NOW, {});
+  assert.equal(rows[0].approved, 1);
+  assert.equal(rows[0].operationalGood, 0);
+});

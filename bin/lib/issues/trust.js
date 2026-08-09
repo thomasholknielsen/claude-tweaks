@@ -7,6 +7,7 @@
 // See docs/superpowers/plans/2026-08-07-supervised-trust-table.md.
 const { resolveProvenance } = require('./provenance.js');
 const { dispositionState } = require('./acceptance.js');
+const { resolveValue } = require('../policy-schema.js');
 
 // At roughly ten closed records per class per month, eight is about a month
 // of evidence — small enough to ever graduate, large enough that one lucky
@@ -236,8 +237,19 @@ function resolveOperationalOutcome(record, gitLog, now, windowDays) {
   return { known: true, grade: 'good', source: 'operational' };
 }
 
-function trustRows(records) {
+// raw policy['trust-revert-window-days'] -> a validated integer >= 1.
+// Malformed-value coercion is owned centrally by bin/lib/policy-schema.js —
+// this is the one place trust.js asks it, and the caller of this function
+// (trustRows, below) trusts what comes back without re-checking it.
+function resolveRevertWindowDays(policy) {
+  const raw = policy && policy['trust-revert-window-days'];
+  return resolveValue('trust-revert-window-days', raw);
+}
+
+function trustRows(records, gitLog, now, policy) {
   const all = Array.isArray(records) ? records : [];
+  const clock = Number.isFinite(now) ? now : Date.now();
+  const windowDays = resolveRevertWindowDays(policy);
   // A decomposed leaf is not independently graded work — its family's parent
   // carries the one verdict. Counting leaves here would let `total >= 8` be
   // satisfied by records nobody judged.
@@ -263,6 +275,7 @@ function trustRows(records) {
         total: 0,
         approved: 0,
         changesRequested: 0,
+        operationalGood: 0,
         undispositioned: 0,
         notPlanned: 0,
         followUps: 0,
@@ -274,9 +287,16 @@ function trustRows(records) {
     if (record.stateReason === 'NOT_PLANNED') cell.notPlanned += 1;
 
     const disposition = dispositionState(record.labels);
-    if (disposition === 'approved') cell.approved += 1;
-    else if (disposition === 'changes-requested') cell.changesRequested += 1;
-    else cell.undispositioned += 1;
+    if (disposition === 'approved') {
+      cell.approved += 1;
+    } else if (disposition === 'changes-requested') {
+      cell.changesRequested += 1;
+    } else {
+      // No demo:* disposition — try the operational path before giving up.
+      const operational = resolveOperationalOutcome(record, gitLog, clock, windowDays);
+      if (operational.known) cell.operationalGood += 1;
+      else cell.undispositioned += 1;
+    }
 
     cellByNumber.set(record.number, cell);
   }
@@ -292,7 +312,7 @@ function trustRows(records) {
   }
 
   const rows = Array.from(cells.values()).map((cell) => {
-    const dispositioned = cell.approved + cell.changesRequested;
+    const dispositioned = cell.approved + cell.changesRequested + cell.operationalGood;
     const coverage = cell.total === 0 ? 0 : dispositioned / cell.total;
     let verdict = 'insufficient-evidence';
     if (
