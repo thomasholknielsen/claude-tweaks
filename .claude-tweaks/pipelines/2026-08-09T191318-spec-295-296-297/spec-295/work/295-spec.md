@@ -172,5 +172,18 @@ actually worked) to a per-firing sequential batch size.
   subagent) — if a future edit reintroduces vagueness here, that is the specific failure mode to
   watch for.
 
+## Build Notes
+
+#222/#268 overlap re-verification at build start (2026-08-09): both #222 and #268 are still
+open, unbuilt records (confirmed via `gh issue view` — both `state: OPEN`, both `ready`) — no
+branch/PR exists yet for either, so disjointness is re-verified against their spec-declared Key
+Files only (as already noted in this spec's own Gotchas), not an actual diff. #222 declares
+skills/dispatch/SKILL.md's `[Use: {Profile}]` grammar line (Step 5's `[Use: ...]` footer) — this
+leaf's Step 5 rewrite replaced the banner and execution-loop paragraph above that line, not the
+line itself; confirmed during implementation that the `[Use: ...]` footer needed no edit. #268
+declares a persist instruction inside settle-and-merge.md's failure-classification section — this
+leaf made no edit to settle-and-merge.md (verified: no concurrent-groups assumption found there
+either). Both remain disjoint from this leaf's actual diff.
+
 
 <!-- work-fingerprint: dispatch-autonomy-model:serialize-group-execution -->
