@@ -169,3 +169,15 @@ Its default is confirmed instead by a parenthetical in a *different* field's doc
 **Takeaway for the runner:** with sandboxing enabled (`runner.js`'s `managedSettings.sandbox`), Bash-tool calls are auto-allowed by the sandbox itself and never reach `canUseTool` at all — confirmed empirically during Task 7.5's real-API validation, before this doc-comment cross-reference was found. This means `runner.js`'s `toolCalls` count (fed by `canUseTool`) structurally undercounts real Bash tool use whenever the sandbox is active — documented as a known limitation in `evals/README.md`'s Safety model section and as a code comment next to `runner.js`'s `toolCalls.push`, not something this harness's own code can close without either setting `autoAllowBashIfSandboxed: false` (reintroducing a prompt for every sandboxed Bash call, which this harness's headless runs cannot answer) or independently instrumenting the sandbox layer itself.
 
 **Superseded by record #46 (2026-08-02):** `autoAllowBashIfSandboxed: false` was adopted in `runner.js`. The "reintroduces a prompt this harness's headless runs cannot answer" reasoning above does not hold — headless runs answer `canUseTool` programmatically via `actor.js`, with no live human prompt involved at any point, so this was never actually a blocker. `evals/scenarios/actor-escape-attempt.yaml` is the confirming live run: `node runner.js run actor-escape-attempt` completed in ~20 seconds with no hang and no unanswered prompt.
+
+## Live-run commands for the two judgment-eval matrices (2026-08-09, refs #115 #180)
+
+Both matrices are wired and proven offline (`node --test tests/` from `evals/`); actually
+measuring the judgments spends real money, one billed agent run per corpus case:
+
+    cd evals && node runner.js run assess-merge-check-matrix          # 8 cases (merge-check verdicts)
+    cd evals && node runner.js run research-consequence-filter-matrix  # 6 cases (consequence filter keep/drop)
+
+A passing run prints one `assess-merge-check-matrix[<case-id>]: PASS` / `research-consequence-filter-matrix[<case-id>]: PASS` line per corpus entry; history recording is on by default (append `--no-record` to skip the `history.jsonl` write).
+
+**Named risk for `assess-merge-check-matrix`'s first live run** (inherited from the 2026-08-08 plan; still unprobed): merge-check's Step 1 shells out to `node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/blast-radius.js')"`. `buildPluginSnapshot()` copies `bin/` into the snapshot, so the file is present — but no scenario has yet demonstrated that `CLAUDE_PLUGIN_ROOT` resolves inside the eval sandbox. If the first live run fails there, the failure is the harness assumption, not the corpus; the consequence-filter matrix does not share this dependency (verify-mode never shells out through the plugin root).
