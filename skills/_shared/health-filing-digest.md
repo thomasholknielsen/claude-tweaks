@@ -4,7 +4,7 @@
 
 All logic lives in `bin/lib/health-core/digest.js` — pure, no I/O, no gh calls. This file only prescribes *when* each consumer's FILE step calls it.
 
-## Step 2 (GATHER OPEN ISSUES) — fold digest fingerprints into the same dedup index
+## GATHER OPEN ISSUES step — fold digest fingerprints into the same dedup index
 
 After building the `{ number, state, labels, fingerprint }` array from the raw `gh issue list` output (the array each consumer already writes to `/tmp/{PREFIX}-open.json`), also expand any open digest issue's embedded checklist fingerprints onto the same array before writing it out:
 
@@ -20,7 +20,7 @@ require('fs').writeFileSync('/tmp/{PREFIX}-open.json', JSON.stringify([...single
 
 This is what makes dedup continuity work with **no separate digest dedup path**: a finding already sitting in the digest issue's checklist now has an entry in the same issue index Step 8's `validate-findings --issues` consults, so `dedup.js`'s existing "open issue match -> skip" branch recognizes it exactly like a singleton match — no re-judging, no duplicate digest entries.
 
-## Step 9 (FILE) — the cap check, before the filing loop
+## FILE step — the cap check, before the filing loop
 
 Compute this origin's current open-singleton count once, before iterating survivors (excludes the digest issue itself and closed issues — never re-count as the loop below adds new ones this run):
 
@@ -43,7 +43,7 @@ For each survivor whose dedup decision (Step 8) is `'file'` (never `'reopen'` �
 
 The retry-queue drain (this skill's FILE step, before this run's own new findings) is subject to the identical check — a queued singleton payload from a prior firing does not bypass the cap just because it was already queued. Extract each retry payload's fingerprint via `extractFingerprint(payload.body)` (`bin/lib/issues/record.js`) and run it through the same `decideFilingMode`/`OPEN_COUNT` logic as a fresh `'file'` decision before attempting `gh issue create` for it.
 
-## Step 10 (SUMMARIZE) — always report the throttle, never let it be silently inferred
+## SUMMARIZE step — always report the throttle, never let it be silently inferred
 
 Add to the summary: `filed: N, digested: M, cap: {CAP}`. Report this line even when `M` is `0` — an absent line is indistinguishable from a forgotten one.
 

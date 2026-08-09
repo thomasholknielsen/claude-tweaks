@@ -87,7 +87,7 @@ Parse each issue body for its fingerprint marker and build an array of `{ number
 
 A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache — which a Routine's fresh container recreates empty, so it covers repeat *local* runs only. The MCP transport above covers the headless path.
 
-**Digest-mode fold.** Before writing `/tmp/code-health-open.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s Step 2 shape (`{PREFIX}` = `code-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 8 rather than being re-judged or re-digested.
+**Digest-mode fold.** Before writing `/tmp/code-health-open.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `code-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 8 rather than being re-judged or re-digested.
 
 **Step 3 — READ THE SLICE.**
 
@@ -273,7 +273,7 @@ run is truly a no-op for all persistence.
 
 **Step 10 — SUMMARIZE.**
 
-Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s Step 10: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
+Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
 
 Also report the slice's read coverage, so the summary can never imply more coverage than the sweep had: the slice id, whether it was read recursively or own-files-only (Step 1's `recursive`), bytes read, and — if Step 3's read budget was reached — every **deferred** file with its size, under a `Deferred (read budget)` heading. When nothing was deferred, say so in one line rather than omitting the section; an absent section is indistinguishable from a forgotten one.
 
