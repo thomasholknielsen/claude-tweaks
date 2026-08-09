@@ -1,7 +1,7 @@
 ---
 name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than in this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files it as a GitHub issue against thomasholknielsen/claude-tweaks after an explicit scrub and confirmation.
-argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run]"
+argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -20,6 +20,9 @@ Lifecycle: `/claude-tweaks:reflect` → **`/claude-tweaks:feedback`** → upstre
   capability, and the lesson would hold in any project using the plugin.
 - A health sweep surfaced a finding whose subject is a claude-tweaks skill
   rather than this project's own code.
+- Invoked bare (no arguments) to check this project's own `upstream-candidate`
+  backlog — findings the health sweeps' headless path already filed locally
+  and left for a human to forward (see Step 0).
 
 Do **not** use this skill to file against any repository other than
 `thomasholknielsen/claude-tweaks`. A learning owned by a third-party dependency
@@ -28,7 +31,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run]`:
+`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue]`:
 
 | Argument | Behavior |
 |----------|----------|
@@ -36,8 +39,22 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=defect` | The plugin does something wrong. Skips Step 2's inference. |
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. |
+| `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
 
 ## Workflow
+
+### Step 0: Local upstream-candidate queue (bare invocation)
+
+When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this project may already hold headless-filed candidates waiting for a human — the health sweeps' Subject check (`_shared/learning-routing.md`) files these locally with `upstream-candidate` plus the sweep's own `by:` label, deliberately without `ready`, precisely because nothing else in the plugin queries them (#239). Check for them before falling back to "gather from the conversation or ask":
+
+```bash
+gh issue list --label upstream-candidate --state open --json number,title,body,labels --limit 50
+```
+
+- **None found:** proceed to Step 1 as usual (gather from the conversation, or ask).
+- **One or more found:** present a batch table (number, title, originating sweep from the `by:*` label) and ask which to forward now — "Apply all" runs each selected issue through Steps 1-8 below in turn (Step 1's gather is seeded from that issue's own body: component and symptom are already in it), then closes the local `upstream-candidate` issue with a comment linking the new upstream issue once Step 8 successfully files it. "None — I have a new learning to report" falls through to Step 1 with whatever free-text was given (or a fresh ask). Selecting individual issues to skip is a normal batch-table override — the interaction convention in CLAUDE.md's Interaction patterns section, not a per-item prompt.
+
+This is what resolves `upstream-candidate`'s dead-write state (#239): the label's own consumer was always meant to be a human eyeball plus a manual `/claude-tweaks:feedback` invocation (`_shared/learning-routing.md`'s Headless-runs paragraph says exactly this), and this step is what makes that eyeball's job a single command instead of a `gh issue list` a human has to remember to run.
 
 ### Step 1: Gather
 

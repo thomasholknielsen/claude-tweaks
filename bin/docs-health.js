@@ -10,6 +10,7 @@ const { loadIssueIndex } = require('./lib/health-core/issue-index');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
+const { makeCmdStatus } = require('./lib/health-core/remembered-status');
 const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
 const { toIssuePayload } = require('./lib/docs-health/issue-payload');
@@ -30,6 +31,7 @@ const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
 const cmdMark = makeCmdMark({
   readCache, writeCache, readDurableState, writeDurableState, toolName: TOOL_NAME,
 });
+const cmdStatus = makeCmdStatus({ readDurableState });
 
 // Confidence rank: lower number = more urgent (highest priority to file).
 // Mirrors bin/lib/code-health/dedup.js's RISK_RANK shape/direction exactly —
@@ -315,6 +317,7 @@ function main(argv) {
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
+  if (cmd === 'status') return cmdStatus(args);
   if (cmd === 'word-count') return cmdWordCount(args);
   if (cmd === 'find-refs') return cmdFindRefs(args);
   if (cmd === 'check-freshness') return cmdCheckFreshness(args);
@@ -324,7 +327,7 @@ function main(argv) {
     'usage: docs-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--dir <path>] [--budget <n>], ' +
     'validate-findings <file> [--target <id>] [--issues <file>] [--min-confidence <level>] [--dry-run], ' +
-    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
+    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, status, ' +
     'word-count <path>, find-refs <path> [--root <dir>], check-freshness <path> [--root <dir>], ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
@@ -333,4 +336,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdWordCount, cmdFindRefs, cmdCheckFreshness, deriveDocId, main };
+module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdStatus, cmdWordCount, cmdFindRefs, cmdCheckFreshness, deriveDocId, main };
