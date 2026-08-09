@@ -137,7 +137,7 @@ The line must stay within **150 characters** — the budget
 
 **Never auto.** A memory write is cross-project and always-loaded; a wrong one
 silently degrades every future session in every project. Stage it and surface it
-for explicit approval. See `_shared/auto-mode-contract.md`.
+for explicit approval. See `_shared/auto-mode-card.md`.
 
 ## Subject check (health sweeps)
 

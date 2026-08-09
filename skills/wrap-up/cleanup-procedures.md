@@ -222,7 +222,7 @@ section harmlessly there, before the delete is attempted, logging the misleading
 Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
-`_shared/github-pr-scan.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
+`_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
 skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
 `gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
 stop before attempting any release.

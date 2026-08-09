@@ -224,7 +224,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
 
 Being inside a pipeline never relaxes Steps 6 and 7. `auto` mode does not
-silence this skill — see `_shared/auto-mode-contract.md`.
+silence this skill — see `_shared/auto-mode-card.md`.
 
 ## Anti-Patterns
 

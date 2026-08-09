@@ -199,7 +199,7 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 
 The same condition gates `nothing-left-behind.md` in this skill's directory — wrap-up's own wrapper around that gate: the item-existence rationale, the hard requirements (Phase 1 fix-exhaust before any user-facing output, Phase 2's mandatory per-item input, and what `auto` never silences), the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step with its `unattended-tier` branch. When the gate is closed, read neither file.
 
-The ledger resolve gate's own Phase 2 per-item input stays **outside** the Review Console, per `_shared/auto-mode-contract.md`'s never-silenced list.
+The ledger resolve gate's own Phase 2 per-item input stays **outside** the Review Console, per `_shared/auto-mode-card.md`'s never-silenced list.
 
 ### Newly unblocked records (formerly Step 8, record mode only)
 
@@ -247,7 +247,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" render --run-dir "$PIPELINE_R
 
 (Substitute the re-resolved run-dir path — env assignments do not survive between calls.)
 
-Insert that output verbatim as the Phase 2 table. `--strict` prints the table first and then exits 2 if any worklist row has no recorded result, so a hole is visible *and* fatal. Under the prose fallback, compose the table by hand per `curation-engine.md` section 6 and caption it `(engine unavailable — prose fallback ran)`.
+Insert that output verbatim as the Phase 2 table. `--strict` prints the table first and then exits 2 if any worklist row has no recorded result, so a hole is visible *and* fatal. **Re-read cut:** when every row scanned clean or gate-closed (nothing to update anywhere), the render collapses to one line — `{N} rows scanned, 0 findings — nothing to update.` — instead of an N-row table that would otherwise be all `n/a`/`Clean` (`engine-render.js`'s `renderTrace`). A single row carrying findings, or a row with no recorded result at all, always forces the full table — the collapse never hides a real outcome. Under the prose fallback, compose the table by hand per `curation-engine.md` section 6 and caption it `(engine unavailable — prose fallback ran)`.
 
 **Read the template.** Read `summary-template.md` in this skill's directory for the report's full shape and its conversation-mode variant. This read is unconditional — the report renders on every run.
 

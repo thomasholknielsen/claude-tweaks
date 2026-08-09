@@ -48,7 +48,7 @@ report under `.claude-tweaks/research/`.
 
 ## Mode Picker
 
-If `--mode=` is absent, first check whether this run should skip the interactive prompt entirely: when `auto` mode is active or `$PIPELINE_RUN_DIR` is set, resolve the mode via `_shared/auto-mode-contract.md`'s decision precedence — the pipeline config's research-mode value if set, else project policy's default, else `standard` — and log the choice to the run's auto-decision log instead of prompting. This keeps `/claude-tweaks:research` from introducing an unplanned mid-flow stop under `auto`, consistent with the Component-Skill Contract's existing pipeline-awareness for Next Actions.
+If `--mode=` is absent, first check whether this run should skip the interactive prompt entirely: when `auto` mode is active or `$PIPELINE_RUN_DIR` is set, resolve the mode via `_shared/auto-mode-card.md`'s decision precedence — the pipeline config's research-mode value if set, else project policy's default, else `standard` — and log the choice to the run's auto-decision log instead of prompting. This keeps `/claude-tweaks:research` from introducing an unplanned mid-flow stop under `auto`, consistent with the Component-Skill Contract's existing pipeline-awareness for Next Actions.
 
 Otherwise, call `AskUserQuestion` with `question`: `'Mode for "<topic>":'`, `header`: `"Research mode"`, `multiSelect`: `false`, and:
 

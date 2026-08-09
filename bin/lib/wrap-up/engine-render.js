@@ -66,9 +66,38 @@ function formatDetailCell(entry) {
   return entry.detail || '';
 }
 
+// A row is "empty" for collapse purposes when it produced nothing worth a
+// human reading a dedicated line for: gate-closed (na) or judged clean with
+// zero findings. A MISSING row (never judged) is never empty — collapsing
+// that away would hide the one genuinely bad outcome this table can show.
+// 'clean' is not assumed finding-free by construction (validatePayload does
+// not forbid a 'clean' payload from carrying a findings array) — count it
+// defensively, the same way formatResultCell counts 'findings' results.
+function isRowEmpty(entry) {
+  if (!entry) return false;
+  if (entry.result === 'na') return true;
+  if (entry.result === 'clean') {
+    const { applied, staged } = findingCounts(entry.findings);
+    return applied === 0 && staged === 0;
+  }
+  return false;
+}
+
 function renderTrace(state) {
   const rows = worklistRows(state.worklist);
   const results = state.results || {};
+
+  // Re-read cut: seven-plus per-row SCANNED-equivalent lines collapse to one
+  // summary when the run produced literally nothing — the common case for a
+  // small or config/docs-only diff. Any MISSING or non-empty row still
+  // renders the full table, so a real problem or a real finding is never
+  // hidden behind the summary.
+  if (rows.length > 0 && rows.every((row) => isRowEmpty(results[row.id]))) {
+    const markdown = `${rows.length} row${rows.length === 1 ? '' : 's'} scanned, 0 findings — nothing to update.`;
+    assertCleanVocabulary(markdown, 'renderTrace');
+    return markdown;
+  }
+
   const lines = ['| Target | Result | Detail |', '|--------|--------|--------|'];
 
   for (const row of rows) {

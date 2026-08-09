@@ -14,7 +14,7 @@ Called by `/claude-tweaks:tidy` as one scan step (Step 4.9). Takes **no target**
 
 **This mode invokes `doctor.mjs --json` and never `doctor.mjs --fix`.**
 
-The reason, so a later reader does not add `--fix` as an obvious convenience: `--fix` writes to `PRODUCT.md` on disk, and editing a user's project files on a third party's judgment is exactly the file-modifying decision `_shared/auto-mode-contract.md` reserves for an explicit human approval. `auto`-severity findings are surfaced as staged proposals carrying their own `fix` text — the user runs `--fix` themselves if they want it.
+The reason, so a later reader does not add `--fix` as an obvious convenience: `--fix` writes to `PRODUCT.md` on disk, and editing a user's project files on a third party's judgment is exactly the file-modifying decision `_shared/auto-mode-card.md` reserves for an explicit human approval. `auto`-severity findings are surfaced as staged proposals carrying their own `fix` text — the user runs `--fix` themselves if they want it.
 
 This holds even though upstream calls `auto` migrations "the ones with no judgment in them." Whether *Impeccable* needs judgment to apply a migration and whether *this wrapper* may apply it unattended are different questions, and only the second one is ours.
 

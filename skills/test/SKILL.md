@@ -62,6 +62,7 @@ When running inside a `/claude-tweaks:flow` pipeline, `/test` reads context from
 | Variable | Source | Effect |
 |----------|--------|--------|
 | `VERIFICATION_PASSED` | Set by `/claude-tweaks:build` Common Step 5 | Skip types/lint/tests — they already passed in build. QA still runs if stories exist. |
+| `VERIFICATION_SHA` | Set by `/claude-tweaks:build` Common Step 5, alongside `VERIFICATION_PASSED` | The commit build's verification ran against. Compared to current `HEAD` before honoring the skip (see `verification.md`'s "Skip-if-recent") — a mismatch means the tree changed since build passed, and verification re-runs instead of skipping. |
 | `STORIES_DIR` | Set by `/claude-tweaks:stories` or auto-detected | Directory containing QA story YAML files |
 | `DEV_URL` | Set by `/claude-tweaks:stories` or auto-detected | Dev server URL for QA execution |
 

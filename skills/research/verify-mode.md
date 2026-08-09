@@ -150,7 +150,7 @@ design-changing thing the run surfaces.
 
 ## Auto-mode behavior
 
-Survey depth resolves through the standard chain in `skills/_shared/auto-mode-contract.md` —
+Survey depth resolves through the standard chain in `skills/_shared/auto-mode-card.md` —
 **CLI arg > pipeline config > project policy > skill default** — never by prompting:
 
 1. **CLI arg** — an explicit `--mode=` on this invocation always wins.

@@ -49,7 +49,7 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 | `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic ref, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
-| `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-contract.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
+| `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
 
 ## Preflight
@@ -62,7 +62,7 @@ Read the project's `work-backend` config key (per `_shared/work-record-config.md
 
 Skip this entirely for the bare / `#N` / `#N,#M,...` forms — those always run with a human present (per the Input table above), so they just report the failing check and stop; self-filing is `next`-only.
 
-Before any `gh`/MCP command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3:
+Before any `gh`/MCP command, run the Detection Ladder from `_shared/forge-detection.md` (checks 1-3:
 GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Check 1 (GitHub
 remote exists) and check 3 (authenticated + reachable, evaluated against whichever transport
 check 2 selects) stay hard gates — there is no meaningful degraded mode for a skill whose entire
@@ -185,7 +185,7 @@ The `bot:*` filter here is the cheap label-based pre-filter — labels are proje
 | 2 | singleton | #130 | — | yes |
 ```
 
-Resolve `{effective-concurrent}` first — `--concurrent <n>` if present on this invocation (Input table above), else `dispatch-pick-max-concurrent` from Configuration below (CLI arg beats project policy, per `_shared/auto-mode-contract.md`'s precedence order). Then one `AskUserQuestion`:
+Resolve `{effective-concurrent}` first — `--concurrent <n>` if present on this invocation (Input table above), else `dispatch-pick-max-concurrent` from Configuration below (CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order). Then one `AskUserQuestion`:
 
 - `question`: `"Which groups should this firing dispatch (up to {effective-concurrent} concurrently)?"`, `header`: `"Dispatch pick"`, `multiSelect`: `true`
 - One option per group — `label`: the group's record numbers (e.g. `"#123, #124"`), `description`: titles + priority + whether it carries `auto:merge`. Pre-mark the top `{effective-concurrent}` groups, ranked by the `next` ordering below, as `(Recommended)`.
@@ -350,7 +350,7 @@ These four rows mirror `_shared/work-record-config.md`'s canonical key table (wh
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
 
-**Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-contract.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
+**Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 
 ## Routine Configuration
 

@@ -236,7 +236,7 @@ Queue writes below — do not drop it.
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The per-item sections that follow them — Queue writes, Memory updates, Upstream feedback — each require per-item approval, because `_shared/auto-mode-contract.md` lists work-record creation, memory writes, and upstream filing as not silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The per-item sections that follow them — Queue writes, Memory updates, Upstream feedback — each require per-item approval, because `_shared/auto-mode-card.md` lists work-record creation, memory writes, and upstream filing as not silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -356,7 +356,7 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 Render this section only when leftover routing or another step (e.g. `/reflect`'s
 tangential-idea routing) has proposed a new work record **and it wasn't already auto-filed by the
 Unattended-tier auto-file step above**. Each remaining row gets its own prompt — bulk
-approval is forbidden per `_shared/auto-mode-contract.md`'s work-record-creation row. The exact
+approval is forbidden per `_shared/auto-mode-card.md`'s work-record-creation row. The exact
 write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto
 the unified record system — its own destination) lives in the producing skill's own staged
 file; this table only needs enough to render the prompt.
@@ -381,7 +381,7 @@ Render this section only when the Memory curation row staged a memory-file propo
 |---|---|---|---|---|---|
 | M1 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `staged/wrap-up-memory-1.md` |
 
-> A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project. `_shared/auto-mode-contract.md` lists it as not silenced by `auto`.
+> A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project. `_shared/auto-mode-card.md` lists it as not silenced by `auto`.
 
 #### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
@@ -459,5 +459,5 @@ Cleanup rows that are unconditional bookkeeping — run-dir archival, `cleanup-p
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run at Phase 4's execution step, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
+- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-card.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
 - **An `[adr-convention]` row is also per-item**, despite sitting inside Configuration updates. Never fold it into "Approve all" and never pick one of its three options as a default — an unanswered row blocks the `[adr]` rows from the same run rather than resolving them, because their paths depend on the answer.

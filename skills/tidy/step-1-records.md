@@ -113,7 +113,7 @@ It is the local twin of Step 4.8's `family-gate` scope (`_shared/github-pr-scan.
 finding, same `[family-gate]` prefix, same `Open family gate` action; only the store differs. It
 lives in this step rather than that file because that file is skipped whole whenever `gh` is
 absent, and a sweep needing no `gh` must not inherit that skip; that scope's own header states
-the full reasoning, including what its Detection Ladder does and does not gate on.
+the full reasoning, including what `_shared/forge-detection.md`'s Detection Ladder (which that scope runs behind) does and does not gate on.
 
 Classification is entirely `familyGateState`'s (`bin/lib/issues/acceptance.js`) — do not
 reimplement it. That predicate is backend-agnostic: it takes `{leaves, parentLabels}`, and a

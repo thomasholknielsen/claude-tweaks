@@ -33,7 +33,7 @@ Check if the work introduced project-wide conventions:
 4. Stack changes (new dependencies actually added)
 5. Path-scoped rules for `.claude/rules/`
 
-Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to a new backlog record (no stage label — the unified taxonomy's equivalent of the pre-migration "inbox" destination; per `_shared/work-record.md`), not CLAUDE.md — subject to the same per-item work-record-creation approval as any other new record (`_shared/auto-mode-contract.md`).
+Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to a new backlog record (no stage label — the unified taxonomy's equivalent of the pre-migration "inbox" destination; per `_shared/work-record.md`), not CLAUDE.md — subject to the same per-item work-record-creation approval as any other new record (`_shared/auto-mode-card.md`).
 
 **For a new Don't, write the incident account before the rule.** Put the specifics — which build, how it was caught, what it cost — wherever this project keeps that evidence (an incident log if it has one, otherwise the work record or the commit message), then compress to what lands in CLAUDE.md: one sentence of rule, one clause of why. The order is the whole point. Write the rule first and the vivid detail leaks into it clause by clause, and CLAUDE.md is paid for by every session *and* every dispatched subagent, so that leak is charged per agent. Length here is not a style preference.
 

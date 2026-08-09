@@ -140,7 +140,7 @@ There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (t
 
 ## Stage 4.5: Current PR (GitHub)
 
-Scan per `_shared/github-pr-scan.md`, **`current-pr`** scope. The dispatcher inlines that file's Detection Ladder, `current-pr` scope section, and Output Contract into this agent's prompt — subagents cannot read sibling files.
+Scan per `_shared/github-pr-scan.md`, **`current-pr`** scope. The dispatcher inlines `_shared/forge-detection.md`'s Detection Ladder plus that file's `current-pr` scope section and Output Contract into this agent's prompt — subagents cannot read sibling files.
 
 - Detection ladder runs first — any failure emits a single info row (`GitHub scan skipped — {reason}`) and the stage completes normally (fail-open, never BLOCKED)
 - Current branch's PR: review decision, failing/pending CI checks, unresolved review-thread count, linked issues
@@ -153,7 +153,7 @@ Cheap counts only — detail stays `/claude-tweaks:backlog`'s and `/tidy`'s job,
 not `/help`'s. Skip silently (same fail-open detection ladder as Stage 4.5)
 when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
+Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines `_shared/forge-detection.md`'s Detection Ladder plus that file's `triage-queue` scope section and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
 
 ## Stage 4.7: Acceptance Queue (GitHub)
 
@@ -163,8 +163,8 @@ session's own recall-detected work, or one explicit `#N`), so this stage is the 
 surface for which records are outstanding. Skip silently (same fail-open detection ladder as
 Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines that
-file's Detection Ladder, `acceptance-queue` scope section, and one-line render format into this
+Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines
+`_shared/forge-detection.md`'s Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into this
 agent's prompt — subagents cannot read sibling files.
 
 ## Stage 4.8: Trust Table (GitHub)
@@ -176,8 +176,8 @@ Ladder or `gh` call runs in that case, and the dashboard's Trust Table section i
 `github-issues`, skip silently (same fail-open Detection Ladder as Stage 4.5/4.6/4.7) when `gh` is
 unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Run the same three-check Detection Ladder as Stage 4.5/4.6/4.7 (`_shared/github-pr-scan.md`'s
-Detection Ladder section — the dispatcher inlines it into this agent's prompt) before the fetch
+Run the same three-check Detection Ladder as Stage 4.5/4.6/4.7 (`_shared/forge-detection.md` —
+the dispatcher inlines it into this agent's prompt) before the fetch
 below. On the first failing check, return the status line plus the literal text `GitHub scan
 skipped — {reason}` and stop.
 
