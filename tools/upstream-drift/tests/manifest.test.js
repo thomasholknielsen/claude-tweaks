@@ -399,6 +399,6 @@ test('P3: quoted values containing colons are unaffected, and the real manifest.
   const result = loadManifest(realManifestPath);
   assert.deepStrictEqual(
     result.dependencies.map((d) => d.name),
-    ['impeccable-cli', 'impeccable-plugin'],
+    ['impeccable-cli', 'impeccable-plugin', 'superpowers'],
   );
 });
