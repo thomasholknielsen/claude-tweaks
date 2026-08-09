@@ -454,14 +454,21 @@ function gitInit(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);
 }
 
+// Shared by every fixture below that needs a real git repo (as opposed to the
+// "no git init" test, which calls tmp() directly).
+function tmpGitRepo() {
+  const root = tmp();
+  gitInit(root);
+  return root;
+}
+
 // ── AC1: a fixture tree with a known dead export, a live export, an orphan
 // file, an entrypoint, and a gitignored file yields EXACTLY the dead export +
 // orphan as candidates. Deliberately unambiguous per AC6 — no re-export or
 // dynamic-require proximity anywhere in this tree.
 
 function buildAc1Fixture() {
-  const root = tmp();
-  gitInit(root);
+  const root = tmpGitRepo();
   fs.writeFileSync(path.join(root, '.gitignore'), 'ignored.js\n');
 
   // Live export ('usedFn') + dead export ('deadFn') in the same file.
@@ -534,8 +541,7 @@ test('AC1/Gotchas: a NUL-byte file is skipped, never a candidate, and reported i
 // fixtures containing them, kept structurally separate from the AC1 tree above.
 
 test('AC2: a bin/hooks.js-style computed require makes its dynamically-loaded target an entrypoint (no candidate, no crash)', () => {
-  const root = tmp();
-  gitInit(root);
+  const root = tmpGitRepo();
   fs.mkdirSync(path.join(root, 'bin', 'lib', 'hooks'), { recursive: true });
   fs.writeFileSync(
     path.join(root, 'bin', 'hooks.js'),
@@ -550,8 +556,7 @@ test('AC2: a bin/hooks.js-style computed require makes its dynamically-loaded ta
 });
 
 test('AC2: a spread-based barrel re-export beyond one hop produces no candidate and no crash', () => {
-  const root = tmp();
-  gitInit(root);
+  const root = tmpGitRepo();
   fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.writeFileSync(path.join(root, 'lib', 'a.js'), 'function fromA() { return 1; }\nmodule.exports = { fromA };\n');
@@ -582,8 +587,7 @@ test('FOCUS_GENERATORS: registers "dead-code" mapped to scanDeadCode (the rich {
 // ── Zero-candidates is a clean no-op, not a crash ───────────────────────────
 
 test('an empty tree (git repo, no source files) returns zero candidates with scannedFiles: 0', () => {
-  const root = tmp();
-  gitInit(root);
+  const root = tmpGitRepo();
   const { candidates, scannedFiles, skippedFiles } = scanDeadCode(root);
   assert.deepStrictEqual(candidates, []);
   assert.strictEqual(scannedFiles, 0);
@@ -619,8 +623,7 @@ test('scannedFiles counts every tracked source file considered, skipped ones inc
 // `git ls-files --others` but throws on read — the one shape that reaches the
 // read-failure branch, which no fixture above exercises at all.
 test('an unreadable file is skipped with reason "unreadable", never a candidate, and never crashes the scan', () => {
-  const root = tmp();
-  gitInit(root);
+  const root = tmpGitRepo();
   fs.writeFileSync(path.join(root, 'orphan.js'), 'function f() {}\nmodule.exports = { f };\n');
   fs.symlinkSync(path.join(root, 'nonexistent-target.js'), path.join(root, 'dangling.js'));
   const { candidates, skippedFiles } = scanDeadCode(root);
@@ -637,8 +640,7 @@ test('an unreadable file is skipped with reason "unreadable", never a candidate,
 // beta-then-alpha and therefore extracted (and pushed) in that order, so an
 // unsorted result emits them backwards.
 test('candidates are emitted in a deterministic file-then-symbol order', () => {
-  const root = tmp();
-  gitInit(root);
+  const root = tmpGitRepo();
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
   // Entrypoint — keeps lib/multi.js off the orphan list so its exports get checked.
