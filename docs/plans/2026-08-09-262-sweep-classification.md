@@ -1,7 +1,9 @@
 # Sweep classification — record #262 (denominator: 124 files)
 
-Command: `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md'`
+Command: `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md'`
 Run at: `12bb612fa4d183715aabee1983511455d250cbae`
+
+The third exclusion clause is self-reference: once this ledger file is committed, it necessarily contains the word "superpowers" dozens of times (it's a table classifying files that say "superpowers"), so it would otherwise match its own defining grep and inflate the count to 125. This mirrors the `docs/incident-log.md` exclusion already in the command — both are files that quote the search term about the files the command finds, not files that depend on superpowers content themselves.
 
 Installed superpowers artifact used for all literal verification: `~/.claude/plugins/cache/claude-plugins-official/superpowers/6.2.0/`.
 
@@ -165,6 +167,8 @@ The six known assertions (1–6) come from the plan brief verbatim. Assertions 7
 
 ## Parity check
 
-Step 1 command line count (re-run at Step 4): `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' | wc -l` → **124**
+Step 1 command line count (re-run at Step 4, corrected 3-clause form — see fix round 1 below): `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md' | wc -l` → **124**
 Table data rows (excluding header/separator): **124**
 Match: confirmed — no tree movement between Steps 1 and 3 in this session.
+
+**Fix round 1 (self-reference correction):** the original 2-clause command (matching the plan brief's Step 1 literal at commit time) returns **125** once this ledger file itself is committed — the ledger necessarily contains the word "superpowers" throughout its own table, so it matches its own defining grep. Added `':!docs/plans/2026-08-09-262-sweep-classification.md'` as a third exclusion clause (see the Command line above), mirroring the existing `docs/incident-log.md` self-reference exclusion. With the corrected 3-clause command, the count returns to 124, matching the table unchanged — no row content was affected, only the documented command.

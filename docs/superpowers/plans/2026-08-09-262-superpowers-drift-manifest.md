@@ -33,8 +33,10 @@
 Run from the worktree root:
 
 ```bash
-git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md'
+git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md'
 ```
+
+The third exclusion is self-reference: once the ledger file this task creates is committed, it necessarily contains the word "superpowers" throughout its own classification table, so it would otherwise match its own defining grep and inflate the count by one — the same class of problem `docs/incident-log.md` is already excluded for. Exclude the ledger's own path from the start rather than discovering the off-by-one after commit.
 
 Record the exact file count N (was 119 at plan time; recompute — the tree has moved). This N is the denominator: the classification table MUST have exactly N rows (spec AC3).
 
@@ -66,7 +68,7 @@ If a file's claim is pin-worthy but not already covered by assertions 1–6, der
 ```markdown
 # Sweep classification — record #262 (denominator: N files)
 
-Command: `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md'`
+Command: `git grep -il superpowers -- ':!docs/superpowers' ':!docs/incident-log.md' ':!docs/plans/2026-08-09-262-sweep-classification.md'`
 Run at: {commit sha of worktree HEAD when run}
 
 | File | Verdict | Detail |
