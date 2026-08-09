@@ -20,7 +20,7 @@ tools/upstream-drift/manifest.yml
               judge-procedure.md                capability findings
 ```
 
-**Lifecycle:** utility, no fixed position. Runs standalone today; `#143` will add the runner, version-driven triggers, and issue filing that make it schedulable.
+**Lifecycle:** utility, no fixed position. Runs standalone, or on a schedule via `tools/upstream-drift/run.js` — the runner decides which dependencies are DUE from version movement and emits issue payloads on stdout for the caller to file.
 
 `allowed-tools` is declared to **restrict**, per CLAUDE.md: `Edit` and `Write` are deliberately absent, which is what makes "never edits anything" a contract rather than a promise. `Task` is present because Step 2 dispatches — a declared set that omits a tool the skill actually uses is a bug, not a tighter restriction.
 
@@ -32,7 +32,7 @@ tools/upstream-drift/manifest.yml
 - You want to know what upstream can do that this repo has never used — the class of finding no assertion can produce, because there is nothing yet to assert against.
 - A pin in `tools/upstream-drift/manifest.yml` changed, or you added an entry, and you want to see what the checks say about it now.
 
-Not for: editing upstream, editing `skills/**`, or filing issues. This skill produces findings; `#143` owns turning them into `by:upstream-drift` GitHub issues. Not for auditing this repo's own harness documentation — that is `/claude-tweaks:harness-health`.
+Not for: editing upstream, or editing `skills/**`. This skill produces findings; when they should become `by:upstream-drift` GitHub issues, `tools/upstream-drift/run.js` emits the deduplicated payloads on stdout and the caller — this skill's user, or a human piping the output — files them. Not for auditing this repo's own harness documentation — that is `/claude-tweaks:harness-health`.
 
 ## Input
 
@@ -104,7 +104,7 @@ Under `--json`, emit the findings array from `judge-procedure.md` step 8 instead
 
 Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
-- Option 1 — `label`: `"File the findings"`, `description`: `"/claude-tweaks:capture — capture the capability findings as backlog records; the automated by:upstream-drift filing path arrives with #143"`. Suffix the label `(Recommended)` when any finding is `severity: high`.
+- Option 1 — `label`: `"File the findings"`, `description`: `"/claude-tweaks:capture — capture the capability findings as backlog records; drift findings can instead ride tools/upstream-drift/run.js, which emits deduplicated by:upstream-drift issue payloads on stdout for the caller to file"`. Suffix the label `(Recommended)` when any finding is `severity: high`.
 - Option 2 — `label`: `"Take the upgrade"`, `description`: `"/claude-tweaks:capture 'upgrade {dep.name} to {latest-tag} and re-pin tools/upstream-drift/manifest.yml' — record the upgrade itself as work"`. Suffix `(Recommended)` when the drift table is empty and the capability table is not.
 - Option 3 — `label`: `"Audit one dependency"`, `description`: `"/upstream-drift --dep <name> — re-run against a single manifest entry"`
 - Option 4 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold anything captured into a backlog-hygiene pass"`
@@ -113,7 +113,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 `/upstream-drift` is a **standalone-only** skill today — nothing in this repo invokes it, and `docs/skill-graph.md` records no edge to it. The `## Next Actions` block always renders.
 
-`#143` (runner, version-driven triggers, issue filing) is the first foreseen parent. When it lands it must set `--source upstream-drift-runner`, and this contract must then gate `## Next Actions` on that flag — the runner owns the handoff once it exists. `$PIPELINE_RUN_DIR` is **not** the right signal here: that variable marks a `/claude-tweaks:flow` pipeline run, and this skill's runner is a scheduled sweep, not a pipeline orchestrator.
+The runner (`tools/upstream-drift/run.js`) is not a parent either: it never invokes this skill — the split runs the other way, with the runner emitting issue payloads on stdout and the skill (or a human piping the output) filing them. No runner-set flag exists, so nothing gates `## Next Actions` on one. `$PIPELINE_RUN_DIR` is **not** a signal here either: that variable marks a `/claude-tweaks:flow` pipeline run, and a scheduled drift sweep is not a pipeline orchestrator.
 
 ## Anti-Patterns
 
