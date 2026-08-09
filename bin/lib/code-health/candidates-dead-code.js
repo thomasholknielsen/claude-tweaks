@@ -24,6 +24,16 @@
 //     share one line (e.g. a self-recursive function called nowhere else)
 //     reads as unreferenced, since the whole line is skipped as a
 //     definition — correct for the export question being asked.
+//   - Orphan-file detection is specifier-NAME-based, not module-resolution
+//     based: a file counts as referenced when any other tracked file's
+//     require/import specifier ends in its basename (extension-insensitive),
+//     whatever directory that specifier points at. Two same-named files in
+//     different directories therefore rescue each other, and a stale
+//     commented-out import rescues its target — both accepted false
+//     negatives. A directory index (`x/index.js`) additionally accepts its
+//     own directory's name, since `require('./x')` is the only form that
+//     ever names it. Files nothing statically names but something invokes
+//     externally are the entrypoint rules' job, not this function's.
 //   - Dynamic patterns are out of scope by construction: a computed
 //     `require(x + y)` call site is never treated as a static reference to
 //     whatever it might load at runtime, and a spread-based barrel
@@ -228,4 +238,63 @@ function isReferenced(symbol, declFile, declRange, allFiles, contentsByFile) {
   return false;
 }
 
-module.exports = { detectEntrypoints, extractPathLikeStrings, collectStrings, extractModuleExports, isReferenced, escapeRegExp };
+// Every quoted specifier string that follows a `require(`, dynamic `import(`,
+// `from `, or bare side-effect `import ` token in `text` — deliberately loose
+// (matches inside a spread call, a destructured import, a comment, anywhere)
+// since the only use is "does some specifier's last path segment name this
+// file", not full JS parsing. A loose extra match can only make a file read as
+// referenced, which is the accepted false-negative direction. The
+// side-effect-only `import './x.js'` form has neither `from` nor a
+// parenthesis, so it needs its own alternative — without it an
+// imported-for-effect file reads as orphan, the direction the spec forbids.
+// The regex is built per call (as in extractPathLikeStrings and
+// extractModuleExports above) rather than hoisted: a `/g` regex carries
+// mutable `lastIndex`, and module-level shared state there truncates a later
+// scan if any caller ever leaves the loop early.
+function referencedFileSpecifiers(text) {
+  const re = /(?:require\s*\(|import\s*\(|from\s+|import\s+)\s*['"`]([^'"`]+)['"`]/g;
+  const specs = [];
+  let m;
+  while ((m = re.exec(text))) specs.push(m[1]);
+  return specs;
+}
+
+function basenameNoExt(p) {
+  return path.basename(p).replace(/\.(js|ts|tsx|jsx|mjs|cjs)$/, '');
+}
+
+// True if no other file in `allFiles` require/import-references `relFile` —
+// compared by exact basename-without-extension equality on the LAST path
+// segment of each discovered specifier (never a substring/identifier-boundary
+// regex against the whole basename, which would match a short name like "a"
+// inside an unrelated word like "barrel"). A directory index additionally
+// accepts its directory's own name, since `require('./lib')` names
+// `lib/index.js` without the string "index" appearing anywhere.
+function isFileOrphan(relFile, allFiles, contentsByFile) {
+  const base = basenameNoExt(relFile);
+  const names = new Set([base]);
+  if (base === 'index') {
+    const dirName = path.basename(path.dirname(relFile));
+    if (dirName && dirName !== '.') names.add(dirName);
+  }
+  for (const other of allFiles) {
+    if (other === relFile) continue;
+    const text = contentsByFile.get(other);
+    if (!text) continue;
+    for (const spec of referencedFileSpecifiers(text)) {
+      if (names.has(basenameNoExt(spec))) return false;
+    }
+  }
+  return true;
+}
+
+module.exports = {
+  detectEntrypoints,
+  extractPathLikeStrings,
+  collectStrings,
+  extractModuleExports,
+  isReferenced,
+  escapeRegExp,
+  isFileOrphan,
+  referencedFileSpecifiers,
+};

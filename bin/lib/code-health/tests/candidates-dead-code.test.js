@@ -322,3 +322,127 @@ test('isReferenced: an unrelated `$`-prefixed identifier is not a use of the bar
   const allFiles = ['lib/a.js', 'lib/b.js'];
   assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), false);
 });
+
+const { isFileOrphan, referencedFileSpecifiers } = require('../candidates-dead-code');
+
+// ── isFileOrphan ──────────────────────────────────────────────────────────────
+
+test('isFileOrphan: a file required by another file (relative path, any depth) is not orphan', () => {
+  const contentsByFile = new Map([
+    ['lib/used.js', 'module.exports = {};\n'],
+    ['bin/main.js', "const used = require('../lib/used');\n"],
+  ]);
+  const allFiles = ['lib/used.js', 'bin/main.js'];
+  assert.strictEqual(isFileOrphan('lib/used.js', allFiles, contentsByFile), false);
+});
+
+test('isFileOrphan: a file nothing requires is orphan', () => {
+  const contentsByFile = new Map([
+    ['orphan.js', 'module.exports = { orphanFn: () => 1 };\n'],
+    ['other.js', 'module.exports = {};\n'],
+  ]);
+  const allFiles = ['orphan.js', 'other.js'];
+  assert.strictEqual(isFileOrphan('orphan.js', allFiles, contentsByFile), true);
+});
+
+test('isFileOrphan: a short basename is not falsely matched inside an unrelated longer name (no substring false-positive)', () => {
+  const contentsByFile = new Map([
+    ['a.js', "function fromA() {}\nmodule.exports = { fromA };\n"],
+    ['barrel.js', "module.exports = { ...require('./a') };\n"],
+    ['main.js', "const x = require('./barrel');\n"],
+  ]);
+  const allFiles = ['a.js', 'barrel.js', 'main.js'];
+  // 'a' is a substring of 'barrel', 'main' etc. — must not count as a match
+  // unless it is genuinely the last path segment of a require/import specifier.
+  assert.strictEqual(isFileOrphan('a.js', allFiles, contentsByFile), false, 'a.js IS required (by barrel.js) — must not be orphan');
+});
+
+test('isFileOrphan: an ES-module `from` specifier also counts as a reference', () => {
+  const contentsByFile = new Map([
+    ['lib/util.js', 'export function helper() {}\n'],
+    ['src/app.js', "import { helper } from '../lib/util.js';\n"],
+  ]);
+  const allFiles = ['lib/util.js', 'src/app.js'];
+  assert.strictEqual(isFileOrphan('lib/util.js', allFiles, contentsByFile), false);
+});
+
+// The substring test above asserts `false` for a file that IS required, so it
+// passes under a substring/`includes` comparison too — the very mutation its
+// name describes. This is the discriminating half: 'a' is a substring of the
+// only specifier in the tree ('./barrel'), and nothing requires a.js.
+test('isFileOrphan: a file whose basename is merely a substring of another specifier is still orphan', () => {
+  const contentsByFile = new Map([
+    ['a.js', 'module.exports = { fromA: () => 1 };\n'],
+    ['barrel.js', 'module.exports = {};\n'],
+    ['main.js', "const x = require('./barrel');\n"],
+  ]);
+  const allFiles = ['a.js', 'barrel.js', 'main.js'];
+  assert.strictEqual(isFileOrphan('a.js', allFiles, contentsByFile), true);
+});
+
+// Pins `if (other === relFile) continue;` — a file that names itself (a
+// self-require, a commented-out import, a doc string) must not thereby prove
+// its own liveness.
+test('isFileOrphan: a file naming itself is not thereby referenced', () => {
+  const contentsByFile = new Map([
+    ['lib/self.js', "// historical: require('./self') was the old entry\nmodule.exports = {};\n"],
+    ['lib/other.js', 'module.exports = {};\n'],
+  ]);
+  const allFiles = ['lib/self.js', 'lib/other.js'];
+  assert.strictEqual(isFileOrphan('lib/self.js', allFiles, contentsByFile), true);
+});
+
+// A directory index is reached as `require('./lib')` — its own basename
+// ('index') appears in no specifier anywhere. Matching on basename alone
+// reports every such live file orphan, which is the forbidden direction.
+test('isFileOrphan: a directory index reached as `require(\'./lib\')` is not orphan', () => {
+  const contentsByFile = new Map([
+    ['lib/index.js', 'module.exports = {};\n'],
+    ['main.js', "const lib = require('./lib');\n"],
+  ]);
+  const allFiles = ['lib/index.js', 'main.js'];
+  assert.strictEqual(isFileOrphan('lib/index.js', allFiles, contentsByFile), false);
+});
+
+// ...but the directory-name allowance is scoped to index files only: a
+// non-index file must not be rescued by a specifier naming its directory.
+test('isFileOrphan: a non-index file is not rescued by a specifier naming its directory', () => {
+  const contentsByFile = new Map([
+    ['lib/thing.js', 'module.exports = {};\n'],
+    ['main.js', "const lib = require('./lib');\n"],
+  ]);
+  const allFiles = ['lib/thing.js', 'main.js'];
+  assert.strictEqual(isFileOrphan('lib/thing.js', allFiles, contentsByFile), true);
+});
+
+// A side-effect-only static import has no `from` and no parenthesis, so the
+// require/from/import( alternation alone misses it — again the forbidden
+// direction (a live, imported file reported orphan).
+test('isFileOrphan: a side-effect-only `import \'./x.js\'` counts as a reference', () => {
+  const contentsByFile = new Map([
+    ['polyfill.js', 'globalThis.x = 1;\n'],
+    ['app.js', "import './polyfill.js';\n"],
+  ]);
+  const allFiles = ['polyfill.js', 'app.js'];
+  assert.strictEqual(isFileOrphan('polyfill.js', allFiles, contentsByFile), false);
+});
+
+test('isFileOrphan: a file listed in allFiles but absent from contentsByFile is skipped, not crashed on', () => {
+  const contentsByFile = new Map([['b.js', "const a = require('./a');\n"]]);
+  const allFiles = ['a.js', 'b.js', 'unread.js'];
+  assert.strictEqual(isFileOrphan('a.js', allFiles, contentsByFile), false);
+});
+
+// ── referencedFileSpecifiers ──────────────────────────────────────────────────
+
+test('referencedFileSpecifiers: finds require, static import, side-effect import, dynamic import, and from specifiers', () => {
+  const text = [
+    "const a = require('./a');",
+    "import { b } from '../b.js';",
+    "import './side-effect.js';",
+    "const c = await import(`./c.js`);",
+    "export * from './d';",
+    'const dynamic = require(dirName + suffix);',
+  ].join('\n');
+  assert.deepStrictEqual(referencedFileSpecifiers(text), ['./a', '../b.js', './side-effect.js', './c.js', './d']);
+});
