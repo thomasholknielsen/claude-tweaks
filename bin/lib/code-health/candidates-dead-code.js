@@ -134,4 +134,52 @@ function detectEntrypoints(rootDir, files) {
   return entrypoints;
 }
 
-module.exports = { detectEntrypoints, extractPathLikeStrings, collectStrings };
+const IDENTIFIER_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+// Extracts every bare identifier out of every `module.exports = { ... }`
+// brace block in `text` — this repo's dominant export shape, single- or
+// multi-line alike (a single-line block is just the one-line case of the
+// same brace scan). Character-by-character brace-depth tracking, not a
+// line-by-line split, so a nested object value can't prematurely end the
+// block. Tokens that aren't bare identifiers (spread `...x`, aliased
+// `a: b`, computed `[x]: y`) are silently skipped — conservative by
+// design (AC2): prefer missing a dead export over flagging a live one.
+function extractModuleExports(text) {
+  const results = [];
+  const startRe = /module\.exports\s*=\s*\{/g;
+  let m;
+  while ((m = startRe.exec(text))) {
+    const openIdx = m.index + m[0].length - 1; // index of the '{'
+    let depth = 0;
+    let closeIdx = -1;
+    for (let i = openIdx; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          closeIdx = i;
+          break;
+        }
+      }
+    }
+    if (closeIdx === -1) {
+      // Unterminated block (malformed or truncated file) — skip gracefully,
+      // never throw. startRe.lastIndex is already past openIdx, so the
+      // outer while loop simply finds no further "module.exports = {" and
+      // exits.
+      continue;
+    }
+    const inner = text.slice(openIdx + 1, closeIdx);
+    const startLine = text.slice(0, openIdx).split('\n').length;
+    const endLine = text.slice(0, closeIdx).split('\n').length;
+    for (const rawToken of inner.split(',')) {
+      const token = rawToken.trim();
+      if (token === '' || token.startsWith('...') || !IDENTIFIER_RE.test(token)) continue;
+      results.push({ symbol: token, startLine, endLine });
+    }
+    startRe.lastIndex = closeIdx;
+  }
+  return results;
+}
+
+module.exports = { detectEntrypoints, extractPathLikeStrings, collectStrings, extractModuleExports };
