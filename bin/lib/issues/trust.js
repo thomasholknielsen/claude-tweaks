@@ -210,6 +210,32 @@ function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
   return false;
 }
 
+// (record, gitLog, now, windowDays) -> { known: false } | { known: true, grade: 'good', source: 'operational' }.
+// `now` is epoch milliseconds (the injected clock). The window anchors on
+// the record's tracker `closedAt` — never a git commit date or a PR
+// `merged_at` (this repo's squash/rebase conventions rewrite commit dates,
+// and a direct-push close has no PR at all). `closedAt` on a currently-CLOSED
+// record is GitHub's own latest-close timestamp — a record reopened and
+// re-closed is evaluated against that latest close with no extra bookkeeping
+// here; a record that is currently OPEN never needs to reach this function
+// meaningfully, since trustRows only builds cells from records whose `state`
+// is `'CLOSED'` in the first place.
+function resolveOperationalOutcome(record, gitLog, now, windowDays) {
+  if (!record || record.state !== 'CLOSED') return { known: false };
+  const closedAtMs = typeof record.closedAt === 'string' ? Date.parse(record.closedAt) : NaN;
+  if (!Number.isFinite(closedAtMs)) return { known: false };
+
+  const ageDays = (now - closedAtMs) / MS_PER_DAY;
+  if (ageDays < windowDays) return { known: false };
+
+  const closingShas = discoverClosingCommits(record, gitLog);
+  if (closingShas.length === 0) return { known: false };
+
+  if (isClosingCommitReverted(closingShas, record.number, gitLog)) return { known: false };
+
+  return { known: true, grade: 'good', source: 'operational' };
+}
+
 function trustRows(records) {
   const all = Array.isArray(records) ? records : [];
   // A decomposed leaf is not independently graded work — its family's parent
@@ -295,5 +321,5 @@ function trustRows(records) {
 
 module.exports = {
   riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, DEFAULT_REVERT_WINDOW_DAYS,
-  discoverClosingCommits, isClosingCommitReverted,
+  discoverClosingCommits, isClosingCommitReverted, resolveOperationalOutcome,
 };

@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, discoverClosingCommits, isClosingCommitReverted,
+  resolveOperationalOutcome, DEFAULT_REVERT_WINDOW_DAYS,
 } = require('../trust.js');
 
 test('riskBand splits low from everything else', () => {
@@ -301,6 +302,69 @@ test('an unstructured cell stays ungradable however many verdicts it collects', 
   assert.equal(row.provenance, 'unstructured:unstructured');
   assert.ok(row.dispositioned >= MIN_VERDICTS);
   assert.equal(row.verdict, 'insufficient-evidence');
+});
+
+const MS_PER_DAY_FIXTURE = 24 * 60 * 60 * 1000;
+const NOW = Date.parse('2026-08-09T00:00:00Z');
+
+function closedDaysAgo(days) {
+  return new Date(NOW - days * MS_PER_DAY_FIXTURE).toISOString();
+}
+
+test('DEFAULT_REVERT_WINDOW_DAYS is 14', () => {
+  assert.equal(DEFAULT_REVERT_WINDOW_DAYS, 14);
+});
+
+test('resolveOperationalOutcome is unknown for a currently-open record', () => {
+  const record = { number: 1, state: 'OPEN', closedAt: closedDaysAgo(30) };
+  assert.deepEqual(resolveOperationalOutcome(record, [], NOW, 14), { known: false });
+});
+
+test('resolveOperationalOutcome is unknown with no closedAt at all', () => {
+  const record = { number: 1, state: 'CLOSED' };
+  assert.deepEqual(resolveOperationalOutcome(record, [], NOW, 14), { known: false });
+});
+
+test('resolveOperationalOutcome counts a merge past the window with a discoverable, unreverted closing commit', () => {
+  const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(15) };
+  const gitLog = [{ sha: 'sha-1', message: 'refs #1' }];
+  assert.deepEqual(
+    resolveOperationalOutcome(record, gitLog, NOW, 14),
+    { known: true, grade: 'good', source: 'operational' },
+  );
+});
+
+test('the window boundary is inclusive at exactly the configured number of days', () => {
+  const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(14) };
+  const gitLog = [{ sha: 'sha-1', message: 'refs #1' }];
+  assert.equal(resolveOperationalOutcome(record, gitLog, NOW, 14).known, true);
+});
+
+test('one day short of the window boundary does not count', () => {
+  const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(13) };
+  const gitLog = [{ sha: 'sha-1', message: 'refs #1' }];
+  assert.equal(resolveOperationalOutcome(record, gitLog, NOW, 14).known, false);
+});
+
+test('resolveOperationalOutcome is unknown with no discoverable closing commit', () => {
+  const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(30) };
+  assert.deepEqual(resolveOperationalOutcome(record, [], NOW, 14), { known: false });
+});
+
+test('resolveOperationalOutcome is not-countable (unknown) when the closing commit was reverted', () => {
+  const sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(30) };
+  const gitLog = [
+    { sha, message: 'refs #1' },
+    { sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', message: `This reverts commit ${sha}.` },
+  ];
+  assert.deepEqual(resolveOperationalOutcome(record, gitLog, NOW, 14), { known: false });
+});
+
+test('resolveOperationalOutcome respects a widened window passed in explicitly', () => {
+  const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(15) };
+  const gitLog = [{ sha: 'sha-1', message: 'refs #1' }];
+  assert.equal(resolveOperationalOutcome(record, gitLog, NOW, 21).known, false, '15 days is short of a 21-day window');
 });
 
 test('discoverClosingCommits finds a commit via a word-bounded refs/closes/fixes scan', () => {
