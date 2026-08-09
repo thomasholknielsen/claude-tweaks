@@ -40,32 +40,42 @@ The queue pull uses the confirmed "list issues by label" mapping; the per-depend
 
 ## Step 4 — claiming a group
 
-Replaces `SKILL.md` Step 4's `gh`-path atomic ref creation (`gh api .../git/refs`), not the
-bootstrap-then-add `bot:in-progress` and claim-comment steps that follow it — those are plain label
-and comment operations and use the standard CRUD mapping on either transport.
+`_shared/issue-claims.md`'s "The lock" now defines one blob-store claim procedure both
+transports follow — this section is the MCP tool-call form of it, not a separate mechanism.
+`SKILL.md` Step 4's gh-CLI form uses the equivalent `gh api contents` calls against the same
+`claims/issue-<n>.json` path on `claims-registry`; the bootstrap-then-add `bot:in-progress` and
+claim-comment steps that follow either form are plain label and comment operations and use the
+standard CRUD mapping on either transport.
 
 For each member of the selected group, generate the claim payload and follow
-`_shared/issue-claims.md`'s "The lock" section's MCP claim procedure — read the claim file
-first, then branch on missing / tombstone-or-stale / live, rather than a bare create-only
-write:
+`_shared/issue-claims.md`'s "The lock" section's read-then-classify-then-write procedure — read
+the claim file first, classify with `classifyClaimBlob`, then branch on
+absent/tombstone-or-stale/live/unreadable:
 
 ```bash
 for ISSUE in "${GROUP_MEMBERS[@]}"; do
   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
     console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
-    sha:process.argv[2],runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$SHA" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
-  # Then run _shared/issue-claims.md's "The lock" MCP claim procedure against this payload's
-  # claimPath on CLAIMS_BRANCH: read the file first; missing -> create_or_update_file omitting
-  # sha; tombstone or TTL-stale -> the same call WITH sha = the file's current blob sha;
-  # live and non-stale -> contested. Branch on that outcome back in SKILL.md's Step 4, per
-  # member, exactly as the gh path branches on 201 vs 422.
+    runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
+    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
+  # Then run _shared/issue-claims.md's "The lock" procedure against this payload's claimPath on
+  # CLAIMS_BRANCH: read the file first, classify with classifyClaimBlob; absent ->
+  # create_or_update_file omitting sha; tombstone or stale -> the same call WITH sha = the
+  # file's current blob sha; live or unreadable -> contested, no write. Branch on that outcome
+  # back in SKILL.md's Step 4, per member, exactly as the gh path branches.
 done
 ```
 
-## Step 4 — contested-claim comment fetch (on 422)
+## Step 4 — contested-claim classification (on a rejected write)
 
-Use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md`, then fold the result through `claimStatus` exactly as the `gh` path does — `claimStatus` accepts either raw `gh` comment objects or the MCP tool's comment objects, since it only reads a `.body` string field off each.
+Read the claim file at `claimPath` on `CLAIMS_BRANCH` and classify with `classifyClaimBlob`,
+exactly as the `gh` path does — this is the authoritative read; see `claim-outcomes.md` for the
+full branch table. Fall back to the legacy `claimStatus` comment fold (fetch comments via the
+confirmed "list issue comments" mapping) only during the deprecation window, and only when the
+blob read comes back absent but a legacy `refs/claims/issue-<n>` ref is found — per
+`_shared/issue-claims.md`'s "Reading claim state" section. `claimStatus` accepts either raw `gh`
+comment objects or the MCP tool's comment objects, since it only reads a `.body` string field
+off each.
 
 ## Step 4 — `--claim-only` release
 

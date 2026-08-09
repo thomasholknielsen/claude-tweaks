@@ -27,7 +27,7 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
   date or watched paths) that wakes it.
 - **ready** — spec-shaped and agent-sized; eligible for the authorization gate's worklist.
 - **authorized** — carries a human-granted `auto:build` (optionally + `auto:merge`).
-- **building** — an agent holds the claim (`bot:in-progress` mirrors the claim ref).
+- **building** — an agent holds the claim (`bot:in-progress` mirrors the claim blob).
 - **closed** — completed via the user's merge (close-via-merge), or not-planned (wontfix,
   duplicate, absorbed into another record). `work-backend: github-issues` — GitHub's own issue
   state. `work-backend: local-files` — `closeRecord(path)` (`bin/lib/issues/local-store.js`)
@@ -178,7 +178,7 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
 ## Labels are projection, not truth
 
 Labels make record state visible and queryable — they are a **projection** of state whose
-truth lives elsewhere (the body, the claim ref, the human's judgment). Any consumer about to
+truth lives elsewhere (the body, the claim blob, the human's judgment). Any consumer about to
 *act* re-verifies the truth; the label only builds the worklist.
 
 Two worked examples:
@@ -187,11 +187,11 @@ Two worked examples:
    before granting it fetches the body and re-checks the spec-shaped definition (below). A
    `ready` label on an unshaped body gets flagged back (remove `ready`, comment why) — the
    label got the record *into the queue*; it never authorizes the grant by itself.
-2. **Dispatch re-verifies the claim ref despite `bot:in-progress`.** The label is a cosmetic
-   mirror of the atomic `refs/claims/*` lock (`_shared/issue-claims.md`). Dispatch skips or
-   claims based on the ref's actual state (201/422 + comment fold), never on the label — a
-   stale label with no live ref means the record is claimable, and a missing label with a
-   live ref means it is not.
+2. **Dispatch re-verifies the claim blob despite `bot:in-progress`.** The label is a cosmetic
+   mirror of the atomic `claims/issue-<n>.json` lock on `claims-registry` (`_shared/issue-claims.md`). Dispatch skips or
+   claims based on the blob's actual, freshly-read state (`classifyClaimBlob`), never on the label — a
+   stale label with no live claim blob means the record is claimable, and a missing label with a
+   live claim blob means it is not.
 
 ## Spec-shaped body
 

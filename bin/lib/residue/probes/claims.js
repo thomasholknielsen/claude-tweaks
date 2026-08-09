@@ -1,5 +1,11 @@
 'use strict';
 
+// Deprecation-window-scoped (#241, _shared/issue-claims.md "Deprecation window"): claims now
+// lock via a blob on claims-registry, not this git-ref keyspace — nothing writes a new
+// refs/claims/* entry anymore. This probe stays useful only for the transition (surfacing
+// legacy ref claims left over from before the unification, on issues that have since closed);
+// once the deprecation window closes, it will find nothing, ever, and should be retired in the
+// same change that removes issue-claims.md's Deprecation window subsection.
 const { makeFinding } = require('../finding');
 
 function probeClaims({ scope, run } = {}) {

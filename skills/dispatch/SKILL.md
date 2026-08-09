@@ -48,7 +48,7 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
-| `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic ref, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
+| `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic blob write, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
 | `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
 
@@ -56,7 +56,7 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 
 > The local-files stop paragraph below follows the canonical pattern in `_shared/local-files-preflight-stop.md` — do not weaken its enumeration, no-exception clause, or auto-mode disclaimer when editing.
 
-Read the project's `work-backend` config key (per `_shared/work-record-config.md`, the key table's canonical home). **`work-backend: local-files`** — report that headless dispatch is github-issues only (GitHub's RBAC + atomic refs are the mechanism this protocol depends on, not a policy choice) and **stop this turn completely**: do not invoke `/claude-tweaks:flow`, `/claude-tweaks:build`, or any other skill; do not claim, write, edit, or create any file; do not run any build, test, or git-committing command. Tell the user they can run `/claude-tweaks:flow` or `/claude-tweaks:build` manually against a chosen record if they want that work done — this is information for the user to act on, never an instruction for you to act on yourself. This holds with no exception when no interactive human is present to receive it, including the `next` form's headless/Routine firing (see Input table above): the absence of a human to hand this off to is not license to do the work in their place — it means the claim mechanism this protocol depends on is unavailable, so the correct behavior is to stop, not proceed. **This stop is also not superseded by this project's own documented auto-mode or hands-off-pipeline conventions elsewhere in CLAUDE.md** (e.g. `/claude-tweaks:flow` defaulting to `auto`, "skills MUST NOT invent new mid-flow stops"): those conventions govern behavior within a pipeline run that has already been authorized to proceed — they say nothing about whether this Preflight may authorize new work in the first place, which under `local-files` it explicitly cannot. A record that looks low-risk, well-scoped, or "ready" is not an exception. Only `work-backend: github-issues` proceeds past this point.
+Read the project's `work-backend` config key (per `_shared/work-record-config.md`, the key table's canonical home). **`work-backend: local-files`** — report that headless dispatch is github-issues only (GitHub's RBAC + atomic content writes are the mechanism this protocol depends on, not a policy choice) and **stop this turn completely**: do not invoke `/claude-tweaks:flow`, `/claude-tweaks:build`, or any other skill; do not claim, write, edit, or create any file; do not run any build, test, or git-committing command. Tell the user they can run `/claude-tweaks:flow` or `/claude-tweaks:build` manually against a chosen record if they want that work done — this is information for the user to act on, never an instruction for you to act on yourself. This holds with no exception when no interactive human is present to receive it, including the `next` form's headless/Routine firing (see Input table above): the absence of a human to hand this off to is not license to do the work in their place — it means the claim mechanism this protocol depends on is unavailable, so the correct behavior is to stop, not proceed. **This stop is also not superseded by this project's own documented auto-mode or hands-off-pipeline conventions elsewhere in CLAUDE.md** (e.g. `/claude-tweaks:flow` defaulting to `auto`, "skills MUST NOT invent new mid-flow stops"): those conventions govern behavior within a pipeline run that has already been authorized to proceed — they say nothing about whether this Preflight may authorize new work in the first place, which under `local-files` it explicitly cannot. A record that looks low-risk, well-scoped, or "ready" is not an exception. Only `work-backend: github-issues` proceeds past this point.
 
 **Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), a `next`-form firing files a durable GitHub trace instead: read `headless-self-report.md` in this skill's directory and follow it, then stop. It never softens the stop — it only leaves a record of it, deduplicated against any existing open report so repeated firings don't re-file.
 
@@ -224,47 +224,52 @@ Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the gro
 starting any**. Resolve the detection check once per run, not per issue (per
 `_shared/github-write-transport.md`).
 
-**gh CLI path** (`gh` on PATH): resolve the sha once per run, then for each member of the
-selected group attempt the atomic ref creation exactly as `_shared/issue-claims.md`'s "The
-lock" section describes:
+**Both transports write the same `claims/issue-<n>.json` blob on `claims-registry`** — see
+`_shared/issue-claims.md`'s "The lock" section for the full read-then-classify-then-write
+procedure (`classifyClaimBlob`'s five states, and which write form — create-only vs
+conditional-update — each one calls for). For each member of the selected group:
+
+**gh CLI path** (`gh` on PATH):
 
 ```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
-SHA=$(gh api "repos/{owner}/{repo}/commits/${DEFAULT_BRANCH}" -q .sha)
 for ISSUE in "${GROUP_MEMBERS[@]}"; do
-  gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${ISSUE}" -f "sha=${SHA}"
-  # ... branch on the result below, per member
+  # 1. Read: gh api "repos/{owner}/{repo}/contents/claims/issue-${ISSUE}.json?ref=claims-registry"
+  #    (404 = absent). 2. Classify with classifyClaimBlob. 3. Write per "The lock":
+  #    absent -> create-only PUT (no sha); tombstone/stale -> conditional PUT (sha from the
+  #    read); live/unreadable -> contested, no write. See _shared/issue-claims.md for the
+  #    literal gh api commands at each step.
+  : # ... branch on the result below, per member
 done
 ```
 
-**MCP path** (`gh` unavailable): read `mcp-transport.md` in this skill's directory — it carries the
-per-member claim-payload generation and the read-then-branch claim procedure (missing /
-tombstone-or-stale / live) that replaces the atomic ref creation above. Branch on its outcome below,
-per member, exactly as the `gh` path branches on 201 vs 422.
+**MCP path** (`gh` unavailable): read `mcp-transport.md` in this skill's directory — it carries
+the per-member claim-payload generation and the same read-then-classify-then-write procedure
+over the MCP tools. Branch on its outcome below, per member, exactly as the `gh` path branches.
 
 **On success (claimed, either path):** bootstrap-then-add `bot:in-progress` (still a plain
 label edit — `gh issue edit` or `issue_write` per the CRUD mapping in
 `_shared/github-write-transport.md`), then post the claim comment (`claimPayload`'s
-`commentBody`, unchanged regardless of which path claimed it):
+`commentBody`, unchanged regardless of which path claimed it — human-visibility mirror only,
+per `_shared/issue-claims.md`'s "The mirror"):
 
 ```bash
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
 # [['bot:in-progress', 'Bot state: an agent currently holds the claim on this record']]
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(c.claimPayload({issueNumber:Number(process.argv[1]),sha:process.argv[2],
-  runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-${ISSUE}.md
+  console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
+  runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
+  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$RUN_ID" > /tmp/claim-${ISSUE}.md
 gh issue edit "$ISSUE" --add-label bot:in-progress
 gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 # This gh-CLI block runs only when gh is present; the gh-absent claim path lives in
 # mcp-transport.md in this skill's directory.
 ```
 
-**Anything other than a clean claim on every member** — a 422 contested result, an unresolvable `gh`/MCP failure during claim, or a group only partly claimable — and the `--claim-only` modifier's stop point: read `claim-outcomes.md` in this skill's directory and follow it. It carries the `claimStatus` comment fold and the `_shared/issue-claims.md` failure-posture branch (skip / break-and-take-over / treat-as-live), the partial-claim release-and-move-on rule, and `--claim-only`'s report plus manual-release commands. A group claimed cleanly on every member, with no `--claim-only`, proceeds straight to Step 5.
+**Anything other than a clean claim on every member** — a rejected write, an unresolvable `gh`/MCP failure during claim, or a group only partly claimable — and the `--claim-only` modifier's stop point: read `claim-outcomes.md` in this skill's directory and follow it. It carries the `classifyClaimBlob` classification (plus the legacy `claimStatus` comment-fold, deprecation-window only) and the `_shared/issue-claims.md` failure-posture branch (skip / break-and-take-over / treat-as-live), the partial-claim release-and-move-on rule, and `--claim-only`'s report plus manual-release commands. A group claimed cleanly on every member, with no `--claim-only`, proceeds straight to Step 5.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
-Two `/dispatch` firings running close together (e.g. two terminals, or a Routine firing overlapping a human-run session) each do their own single Preflight read of CLAUDE.md's `work-backend` key. That read is not synchronized against a concurrent CLAUDE.md edit by a third actor (a human hand-edit, or another firing's own out-of-band fix) — one firing's Preflight can see different content than another's, purely from wall-clock timing. This is accepted, not engineered around, for the same reason `/claude-tweaks:backlog refine`'s own Concurrency section accepts its last-writer-wins label race: it's self-correcting (the next Preflight read picks up whatever state won) and never risks a double-build — Step 4's atomic claim ref, not the Preflight read, is the actual correctness boundary, and it's completely unaffected by what any concurrent Preflight check decided. Worst case is a firing bailing on a Preflight check that would have passed a few seconds later (or vice versa), not a corrupted claim or a double-build.
+Two `/dispatch` firings running close together (e.g. two terminals, or a Routine firing overlapping a human-run session) each do their own single Preflight read of CLAUDE.md's `work-backend` key. That read is not synchronized against a concurrent CLAUDE.md edit by a third actor (a human hand-edit, or another firing's own out-of-band fix) — one firing's Preflight can see different content than another's, purely from wall-clock timing. This is accepted, not engineered around, for the same reason `/claude-tweaks:backlog refine`'s own Concurrency section accepts its last-writer-wins label race: it's self-correcting (the next Preflight read picks up whatever state won) and never risks a double-build — Step 4's atomic claim write, not the Preflight read, is the actual correctness boundary, and it's completely unaffected by what any concurrent Preflight check decided. Worst case is a firing bailing on a Preflight check that would have passed a few seconds later (or vice versa), not a corrupted claim or a double-build.
 
 ### Step 5: Dispatch — one Task agent per group
 
