@@ -2,7 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS } = require('../trust.js');
+const {
+  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, discoverClosingCommits,
+} = require('../trust.js');
 
 test('riskBand splits low from everything else', () => {
   assert.equal(riskBand(['risk:low']), 'low');
@@ -299,4 +301,51 @@ test('an unstructured cell stays ungradable however many verdicts it collects', 
   assert.equal(row.provenance, 'unstructured:unstructured');
   assert.ok(row.dispositioned >= MIN_VERDICTS);
   assert.equal(row.verdict, 'insufficient-evidence');
+});
+
+test('discoverClosingCommits finds a commit via a word-bounded refs/closes/fixes scan', () => {
+  const gitLog = [
+    { sha: 'aaaa1111111111111111111111111111111111', message: 'Fix the thing\n\nrefs #42' },
+    { sha: 'bbbb2222222222222222222222222222222222', message: 'unrelated commit' },
+  ];
+  assert.deepEqual(discoverClosingCommits({ number: 42 }, gitLog), ['aaaa1111111111111111111111111111111111']);
+});
+
+test('discoverClosingCommits recognizes closes and fixes, not just refs', () => {
+  assert.deepEqual(discoverClosingCommits({ number: 7 }, [{ sha: 'sha-a', message: 'closes #7' }]), ['sha-a']);
+  assert.deepEqual(discoverClosingCommits({ number: 7 }, [{ sha: 'sha-b', message: 'Fixes #7' }]), ['sha-b']);
+});
+
+test('discoverClosingCommits is word-bounded — #427 never matches record #42', () => {
+  assert.deepEqual(discoverClosingCommits({ number: 42 }, [{ sha: 'sha-x', message: 'refs #427' }]), []);
+});
+
+test('discoverClosingCommits returns every commit that references the record, not just the first', () => {
+  const gitLog = [
+    { sha: 'sha-1', message: 'refs #9' },
+    { sha: 'sha-2', message: 'unrelated' },
+    { sha: 'sha-3', message: 'closes #9' },
+  ];
+  assert.deepEqual(discoverClosingCommits({ number: 9 }, gitLog), ['sha-1', 'sha-3']);
+});
+
+test('discoverClosingCommits returns [] when nothing references the record', () => {
+  assert.deepEqual(discoverClosingCommits({ number: 1 }, [{ sha: 'sha-1', message: 'refs #999' }]), []);
+});
+
+test('discoverClosingCommits returns [] for an empty or missing git log', () => {
+  assert.deepEqual(discoverClosingCommits({ number: 1 }, []), []);
+  assert.deepEqual(discoverClosingCommits({ number: 1 }, undefined), []);
+});
+
+test('discoverClosingCommits prefers a caller-supplied timeline SHA over the git-log scan (route 1 over route 2)', () => {
+  const gitLog = [{ sha: 'from-log', message: 'refs #5' }];
+  const record = { number: 5, closingCommitShas: ['from-timeline'] };
+  assert.deepEqual(discoverClosingCommits(record, gitLog), ['from-timeline']);
+});
+
+test('discoverClosingCommits ignores a closingCommitShas array of falsy/empty entries and falls through to route 2', () => {
+  const gitLog = [{ sha: 'from-log', message: 'refs #5' }];
+  const record = { number: 5, closingCommitShas: [null, ''] };
+  assert.deepEqual(discoverClosingCommits(record, gitLog), ['from-log']);
 });

@@ -113,6 +113,60 @@ function correctiveFollowUpTarget(body) {
   return Number(match[1]);
 }
 
+// --- Operational outcome evidence (merged-and-unreverted) -----------------
+//
+// A closed record's outcome becomes known a second way, alongside demo-descent:
+// merged and unreverted for at least `trust-revert-window-days` (default 14).
+// Evaluated lazily at read time from record state + an injected git log — no
+// scheduled job, no cached verdict file. This path only ever ADDS known-good
+// evidence; a reverted or undiscoverable close is never negative evidence,
+// only not-countable (the companion "failure classifications and reverts"
+// leaf owns negative evidence). A record where discovery finds nothing stays
+// unknown — never defaults to known-good. That is the coverage boundary this
+// module states about itself: a manual revert naming neither a `This
+// reverts commit <sha>` trailer nor the record number is an out-of-scope
+// false negative.
+//
+// Route 1 (a GitHub timeline `closed` event's commit reference) needs a
+// per-issue GitHub API call this module cannot make itself — it is pure, no
+// network. A caller that resolves it attaches the SHA(s) to the record as
+// `closingCommitShas` before calling trustRows; discovery below prefers that
+// signal outright when present. Route 2 (a commit-message scan for
+// `(refs|closes|fixes) #N`, word-bounded) is load-bearing for this repo: its
+// own convention writes `refs #N`, which creates no native GitHub close-link,
+// so route 1 finds nothing here and route 2 is what actually resolves a
+// closing commit.
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DEFAULT_REVERT_WINDOW_DAYS = 14;
+const CLOSING_REF_RE = /\b(?:refs|closes|fixes)\s+#(\d+)\b/gi;
+
+// (record, gitLog) -> string[] of closing commit SHAs, [] when neither route
+// finds anything. `gitLog` is `[{ sha, message }]` — the integration
+// branch's full history, `sha` a full commit SHA and `message` the FULL
+// commit message (subject + body), e.g. as `git log --format='%H%x1f%B%x1e'`
+// yields once split on the two separator bytes. Route 1 wins outright when
+// present; it does not merge with route 2's results.
+function discoverClosingCommits(record, gitLog) {
+  const fromTimeline = Array.isArray(record && record.closingCommitShas)
+    ? record.closingCommitShas.filter((sha) => typeof sha === 'string' && sha)
+    : [];
+  if (fromTimeline.length > 0) return fromTimeline;
+
+  const log = Array.isArray(gitLog) ? gitLog : [];
+  const recordNumber = record && record.number;
+  const shas = [];
+  for (const entry of log) {
+    if (!entry || typeof entry.sha !== 'string' || typeof entry.message !== 'string') continue;
+    for (const match of entry.message.matchAll(CLOSING_REF_RE)) {
+      if (Number(match[1]) === recordNumber) {
+        shas.push(entry.sha);
+        break;
+      }
+    }
+  }
+  return shas;
+}
+
 function trustRows(records) {
   const all = Array.isArray(records) ? records : [];
   // A decomposed leaf is not independently graded work — its family's parent
@@ -196,4 +250,7 @@ function trustRows(records) {
   return rows;
 }
 
-module.exports = { riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS };
+module.exports = {
+  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, DEFAULT_REVERT_WINDOW_DAYS,
+  discoverClosingCommits,
+};
