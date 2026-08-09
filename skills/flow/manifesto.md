@@ -24,7 +24,7 @@ For each lever, record both the recommended value AND its source so the user can
 
 **Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered or accepted. This is enforced mechanically by a `PreToolUse` gate (see `_shared/git-discipline.md`), so a stale/overridden config value would simply get every edit denied; the Manifesto short-circuits to `worktree` here to avoid presenting a choice that can't actually be honored.
 
-**Ceremony profile computation.** Unlike the other 9 levers (policy preferences resolved via the precedence chain above), `ceremony-profile`'s value is computed by folding every record's materialized `ceremony:` header field (`materialize.md`) with a logical AND: `fast-lane` only when every record in this run has `ceremony: fast-lane`; any record missing the field (defaults to `standard`) or carrying an explicit `standard` sends the whole run's `ceremony-profile` to `standard` — mirrors the auto-merge gate's existing "every member of the group must carry `auto:merge`" rule (`dispatch/SKILL.md`'s Auto-merge gate). Source is always `header`. The computed value still becomes this lever's Recommended value, which the human can override via the normal `10=value` mechanism below — unlike Design intent (a prior human decision from `/specify`, not re-litigated here), `ceremony-check`'s verdict is itself a fresh automated judgment call, and this Manifesto is the first point a human sees it.
+**Ceremony profile computation.** Unlike the other levers (policy preferences resolved via the precedence chain above), `ceremony-profile`'s value is computed by folding every record's materialized `ceremony:` header field (`materialize.md`) with a logical AND: `fast-lane` only when every record in this run has `ceremony: fast-lane`; any record missing the field (defaults to `standard`) or carrying an explicit `standard` sends the whole run's `ceremony-profile` to `standard` — mirrors the auto-merge gate's existing "every member of the group must carry `auto:merge`" rule (`dispatch/SKILL.md`'s Auto-merge gate). Source is always `header`. The computed value still becomes this lever's Recommended value, which the human can override via the normal `9=value` mechanism below — unlike Design intent (a prior human decision from `/specify`, not re-litigated here), `ceremony-check`'s verdict is itself a fresh automated judgment call, and this Manifesto is the first point a human sees it.
 
 ## Compute per-spec preview
 
@@ -53,9 +53,8 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review severity floor** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
-| **Unattended tier** (9) | `/wrap-up` not in the step list — but only 2 of its 3 behaviors (queue-write filing, ops-ack) are actually absent then. The ledger-routing narrowing (`ledger/resolve-gate.md` Phase 2) still runs at Step 5's nothing-left-behind gate on every `/flow` run regardless of the step list, so this lever is never fully inert even when marked suppressed here |
 
-Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (10) — they affect every pipeline.
+Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9) — they affect every pipeline.
 
 When a lever is suppressed, mention it once in the Suppressed footer below the table so the user knows it was considered and dropped.
 
@@ -88,7 +87,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
-**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness, 9=Unattended tier, 10=Ceremony profile. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness, 9=Ceremony profile. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
 
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
@@ -97,10 +96,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 5 | Leftover routing | **defer** | **defer** / backlog / drop | Unfinished sections → a new work record (parked), reversible at Review Console |
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
 | 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
-| 9 | Unattended tier | **off** | **off** / on | Floor-clearing ledger residue, queue writes, and ops-ack resolve without a click; off leaves today's behavior unchanged |
-| 10 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
+| 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9.
 
 #### Override semantics (read before overriding)
 
@@ -116,7 +114,6 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
 | Review severity floor | `none` | All findings auto-applied (lowest friction, highest revert load) |
 | Review severity floor | `medium` | LOW + MED auto-applied; only HIGH prompts |
-| Unattended tier | `on` | Floor-clearing ledger residue, queue writes, and ops-ack resolve without a click; still fully logged and reversible — see `_shared/unattended-tier.md` |
 | Ceremony profile | `standard` | Forces full-depth wrap-up ceremony (reflect full mode, unrestricted skill-curation scan, doc/CLAUDE.md/ADR sub-scans) even though `ceremony-check` verdicted `fast-lane` for every record |
 | Ceremony profile | `fast-lane` | Forces the fast-lane shape even if a record's `ceremony:` header was `standard` (or one member of a bundle was) — an active, informed human override, not the automated default |
 ```
@@ -157,9 +154,8 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
 | Review severity floor | `low` | Auto LOW (nits), stage MED, prompt HIGH |
 | Tidy aggressiveness | `conservative` | Keep + unambiguous Delete only |
-| Unattended tier | `off` | Conservative default; each project/run opts in explicitly |
 
-`ceremony-profile` (lever 10) has no row here — its source is always `header` (the bundle-folded
+`ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
 `ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
 what "always-present label" buys: `/claude-tweaks:specify` stamps `ceremony:*` on every record it
 shapes, so the header always carries a value and there is nothing for a default to fill in. See
@@ -181,7 +177,6 @@ leftover-default: defer
 auto-fix-threshold: lint+type
 review-severity-floor: low
 tidy-aggressiveness: conservative
-unattended-tier: off
 ceremony-profile: fast-lane
 spec: 42
 created: 2026-05-15T143207

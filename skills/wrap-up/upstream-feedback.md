@@ -31,4 +31,4 @@ every mode. Phase 4's execution step files nothing either — it only confirms t
 
 Filing is never auto-resolved regardless of mode: `_shared/auto-mode-card.md` lists upstream
 feedback among what `auto` does not silence, on the grounds that it publishes privately-derived
-content to a public repository. It is **not** exempt under `unattended-tier`.
+content to a public repository. It is **not** exempt under any `autonomy` tier.
