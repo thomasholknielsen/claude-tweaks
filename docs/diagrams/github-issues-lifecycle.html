@@ -463,7 +463,7 @@
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
           <div class="vz-ghi-node-title"><span>On failure (any run that doesn't reach wrap-up)</span></div>
           <div class="vz-ghi-body">
-            <div>Release the claim (delete refs/claims/issue-&lt;n&gt;)</div>
+            <div>Release the claim (tombstone claims/issue-&lt;n&gt;.json)</div>
             <div>Unconditionally revoke auto:merge, ceiling or not</div>
             <div>Below ceiling: keep auto:build, next dispatch firing reclaims it</div>
             <div>At the ceiling (default 3): strip auto:build too, add bot:blocked</div>
