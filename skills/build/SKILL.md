@@ -23,6 +23,10 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 - /claude-tweaks:help recommends building a specific spec
 - Resuming a partially-completed build
 
+## Input
+
+`$ARGUMENTS` is parsed as `[#<n>|<design-doc-path>|<topic>] [subagent|batched] [auto] [worktree|current-branch] [tier=<fast|standard|capable>] [ops=confirm]` — see Build Options and Git Strategy below for what each token resolves to.
+
 ## Build Options (summary)
 
 The axes below are orthogonal and combine freely. Default is `subagent` + `worktree`.
@@ -306,7 +310,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 ## Component-Skill Contract
 
-`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 7's `handoff-template.md`).
+`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `$PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `$PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 7's `handoff-template.md`).
 
 ## Anti-Patterns
 

@@ -111,7 +111,7 @@ Verify that `/claude-tweaks:test` has passed before proceeding to analytical rev
 
 Check for `TEST_PASSED=true` in pipeline context. If present, proceed to Step 2.
 
-### Standalone (outside `/flow`):
+### Standalone (outside `/claude-tweaks:flow`):
 
 Check for a recent `/claude-tweaks:test` pass. A pass is "recent" if no code changes have been committed since the test run.
 
@@ -122,7 +122,7 @@ Check for a recent `/claude-tweaks:test` pass. A pass is "recent" if no code cha
 
 After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger.md`) and filter for entries with phase `test/qa`:
 
-- If any QA ledger entries have status `open` (failures that were not resolved), include them in the test gate report alongside the `TEST_PASSED` status. These represent QA failures that `/test` surfaced and that still need resolution.
+- If any QA ledger entries have status `open` (failures that were not resolved), include them in the test gate report alongside the `TEST_PASSED` status. These represent QA failures that `/claude-tweaks:test` surfaced and that still need resolution.
 - If all QA entries have status `observation` or `fixed`, note: "QA observations present — see findings table in Step 3 Routing."
 
 ### Gate:
@@ -130,9 +130,9 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 | Result | Action |
 |--------|--------|
 | `TEST_PASSED=true` (pipeline) | Proceed to Step 2 |
-| Recent `/test` pass (standalone) | Proceed to Step 2 |
-| `/test` triggered and passes | Proceed to Step 2 |
-| `/test` triggered and fails | **STOP** — present test failures. Fix before continuing. Run `/claude-tweaks:test` to re-verify. |
+| Recent `/claude-tweaks:test` pass (standalone) | Proceed to Step 2 |
+| `/claude-tweaks:test` triggered and passes | Proceed to Step 2 |
+| `/claude-tweaks:test` triggered and fails | **STOP** — present test failures. Fix before continuing. Run `/claude-tweaks:test` to re-verify. |
 
 > **Why this gates review:** Mechanical correctness is a prerequisite for analytical quality judgment. Code review on broken code wastes effort.
 
@@ -151,7 +151,7 @@ section is always absent);
 `github-issues` — per `work-links`: `native` — query the sub-issue relationship from this record's
 own side; `body-text` — read the `Parent: #N` line from this record's own body, written at
 decomposition time (`spec-template.md`). No parent resolvable (a record human-filed or
-`/capture`d directly, not produced by a `/specify` decomposition) → skip this step entirely.
+`/claude-tweaks:capture`d directly, not produced by a `/claude-tweaks:specify` decomposition) → skip this step entirely.
 
 **If the parent has a `## Cross-Spec Promises` section:**
 
@@ -330,7 +330,7 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 - **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications.
 - **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 
-**Routing (optional):** When the user wants to action a full-mode visual finding inline, route it through Step 3-ter below — Step 3 Routing has already completed by this point, so visual findings get their own branch reachable only from Step 6. When the user opts not to action a finding inline, it remains in the Step 7 summary's "Visual Review" section as informational. (`/visual-review`'s own Step 5 Boost fix/defer/accept flow does not apply here — it runs only when `/visual-review` is standalone and interactive, never when invoked BY `/review`.)
+**Routing (optional):** When the user wants to action a full-mode visual finding inline, route it through Step 3-ter below — Step 3 Routing has already completed by this point, so visual findings get their own branch reachable only from Step 6. When the user opts not to action a finding inline, it remains in the Step 7 summary's "Visual Review" section as informational. (`/claude-tweaks:visual-review`'s own Step 5 Boost fix/defer/accept flow does not apply here — it runs only when `/claude-tweaks:visual-review` is standalone and interactive, never when invoked BY `/claude-tweaks:review`.)
 
 Invocation:
 
@@ -338,14 +338,14 @@ Invocation:
 /claude-tweaks:visual-review {affected-journey-or-url}
 ```
 
-`/visual-review` owns the mechanics — UI file detection, affected-journey lookup, browser prerequisite checks, dev URL resolution, the page/journey/discover procedures, and the missing-browser skip path. This skill consumes its report; it does not re-implement detection here.
+`/claude-tweaks:visual-review` owns the mechanics — UI file detection, affected-journey lookup, browser prerequisite checks, dev URL resolution, the page/journey/discover procedures, and the missing-browser skip path. This skill consumes its report; it does not re-implement detection here.
 
 ## Step 6.5: Design Quality Pass (Impeccable)
 
 Invoke `/claude-tweaks:design-wrapper review <spec>` to run Impeccable's `critique` + `audit` commands on the changed UI files — and, when the built artifact carries a direction contract, to dispatch Impeccable's own `impeccable-finish-reviewer` agent against it (the wrapper's Step 3.7; its findings arrive in the same `findings` list under `source: "finish-review"`). Findings are advisory in Phase 1 — they inform the verdict and surface in the review summary, but are not auto-applied.
 
 **Skip this step entirely when:**
-- Mode is `visual`, `journey`, or `discover` (these delegate entirely to `/visual-review` and skip the analytical review steps)
+- Mode is `visual`, `journey`, or `discover` (these delegate entirely to `/claude-tweaks:visual-review` and skip the analytical review steps)
 
 **Invocation:**
 
@@ -390,7 +390,7 @@ Reachable only when Step 6 ran in full mode and `/claude-tweaks:visual-review` p
 
 ## Step 7: Present Review Summary
 
-Present a structured summary covering spec compliance, test results (from `/test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). The summary must include an Actions Performed table (when autonomous fixes were applied) and a Next Actions block (always). For the complete template and context-signal rules, read `review-summary-template.md` in this skill's directory.
+Present a structured summary covering spec compliance, test results (from `/claude-tweaks:test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). The summary must include an Actions Performed table (when autonomous fixes were applied) and a Next Actions block (always). For the complete template and context-signal rules, read `review-summary-template.md` in this skill's directory.
 
 ### Key Learnings for Wrap-Up
 

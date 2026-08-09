@@ -28,6 +28,10 @@ This SKILL.md is the **orientation + mode resolution** layer. The mechanical bro
 - After QA test runs — leverage screenshots and page inventories for enriched review
 - Standalone visual inspection of any running web application
 
+## Input
+
+`$ARGUMENTS` is parsed as `[<url>|journey:<name>|discover [--budget <n>]|--mode=recommendation] [--source <parent-skill>]` — see Modes and Mode Resolution below for what each token resolves to.
+
 ## Modes
 
 | Mode | Input | What happens |
@@ -76,7 +80,7 @@ Example: `/claude-tweaks:visual-review journey:checkout --source wrap-up`
 
 ## Step 0.5: Mode — `recommendation` (short-circuit)
 
-When the resolved mode is `recommendation` (typically invoked as `--mode=recommendation` from `/review` Step 6 code-only), skip the browser entirely and produce a structured recommendation instead. This mode has no `agent-browser` dependency and no dev URL requirement.
+When the resolved mode is `recommendation` (typically invoked as `--mode=recommendation` from `/claude-tweaks:review` Step 6 code-only), skip the browser entirely and produce a structured recommendation instead. This mode has no `agent-browser` dependency and no dev URL requirement.
 
 Procedure:
 
@@ -122,7 +126,7 @@ This skill resolves the dev URL silently when possible. The canonical resolution
 
 If `dev-url-detection.md` cannot yield a reachable `APP_URL` for *this* checkout:
 
-**Auto mode:** Run the full `dev-url-detection.md` Step 3 first — in a worktree (the `/flow` default) it auto-starts an ephemeral server on a free port (reversible, tracked, torn down at wrap-up). Only when that yields no `APP_URL` (no dev command found, or the server failed to come up) do you auto-skip visual review (do not ask). Append to the auto-decision log under `## /visual-review` in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
+**Auto mode:** Run the full `dev-url-detection.md` Step 3 first — in a worktree (the `/claude-tweaks:flow` default) it auto-starts an ephemeral server on a free port (reversible, tracked, torn down at wrap-up). Only when that yields no `APP_URL` (no dev command found, or the server failed to come up) do you auto-skip visual review (do not ask). Append to the auto-decision log under `## /visual-review` in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
 ```
 - STAGED {HH:MM:SS} — Step 2: no reachable dev URL for this checkout (start attempted: {yes/no}, reason: {no-dev-command | start-timeout}). Visual review skipped — code-only mode. Surface at Review Console.
 ```
@@ -158,7 +162,7 @@ After the visual review report is assembled (per `browser-review.md` Step 6: Rep
 /claude-tweaks:design-wrapper survey <changed-files> --screenshots <captured-paths> --source visual-review
 ```
 
-Pass `--source visual-review` on every call this skill makes into `/claude-tweaks:design-wrapper` (this section and Step 5 below) — it is this wrapper's Component-Skill Contract fallback signal for a caller-invoked call arriving with no `$PIPELINE_RUN_DIR` (standalone `/visual-review` never has one of its own to forward), and without it the wrapper cannot tell this call apart from a direct human invocation.
+Pass `--source visual-review` on every call this skill makes into `/claude-tweaks:design-wrapper` (this section and Step 5 below) — it is this wrapper's Component-Skill Contract fallback signal for a caller-invoked call arriving with no `$PIPELINE_RUN_DIR` (standalone `/claude-tweaks:visual-review` never has one of its own to forward), and without it the wrapper cannot tell this call apart from a direct human invocation.
 
 Pass:
 - The file list scoped to the review (from `git diff --name-only` or the spec's file list).
@@ -176,7 +180,7 @@ Handle the wrapper's return:
 ### Creative Opportunities block template
 
 ```markdown
-### Creative Opportunities (from /visual-review)
+### Creative Opportunities (from /claude-tweaks:visual-review)
 
 | # | Page | Observation | Suggested command |
 |---|------|------------|-------------------|
@@ -201,7 +205,7 @@ When invoked directly (not by a parent skill), call `AskUserQuestion` with `ques
 - Option 3 — `label`: `"Generate QA stories"`, `description`: `"/claude-tweaks:stories — generate QA stories from what was reviewed"`
 - Option 4 — `label`: `"Capture ideas"`, `description`: `"/claude-tweaks:capture {idea} — save ideas surfaced during the review"`
 
-This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they render their own independent `AskUserQuestion` call instead of this one, never merged with it. When invoked by a parent (`/review` or `/init`), omit Next Actions — the parent handles flow control and summary.
+This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they render their own independent `AskUserQuestion` call instead of this one, never merged with it. When invoked by a parent (`/claude-tweaks:review` or `/claude-tweaks:init`), omit Next Actions — the parent handles flow control and summary.
 
 ## Component-Skill Contract
 

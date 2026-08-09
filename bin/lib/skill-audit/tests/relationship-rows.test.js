@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { extractRelationshipRows, bodyOutsideSection } = require('../relationship-rows.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../skill-catalog.js');
 
 const SECTION = [
   '## Relationship to Other Skills',
@@ -68,11 +69,13 @@ test('no skill carries a Relationship section any more', () => {
   // The parser keeps its unit tests above and gains a second job here: the guard that
   // stops the convention creeping back one skill at a time.
   const skillsDir = path.join(__dirname, '..', '..', '..', '..', 'skills');
-  const names = fs
-    .readdirSync(skillsDir)
-    .filter((n) => fs.existsSync(path.join(skillsDir, n, 'SKILL.md')))
-    .sort();
-  assert.strictEqual(names.length, 33);
+  const repoRoot = path.join(__dirname, '..', '..', '..', '..');
+  const names = listSkillDirs(repoRoot);
+  // Directory-derived, not a hard-coded `33` -- see skill-catalog.js.
+  assert.ok(names.length >= 30, `expected the whole skill corpus, found ${names.length}`);
+  for (const known of KNOWN_SKILLS) {
+    assert.ok(names.includes(known), `corpus is missing a known skill: ${known}`);
+  }
 
   for (const name of names) {
     const md = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
