@@ -18,6 +18,24 @@ Skills do **not** carry a Relationship to Other Skills table. That convention wa
 
 **Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.
 
+## Inline `_shared` contract vs a new component skill
+
+When a new capability needs a canonical, citable procedure, choose between two shapes:
+
+- **Inline `skills/_shared/*.md` contract** — every consumer already holds full context at the
+  moment it needs the procedure (an agent mid-fix, mid-reflect). The procedure needs no
+  independent invocation, no `Skill`-tool dispatch, and no lifecycle position of its own. Each
+  consumer cites it by filename inline in a step it already runs.
+- **New component skill** — the capability needs its own `Skill`-tool invocation, has callers
+  that do *not* already hold the necessary context (so a fresh dispatch must gather it), or needs
+  its own Component-Skill Contract / Next Actions / interaction pattern independent of any single
+  caller.
+
+Example: `skills/_shared/causal-depth.md` (a why-chain contract fired inline by an agent already
+holding a debugging trace or a reflect pass's near-miss description) chose the inline form over a
+new component skill, because both its consumers already hold the context the chain needs — a
+fresh dispatch would have to re-derive it from scratch.
+
 ## Interaction patterns
 
 - **Decisions** — call the `AskUserQuestion` tool with human-readable options (2-4 typical) so the user gets a native rendered choice instead of typing a digit back. Mark the recommended option's label with `(Recommended)`.

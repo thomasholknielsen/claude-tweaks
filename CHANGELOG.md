@@ -43,6 +43,18 @@ Three conventions follow from how this repo works, and all are visible below:
 
 Canonical logging cloud-setup Setup-script line with self-upgrading field procedure, routine-preamble setup-log evidence + self-heal-to-execution fallback (dispatch/tidy excluded), cloud-parity Routine-scope corrections (IL-117).
 
+## v6.75.0 — never shipped; the causal-depth-contract build's premature bump, reverted the same session
+
+`main`'s tip briefly reported this version (`cd2a4d8a`) before being reverted the same
+session (`a4096509`, "versioning happens at release time via `bin/release.js`, not
+per-build") — but the revert commit still landed on `main`'s first-parent chain, so the
+coverage gate's git walk sees the number regardless. Recorded here and in
+`docs/shipped-versions.tsv` (source `wip-never-shipped`), same reasoning as v6.64.3:
+a walk-visible version with no entry is indistinguishable from a skipped changelog step,
+and the record's failure asymmetry deliberately prefers one unnecessary entry over an
+erasable release. No install ever ran this version; the manifest stayed at v6.74.0
+throughout.
+
 ## v6.73.1 — Close the claim deprecation window, retire the per-run record cache, fix the writeRunState CI flake
 
 Close the claim deprecation window, retire the per-run record cache, fix the writeRunState CI flake.
