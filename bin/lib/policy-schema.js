@@ -39,6 +39,7 @@ const POLICY_KEYS = [
   { key: 'section-confirmation', type: 'enum', values: ['adaptive', 'per-section', 'batch'], default: 'adaptive' },
   { key: 'merge-check', type: 'boolean', default: true },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised' },
+  { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14 },
   { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
 ];
 
@@ -71,7 +72,9 @@ function isValidValue(schemaEntry, value) {
     case 'boolean':
       return value === 'true' || value === 'false';
     case 'integer':
-      return /^-?\d+$/.test(value);
+      return /^-?\d+$/.test(value)
+        && (schemaEntry.min === undefined || Number(value) >= schemaEntry.min)
+        && (schemaEntry.max === undefined || Number(value) <= schemaEntry.max);
     case 'enum':
       return schemaEntry.values.includes(value);
     case 'string':
@@ -86,6 +89,26 @@ function isValidValue(schemaEntry, value) {
     default:
       return true;
   }
+}
+
+// key, rawValue (string | number | undefined | null) -> the coerced, valid
+// value for that key: `rawValue` itself when it type-checks (parsed to a
+// number for 'integer', to a boolean for 'boolean'), the schema's own
+// `default` when `rawValue` is absent/empty or fails validation, or
+// `rawValue` unchanged when `key` names no known lever (nothing to coerce
+// against). The one place malformed-value coercion is decided for a
+// programmatic (non-audit) reader — a caller with a raw policy.yml string
+// (or nothing at all) calls this once and trusts what comes back without
+// re-validating it itself.
+function resolveValue(key, rawValue) {
+  const entry = POLICY_KEYS.find((e) => e.key === key);
+  if (!entry) return rawValue;
+  if (rawValue === undefined || rawValue === null || rawValue === '') return entry.default;
+  const strValue = String(rawValue);
+  if (!isValidValue(entry, strValue)) return entry.default;
+  if (entry.type === 'integer') return parseInt(strValue, 10);
+  if (entry.type === 'boolean') return strValue === 'true';
+  return rawValue;
 }
 
 function auditPolicy(repoRoot) {
@@ -126,4 +149,4 @@ function auditPolicy(repoRoot) {
   return { unrecognizedKeys, invalidValues, migratableKeys };
 }
 
-module.exports = { POLICY_KEYS, auditPolicy };
+module.exports = { POLICY_KEYS, auditPolicy, resolveValue };
