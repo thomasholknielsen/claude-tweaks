@@ -19,8 +19,21 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 34);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 34);
+  assert.strictEqual(POLICY_KEYS.length, 35);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 35);
+});
+
+test('dispatch-batch-size is registered alongside its deprecated alias', () => {
+  // #295 renamed dispatch-pick-max-concurrent -> dispatch-batch-size. Registering
+  // only the old name made auditPolicy reject the name every skill now documents.
+  const renamed = POLICY_KEYS.find((k) => k.key === 'dispatch-batch-size');
+  assert.ok(renamed, 'dispatch-batch-size missing from POLICY_KEYS — the renamed key must validate');
+  assert.strictEqual(renamed.type, 'integer');
+  assert.strictEqual(renamed.default, 3);
+
+  const alias = POLICY_KEYS.find((k) => k.key === 'dispatch-pick-max-concurrent');
+  assert.ok(alias, 'the deprecated alias must stay recognized until its removal condition is met');
+  assert.strictEqual(alias.default, renamed.default, 'alias and canonical key must resolve the same default');
 });
 
 test('integration-branch is a recognized string key with no default', () => {

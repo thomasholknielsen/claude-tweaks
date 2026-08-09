@@ -12,8 +12,16 @@ async function runGroupsSequentially(groups, { enterWorktree, dispatchTask, tear
   const results = [];
   for (const group of groups) {
     const worktree = await enterWorktree(group);
-    const outcome = await dispatchTask(group, worktree);
-    await teardownWorktree(worktree);
+    let outcome;
+    try {
+      outcome = await dispatchTask(group, worktree);
+    } finally {
+      // Every terminal outcome tears its worktree down — including the failed and
+      // blocked ones. A rejection here must not leak the worktree into the next
+      // group's turn, which is the #155 hazard by another route. The rejection
+      // still propagates: the loop stops on failure, just after cleanup.
+      await teardownWorktree(worktree);
+    }
     results.push({ group, outcome });
   }
   return results;

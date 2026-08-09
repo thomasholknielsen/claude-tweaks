@@ -59,6 +59,38 @@ test('#155 scenario: group 2 worktree is never entered while group 1 is still ac
   );
 });
 
+test('a rejecting dispatchTask still tears its worktree down, and still stops the loop', async () => {
+  // Without the try/finally, a rejection skips teardownWorktree and leaks the
+  // worktree — the documented behavior is that EVERY terminal outcome (failed and
+  // blocked included) gets its worktree torn down.
+  const groupA = { id: 'A' };
+  const groupB = { id: 'B' };
+  const tornDown = [];
+  const enteredOrder = [];
+  const boom = new Error('flow HARD-GATE failure');
+
+  async function enterWorktree(group) {
+    enteredOrder.push(group.id);
+    return `wt-${group.id}`;
+  }
+  async function dispatchTask(group) {
+    if (group.id === 'A') throw boom;
+    return 'merged';
+  }
+  async function teardownWorktree(worktree) {
+    tornDown.push(worktree);
+  }
+
+  await assert.rejects(
+    () => runGroupsSequentially([groupA, groupB], { enterWorktree, dispatchTask, teardownWorktree }),
+    (err) => err === boom,
+    'the rejection must propagate — cleanup runs, it does not swallow the failure',
+  );
+
+  assert.deepStrictEqual(tornDown, ['wt-A'], "group A's worktree must be torn down despite the rejection");
+  assert.deepStrictEqual(enteredOrder, ['A'], 'the loop must stop on failure — group B is never entered');
+});
+
 test('reverting to concurrent (Promise.all) dispatch fails the same invariant', async () => {
   // This models what today's (pre-fix) "parallel Task agent" behavior does, and proves the
   // test above actually discriminates: running the two mock groups concurrently — the exact
