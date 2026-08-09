@@ -19,7 +19,7 @@ Split the batch into groups of at most 4 items — `AskUserQuestion`'s own per-q
 file). Issue one `multiSelect: true` `AskUserQuestion` call per chunk, sequentially — never in
 parallel, so each chunk's answer is known before the next renders. Each chunk's options: `label`
 = the item's title, `description` = a one-line summary plus any dedup flag (literal format
-`⚠ possible duplicate: #{N}` when a dedup search found a match — never rendered as a separate
+`**possible duplicate:** #{N}` when a dedup search found a match — never rendered as a separate
 `AskUserQuestion` call).
 
 **No pre-selection exists.** The tool's `options` schema carries only `label`/`description`/

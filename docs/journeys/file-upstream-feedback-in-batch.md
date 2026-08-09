@@ -19,7 +19,7 @@ files:
 - **URL:** `/claude-tweaks:feedback --queue`
 - **Action:** Invoke the skill bare (or with `--queue`); it lists every open `upstream-candidate` issue and, for each, runs Steps 1-6 (gather, classify, self-reference check, dedup search, draft, scrub) non-interactively before rendering anything.
 - **Should feel:** Like triage, not paperwork — the maintainer reads finished drafts, not raw issue bodies they'd have to interpret themselves.
-- **Should understand:** Each candidate's fully scrubbed draft renders as literal text above the confirmation call, including a `⚠ possible duplicate: #{N}` flag inline wherever the dedup search found a plausible match — a duplicate never gets its own separate prompt.
+- **Should understand:** Each candidate's fully scrubbed draft renders as literal text above the confirmation call, including a `**possible duplicate:** #{N}` flag inline wherever the dedup search found a plausible match — a duplicate never gets its own separate prompt.
 - **Red flags:** A candidate's draft missing from the rendered text before the confirmation call; a dedup match silently omitted instead of flagged.
 
 ### 2. Approve a chunk — terminal
