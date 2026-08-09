@@ -6,7 +6,7 @@
 #
 # Paste this canonical line into this project's claude.ai/code environment Setup script
 # field (environment settings, web UI only — no API sets this remotely) so cloud sessions
-# and scheduled Routines get the same plugins available locally:
+# get the same plugins available locally:
 #   { bash scripts/claude-cloud-setup.sh || bash */scripts/claude-cloud-setup.sh; } > "$HOME/claude-cloud-setup.log" 2>&1 || true
 # See CLAUDE.md's "Cloud parity" section for why this exists and what it doesn't cover.
 set -euo pipefail

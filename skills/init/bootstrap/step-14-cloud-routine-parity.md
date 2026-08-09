@@ -4,7 +4,7 @@
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config. A project that never configures this has full local capability but silently loses claude-tweaks (and everything it depends on) the moment someone opens a cloud session or fires a scheduled Routine against it.
 
-**The declaration is not the installer — the Setup script is.** The **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`) is what a sandbox is *permitted* to load, and Anthropic's docs describe those plugins as "installed at session start"; that install was measured not happening. In a live cloud session on a repo whose clone contained the declaration, with the environment's network access set to **Full** and the marketplace repo clonable from inside the VM, `~/.claude/plugins/` did not exist at all — no `known_marketplaces.json`, no `marketplaces/`, no `cache/` — and every plugin command returned `Unknown command`. Adding `bash scripts/claude-cloud-setup.sh` to that same environment's Setup script field fixed it in the next session (measured with the bare form then in use; the canonical field line today is the logging form in `scripts/claude-cloud-setup.sh`'s header), on two different repositories, one of which received no repo change at all. So: declare **and** paste the Setup script. A project with the declaration and no Setup script has nothing installed, which is the same outcome as declaring nothing (`[IL-113]`). That measurement covers interactive cloud sessions, where the field is confirmed effective. Scheduled Routine sandboxes were measured **not** receiving the field's effects (2026-08-09, reproduced across three fresh containers — populated field, zero plugin effects; the scope of affected sandbox types is unknown, so treat further incidents as appends, not replacements). The routine preamble's self-heal-to-execution fallback (#260) — not this field — is what guarantees a scheduled firing executes its skill (`[IL-117]`).
+**The declaration is not the installer — the Setup script is.** The **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`) is what a sandbox is *permitted* to load, and Anthropic's docs describe those plugins as "installed at session start"; that install was measured not happening. In a live cloud session on a repo whose clone contained the declaration, with the environment's network access set to **Full** and the marketplace repo clonable from inside the VM, `~/.claude/plugins/` did not exist at all — no `known_marketplaces.json`, no `marketplaces/`, no `cache/` — and every plugin command returned `Unknown command`. Adding `bash scripts/claude-cloud-setup.sh` to that same environment's Setup script field fixed it in the next session (measured with the bare form then in use; the canonical field line today is the logging form in `scripts/claude-cloud-setup.sh`'s header), on two different repositories, one of which received no repo change at all. So: declare **and** paste the Setup script. A project with the declaration and no Setup script has nothing installed, which is the same outcome as declaring nothing (`[IL-113]`). That measurement covers interactive cloud sessions, where the field is confirmed effective. Scheduled Routine sandboxes were measured **not** receiving the field's effects (2026-08-09, reproduced across three fresh containers — populated field, zero plugin effects; the scope of affected sandbox types is unknown, so treat further incidents as appends, not replacements). The routine preamble's self-heal-to-execution fallback (#260) — not this field — is what guarantees a scheduled firing ends in a real result or a diagnosable failure (`[IL-117]`).
 
 **Gate:** same two-tier check Step 9 documents. No remote → skip this step silently.
 
@@ -49,7 +49,7 @@ When there are zero mirror candidates, this still renders (never silently auto-a
 #
 # Paste this canonical line into this project's claude.ai/code environment Setup script
 # field (environment settings, web UI only — no API sets this remotely) so cloud sessions
-# and scheduled Routines get the same plugins available locally:
+# get the same plugins available locally:
 #   { bash scripts/claude-cloud-setup.sh || bash */scripts/claude-cloud-setup.sh; } > "$HOME/claude-cloud-setup.log" 2>&1 || true
 # See CLAUDE.md's "Cloud parity" section for why this exists and what it doesn't cover.
 set -euo pipefail
@@ -242,7 +242,7 @@ may load, and the Setup script below is what actually installs it. The field is
 confirmed effective for interactive cloud sessions; it was measured not reaching
 scheduled Routine sandboxes (scope of affected sandbox types unknown) — the routine
 prompt preamble's self-heal fallback, not this field, is what guarantees a scheduled
-firing executes its skill.
+firing ends in a real result or a diagnosable failure.
 
 - **Setup script (required, not optional):** paste the canonical Setup-script line (see
   `scripts/claude-cloud-setup.sh`'s header) into this project's cloud environment's Setup script
