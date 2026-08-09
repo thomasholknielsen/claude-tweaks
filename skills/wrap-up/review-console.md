@@ -7,7 +7,7 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 - **Every mode — `auto`, `hybrid`, interactive, standalone** — run whenever a pipeline run directory exists for this work, which is every run from Phase 1 onward (`SKILL.md`'s "Establish the run directory (unconditional)"). Mode is not a condition on this console; the run directory is.
 - **`MULTISPEC_REVIEW_DEFER=1`** — the one exception: **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory, and the Multi-spec defer protocol below.
 
-In interactive and standalone runs this console replaces the batch decision the report template used to present after it — same tables, same single terminal `AskUserQuestion`, same per-item `Q#`/`M#`/`U#` drills. `summary-template.md` now renders only the record of what was decided here, never a second decision point.
+In interactive and standalone runs this console replaces the batch decision the report template used to present after it — same tables, same single terminal `AskUserQuestion`, same per-item `Q#`/`M#` drills and the same batched `U#` review (`_shared/upstream-feedback-batch.md`). `summary-template.md` now renders only the record of what was decided here, never a second decision point.
 
 **Hard gate.** Check the response you are about to send: does it already contain the numbered console tables as literal rendered markdown, with a row for every item? If not, render them now, in this response, before the tool call.
 
@@ -236,7 +236,7 @@ Queue writes below — do not drop it.
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The per-item sections that follow them — Queue writes, Memory updates, Upstream feedback — each require per-item approval, because `_shared/auto-mode-card.md` lists work-record creation, memory writes, and upstream filing as not silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The sections that follow them — Queue writes, Memory updates, Upstream feedback — each require approval outside that batch choice, because `_shared/auto-mode-card.md` lists work-record creation, memory writes, and upstream filing as not silenced by `auto`: Queue writes and Memory updates one `AskUserQuestion` call per item, Upstream feedback one or more chunked `multiSelect` calls (`_shared/upstream-feedback-batch.md`).
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -383,15 +383,20 @@ Render this section only when the Memory curation row staged a memory-file propo
 
 > A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project. `_shared/auto-mode-card.md` lists it as not silenced by `auto`.
 
-#### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+#### Upstream feedback — REQUIRES APPROVAL, BATCHED (not covered by "Approve all")
 
-Render this section only when the Upstream feedback curation row staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise.
+Render this section only when the Upstream feedback curation row staged one or more upstream
+defect/gap reports (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise. Approval runs
+through `_shared/upstream-feedback-batch.md`'s shared batch contract — one or more `multiSelect`
+`AskUserQuestion` calls, chunked at 4 items per call, all pre-checked — instead of one call per
+item; see below for where this fires relative to the terminal decision.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
 | U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
 
-> Filing publishes privately-derived content to a public repository. The body shown is already scrubbed; approving files it via `/claude-tweaks:feedback`.
+> Filing publishes privately-derived content to a public repository. The body shown is already
+> scrubbed; a checked item files it via `/claude-tweaks:feedback --pre-confirmed`.
 
 Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
 ```
@@ -409,10 +414,10 @@ If "Override specific items" is chosen, the skip/modify list is ordinary free-te
 
 Queue writes (Q1, Q2) are handled separately below — they are never part of this terminal decision, regardless of which option is chosen.
 
-After the user selects option 1 or 2, prompt each per-item row individually — one small `AskUserQuestion` call per `Q#`/`M#`/`U#` item, issued separately (never batched into a single call's multiple questions, and never batched across sections).
+After the user selects option 1 or 2:
 
-For each `Q#`, `M#`, or `U#` item, call `AskUserQuestion` with `question`: the item's own line (e.g. for a queue write, `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"` for a queue write, `"Memory update {M#}"` for a memory update, or `"Upstream feedback {U#}"` for upstream feedback, `multiSelect`: `false`:
-- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""` for a queue write, `"Write the memory file: \"{name}\""` for a memory update, `"File the issue: \"{summary}\""` for upstream feedback
+**Queue writes and Memory updates** — prompt each per-item row individually: one small `AskUserQuestion` call per `Q#`/`M#` item, issued separately (never batched into a single call's multiple questions, and never batched across sections). For each `Q#` or `M#` item, call `AskUserQuestion` with `question`: the item's own line (e.g. for a queue write, `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"` for a queue write or `"Memory update {M#}"` for a memory update, `multiSelect`: `false`:
+- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""` for a queue write, `"Write the memory file: \"{name}\""` for a memory update
 - Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
 - Option 3 — `label`: `"Edit"`, `description`: `"Modify before creating"`
 
@@ -420,7 +425,9 @@ Applied to this example's two queue writes:
 - Q1 — `question`: `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Create the record: \"Add OAuth refresh edge case\" — blocked on /auth provider docs, parked with trigger '/auth provider docs land'"`
 - Q2 — `question`: `"Queue write Q2 → new record, backlog: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Create the record: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3\""`
 
-None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#`, `M#`, or `U#` items, whether from the same section or different ones (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
+None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#` or `M#` items, whether from the same section or different ones (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
+
+**Upstream feedback** — call into `_shared/upstream-feedback-batch.md`'s shared batch contract with this run's `U#` rows: render each item's full scrubbed draft (already available from `staged/wrap-up-upstream-*.md`), then issue the contract's chunked `multiSelect` `AskUserQuestion` call(s) — 4 items per call, all pre-checked. This is the dedicated per-decision approval for every checked item (`[IL-114]`): checking and submitting **authorizes filing now**, not shortlisting for later confirmation.
 
 ## On approval (option 1)
 
@@ -432,7 +439,7 @@ None of these three options carries `(Recommended)` — the source text requires
 6. Execute cleanup actions (items 18 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Phase 4's execution step picks these up
 7. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 8. For each `M#` memory update, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (`staged/wrap-up-memory-{N}.md`). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the wrap-up commit below. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
-9. For each `U#` upstream feedback item, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): invoke `/claude-tweaks:feedback` with the staged, already-scrubbed body from the item's staged file (`staged/wrap-up-upstream-{N}.md`) — that skill re-runs its own scrub and confirm gates, since its Component-Skill Contract states a pipeline never relaxes them. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+9. For the `U#` upstream feedback rows, present them via `_shared/upstream-feedback-batch.md`'s shared batch contract (chunked `multiSelect` calls, see above). For each item checked in the resulting chunk(s): invoke `/claude-tweaks:feedback --pre-confirmed` with the staged, already-scrubbed body from the item's staged file (`staged/wrap-up-upstream-{N}.md`) — that skill's Step 6 (scrub) still reruns as a drift check before filing; on drift it falls back to its own normal `AskUserQuestion` confirm for that one item, per `feedback/SKILL.md`'s Step 7. An item left unchecked is declined per the shared contract's decline rule — log to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 10. Commit with a wrap-up message
 11. Proceed to the phase-trace report
 
@@ -442,7 +449,7 @@ None of these three options carries `(Recommended)` — the source text requires
 2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
-5. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
+5. Queue writes (`Q#`) and Memory updates (`M#`) are still prompted per item even under override; Upstream feedback (`U#`) is still presented via `_shared/upstream-feedback-batch.md`'s shared batch contract even under override — the user can Skip or Edit any of them, but none of the three can be bulk-resolved by this terminal choice
 6. Commit, then proceed to the phase-trace report
 
 ## On stop (option 3)
@@ -459,5 +466,5 @@ Cleanup rows that are unconditional bookkeeping — run-dir archival, `cleanup-p
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run at Phase 4's execution step, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-card.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
+- **Queue writes and Memory updates are per-item only** — one `AskUserQuestion` call each. **Upstream feedback requires the same never-silenced-by-`auto` approval, but via `_shared/upstream-feedback-batch.md`'s chunked `multiSelect` calls** instead of one call per item. None of the three is ever covered by "Approve all," and none of Queue writes'/Memory updates' items is ever batched into one call together — this enforces `_shared/auto-mode-card.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes. Upstream feedback's own chunked calls are that same dedicated decision for `U#` rows — checking an item in a chunk **is** the per-decision approval, not a stand-in for one.
 - **An `[adr-convention]` row is also per-item**, despite sitting inside Configuration updates. Never fold it into "Approve all" and never pick one of its three options as a default — an unanswered row blocks the `[adr]` rows from the same run rather than resolving them, because their paths depend on the answer.
