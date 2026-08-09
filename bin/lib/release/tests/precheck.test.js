@@ -84,3 +84,32 @@ test('plan versions at or below origin/main are not claims', () => {
   const { result } = precheck(deps, 'minor');
   assert.strictEqual(result.ok, true);
 });
+
+const SIBLING_WORKTREES = 'worktree /repo\nbranch refs/heads/main\n\nworktree /repo/.claude/worktrees/f\nbranch refs/heads/wt-feature\n';
+
+test('a branch with no manifest is skipped silently — not a claim', () => {
+  const deps = baseDeps();
+  deps.git = fakeGit([
+    ['fetch origin main', () => ''],
+    ['show origin/main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['worktree list --porcelain', () => SIBLING_WORKTREES],
+    ['show wt-feature:.claude-plugin/plugin.json', () => {
+      throw new Error("fatal: path '.claude-plugin/plugin.json' does not exist in 'wt-feature'");
+    }],
+  ]);
+  const { result } = precheck(deps, 'minor');
+  assert.strictEqual(result.ok, true);
+});
+
+test('any other branch-manifest read failure aborts naming the branch — never silently weakens the check', () => {
+  const deps = baseDeps();
+  deps.git = fakeGit([
+    ['fetch origin main', () => ''],
+    ['show origin/main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['worktree list --porcelain', () => SIBLING_WORKTREES],
+    ['show wt-feature:.claude-plugin/plugin.json', () => 'not valid json'],
+  ]);
+  assert.throws(() => precheck(deps, 'minor'), /wt-feature/);
+});

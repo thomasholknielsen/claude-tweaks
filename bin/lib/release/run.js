@@ -42,13 +42,21 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
   try {
     deps.git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']);
   } catch {
-    throw new Error('origin/main diverged between pre-check and push — rebase and re-run; never force');
+    throw new Error('origin/main moved between pre-check and push. The release commit already exists locally — ' +
+      'do NOT re-run the full release (it would bump a second time). Recover manually: ' +
+      'git pull --rebase origin main, then git push origin main, then retry the marketplace mirror alone.');
   }
   deps.git(['push', 'origin', 'main']);
   log(`pushed v${version} to origin/main`);
 
   const description = JSON.parse(newManifest).description;
-  const { changed } = mirrorRelease(deps, { version, description, dryRun: false });
+  let changed;
+  try {
+    ({ changed } = mirrorRelease(deps, { version, description, dryRun: false }));
+  } catch (err) {
+    throw new Error(`v${version} is pushed and released; only the marketplace mirror failed: ${err.message}\n` +
+      'Do NOT re-run the full release (it would bump a second time) — retry just the mirror once the cause is fixed.');
+  }
   log(changed ? 'marketplace mirrored' : 'marketplace already current');
   return { version, pushed: true, mirrored: changed };
 }

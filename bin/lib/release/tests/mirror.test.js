@@ -45,7 +45,7 @@ test('mirrorRelease reads live main, writes only when changed and not dry-run', 
   const live = mirrorRelease(deps, { version: '6.71.0', description: 'D', dryRun: false });
   assert.strictEqual(live.changed, true);
   assert.strictEqual(writes.length, 1, 'live run writes exactly once');
-  assert.ok(writes[0].some((a) => a === 'sha=abc123' || a === '-f' ? true : String(a).includes('abc123')), 'PUT carries the blob sha');
+  assert.ok(writes[0].some((a) => String(a) === 'sha=abc123'), 'PUT carries the blob sha');
 
   writes.length = 0;
   const noop = mirrorRelease(deps, { version: '6.70.1', description: 'Old description', dryRun: false });

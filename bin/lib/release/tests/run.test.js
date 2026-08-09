@@ -95,6 +95,6 @@ test('aborts before commit when the staged set is not exactly the release trio [
 
 test('aborts before push when origin/main moved during compose', () => {
   const { deps, state } = makeDeps({ ancestorOk: false });
-  assert.throws(() => runRelease(deps, { part: 'minor', summary: 'S', date: '2026-08-08', dryRun: false, log: () => {} }), /diverg|ancestor/i);
+  assert.throws(() => runRelease(deps, { part: 'minor', summary: 'S', date: '2026-08-08', dryRun: false, log: () => {} }), /moved between pre-check and push[\s\S]*do NOT re-run/i);
   assert.ok(!state.gitCalls.some((c) => c.startsWith('push')), 'must not push over divergence');
 });

@@ -20,8 +20,13 @@ function collectClaims(deps) {
     let version;
     try {
       version = manifestVersion(deps.git(['show', `${m[1]}:.claude-plugin/plugin.json`]));
-    } catch {
-      continue; // branch without a manifest — not a claim
+    } catch (err) {
+      // Only a genuinely absent manifest is "not a claim" — any other failure
+      // (git error, malformed manifest JSON) aborts rather than silently weakening the check.
+      if (/does not exist|exists on disk, but not in|invalid object name/i.test(String(err.message))) {
+        continue;
+      }
+      throw new Error(`pre-check could not read ${m[1]}'s manifest: ${err.message}`);
     }
     if (version !== localMain) worktreeBranches.push({ branch: m[1], version });
   }
