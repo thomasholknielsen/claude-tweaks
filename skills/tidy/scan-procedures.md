@@ -138,17 +138,6 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 call when `gh` is unavailable — the same `claims/` directory on `claims-registry`, MCP tools
 instead of `gh api`.)
 
-**Deprecation-window secondary: the legacy `refs/claims/issue-<n>` keyspace.** Per
-`_shared/issue-claims.md`'s "Deprecation window" section, also list `git/matching-refs/claims/`
-and fold any match through the legacy `claimStatus` comment-fold — this is the one path that can
-still surface an in-flight claim made under the retired ref mechanism before rollout. Drop this
-whole secondary listing (and its table rows below) in the same change that closes the
-deprecation window (see that section's End condition).
-
-```bash
-gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
-```
-
 | Status | Recommendation |
 |--------|---------------|
 | Issue closed (any claim state) | Release (orphan — the work is done or dismissed) |
@@ -156,12 +145,9 @@ gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
 | Blob classified `'unreadable'` | Manual review (never break a claim you cannot read) |
 | Live claim (`'live'`), but its `claimedAt` fails to parse as a date | Manual review (per `bin/lib/issues/claims.js`'s `isStale` fail-closed contract — a corrupted-but-JSON-valid claim is never automatically stale; flag it explicitly rather than keeping it silently forever) |
 | Blob classified `'live'`, issue open | Keep |
-| **Deprecation window only:** legacy ref found, `claimStatus` folds to `everReleased: true` | Release (orphaned legacy claim — a prior release's comment posted but the ref-delete failed; safe to break) |
-| **Deprecation window only:** legacy ref found, `claimStatus` folds to `everReleased: false` | Manual review (never break a claim you cannot read) |
 
 Releasing = the current-blob conditional overwrite with the tombstone content
-`releasePayload` generates (reason `swept: stale claim` or `swept: issue closed`), or — for a
-deprecation-window-only legacy ref — delete the ref and post the same release comment. Releases
+`releasePayload` generates (reason `swept: stale claim` or `swept: issue closed`). Releases
 execute only after Step 6 batch approval — breaking a lock is never autonomous in /tidy.
 
 → Collect each as: `[claim] claims/issue-{n}.json — {status} — {recommendation}`

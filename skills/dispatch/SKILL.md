@@ -265,7 +265,7 @@ gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 # mcp-transport.md in this skill's directory.
 ```
 
-**Anything other than a clean claim on every member** — a rejected write, an unresolvable `gh`/MCP failure during claim, or a group only partly claimable — and the `--claim-only` modifier's stop point: read `claim-outcomes.md` in this skill's directory and follow it. It carries the `classifyClaimBlob` classification (plus the legacy `claimStatus` comment-fold, deprecation-window only) and the `_shared/issue-claims.md` failure-posture branch (skip / break-and-take-over / treat-as-live), the partial-claim release-and-move-on rule, and `--claim-only`'s report plus manual-release commands. A group claimed cleanly on every member, with no `--claim-only`, proceeds straight to Step 5.
+**Anything other than a clean claim on every member** — a rejected write, an unresolvable `gh`/MCP failure during claim, or a group only partly claimable — and the `--claim-only` modifier's stop point: read `claim-outcomes.md` in this skill's directory and follow it. It carries the `classifyClaimBlob` classification and the `_shared/issue-claims.md` failure-posture branch (skip / break-and-take-over / treat-as-live), the partial-claim release-and-move-on rule, and `--claim-only`'s report plus manual-release commands. A group claimed cleanly on every member, with no `--claim-only`, proceeds straight to Step 5.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 

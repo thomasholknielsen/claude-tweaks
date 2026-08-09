@@ -77,3 +77,32 @@ detail a consumer needs, downgrade the acceptance criterion explicitly rather th
 silently unmet.
 
 Related: #241
+
+## Build Finding — Word-count measurement
+
+**End-condition correction:** the plan's premise notes flagged this at plan time and it holds
+after the build: `claimFilePath` is not a "now-unused compatibility export" — it formats the
+*live* `claims/issue-<n>.json` blob keyspace and both `claimPayload`/`releasePayload` still call
+it. Only `claimRef` (the retired `refs/claims/issue-<n>` git-ref keyspace), `claimStatus`,
+`parseClaimMarker`, and the `RELEASE_RE`/`CLAIM_RE` regexes were removed, along with the `ref`
+field on both payloads' returns and the legacy `sha` param on `claimPayload`. `claimFilePath`
+itself was untouched.
+
+**Word count:** baseline (pre-#241, `git show d2ed600a:skills/_shared/issue-claims.md | wc -w`)
+= 3173. Post-#241, pre-this-change = 4038. After this change (deprecation-window deletion +
+editorial trim) = 2915. Target (under-half of baseline) = ≤1586.
+
+**Verdict: explicitly downgraded — target not met.** 2915 words is a real ~28% cut from
+baseline and a ~28% cut from the pre-trim 4038, but well short of ≤1586. Reason: the file's
+current shape documents one protocol across *two* transports (gh CLI and MCP) for every
+operation — bootstrap, claim, release, list, read — where the pre-#241 baseline had no MCP
+transport to describe at all, so the file is structurally carrying more executable surface than
+the number it's being measured against ever had to cover. Every remaining paragraph is either a
+numbered procedure step with a gh-CLI/MCP pair, a state-machine definition consumers branch on,
+or one of three tables (Release triggers, Failure posture, Consumers) that downstream skills
+(`dispatch/SKILL.md`, `dispatch/claim-outcomes.md`, `dispatch/mcp-transport.md`,
+`wrap-up/cleanup-procedures.md`, `tidy/scan-procedures.md`, `flow/failure-cards.md`) read and
+depend on verbatim. Cutting further would mean dropping one transport's mechanics, a state
+branch, or a table row — all forbidden by this record's own "no consumer-facing mechanical
+detail lost" acceptance criterion and the plan's "do not change the protocol" constraint.
+Accepting this downgrade over a mechanically-incomplete ≤1586-word file.

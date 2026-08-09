@@ -16,7 +16,7 @@ recommended next action, and a resumed run needs its claims intact; an unrelease
 out via TTL anyway.
 
 When the stop occurs, post a *blocked* checkpoint comment to each claimed issue so a stalled
-issue carries a resumable breadcrumb (plain text, no marker — `claimStatus` ignores it):
+issue carries a resumable breadcrumb (plain text, no marker — the claim classifier ignores it):
 
 ```bash
 gh issue comment "$ISSUE" --body "Blocked at {gate}: {one-line reason}. Run {runId}; claim active until {expiry} unless released."

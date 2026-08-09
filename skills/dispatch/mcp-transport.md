@@ -70,12 +70,7 @@ done
 
 Read the claim file at `claimPath` on `CLAIMS_BRANCH` and classify with `classifyClaimBlob`,
 exactly as the `gh` path does — this is the authoritative read; see `claim-outcomes.md` for the
-full branch table. Fall back to the legacy `claimStatus` comment fold (fetch comments via the
-confirmed "list issue comments" mapping) only during the deprecation window, and only when the
-blob read comes back absent but a legacy `refs/claims/issue-<n>` ref is found — per
-`_shared/issue-claims.md`'s "Reading claim state" section. `claimStatus` accepts either raw `gh`
-comment objects or the MCP tool's comment objects, since it only reads a `.body` string field
-off each.
+full branch table.
 
 ## Step 4 — `--claim-only` release
 

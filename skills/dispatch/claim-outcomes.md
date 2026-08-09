@@ -15,8 +15,6 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory — the same read-then-classify, over the MCP tools.
 
-**Deprecation window only:** when the blob read above comes back absent (no file, no rejection possible — meaning the rejection came from the ref-listing pre-check, not the blob write), fall back to the legacy comment fold: fetch comments and fold through `claimStatus`, per `_shared/issue-claims.md`'s "Reading claim state" legacy-fallback paragraph. This branch should not fire once the deprecation window has closed.
-
 Resolve the returned classification per `_shared/issue-claims.md`'s own "Failure posture" table (not restated here — that file's header explicitly asks consumers not to duplicate it inline): `'live'` (skip), `'stale'` (break: conditional overwrite, takeover comment), `'unreadable'` (treat as live), `'tombstone'` (treat as a fresh reclaim: conditional overwrite, new claim comment).
 
 Any other `gh` failure during claim: skip, log, continue.
