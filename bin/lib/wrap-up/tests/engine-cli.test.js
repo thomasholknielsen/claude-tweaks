@@ -247,6 +247,28 @@ test('render --strict exits 2 while open rows are unrecorded, and 0 once all are
   assert.strictEqual(strictAfter.status, 0, strictAfter.stderr);
 });
 
+test('render --section console with two --spec-state flags prints one merged table and exits 0', () => {
+  const runDirA = planFreshRunDir();
+  const runDirB = planFreshRunDir();
+
+  // Record a skills finding into runDirA so the merged output has content.
+  const payload = JSON.stringify({
+    version: 1, rowId: 'skills', result: 'findings',
+    findings: [{ kind: 'additive', summary: 'Add row', targetPath: '.claude/skills/s1.md', action: 'applied', stagePath: null, commit: 'abc1234' }],
+    gapDetection: 'run', detail: '1 change',
+  });
+  const rec = run(['record', '--run-dir', runDirA, '--dry-run'], { input: payload });
+  assert.strictEqual(rec.status, 0, rec.stderr);
+
+  const stateAPath = path.join(runDirA, 'engine-state.json');
+  const stateBPath = path.join(runDirB, 'engine-state.json');
+
+  const r = run(['render', '--section', 'console', '--spec-state', `157=${stateAPath}`, '--spec-state', `159=${stateBPath}`, '--start-at', '1']);
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^\| # \| Spec \| Target \| Change \| Disposition \|$/m);
+  assert.match(r.stdout, /^\| 1 \| 157 \|/m);
+});
+
 test('render without --run-dir exits 2', () => {
   const r = run(['render']);
   assert.strictEqual(r.status, 2);

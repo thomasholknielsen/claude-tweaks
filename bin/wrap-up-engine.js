@@ -23,7 +23,7 @@ const path = require('node:path');
 const { gatherFacts } = require('./lib/wrap-up/facts');
 const { buildWorklist } = require('./lib/wrap-up/engine-plan');
 const { initState, recordResult } = require('./lib/wrap-up/engine-record');
-const { renderTrace, renderConsoleSections, strictCheck } = require('./lib/wrap-up/engine-render');
+const { renderTrace, renderConsoleSections, renderConsoleSectionsMulti, strictCheck } = require('./lib/wrap-up/engine-render');
 
 const USAGE = [
   'usage: wrap-up-engine.js plan --run-dir <dir> --base <sha> [--ceremony <profile>] [--skill-budget n] [--doc-budget n] [--signals <json>] [--dry-run]',
@@ -40,7 +40,7 @@ function usageExit() {
 function parseArgs(argv) {
   const out = {
     runDir: null, base: null, ceremony: null, skillBudget: null, docBudget: null,
-    signals: null, dryRun: false, strict: false, section: null, startAt: null,
+    signals: null, dryRun: false, strict: false, section: null, startAt: null, specStates: [],
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -55,6 +55,7 @@ function parseArgs(argv) {
     if (a === '--strict') { out.strict = true; continue; }
     if (a === '--section' && hasValue) { out.section = argv[i + 1]; i += 1; continue; }
     if (a === '--start-at' && hasValue) { out.startAt = argv[i + 1]; i += 1; continue; }
+    if (a === '--spec-state' && hasValue) { out.specStates.push(argv[i + 1]); i += 1; continue; }
   }
   return out;
 }
@@ -207,13 +208,27 @@ function runRecord(args) {
 }
 
 function runRender(args) {
-  if (!args.runDir) usageExit();
-
   const section = args.section || 'trace';
   if (section !== 'trace' && section !== 'console') {
     process.stderr.write(`wrap-up-engine.js render: --section must be 'trace' or 'console'\n`);
     process.exit(2);
   }
+
+  if (args.specStates.length > 0) {
+    const specStates = [];
+    for (const raw of args.specStates) {
+      const eq = raw.indexOf('=');
+      const specId = raw.slice(0, eq);
+      const p = raw.slice(eq + 1);
+      const state = JSON.parse(fs.readFileSync(p, 'utf8'));
+      specStates.push({ specId, state });
+    }
+    const { markdown } = renderConsoleSectionsMulti(specStates, { startAt: args.startAt !== null ? Number(args.startAt) : 1 });
+    process.stdout.write(`${markdown}\n`);
+    return;
+  }
+
+  if (!args.runDir) usageExit();
 
   let state;
   try {
