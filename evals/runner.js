@@ -12,7 +12,7 @@ import { load as loadYaml } from 'js-yaml';
 import { query as realQuery } from '@anthropic-ai/claude-agent-sdk';
 import { createActor } from './actor.js';
 import { runAssertion } from './assertions/index.js';
-import { freshRepo, seedFiles, applyPatch, seedLocalWorkRecord, seedGitRemote, walkFiles } from './fixtures/git-fixtures.js';
+import { freshRepo, seedFiles, applyPatch, seedLocalWorkRecord, seedGitRemote, seedBranch, walkFiles } from './fixtures/git-fixtures.js';
 import { resolveGitState, appendHistoryEntry, readHistory, formatHistoryTable } from './history.js';
 
 const EVALS_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -69,6 +69,9 @@ function buildFixture(scenario, fixturesDir) {
     // silently retarget them.
     if (step['git-remote']) {
       seedGitRemote(dir, step['git-remote']);
+    }
+    if (step['branch']) {
+      seedBranch(dir, step['branch']);
     }
   }
   return dir;

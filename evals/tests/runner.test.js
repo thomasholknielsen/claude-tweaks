@@ -345,6 +345,43 @@ test('runScenarioWith: a fixture with no git-remote seed step still has no remot
   );
 });
 
+// ── branch fixture seed step (#115) ─────────────────────────────────────────
+
+test('runScenarioWith: a branch seed step checks out a feature branch ahead of the normalized base, so merge-base/diff resolve', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-branch',
+    'fixture:',
+    '  base: none',
+    '  seed:',
+    '    - branch:',
+    '        name: feature',
+    '        base: main',
+    '        files:',
+    '          feature.txt: "new file\\n"',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedOptions = null;
+  await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingOptions, resultsDir, fixturesDir: scenariosDir });
+
+  const repoDir = capturedOptions.cwd;
+  const current = execFileSync('git', ['-C', repoDir, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
+  assert.strictEqual(current, 'feature');
+  const mergeBase = execFileSync('git', ['-C', repoDir, 'merge-base', 'main', 'HEAD'], { encoding: 'utf8' }).trim();
+  assert.ok(mergeBase);
+  const numstat = execFileSync('git', ['-C', repoDir, 'diff', '--numstat', 'main..HEAD'], { encoding: 'utf8' }).trim();
+  assert.match(numstat, /feature\.txt/);
+});
+
 // ── Matrix expansion (#158) ─────────────────────────────────────────────────
 
 function writeCorpus(dir, entries) {
