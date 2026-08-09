@@ -140,5 +140,31 @@ outcome does today; only the branch additionally exists on origin now, plus an o
   shipped implementation at this leaf's build start, the same treatment already given to #222/
   #268's file-overlap risk elsewhere in this family.
 
+## Build Notes
+
+Gotchas re-verification against #296's actual shipped code (2026-08-10, #296 now merged into
+this branch at commits through `2ac57706`):
+
+- **Attachment point confirmed.** `pending-review` resolves inside `/wrap-up`'s Review Console
+  path, and the canonical `demo:pending`-plus-Verification-Brief procedure lives in
+  `skills/wrap-up/verification-brief.md` (not inside dispatch's `task-prompt.md` or
+  `two-call-gate.md` directly — those files dispatch the second Task call, which internally
+  invokes `/flow #{n} review,polish,wrap-up`, and `/wrap-up` is what actually reaches
+  `verification-brief.md`). This matches the spec's Current State claim exactly; no shift from
+  #296's shipped shape.
+- **`CLAIM_RUN_ID` semantics confirmed unchanged.** Both of #296's two Task-call templates in
+  `skills/dispatch/task-prompt.md` export `CLAIM_RUN_ID="{RUN_ID}"` inline (first call line ~14,
+  second call line ~64) — still the only site in the codebase that sets it, still absent from
+  every interactive human-run `/flow` invocation. The spec's reliance on it as a headless-vs-
+  interactive signal holds.
+- **New consideration from #296's own final-review findings, not a spec defect:** #296 added a
+  failure-path teardown call (`/flow {target} wrap-up` alone, on a first-call `build,test`
+  failure) that also reaches `/wrap-up` — but that path resolves to `failed`/`blocked`, not
+  `pending-review`, so it is already excluded by this leaf's own Non-Goals/Deliverables scope
+  guard (`only pending-review outcomes`). No overlap.
+
+Disjointness: this leaf's Key Files (`verification-brief.md`, `settle-and-merge.md`'s push
+mechanics, `_shared/integration-branch.md`) do not overlap #296's shipped edits to
+`skills/dispatch/SKILL.md`, `task-prompt.md`, `two-call-gate.md`, or `sequential-execution.md`.
 
 <!-- work-fingerprint: dispatch-autonomy-model:push-pending-review-branch -->
