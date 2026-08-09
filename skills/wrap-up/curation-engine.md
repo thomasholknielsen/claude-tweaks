@@ -130,7 +130,7 @@ The `record` calls stay in the main thread regardless — agents return payloads
 
 ## 5. Vocabulary rule
 
-Internal identifiers never reach rendered output. The routing codes `D0`–`D5`, the scan-mechanism names (`domain-overlap`, `gap detection`), the retired `Step 7.x` numbers, and `[route: …]` tags are engine and classifier vocabulary — a reader of the report has no way to resolve them. `renderTrace` and `renderConsoleSections` post-check their own output against exactly that list and **throw** on a match, so a payload that smuggles one into `summary`, `detail`, or `targetPath` fails the render rather than shipping jargon.
+Internal identifiers never reach rendered output. The routing codes `D0`–`D5`, the scan-mechanism names (`domain-overlap`, `gap detection`), the retired `Step 7.x` numbers, and `[route: …]` tags are engine and classifier vocabulary — a reader of the report has no way to resolve them. `renderTrace`, `renderConsoleSections`, and `renderConsoleSectionsMulti` post-check their own output against exactly that list and **throw** on a match, so a payload that smuggles one into `summary`, `detail`, or `targetPath` fails the render rather than shipping jargon.
 
 Write those fields as a reader would say them: the target's name, what changes, why. Full detail — the routing code, the scan scope, the candidates considered and rejected, the reason a gate opened — goes to `decisions.md`, which is the audit trail and is deliberately exempt from the guard (its own `SCANNED` format contains `gap detection:` by design).
 

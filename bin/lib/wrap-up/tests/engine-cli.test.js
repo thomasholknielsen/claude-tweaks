@@ -298,6 +298,17 @@ test('render --spec-state with invalid JSON content exits 2 naming the failing p
   assert.match(r.stderr, new RegExp(badPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
+test('render --spec-state pointing at a file containing literal null exits 2 with a clean message, not a raw stack trace', () => {
+  const nullPath = path.join(makeRunDir(), 'null-state.json');
+  fs.writeFileSync(nullPath, 'null');
+  const r = run(['render', '--section', 'console', '--spec-state', `157=${nullPath}`]);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /could not read spec state from/);
+  assert.match(r.stderr, new RegExp(nullPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(r.stderr, /at Object\.<anonymous>/); // not a raw Node stack trace
+  assert.strictEqual(r.stdout, '');
+});
+
 test('render --spec-state value with no "=" exits 2 with usage on stderr', () => {
   const r = run(['render', '--section', 'console', '--spec-state', '157']);
   assert.strictEqual(r.status, 2);
@@ -337,6 +348,10 @@ test('render --section console --spec-state --strict prints the merged table the
   assert.strictEqual(r.status, 2);
   // Printed before the fatal exit, mirroring the single-state --strict behavior.
   assert.match(r.stdout, /Strict test row/);
+  // Names the specific incomplete spec (157), not just "something's missing" —
+  // and does not falsely implicate the fully-recorded spec (159).
+  assert.match(r.stderr, /spec 157 incomplete/);
+  assert.doesNotMatch(r.stderr, /spec 159 incomplete/);
 });
 
 test('render --section console --spec-state --strict exits 0 once every given state is complete', () => {

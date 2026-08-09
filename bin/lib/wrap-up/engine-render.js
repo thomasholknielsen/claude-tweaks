@@ -166,7 +166,7 @@ function renderConsoleSectionsMulti(specStates, { startAt = 1 } = {}) {
     const tableLines = ['| # | Spec | Target | Change | Disposition |', '|---|---|---|---|---|'];
     let any = false;
     for (const { specId, state } of specStates) {
-      const results = (state && state.results) || {};
+      const results = state.results || {};
       for (const rowId of spec.rowIds) {
         const entry = results[rowId];
         if (entry && entry.result === 'findings') {

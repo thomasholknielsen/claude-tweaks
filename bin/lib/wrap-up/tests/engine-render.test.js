@@ -492,10 +492,34 @@ test('renderConsoleSectionsMulti does NOT deduplicate two entries sharing the sa
   assert.deepStrictEqual(specColumnValues, ['157', '157', '157', '157']);
 });
 
-test('renderConsoleSections output is unchanged when a single spec is passed through renderConsoleSectionsMulti-adjacent code paths (parity guard)', () => {
+test('renderConsoleSectionsMulti with a single spec matches renderConsoleSections\'s rows plus a Spec column', () => {
   const state = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const specId = '157';
   const single = renderConsoleSections(state, { startAt: 1 });
+  const multi = renderConsoleSectionsMulti([{ specId, state }], { startAt: 1 });
+
   // renderConsoleSections itself must be byte-for-byte unchanged from before this plan — re-assert its own pinned expectations still hold.
   assert.match(single.markdown, /^#### Skill updates/);
   assert.strictEqual(single.nextNumber, 9);
+
+  assert.strictEqual(multi.nextNumber, single.nextNumber);
+
+  // Structural equivalence: multi's markdown must equal single's markdown
+  // with one extra "Spec" column (containing specId) inserted immediately
+  // after "#" in the header row, the separator row, and every data row.
+  // Section headings and blank lines pass through unchanged.
+  const expectedMulti = single.markdown
+    .split('\n')
+    .map((line) => {
+      if (line.startsWith('#### ')) return line;
+      if (line === '') return line;
+      if (line.startsWith('| # | Target')) return '| # | Spec | Target | Change | Disposition |';
+      if (line.startsWith('|---')) return '|---|---|---|---|---|';
+      const m = line.match(/^\| (\d+) \| (.*) \|$/);
+      if (m) return `| ${m[1]} | ${specId} | ${m[2]} |`;
+      return line;
+    })
+    .join('\n');
+
+  assert.strictEqual(multi.markdown, expectedMulti);
 });

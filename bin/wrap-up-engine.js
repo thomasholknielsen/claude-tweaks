@@ -231,7 +231,15 @@ function runRender(args) {
         state = JSON.parse(fs.readFileSync(p, 'utf8'));
       } catch (e) {
         // AC12: name the failing path, exit 2, never an uncaught exception.
-        process.stderr.write(`wrap-up-engine.js render: could not read engine-state.json from ${p}: ${e.message}\n`);
+        process.stderr.write(`wrap-up-engine.js render: could not read spec state from ${p}: ${e.message}\n`);
+        process.exit(2);
+      }
+      // Valid JSON that isn't a state object (e.g. a file containing just
+      // `null`) parses without throwing above but would otherwise blow up as
+      // an uncaught TypeError inside renderConsoleSectionsMulti — treat it
+      // as the same failure-to-read case, same message format, exit 2.
+      if (state === null || typeof state !== 'object') {
+        process.stderr.write(`wrap-up-engine.js render: could not read spec state from ${p}: parsed value is not an object\n`);
         process.exit(2);
       }
       specStates.push({ specId, state });
@@ -241,8 +249,15 @@ function runRender(args) {
     process.stdout.write(`${markdown}\n`);
 
     if (args.strict) {
-      const anyMissing = specStates.some(({ state }) => !strictCheck(state).ok);
-      if (anyMissing) process.exit(2);
+      const incomplete = specStates
+        .map(({ specId, state }) => ({ specId, missing: strictCheck(state).missing }))
+        .filter((entry) => entry.missing.length > 0);
+      if (incomplete.length > 0) {
+        for (const entry of incomplete) {
+          process.stderr.write(`wrap-up-engine.js render: spec ${entry.specId} incomplete — missing: ${entry.missing.join(', ')}\n`);
+        }
+        process.exit(2);
+      }
     }
     return;
   }
