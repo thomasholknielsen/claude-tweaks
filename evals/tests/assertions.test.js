@@ -228,6 +228,57 @@ test('findings-include: the file-path match is disambiguated by severity, not ac
   assert.ok(!result.message.includes('No test covers'), result.message);
 });
 
+// --- verdict-matches.js: merge-check's VERDICT: line ---
+
+test('verdict-matches: passes when the stated verdict matches expected', () => {
+  const result = runAssertion(
+    { resultText: 'RATIONALE: pointer repair.\nVERDICT: auto-merge\nRATIONALE: pointer repair only.' },
+    { type: 'verdict-matches', expected: 'auto-merge' },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
+test('verdict-matches: fails when the stated verdict does not match expected', () => {
+  const result = runAssertion(
+    { resultText: 'VERDICT: needs-human\nRATIONALE: sensitive path touched.' },
+    { type: 'verdict-matches', expected: 'auto-merge' },
+  );
+  assert.strictEqual(result.pass, false);
+});
+
+test('verdict-matches: fails with an excerpt when no VERDICT: line is present', () => {
+  const result = runAssertion(
+    { resultText: 'I looked at the diff but did not render a verdict.' },
+    { type: 'verdict-matches', expected: 'auto-merge' },
+  );
+  assert.strictEqual(result.pass, false);
+  assert.ok(result.message.includes('did not render a verdict'), result.message);
+});
+
+test('verdict-matches: multiple mentions takes the last one (narrative may restate options before Step 3 renders the real verdict)', () => {
+  const result = runAssertion(
+    {
+      resultText: [
+        'Weighing auto-merge vs needs-human for this diff.',
+        'VERDICT: needs-human',
+        'RATIONALE: draft.',
+        'On reflection: VERDICT: auto-merge',
+        'RATIONALE: the refutation attempt came up empty.',
+      ].join('\n'),
+    },
+    { type: 'verdict-matches', expected: 'auto-merge' },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
+test('verdict-matches: case tolerance — VERDICT written in a different case still matches', () => {
+  const result = runAssertion(
+    { resultText: 'verdict: AUTO-MERGE\nrationale: rename only.' },
+    { type: 'verdict-matches', expected: 'auto-merge' },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
 test('parseFindingsTable: a gate table with no Severity column (e.g. Spec Compliance) is skipped, not parsed as findings', () => {
   const textWithGateTableFirst = `
 ### Spec Compliance
