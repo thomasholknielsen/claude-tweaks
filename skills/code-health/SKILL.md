@@ -330,7 +330,7 @@ gh issue create \
   --label type:task
 ```
 
-**Exception — a headless D5 finding.** When the subject check routes this finding to D5 with no human to clear `/claude-tweaks:feedback`'s gate, apply `upstream-candidate` plus `by:code-health` only — omit `ready`, `risk:*`, `effort:*`. Not this project's work to build. See `_shared/learning-routing.md`'s Subject check.
+**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:code-health`, and omit `ready`, `risk:*` and `effort:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
 
 Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`effort` tier labels and the underlying `gh issue create --title/--body` never do.
 
