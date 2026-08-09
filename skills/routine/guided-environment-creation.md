@@ -90,11 +90,12 @@ step 6 below).
    leave Network access at its default (`Trusted`), leave Environment variables empty, and set
    Setup script to exactly:
    ```
-   bash scripts/claude-cloud-setup.sh 2>/dev/null || true
+   { bash scripts/claude-cloud-setup.sh || bash */scripts/claude-cloud-setup.sh; } > "$HOME/claude-cloud-setup.log" 2>&1 || true
    ```
-   (repo-agnostic by construction — a safe no-op on any repo that hasn't run `/claude-tweaks:init`
-   yet). Click "Create environment". This returns to the new-routine form with the new environment
-   now selected in the Environment combobox.
+   (repo-agnostic and non-blocking by construction — the fallback path covers the field's
+   workspace-root cwd, and on a repo that hasn't run `/claude-tweaks:init` the log records bash's
+   no-such-file error while session start proceeds). Click "Create environment". This returns to
+   the new-routine form with the new environment now selected in the Environment combobox.
 6. Fill in the routine's own real fields on that same form — confirmed live against the actual
    new-routine form layout:
    - Type `routine_name` into the "Name" field.
