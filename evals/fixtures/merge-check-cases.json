@@ -70,6 +70,17 @@
       },
       "expected": { "verdict": "needs-human" },
       "rationale": "Sensitive-path hard floor (AC 3): bin/hooks.js is listed in this fixture's own merge-sensitive-paths, so the hit renders needs-human immediately regardless of how mechanical the content change looks — no content judgment overrides this."
+    },
+    {
+      "id": "rename-with-default-change",
+      "n": 9008,
+      "description": "The renderLabel→formatLabel rename, but one hunk also raises DEFAULT_LIMIT from 10 to 25.",
+      "files": {
+        "lib/render.js": "function formatLabel(x) {\n  return `[${x}]`;\n}\n\nmodule.exports = { formatLabel };\n",
+        "lib/consumer.js": "const { formatLabel } = require('./render');\n\nconst DEFAULT_LIMIT = 25;\n\nfunction summarize(items) {\n  return items.slice(0, DEFAULT_LIMIT).map(formatLabel).join(', ');\n}\n\nmodule.exports = { summarize };\n"
+      },
+      "expected": { "verdict": "needs-human" },
+      "rationale": "Rename where one hunk also changes a default (Calibration table row 7): one non-conforming hunk makes the whole diff behavior-carrying — the automerge guideline binds again."
     }
   ]
 }
