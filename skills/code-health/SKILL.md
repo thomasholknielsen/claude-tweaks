@@ -131,6 +131,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root "${ROOT:-$PWD}" 
 
 The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — matching is a `.some()` intersection against each area-gated criterion's `appliesTo` array, not exact-equality, so an area gets the universal criteria plus *every* area-gated criterion whose `appliesTo` includes at least one of the area's types. Do not hand-copy any example result into a mental shortcut; call `criteriaForArea` for the real slice instead, since `criteria.js` is the single source of truth and the result drifts as criteria are added or re-gated.
 
+**This command's own `areaId` field is a different identity from Step 6's per-finding `areaId` — do not conflate them.** This `classify` output's `areaId` echoes back the slice id (the directory Step 1/`--area` scoped the whole sweep to — e.g. `bin/lib/code-health` for a recursive slice covering its own nested subdirectories too). It exists here only alongside `types` for classification purposes. Never copy this value into a Step 6 finding's `areaId` — see that step's derivation rule, which is per-finding and can name a deeper directory than this slice id whenever the finding's anchor file sits in a nested subdirectory of a recursive slice.
+
 If `types` is `[]` (unknown area), apply universal criteria only — run the same `criteriaForArea([])` call below to get the current list (do not hand-maintain a separate copy of it; the catalog in `criteria.js` is the single source of truth):
 
 ```bash
@@ -172,7 +174,7 @@ For each finding, emit exactly this shape:
 ```json
 {
   "criterion": "<catalog id, e.g. 'simplification'>",
-  "areaId": "<directory path relative to root, e.g. 'src/api'>",
+  "areaId": "<the anchor file's own containing directory, relative to root — see the pinned derivation rule below, e.g. 'src/api'>",
   "anchor": "<relfile#NearestNamedSymbol — see anchor rules below>",
   "relatedAnchors": "<optional array of relfile#NearestNamedSymbol strings — sibling occurrences of the same root cause; omit if there's only one occurrence>",
   "severity": "<low|medium|high>",
@@ -185,6 +187,8 @@ For each finding, emit exactly this shape:
   "acceptance": "<acceptance criteria>"
 }
 ```
+
+**`areaId` derivation (pinned, canonical across every scoping mode):** `areaId` is always `path.dirname(anchor-file)` — the directory, relative to root, that directly contains the finding's own `anchor` file — computed per finding, never per slice. This is the one rule every code-health scoping mode must satisfy identically: the generalist rotation path (Steps 1-4 above) and any focus-mode-style candidate-driven path (`focus-mode.md`) MUST derive `areaId` this same way, so the same file produces the identical fingerprint input (Step 8: `criterion + areaId + normalizeAnchor(anchor)`) no matter which mode found it. Do NOT substitute the slice id from Step 1 (`next-slice`'s `id`/`path`) or Step 4's `classify` output — both name the *slice*, which is coarser than the anchor file's own directory whenever the slice is recursive and the finding's anchor sits in a nested subdirectory (e.g. a `tests/` folder inside a recursively-swept slice). Example: a finding anchored at `bin/lib/code-health/tests/foo.test.js#bar`, found while judging the recursive `bin/lib/code-health` slice, still gets `areaId: "bin/lib/code-health/tests"` — never `"bin/lib/code-health"`. Getting this wrong duplicates the same finding under two different fingerprints depending on which scoping mode happened to find it first.
 
 **`criteria-review-quality.md` references a `critical` or `info` tier inherited from `/claude-tweaks:review`'s broader 5-tier scale** (the only fragment this applies to — every other criterion fragment's own severity calibration already uses only `high`/`medium`/`low`, matching the schema directly). Code-health's own schema accepts only `low|medium|high` for `severity` — never emit `critical` or `info`. When this fragment's calibration language points toward `critical`, map it to `severity: high` (code-health has no higher tier); treat anything it would call `info` as not worth filing at all rather than as a `low` finding.
 
