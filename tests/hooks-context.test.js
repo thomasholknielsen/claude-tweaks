@@ -138,12 +138,22 @@ test('appendEvent: derived ts/type always win over same-named keys in caller-sup
   assert.strictEqual(entry.reason, 'real-reason', 'non-colliding data fields are still preserved');
 });
 
-test('writeRunState serializes concurrent writers — no lost updates under real cross-process concurrency (finding regression)', async () => {
+test('writeRunState serializes concurrent writers under an effectively-unbounded lock budget — no lost updates under real cross-process concurrency (finding regression)', async () => {
   // Reproduces the exact shape the finding describes: many real OS
   // processes racing a read-modify-write against the same run-state.json,
   // each patching its OWN field. Without a lock, a writer's stale-snapshot
   // write (taken before another writer's update landed) silently reverts
   // that other writer's field when it overwrites the whole file.
+  //
+  // Contract (#254): production's lock is best-effort/fail-open by design —
+  // LOCK_WAIT_MS caps total wait, after which a writer proceeds unlocked
+  // rather than hang a hook. That default budget can race under contention
+  // (observed on a CI runner: a worker exhausted the 500ms budget and lost a
+  // field). This test pins CLAUDE_TWEAKS_LOCK_WAIT_MS to a large ceiling to
+  // remove that race and test the LOCK MECHANISM itself deterministically —
+  // it is a ceiling on lock-wait, not a sleep, and no assertion below
+  // depends on its value (IL-62). The production default's fail-open
+  // behavior under contention is covered separately below.
   const project = tmpProject();
   const run = mkRun(project, '2026-07-01T090000-spec-1');
   ctx.writeRunState(run, { seed: true });
@@ -161,7 +171,9 @@ test('writeRunState serializes concurrent writers — no lost updates under real
   const procs = [];
   for (let i = 0; i < WORKERS; i++) {
     procs.push(new Promise((resolve, reject) => {
-      const p = spawn(process.execPath, ['-e', workerScript(i)]);
+      const p = spawn(process.execPath, ['-e', workerScript(i)], {
+        env: { ...process.env, CLAUDE_TWEAKS_LOCK_WAIT_MS: '60000' },
+      });
       let stderr = '';
       p.stderr.on('data', (d) => { stderr += d; });
       p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
@@ -176,4 +188,48 @@ test('writeRunState serializes concurrent writers — no lost updates under real
     assert.strictEqual(final[`w${i}`], ITERATIONS,
       `worker ${i}'s field must reflect its LAST write, not be lost to a concurrent writer's stale snapshot`);
   }
+});
+
+test('writeRunState under the fail-open path (budget=0) — every worker still exits cleanly and the file never tears', async () => {
+  // Contract (#254): production is best-effort/fail-open — a writer that
+  // cannot acquire the lock in time proceeds unlocked rather than hang a
+  // hook. Pinning CLAUDE_TWEAKS_LOCK_WAIT_MS to 0 forces every writer down
+  // that unlocked path (deterministically, not by chance), reproducing the
+  // documented posture. Under that posture, individual field updates CAN be
+  // lost to a racing stale-snapshot write — that's the fail-open trade-off,
+  // not a defect — so this test does NOT assert every field's final value
+  // (nondeterministic). What the atomic temp-file + rename write in
+  // writeRunState DOES guarantee even fully unlocked: no worker ever
+  // crashes, and the file is never left torn/partially-written — a reader
+  // can always parse it.
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-01T090000-spec-1');
+  ctx.writeRunState(run, { seed: true });
+
+  const WORKERS = 8;
+  const ITERATIONS = 40;
+  const contextPath = path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'context.js');
+  const workerScript = (i) => `
+    const ctx = require(${JSON.stringify(contextPath)});
+    for (let n = 0; n < ${ITERATIONS}; n++) {
+      ctx.writeRunState(${JSON.stringify(run)}, { w${i}: n + 1 });
+    }
+  `;
+
+  const procs = [];
+  for (let i = 0; i < WORKERS; i++) {
+    procs.push(new Promise((resolve, reject) => {
+      const p = spawn(process.execPath, ['-e', workerScript(i)], {
+        env: { ...process.env, CLAUDE_TWEAKS_LOCK_WAIT_MS: '0' },
+      });
+      let stderr = '';
+      p.stderr.on('data', (d) => { stderr += d; });
+      p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
+      p.on('error', reject);
+    }));
+  }
+  await Promise.all(procs);
+
+  const raw = fs.readFileSync(path.join(run, 'run-state.json'), 'utf8');
+  assert.doesNotThrow(() => JSON.parse(raw), 'run-state.json must always be valid JSON, even under a fully unlocked race');
 });

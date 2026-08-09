@@ -47,6 +47,32 @@ Reproduce first: scale contention (worker count × iterations, or a test-only in
 - First observed on the very first red of the brand-new CI gate (#232) — the gate is working as designed; this is signal, not noise.
 - IL-112: the red asserts both that the code races and that the test harness is sound — reproduce under constraint rather than reasoning from the single CI sample before committing to either contract.
 
+## Build Finding — Reproduction
+
+Ran the existing 8×40 workload against a throwaway one-off script with `CLAUDE_TWEAKS_LOCK_WAIT_MS=1`, using the same `context.js` (Task 1's atomic-write + env-knob changes already applied). Two runs, same result each time:
+
+```
+=== REPRODUCTION RESULT (budget=1ms) ===
+parseable: YES
+seed: true
+w0: 40 OK
+w1: 40 OK
+w2: 40 OK
+w3: 40 OK
+w4: 40 OK
+w5: 40 OK
+w6: 40 OK
+w7: 39 LOST/WRONG
+```
+
+- Lost update confirmed: `w7` ended at 39 instead of 40 (one of its writer's 40 patches was clobbered by a stale-snapshot write from another unlocked writer). `seed` survived in both runs.
+- The final `run-state.json` parsed as valid JSON both times — no torn file, confirming the atomic temp-file + rename from Task 1 holds even when writers race fully unlocked (budget=1ms means nearly every writer times out the lock almost immediately).
+- Diagnosis confirmed: the fail-open path is real and demonstrably loses field updates under contention, exactly as the CI failure indicated. Proceeding with contract (b) as planned.
+
+## Build Finding — Discrimination Check
+
+Temporarily reran the strict test's workload (`tests/hooks-context.test.js`, "...serializes concurrent writers under an effectively-unbounded lock budget...") with `CLAUDE_TWEAKS_LOCK_WAIT_MS` set to `'0'` instead of `'60000'`. Result: **FAILED** as required — a `w{i}` field assertion failed (lost update), confirming the strict assertions still discriminate against the original no-serialization defect. Restored the test to `'60000'` before commit.
+
 ## Original request
 
 Flaky under CI: writeRunState concurrency test races the lock's 500ms fail-open

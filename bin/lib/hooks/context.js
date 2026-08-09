@@ -131,7 +131,16 @@ function sleepSync(ms) {
   try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* best-effort */ }
 }
 
-const LOCK_WAIT_MS = 500; // max total time to wait for the lock before proceeding unlocked
+// Max total time to wait for the lock before proceeding unlocked. Overridable
+// via CLAUDE_TWEAKS_LOCK_WAIT_MS when it parses as a non-negative integer —
+// a test-only knob (production never sets this env var, so it always gets
+// the 500ms default) that lets tests pin the budget instead of racing it.
+function resolveLockWaitMs() {
+  const raw = process.env.CLAUDE_TWEAKS_LOCK_WAIT_MS;
+  const n = Number(raw);
+  return raw !== undefined && Number.isInteger(n) && n >= 0 ? n : 500;
+}
+const LOCK_WAIT_MS = resolveLockWaitMs();
 const LOCK_POLL_MS = 10;
 const LOCK_STALE_MS = 5000; // a lock dir older than this is treated as abandoned (holder crashed) and reclaimed
 
@@ -141,7 +150,12 @@ const LOCK_STALE_MS = 5000; // a lock dir older than this is treated as abandone
 // true if the lock was acquired; false means "could not acquire in time —
 // proceed unlocked" (this project's own posture: never break a session
 // over bookkeeping state; a missed lock just reopens the pre-existing race
-// window instead of hanging a hook process indefinitely).
+// window instead of hanging a hook process indefinitely). The cause list
+// reaching this fail-open path now demonstrably includes CI-runner
+// contention (observed on the v6.73.0 release CI run, not just a slow local
+// machine) — see CLAUDE_TWEAKS_LOCK_WAIT_MS above for the test-only knob
+// that lets a test pin an effectively-unbounded budget to isolate the lock
+// mechanism from this wait cap.
 function acquireRunStateLock(runDir) {
   const lockPath = path.join(runDir, '.run-state.lock');
   const deadline = Date.now() + LOCK_WAIT_MS;
@@ -175,11 +189,20 @@ function releaseRunStateLock(lockPath) {
 // assignment a close-run call had just cleared.
 function writeRunState(runDir, patch) {
   const lock = acquireRunStateLock(runDir);
+  const finalPath = path.join(runDir, 'run-state.json');
+  // Write to a per-process tmp file, then atomically rename over the real
+  // path. fs.renameSync is atomic on every platform Node supports (same
+  // dir, same filesystem), so a reader or a racing unlocked writer can
+  // never observe a torn/partial JSON file, and a crash mid-write leaves
+  // the previous state intact instead of a half-written file.
+  const tmpPath = path.join(runDir, `run-state.json.tmp-${process.pid}`);
   try {
     const next = { ...(readRunState(runDir) || {}), ...patch, updatedAt: new Date().toISOString() };
-    fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(next, null, 2) + '\n');
+    fs.writeFileSync(tmpPath, JSON.stringify(next, null, 2) + '\n');
+    fs.renameSync(tmpPath, finalPath);
     return next;
   } catch {
+    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
     return null;
   } finally {
     releaseRunStateLock(lock);
