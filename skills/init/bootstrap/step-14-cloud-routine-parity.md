@@ -4,7 +4,7 @@
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config. A project that never configures this has full local capability but silently loses claude-tweaks (and everything it depends on) the moment someone opens a cloud session or fires a scheduled Routine against it.
 
-**The declaration is not the installer — the Setup script is.** The **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`) is what a sandbox is *permitted* to load, and Anthropic's docs describe those plugins as "installed at session start"; that install was measured not happening. In a live cloud session on a repo whose clone contained the declaration, with the environment's network access set to **Full** and the marketplace repo clonable from inside the VM, `~/.claude/plugins/` did not exist at all — no `known_marketplaces.json`, no `marketplaces/`, no `cache/` — and every plugin command returned `Unknown command`. Adding `bash scripts/claude-cloud-setup.sh` to that same environment's Setup script field fixed it in the next session, on two different repositories, one of which received no repo change at all. So: declare **and** paste the Setup script. A project with the declaration and no Setup script has nothing installed, which is the same outcome as declaring nothing (`[IL-113]`).
+**The declaration is not the installer — the Setup script is.** The **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`) is what a sandbox is *permitted* to load, and Anthropic's docs describe those plugins as "installed at session start"; that install was measured not happening. In a live cloud session on a repo whose clone contained the declaration, with the environment's network access set to **Full** and the marketplace repo clonable from inside the VM, `~/.claude/plugins/` did not exist at all — no `known_marketplaces.json`, no `marketplaces/`, no `cache/` — and every plugin command returned `Unknown command`. Adding `bash scripts/claude-cloud-setup.sh` to that same environment's Setup script field fixed it in the next session (measured with the bare form then in use; the canonical field line today is the logging form in `scripts/claude-cloud-setup.sh`'s header), on two different repositories, one of which received no repo change at all. So: declare **and** paste the Setup script. A project with the declaration and no Setup script has nothing installed, which is the same outcome as declaring nothing (`[IL-113]`).
 
 **Gate:** same two-tier check Step 9 documents. No remote → skip this step silently.
 
@@ -57,7 +57,9 @@ set -euo pipefail
 # The Setup script field's cwd is a workspace root containing the cloned repo as a single
 # subdirectory, not the repo root itself ($HOME is not a reliable substitute either) —
 # locate the repo by its .git marker (directory or file, to also cover gitdir-file clone
-# forms) and cd into it before anything below runs.
+# forms) and cd into it before anything below runs. This defense and the field line's own
+# `*/scripts/` fallback both encode the same workspace-root layout assumption — changing
+# one obliges re-verifying the other.
 SEARCH_ROOT="$(pwd)"
 REPO_DIR=$(find "$SEARCH_ROOT" -maxdepth 2 \( -type d -o -type f \) -name .git 2>/dev/null | head -1 | xargs -I{} dirname {})
 [ -n "$REPO_DIR" ] && cd "$REPO_DIR"
@@ -219,7 +221,7 @@ chmod +x "${CHROME_DIR}/chrome-linux64/chrome"
 
 Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on every marketplace-**add** line — a duplicate add is the expected no-op on a re-run. Marketplace-**update** lines are not silenced: they fall through to a `WARNING` echo instead, because a failed catalog refresh is not a harmless no-op here but the precondition that makes the version comparison downstream measure the sandbox against itself. The plugin install-or-update branch and the `npm install -g agent-browser`/Chrome-install lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
 
-**Offer to apply the Setup script to the session environment.** Writing the script is not what makes it run — an environment has to reference it, and the environment interactive cloud sessions use is never touched by the routine-creation flow (that one only ever provisions `claude-tweaks: <slug>` environments for routines it is creating). Immediately after writing the file, call `AskUserQuestion` with two options: apply it now via the browser (**Recommended** when `claude-in-chrome` is likely available), or print the line for the user to paste manually. On "apply now", invoke `skills/routine/guided-environment-creation.md`'s **Ensure-setup-script** procedure with no `environment_name` — it acts on whichever environment the composer currently has selected, which is the one a plainly-started session gets. Report its `{success, environment_name, had_script}` back under Phase 9. On failure or when the browser is unavailable, fall through to the manual instruction rather than blocking — this step's other outputs are already committed and useful on their own. Skipping this is the one place where every other part of this step can be correct and cloud sessions still get nothing.
+**Offer to apply the Setup script to the session environment.** Writing the script is not what makes it run — an environment has to reference it, and the environment interactive cloud sessions use is never touched by the routine-creation flow (that one only ever provisions `claude-tweaks: <slug>` environments for routines it is creating). Immediately after writing the file, call `AskUserQuestion` with two options: apply it now via the browser (**Recommended** when `claude-in-chrome` is likely available), or print the line for the user to paste manually. On "apply now", invoke `skills/routine/guided-environment-creation.md`'s **Ensure-setup-script** procedure with no `environment_name` — it acts on whichever environment the composer currently has selected, which is the one a plainly-started session gets. Report its `{success, environment_name, had_script, field_action}` back under Phase 9 — `field_action` lets the human tell "left your environment alone" (`unchanged`) apart from an actual edit (`typed`/`upgraded`/`appended`). On failure or when the browser is unavailable, fall through to the manual instruction rather than blocking — this step's other outputs are already committed and useful on their own. Skipping this is the one place where every other part of this step can be correct and cloud sessions still get nothing.
 
 **Why the verify loop exists (#129).** `claude plugin update` is a version-string comparison against the local catalog, not a content check — confirmed live by emptying a cached plugin directory of its files and re-running `update`, which reported `already at the latest version` and exit 0 while repairing nothing. Three separate conditions therefore produce an identical, successful-looking log: a catalog that failed to refresh, a plugin directory restored from an older snapshot, and a genuinely current install. The verify loop separates the second from the third, and the un-silenced marketplace `update` separates the first. What none of it covers is the case where this script never runs at all in a given sandbox — that one is caught from the other side, by the resolved-build line every routine prompt now prints at startup (`_shared/routine-template-schema.md`'s standard preamble). The two together are what make a stale sandbox self-identifying instead of merely suspected.
 
@@ -239,15 +241,14 @@ declaration alone is not enough: this project's .claude/settings.json#enabledPlu
 may load, and the Setup script below is what actually installs it.
 
 - **Setup script (required, not optional):** paste the canonical Setup-script line (see
-  `scripts/claude-cloud-setup.sh`'s header) into this project's cloud environment's Setup
-  script field (claude.ai/code environment
-  settings, web UI only — no API/CLI can set this remotely). Installs every declared
-  plugin/marketplace plus `agent-browser`. Regenerated by `/claude-tweaks:init`; don't
-  hand-edit it. Without it, a declared plugin is simply absent: measured on a live session
-  whose clone carried the declaration, with network access Full, `~/.claude/plugins/` did
-  not exist at all and every plugin command returned `Unknown command`. This applies per
-  *environment*, not per repo — an environment you pick in the session composer that has
-  never had this pasted will fail this way even for a repo that is fully declared.
+  `scripts/claude-cloud-setup.sh`'s header) into this project's cloud environment's Setup script
+  field (claude.ai/code environment settings, web UI only — no API/CLI can set this remotely).
+  Installs every declared plugin/marketplace plus `agent-browser`. Regenerated by
+  `/claude-tweaks:init`; don't hand-edit it. Without it, a declared plugin is simply absent:
+  measured on a live session whose clone carried the declaration, with network access Full,
+  `~/.claude/plugins/` did not exist at all and every plugin command returned `Unknown command`.
+  This applies per *environment*, not per repo — an environment you pick in the session composer
+  that has never had this pasted will fail this way even for a repo that is fully declared.
 - **Branch:** cloud sessions check out the environment's configured branch (typically this
   repo's actual GitHub default branch) — confirm it's the branch these plugin declarations
   actually landed on, especially if your team develops primarily on a non-default branch.

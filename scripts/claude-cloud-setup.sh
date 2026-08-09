@@ -14,7 +14,9 @@ set -euo pipefail
 # The Setup script field's cwd is a workspace root containing the cloned repo as a single
 # subdirectory, not the repo root itself ($HOME is not a reliable substitute either) —
 # locate the repo by its .git marker (directory or file, to also cover gitdir-file clone
-# forms) and cd into it before anything below runs.
+# forms) and cd into it before anything below runs. This defense and the field line's own
+# `*/scripts/` fallback both encode the same workspace-root layout assumption — changing
+# one obliges re-verifying the other.
 SEARCH_ROOT="$(pwd)"
 REPO_DIR=$(find "$SEARCH_ROOT" -maxdepth 2 \( -type d -o -type f \) -name .git 2>/dev/null | head -1 | xargs -I{} dirname {})
 [ -n "$REPO_DIR" ] && cd "$REPO_DIR"

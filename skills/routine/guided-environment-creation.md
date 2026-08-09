@@ -169,21 +169,26 @@ and does not go through the Routines UI at all.
    `claude-cloud-setup.sh` invocation line contain the substring `claude-cloud-setup.log`?
    - **Canonical/current** — the field contains a `claude-cloud-setup.sh` invocation that
      redirects into a `claude-cloud-setup.log` file: click `Cancel` (never `Save changes` — same
-     read-only discipline as the Audit procedure) and report success without editing.
+     read-only discipline as the Audit procedure) and report success without editing
+     (`field_action: unchanged`).
    - **Old form** — the field contains a `claude-cloud-setup.sh` invocation with **no**
      `claude-cloud-setup.log` redirect (with or without `2>/dev/null`): replace that line with the
-     canonical line above, leaving any other field content untouched.
+     canonical line above, leaving any other field content untouched (`field_action: upgraded`).
    - **Empty**: click into the field and type exactly the canonical line above — repo-agnostic,
-     safe on a repo that has never run `/claude-tweaks:init`.
+     safe on a repo that has never run `/claude-tweaks:init` (`field_action: typed`); the
+     canonical line always writes `$HOME/claude-cloud-setup.log` on every session start (created
+     or truncated fresh each time), the intended evidence trail.
    - **Unrelated content** — no `claude-cloud-setup.sh` invocation at all: **do not overwrite
-     it.** Append the canonical line on its own new line after the existing content. An
+     it.** Append the canonical line on its own new line after the existing content
+     (`field_action: appended`). An
      environment shared with other work can carry a setup script this plugin knows nothing about,
      and replacing it silently breaks that work.
-5. Click `Save changes`. The dialog notes that changes apply to **new** sessions only — an already-
-   running session does not pick this up, so any verification must start a fresh session.
-6. Report `{success: true, environment_name: <the name acted on>, had_script: <boolean>}`. On
-   failure at any step, report the failure shape from this file's header and leave the environment
-   untouched.
+5. Click `Save changes` (skip when step 4's Canonical/current branch already cancelled). The
+   dialog notes that changes apply to **new** sessions only — an already-running session does not
+   pick this up, so any verification must start a fresh session.
+6. Report `{success: true, environment_name: <the name acted on>, had_script: <boolean>,
+   field_action: <one of unchanged|typed|upgraded|appended>}`. On failure at any step, report the
+   failure shape from this file's header and leave the environment untouched.
 
 ## Audit procedure
 
