@@ -1,4 +1,8 @@
 {
+  "enabledPlugins": {
+    "claude-tweaks@claude-tweaks-marketplace": true,
+    "superpowers@claude-plugins-official": true
+  },
   "extraKnownMarketplaces": {
     "claude-tweaks-marketplace": {
       "source": {
@@ -6,9 +10,5 @@
         "repo": "thomasholknielsen/claude-tweaks-marketplace"
       }
     }
-  },
-  "enabledPlugins": {
-    "claude-tweaks@claude-tweaks-marketplace": true,
-    "superpowers@claude-plugins-official": true
   }
 }

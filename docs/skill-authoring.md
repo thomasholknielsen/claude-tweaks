@@ -1,0 +1,72 @@
+# Skill authoring conventions
+
+Loaded when authoring or editing skill files (`skills/**/*.md`). Dispatched implementer/reviewer/QA agents do not need this — it is not part of their per-dispatch context.
+
+## SKILL.md structure
+
+Every skill follows this structure:
+1. YAML frontmatter: `name`, `description` (trigger condition)
+2. Interaction style directive (identical across all skills)
+3. H1 title with one-line description
+4. Lifecycle position — a one-line `Lifecycle:` marker where one line suffices, or a diagram where the shape needs more (consumer sets, mechanism flows, cycles); the canonical full chain lives in `/claude-tweaks:help`
+5. "When to Use" section
+6. Input resolution (how `$ARGUMENTS` is parsed)
+7. Numbered workflow steps
+8. Anti-Patterns table (`| Pattern | Why It Fails |`)
+
+Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.34.0 — every edge is recorded once in `docs/skill-graph.md` instead.
+
+**Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.
+
+## Interaction patterns
+
+- **Decisions** — call the `AskUserQuestion` tool with human-readable options (2-4 typical) so the user gets a native rendered choice instead of typing a digit back. Mark the recommended option's label with `(Recommended)`.
+- **Multi-item decisions** — batch table with pre-filled recommendations, rendered as markdown (AskUserQuestion cannot display dense multi-row data). Then capture the terminal apply-all/override decision with one `AskUserQuestion` call (2-4 options: at minimum "Apply all recommended" and "Override specific items"). When "Override specific items" is chosen, the user's #-by-# corrections are ordinary free-text chat in the next message — not the tool's `Other` field, which is a single answer to the batch question, not a per-item list. For 10+ items, lead with a severity/count summary before the full table so the user sees the scope before the details.
+- **One decision per message** — never make more than one `AskUserQuestion` call in a single response. If a skill produces multiple decision tables, present them sequentially (one call per message, wait for resolution before showing the next).
+- **Skill handoffs (Next Actions)** — End each skill with a `## Next Actions` block (standalone, top-level; a Next Actions block nested inside a larger rendered report template — Pipeline Summary, failure cards, review summary — may stay `### Next Actions` as that report's own subsection heading), rendered as one `AskUserQuestion` call: 2-4 options, each option's description carrying the full command with all parameters pre-filled, each label a short one-line summary, one option's label suffixed `(Recommended)` based on context. `Other` (always available on `AskUserQuestion`) covers "none of these, I'll type something else." Options are dynamically generated from available context (journeys, UI changes, worktree mode, QA stories, browser availability). Never a navigation menu, never generic commands without parameters. If situational filtering would leave fewer than 2 options, do not call `AskUserQuestion` — state or execute the single remaining action directly (a lone option isn't a decision).
+- **Actions Performed table** — When a skill performs autonomous actions beyond what the user explicitly requested, include a `### Actions Performed` table before Next Actions. Columns: `| Action | Detail | Ref |`. Action types: `Implemented`, `Bug fix`, `Simplified`, `Operational`, `Journey`, `Ledger fix`, `History` (a git operation that rewrote or moved history — rebase, reset, cherry-pick, revert, non-fast-forward merge, amend, push; never folded into `Operational`, which means cleanup). Ref column shows short commit hash. Resolved ledger items show source phase in parentheses. Generated from git log, git diff, and ledger entries. Omit when no autonomous actions were performed.
+- **Hard gates** — BLOCKED/STOP conditions that prevent proceeding with degraded state
+- **Adaptive section batching** — when a skill presents multi-section material that requires sequential approval (e.g., design walkthroughs, multi-part summaries), if the user accepts 2 consecutive sections without modification, batch all remaining sections into a single approval gate. The default `Brainstorm / section-confirmation: adaptive` setting makes this the standard behavior; override with `per-section` (always ask) or `batch` (always present once). The same `adaptive` setting also governs `/superpowers:brainstorming` Step 8 (the spec-review gate before `/superpowers:writing-plans`): skip its blocking wait when Step 5's approval was clean and Step 7's self-review made no substantive change (ambiguity resolved by judgment call, scope/decomposition shift, or a contradiction resolved by interpretation) — state the committed path and proceed directly to writing-plans. A substantive self-review change still stops, surfacing only that delta. This overrides brainstorming's own wait instruction on the claude-tweaks side; no superpowers file is edited.
+- **Front-door confirm + opt-in Customize** — when a flow gathers multiple sequential inputs (schedule, environment, etc.) before one consequential action, front-load a defaults-based preview+confirm as the fast path and gate the sequential input-gathering behind an explicit `Customize` choice reached only from that confirm, rather than always running the gathering up front. Collapses N round-trips to 1 for the common case.
+- **Component-skill contract** — Skills that are routinely invoked by other skills (e.g., `/simplify`, `/reflect`, `/deepen`, `/journeys`, `/visual-review`, `/design-wrapper`, `/capture`, `/challenge`, `/stories`) MUST detect whether they were invoked by a parent skill or directly by a user. When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff and Next Actions belong to the parent's flow. When invoked directly, render Next Actions as usual. Document this contract explicitly with a labeled `## Component-Skill Contract` paragraph placed **immediately before `## Anti-Patterns`** (after any post-workflow documentation sections such as Output contract or Reference sub-files). The paragraph must name the parent skills and use a **programmatic detection signal** — preferred is `$PIPELINE_RUN_DIR` (set by `/flow` and all pipeline orchestrators), with an explicit `--source <parent-skill>` flag as fallback for direct invocation where ambiguity exists. Vague signals like "pipeline context arguments" or "whether the caller consumes the return value" are insufficient — the model cannot reliably detect those at invocation time.
+
+  **Canonical CSC template** (copy-paste, customize the parent list):
+
+  ```markdown
+  ## Component-Skill Contract
+
+  When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:{this-skill}` is running inside a pipeline (invoked by `/claude-tweaks:{parent-1}`, `/claude-tweaks:{parent-2}`, or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
+
+  Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
+  ```
+
+- **Next Actions placement** — Render as `## Next Actions` (top-level section, NOT `###`) placed **at the end of the workflow steps and before Component-Skill Contract / Anti-Patterns**. Conceptually: Next Actions is the user-facing handoff after the last workflow Step; CSC and Anti-Patterns are meta-documentation for skill authors and should come last. The retired Relationship table was meta-documentation of the same kind — which is why it could leave the shipped payload entirely rather than merely move down the file. A skill with no Component-Skill Contract still places Next Actions before Anti-Patterns.
+
+## Frontmatter conventions
+
+- **`name`** — required. The **bare** skill name (`wrap-up`), never `claude-tweaks:wrap-up` — the harness prepends the plugin namespace itself, so a prefixed value renders as `/claude-tweaks:claude-tweaks:wrap-up` in the command list. This does not change prose cross-references, which still use the fully-qualified `/claude-tweaks:{skill}` form; the two were conflated in `e9d5cb4a` and separated again in 6.50.1.
+- **`description`** — required. Trigger sentence ("Use when …") followed by optional keywords.
+- **`allowed-tools`** — **omit by default**. Skills inherit the global tool set when this field is absent. Declare `allowed-tools:` only to **restrict** — e.g., a read-only auditing skill that should never modify files would declare `allowed-tools: Read, Grep, Glob, Bash`. Declaring a narrow set (like `allowed-tools: Bash`) when the skill actually uses Read/Edit/Glob/Task is a bug — it either lies about the contract or silently breaks the skill if the harness enforces it. When in doubt, omit the field.
+- **`argument-hint`** — required whenever a skill's `## Input` section documents any accepted argument grammar; omit only for a skill that genuinely takes no arguments at all — none currently do (every skill in this plugin declares a non-empty `argument-hint`), but the convention still applies if one is ever added. Shows as greyed-out placeholder text in the terminal when the user types `/claude-tweaks:{skill}` — purely cosmetic, has no effect on how `$ARGUMENTS`/`$1`/`$2` are parsed at runtime. Always quote the value (`"..."`, or `'...'` when the hint itself contains a literal `"`) — an unquoted value starting with `[` is invalid YAML (parsed as a flow sequence, not a string). Derive the hint directly from the skill's own `## Input` section — same bracket/pipe convention as `.claude/commands/*.md`: `[optional]`, `<required>`, `a|b` for alternatives. Keep it in sync when `## Input` changes.
+
+## Interaction style directive
+
+All skills use this identical directive after the frontmatter:
+
+```
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+```
+
+## Parallel execution directives
+
+Skills use three standardized blockquote forms to signal when operations should run concurrently:
+
+| Form | Trigger | Use for |
+|------|---------|---------|
+| **Form A — parallel tool calls** | `> **Parallel execution:** Use parallel tool calls aggressively — all {tools} operations in {scope} are independent and should run concurrently.` | Independent read-only operations (Glob, Grep, Read, Bash). Front-loads I/O before analysis. |
+| **Form B — parallel Task agents** | `> **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns {output format}. Assemble results after all agents complete.` | Heavier analytical work where each unit can run in a separate agent thread. |
+| **Form C — conditional** | `> **Parallel execution (conditional):** When {condition}, dispatch {scope} as parallel Task agents. Otherwise, run sequentially in the main thread.` | Context-dependent dispatch — e.g., only for large diffs or multiple independent journeys. |
+
+Use the exact blockquote prefix (`> **Parallel execution:**` or `> **Parallel execution (conditional):**`) so directives are visually consistent and greppable across skills.
+
+Forms B and C always pair with the **Subagent Contract** (`skills/_shared/subagent-output-contract.md`) — minimal input, one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as the agent's first line, then Templates A/B/C for output. Each dispatch picks a model tier (`Fast | Standard | Capable`); default to the cheapest that fits the work. Third-party agents are exempt from the agent-side protocol (see CLAUDE.md's Subagent Contract section); the dispatcher's side still applies in full.
