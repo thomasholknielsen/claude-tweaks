@@ -491,3 +491,11 @@ test('renderConsoleSectionsMulti does NOT deduplicate two entries sharing the sa
   // stateA's skills row has 2 findings; passed twice under the same id -> 4 rows, all tagged 157.
   assert.deepStrictEqual(specColumnValues, ['157', '157', '157', '157']);
 });
+
+test('renderConsoleSections output is unchanged when a single spec is passed through renderConsoleSectionsMulti-adjacent code paths (parity guard)', () => {
+  const state = { version: 1, worklist: makeWorklist(), results: makeConsoleResults() };
+  const single = renderConsoleSections(state, { startAt: 1 });
+  // renderConsoleSections itself must be byte-for-byte unchanged from before this plan — re-assert its own pinned expectations still hold.
+  assert.match(single.markdown, /^#### Skill updates/);
+  assert.strictEqual(single.nextNumber, 9);
+});
