@@ -76,6 +76,15 @@ test('a plan document claiming the candidate number conflicts', () => {
   assert.strictEqual(result.suggested, '6.72.0');
 });
 
+test('a foreign-major version literal in a plan (a dependency version) is not a claim', () => {
+  const deps = baseDeps({
+    plans: ['docs/superpowers/plans/upstream-drift.md'],
+    planText: { 'docs/superpowers/plans/upstream-drift.md': 'pin Impeccable at v20.12.0' },
+  });
+  const { result } = precheck(deps, 'minor');
+  assert.strictEqual(result.ok, true);
+});
+
 test('plan versions at or below origin/main are not claims', () => {
   const deps = baseDeps({
     plans: ['docs/superpowers/plans/old.md'],
