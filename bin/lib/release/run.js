@@ -6,7 +6,9 @@ const { mirrorRelease } = require('./mirror.js');
 function runRelease(deps, { part, summary, date, dryRun, log }) {
   const branch = deps.git(['branch', '--show-current']).trim();
   if (branch !== 'main') throw new Error(`releases run from main; current branch is "${branch}"`);
-  if (deps.git(['status', '--porcelain']).trim() !== '') throw new Error('working tree is not clean');
+  if (deps.git(['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
+    throw new Error('working tree has tracked modifications — commit or restore them first');
+  }
 
   const { candidate: version, result } = precheck(deps, part);
   if (!result.ok) {

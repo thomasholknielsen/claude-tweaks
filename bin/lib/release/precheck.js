@@ -32,10 +32,13 @@ function collectClaims(deps) {
   }
 
   const planClaims = [];
+  const originMajor = originMain.split('.')[0];
   for (const file of deps.listPlanFiles()) {
     const text = deps.readFile(file);
     for (const match of text.matchAll(VERSION_IN_TEXT)) {
-      if (compareVersions(match[1], originMain) > 0) {
+      // Same-major only: a plan naming v20.12.0 in a repo at 6.x is citing a
+      // dependency's version, not claiming a future plugin number.
+      if (match[1].split('.')[0] === originMajor && compareVersions(match[1], originMain) > 0) {
         planClaims.push({ file, version: match[1] });
       }
     }

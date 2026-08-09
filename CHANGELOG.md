@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.72.0 — Release automation CLI and CLAUDE.md context-budget shrink
+
+Release automation CLI and CLAUDE.md context-budget shrink.
+
 ## v6.71.1 — the routine preamble self-heals before attempting a skill it already knows is missing
 
 Live-testing a Routine on a freshly-fixed environment surfaced a second, cheaper gap on top of `[IL-115]`'s
