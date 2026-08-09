@@ -85,18 +85,21 @@ being expensive, broad, or unlikely to resolve.
 
 **"The design would be whichever branch the answer picks" is divergence, not convergence.** A
 question whose answers select between two different systems to build — different components,
-different endpoints, different failure modes — is always a keep, even when the design brief
-already sketches both branches. Convergence means the *same* design gets built under either
-answer; it does not mean "we have a plan for either answer." The brief describing both outcomes is
-evidence the question matters, not evidence it is settled.
+different endpoints, different failure modes — is a keep, even when the design brief already
+sketches both branches. Convergence means the *same* design gets built under either answer; it
+does not mean "we have a plan for either answer." The distinction to draw: answers that change
+*which* system gets built diverge; answers that only tune a parameter, threshold, or policy
+*within* one system — the same components get built either way — converge, however important the
+knob sounds.
 
-**Dropping requires a positive demonstration, and on new ground that demonstration is rarely
-available.** To drop, you must be able to state the concrete reason both branches yield the same
-design (a stated constraint that already fixes the choice, a value that is rebuilt regardless —
-the kind of reason the drop log requires). "This reads like a tunable detail someone can adjust
-later" is not that demonstration: whether something is a tunable knob on one design or a fork
-between two designs is exactly what priors tell you, so on a no-priors topic the doubt resolves to
-keep.
+**Dropping requires a positive demonstration — and when the brief states one, take it.** To drop,
+you must be able to state the concrete reason both branches yield the same design, in the form the
+drop log requires: a stated constraint that already fixes the choice, a value that is rebuilt
+regardless of the answer. When the brief itself supplies that reason, the demonstration is in hand
+— drop, citing it; keeping anyway is cost with no design consequence. When no such stated reason
+exists, "this reads like a tunable detail someone can adjust later" is not a demonstration:
+whether something is a knob on one design or a fork between two designs is exactly what priors
+tell you, so on a no-priors topic that doubt resolves to keep.
 
 Order the surviving questions by **divergence** — how different the two designs are — highest
 first. That ordering is the output; it is what makes a partial run useful when one is cut short.
