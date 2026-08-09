@@ -1,7 +1,7 @@
 ---
 name: dispatch
 description: Use when you want to claim and build already-authorized GitHub work records — the queue consumer between the human gate and the executor. Bare picklist, next for the headless routine unit, or #N direct; claims the whole file-overlap group, hands off to /flow, and settles the result. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine.
-argument-hint: "[next|#N[,#M...]] [--claim-only] [--concurrent <n>] [--priority high|medium|low]"
+argument-hint: "[next|#N[,#M...]] [--claim-only] [--batch-size <n>] [--priority high|medium|low]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -44,12 +44,13 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 
 | Argument | Behavior |
 |---|---|
-| *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-pick-max-concurrent` groups per firing |
+| *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-batch-size` groups per firing |
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 | `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic blob write, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
-| `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
+| `--batch-size <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-batch-size` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (sequential dispatch order). |
+| `--concurrent <n>` (deprecated alias) | Deprecated alias for `--batch-size <n>` — same effect, logs one warn-tier notice per invocation. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
 
 ## Preflight
@@ -185,12 +186,12 @@ The `bot:*` filter here is the cheap label-based pre-filter — labels are proje
 | 2 | singleton | #130 | — | yes |
 ```
 
-Resolve `{effective-concurrent}` first — `--concurrent <n>` if present on this invocation (Input table above), else `dispatch-pick-max-concurrent` from Configuration below (CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order). Then one `AskUserQuestion`:
+Resolve `{batch-size}` first — `--batch-size <n>` if present on this invocation (or its deprecated `--concurrent <n>` alias, which also emits the one-time warn-tier notice), else `dispatch-batch-size` from Configuration below (CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order). Then one `AskUserQuestion`:
 
-- `question`: `"Which groups should this firing dispatch (up to {effective-concurrent} concurrently)?"`, `header`: `"Dispatch pick"`, `multiSelect`: `true`
-- One option per group — `label`: the group's record numbers (e.g. `"#123, #124"`), `description`: titles + priority + whether it carries `auto:merge`. Pre-mark the top `{effective-concurrent}` groups, ranked by the `next` ordering below, as `(Recommended)`.
+- `question`: `"Which groups should this firing dispatch (up to {batch-size} groups this firing (processed one after another))?"`, `header`: `"Dispatch pick"`, `multiSelect`: `true`
+- One option per group — `label`: the group's record numbers (e.g. `"#123, #124"`), `description`: titles + priority + whether it carries `auto:merge`. Pre-mark the top `{batch-size}` groups, ranked by the `next` ordering below, as `(Recommended)`.
 
-Selecting more groups than `{effective-concurrent}` is not an error — the extra selections queue and start as slots free (Step 5), same as overlapping `next` firings do across routine windows.
+Selecting more groups than `{batch-size}` is not an error — the extra selections stay claimed for a later firing to process (Step 5 no longer runs them this firing at all, since there are no concurrent slots to free), same posture overlapping `next` firings already have across routine windows.
 
 **`next`** — no human decision. Pick exactly ONE group by this literal ordering: `priority:high` > `priority:medium` > `priority:low` > unprioritized, oldest-first within each band. **A group's rank = its highest-priority member** — find each group's highest-priority (then oldest) member as its representative, then sort groups by that representative's priority band and `createdAt`. When `--priority <band>` (Input table above) is present, filter to only groups whose representative's band matches before ranking — this lets multiple differently-scheduled Routines each own a distinct slice of the queue instead of competing for the same top-of-queue pick:
 
@@ -216,7 +217,7 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 
 **`#N`** — direct. Fetch issue `#N`, confirm it currently carries `auto:build` and no `bot:*` label (re-verify against Step 2's live queue, not a cached table); if it doesn't qualify, report why (no grant, already claimed, or blocked) and stop. Otherwise pull its **whole file-overlap group** from Step 2's output — claiming a single member of a group alone is forbidden; every one of that record's overlap partners comes along, whether or not the user named them.
 
-**`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-pick-max-concurrent` (extra groups queue for a freed slot, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
+**`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-batch-size` (extra groups stay claimed for a later firing, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
 
 ### Step 4: Claim the selected group (whole group, or none)
 
@@ -336,7 +337,7 @@ Two conditional branches that don't run on the common clean pending-review path 
 
 ## Reporting
 
-Per-firing output is one group's outcome (bare mode with M ≤ `dispatch-pick-max-concurrent` groups: one report block per dispatched group) — there is **no consolidated multi-group console**. The old design's console existed to support `drain`; it dies with it (see When to Use above).
+Per-firing output is one group's outcome (bare mode with M ≤ `dispatch-batch-size` groups: one report block per dispatched group) — there is **no consolidated multi-group console**. The old design's console existed to support `drain`; it dies with it (see When to Use above).
 
 A headless (Routine-fired) firing's report has nobody live to read it — the durable trace is the label state change, the claim-comment trail, and `decisions.md`, not a rendered console. Over time, a human sees the aggregate picture via `/claude-tweaks:tidy`'s own periodic sweep (`tidy/SKILL.md`) — it scans GitHub state independently on its own cadence and surfaces `bot:blocked` records and stale claims without dispatch having to push anything to it directly.
 
@@ -346,16 +347,17 @@ A headless (Routine-fired) firing's report has nobody live to read it — the du
 
 ## Configuration
 
-These four rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from `.claude-tweaks/policy.yml`:
+These rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from `.claude-tweaks/policy.yml`:
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
 | `automerge-max-lines` | `40` | Auto-merge blast-radius guideline on changed lines — a weighted input to `merge-check`'s judgment, not a hard cutoff. |
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
-| `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
+| `dispatch-batch-size` | `3` | Maximum groups (bundles or singleton records) one firing processes sequentially, in the order Step 3's selection establishes; remaining groups stay claimed for a later firing. |
+| `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — reading it from `.claude-tweaks/policy.yml` emits one warn-tier notice per invocation and applies its value to `dispatch-batch-size`. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 
-**Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
+**Per-firing CLI overrides:** `--batch-size <n>` (or its deprecated `--concurrent <n>` alias, Input table above) overrides `dispatch-batch-size` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 
 ## Routine Configuration
 
