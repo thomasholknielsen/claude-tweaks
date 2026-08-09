@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.73.0 — Harness lever wave: substrate fold, re-read cuts, sync-surface tests, record cache, claim-store unification
+
+Harness lever wave: substrate fold, re-read cuts, sync-surface tests, record cache, claim-store unification.
+
 ## v6.72.0 — Release automation CLI and CLAUDE.md context-budget shrink
 
 Release automation CLI and CLAUDE.md context-budget shrink.
