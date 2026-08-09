@@ -15,6 +15,10 @@ Runs all four reflection lenses plus a tradeoff review.
 | **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
 | **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives; route via _shared/learning-routing.md |
 
+### Near-misses Chain Walk
+
+Before routing (Step 3), walk each Near-misses finding through `_shared/causal-depth.md`'s why-chain: the near-miss is the input, the chain asks "why was this possible?" up to 3 times, and the resulting `CAUSAL: terminal | systemic` verdict travels with the finding into Step 3's routing — a `systemic` verdict is itself insight-worthy alongside the near-miss it came from, not a separate item.
+
 ### Seed from Review Learnings (pipeline context)
 
 When invoked by `/wrap-up`, check the `/claude-tweaks:review` summary for the **Key Learnings** section. Use these as starting points for the four lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the four lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
@@ -40,12 +44,12 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 ```
 ### Reflection Insights
 
-| # | Insight | Recommended Destination |
-|---|---------|------------------------|
-| 1 | {description} | Implement now -> CLAUDE.md Don'ts |
-| 2 | {description} | Implement now -> Skill: {name} |
-| 3 | {description} | Defer — bigger, not relevant now |
-| 4 | {description} | Capture — needs brainstorming |
+| # | Insight | Causal | Recommended Destination |
+|---|---------|--------|------------------------|
+| 1 | {description} | {terminal/systemic/—} | Implement now -> CLAUDE.md Don'ts |
+| 2 | {description} | {terminal/systemic/—} | Implement now -> Skill: {name} |
+| 3 | {description} | {terminal/systemic/—} | Defer — bigger, not relevant now |
+| 4 | {description} | {terminal/systemic/—} | Capture — needs brainstorming |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
