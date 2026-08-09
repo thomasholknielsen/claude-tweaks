@@ -130,19 +130,26 @@ function dispositionFor(finding) {
   return String(finding.action);
 }
 
+// Shared by renderConsoleSections and renderConsoleSectionsMulti: every
+// 'findings' entry across a section's rowIds, in row-id order.
+function collectFindings(results, rowIds) {
+  const findings = [];
+  for (const rowId of rowIds) {
+    const entry = results[rowId];
+    if (entry && entry.result === 'findings') {
+      findings.push(...(entry.findings || []));
+    }
+  }
+  return findings;
+}
+
 function renderConsoleSections(state, { startAt = 1 } = {}) {
   const results = state.results || {};
   let n = startAt;
   const blocks = [];
 
   for (const spec of SECTION_SPECS) {
-    const findings = [];
-    for (const rowId of spec.rowIds) {
-      const entry = results[rowId];
-      if (entry && entry.result === 'findings') {
-        findings.push(...(entry.findings || []));
-      }
-    }
+    const findings = collectFindings(results, spec.rowIds);
     if (findings.length === 0) continue;
 
     const tableLines = ['| # | Target | Change | Disposition |', '|---|---|---|---|'];
@@ -166,16 +173,11 @@ function renderConsoleSectionsMulti(specStates, { startAt = 1 } = {}) {
     const tableLines = ['| # | Spec | Target | Change | Disposition |', '|---|---|---|---|---|'];
     let any = false;
     for (const { specId, state } of specStates) {
-      const results = state.results || {};
-      for (const rowId of spec.rowIds) {
-        const entry = results[rowId];
-        if (entry && entry.result === 'findings') {
-          for (const finding of entry.findings || []) {
-            tableLines.push(`| ${n} | ${specId} | ${finding.targetPath} | ${finding.summary} | ${dispositionFor(finding)} |`);
-            n += 1;
-            any = true;
-          }
-        }
+      const findings = collectFindings(state.results || {}, spec.rowIds);
+      for (const finding of findings) {
+        tableLines.push(`| ${n} | ${specId} | ${finding.targetPath} | ${finding.summary} | ${dispositionFor(finding)} |`);
+        n += 1;
+        any = true;
       }
     }
     if (!any) continue;

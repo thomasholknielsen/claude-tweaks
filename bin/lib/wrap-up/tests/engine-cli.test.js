@@ -84,6 +84,21 @@ function readState(runDir) {
   return JSON.parse(fs.readFileSync(path.join(runDir, 'engine-state.json'), 'utf8'));
 }
 
+// Records a 'clean' payload for every open row in runDir's worklist — the
+// "finish recording so --strict is satisfied" step shared by several render
+// tests below. Returns the open rows recorded.
+function recordAllOpenRowsClean(runDir) {
+  const openRows = readState(runDir).worklist.rows.filter((row) => row.gate === 'open');
+  for (const row of openRows) {
+    const payload = JSON.stringify({
+      version: 1, rowId: row.id, result: 'clean', read: [], findings: [], gapDetection: 'not-run', detail: 'nothing to change',
+    });
+    const rr = run(['record', '--run-dir', runDir, '--dry-run'], { input: payload });
+    assert.strictEqual(rr.status, 0, rr.stderr);
+  }
+  return openRows;
+}
+
 // ---- plan -----------------------------------------------------------------
 
 test('plan writes engine-state.json and prints parseable worklist JSON with 8 rows', () => {
@@ -231,17 +246,8 @@ test('render --strict exits 2 while open rows are unrecorded, and 0 once all are
   // Printed BEFORE the fatal exit — the hole is visible, not just fatal.
   assert.match(strictBefore.stdout, /\| Target \| Result \| Detail \|/);
 
-  const worklist = JSON.parse(fs.readFileSync(path.join(runDir, 'engine-state.json'), 'utf8')).worklist;
-  const openRows = worklist.rows.filter((row) => row.gate === 'open');
+  const openRows = recordAllOpenRowsClean(runDir);
   assert.ok(openRows.length > 0, 'fixture must have at least one open row');
-
-  for (const row of openRows) {
-    const payload = JSON.stringify({
-      version: 1, rowId: row.id, result: 'clean', read: [], findings: [], gapDetection: 'not-run', detail: 'nothing to change',
-    });
-    const rr = run(['record', '--run-dir', runDir, '--dry-run'], { input: payload });
-    assert.strictEqual(rr.status, 0, rr.stderr);
-  }
 
   const strictAfter = run(['render', '--run-dir', runDir, '--strict']);
   assert.strictEqual(strictAfter.status, 0, strictAfter.stderr);
@@ -332,15 +338,7 @@ test('render --section console --spec-state --strict prints the merged table the
   assert.strictEqual(rec.status, 0, rec.stderr);
 
   // Fully record runDirB so only runDirA is incomplete.
-  const worklistB = JSON.parse(fs.readFileSync(path.join(runDirB, 'engine-state.json'), 'utf8')).worklist;
-  const openRowsB = worklistB.rows.filter((row) => row.gate === 'open');
-  for (const row of openRowsB) {
-    const payload = JSON.stringify({
-      version: 1, rowId: row.id, result: 'clean', read: [], findings: [], gapDetection: 'not-run', detail: 'nothing to change',
-    });
-    const rr = run(['record', '--run-dir', runDirB, '--dry-run'], { input: payload });
-    assert.strictEqual(rr.status, 0, rr.stderr);
-  }
+  recordAllOpenRowsClean(runDirB);
 
   const r = run(['render', '--section', 'console', '--strict',
     '--spec-state', `157=${path.join(runDirA, 'engine-state.json')}`,
@@ -358,15 +356,7 @@ test('render --section console --spec-state --strict exits 0 once every given st
   const runDirA = planFreshRunDir();
   const runDirB = planFreshRunDir();
   for (const runDir of [runDirA, runDirB]) {
-    const worklist = JSON.parse(fs.readFileSync(path.join(runDir, 'engine-state.json'), 'utf8')).worklist;
-    const openRows = worklist.rows.filter((row) => row.gate === 'open');
-    for (const row of openRows) {
-      const payload = JSON.stringify({
-        version: 1, rowId: row.id, result: 'clean', read: [], findings: [], gapDetection: 'not-run', detail: 'nothing to change',
-      });
-      const rr = run(['record', '--run-dir', runDir, '--dry-run'], { input: payload });
-      assert.strictEqual(rr.status, 0, rr.stderr);
-    }
+    recordAllOpenRowsClean(runDir);
   }
   const r = run(['render', '--section', 'console', '--strict',
     '--spec-state', `157=${path.join(runDirA, 'engine-state.json')}`,
