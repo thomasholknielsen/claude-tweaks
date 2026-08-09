@@ -40,7 +40,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
-| `--pre-confirmed` | Takes the item's staged-file path plus the approved snapshot body (same shape as `--dry-run` otherwise: presence-only for the flag itself). Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
+| `--pre-confirmed` | Presence-only like `--dry-run`; the caller passes the item's staged-file path and the approved snapshot body alongside it. Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
 
@@ -204,14 +204,9 @@ filing, two separate checks run:
 When the drift check finds no mismatch, skip the `AskUserQuestion` call for that item and file
 after the safety-net scrub.
 
-**`--dry-run` takes precedence over `--pre-confirmed`** when both are passed: render every draft
-and the classified destination/kind, then stop — no `AskUserQuestion` call of any kind, matching
-`--dry-run`'s existing single-item contract, regardless of whether `--pre-confirmed` was also
-passed.
-
-When `--dry-run` was passed (and the precedence rule above does not apply), render the draft,
-state the classified destination and kind, and **stop here** — do not call `AskUserQuestion` and
-do not file.
+**`--dry-run`:** render every draft, state the classified destination and kind, then **stop here**
+— no `AskUserQuestion` call of any kind, and nothing filed. This holds whether or not
+`--pre-confirmed` was also passed: `--dry-run` takes precedence over it.
 
 ### Step 8: File
 
