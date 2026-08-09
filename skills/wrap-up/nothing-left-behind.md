@@ -7,7 +7,7 @@ The gate is item-*existence*, not open-item-existence: the bulk-resolve fast pat
 **Hard requirements:**
 
 - Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
-- Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (e.g., ops items the user has read — each one stages a work record proposal, resolved by the run's own Queue writes surface under its mandatory per-item approval — see the sub-step below for which surface that is) may be bulk-*staged* via a single explicit "I've read every item" choice, since the actual record creation still gets its own per-item gate downstream. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
+- Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (e.g., ops items the user has read — each one stages a work record proposal, resolved by the run's own Queue writes surface under its mandatory per-item approval — see the sub-step below for which surface that is) is *staged* via `_shared/batched-item-drill.md`'s multiSelect chunking — a checkbox per item, pre-checked to Acknowledge — since the actual record creation still gets its own per-item gate downstream. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type. Ops-ack's per-item checkbox is not such a shortcut: unchecking an item is a real, individually-attended choice, not a shared bulk toggle.
 - `auto` mode does NOT silence this gate.
 - Both `parked` and `backlog` are valid stage destinations for a new work record, but every individual item requires an explicit per-item user choice — no record is ever staged autonomously.
 
@@ -29,15 +29,21 @@ The following ops items need acknowledgment. These represent infrastructure chan
 | 1 | {description} | {source} |
 ```
 
-**Unattended-tier auto-acknowledge:** if `unattended-tier: on` (see `_shared/unattended-tier.md`),
-skip the `AskUserQuestion` below entirely — for every item, stage a record proposal and update
-status to `acknowledged` per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, log
+**Autonomy auto-acknowledge:** resolve the `ceiling` per `_shared/autonomy-ceiling.md`'s existing
+precedence ladder. If `bookkeepingPermissions(ceiling).opsAckAutoAcknowledge === true`
+(`bin/lib/issues/autonomy.js` — gated at `unattended`, the tier that also skips acknowledging a
+post-merge infrastructure follow-up, not just a reversible bookkeeping item), skip the drill below
+entirely — for every item, stage a record proposal and update status to `acknowledged` per
+`ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, log
 `AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged, staged for filing. Reversibility: high.` to
-`decisions.md`, and continue to Phase 4's Review Console. Otherwise, present the block below.
+`decisions.md`, and continue to Phase 4's Review Console. Otherwise, present the drill below.
 
-Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
+Resolve each item's acknowledgment via `_shared/batched-item-drill.md`'s multiSelect chunking
+(genuinely binary: Acknowledge vs. defer to a follow-up) — one `multiSelect: true`
+`AskUserQuestion` call per chunk of ≤4 items, all pre-checked to `Acknowledge` (the recommended
+default — these are read-and-confirm items, not judgment calls); unchecking an item defers it
+instead, leaving it `open` for a later run's Phase 2 drill:
 
-- Option 1 — `label`: `"Acknowledge all"`, `description`: `"I've read every item"`
-- Option 2 — `label`: `"Show details"`, `description`: `"I have questions about specific items"`
+- `question`: `"These ops items need acknowledgment — you need to action them post-merge. Read each one before submitting. (checked = Acknowledge, uncheck to defer)"`, `header`: `"Ops items"`, each checkbox option's label the item's own short description
 
-After option 1, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition to every item — stage a record proposal per item and update status to `acknowledged`. The actual record creation is a separate, mandatory per-item approval at the Review Console's Queue writes section, which runs in every mode (bulk-acknowledging here only stages the proposal; it does not silently create N records). After option 2, surface each item with full detail and apply the same per-item `Acknowledge` disposition on confirmation.
+After a chunk resolves, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition to every checked item — stage a record proposal per item and update status to `acknowledged`. The actual record creation is a separate, mandatory per-item approval at the Review Console's Queue writes section, which runs in every mode (this drill only stages the proposal; it does not silently create N records). An unchecked item's status stays `open` — it is not acknowledged, and remains subject to a later resolve-gate pass rather than silently dropped.

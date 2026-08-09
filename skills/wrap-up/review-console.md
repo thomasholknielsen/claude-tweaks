@@ -207,9 +207,10 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 - **One row type is per-item without being its own section:** an `[adr-convention]` row (from the Decision records curation row, `adr-curation.md`) renders inside Configuration updates and keeps its global number, but carries a three-way choice rather than approve/reject, so "Approve all" leaves it unanswered. It is the one exception to the otherwise-clean split between batch sections and per-item sections — see the Configuration updates section below for its render shape and for what it blocks while unanswered.
 - This applies to both the example below and any real Console output. Do not restart numbering within the global sequence.
 
-## Unattended-tier auto-file (runs before rendering)
+## Ledger narrowing auto-file (runs before rendering)
 
-If `unattended-tier: on` (see `_shared/unattended-tier.md`), before building any of the tables
+Resolve the `ceiling` per `_shared/autonomy-ceiling.md`'s existing precedence ladder. If
+`bookkeepingPermissions(ceiling).queueWriteAutoFile === true` (`bin/lib/issues/autonomy.js`), before building any of the tables
 below: for every queue-write proposal already staged (from ledger Phase 2's narrowing, leftover
 routing's staging (Phase 3), or `/reflect`'s tangential-idea routing Step 3 — all three run earlier
 in `/wrap-up`'s own phase order, before this console) create the record directly via the same `gh issue
@@ -355,7 +356,7 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 
 Render this section only when leftover routing or another step (e.g. `/reflect`'s
 tangential-idea routing) has proposed a new work record **and it wasn't already auto-filed by the
-Unattended-tier auto-file step above**. Each remaining row gets its own prompt — bulk
+Ledger narrowing auto-file step above**. Each remaining row gets its own prompt — bulk
 approval is forbidden per `_shared/auto-mode-card.md`'s work-record-creation row. The exact
 write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto
 the unified record system — its own destination) lives in the producing skill's own staged
@@ -409,18 +410,22 @@ If "Override specific items" is chosen, the skip/modify list is ordinary free-te
 
 Queue writes (Q1, Q2) are handled separately below — they are never part of this terminal decision, regardless of which option is chosen.
 
-After the user selects option 1 or 2, prompt each per-item row individually — one small `AskUserQuestion` call per `Q#`/`M#`/`U#` item, issued separately (never batched into a single call's multiple questions, and never batched across sections).
+After the user selects option 1 or 2, resolve `Q#` and `M#` items via `_shared/batched-item-drill.md`'s multiSelect chunking (genuinely binary: Apply vs. Skip) — one `multiSelect: true` `AskUserQuestion` call per chunk of ≤4 items **within the same section** (a `Q#` and an `M#` never share a call — different destinations, different staged-file shapes — chunking is within a section, never across sections). All items pre-checked to `Apply` (the recommended default — most staged proposals are fine as-drafted); unchecking an item means `Skip`. Editing content is the free-text override path (shared contract), naming the target item by its rendered title (e.g. `"Q1: shorten the trigger condition"`).
 
-For each `Q#`, `M#`, or `U#` item, call `AskUserQuestion` with `question`: the item's own line (e.g. for a queue write, `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"` for a queue write, `"Memory update {M#}"` for a memory update, or `"Upstream feedback {U#}"` for upstream feedback, `multiSelect`: `false`:
-- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""` for a queue write, `"Write the memory file: \"{name}\""` for a memory update, `"File the issue: \"{summary}\""` for upstream feedback
+- `question` for a `Q#` chunk: `"Queue writes — which should be created? (checked = Apply, uncheck to Skip)"`, `header`: `"Queue writes"`, each checkbox option's label the item's own short title (e.g. `"Q1: Add OAuth refresh edge case"`)
+- `question` for an `M#` chunk: `"Memory updates — which should be written? (checked = Apply, uncheck to Skip)"`, `header`: `"Memory updates"`, same per-item checkbox convention
+
+Applied to this example's two queue writes (one chunk, both pre-checked):
+- `question`: `"Queue writes — which should be created? (checked = Apply, uncheck to Skip)"`, `header`: `"Queue writes"`
+- Checkbox 1 — `"Q1: Add OAuth refresh edge case"` (pre-checked) — blocked on /auth provider docs, parked with trigger '/auth provider docs land'
+- Checkbox 2 — `"Q2: Investigate token rotation strategy"` (pre-checked) — surfaced by /reflect Step 3
+
+Unlike `Q#`/`M#`, **`U#` (Upstream feedback) keeps the original per-item mechanism** — this leaf's scope is `Q#`/`M#` only (see Non-Goals); `U#` batching is a separate leaf's territory. For each `U#` item, call `AskUserQuestion` with `question`: the item's own line (e.g. `"Upstream feedback U1 → file against claude-tweaks: \"{summary}\"."`), `header`: `"Upstream feedback {U#}"`, `multiSelect`: `false`:
+- Option 1 — `label`: `"Apply"`, `description`: `"File the issue: \"{summary}\""`
 - Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
 - Option 3 — `label`: `"Edit"`, `description`: `"Modify before creating"`
 
-Applied to this example's two queue writes:
-- Q1 — `question`: `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Create the record: \"Add OAuth refresh edge case\" — blocked on /auth provider docs, parked with trigger '/auth provider docs land'"`
-- Q2 — `question`: `"Queue write Q2 → new record, backlog: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Create the record: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3\""`
-
-None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#`, `M#`, or `U#` items, whether from the same section or different ones (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
+None of `U#`'s three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `U#` items (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each). `Q#`/`M#`'s multiSelect chunking is not this — the checkbox state *is* each item's individual choice, never a shared bulk toggle.
 
 ## On approval (option 1)
 
@@ -430,8 +435,8 @@ None of these three options carries `(Recommended)` — the source text requires
 4. Apply journey updates (item 14, from the Journeys curation row) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
 5. Apply config updates (item 15: CLAUDE.md, rules, ADRs) — including any CLAUDE.md findings staged by the CLAUDE.md & rules curation row, which are always offered, never auto-applied
 6. Execute cleanup actions (items 18 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Phase 4's execution step picks these up
-7. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
-8. For each `M#` memory update, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (`staged/wrap-up-memory-{N}.md`). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the wrap-up commit below. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+7. For each `Q#` queue write, resolve Apply/Skip via the multiSelect chunk above (or the free-text Edit override). On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+8. For each `M#` memory update, resolve Apply/Skip via the multiSelect chunk above (or the free-text Edit override). On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (`staged/wrap-up-memory-{N}.md`). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the wrap-up commit below. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 9. For each `U#` upstream feedback item, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): invoke `/claude-tweaks:feedback` with the staged, already-scrubbed body from the item's staged file (`staged/wrap-up-upstream-{N}.md`) — that skill re-runs its own scrub and confirm gates, since its Component-Skill Contract states a pipeline never relaxes them. Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 10. Commit with a wrap-up message
 11. Proceed to the phase-trace report
@@ -442,7 +447,7 @@ None of these three options carries `(Recommended)` — the source text requires
 2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
-5. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
+5. Queue writes (`Q#`) and Memory updates (`M#`): still resolved via per-item checkbox state (multiSelect chunking) even under override; Upstream feedback (`U#`) still prompted per item — the user can Skip or Edit any of them, but the per-item gate cannot be bulk-resolved by a shared toggle
 6. Commit, then proceed to the phase-trace report
 
 ## On stop (option 3)
@@ -459,5 +464,5 @@ Cleanup rows that are unconditional bookkeeping — run-dir archival, `cleanup-p
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run at Phase 4's execution step, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items into one `AskUserQuestion` call — this enforces `_shared/auto-mode-card.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
+- **Queue writes, Memory updates, and Upstream feedback each require an explicit per-item decision.** Never group any of them under "Approve all." `Q#`/`M#` resolve via `_shared/batched-item-drill.md`'s multiSelect chunking (a checkbox per item — the checked/unchecked state *is* that item's individual choice, never a shared bulk toggle answered once for the chunk); `U#` still resolves via one `AskUserQuestion` call per item. Neither mechanism may fold two items' choices into one shared answer. This enforces `_shared/auto-mode-card.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing. **A different table's approval never satisfies this gate** — not the Reflection Insights batch, not the Skill Updates batch, not any other — even when that answer was "Apply all." A batch table's "Apply all" approves what its own rows list; routing an insight to Memory is one such row, and the write is a separate decision this section's own `M#` prompt makes.
 - **An `[adr-convention]` row is also per-item**, despite sitting inside Configuration updates. Never fold it into "Approve all" and never pick one of its three options as a default — an unanswered row blocks the `[adr]` rows from the same run rather than resolving them, because their paths depend on the answer.
