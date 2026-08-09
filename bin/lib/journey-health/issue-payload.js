@@ -4,7 +4,7 @@
 // network. The skill hands the payload to the gh CLI itself.
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:journey-health,
-// colon-form risk:*/effort:medium scoring, born-ready, Type bug|task, work-fingerprint marker.
+// colon-form risk:*/size:medium scoring, born-ready, Type bug|task, work-fingerprint marker.
 const { recordPayload, specShapedBody } = require('../issues/record');
 const { buildRelatedBlocks } = require('../issues/related-blocks');
 
@@ -49,7 +49,11 @@ function toIssuePayload(finding) {
     type,
     origin: 'journey-health',
     risk: SEVERITY_TO_RISK[finding.severity],
-    effort: 'medium',
+    // The record facet is `size` (renamed from effort, #217). Only the record
+    // side was renamed — journey-health's own finding vocabulary (severity;
+    // it has no effort field) is untouched, and every finding still scores the
+    // same fixed tier.
+    size: 'medium',
     ready: true,
     fingerprint: finding.id,
   });

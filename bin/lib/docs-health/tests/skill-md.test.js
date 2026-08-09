@@ -114,8 +114,8 @@ test('judge-procedure.md fenced blocks balance, so inlining cannot break the pro
 
 test('states the classification -> scoring fold table literally', () => {
   const body = read();
-  assert.ok(/\|\s*`?additive`?\s*\|\s*`risk:low`\s*\|\s*`effort:low`\s*\|/.test(body));
-  assert.ok(/\|\s*`?restructural`?\s*\|\s*`risk:medium`\s*\|\s*`effort:high`\s*\|/.test(body));
+  assert.ok(/\|\s*`?additive`?\s*\|\s*`risk:low`\s*\|\s*`size:low`\s*\|/.test(body));
+  assert.ok(/\|\s*`?restructural`?\s*\|\s*`risk:medium`\s*\|\s*`size:high`\s*\|/.test(body));
 });
 
 test('states the born-ready rule explicitly', () => {

@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { encodeRecord } = require('../encode');
+const { parseRecordFacets } = require('../../issues/record');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
 test('encodeRecord: backlog record with nothing set gets no badges, human fill, default border', () => {
@@ -16,7 +17,7 @@ test('encodeRecord: code-health-origin, scored, in-progress record gets a scorin
   const encoded = encodeRecord(FIXTURE_RECORDS[1]);
   assert.strictEqual(encoded.fillKey, 'code-health');
   assert.strictEqual(encoded.borderStyle, 'in-progress');
-  assert.deepStrictEqual(encoded.badges, ['R:low E:medium']);
+  assert.deepStrictEqual(encoded.badges, ['R:low S:medium']);
 });
 
 test('encodeRecord: bot:blocked wins over bot:inProgress when (hypothetically) both are true', () => {
@@ -41,9 +42,9 @@ test('encodeRecord: unrecognized native Issue Type name omits the Type badge rat
   assert.deepStrictEqual(encodeRecord(record).badges, []);
 });
 
-test('encodeRecord: only one of risk/effort set still shows a scoring badge with "?" for the other', () => {
+test('encodeRecord: only one of risk/size set still shows a scoring badge with "?" for the other', () => {
   const record = { ...FIXTURE_RECORDS[0], facets: { ...FIXTURE_RECORDS[0].facets, risk: 'high' } };
-  assert.deepStrictEqual(encodeRecord(record).badges, ['R:high E:?']);
+  assert.deepStrictEqual(encodeRecord(record).badges, ['R:high S:?']);
 });
 
 test('encodeRecord: the label is prefixed with the issue number so a node says which issue it is', () => {
@@ -65,4 +66,24 @@ test('encodeRecord: only the title portion is capped at 40 chars — the #N pref
 
 test('encodeRecord: title at or under 40 chars is left unchanged behind the #N prefix', () => {
   assert.strictEqual(encodeRecord(FIXTURE_RECORDS[0]).title, '#10 Backlog record with no scoring');
+});
+
+// --- real-parser coverage (record #217) ---
+// FIXTURE_RECORDS hand-builds each `.facets` object, so the effort -> size facet
+// rename left this suite green while the scoring badge rendered "?" for the size
+// axis of every real record. This test builds facets with record.js's ACTUAL
+// parseRecordFacets, so the next facet-key change fails here instead of shipping.
+function parserFedRecord(labels) {
+  return { number: 40, title: 'Parser-fed record', labels, issueType: null, body: '', facets: parseRecordFacets(labels) };
+}
+
+test('encodeRecord: the scoring badge reads the facet keys the real label parser writes', () => {
+  assert.deepStrictEqual(encodeRecord(parserFedRecord(['risk:low', 'size:medium'])).badges, ['R:low S:medium']);
+
+  // record.js keeps a permanent read-side effort:* fallback for other repos'
+  // records, so a legacy-labelled record renders the identical badge.
+  assert.deepStrictEqual(encodeRecord(parserFedRecord(['risk:low', 'effort:medium'])).badges, ['R:low S:medium']);
+
+  // And a record the parser leaves fully unscored gets no scoring badge at all.
+  assert.deepStrictEqual(encodeRecord(parserFedRecord([])).badges, []);
 });

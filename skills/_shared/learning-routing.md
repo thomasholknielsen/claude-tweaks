@@ -160,7 +160,7 @@ claude-tweaks component and the symptom, so a human can forward it with
 `/claude-tweaks:feedback` later. Never file it as a defect against this
 project's own code.
 
-File it **without** the born-`ready` stage label and without `risk:`/`effort:`
+File it **without** the born-`ready` stage label and without `risk:`/`size:`
 scoring, so it stays a backlog record and never enters the authorization
 gate's worklist — `/claude-tweaks:backlog refine`'s grant sub-stage, which
 scans `ready` records to decide `auto:build` — the gate that would shape it

@@ -85,7 +85,7 @@ node -e "
 " > /tmp/backlog-overview-ranked.json
 ```
 
-Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the three-view summary, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "lowest effort among same-priority candidates with no file overlap"). This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role.
+Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the three-view summary, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap"). This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role.
 
 ## Step 4: Hand-off block (contextual)
 

@@ -44,7 +44,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 |---|---|---|
 | **Type** | `bug` \| `feature` \| `task` | Native GitHub Issue Type when `work-types: native`; `type:*` label when `work-types: labels` |
 | **Origin** | one `by:*` label — members listed once, in the Label taxonomy table's Origin row below — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
-| **Scoring** | `risk:low\|medium\|high` × `effort:low\|medium\|high` | Labels — at most one of each family |
+| **Scoring** | `risk:low\|medium\|high` × `size:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
 | **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
@@ -57,6 +57,19 @@ body line instead (e.g. `Origin: wrap-up leftover from #42`). The `by:*` family'
 is stated once — the Label taxonomy table's Origin row below — and never restated in prose
 here or in a consuming skill; read that row rather than re-deriving the list.
 
+**"Effort" has three surviving meanings — know which one a given field is.** The Scoring axis's
+`size:*` above is one of them, not the only one: (1) the record facet documented here is
+`size` (renamed from `effort` in #217) — task size/complexity, `low|medium|high`; (2)
+`finding.effort` in code-health's judge-output schema is the *same concept* under its
+pre-rename name, deliberately left unrenamed because it's a live LLM-output contract
+(`bin/lib/code-health/validate-finding.js` and every judge call site depend on that exact
+field name) — not a different meaning, just a different vocabulary boundary; (3)
+`review-effort`/`bin/lib/model-profiles/`'s `EFFORT_SCALE` is reasoning depth
+(`low|medium|high|xhigh|max`), unrelated to task size entirely. Reading (1)'s rename as a
+global invariant and "finishing" it into (2) breaks a live contract; conflating (1) or (2)
+with (3) confuses size with reasoning depth, a different axis this file's Scoring row doesn't
+cover at all.
+
 ## Label taxonomy
 
 The core label families below, plus an optional `priority:*` family (see the table for the
@@ -68,7 +81,7 @@ are about to apply.
 |---|---|---|
 | Origin (6) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture`, `by:dispatch` | Origin |
 | Risk (3) | `risk:low`, `risk:medium`, `risk:high` | Scoring |
-| Effort (3) | `effort:low`, `effort:medium`, `effort:high` | Scoring |
+| Size (3) | `size:low`, `size:medium`, `size:high` | Scoring |
 | Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
 | Stage (2) | `parked`, `ready` | Stage |
 | Grants (2) | `auto:build`, `auto:merge` | Authorization |
@@ -115,10 +128,10 @@ hold as written whatever the ceiling says.
 | Actor | Adds | Removes | Never |
 |---|---|---|---|
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
-| **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`effort:*` | nothing | `auto:*`, `bot:*`, `parked` |
+| **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `size:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`size:*` | nothing | `auto:*`, `bot:*`, `parked` |
 | **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`); `ready` **only** under `autonomy: trusted`+ when `producer:capture`'s trust verdict is `clean` (see `_shared/autonomy-ceiling.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`; `ready` whenever either half of that condition fails — at `supervised` (the default), or on any verdict but `clean` |
-| **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, `ceremony:*` (always — no unscored state), `framing:baked` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `family:parent` (decomposition parents only, never leaves) | `parked` (promotion) | `auto:*`, `bot:*` |
-| **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`effort:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
+| **`/specify`** (shaper) | `ready`, `risk:*`/`size:*` when unstamped, `ceremony:*` (always — no unscored state), `framing:baked` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `family:parent` (decomposition parents only, never leaves) | `parked` (promotion) | `auto:*`, `bot:*` |
+| **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`size:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
 | **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling), `demo:pending` (group auto-merge gate, `dispatch/settle-and-merge.md` — reuses `/wrap-up`'s own `verification-brief.md` procedure, including its family-gate routing, so on a parent-linked leaf the label lands on the parent instead) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready`, `demo:approved`, `demo:changes-requested` |
 | **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open family gate action, either driver — the local twin writes the parent's `acceptance: pending` facet; both reuse `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |

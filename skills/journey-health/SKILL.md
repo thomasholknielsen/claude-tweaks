@@ -172,13 +172,13 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
 
 Every journey-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:journey-health`; severity folds into the scoring axis instead of staying a producer-specific label the gate must know:
 
-| Severity | risk | effort |
+| Severity | risk | size |
 |---|---|---|
-| `high` | `risk:high` | `effort:medium` |
-| `med` | `risk:medium` | `effort:medium` |
-| `low` | `risk:low` | `effort:medium` |
+| `high` | `risk:high` | `size:medium` |
+| `med` | `risk:medium` | `size:medium` |
+| `low` | `risk:low` | `size:medium` |
 
-Effort is always `effort:medium` — a journey-health finding carries no scope/size signal (no files-changed count, no lines-changed estimate) the way a code-health or harness-health finding's own evidence does, so there is no deterministic basis to fold into a `low`/`high` split; `medium` is the flat, honest default for every finding this skill files. Type follows the finding's `category`: `regression-suspected` files as `bug` (the journey/story text is accurate — the implementation broke); `drift` and `coverage` file as `task` (documentation or coverage maintenance, not a defect). Every filed finding is **born-`ready`** — journey-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation (per the intro, records are not a separate lane). `toIssuePayload` (`bin/lib/journey-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the category-derived diagnostic label (`journey-health:drift` / `journey-health:coverage` / `journey-health:regression-suspected`) after the canonical labels — the emitted label set is exactly `by:journey-health` + `risk:<tier>` + `effort:medium` + `ready` + the diagnostic label, matching the table above.
+Size is always `size:medium` — a journey-health finding carries no scope/size signal (no files-changed count, no lines-changed estimate) the way a code-health or harness-health finding's own evidence does, so there is no deterministic basis to fold into a `low`/`high` split; `medium` is the flat, honest default for every finding this skill files. Type follows the finding's `category`: `regression-suspected` files as `bug` (the journey/story text is accurate — the implementation broke); `drift` and `coverage` file as `task` (documentation or coverage maintenance, not a defect). Every filed finding is **born-`ready`** — journey-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation (per the intro, records are not a separate lane). `toIssuePayload` (`bin/lib/journey-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the category-derived diagnostic label (`journey-health:drift` / `journey-health:coverage` / `journey-health:regression-suspected`) after the canonical labels — the emitted label set is exactly `by:journey-health` + `risk:<tier>` + `size:medium` + `ready` + the diagnostic label, matching the table above.
 
 **Drain-rate cap and digest mode.** Before filing any survivor whose Step 5 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s FILE-step shape (`{PREFIX}` = `journey-health`) — at or above the cap, the finding is appended to `journey-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
 
@@ -204,7 +204,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["risk:low",           "Scoring: low blast radius — safe for autonomous build"],
 #  ["risk:medium",        "Scoring: moderate blast radius — review before merge recommended"],
 #  ["risk:high",          "Scoring: high blast radius — human review required"],
-#  ["effort:medium",      "Scoring: moderate change, may span several files"],
+#  ["size:medium",        "Scoring: moderate change, may span several files"],
 #  ["ready",              "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
 #  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["journey-health:drift",                "Journey category: the journey file no longer matches the codebase"],
@@ -237,22 +237,22 @@ For each survivor disposed as "File issue" (every payload if "Apply all recommen
 ```bash
 # Example: a drift finding (type task), work-types: native
 gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift
+  --label by:journey-health --label risk:high --label size:medium --label ready --label journey-health:drift
 
 # Same finding, work-types: labels
 gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift --label type:task
+  --label by:journey-health --label risk:high --label size:medium --label ready --label journey-health:drift --label type:task
 
 # Example: a regression-suspected finding (type bug), work-types: native
 gh issue create --title "<payload.title>" --body "<payload.body>" --type bug \
-  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected
+  --label by:journey-health --label risk:medium --label size:medium --label ready --label journey-health:regression-suspected
 
 # Same finding, work-types: labels
 gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected --label type:bug
+  --label by:journey-health --label risk:medium --label size:medium --label ready --label journey-health:regression-suspected --label type:bug
 ```
 
-**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:journey-health`, and omit `ready`, `risk:*` and `effort:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
+**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:journey-health`, and omit `ready`, `risk:*` and `size:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
 
 Apply the same branch to every payload regardless of category — a `coverage` payload's call carries `journey-health:coverage` and `--type task`/`--label type:task` the same way a `drift` payload does; only the `--type task`/`--type bug` vs. `--label type:task`/`--label type:bug` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. `/journey-health` never edits journey files, stories, or code.
 

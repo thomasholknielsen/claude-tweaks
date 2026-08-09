@@ -75,7 +75,7 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.ok(payloads[0].labels.includes('by:harness-health'));
   assert.ok(payloads[0].labels.includes('ready'));
   assert.ok(payloads[0].labels.includes('risk:medium'), 'restructural finding must carry risk:medium');
-  assert.ok(payloads[0].labels.includes('effort:high'), 'restructural finding must carry effort:high');
+  assert.ok(payloads[0].labels.includes('size:high'), 'restructural finding must carry size:high');
   assert.strictEqual(payloads[0].type, 'task');
   assert.ok(payloads[0].body.includes('<!-- work-fingerprint: harnesshealth-'));
   assert.ok(!payloads[0].body.includes('harness-health-fingerprint'), 'legacy marker must not be emitted');

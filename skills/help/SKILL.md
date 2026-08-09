@@ -80,7 +80,7 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 
 ### Tie-Breaking
 
-Row order in the Ready-to-Build table comes from the shared `bin/lib/issues/ranking.js`'s `rankNextToBuild` — the same module `/claude-tweaks:backlog overview`'s bare-mode recommendation uses, so both consumers compute the identical order (see `status-scan.md` Stage 1 for the actual call). Its tie-break sequence: unblocks-count (most other candidates in the pool it unblocks, first) → file-overlap-free (no shared key files with another candidate, first) → effort (low first) → hasPlan (existing plan, first).
+Row order in the Ready-to-Build table comes from the shared `bin/lib/issues/ranking.js`'s `rankNextToBuild` — the same module `/claude-tweaks:backlog overview`'s bare-mode recommendation uses, so both consumers compute the identical order (see `status-scan.md` Stage 1 for the actual call). Its tie-break sequence: unblocks-count (most other candidates in the pool it unblocks, first) → file-overlap-free (no shared key files with another candidate, first) → size (low first) → hasPlan (existing plan, first).
 
 ### Present Recommendation
 

@@ -42,6 +42,43 @@ test('seedLocalWorkRecord: writes a record readable by local-store', () => {
   assert.ok(fs.existsSync(record.path));
 });
 
+// Guards the regression a spec-217 rename actually produced: a scenario seeded
+// the dead key `facets.effort`, which local-store's createRecord silently
+// dropped, collapsing a scored-vs-unscored test distinction with nothing
+// failing. An unknown key must now throw instead of vanishing.
+test('seedLocalWorkRecord: throws on an unknown facet key instead of silently dropping it', () => {
+  const dir = freshRepo();
+  assert.throws(
+    () => seedLocalWorkRecord(dir, { slug: 'bad', title: 'Bad', facets: { effort: 'small' } }),
+    /unknown facet key "effort"/,
+  );
+});
+
+test('seedLocalWorkRecord: throws on an invalid tier value for risk/size', () => {
+  const dir = freshRepo();
+  assert.throws(
+    () => seedLocalWorkRecord(dir, { slug: 'bad', title: 'Bad', facets: { risk: 'small' } }),
+    /invalid tier value "small"/,
+  );
+  assert.throws(
+    () => seedLocalWorkRecord(dir, { slug: 'bad2', title: 'Bad2', facets: { size: 'huge' } }),
+    /invalid tier value "huge"/,
+  );
+});
+
+test('seedLocalWorkRecord: still accepts every valid tier value for risk and size', () => {
+  const dir = freshRepo();
+  for (const tier of ['low', 'medium', 'high']) {
+    const record = seedLocalWorkRecord(dir, {
+      slug: `ok-${tier}`,
+      title: `OK ${tier}`,
+      facets: { risk: tier, size: tier },
+    });
+    assert.strictEqual(record.facets.risk, tier);
+    assert.strictEqual(record.facets.size, tier);
+  }
+});
+
 // The fixture gap #157 filed: a fresh fixture has no remote, so any skill
 // branching on `git remote get-url origin` (the learning-routing self-reference
 // check) could not be exercised at all.

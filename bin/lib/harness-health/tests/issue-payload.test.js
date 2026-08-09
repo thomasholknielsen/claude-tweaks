@@ -41,23 +41,23 @@ function newSkillFinding(overrides = {}) {
 
 // ── classification -> scoring axis fold (spec 15) ───────────────────────────
 
-test('toIssuePayload for a restructural patch finding maps classification to risk:medium/effort:high, ready, and appends the diagnostic label last', () => {
+test('toIssuePayload for a restructural patch finding maps classification to risk:medium/size:high, ready, and appends the diagnostic label last', () => {
   const payload = toIssuePayload(patchFinding()); // classification: 'restructural'
-  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'risk:medium', 'effort:high', 'ready', 'harness-health:restructural']);
+  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'risk:medium', 'size:high', 'ready', 'harness-health:restructural']);
   assert.ok(payload.title.includes('auth'));
   assert.ok(payload.body.includes('src/auth/login.js'));
   assert.ok(payload.body.includes('src/auth/session.js'));
 });
 
-test('toIssuePayload for an additive patch finding maps classification to risk:low/effort:low', () => {
+test('toIssuePayload for an additive patch finding maps classification to risk:low/size:low', () => {
   const payload = toIssuePayload(patchFinding({ classification: 'additive' }));
-  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'risk:low', 'effort:low', 'ready', 'harness-health:additive']);
+  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'risk:low', 'size:low', 'ready', 'harness-health:additive']);
 });
 
-test('toIssuePayload for a new-skill finding is unscored (no risk:*/effort:* label) and uses the new-skill diagnostic label', () => {
+test('toIssuePayload for a new-skill finding is unscored (no risk:*/size:* label) and uses the new-skill diagnostic label', () => {
   const payload = toIssuePayload(newSkillFinding());
   assert.deepStrictEqual(payload.labels, ['by:harness-health', 'ready', 'harness-health:new-skill']);
-  assert.ok(!payload.labels.some((l) => l.startsWith('risk:') || l.startsWith('effort:')), 'new-skill must carry no scoring label');
+  assert.ok(!payload.labels.some((l) => l.startsWith('risk:') || l.startsWith('size:')), 'new-skill must carry no scoring label');
   assert.ok(payload.title.includes('queue-retry-pattern'));
   assert.ok(payload.body.includes('Queue Retry Pattern'));
 });

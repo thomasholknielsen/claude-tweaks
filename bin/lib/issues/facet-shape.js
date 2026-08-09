@@ -15,7 +15,7 @@ function sharedFacetDefaults() {
   return {
     origin: null,
     risk: null,
-    effort: null,
+    size: null,
     ceremony: null,
     framing: false,
     priority: null,

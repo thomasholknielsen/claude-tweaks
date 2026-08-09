@@ -266,7 +266,7 @@
           <div class="vz-ghi-node-title"><span>/code-health</span><span class="vz-ghi-tag">Routine or Manual</span></div>
           <div class="vz-ghi-body">
             <div>Judges code quality, report-only, never edits</div>
-            <div>Files by:code-health + risk:*/effort:* + ready (born-ready)</div>
+            <div>Files by:code-health + risk:*/size:* + ready (born-ready)</div>
             <div>Fingerprint: work-fingerprint (criterion+area+anchor)</div>
           </div>
         </div>
@@ -288,7 +288,7 @@
           <div class="vz-ghi-node-title"><span>/journey-health</span><span class="vz-ghi-tag">Routine or Manual</span></div>
           <div class="vz-ghi-body">
             <div>Judges journeys + coverage, always files every run</div>
-            <div>Severity maps to risk:*; effort is always effort:medium</div>
+            <div>Severity maps to risk:*; size is always size:medium</div>
             <div>Same ready queue as the other siblings now, not a separate lane</div>
           </div>
         </div>
@@ -507,7 +507,7 @@
             <tbody>
               <tr><td>Type</td><td>bug | feature | task</td><td>Native GitHub Issue Type (work-types: native), or a type:* label (work-types: labels)</td></tr>
               <tr><td>Origin</td><td>by:code-health, by:harness-health, by:journey-health, by:docs-health, by:capture &mdash; or none</td><td>Label; absence = human-filed, or a side-effect record (an Origin: {context} body line instead)</td></tr>
-              <tr><td>Scoring</td><td>risk:low|medium|high &times; effort:low|medium|high</td><td>Labels &mdash; at most one of each family</td></tr>
+              <tr><td>Scoring</td><td>risk:low|medium|high &times; size:low|medium|high</td><td>Labels &mdash; at most one of each family</td></tr>
               <tr><td>Stage</td><td>backlog (no label), parked, ready</td><td>Labels &mdash; backlog is the absence of a stage label</td></tr>
               <tr><td>Authorization</td><td>auto:build, auto:merge</td><td>Human-granted labels only; absence is the default not-authorized state</td></tr>
               <tr><td>Bot state</td><td>bot:in-progress, bot:blocked</td><td>Machinery-owned visibility layer &mdash; a projection of the claim ref, never the truth itself</td></tr>
@@ -550,7 +550,7 @@
             <div class="vz-ghi-explain-line">The spec-shaped-body minimum every ready record must have &mdash; each section present and non-empty, no unresolved TBD/TODO/&lt;!-- ambiguity: --&gt; markers. /triage re-verifies these three before granting; ready alone never authorizes a grant by itself.</div>
             <div class="vz-ghi-code-line">"Filed by /{skill}. Close to resolve; label wontfix to suppress future reports of this finding."</div>
             <div class="vz-ghi-explain-line">Every producer's footer. wontfix is the universal per-finding suppression switch across all four health skills.</div>
-            <div class="vz-ghi-code-line">Labels: by:{origin} + risk:{tier} + effort:{tier} + ready (+ one diagnostic label)</div>
+            <div class="vz-ghi-code-line">Labels: by:{origin} + risk:{tier} + size:{tier} + ready (+ one diagnostic label)</div>
             <div class="vz-ghi-explain-line">The diagnostic label (e.g. harness-health:additive, journey-health:drift) carries no mechanical meaning of its own in the six-axis contract &mdash; the canonical scoring/stage labels above are what every consumer actually reads.</div>
           </div>
         </div>
@@ -629,10 +629,10 @@
               <tr><td><code>risk:medium</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: moderate blast radius &mdash; review before merge recommended</td></tr>
               <tr><td><code>risk:high</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: high blast radius &mdash; human review required</td></tr>
 
-              <tr class="vz-ghi-label-section"><td colspan="4">Scoring &mdash; effort</td></tr>
-              <tr><td><code>effort:low</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: small, agent-sized change</td></tr>
-              <tr><td><code>effort:medium</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: moderate change, may span several files</td></tr>
-              <tr><td><code>effort:high</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: large change &mdash; consider decomposition before building</td></tr>
+              <tr class="vz-ghi-label-section"><td colspan="4">Scoring &mdash; size</td></tr>
+              <tr><td><code>size:low</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: small, agent-sized change</td></tr>
+              <tr><td><code>size:medium</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: moderate change, may span several files</td></tr>
+              <tr><td><code>size:high</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: large change &mdash; consider decomposition before building</td></tr>
 
               <tr class="vz-ghi-label-section"><td colspan="4">Stage</td></tr>
               <tr><td><code>parked</code></td><td>/tidy (Defer action, with trigger)</td><td>/tidy (trigger-met wake), or /specify (promotion to ready)</td><td>Stage: deliberately on hold until its trigger fires (milestone due or watched path change)</td></tr>

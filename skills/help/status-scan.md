@@ -281,9 +281,9 @@ section reports what evidence exists and never recommends acting on it.}
 
 *(Omit this section entirely when the work-record scan was skipped (Stage 1's fail-open case), or when both buckets are 0.)*
 
-| Record | Title | Risk / Effort | Status | Has Plan? |
+| Record | Title | Risk / Size | Status | Has Plan? |
 |--------|-------|----------------|--------|-----------|
-| {ref} | {title} | {risk}/{effort} | ready / authorized | {yes/no} |
+| {ref} | {title} | {risk}/{size} | ready / authorized | {yes/no} |
 
 `{ref}` is `#{n}` under `work-backend: github-issues`, the bare record id under `local-files`. Rows come from Stage 1's `ready` and `authorized` buckets, ordered per `SKILL.md` Section 3's Tie-Breaking rules, capped at `--budget` rows (default 10 — see `SKILL.md`'s `## Input` section). If more rows exist than the budget allows, append one line below the table: "`{remaining}` more ready/authorized records exist beyond this run's `--budget {N}` — re-run `/claude-tweaks:help --budget {N}` to see more."
 

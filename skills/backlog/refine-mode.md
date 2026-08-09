@@ -115,7 +115,7 @@ string instead, per Step 4.
   `true`).
 - **`RECOMMEND_BUILD: false`** → `flag back (needs scoring)`. The human may supply scoring inline as
   a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
-  `effort:*` labels alongside the grant (Step 5).
+  `size:*` labels alongside the grant (Step 5).
 
 For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
 typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
@@ -328,7 +328,7 @@ For every row still marked for granting after Step 3.5:
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
 # [['auto:build', 'Grant: agents may build this record autonomously (human-granted; machinery only removes)'],
 #  ['auto:merge', 'Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)']]
-# — add the matching risk:low|medium|high / effort:low|medium|high pair too, only for a row where
+# — add the matching risk:low|medium|high / size:low|medium|high pair too, only for a row where
 # the human supplied scoring inline during the override step (Step 4).
 
 if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx bot:blocked; then
@@ -339,11 +339,11 @@ fi
 # Row also grants auto:merge:
 gh issue edit "$ISSUE" --add-label auto:merge
 # Row's scoring came from an inline override in Step 4 (an unscored "—" row the human supplied
-# risk:$RISK_TIER / effort:$EFFORT_TIER for directly, rather than flagging back or accepting the
+# risk:$RISK_TIER / size:$SIZE_TIER for directly, rather than flagging back or accepting the
 # default "needs scoring" recommendation) — persist the human-supplied scoring as labels too,
 # not just the grant, so the record doesn't re-enter later batch views (e.g.
 # /claude-tweaks:backlog overview risk-value's ranked table) still showing as unscored:
-gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "effort:$EFFORT_TIER"
+gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "size:$SIZE_TIER"
 ```
 
 Stripping `bot:blocked` in the same edit as the grant matters: without it, the record carries both `bot:blocked` and a fresh `auto:build`, and `/claude-tweaks:dispatch`'s skip rule ignores anything `bot:blocked` forever regardless of the new grant.
@@ -360,7 +360,7 @@ Log every action to this run's `decisions.md` (standalone-auto run dir per `_sha
 ```
 AUTO {time} — Backlog refine: set priority:{tier} on #{n}.
 AUTO {time} — Backlog refine: updated **Related:** on #{n} to reference #{m}.
-AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, effort:{effortTier}). Rationale: {grant-check RATIONALE}.
+AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, size:{sizeTier}). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
 ```

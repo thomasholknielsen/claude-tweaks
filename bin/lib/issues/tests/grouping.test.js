@@ -114,7 +114,7 @@ test('returns [] for a v1 code-health issue with "(no specific file)"', () => {
 
 test('extracts the anchor file from a by:code-health issue body (post-migration origin label)', () => {
   const issue = {
-    labels: ['by:code-health', 'code-health:risk-high', 'risk:high', 'effort:low'],
+    labels: ['by:code-health', 'code-health:risk-high', 'risk:high', 'size:low'],
     body: [
       '<!-- work-fingerprint: codehealth-ab12cd34 -->',
       '',
@@ -169,7 +169,7 @@ test('returns [] for a harness-health new-skill candidate, not a scraped path fr
 
 test('extracts the target from a by:harness-health issue body (post-migration origin label)', () => {
   const issue = {
-    labels: ['by:harness-health', 'harness-health:additive', 'risk:low', 'effort:low'],
+    labels: ['by:harness-health', 'harness-health:additive', 'risk:low', 'size:low'],
     body: '**Skill:** skills/backlog/SKILL.md | **Section:** Step 4 | **Category:** rule-gap | **Classification:** additive | **Confidence:** high',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), ['skills/backlog/SKILL.md']);
@@ -180,7 +180,7 @@ test('extracts the journey file from a by:journey-health issue body', () => {
   // "**Journey:** {path} | **Section:** ..." — the same bold-field shape
   // BOLD_HEADER_RE already extracts for harness-health.
   const issue = {
-    labels: ['by:journey-health', 'journey-health:drift', 'risk:medium', 'effort:medium'],
+    labels: ['by:journey-health', 'journey-health:drift', 'risk:medium', 'size:medium'],
     body: '**Journey:** docs/journeys/checkout.md | **Section:** Step 3 | **Category:** drift | **Severity:** med | **Confidence:** high',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), ['docs/journeys/checkout.md']);
@@ -191,7 +191,7 @@ test('extracts the doc file from a by:docs-health issue body', () => {
   // "**Doc:** {path} | **Section:** ..." — the same bold-field shape
   // BOLD_HEADER_RE already extracts for harness-health and journey-health.
   const issue = {
-    labels: ['by:docs-health', 'docs-health:additive', 'risk:low', 'effort:low'],
+    labels: ['by:docs-health', 'docs-health:additive', 'risk:low', 'size:low'],
     body: '**Doc:** docs/api.md | **Section:** Overview | **Category:** genre-drift | **Misleads:** human engineer | **Classification:** additive | **Confidence:** high',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), ['docs/api.md']);
@@ -269,7 +269,7 @@ test('accepts label objects ({name}) as well as plain strings', () => {
 // key files — making groupByFileOverlap emit singletons regardless of real
 // overlap, which is exactly the collision guard /dispatch relies on.
 
-const SPECIFY_LEAF_LABELS = ['ready', 'type:feature', 'auto:build', 'priority:high', 'risk:medium', 'effort:medium', 'ceremony:standard'];
+const SPECIFY_LEAF_LABELS = ['ready', 'type:feature', 'auto:build', 'priority:high', 'risk:medium', 'size:medium', 'ceremony:standard'];
 
 test('extracts backticked paths from a /specify-produced leaf\'s ### Key Files subsection', () => {
   const issue = {

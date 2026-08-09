@@ -22,7 +22,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const dir = tmp(t);
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
-    type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', ceremony: 'fast-lane', framing: true, priority: null,
+    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', framing: true, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: 12, familyParent: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
@@ -44,7 +44,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   writeRecord(filePath, {
     title: 'Min', body: 'b',
     facets: {
-      type: 'task', origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null,
+      type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
       parent: null, familyParent: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
@@ -73,6 +73,59 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.strictEqual(record.facets.framing, false);
 });
 
+// --- size facet (renamed from effort, record #217) ---
+// The emit side is size-only; the read side keeps a PERMANENT effort: fallback so
+// records written by a pre-rename repo still resolve their size facet.
+
+test('writeRecord emits the size facet as a size: line and never an effort: line', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '1-sized.md');
+  writeRecord(filePath, { title: 'Sized', body: 'b', facets: baseFacets({ size: 'medium' }) });
+
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(/^size: medium$/m.test(raw), 'must write the facet under the size: key');
+  assert.ok(!/^effort:/m.test(raw), 'must never emit a pre-rename effort: line');
+  assert.strictEqual(readRecord(filePath).facets.size, 'medium');
+
+  const withoutSize = path.join(dir, '2-unsized.md');
+  writeRecord(withoutSize, { title: 'Unsized', body: 'b', facets: baseFacets() });
+  assert.ok(!/^size:/m.test(fs.readFileSync(withoutSize, 'utf8')), 'must not write size when null');
+  assert.strictEqual(readRecord(withoutSize).facets.size, null);
+});
+
+test('a pre-rename record file carrying only an effort: line reads back as facets.size', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '3-legacy.md');
+  // Hand-written, not via writeRecord: a record created before the rename, by
+  // this repo or by another one that still writes effort:.
+  fs.writeFileSync(filePath, '---\ntype: feature\neffort: high\n---\n\n# Legacy\n\nbody\n');
+
+  const record = readRecord(filePath);
+  assert.strictEqual(record.facets.size, 'high', 'the pre-rename effort: line must resolve the size facet');
+  assert.strictEqual(record.facets.effort, undefined, 'no stray effort key survives on the parsed facets');
+
+  // Rewriting a legacy record migrates the key: size: out, effort: gone.
+  writeRecord(filePath, { title: record.title, body: record.body, facets: record.facets });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(/^size: high$/m.test(raw));
+  assert.ok(!/^effort:/m.test(raw));
+});
+
+// The precedence rule, stated once: size: always wins over a pre-rename effort:
+// line, in BOTH line orders — the fallback is held aside during the parse and
+// applied only when no size: line was seen, so it is never order-dependent.
+test('size: wins over a pre-rename effort: line whichever order the two lines appear in', (t) => {
+  const dir = tmp(t);
+
+  const sizeFirst = path.join(dir, '1-size-first.md');
+  fs.writeFileSync(sizeFirst, '---\ntype: task\nsize: low\neffort: high\n---\n\n# A\n\nbody\n');
+  assert.strictEqual(readRecord(sizeFirst).facets.size, 'low', 'size: before effort: must win');
+
+  const effortFirst = path.join(dir, '2-effort-first.md');
+  fs.writeFileSync(effortFirst, '---\ntype: task\neffort: high\nsize: low\n---\n\n# B\n\nbody\n');
+  assert.strictEqual(readRecord(effortFirst).facets.size, 'low', 'size: after effort: must still win');
+});
+
 // --- familyParent (decomposition parent marker) ---
 
 test('writeRecord then readRecord round-trips familyParent: true as a family-parent: true frontmatter line', (t) => {
@@ -82,7 +135,7 @@ test('writeRecord then readRecord round-trips familyParent: true as a family-par
     title: 'Parent',
     body: 'Design summary',
     facets: {
-      type: 'feature', origin: null, risk: null, effort: null, ceremony: null, priority: null,
+      type: 'feature', origin: null, risk: null, size: null, ceremony: null, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
       parent: null, familyParent: true, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
@@ -158,7 +211,7 @@ test('allocateId ignores non-matching filenames', (t) => {
 
 function baseFacets(overrides) {
   return Object.assign({
-    type: 'task', origin: null, risk: null, effort: null, ceremony: null, framing: false, priority: null,
+    type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null,
     stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: null, familyParent: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
   }, overrides);

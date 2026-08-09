@@ -5,7 +5,7 @@ Present this summary after completing all review steps.
 ```markdown
 ## Review: {spec number or description}
 
-**Review effort:** {tier} (derived from {explicit argument | record labels: risk:{x} × effort:{y} | diff heuristic: {reasoning}})
+**Review effort:** {tier} (derived from {explicit argument | record labels: risk:{x} × size:{y} | diff heuristic: {reasoning}})
 
 ### Spec Compliance (spec-based only)
 | Deliverable | Status |

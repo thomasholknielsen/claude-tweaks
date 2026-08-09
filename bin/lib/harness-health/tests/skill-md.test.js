@@ -87,8 +87,8 @@ test('filing.md exists and SKILL.md Step 7 delegates to it', () => {
 
 test('filing.md states the classification -> scoring fold table literally', () => {
   const body = readFiling();
-  assert.ok(/\|\s*`?additive`?\s*\|\s*`risk:low`\s*\|\s*`effort:low`\s*\|/.test(body), 'missing literal additive -> risk:low/effort:low table row');
-  assert.ok(/\|\s*`?restructural`?\s*\|\s*`risk:medium`\s*\|\s*`effort:high`\s*\|/.test(body), 'missing literal restructural -> risk:medium/effort:high table row');
+  assert.ok(/\|\s*`?additive`?\s*\|\s*`risk:low`\s*\|\s*`size:low`\s*\|/.test(body), 'missing literal additive -> risk:low/size:low table row');
+  assert.ok(/\|\s*`?restructural`?\s*\|\s*`risk:medium`\s*\|\s*`size:high`\s*\|/.test(body), 'missing literal restructural -> risk:medium/size:high table row');
 });
 
 // The reason the extraction happened at all — guard the regression directly.

@@ -130,6 +130,7 @@ Otherwise (environment already resolved in Step 4, `NEEDS_GUIDED_CREATION` not s
 routine_id: "<the routine/trigger ID from Step 8 — RemoteTrigger's create response, or guided-creation's returned trigger_id>"
 template: <skill>
 template_version: <template.template_version>
+model: "<template.model>"
 created_at: "<current UTC timestamp, ISO 8601>"
 schedule: "<resolved cron_expression>"
 console_url: "<the routine URL from Step 8 — RemoteTrigger's create response, or guided-creation's returned console_url>"
@@ -182,4 +183,4 @@ Marking "Yes, update" as `(Recommended)` follows the same reasoning as CREATE St
 
 **Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`. If this call fails because `record.routine_id` no longer refers to an existing routine (e.g. deleted out-of-band at claude.ai/code/routines), report the record as stale and offer the same recourse as STATUS Step 2 (`status.md` in this skill's directory): delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>` instead — do not proceed to Step 7 or rewrite the instantiated record for a failed update.
 
-**Step 7.** Rewrite the instantiated record with the resolved schedule, the resolved `branch` (Step 3's value — omit the key entirely when nothing resolved, per CREATE Step 9), the new `template_version`, and a fresh `created_at` timestamp (this field doubles as "last written at") — preserving `routine_id`, `template`, and `console_url` from the existing record.
+**Step 7.** Rewrite the instantiated record with the resolved schedule, the resolved `branch` (Step 3's value — omit the key entirely when nothing resolved, per CREATE Step 9), the new `template_version` and `model` (both resolved fresh from the current template, not preserved from the old record), and a fresh `created_at` timestamp (this field doubles as "last written at") — preserving `routine_id`, `template`, and `console_url` from the existing record.

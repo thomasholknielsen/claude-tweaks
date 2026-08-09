@@ -58,9 +58,26 @@ const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):[ \t]*(.+)$/gm;
 
 const BY_RE = /^by:(.+)$/;
 const RISK_LABEL_RE = /^risk:(.+)$/;
+const SIZE_LABEL_RE = /^size:(.+)$/;
+// Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
 const EFFORT_LABEL_RE = /^effort:(.+)$/;
 const PRIORITY_LABEL_RE = /^priority:(.+)$/;
 const CEREMONY_LABEL_RE = /^ceremony:(.+)$/;
+
+// The colon-form value labels parseRecordFacets reads straight into a facet:
+// the regex that recognizes one, the facet key it sets, and the vocabulary its
+// value must belong to. A value outside that vocabulary is ignored entirely
+// (the facet keeps its default) rather than stored. Every prefix here is
+// distinct, so one label name can match at most one row and evaluation order
+// carries no meaning. effort:* is deliberately absent — it is the one value
+// label that does NOT write its facet directly (see parseRecordFacets).
+const VALUE_FACETS = [
+  [BY_RE, 'origin', ORIGINS],
+  [RISK_LABEL_RE, 'risk', TIERS],
+  [SIZE_LABEL_RE, 'size', TIERS],
+  [CEREMONY_LABEL_RE, 'ceremony', CEREMONY_TIERS],
+  [PRIORITY_LABEL_RE, 'priority', PRIORITIES],
+];
 
 function oneOf(name, value, allowed) {
   if (!allowed.includes(value)) {
@@ -68,17 +85,17 @@ function oneOf(name, value, allowed) {
   }
 }
 
-// classification -> risk/effort scoring axis fold, shared by every health
+// classification -> risk/size scoring axis fold, shared by every health
 // producer's issue-payload.js (docs-health, harness-health; journey-health
 // uses its own severity-based fold instead, see journey-health/issue-payload.js):
-// additive is a safe, mechanical patch (low risk, low effort); restructural
-// needs human review and more effort. A finding kind that's deliberately
+// additive is a safe, mechanical patch (low risk, small change); restructural
+// needs human review and is a bigger change. A finding kind that's deliberately
 // unscored (e.g. harness-health's "new-skill") looks this map up and gets
 // `undefined` back rather than consulting it at all — callers gate that
 // themselves, this map has no "unscored" entry.
 const CLASSIFICATION_SCORING = {
-  additive: { risk: 'low', effort: 'low' },
-  restructural: { risk: 'medium', effort: 'high' },
+  additive: { risk: 'low', size: 'low' },
+  restructural: { risk: 'medium', size: 'high' },
 };
 
 // Returns a backtick fence at least one character longer than the longest run
@@ -98,10 +115,15 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, effort?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, size?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
-function recordPayload({ title, body, type, origin, risk, effort, ceremony, framing, ready, parked, priority, fingerprint } = {}) {
+// The emit side is size-only: `effort` is accepted only to throw on it (below) —
+// a caller composing a payload inline from pre-rename facets fails loud instead
+// of silently dropping the scoring label. No code path here writes an effort:*
+// label. The read side's effort:* fallback (parseRecordFacets below) is
+// deliberately one-directional.
+function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint, effort } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -110,11 +132,15 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, fram
   }
   oneOf('type', type, TYPES);
 
+  if (effort !== undefined) {
+    throw new Error('recordPayload has no effort parameter — the record facet is size (#217); effort means reasoning depth');
+  }
+
   if (ready && parked) {
     throw new Error('a record cannot be both ready and parked');
   }
 
-  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, framing:baked, ready, parked, priority:*.
+  // Deterministic emission order: by:*, risk:*, size:*, ceremony:*, framing:baked, ready, parked, priority:*.
   const labels = [];
 
   if (origin !== undefined) {
@@ -125,9 +151,9 @@ function recordPayload({ title, body, type, origin, risk, effort, ceremony, fram
     oneOf('risk', risk, TIERS);
     labels.push(`risk:${risk}`);
   }
-  if (effort !== undefined) {
-    oneOf('effort', effort, TIERS);
-    labels.push(`effort:${effort}`);
+  if (size !== undefined) {
+    oneOf('size', size, TIERS);
+    labels.push(`size:${size}`);
   }
   if (ceremony !== undefined) {
     oneOf('ceremony', ceremony, CEREMONY_TIERS);
@@ -172,7 +198,11 @@ function normalizeLabelNames(labels) {
 // combinations (e.g. both 'ready' and 'parked' present resolves to 'ready').
 // Acceptance has no such precedence — the three demo:* labels are mutually exclusive
 // by construction, so a plain last-match-in-array-wins assignment (same style as
-// origin/risk/effort/priority below) is enough.
+// origin/risk/size/priority below) is enough.
+// The size facet is the one exception to last-match-in-array-wins: size:* always
+// beats a pre-rename effort:* label whichever order they appear in, so the effort
+// value is only held aside during the pass and applied afterward, and never when a
+// size:* label was found.
 // Shared-key defaults come from facet-shape.js — local-store.js's defaultFacets
 // builds on the same shape (plus its own local-only keys). Add a new shared
 // facet key there, not independently here.
@@ -180,6 +210,7 @@ function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
   const facets = sharedFacetDefaults();
+  let effortFallback = null;
 
   for (const name of names) {
     if (name === LABELS.READY) {
@@ -223,45 +254,38 @@ function parseRecordFacets(labels) {
       continue;
     }
 
-    const by = BY_RE.exec(name);
-    if (by && ORIGINS.includes(by[1])) {
-      facets.origin = by[1];
-      continue;
-    }
-    const risk = RISK_LABEL_RE.exec(name);
-    if (risk && TIERS.includes(risk[1])) {
-      facets.risk = risk[1];
-      continue;
-    }
+    // Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
+    // Last such label wins among repeats, matching the VALUE_FACETS pass just below and the pre-rename effort parse this replaces.
     const effort = EFFORT_LABEL_RE.exec(name);
     if (effort && TIERS.includes(effort[1])) {
-      facets.effort = effort[1];
+      effortFallback = effort[1];
       continue;
     }
-    const ceremony = CEREMONY_LABEL_RE.exec(name);
-    if (ceremony && CEREMONY_TIERS.includes(ceremony[1])) {
-      facets.ceremony = ceremony[1];
-      continue;
-    }
-    const priority = PRIORITY_LABEL_RE.exec(name);
-    if (priority && PRIORITIES.includes(priority[1])) {
-      facets.priority = priority[1];
-      continue;
+
+    for (const [labelRe, key, vocabulary] of VALUE_FACETS) {
+      const match = labelRe.exec(name);
+      if (match && vocabulary.includes(match[1])) {
+        facets[key] = match[1];
+        break;
+      }
     }
   }
+
+  if (facets.size === null) facets.size = effortFallback;
 
   return facets;
 }
 
-// body -> deduped array of issue numbers from line-anchored 'Blocked by #N' lines,
-// in order of first appearance. Mid-line occurrences (not at line start) don't
-// count as a dependency declaration. DEP_RE carries the 'g' flag but matchAll
-// clones it internally per call, so lastIndex state is never shared across calls.
-function parseDependencies(body) {
+// (body, lineRe) -> deduped array of the numbers lineRe's first capture group
+// matches, in order of first appearance; [] for a null/undefined/empty body.
+// Shared by the two line-anchored body scans below. Both regexes carry the 'g'
+// flag but matchAll clones them internally per call, so lastIndex state is never
+// shared across calls.
+function parseIssueNumbers(body, lineRe) {
   if (typeof body !== 'string' || !body) return [];
   const seen = new Set();
   const result = [];
-  for (const match of body.matchAll(DEP_RE)) {
+  for (const match of body.matchAll(lineRe)) {
     const n = Number(match[1]);
     if (!seen.has(n)) {
       seen.add(n);
@@ -269,6 +293,13 @@ function parseDependencies(body) {
     }
   }
   return result;
+}
+
+// body -> deduped array of issue numbers from line-anchored 'Blocked by #N' lines,
+// in order of first appearance. Mid-line occurrences (not at line start) don't
+// count as a dependency declaration.
+function parseDependencies(body) {
+  return parseIssueNumbers(body, DEP_RE);
 }
 
 // parent body -> deduped array of leaf issue numbers from its task list, in order
@@ -276,17 +307,7 @@ function parseDependencies(body) {
 // Under work-links: native the parent body carries no task list at all — that
 // caller reads sub_issues from the API and never calls this.
 function parseFamilyLeaves(body) {
-  if (typeof body !== 'string' || !body) return [];
-  const seen = new Set();
-  const result = [];
-  for (const match of body.matchAll(FAMILY_LEAF_RE)) {
-    const n = Number(match[1]);
-    if (!seen.has(n)) {
-      seen.add(n);
-      result.push(n);
-    }
-  }
-  return result;
+  return parseIssueNumbers(body, FAMILY_LEAF_RE);
 }
 
 // candidate issue numbers -> one batched, aliased GraphQL query requesting each

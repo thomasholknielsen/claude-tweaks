@@ -9,6 +9,9 @@
 // Keeping a timing assertion in the correctness run therefore trains the reader to dismiss
 // failures as "probably load," which is exactly how a real regression gets waved through
 // (see issue #107). Correctness runs stay deterministic; this file keeps the coverage.
+//
+// Carries its own model-fixture copy, outside npm test's coverage — check this file too
+// when refreshing tests/statusline.test.js's model literals for a Claude model-family rename.
 'use strict';
 
 const { test } = require('node:test');
@@ -61,7 +64,7 @@ test('statusline render cost stays under 250ms above bare-Node startup', () => {
   // threshold would have passed, so this is a tighter bound than the one it replaces.
   const control = bestOf(3, runControlSpawn);
   const absolute = bestOf(3, () => runStatusline({
-    model: { display_name: 'Sonnet 4.6' },
+    model: { display_name: 'Sonnet 5' },
     context_window: { used_percentage: 18 },
   }));
   const renderCost = absolute - control;

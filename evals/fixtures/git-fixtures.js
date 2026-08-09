@@ -9,6 +9,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRecord, defaultFacets } from '../../bin/lib/issues/local-store.js';
+import { TIERS } from '../../bin/lib/issues/record.js';
+
+const TIER_FACET_KEYS = ['risk', 'size'];
 
 export function freshRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-eval-'));
@@ -79,7 +82,28 @@ export function seedGitRemote(dir, url, name = 'origin') {
   execFileSync('git', ['-C', dir, 'remote', 'add', name, url]);
 }
 
+// Rejects a facet key/value shape a real record could never carry — a typo'd
+// key or an invalid tier value would otherwise write silently (local-store's
+// createRecord serializes only known keys, so an unknown one vanishes with no
+// error, and a scenario that seeded it never actually tested what it thought
+// it did).
+function assertKnownFacets(facets) {
+  const known = new Set(Object.keys(defaultFacets()));
+  for (const key of Object.keys(facets)) {
+    if (!known.has(key)) {
+      throw new Error(`seedLocalWorkRecord: unknown facet key "${key}" — not part of the shared facet shape (defaultFacets())`);
+    }
+  }
+  for (const key of TIER_FACET_KEYS) {
+    const value = facets[key];
+    if (value != null && !TIERS.includes(value)) {
+      throw new Error(`seedLocalWorkRecord: facet "${key}" has invalid tier value "${value}" — must be one of ${TIERS.join('|')}`);
+    }
+  }
+}
+
 export function seedLocalWorkRecord(dir, { slug, title, body = '', facets = {} }) {
+  assertKnownFacets(facets);
   const specsDir = path.join(dir, 'specs');
   const record = createRecord(specsDir, { slug, title, body, facets: { ...defaultFacets(), ...facets } });
   execFileSync('git', ['-C', dir, 'add', '-A']);

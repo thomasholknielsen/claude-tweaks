@@ -10,30 +10,31 @@ const {
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
 } = require('../backlog');
+const { parseRecordFacets } = require('../record');
 
 function record(overrides) {
   return {
     number: 1,
     title: 'untitled',
     createdAt: '2026-01-01T00:00:00Z',
-    facets: { risk: null, effort: null, priority: null },
+    facets: { risk: null, size: null, priority: null },
     ...overrides,
   };
 }
 
-test('splitScoredUnscored buckets by presence of both risk and effort', () => {
-  const scored = record({ number: 1, facets: { risk: 'high', effort: 'low', priority: null } });
-  const riskOnly = record({ number: 2, facets: { risk: 'high', effort: null, priority: null } });
-  const unscored = record({ number: 3, facets: { risk: null, effort: null, priority: null } });
+test('splitScoredUnscored buckets by presence of both risk and size', () => {
+  const scored = record({ number: 1, facets: { risk: 'high', size: 'low', priority: null } });
+  const riskOnly = record({ number: 2, facets: { risk: 'high', size: null, priority: null } });
+  const unscored = record({ number: 3, facets: { risk: null, size: null, priority: null } });
   const result = splitScoredUnscored([scored, riskOnly, unscored]);
   assert.deepStrictEqual(result.scored, [scored]);
   assert.deepStrictEqual(result.unscored, [riskOnly, unscored]);
 });
 
 test('filterCritical keeps only risk:high, sorted by priority band then oldest-first', () => {
-  const high1 = record({ number: 1, createdAt: '2026-02-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: null } });
-  const high2 = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'high' } });
-  const medium = record({ number: 3, facets: { risk: 'medium', effort: 'low', priority: 'high' } });
+  const high1 = record({ number: 1, createdAt: '2026-02-01T00:00:00Z', facets: { risk: 'high', size: 'low', priority: null } });
+  const high2 = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', size: 'low', priority: 'high' } });
+  const medium = record({ number: 3, facets: { risk: 'medium', size: 'low', priority: 'high' } });
   const result = filterCritical([high1, high2, medium]);
   assert.deepStrictEqual(result.map((r) => r.number), [2, 1]);
 });
@@ -45,28 +46,28 @@ test('bandOf/riskBandOf treat an out-of-vocabulary facet value like the null/abs
   // was undefined, and `undefined - 0` is NaN — a NaN-valued sort comparator
   // has spec-undefined ordering, so 'critical' could sort AHEAD of a real
   // 'high' record instead of behind it.
-  const bogus = record({ number: 1, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'critical' } });
-  const high = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'high' } });
+  const bogus = record({ number: 1, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', size: 'low', priority: 'critical' } });
+  const high = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', size: 'low', priority: 'high' } });
   const result = filterCritical([bogus, high]);
   assert.deepStrictEqual(result.map((r) => r.number), [2, 1], 'an out-of-vocabulary priority must sort AFTER a real "high", not corrupt the order');
 });
 
 test('rankRiskValue sorts scored records by priority band then risk band then oldest-first, trailing unscored separately', () => {
-  const a = record({ number: 1, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'low', effort: 'low', priority: 'high' } });
-  const b = record({ number: 2, createdAt: '2026-01-02T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'high' } });
-  const c = record({ number: 3, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: null } });
-  const unscored1 = record({ number: 4, createdAt: '2026-01-05T00:00:00Z', facets: { risk: null, effort: null, priority: null } });
-  const unscored2 = record({ number: 5, createdAt: '2026-01-03T00:00:00Z', facets: { risk: null, effort: null, priority: null } });
+  const a = record({ number: 1, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'low', size: 'low', priority: 'high' } });
+  const b = record({ number: 2, createdAt: '2026-01-02T00:00:00Z', facets: { risk: 'high', size: 'low', priority: 'high' } });
+  const c = record({ number: 3, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', size: 'low', priority: null } });
+  const unscored1 = record({ number: 4, createdAt: '2026-01-05T00:00:00Z', facets: { risk: null, size: null, priority: null } });
+  const unscored2 = record({ number: 5, createdAt: '2026-01-03T00:00:00Z', facets: { risk: null, size: null, priority: null } });
   const result = rankRiskValue([a, b, c, unscored1, unscored2]);
   assert.deepStrictEqual(result.ranked.map((r) => r.number), [2, 1, 3]);
   assert.deepStrictEqual(result.unscored.map((r) => r.number), [5, 4]);
 });
 
-test('filterCleanup keeps only effort:low, sorted by priority band then oldest-first', () => {
-  const low1 = record({ number: 1, createdAt: '2026-02-01T00:00:00Z', facets: { risk: 'low', effort: 'low', priority: null } });
-  const low2 = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'low', effort: 'low', priority: 'high' } });
-  const highEffort = record({ number: 3, facets: { risk: 'low', effort: 'high', priority: 'high' } });
-  const result = filterCleanup([low1, low2, highEffort]);
+test('filterCleanup keeps only size:low, sorted by priority band then oldest-first', () => {
+  const low1 = record({ number: 1, createdAt: '2026-02-01T00:00:00Z', facets: { risk: 'low', size: 'low', priority: null } });
+  const low2 = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'low', size: 'low', priority: 'high' } });
+  const sizeHigh = record({ number: 3, facets: { risk: 'low', size: 'high', priority: 'high' } });
+  const result = filterCleanup([low1, low2, sizeHigh]);
   assert.deepStrictEqual(result.map((r) => r.number), [2, 1]);
 });
 
@@ -173,11 +174,11 @@ test('mergeUnsyncedRecords concatenates github-first then unsynced, tagging face
   const githubRecord = record({
     number: 1,
     // parseRecordFacets never sets an `unsynced` key at all — simulate that shape.
-    facets: { risk: 'low', effort: 'low', priority: null },
+    facets: { risk: 'low', size: 'low', priority: null },
   });
   const unsyncedRecord = record({
     number: 2,
-    facets: { risk: null, effort: null, priority: null, unsynced: true },
+    facets: { risk: null, size: null, priority: null, unsynced: true },
   });
   const result = mergeUnsyncedRecords([githubRecord], [unsyncedRecord]);
   assert.strictEqual(result.length, 2);
@@ -185,4 +186,40 @@ test('mergeUnsyncedRecords concatenates github-first then unsynced, tagging face
   assert.strictEqual(result[0].facets.unsynced, false);
   assert.strictEqual(result[1].number, 2);
   assert.strictEqual(result[1].facets.unsynced, true);
+});
+
+// --- real-parser coverage (record #217) ---
+// Every fixture above hand-builds its `.facets` object, so the effort -> size
+// facet rename left this whole suite green while both gates below silently read
+// an `undefined` key. These two tests route labels through record.js's ACTUAL
+// parseRecordFacets, so the next change to the facet key fails here instead of
+// shipping. Expected sets are stated from the scenario, not read off the filter.
+
+function recordFromLabels(number, labels, createdAt) {
+  return { number, title: `record ${number}`, createdAt, facets: parseRecordFacets(labels) };
+}
+
+test('the scored gate and the cleanup lane read the same facet key the real label parser writes', () => {
+  // Scenario: #1 is fully scored and small, #2 is fully scored and large,
+  // #3 carries a risk label only. So: scored = {1, 2}, unscored = {3},
+  // cleanup lane = {1} (the only size:low record).
+  const smallScored = recordFromLabels(1, ['risk:high', 'size:low'], '2026-01-02T00:00:00Z');
+  const largeScored = recordFromLabels(2, ['risk:low', 'size:high'], '2026-01-01T00:00:00Z');
+  const riskOnly = recordFromLabels(3, ['risk:high'], '2026-01-03T00:00:00Z');
+  const all = [smallScored, largeScored, riskOnly];
+
+  const split = splitScoredUnscored(all);
+  assert.deepStrictEqual(split.scored.map((r) => r.number), [1, 2], 'both records carrying risk AND size are scored');
+  assert.deepStrictEqual(split.unscored.map((r) => r.number), [3], 'a record with no size label is unscored');
+
+  assert.deepStrictEqual(filterCleanup(all).map((r) => r.number), [1], 'only the size:low record belongs to the cleanup lane');
+});
+
+test('a pre-rename effort:* label reaches both gates through the parser permanent fallback', () => {
+  // record.js keeps a permanent read-side effort:* fallback for other repos'
+  // records, so a legacy-labelled record must score and land in the cleanup
+  // lane exactly as its size:low equivalent does.
+  const legacy = recordFromLabels(9, ['risk:low', 'effort:low'], '2026-01-01T00:00:00Z');
+  assert.deepStrictEqual(splitScoredUnscored([legacy]).scored.map((r) => r.number), [9]);
+  assert.deepStrictEqual(filterCleanup([legacy]).map((r) => r.number), [9]);
 });

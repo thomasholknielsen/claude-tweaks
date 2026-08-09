@@ -8,7 +8,7 @@ Read this when a run actually reaches Step 9 — a firing that emits no survivin
 
 **Step 9 — FILE / REOPEN ISSUES.**
 
-Every code-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:code-health`; `finding.risk` maps to the `risk:{value}` label; `finding.effort` maps to the `effort:{value}` label; Type is always `task`. Every filed finding is **born-`ready`** — code-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria, verified by the Step 7 gate), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayloadV2` (`bin/lib/code-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload` — the emitted label set is exactly `by:code-health`, `risk:<tier>`, `effort:<tier>`, `ready` (no per-criterion label).
+Every code-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:code-health`; `finding.risk` maps to the `risk:{value}` label; `finding.effort` maps to the `size:{value}` label; Type is always `task`. Every filed finding is **born-`ready`** — code-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria, verified by the Step 7 gate), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayloadV2` (`bin/lib/code-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload` — the emitted label set is exactly `by:code-health`, `risk:<tier>`, `size:<tier>`, `ready` (no per-criterion label).
 
 **Drain-rate cap and digest mode.** Before filing any survivor whose Step 8 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s FILE-step shape (`{PREFIX}` = `code-health`) — at or above the cap, the finding is appended to `code-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
 
@@ -34,9 +34,9 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["risk:low",        "Scoring: low blast radius — safe for autonomous build"],
 #  ["risk:medium",     "Scoring: moderate blast radius — review before merge recommended"],
 #  ["risk:high",       "Scoring: high blast radius — human review required"],
-#  ["effort:low",      "Scoring: small, agent-sized change"],
-#  ["effort:medium",   "Scoring: moderate change, may span several files"],
-#  ["effort:high",     "Scoring: large change — consider decomposition before building"],
+#  ["size:low",        "Scoring: small, agent-sized change"],
+#  ["size:medium",     "Scoring: moderate change, may span several files"],
+#  ["size:high",       "Scoring: large change — consider decomposition before building"],
 #  ["ready",           "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
 #  ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
 #  ["code-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
@@ -71,7 +71,7 @@ gh issue create \
   --type task \
   --label by:code-health \
   --label "risk:<tier>" \
-  --label "effort:<tier>" \
+  --label "size:<tier>" \
   --label ready
 
 # work-types: labels
@@ -80,13 +80,13 @@ gh issue create \
   --body "<payload.body>" \
   --label by:code-health \
   --label "risk:<tier>" \
-  --label "effort:<tier>" \
+  --label "size:<tier>" \
   --label ready \
   --label type:task
 ```
 
-**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:code-health`, and omit `ready`, `risk:*` and `effort:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
+**Exception — a headless D5 finding.** When the subject check routed this finding to D5 and no human is present to clear `/claude-tweaks:feedback`'s confirmation gate, this payload is the one case where the label set differs: apply `upstream-candidate` plus `by:code-health`, and omit `ready`, `risk:*` and `size:*` entirely. It is not this project's work to build. See `skills/_shared/learning-routing.md`'s "Subject check (health sweeps)".
 
-Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`effort` tier labels and the underlying `gh issue create --title/--body` never do.
+Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`size` tier labels and the underlying `gh issue create --title/--body` never do.
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.

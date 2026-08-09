@@ -55,7 +55,7 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.ok(payloads[0].labels.includes('by:code-health'), 'missing by:code-health label');
   assert.ok(payloads[0].labels.includes('ready'), 'missing ready label (born-ready)');
   assert.ok(payloads[0].labels.some((l) => l.startsWith('risk:')), 'missing risk:<tier> label');
-  assert.ok(payloads[0].labels.some((l) => l.startsWith('effort:')), 'missing effort:<tier> label');
+  assert.ok(payloads[0].labels.some((l) => l.startsWith('size:')), 'missing size:<tier> label');
   assert.strictEqual(payloads[0].type, 'task', 'type must be task');
   assert.ok(payloads[0].body.includes('<!-- work-fingerprint: codehealth-'), 'fingerprint marker missing');
 });

@@ -20,15 +20,15 @@ function finding(overrides = {}) {
 
 // ── severity -> risk axis fold (spec 15) ────────────────────────────────────
 
-test('toIssuePayload for a drift finding (type task) maps severity high to risk:high/effort:medium, ready, and appends the diagnostic label last', () => {
+test('toIssuePayload for a drift finding (type task) maps severity high to risk:high/size:medium, ready, and appends the diagnostic label last', () => {
   const payload = toIssuePayload(finding()); // category: 'drift', severity: 'high'
-  assert.deepStrictEqual(payload.labels, ['by:journey-health', 'risk:high', 'effort:medium', 'ready', 'journey-health:drift']);
+  assert.deepStrictEqual(payload.labels, ['by:journey-health', 'risk:high', 'size:medium', 'ready', 'journey-health:drift']);
   assert.strictEqual(payload.type, 'task');
 });
 
-test('toIssuePayload for a regression-suspected finding (type bug) maps severity med to risk:medium/effort:medium', () => {
+test('toIssuePayload for a regression-suspected finding (type bug) maps severity med to risk:medium/size:medium', () => {
   const payload = toIssuePayload(finding({ category: 'regression-suspected', section: 'live-check', severity: 'med' }));
-  assert.deepStrictEqual(payload.labels, ['by:journey-health', 'risk:medium', 'effort:medium', 'ready', 'journey-health:regression-suspected']);
+  assert.deepStrictEqual(payload.labels, ['by:journey-health', 'risk:medium', 'size:medium', 'ready', 'journey-health:regression-suspected']);
   assert.strictEqual(payload.type, 'bug');
 });
 
@@ -43,9 +43,9 @@ test('toIssuePayload types a coverage finding as task', () => {
   assert.ok(payload.labels.includes('journey-health:coverage'));
 });
 
-test('toIssuePayload always files effort:medium regardless of severity', () => {
+test('toIssuePayload always files size:medium regardless of severity', () => {
   for (const severity of ['high', 'med', 'low']) {
-    assert.ok(toIssuePayload(finding({ severity })).labels.includes('effort:medium'));
+    assert.ok(toIssuePayload(finding({ severity })).labels.includes('size:medium'));
   }
 });
 

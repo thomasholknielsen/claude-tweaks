@@ -136,16 +136,19 @@ test('readStdin: detaches listeners and pauses stdin once the 50ms fallback time
   }
 });
 
+// perf/statusline-render.test.js carries its own, separate model fixture — it sits outside
+// npm test's coverage (timing assertions run only via `npm run test:perf`), so a model-family
+// rename here is easy to miss there. Check it too.
 test('renderModel: nested display_name', () => {
-  assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 4.6', id: 'claude-sonnet-4-6' } }), 'Sonnet 4.6');
+  assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 5', id: 'claude-sonnet-5' } }), 'Sonnet 5');
 });
 
 test('renderModel: falls back to id when display_name absent', () => {
-  assert.strictEqual(sl.renderModel({ model: { id: 'claude-sonnet-4-6' } }), 'claude-sonnet-4-6');
+  assert.strictEqual(sl.renderModel({ model: { id: 'claude-sonnet-5' } }), 'claude-sonnet-5');
 });
 
 test('renderModel: accepts plain string model', () => {
-  assert.strictEqual(sl.renderModel({ model: 'Sonnet 4.6' }), 'Sonnet 4.6');
+  assert.strictEqual(sl.renderModel({ model: 'Sonnet 5' }), 'Sonnet 5');
 });
 
 test('renderModel returns null when missing', () => {
@@ -497,12 +500,12 @@ test('findActiveSpec skips a file raced out between readdir and stat, instead of
 test('end-to-end: real Claude Code schema renders model + context', () => {
   const out = runStatusline(
     {
-      model: { id: 'claude-sonnet-4-6', display_name: 'Sonnet 4.6' },
+      model: { id: 'claude-sonnet-5', display_name: 'Sonnet 5' },
       context_window: { used_percentage: 18, context_window_size: 200000 },
     },
     { NO_COLOR: '1' },
   );
-  assert.ok(out.includes('Sonnet 4.6'), `missing model: ${out}`);
+  assert.ok(out.includes('Sonnet 5'), `missing model: ${out}`);
   assert.ok(out.includes('ctx: 18%'), `missing ctx: ${out}`);
 });
 
@@ -510,19 +513,19 @@ test('end-to-end: project segment renders before model', () => {
   const out = runStatusline(
     {
       workspace: { project_dir: '/Users/x/Code/claude-tweaks' },
-      model: { display_name: 'Sonnet 4.6' },
+      model: { display_name: 'Sonnet 5' },
     },
     { NO_COLOR: '1' },
   );
   assert.ok(out.startsWith('claude-tweaks'), `expected project first: ${out}`);
-  assert.ok(out.includes('Sonnet 4.6'), `missing model: ${out}`);
+  assert.ok(out.includes('Sonnet 5'), `missing model: ${out}`);
 });
 
 test('end-to-end: rate_limits flow through to sess/week segments', () => {
   const sec = Math.floor(Date.now() / 1000);
   const out = runStatusline(
     {
-      model: { display_name: 'Sonnet 4.6' },
+      model: { display_name: 'Sonnet 5' },
       rate_limits: {
         five_hour: { used_percentage: 42, resets_at: sec + 3 * 3600 },
         seven_day: { used_percentage: 71, resets_at: sec + 4 * 86400 },
@@ -536,7 +539,7 @@ test('end-to-end: rate_limits flow through to sess/week segments', () => {
 
 test('end-to-end: effort segment renders when level is set', () => {
   const out = runStatusline(
-    { model: { display_name: 'Sonnet 4.6' }, effort: { level: 'high' } },
+    { model: { display_name: 'Sonnet 5' }, effort: { level: 'high' } },
     { NO_COLOR: '1' },
   );
   assert.ok(out.includes('eff: high'), `missing eff: ${out}`);
@@ -564,7 +567,7 @@ test('end-to-end: project segment is always present, even with empty input', () 
 
 test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {
   const out = runStatusline(
-    { model: { display_name: 'Sonnet 4.6' }, context_window: { used_percentage: 95 } },
+    { model: { display_name: 'Sonnet 5' }, context_window: { used_percentage: 95 } },
     { NO_COLOR: '1' },
   );
   assert.doesNotMatch(out, /\x1b\[/);

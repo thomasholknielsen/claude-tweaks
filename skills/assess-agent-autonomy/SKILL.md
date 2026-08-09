@@ -78,27 +78,27 @@ gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]
 ```
 
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
-JSON. Extract the current `risk:*`/`effort:*`/`ceremony:*` labels, if present:
+JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
 
 ```bash
 node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const d=require('/tmp/assess-grant-${N}.json');
-  const {risk, effort, ceremony}=parseRecordFacets(d.labels);
-  console.log(JSON.stringify({risk, effort, ceremony}))"
+  const {risk, size, ceremony}=parseRecordFacets(d.labels);
+  console.log(JSON.stringify({risk, size, ceremony}))"
 ```
 
 ### Step 2: Judge
 
-Read the body content directly — don't just trust the risk/effort labels as ground truth. Weigh:
+Read the body content directly — don't just trust the risk/size labels as ground truth. Weigh:
 
 - Does the Deliverables/Acceptance Criteria text describe touching authentication, session
   handling, claim/locking logic, or other structurally sensitive behavior, regardless of what the
-  risk/effort labels say? That's a reason to recommend more cautiously than the labels alone imply.
+  risk/size labels say? That's a reason to recommend more cautiously than the labels alone imply.
 - Does the record describe creating or editing an agent-instruction file (see `merge-check`'s Step
   2 for the class — a skill, a subagent definition, `CLAUDE.md`/`AGENTS.md`, or a rules file)? This
   includes `harness-health:new-skill` findings — their body reads "**New skill candidate**" with a
   "Proposed new skill" deliverable (see `bin/lib/harness-health/issue-payload.js`). Recognize this
-  from body content, not from a label — `new-skill` findings currently carry no `risk:*`/`effort:*`
+  from body content, not from a label — `new-skill` findings currently carry no `risk:*`/`size:*`
   labels at all, by design, so labels alone tell you nothing here. A well-specified new-skill
   proposal can still reasonably recommend `RECOMMEND_BUILD: true` — drafting content autonomously
   is fine, since a human confirms the grant and reviews again before any merge.
@@ -379,7 +379,7 @@ retry-ceiling bookkeeping, which runs unconditionally regardless of this mode's 
 
 **Called from:** `/claude-tweaks:specify`'s Step 3 (Create the Records) — both Shaping mode's
 single-record path and decomposition mode's per-leaf loop (never the parent, which carries no
-`risk:*`/`effort:*` scoring either) — immediately alongside the existing `risk:*`/`effort:*` label
+`risk:*`/`size:*` scoring either) — immediately alongside the existing `risk:*`/`size:*` label
 stamping. Every leaf/single record, every `/specify` run, no pre-filtering to "borderline" records.
 
 `/claude-tweaks:flow`'s materialize.md (`skills/flow/materialize.md`) calls this mode only as a
@@ -390,7 +390,7 @@ hand-authored spec file, or a record created before this mode moved upstream. Se
 ### Step 1: Gather
 
 **Primary call, from `/specify`'s Step 3:** the record body (Current State/Deliverables/
-Acceptance Criteria) and its `risk:*`/`effort:*` labels are already composed in memory for that
+Acceptance Criteria) and its `risk:*`/`size:*` labels are already composed in memory for that
 step's own create/edit call — no fetch at all, more direct than a re-fetch. Read them straight from
 whatever local variable Step 3 already holds; there's nothing to shell out for.
 
@@ -401,23 +401,23 @@ step:
 ```bash
 node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const d=require('/tmp/materialize-record-${N}.json');
-  const {risk, effort}=parseRecordFacets(d.labels);
-  console.log(JSON.stringify({risk, effort}))"
+  const {risk, size}=parseRecordFacets(d.labels);
+  console.log(JSON.stringify({risk, size}))"
 ```
 
 ### Step 2: Judge
 
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) directly —
-`risk:`/`effort:` labels are signal, not a gate, the same non-label-bound judgment principle
+`risk:`/`size:` labels are signal, not a gate, the same non-label-bound judgment principle
 `grant-check`/`merge-check` already establish ("this isn't a one-directional tightening"):
 
 - Does the Deliverables/Acceptance Criteria describe a small, self-contained change with an obvious
   test story (a bug fix, a narrow migration, a single-module addition)? That supports `fast-lane`
-  regardless of the record's own `risk:`/`effort:` labels.
+  regardless of the record's own `risk:`/`size:` labels.
 - Does the record describe a change with real knowledge-capture value even though the code-level
   risk is low — multiple call sites across packages, a public-surface rename or CLI-facing
   decision, a migration retiring a module? That supports `standard` even when labeled
-  `risk:low`/`effort:low`.
+  `risk:low`/`size:low`.
 - Is the record's Deliverables a pure prose/comment/documentation correction with no behavioral
   surface at all? That supports `fast-lane` regardless of labels.
 - Same non-goal as `grant-check`'s Step 2 (above): a missing Current State/Deliverables/Acceptance
@@ -439,7 +439,7 @@ conservative-on-ambiguity principle as this skill's other three modes (see Error
 
 **Persisting the verdict:** `/specify`'s Step 3 (the primary caller) stamps this verdict as an
 explicit `ceremony:fast-lane`/`ceremony:standard` label — never omitted, unlike `risk:*`/
-`effort:*`'s omit-when-unscored convention (this axis has no unscored state; every record gets a
+`size:*`'s omit-when-unscored convention (this axis has no unscored state; every record gets a
 verdict the first time it's shaped). `/flow`'s materialize.md fallback call uses the verdict only
 for that run's own materialized header — it never writes a label back to the record.
 

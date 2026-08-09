@@ -1,6 +1,6 @@
 # Materialization — Records to Build-Time Files
 
-One shared procedure, referenced by both `/claude-tweaks:flow` and `/claude-tweaks:build` wherever either accepts a work record reference (`#N` / `#A,#B`) as input. It resolves the record, hard-gates on spec shape, and writes the one build-time file everything downstream (`/superpowers:writing-plans`, execution, verification, review) then treats exactly as it treated a spec file. This is the single definition of the materialized header — every consumer of `surface:`/`design-intent:`/`effort:`/etc. reads it from here; nothing else restates the format.
+One shared procedure, referenced by both `/claude-tweaks:flow` and `/claude-tweaks:build` wherever either accepts a work record reference (`#N` / `#A,#B`) as input. It resolves the record, hard-gates on spec shape, and writes the one build-time file everything downstream (`/superpowers:writing-plans`, execution, verification, review) then treats exactly as it treated a spec file. This is the single definition of the materialized header — every consumer of `surface:`/`design-intent:`/`size:`/etc. reads it from here; nothing else restates the format.
 
 ## Resolution
 
@@ -41,7 +41,7 @@ This gate is the record-level replacement for `/flow`'s pre-flight design-doc re
 record: {n}
 origin: {code-health|harness-health|journey-health|docs-health|capture|human}
 risk: {low|medium|high}            # omitted when unscored
-effort: {low|medium|high}          # omitted when unscored
+size: {low|medium|high}            # omitted when unscored
 ceremony: {fast-lane|standard}      # always present — see ceremony-check mode below
 grants: [build, merge]             # as held at materialization time; may be [build] or []
 fingerprint: {fp}                  # omitted when none
@@ -59,7 +59,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 | `record` | `/wrap-up` close-via-merge carrier (`Fixes #{n}`) + Section E claim release |
 | `origin` | `/wrap-up` summary/Review Console display (provenance line) |
 | `risk` | Audit snapshot (preserved in the committed file; no active mechanical reader today) |
-| `effort` | `/build` effort-based model-tier selection (replaces `code-health-effort`) |
+| `size` | `/build` size-based profile selection |
 | `ceremony` | `/flow`'s Manifesto (Step 3) bundle-fold into the `ceremony-profile` lever |
 | `grants` | Snapshot for audit; `/wrap-up`'s auto-merge check RE-READS LIVE LABELS before any merge (truth, not projection) |
 | `fingerprint` | Audit snapshot / dedup cross-reference |
@@ -71,13 +71,15 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 
 `surface`/`design-intent`/`design-seed` values are LIFTED from the record body's `Surface:`/`Design-intent:`/`Design-seed:` metadata lines (spec 17's wire format). Materialized files live under the run dir — committed as audit trail, never gitignored.
 
+**Reading a pre-rename header:** materialized files written before this field was renamed carry `effort:` where the format above now writes `size:`. Every reader treats an `effort:` line as `size` when no `size:` line is present — the same permanent read-side fallback `bin/lib/issues/record.js` and `bin/lib/issues/local-store.js` apply to the `effort:*` label and the `effort:` frontmatter line. The emit side is `size:`-only: nothing here ever writes an `effort:` line again.
+
 ## Populating the header
 
 Every field except `surface`/`design-intent`/`design-seed` (next section) and `blocked-by` under `work-links: native` (one extra read — see its bullet below) comes straight off data already fetched during Resolution — nothing extra to read. `ceremony` is usually also free (`facets.ceremony`, from the label `/claude-tweaks:specify` already stamped) — see its own bullet below for the fallback case:
 
 - `record` — the id used to resolve it.
 - `origin` — `facets.origin` (the `by:*` label's suffix — see `_shared/work-record.md`'s Label taxonomy table for the members, stated once there), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
-- `risk` / `effort` — `facets.risk` / `facets.effort`; omit the line when the value is `null` (unscored).
+- `risk` / `size` — `facets.risk` / `facets.size`; omit the line when the value is `null` (unscored).
 - `grants` — `facets.grants.build` / `facets.grants.merge`, as the bracket list `[build, merge]` / `[build]` / `[]`. Unlike every other optional field here, always emit the `grants:` line, even empty — a record can reach materialization ungranted (a human running `/flow #{n}` directly against a record nobody authorized).
 - `fingerprint` — from Resolution; omit the line when `null`.
 - `blocked-by` — the record's dependency targets, driver/`work-links`-dependent: `work-backend: github-issues` + `work-links: body-text` — `parseDependencies(body)` (`bin/lib/issues/record.js`) over the already-fetched body, no extra read; `work-backend: github-issues` + `work-links: native` — one batched `gh api graphql` call across every record in the run (aliased per record number, reusing `buildNativeDependencyQuery`/`hasOpenNativeBlocker` from `bin/lib/issues/record.js` — the same pattern `/claude-tweaks:dispatch` Step 2 uses for its candidate pool), resolving `blockedBy` (the field `capabilities-probe.js`'s `probeSchema` checks for), added to Resolution. A single-record run is the degenerate one-alias case of the same call; `work-backend: local-files` — `facets.blockedBy`, already present on the read record. Emit as `blocked-by: [n1, n2, ...]`; omit the line when empty. Resolution is read-only and safe to run before any run dir or worktree exists (see "When this runs" below), so this data is available to `/flow`'s multi-spec pre-flight (`multi-spec.md`'s "Frontmatter pre-flight") immediately after Resolution — it does not need to wait for the header to be composed and written to disk.

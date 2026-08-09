@@ -59,7 +59,7 @@ test('validate-findings files a brand-new valid finding and succeeds when durabl
   assert.ok(payloads[0].labels.includes('by:journey-health'));
   assert.ok(payloads[0].labels.includes('ready'));
   assert.ok(payloads[0].labels.includes('risk:high'), 'default fixture finding is severity high');
-  assert.ok(payloads[0].labels.includes('effort:medium'));
+  assert.ok(payloads[0].labels.includes('size:medium'));
   assert.strictEqual(payloads[0].type, 'task');
   assert.ok(payloads[0].body.includes('<!-- work-fingerprint: journeyhealth-'));
   assert.ok(!payloads[0].body.includes('journey-health-fingerprint'), 'legacy marker must not be emitted');

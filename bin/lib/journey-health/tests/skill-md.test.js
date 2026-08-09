@@ -62,9 +62,9 @@ registerRequiredTokenTests(test, assert, read, [
 
 test('states the severity -> risk fold table literally', () => {
   const body = read();
-  assert.ok(/\|\s*`?high`?\s*\|\s*`risk:high`\s*\|\s*`effort:medium`\s*\|/.test(body), 'missing literal high -> risk:high/effort:medium table row');
-  assert.ok(/\|\s*`?med`?\s*\|\s*`risk:medium`\s*\|\s*`effort:medium`\s*\|/.test(body), 'missing literal med -> risk:medium/effort:medium table row');
-  assert.ok(/\|\s*`?low`?\s*\|\s*`risk:low`\s*\|\s*`effort:medium`\s*\|/.test(body), 'missing literal low -> risk:low/effort:medium table row');
+  assert.ok(/\|\s*`?high`?\s*\|\s*`risk:high`\s*\|\s*`size:medium`\s*\|/.test(body), 'missing literal high -> risk:high/size:medium table row');
+  assert.ok(/\|\s*`?med`?\s*\|\s*`risk:medium`\s*\|\s*`size:medium`\s*\|/.test(body), 'missing literal med -> risk:medium/size:medium table row');
+  assert.ok(/\|\s*`?low`?\s*\|\s*`risk:low`\s*\|\s*`size:medium`\s*\|/.test(body), 'missing literal low -> risk:low/size:medium table row');
 });
 
 test('states the born-ready rule explicitly', () => {

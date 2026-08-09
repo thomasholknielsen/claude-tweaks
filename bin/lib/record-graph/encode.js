@@ -8,7 +8,10 @@
 const { TYPE_LABELS, normalizeLabelNames } = require('../issues/record');
 
 const TITLE_MAX = 40;
-const RECOGNIZED_TYPES = TYPE_LABELS.map(([label]) => label.split(':')[1]);
+// [type:* label, the bare type name it encodes] — 'type:bug' -> 'bug'. Both
+// lookups in typeOf() read from this, so the prefix-stripping rule is stated once.
+const TYPES_BY_LABEL = TYPE_LABELS.map(([label]) => [label, label.split(':')[1]]);
+const RECOGNIZED_TYPES = TYPES_BY_LABEL.map(([, type]) => type);
 
 function truncateTitle(title, max = TITLE_MAX) {
   const text = typeof title === 'string' ? title : '';
@@ -25,15 +28,15 @@ function typeOf(record) {
     return RECOGNIZED_TYPES.includes(name) ? name : null;
   }
   const names = normalizeLabelNames(record.labels);
-  for (const [label] of TYPE_LABELS) {
-    if (names.includes(label)) return label.split(':')[1];
+  for (const [label, type] of TYPES_BY_LABEL) {
+    if (names.includes(label)) return type;
   }
   return null;
 }
 
 function scoringBadge(facets) {
-  if (facets.risk == null && facets.effort == null) return null;
-  return `R:${facets.risk || '?'} E:${facets.effort || '?'}`;
+  if (facets.risk == null && facets.size == null) return null;
+  return `R:${facets.risk || '?'} S:${facets.size || '?'}`;
 }
 
 function badgesFor(record) {
