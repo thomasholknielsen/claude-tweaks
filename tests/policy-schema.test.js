@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { POLICY_KEYS, auditPolicy } = require('../bin/lib/policy-schema');
+const { POLICY_KEYS, RENAMED_KEYS, auditPolicy } = require('../bin/lib/policy-schema');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-policy-schema-'));
@@ -19,8 +19,16 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 34);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 34);
+  assert.strictEqual(POLICY_KEYS.length, 33);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 33);
+});
+
+test('unattended-tier is retired from POLICY_KEYS', () => {
+  assert.strictEqual(
+    POLICY_KEYS.find((k) => k.key === 'unattended-tier'),
+    undefined,
+    'unattended-tier was merged into autonomy; RENAMED_KEYS carries the migration, not POLICY_KEYS',
+  );
 });
 
 test('integration-branch is a recognized string key with no default', () => {
@@ -146,7 +154,48 @@ test('invalidValues entries no longer carry a source field', () => {
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
   const result = auditPolicy(tmpRepo());
-  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [] });
+  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [], renamedKeys: [] });
+});
+
+test('a stray unattended-tier: on with no autonomy key -> renamedKeys entry, and never also unrecognizedKeys', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'unattended-tier: on\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'unattended-tier', value: 'on', replacedBy: 'autonomy', suggestedValue: 'unattended', currentReplacementValue: null },
+  ]);
+  assert.deepStrictEqual(result.unrecognizedKeys, []);
+});
+
+test('a stray unattended-tier: on alongside an existing autonomy value -> currentReplacementValue reflects it', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'unattended-tier: on\nautonomy: trusted\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'unattended-tier', value: 'on', replacedBy: 'autonomy', suggestedValue: 'unattended', currentReplacementValue: 'trusted' },
+  ]);
+});
+
+test('no unattended-tier key -> renamedKeys is empty', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'autonomy: trusted\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, []);
+});
+
+test('unattended-tier: off (the schema default, distinct from absent) -> suggestedValue is null', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'unattended-tier: off\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'unattended-tier', value: 'off', replacedBy: 'autonomy', suggestedValue: null, currentReplacementValue: null },
+  ]);
+});
+
+test('RENAMED_KEYS names unattended-tier, replaced by autonomy', () => {
+  assert.strictEqual(RENAMED_KEYS.length, 1);
+  assert.strictEqual(RENAMED_KEYS[0].key, 'unattended-tier');
+  assert.strictEqual(RENAMED_KEYS[0].replacedBy, 'autonomy');
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {

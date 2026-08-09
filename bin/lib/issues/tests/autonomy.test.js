@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { CEILINGS, resolveCeiling, permittedGrants } = require('../autonomy.js');
+const { CEILINGS, resolveCeiling, permittedGrants, clearsFloor, bookkeepingPermissions } = require('../autonomy.js');
 
 const cleanRow = { verdict: 'clean', kind: 'producer', dispositioned: 9, coverage: 0.9 };
 
@@ -178,4 +178,155 @@ test('the second opt-in cannot raise a lower ceiling', () => {
     const result = permittedGrants({ ceiling, row: cleanRow, grantOriginationEnabled: true });
     assert.equal(result.bornAuthorized, false, ceiling);
   }
+});
+
+// clearsFloor -- moved verbatim from the retired unattended-tier.test.js.
+
+test('clearsFloor returns true for an external-state blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Requires external state (third-party API data) before this can be fixed'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for a product/design-decision blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Needs a product decision on the rate-limit value'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for a not-yet-built-dependency blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Depends on functionality not yet built in this pipeline (the /auth refresh endpoint)'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for a scope-expansion blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Would expand scope -- breaks 14 unrelated tests'),
+    true,
+  );
+});
+
+// Regression tests for the line-by-line finding: the digit count must exceed
+// resolve-gate.md's own '>10 unrelated tests' threshold, not merely be present.
+// These deliberately avoid the standalone "expand(s) scope" phrasing (its own
+// CATEGORY_PATTERNS entry) so only the digit-count check is exercised.
+test('clearsFloor returns false for a test-break count below the >10 threshold', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks 2 unrelated tests'),
+    false,
+  );
+});
+
+test('clearsFloor returns false at exactly 10 unrelated tests (threshold is strictly >10)', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks 10 unrelated tests'),
+    false,
+  );
+});
+
+test('clearsFloor returns true at 11 unrelated tests (just over the >10 threshold)', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks 11 unrelated tests'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for "more than 10 unrelated tests" wording', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks more than 10 unrelated tests'),
+    true,
+  );
+});
+
+test('clearsFloor is case-insensitive', () => {
+  assert.strictEqual(clearsFloor('REQUIRES EXTERNAL STATE to proceed'), true);
+});
+
+test('clearsFloor returns false for an ambiguous or unrecognized reason', () => {
+  assert.strictEqual(clearsFloor('Not sure if this is even still relevant'), false);
+});
+
+test('clearsFloor returns false for an empty string', () => {
+  assert.strictEqual(clearsFloor(''), false);
+});
+
+test('clearsFloor returns false for a non-string input', () => {
+  assert.strictEqual(clearsFloor(undefined), false);
+});
+
+test('clearsFloor returns false for a whitespace-only string', () => {
+  assert.strictEqual(clearsFloor('   '), false);
+});
+
+test('clearsFloor returns true for a third-party-dependency blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Blocked on a third-party vendor shipping their webhook payload format'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for a singular "approval" blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Requires stakeholder approval before proceeding'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for a plural "approvals" blocker (resolve-gate.md\'s own wording)', () => {
+  assert.strictEqual(
+    clearsFloor('Requires stakeholder approvals before proceeding'),
+    true,
+  );
+});
+
+// bookkeepingPermissions
+
+test('bookkeepingPermissions at supervised unlocks nothing', () => {
+  assert.deepEqual(bookkeepingPermissions('supervised'), {
+    ledgerNarrowing: false,
+    queueWriteAutoFile: false,
+    opsAckAutoAcknowledge: false,
+  });
+});
+
+test('bookkeepingPermissions at trusted unlocks ledger narrowing and queue-write auto-file, not ops-ack', () => {
+  assert.deepEqual(bookkeepingPermissions('trusted'), {
+    ledgerNarrowing: true,
+    queueWriteAutoFile: true,
+    opsAckAutoAcknowledge: false,
+  });
+});
+
+test('bookkeepingPermissions at unattended unlocks all three', () => {
+  assert.deepEqual(bookkeepingPermissions('unattended'), {
+    ledgerNarrowing: true,
+    queueWriteAutoFile: true,
+    opsAckAutoAcknowledge: true,
+  });
+});
+
+test('bookkeepingPermissions falls back to supervised for undefined or an unrecognized tier', () => {
+  const supervised = bookkeepingPermissions('supervised');
+  assert.deepEqual(bookkeepingPermissions(undefined), supervised);
+  assert.deepEqual(bookkeepingPermissions('bogus-tier'), supervised);
+});
+
+test('reverting bookkeepingPermissions\' tier thresholds fails the trusted-tier assertion (test discriminates)', () => {
+  // Confirms the test above actually distinguishes trusted from unattended,
+  // not just reads correct -- gate queueWriteAutoFile on 'unattended' instead
+  // of 'trusted' and the trusted-tier case must fail.
+  const wronglyGated = (ceiling) => {
+    const tier = CEILINGS.includes(ceiling) ? ceiling : 'supervised';
+    const atLeastLocal = (t, min) => CEILINGS.indexOf(t) >= CEILINGS.indexOf(min);
+    return {
+      ledgerNarrowing: atLeastLocal(tier, 'trusted'),
+      queueWriteAutoFile: atLeastLocal(tier, 'unattended'),
+      opsAckAutoAcknowledge: atLeastLocal(tier, 'unattended'),
+    };
+  };
+  assert.notDeepEqual(wronglyGated('trusted'), bookkeepingPermissions('trusted'));
 });
