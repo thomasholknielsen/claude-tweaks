@@ -38,6 +38,27 @@ export function applyPatch(dir, patchText, message = 'apply planted patch') {
   execFileSync('git', ['-C', dir, 'commit', '-m', message, '-q']);
 }
 
+// Creates a feature branch diverging from an integration branch, with its own
+// commit on top. `git branch -M base` first normalizes the initial branch
+// name — git's default init branch varies by host config (main vs master),
+// and every consumer of this helper needs a deterministic integration-branch
+// name to resolve `git merge-base`/`git diff` against. The feature branch is
+// then checked out and given one commit, so it stays strictly ahead of
+// `base`: `git merge-base {base} HEAD` resolves to `base`'s tip and
+// `git diff --numstat {base}..HEAD` is exactly the seeded change, without
+// needing both sides to advance independently.
+export function seedBranch(dir, { name, base = 'main', files = {}, message = 'seed branch commit' }) {
+  execFileSync('git', ['-C', dir, 'branch', '-M', base]);
+  execFileSync('git', ['-C', dir, 'checkout', '-q', '-b', name]);
+  for (const [relPath, content] of Object.entries(files)) {
+    const fullPath = path.join(dir, relPath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, content, 'utf8');
+  }
+  execFileSync('git', ['-C', dir, 'add', '-A']);
+  execFileSync('git', ['-C', dir, 'commit', '-m', message, '-q']);
+}
+
 // Gives a fixture repo an `origin` remote. Needed by any scenario whose skill
 // branches on where the repo under test actually lives — the learning-routing
 // self-reference check (`git remote get-url origin`, see
