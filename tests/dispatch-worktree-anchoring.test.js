@@ -98,6 +98,17 @@ const FORBIDDEN = [
     /parallel\s+Task\s+agents?\b/i,
     'Step 5 dispatches Task agents sequentially, never in parallel; a "parallel Task agent" claim is the retired model',
   ],
+  // Third recurrence of the same defect: #296 split each group into TWO Task calls,
+  // but sequential-execution.md — reachable from Step 5's own banner, and never
+  // touched by #296 — still narrated a single "group N's Task agent" with one
+  // teardown point. The two prior recurrences were caught by review, not by a test.
+  // Scoped to the possessive/deictic shapes that assert exactly one agent per group
+  // ("group N's Task agent", "each group's own Task agent", "its Task agent"), so
+  // kind-generic phrasing like "a Task-tool subagent" or "Task agents" stays legal.
+  [
+    /\b(?:group\s+N|each\s+group|the\s+group|that\s+group|this\s+group|its)\s*(?:'s|’s)?\s+(?:own\s+)?Task\s+agent\b/i,
+    'a group is dispatched as TWO sequential Task calls (#296) — a singular "group\'s Task agent" with one terminal point is the retired one-call-per-group model',
+  ],
 ];
 
 for (const [name, region] of REGIONS) {
@@ -125,9 +136,12 @@ for (const [name, region] of CALL_REGIONS) {
       /Working directory:/,
       `${name} must still carry a Working directory instruction — agents only see what is in their prompt`,
     );
+    // Anchored to the literal instruction, not the bare token: "inherited"/"inherits"
+    // survive elsewhere in both regions, so /inherit/i would still pass with the
+    // actual "you inherit it" instruction deleted.
     assert.match(
       region,
-      /inherit/i,
+      /you\s+inherit\s+it/i,
       `${name} must tell the agent it INHERITS the dispatching session's worktree`,
     );
   });
