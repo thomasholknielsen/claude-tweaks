@@ -156,14 +156,17 @@ node -e "
   }
   const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: familyLeaves.has(i.number) }));
   const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
-  const policy = { 'trust-revert-window-days': '{resolved-window}' };
+  const policy = { 'trust-revert-window-days': process.argv[1] };
   console.log(JSON.stringify(trustRows(records, gitLog, Date.now(), policy)));
-"
+" -- "{resolved-window}"
 ```
 
 Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
 for `{resolved-window}` above — an empty substitution is fine, `trustRows` and the policy-schema
-resolver it calls both treat an absent/empty value as "use the default (14)".
+resolver it calls both treat an absent/empty value as "use the default (14)". Passed as a
+`process.argv` arg after `--`, never spliced into the JS source itself, for the same reason F1's
+`node -e` wiring in `focus-mode.md` does — a value containing a quote character would otherwise
+break out of the JS string literal.
 
 Note the spread order: derived fields (`labels`, `hasParent`) come after the parsed spread, never
 before (`[IL-01]`).

@@ -163,8 +163,16 @@ function parseGitLog(raw) {
   // a revert trailer naming the same (clean) SHA.
   return text.split(RECORD_SEP).map((entry) => entry.trim()).filter(Boolean).map((entry) => {
     const sep = entry.indexOf(FIELD_SEP);
+    // A fragment with no field separator (a truncated write, or an
+    // embedded record-separator byte splitting one commit's message into
+    // two fragments) has no sha to extract at all. Dropping it — rather
+    // than slicing garbage text into a fabricated "sha" — is what keeps
+    // this module fail-closed: a phantom sha could otherwise be returned
+    // as a closing commit, and since nothing would ever match it with a
+    // real revert trailer, a genuinely reverted record could grade known-good.
+    if (sep === -1) return null;
     return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
-  });
+  }).filter(Boolean);
 }
 
 // (record, gitLog) -> string[] of closing commit SHAs, [] when neither route
@@ -313,11 +321,18 @@ function trustRows(records, gitLog, now, policy) {
       cell.approved += 1;
     } else if (disposition === 'changes-requested') {
       cell.changesRequested += 1;
-    } else {
-      // No demo:* disposition — try the operational path before giving up.
+    } else if (disposition === 'none') {
+      // No demo:* disposition at all — try the operational path before giving up.
+      // 'pending' is deliberately excluded from this branch: a demo:pending
+      // record has an outstanding, unresolved human-review request, which is
+      // itself a demo:* disposition (dispositionState distinguishes it from
+      // 'none') — it must not be silently promoted to known-good by the
+      // operational path just because a human hasn't gotten to /demo yet.
       const operational = resolveOperationalOutcome(record, gitLog, clock, windowDays);
       if (operational.known) cell.operationalGood += 1;
       else cell.undispositioned += 1;
+    } else {
+      cell.undispositioned += 1;
     }
 
     cellByNumber.set(record.number, cell);

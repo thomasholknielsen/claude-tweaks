@@ -64,7 +64,10 @@ this block entirely rather than fetching anything.
 Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` the same way, substituting for
 `{resolved-window}` below — empty means the default (14) applies. If the `gh` call, the `git log`
 call, or the node block fails for any reason, file without `ready`: this path fails toward the
-default, never toward the grant (unchanged from before this leaf).
+default, never toward the grant (unchanged from before this leaf). `{resolved-window}` is passed as
+a `process.argv` arg after `--`, never spliced into the JS source itself, for the same reason F1's
+`node -e` wiring in `focus-mode.md` does — a value containing a quote character would otherwise
+break out of the JS string literal.
 
 ```bash
 gh issue list --state all --json number,labels,body,state,stateReason,closedAt --limit 1000 > /tmp/capture-trust-records.json
@@ -85,7 +88,7 @@ node -e "
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
   const gitLog = parseGitLog(fs.readFileSync('/tmp/capture-trust-git-log.txt', 'utf8'));
-  const policy = { 'trust-revert-window-days': '{resolved-window}' };
+  const policy = { 'trust-revert-window-days': process.argv[1] };
   // This skill's own class. A fresh capture carries by:capture and no risk
   // score, and riskBand() bands an unscored record 'elevated' — so that is the
   // cell the record about to be filed will land in, and the only one that may
@@ -95,7 +98,7 @@ node -e "
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const { bornReady, reason } = permittedGrants({ ceiling, row });
   console.log(JSON.stringify({ bornReady, reason, verdict: row ? row.verdict : 'no-cell' }));
-"
+" -- "{resolved-window}"
 ```
 
 Add `ready` to the label set below **only** when `bornReady` is `true`, and log one

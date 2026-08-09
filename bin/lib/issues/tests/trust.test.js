@@ -316,13 +316,20 @@ test('DEFAULT_REVERT_WINDOW_DAYS is 14', () => {
 });
 
 test('resolveOperationalOutcome is unknown for a currently-open record', () => {
+  // Non-empty, matching gitLog — an empty log would make this pass whether
+  // or not the state guard actually fired (discoverClosingCommits finds
+  // nothing either way), which is exactly the confounding this fixture avoids.
   const record = { number: 1, state: 'OPEN', closedAt: closedDaysAgo(30) };
-  assert.deepEqual(resolveOperationalOutcome(record, [], NOW, 14), { known: false });
+  const gitLog = [commitFor(1)];
+  assert.deepEqual(resolveOperationalOutcome(record, gitLog, NOW, 14), { known: false });
 });
 
 test('resolveOperationalOutcome is unknown with no closedAt at all', () => {
+  // Non-empty, matching gitLog — see the state-guard test above for why an
+  // empty log can't discriminate whether the closedAt guard actually fired.
   const record = { number: 1, state: 'CLOSED' };
-  assert.deepEqual(resolveOperationalOutcome(record, [], NOW, 14), { known: false });
+  const gitLog = [commitFor(1)];
+  assert.deepEqual(resolveOperationalOutcome(record, gitLog, NOW, 14), { known: false });
 });
 
 test('resolveOperationalOutcome counts a merge past the window with a discoverable, unreverted closing commit', () => {
@@ -387,6 +394,24 @@ test('parseGitLog returns [] for empty or non-string input', () => {
   assert.deepEqual(parseGitLog(''), []);
   assert.deepEqual(parseGitLog(undefined), []);
   assert.deepEqual(parseGitLog(null), []);
+});
+
+test('regression: parseGitLog drops a fragment with no field separator instead of fabricating a garbage sha', () => {
+  // A truncated write (killed process, disk full) or a commit message
+  // containing a literal embedded record-separator byte can leave a
+  // fragment with no \x1f field separator at all. Slicing that fragment's
+  // text into a fake "sha" would fabricate a closing-commit candidate that
+  // can never match a real revert trailer — a fail-open hazard for the
+  // exact guarantee this module states about itself. Dropping the fragment
+  // is the fail-closed behavior.
+  assert.deepEqual(parseGitLog('aaaabbbb'), []);
+  assert.deepEqual(parseGitLog('good\x1fSubject\x1ejunk-with-no-separator\x1e'), [
+    { sha: 'good', message: 'Subject' },
+  ]);
+  // A well-formed record after a malformed one is still parsed correctly.
+  assert.deepEqual(parseGitLog('nofieldsep\x1egood\x1fSubject\x1e'), [
+    { sha: 'good', message: 'Subject' },
+  ]);
 });
 
 test('parseGitLog strips the leading newline git log actually writes after each %x1e record separator', () => {
@@ -591,7 +616,15 @@ test('AC5: a configured window widens what counts; the default applies when abse
   assert.equal(malformed[0].operationalGood, 1, 'a malformed value (0) falls back to the default rather than throwing');
 });
 
-test('AC7: a reopened-then-reclosed record counts against its latest close; still-open contributes nothing', () => {
+test('AC7: only closedAt (whatever the caller supplies as the latest close) and current state matter — a currently-open record contributes nothing', () => {
+  // The module tracks no reopen history of its own — "latest close" is
+  // whatever closedAt the caller supplies (GitHub's own closedAt already
+  // reflects the record's most recent close, reopen or not), so this
+  // deliberately does not construct a reopen-then-reclose sequence: there
+  // is no such sequence in the code to construct. What genuinely needs
+  // covering, and is covered here, is the reopen's *other* consequence —
+  // a record that is currently OPEN (mid-reopen, not yet reclosed)
+  // contributes nothing, however old its closedAt from a prior close.
   const reclosed = operationalFixture(1, 20);
   const gitLog = [commitFor(1)];
   const closedRows = trustRows([reclosed], gitLog, NOW, {});
@@ -638,4 +671,21 @@ test('demo-descent still wins over operational evidence when both are present', 
   const rows = trustRows([record], gitLog, NOW, {});
   assert.equal(rows[0].approved, 1);
   assert.equal(rows[0].operationalGood, 0);
+});
+
+test('regression: a demo:pending record is never promoted to operational known-good', () => {
+  // demo:pending IS a demo:* disposition (an outstanding, unresolved human
+  // review request) — it must stay undispositioned, exactly like a record
+  // with no operational evidence at all, never silently graded known-good
+  // just because a human hasn't run /demo yet.
+  const record = {
+    ...operationalFixture(1, 30),
+    labels: ['by:capture', 'risk:low', 'demo:pending'],
+  };
+  const gitLog = [commitFor(1)];
+  const rows = trustRows([record], gitLog, NOW, {});
+  assert.equal(rows[0].operationalGood, 0);
+  assert.equal(rows[0].undispositioned, 1);
+  assert.equal(rows[0].approved, 0);
+  assert.equal(rows[0].changesRequested, 0);
 });

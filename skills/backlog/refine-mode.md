@@ -150,6 +150,9 @@ for `{resolved-window}` below the same way — an empty substitution is fine, th
 applies. This block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section
 above — it must never shell its own separate `git log` call, or its verdicts could silently
 disagree with the trust table this same run just rendered from the identical underlying evidence.
+`{resolved-window}` is passed as a `process.argv` arg after `--`, never spliced into the JS source
+itself, for the same reason F1's `node -e` wiring in `focus-mode.md` does — a value containing a
+quote character would otherwise break out of the JS string literal.
 
 ```bash
 node -e "
@@ -160,7 +163,7 @@ node -e "
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
   const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
-  const policy = { 'trust-revert-window-days': '{resolved-window}' };
+  const policy = { 'trust-revert-window-days': process.argv[1] };
   const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const out = {};
@@ -179,7 +182,7 @@ node -e "
     };
   }
   console.log(JSON.stringify(out));
-" > /tmp/backlog-refine-trust.json
+" -- "{resolved-window}" > /tmp/backlog-refine-trust.json
 ```
 
 **This signal never changes what the gate recommends.** `/claude-tweaks:assess-agent-autonomy`'s
