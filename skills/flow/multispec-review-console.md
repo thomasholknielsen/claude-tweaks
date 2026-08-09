@@ -120,7 +120,7 @@ Below each row, show the full staged file content for the item so the user can s
 
 #### Upstream feedback — REQUIRES APPROVAL, BATCHED (not covered by "Approve all")
 
-Render this section only when any spec's Upstream feedback curation row (or the parent run dir's own) staged one or more upstream defect/gap reports (`staged/wrap-up-upstream-*.md`). Aggregated across every spec in the run and approved through `_shared/upstream-feedback-batch.md`'s shared batch contract — one or more chunked `multiSelect` `AskUserQuestion` calls (4 items per call, all pre-checked) instead of one call per item; bulk-skipping the whole section is still forbidden per `_shared/auto-mode-contract.md`'s upstream-filing row, exactly as `wrap-up/review-console.md`'s Upstream feedback section. Filing publishes privately-derived content to a public repository; the body shown is already scrubbed.
+Render this section only when any spec's Upstream feedback curation row (or the parent run dir's own) staged one or more upstream defect/gap reports (`staged/wrap-up-upstream-*.md`). Aggregated across every spec in the run and approved through `_shared/upstream-feedback-batch.md`'s shared batch contract — one or more chunked `multiSelect` `AskUserQuestion` calls (chunked per that file's own rule, all pre-checked) instead of one call per item; bulk-skipping the whole section is still forbidden per `_shared/auto-mode-contract.md`'s upstream-filing row, exactly as `wrap-up/review-console.md`'s Upstream feedback section. Filing publishes privately-derived content to a public repository; the body shown is already scrubbed.
 
 | U# | Spec | Kind | Component | Summary | Patch |
 |---|---|---|---|---|---|
@@ -165,7 +165,7 @@ Queue writes (Q1, Q2, …), Memory updates (M1, M2, …), and Upstream feedback 
 
 None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, mirroring `wrap-up/review-console.md`'s Queue writes / Memory updates sections exactly (see that file for the full worked examples and the `Other`-field override note).
 
-**Upstream feedback** — call into `_shared/upstream-feedback-batch.md`'s shared batch contract with this run's aggregated `U#` rows (across every spec plus the parent run dir): render each item's full scrubbed draft, then issue the contract's chunked `multiSelect` `AskUserQuestion` call(s) — 4 items per call, all pre-checked, never batched across specs beyond the contract's own 4-per-call chunking.
+**Upstream feedback** — call into `_shared/upstream-feedback-batch.md`'s shared batch contract with this run's aggregated `U#` rows (across every spec plus the parent run dir): render each item's full scrubbed draft, then issue the contract's chunked `multiSelect` `AskUserQuestion` call(s), all pre-checked per that file's own rule, never batched across specs beyond the contract's own chunking.
 
 ## Preflight
 
