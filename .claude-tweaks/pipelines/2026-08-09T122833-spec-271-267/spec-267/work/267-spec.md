@@ -1,6 +1,8 @@
 ---
 record: 267
 origin: human
+risk: medium
+size: medium
 ceremony: standard
 grants: []
 surface: backend
