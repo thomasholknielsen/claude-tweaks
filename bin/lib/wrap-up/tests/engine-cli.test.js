@@ -304,6 +304,61 @@ test('render --spec-state value with no "=" exits 2 with usage on stderr', () =>
   assert.match(r.stderr, /usage: wrap-up-engine\.js/);
 });
 
+test('render --section console --spec-state --strict prints the merged table then exits 2 while any given state is incomplete', () => {
+  const runDirA = planFreshRunDir(); // partially recorded below -> still incomplete
+  const runDirB = planFreshRunDir();
+
+  // Record exactly one 'findings' row in runDirA, leaving its other rows
+  // unrecorded (incomplete) -> merged table has real content to print.
+  const worklistA = JSON.parse(fs.readFileSync(path.join(runDirA, 'engine-state.json'), 'utf8')).worklist;
+  const firstRowA = worklistA.rows[0];
+  const findingsPayload = JSON.stringify({
+    version: 1, rowId: firstRowA.id, result: 'findings',
+    findings: [{ kind: 'additive', summary: 'Strict test row', targetPath: 'x.md', action: 'applied', stagePath: null, commit: 'ddd4444' }],
+    gapDetection: 'run', detail: '1 change',
+  });
+  const rec = run(['record', '--run-dir', runDirA, '--dry-run'], { input: findingsPayload });
+  assert.strictEqual(rec.status, 0, rec.stderr);
+
+  // Fully record runDirB so only runDirA is incomplete.
+  const worklistB = JSON.parse(fs.readFileSync(path.join(runDirB, 'engine-state.json'), 'utf8')).worklist;
+  const openRowsB = worklistB.rows.filter((row) => row.gate === 'open');
+  for (const row of openRowsB) {
+    const payload = JSON.stringify({
+      version: 1, rowId: row.id, result: 'clean', read: [], findings: [], gapDetection: 'not-run', detail: 'nothing to change',
+    });
+    const rr = run(['record', '--run-dir', runDirB, '--dry-run'], { input: payload });
+    assert.strictEqual(rr.status, 0, rr.stderr);
+  }
+
+  const r = run(['render', '--section', 'console', '--strict',
+    '--spec-state', `157=${path.join(runDirA, 'engine-state.json')}`,
+    '--spec-state', `159=${path.join(runDirB, 'engine-state.json')}`]);
+  assert.strictEqual(r.status, 2);
+  // Printed before the fatal exit, mirroring the single-state --strict behavior.
+  assert.match(r.stdout, /Strict test row/);
+});
+
+test('render --section console --spec-state --strict exits 0 once every given state is complete', () => {
+  const runDirA = planFreshRunDir();
+  const runDirB = planFreshRunDir();
+  for (const runDir of [runDirA, runDirB]) {
+    const worklist = JSON.parse(fs.readFileSync(path.join(runDir, 'engine-state.json'), 'utf8')).worklist;
+    const openRows = worklist.rows.filter((row) => row.gate === 'open');
+    for (const row of openRows) {
+      const payload = JSON.stringify({
+        version: 1, rowId: row.id, result: 'clean', read: [], findings: [], gapDetection: 'not-run', detail: 'nothing to change',
+      });
+      const rr = run(['record', '--run-dir', runDir, '--dry-run'], { input: payload });
+      assert.strictEqual(rr.status, 0, rr.stderr);
+    }
+  }
+  const r = run(['render', '--section', 'console', '--strict',
+    '--spec-state', `157=${path.join(runDirA, 'engine-state.json')}`,
+    '--spec-state', `159=${path.join(runDirB, 'engine-state.json')}`]);
+  assert.strictEqual(r.status, 0, r.stderr);
+});
+
 test('render without --run-dir exits 2', () => {
   const r = run(['render']);
   assert.strictEqual(r.status, 2);

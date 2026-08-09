@@ -239,6 +239,11 @@ function runRender(args) {
 
     const { markdown } = renderConsoleSectionsMulti(specStates, { startAt: args.startAt !== null ? Number(args.startAt) : 1 });
     process.stdout.write(`${markdown}\n`);
+
+    if (args.strict) {
+      const anyMissing = specStates.some(({ state }) => !strictCheck(state).ok);
+      if (anyMissing) process.exit(2);
+    }
     return;
   }
 
