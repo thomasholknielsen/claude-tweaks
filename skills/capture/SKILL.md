@@ -81,14 +81,10 @@ git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-
 node -e "
   const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
-  const { trustRows } = require(root + '/bin/lib/issues/trust.js');
+  const { trustRows, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const rawLog = fs.readFileSync('/tmp/capture-trust-git-log.txt', 'utf8');
-  const gitLog = rawLog.split('\x1e').filter(Boolean).map((entry) => {
-    const sep = entry.indexOf('\x1f');
-    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
-  });
+  const gitLog = parseGitLog(fs.readFileSync('/tmp/capture-trust-git-log.txt', 'utf8'));
   const policy = { 'trust-revert-window-days': '{resolved-window}' };
   // This skill's own class. A fresh capture carries by:capture and no risk
   // score, and riskBand() bands an unscored record 'elevated' — so that is the

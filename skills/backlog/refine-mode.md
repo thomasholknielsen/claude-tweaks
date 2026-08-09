@@ -155,15 +155,11 @@ disagree with the trust table this same run just rendered from the identical und
 node -e "
   const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
-  const { trustRows, riskBand } = require(root + '/bin/lib/issues/trust.js');
+  const { trustRows, riskBand, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const rawLog = fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8');
-  const gitLog = rawLog.split('\x1e').filter(Boolean).map((entry) => {
-    const sep = entry.indexOf('\x1f');
-    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
-  });
+  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
   const policy = { 'trust-revert-window-days': '{resolved-window}' };
   const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });

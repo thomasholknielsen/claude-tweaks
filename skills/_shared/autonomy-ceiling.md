@@ -22,7 +22,7 @@ Two modules implement it. `bin/lib/issues/autonomy.js` resolves the ceiling and 
 rows carry, from **two** sources — a closed record's `demo:*` disposition (demo-descent), and, when
 no `demo:*` verdict exists, whether it was merged and stayed unreverted for at least
 `trust-revert-window-days` (default 14, `_shared/policy-schema.md`) — **operational** evidence,
-evaluated lazily against the record's tracker `closed_at` and an injected integration-branch git
+evaluated lazily against the record's tracker `closedAt` and an injected integration-branch git
 log. Neither source is exclusive: a class's `dispositioned` count and the `MIN_VERDICTS` floor it
 must clear can be made up of either kind of evidence, or both. Neither module applies a label —
 they answer whether a caller may, and the caller acts.
@@ -75,8 +75,8 @@ A class earns nothing unless `permittedGrants` says so, which requires **all** o
 - The class's verdict is `clean`. That in turn requires `total >= MIN_SAMPLES`, **and**
   `dispositioned >= MIN_VERDICTS` — a floor counted on real outcome evidence (a `demo:*`
   disposition, or a merged-and-unreverted operational close), not on how many records the class has
-  closed — **and** no `changes-requested` and no corrective follow-ups. A
-  `mixed` verdict earns nothing; neither does `insufficient-evidence`.
+  closed — **and** no `changes-requested` and no corrective follow-ups. A `mixed` verdict earns
+  nothing; neither does `insufficient-evidence`.
 
 Read `_shared/trust-table.md` for what those columns mean and for the Coverage figure that says
 whether a verdict can be believed. A `clean` verdict at low coverage and one at high coverage are

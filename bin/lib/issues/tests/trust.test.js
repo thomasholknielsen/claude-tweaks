@@ -3,8 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
-  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, discoverClosingCommits, isClosingCommitReverted,
-  resolveOperationalOutcome, DEFAULT_REVERT_WINDOW_DAYS,
+  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, parseGitLog, discoverClosingCommits,
+  isClosingCommitReverted, resolveOperationalOutcome, DEFAULT_REVERT_WINDOW_DAYS,
 } = require('../trust.js');
 
 test('riskBand splits low from everything else', () => {
@@ -365,6 +365,64 @@ test('resolveOperationalOutcome respects a widened window passed in explicitly',
   const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(15) };
   const gitLog = [{ sha: 'sha-1', message: 'refs #1' }];
   assert.equal(resolveOperationalOutcome(record, gitLog, NOW, 21).known, false, '15 days is short of a 21-day window');
+});
+
+test('parseGitLog splits a %H\\x1f%B\\x1e dump into { sha, message } records', () => {
+  const raw = 'aaaa\x1fFix the thing\n\nrefs #42\x1ebbbb\x1fUnrelated\x1e';
+  assert.deepEqual(parseGitLog(raw), [
+    { sha: 'aaaa', message: 'Fix the thing\n\nrefs #42' },
+    { sha: 'bbbb', message: 'Unrelated' },
+  ]);
+});
+
+test('parseGitLog keeps a multi-line body whole rather than splitting it into records', () => {
+  // The record separator is what bounds a commit — a blank line inside a body
+  // must not start a new one, or a trailer would be attributed to the wrong SHA.
+  const [entry] = parseGitLog('aaaa\x1fSubject\n\nBody line\n\nThis reverts commit bbbb.\x1e');
+  assert.equal(entry.sha, 'aaaa');
+  assert.ok(entry.message.includes('This reverts commit bbbb.'));
+});
+
+test('parseGitLog returns [] for empty or non-string input', () => {
+  assert.deepEqual(parseGitLog(''), []);
+  assert.deepEqual(parseGitLog(undefined), []);
+  assert.deepEqual(parseGitLog(null), []);
+});
+
+test('parseGitLog strips the leading newline git log actually writes after each %x1e record separator', () => {
+  // `git log --format='%H%x1f%B%x1e'` emits a literal newline immediately
+  // after every %x1e byte — so every record but the first begins with "\n"
+  // once split on the separator. A hand-built fixture without that newline
+  // (as every other test in this file uses) can't catch a regression here;
+  // this fixture reproduces the real byte shape git actually writes.
+  const raw = 'aaaa\x1fFirst\x1e\nbbbb\x1fSecond\x1e\ncccc\x1fThird\x1e\n';
+  assert.deepEqual(parseGitLog(raw), [
+    { sha: 'aaaa', message: 'First' },
+    { sha: 'bbbb', message: 'Second' },
+    { sha: 'cccc', message: 'Third' },
+  ]);
+});
+
+test('regression: a trailer-based revert is still detected end-to-end against real git-log byte shape (leading newline present)', () => {
+  // Reproduces the actual bug through the FULL real pipeline
+  // (parseGitLog -> discoverClosingCommits -> isClosingCommitReverted), not
+  // a hand-typed clean SHA — the corruption is on the closing commit's own
+  // parsed `sha` field, which only discoverClosingCommits produces. Without
+  // the trim in parseGitLog, that closing record is the SECOND record in the
+  // log (leading "\n" on its sha), so it never matches the clean sha the
+  // revert trailer names — the primary (trailer) detector silently went
+  // inert for every record but the first in a real log. Full-length SHAs are
+  // required: REVERT_TRAILER_RE only matches 7-40 hex chars.
+  const closingSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const revertSha = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const raw = `zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\x1frefs #999\x1e\n`
+    + `${closingSha}\x1frefs #1\x1e\n`
+    + `${revertSha}\x1fThis reverts commit ${closingSha}.\x1e\n`;
+  const gitLog = parseGitLog(raw);
+  const record = { number: 1, closedAt: '2026-01-01T00:00:00Z', state: 'CLOSED' };
+  const closingShas = discoverClosingCommits(record, gitLog);
+  assert.deepEqual(closingShas, [closingSha], 'discoverClosingCommits must return the clean sha, not a newline-corrupted one');
+  assert.equal(isClosingCommitReverted(closingShas, 1, gitLog), true);
 });
 
 test('discoverClosingCommits finds a commit via a word-bounded refs/closes/fixes scan', () => {

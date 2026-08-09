@@ -133,7 +133,9 @@ Resolve the integration branch per `_shared/integration-branch.md`'s resolution 
 its value for `{integration-branch}` below. Dump the full history once, in a form the operational
 evidence path can scan for `(refs|closes|fixes) #N` references and revert trailers — `%x1f`/`%x1e`
 are unit/record separator bytes, never appearing in real commit text, so a multi-line commit
-message can never be mistaken for a SHA or split across records:
+message can never be mistaken for a SHA or split across records. `trust.js`'s own `parseGitLog`
+turns that raw dump into the `[{ sha, message }]` shape `trustRows` expects; never hand-roll the
+split, or two call sites can silently disagree about identical evidence:
 
 ```bash
 git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/trust-table-git-log.txt
@@ -146,18 +148,14 @@ gh issue list --state all --json number,labels,body,state,stateReason,closedAt \
   --limit "$LIMIT" > /tmp/trust-table-records.json
 node -e "
   const fs = require('fs');
-  const { trustRows } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
+  const { trustRows, parseGitLog } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
   const issues = require('/tmp/trust-table-records.json');
   const familyLeaves = new Set(require('/tmp/trust-table-family-leaves.json'));
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' records (the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
   const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: familyLeaves.has(i.number) }));
-  const rawLog = fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8');
-  const gitLog = rawLog.split('\x1e').filter(Boolean).map((entry) => {
-    const sep = entry.indexOf('\x1f');
-    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
-  });
+  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
   const policy = { 'trust-revert-window-days': '{resolved-window}' };
   console.log(JSON.stringify(trustRows(records, gitLog, Date.now(), policy)));
 "

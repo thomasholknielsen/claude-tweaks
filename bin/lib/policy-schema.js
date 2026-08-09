@@ -43,6 +43,8 @@ const POLICY_KEYS = [
   { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
 ];
 
+const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
+
 function readFileSafe(filePath) {
   try {
     return fs.readFileSync(filePath, 'utf8');
@@ -71,10 +73,12 @@ function isValidValue(schemaEntry, value) {
   switch (schemaEntry.type) {
     case 'boolean':
       return value === 'true' || value === 'false';
-    case 'integer':
-      return /^-?\d+$/.test(value)
-        && (schemaEntry.min === undefined || Number(value) >= schemaEntry.min)
-        && (schemaEntry.max === undefined || Number(value) <= schemaEntry.max);
+    case 'integer': {
+      if (!/^-?\d+$/.test(value)) return false;
+      const parsed = Number(value);
+      return (schemaEntry.min === undefined || parsed >= schemaEntry.min)
+        && (schemaEntry.max === undefined || parsed <= schemaEntry.max);
+    }
     case 'enum':
       return schemaEntry.values.includes(value);
     case 'string':
@@ -101,7 +105,7 @@ function isValidValue(schemaEntry, value) {
 // (or nothing at all) calls this once and trusts what comes back without
 // re-validating it itself.
 function resolveValue(key, rawValue) {
-  const entry = POLICY_KEYS.find((e) => e.key === key);
+  const entry = SCHEMA_BY_KEY.get(key);
   if (!entry) return rawValue;
   if (rawValue === undefined || rawValue === null || rawValue === '') return entry.default;
   const strValue = String(rawValue);
@@ -116,14 +120,13 @@ function auditPolicy(repoRoot) {
   const claudeMdRaw = readFileSafe(path.join(repoRoot, 'CLAUDE.md'));
   const policyEntries = parseFlatLines(policyRaw);
   const claudeMdEntries = parseFlatLines(claudeMdRaw);
-  const schemaByKey = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
 
-  const unrecognizedKeys = Object.keys(policyEntries).filter((key) => !schemaByKey.has(key));
+  const unrecognizedKeys = Object.keys(policyEntries).filter((key) => !SCHEMA_BY_KEY.has(key));
 
   // policy.yml is the only config home, so it is the only thing worth validating.
   const invalidValues = [];
   for (const [key, value] of Object.entries(policyEntries)) {
-    const schemaEntry = schemaByKey.get(key);
+    const schemaEntry = SCHEMA_BY_KEY.get(key);
     if (schemaEntry && !isValidValue(schemaEntry, value)) {
       invalidValues.push({ key, value, expected: schemaEntry });
     }
@@ -138,7 +141,7 @@ function auditPolicy(repoRoot) {
   // feeds deletes lines from a file users hand-tune.
   const migratableKeys = [];
   for (const [key, value] of Object.entries(claudeMdEntries)) {
-    if (!schemaByKey.has(key)) continue;
+    if (!SCHEMA_BY_KEY.has(key)) continue;
     migratableKeys.push({
       key,
       value,

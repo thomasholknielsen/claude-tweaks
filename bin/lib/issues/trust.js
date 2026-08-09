@@ -141,11 +141,36 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_REVERT_WINDOW_DAYS = 14;
 const CLOSING_REF_RE = /\b(?:refs|closes|fixes)\s+#(\d+)\b/gi;
 
+const RECORD_SEP = '\x1e';
+const FIELD_SEP = '\x1f';
+
+// Raw `git log --format='%H%x1f%B%x1e'` output -> the `[{ sha, message }]`
+// shape every gitLog-consuming function below expects. The separator bytes are
+// ASCII unit/record separators, which practically never appear in real commit
+// text, so a multi-line commit message can be neither mistaken for a SHA nor
+// split across records.
+//
+// Exported because three skill snippets feed trustRows a git log
+// (`_shared/trust-table.md`, `backlog/refine-mode.md`, `capture/SKILL.md`) and
+// each carried its own verbatim copy of this parse. One copy means a parse fix
+// lands once instead of three times, and means the three call sites cannot
+// silently disagree about the same underlying evidence `[IL-32]`.
+function parseGitLog(raw) {
+  const text = typeof raw === 'string' ? raw : '';
+  // `git log --format='...%x1e'` writes a newline after each record
+  // separator, so every record but the first begins with a stray leading
+  // `\n` once split — trim it off, or a closing commit's SHA never matches
+  // a revert trailer naming the same (clean) SHA.
+  return text.split(RECORD_SEP).map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+    const sep = entry.indexOf(FIELD_SEP);
+    return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
+  });
+}
+
 // (record, gitLog) -> string[] of closing commit SHAs, [] when neither route
-// finds anything. `gitLog` is `[{ sha, message }]` — the integration
-// branch's full history, `sha` a full commit SHA and `message` the FULL
-// commit message (subject + body), e.g. as `git log --format='%H%x1f%B%x1e'`
-// yields once split on the two separator bytes. Route 1 wins outright when
+// finds anything. `gitLog` is `[{ sha, message }]` — the integration branch's
+// full history, `sha` a full commit SHA and `message` the FULL commit message
+// (subject + body), as `parseGitLog` above yields. Route 1 wins outright when
 // present; it does not merge with route 2's results.
 function discoverClosingCommits(record, gitLog) {
   const fromTimeline = Array.isArray(record && record.closingCommitShas)
@@ -187,6 +212,7 @@ const REVERT_SUBJECT_RE = /^Revert\b/i;
 function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
   const shas = Array.isArray(closingShas) ? closingShas.filter(Boolean) : [];
   if (shas.length === 0) return false;
+  const lowerShas = shas.map((sha) => String(sha).toLowerCase());
   const log = Array.isArray(gitLog) ? gitLog : [];
 
   for (const entry of log) {
@@ -194,11 +220,7 @@ function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
 
     for (const match of entry.message.matchAll(REVERT_TRAILER_RE)) {
       const named = match[1].toLowerCase();
-      const hit = shas.some((sha) => {
-        const lower = String(sha).toLowerCase();
-        return lower.startsWith(named) || named.startsWith(lower);
-      });
-      if (hit) return true;
+      if (lowerShas.some((sha) => sha.startsWith(named) || named.startsWith(sha))) return true;
     }
 
     const subject = entry.message.split('\n', 1)[0] || '';
@@ -341,5 +363,5 @@ function trustRows(records, gitLog, now, policy) {
 
 module.exports = {
   riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, DEFAULT_REVERT_WINDOW_DAYS,
-  discoverClosingCommits, isClosingCommitReverted, resolveOperationalOutcome,
+  parseGitLog, discoverClosingCommits, isClosingCommitReverted, resolveOperationalOutcome,
 };
