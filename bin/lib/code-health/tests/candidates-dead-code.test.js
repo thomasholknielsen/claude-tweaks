@@ -446,3 +446,242 @@ test('referencedFileSpecifiers: finds require, static import, side-effect import
   ].join('\n');
   assert.deepStrictEqual(referencedFileSpecifiers(text), ['./a', '../b.js', './side-effect.js', './c.js', './d']);
 });
+
+const { execFileSync } = require('node:child_process');
+const { candidatesDeadCode, scanDeadCode, FOCUS_GENERATORS } = require('../candidates-dead-code');
+
+function gitInit(root) {
+  execFileSync('git', ['-C', root, 'init', '-q']);
+}
+
+// ── AC1: a fixture tree with a known dead export, a live export, an orphan
+// file, an entrypoint, and a gitignored file yields EXACTLY the dead export +
+// orphan as candidates. Deliberately unambiguous per AC6 — no re-export or
+// dynamic-require proximity anywhere in this tree.
+
+function buildAc1Fixture() {
+  const root = tmp();
+  gitInit(root);
+  fs.writeFileSync(path.join(root, '.gitignore'), 'ignored.js\n');
+
+  // Live export ('usedFn') + dead export ('deadFn') in the same file.
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'lib', 'used.js'),
+    'function usedFn() { return 1; }\nfunction deadFn() { return 2; }\nmodule.exports = { usedFn, deadFn };\n',
+  );
+  // Calls usedFn — the only reference to it anywhere in the tree.
+  fs.writeFileSync(path.join(root, 'lib', 'caller.js'), "const { usedFn } = require('./used');\nusedFn();\n");
+
+  // A file nothing requires — orphan-file candidate.
+  fs.writeFileSync(path.join(root, 'orphan.js'), 'function orphanFn() { return 3; }\nmodule.exports = { orphanFn };\n');
+
+  // An entrypoint (direct child of bin/) whose own export would otherwise
+  // read as dead — must never be flagged, either as an orphan file or for
+  // its export. It also requires lib/caller.js, which is what keeps caller.js
+  // itself off the orphan list: nothing else in the tree names it, so without
+  // this line the fixture would carry a third, unintended orphan candidate.
+  fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'bin', 'entry.js'),
+    "require('../lib/caller');\nfunction entryOnlyFn() { return 4; }\nmodule.exports = { entryOnlyFn };\n",
+  );
+
+  // A gitignored file containing an otherwise-dead-looking export — must
+  // never appear as a candidate.
+  fs.writeFileSync(path.join(root, 'ignored.js'), 'function neverSeen() {}\nmodule.exports = { neverSeen };\n');
+
+  // A NUL-byte / binary-ish file — must be skipped silently (no crash, no
+  // candidate), and must show up in scanStats().skippedFiles with a reason.
+  fs.writeFileSync(path.join(root, 'blob.js'), Buffer.from([0x6d, 0x00, 0x6f, 0x64]));
+
+  return root;
+}
+
+test('AC1: fixture tree yields exactly the dead export + orphan as candidates', () => {
+  const root = buildAc1Fixture();
+  const candidates = candidatesDeadCode(root);
+  const simplified = candidates.map((c) => ({ file: c.file, symbol: c.symbol, kind: c.kind })).sort((a, b) => a.file.localeCompare(b.file));
+  assert.deepStrictEqual(simplified, [
+    { file: 'lib/used.js', symbol: 'deadFn', kind: 'unreferenced-export' },
+    { file: 'orphan.js', symbol: undefined, kind: 'orphan-file' },
+  ]);
+});
+
+test('AC1: entrypoint files are never flagged (export-level or file-level)', () => {
+  const root = buildAc1Fixture();
+  const candidates = candidatesDeadCode(root);
+  assert.ok(!candidates.some((c) => c.file === 'bin/entry.js'));
+});
+
+test('AC1: gitignored files are never flagged', () => {
+  const root = buildAc1Fixture();
+  const candidates = candidatesDeadCode(root);
+  assert.ok(!candidates.some((c) => c.file === 'ignored.js'));
+});
+
+test('AC1/Gotchas: a NUL-byte file is skipped, never a candidate, and reported in skippedFiles with a reason', () => {
+  const root = buildAc1Fixture();
+  const { candidates, scannedFiles, skippedFiles } = scanDeadCode(root);
+  assert.ok(!candidates.some((c) => c.file === 'blob.js'));
+  assert.ok(scannedFiles > 0, 'scannedFiles must be nonzero — a zero count on a real tree signals a broken scan, not a clean one (IL-115)');
+  const blobSkip = skippedFiles.find((s) => s.file === 'blob.js');
+  assert.ok(blobSkip, 'blob.js must appear in skippedFiles');
+  assert.strictEqual(blobSkip.reason, 'binary-or-nul');
+});
+
+// ── AC2: dynamic patterns produce no candidate and no crash — asserted on
+// fixtures containing them, kept structurally separate from the AC1 tree above.
+
+test('AC2: a bin/hooks.js-style computed require makes its dynamically-loaded target an entrypoint (no candidate, no crash)', () => {
+  const root = tmp();
+  gitInit(root);
+  fs.mkdirSync(path.join(root, 'bin', 'lib', 'hooks'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'bin', 'hooks.js'),
+    "function loadModule(event) { try { return require('./lib/hooks/' + event); } catch { return null; } }\nmodule.exports = { loadModule };\n",
+  );
+  fs.writeFileSync(
+    path.join(root, 'bin', 'lib', 'hooks', 'session-start.js'),
+    'function run() { return 1; }\nmodule.exports = { run };\n',
+  );
+  const candidates = candidatesDeadCode(root);
+  assert.deepStrictEqual(candidates, []);
+});
+
+test('AC2: a spread-based barrel re-export beyond one hop produces no candidate and no crash', () => {
+  const root = tmp();
+  gitInit(root);
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'lib', 'a.js'), 'function fromA() { return 1; }\nmodule.exports = { fromA };\n');
+  fs.writeFileSync(path.join(root, 'lib', 'b.js'), 'function fromB() { return 2; }\nmodule.exports = { fromB };\n');
+  fs.writeFileSync(
+    path.join(root, 'lib', 'barrel.js'),
+    "module.exports = { ...require('./a'), ...require('./b') };\n",
+  );
+  fs.writeFileSync(
+    path.join(root, 'bin', 'main.js'),
+    "const { fromA, fromB } = require('../lib/barrel');\nfromA();\nfromB();\n",
+  );
+  const candidates = candidatesDeadCode(root);
+  assert.deepStrictEqual(candidates, []);
+});
+
+// ── FOCUS_GENERATORS registry ────────────────────────────────────────────────
+
+test('FOCUS_GENERATORS: registers "dead-code" mapped to scanDeadCode (the rich {candidates,scannedFiles,skippedFiles} shape)', () => {
+  assert.deepStrictEqual(Object.keys(FOCUS_GENERATORS), ['dead-code']);
+  const root = buildAc1Fixture();
+  const result = FOCUS_GENERATORS['dead-code'](root);
+  assert.ok(Array.isArray(result.candidates));
+  assert.strictEqual(typeof result.scannedFiles, 'number');
+  assert.ok(Array.isArray(result.skippedFiles));
+});
+
+// ── Zero-candidates is a clean no-op, not a crash ───────────────────────────
+
+test('an empty tree (git repo, no source files) returns zero candidates with scannedFiles: 0', () => {
+  const root = tmp();
+  gitInit(root);
+  const { candidates, scannedFiles, skippedFiles } = scanDeadCode(root);
+  assert.deepStrictEqual(candidates, []);
+  assert.strictEqual(scannedFiles, 0);
+  assert.deepStrictEqual(skippedFiles, []);
+});
+
+test('a non-git root fails open to zero candidates and zero scannedFiles rather than throwing', () => {
+  const root = tmp(); // no git init
+  const { candidates, scannedFiles } = scanDeadCode(root);
+  assert.deepStrictEqual(candidates, []);
+  assert.strictEqual(scannedFiles, 0);
+});
+
+// ── Output contract: coverage counts, ordering, evidence ────────────────────
+
+// The AC1 NUL-byte test asserts only `scannedFiles > 0`, so the count's
+// actual semantics — and the 'entrypoint' skip reason — are otherwise
+// unpinned. Both are read by focus-mode.md's zero-candidates report, where a
+// wrong coverage number is worse than no number (IL-77).
+test('scannedFiles counts every tracked source file considered, skipped ones included, and gitignored files are never considered at all', () => {
+  const root = buildAc1Fixture();
+  const { scannedFiles, skippedFiles } = scanDeadCode(root);
+  // bin/entry.js, blob.js, lib/caller.js, lib/used.js, orphan.js —
+  // NOT ignored.js (gitignored) and NOT .gitignore (not a source extension).
+  assert.strictEqual(scannedFiles, 5);
+  assert.deepStrictEqual(
+    skippedFiles.map((s) => `${s.file}:${s.reason}`).sort(),
+    ['bin/entry.js:entrypoint', 'blob.js:binary-or-nul'],
+  );
+});
+
+// The other half of the skip contract. A dangling symlink is listed by
+// `git ls-files --others` but throws on read — the one shape that reaches the
+// read-failure branch, which no fixture above exercises at all.
+test('an unreadable file is skipped with reason "unreadable", never a candidate, and never crashes the scan', () => {
+  const root = tmp();
+  gitInit(root);
+  fs.writeFileSync(path.join(root, 'orphan.js'), 'function f() {}\nmodule.exports = { f };\n');
+  fs.symlinkSync(path.join(root, 'nonexistent-target.js'), path.join(root, 'dangling.js'));
+  const { candidates, skippedFiles } = scanDeadCode(root);
+  assert.deepStrictEqual(skippedFiles, [{ file: 'dangling.js', reason: 'unreadable' }]);
+  assert.ok(!candidates.some((c) => c.file === 'dangling.js'));
+  assert.deepStrictEqual(candidates.map((c) => c.file), ['orphan.js']);
+});
+
+// ── Output contract: ordering and evidence ──────────────────────────────────
+
+// Every test above either re-sorts the result itself or asserts an empty
+// array, so all of them still pass with `candidates.sort(...)` deleted. This
+// one pins it: two dead exports in one file are DEFINED in the order
+// beta-then-alpha and therefore extracted (and pushed) in that order, so an
+// unsorted result emits them backwards.
+test('candidates are emitted in a deterministic file-then-symbol order', () => {
+  const root = tmp();
+  gitInit(root);
+  fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  // Entrypoint — keeps lib/multi.js off the orphan list so its exports get checked.
+  fs.writeFileSync(path.join(root, 'bin', 'main.js'), "require('../lib/multi');\n");
+  fs.writeFileSync(
+    path.join(root, 'lib', 'multi.js'),
+    'function beta() { return 1; }\nfunction alpha() { return 2; }\nmodule.exports = { beta, alpha };\n',
+  );
+  fs.writeFileSync(path.join(root, 'a-orphan.js'), 'const x = 1;\nconsole.log(x);\n');
+  const candidates = candidatesDeadCode(root);
+  assert.deepStrictEqual(
+    candidates.map((c) => `${c.file}:${c.symbol || ''}`),
+    ['a-orphan.js:', 'lib/multi.js:alpha', 'lib/multi.js:beta'],
+  );
+});
+
+// Nothing above reads `evidence`, so it could be dropped or blank with the
+// whole suite still green — and it is the only part of a candidate the judge
+// (SKILL.md Step 5) actually reasons over.
+test('each candidate carries evidence naming its own file and symbol', () => {
+  const root = buildAc1Fixture();
+  const byKind = Object.fromEntries(candidatesDeadCode(root).map((c) => [c.kind, c.evidence]));
+  assert.strictEqual(
+    byKind['unreferenced-export'],
+    '"deadFn" is exported from lib/used.js (module.exports) but no other line in any tracked file references it by name',
+  );
+  assert.strictEqual(
+    byKind['orphan-file'],
+    "no other tracked file's require/import specifier resolves to orphan.js",
+  );
+});
+
+// The spec's cursor-neutrality constraint: a focus firing must not touch the
+// generalist rotation's cursor or content-hash state, both of which live in
+// bin/lib/code-health/scope.js. There is no on-disk rotation state reachable
+// from a fixture tree, so the enforceable form of that constraint is that
+// this module never imports scope.js (or next-slice) at all — bound to a
+// check here rather than left to prose (IL-102). Comment lines are stripped
+// first so the header's illustrative `require('./a')`-style examples don't
+// count as imports.
+test('cursor-neutrality: the module imports nothing beyond fs/path/child_process — never scope.js or next-slice', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'candidates-dead-code.js'), 'utf8');
+  const codeOnly = src.split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
+  const imports = (codeOnly.match(/require\(\s*['"][^'"]+['"]\s*\)/g) || []).sort();
+  assert.deepStrictEqual(imports, ["require('child_process')", "require('fs')", "require('path')"]);
+});

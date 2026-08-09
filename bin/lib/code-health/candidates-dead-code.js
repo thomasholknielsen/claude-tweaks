@@ -46,7 +46,39 @@
 //     the string-keyed `require('./lib/hooks/' + event)` pattern — this
 //     repo's own hook dispatcher convention, invisible to every other rule
 //     here because the required path is never a string literal.
+//   - Files that cannot be read, and files containing a NUL byte (a real
+//     source file can hold one in a string literal, not just a binary can),
+//     are excluded from the scan entirely — never candidates, and never
+//     searched for references to other files' symbols either. They are
+//     reported by name and reason in `scanDeadCode`'s `skippedFiles`, so the
+//     gap is visible in the coverage report rather than implied away.
+//   - A test file that a runner discovers by glob or directory walk (e.g.
+//     `node --test tests/`) rather than by require/import is, structurally,
+//     an orphan to this scan: nothing statically names it. Whether that is
+//     noise or signal is a policy question for the consuming skill, not for
+//     this leaf — the generator reports what it finds, and the judge
+//     (SKILL.md Step 5) is the filter of record.
+//
+// Why there is no `grep`/`find` subprocess here. File discovery is one
+// `git ls-files` call — git's own authoritative .gitignore evaluation,
+// producing one explicit file list (never a bare recursive grep, which
+// silently skips gitignored files in one direction and reads them in the
+// other). Everything after that runs in-process: the listed files are
+// already read into memory for export extraction, so reference and orphan
+// checking scan the same in-memory text with `RegExp` rather than spawning
+// a second recursive tool that might disagree with git about what is
+// ignored. A future reader should not go looking for a grep subprocess.
+//
+// Why two functions. `scanDeadCode` does the whole scan and returns the
+// rich `{ candidates, scannedFiles, skippedFiles }` shape that
+// focus-mode.md's zero-candidates report needs (IL-115: zero candidates on
+// zero scanned files is a broken scan, not a clean repo). `candidatesDeadCode`
+// is a thin wrapper returning just `.candidates`, matching the spec's pinned
+// signature — needed as its own function because `JSON.stringify` of an array
+// drops any extra properties hung off it, so the counts cannot ride along on
+// the array that focus-mode.md's `node -e` wiring serializes.
 
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -288,6 +320,133 @@ function isFileOrphan(relFile, allFiles, contentsByFile) {
   return true;
 }
 
+// Files git would track or allow to be tracked, respecting .gitignore —
+// `--cached` (tracked/staged) + `--others --exclude-standard` (untracked
+// but not ignored) together, so a fixture tree needs only `git init` and a
+// `.gitignore` on disk; nothing needs to be `git add`ed or committed for
+// exclusion to take effect. Filters to JS/TS source extensions and sorts
+// for deterministic ordering. Fails open to [] on any git error (not a
+// repo, git unavailable) rather than throwing — a focus-mode firing must
+// degrade to "zero candidates" (Step F2's clean no-op contract), never
+// crash the sweep.
+function listTrackedSourceFiles(rootDir) {
+  let raw;
+  try {
+    raw = execFileSync(
+      'git',
+      ['-C', rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
+    );
+  } catch {
+    return [];
+  }
+  return raw
+    .split('\0')
+    .filter(Boolean)
+    .filter((f) => SOURCE_EXTS.has(path.extname(f)))
+    .sort();
+}
+
+function hasNulByte(buffer) {
+  return buffer.includes(0);
+}
+
+// The full scan, in one pass: lists tracked source files, classifies
+// entrypoints, reads every remaining file once (skipping unreadable/binary
+// ones with a reason), then for each non-entrypoint file checks orphan
+// status FIRST (an orphan file's own exports are not separately flagged —
+// that would double-count the same root cause) and otherwise checks each
+// of its module.exports symbols for a reference. Returns the rich shape
+// `{ candidates, scannedFiles, skippedFiles }` — `candidatesDeadCode` below
+// is the spec-pinned narrow wrapper returning just `.candidates`.
+//
+// `scannedFiles` counts every tracked source file the scan considered,
+// including the ones it then skipped; `skippedFiles` names that subset with
+// a reason, so `scannedFiles - skippedFiles.length` is the number actually
+// examined. A `scannedFiles` of 0 on a non-empty repo means discovery
+// itself failed (IL-115) — which is why the count is of what git listed,
+// not of what survived filtering.
+//
+// `opts` is accepted for signature parity with the spec's pinned
+// `candidatesDeadCode(rootDir, opts)` API and reserved for future use;
+// nothing in this leaf reads any property off it.
+function scanDeadCode(rootDir, opts = {}) {
+  const files = listTrackedSourceFiles(rootDir);
+  const entrypoints = detectEntrypoints(rootDir, files);
+  const contentsByFile = new Map();
+  const skippedFiles = [];
+  const scannable = [];
+
+  for (const rel of files) {
+    let buf;
+    try {
+      buf = fs.readFileSync(path.join(rootDir, rel));
+    } catch {
+      skippedFiles.push({ file: rel, reason: 'unreadable' });
+      continue;
+    }
+    if (hasNulByte(buf)) {
+      skippedFiles.push({ file: rel, reason: 'binary-or-nul' });
+      continue;
+    }
+    contentsByFile.set(rel, buf.toString('utf8'));
+    scannable.push(rel);
+  }
+
+  const candidates = [];
+  for (const rel of scannable) {
+    if (entrypoints.has(rel)) {
+      skippedFiles.push({ file: rel, reason: 'entrypoint' });
+      continue;
+    }
+    if (isFileOrphan(rel, scannable, contentsByFile)) {
+      candidates.push({
+        file: rel,
+        kind: 'orphan-file',
+        evidence: `no other tracked file's require/import specifier resolves to ${rel}`,
+      });
+      continue;
+    }
+    const exportsFound = extractModuleExports(contentsByFile.get(rel));
+    for (const { symbol, startLine, endLine } of exportsFound) {
+      const referenced = isReferenced(symbol, rel, { startLine, endLine }, scannable, contentsByFile);
+      if (!referenced) {
+        candidates.push({
+          file: rel,
+          symbol,
+          kind: 'unreferenced-export',
+          evidence: `"${symbol}" is exported from ${rel} (module.exports) but no other line in any tracked file references it by name`,
+        });
+      }
+    }
+  }
+
+  candidates.sort((a, b) => (a.file === b.file ? String(a.symbol || '').localeCompare(String(b.symbol || '')) : a.file.localeCompare(b.file)));
+
+  return { candidates, scannedFiles: files.length, skippedFiles };
+}
+
+// Spec-pinned Data/API Surface signature — a bare array, matching
+// `candidatesDeadCode(rootDir, opts) → [{file, symbol, kind, evidence}]`
+// exactly. Note this drops scannedFiles/skippedFiles (see the module
+// header's "why two functions" note) — callers that need scan coverage
+// (SKILL.md's zero-candidates report) go through `scanDeadCode` or the
+// `FOCUS_GENERATORS` registry instead.
+function candidatesDeadCode(rootDir, opts) {
+  return scanDeadCode(rootDir, opts).candidates;
+}
+
+// The framework's focus-vertical registry (shared machinery this leaf
+// introduces, per the parent design doc): focus value -> generator function
+// returning the rich `{ candidates, scannedFiles, skippedFiles }` shape,
+// so SKILL.md's zero-candidates report (IL-115) works uniformly regardless
+// of which focus fired. Exactly one entry ships in this leaf — the other
+// three verticals (test-hygiene, abstraction-police, experiment-cleanup)
+// are separate leaves, blocked on this framework (see the spec's
+// Non-Goals); each adds its own key here rather than inventing a second
+// registry.
+const FOCUS_GENERATORS = { 'dead-code': scanDeadCode };
+
 module.exports = {
   detectEntrypoints,
   extractPathLikeStrings,
@@ -297,4 +456,8 @@ module.exports = {
   escapeRegExp,
   isFileOrphan,
   referencedFileSpecifiers,
+  listTrackedSourceFiles,
+  scanDeadCode,
+  candidatesDeadCode,
+  FOCUS_GENERATORS,
 };
