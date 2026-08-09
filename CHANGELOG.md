@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.73.1 — Close the claim deprecation window, retire the per-run record cache, fix the writeRunState CI flake
+
+Close the claim deprecation window, retire the per-run record cache, fix the writeRunState CI flake.
+
 ## v6.73.0 — Harness lever wave: substrate fold, re-read cuts, sync-surface tests, record cache, claim-store unification
 
 Harness lever wave: substrate fold, re-read cuts, sync-surface tests, record cache, claim-store unification.
