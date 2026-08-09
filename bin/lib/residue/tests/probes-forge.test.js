@@ -1,7 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { probeForge } = require('../probes/forge');
-const { probeClaims } = require('../probes/claims');
 
 function stubRunner(responses) {
   return (argv) => (Object.prototype.hasOwnProperty.call(responses, argv.join(' ')) ? responses[argv.join(' ')] : null);
@@ -48,29 +47,4 @@ test('unparseable gh output does not run, rather than throwing', () => {
   const r = probeForge({ scope: SCOPE, run: stubRunner({ [PR_LIST]: 'not json' }) });
   assert.strictEqual(r.ran, false);
   assert.match(r.reason, /could not parse/);
-});
-
-test('a claim ref for a closed record is reported as auto-releasable', () => {
-  const run = stubRunner({
-    'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref': 'refs/claims/issue-185',
-    'gh issue view 185 --json state': JSON.stringify({ state: 'CLOSED' }),
-  });
-  const { findings } = probeClaims({ scope: SCOPE, run });
-  const claim = findings.find((f) => f.subject === 'refs/claims/issue-185');
-  assert.strictEqual(claim.remedy, 'auto');
-});
-
-test('a claim ref for an open record is not residue', () => {
-  const run = stubRunner({
-    'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref': 'refs/claims/issue-185',
-    'gh issue view 185 --json state': JSON.stringify({ state: 'OPEN' }),
-  });
-  assert.deepStrictEqual(probeClaims({ scope: SCOPE, run }).findings, []);
-});
-
-test('an unreadable record state leaves the claim alone', () => {
-  const run = stubRunner({ 'gh api repos/{owner}/{repo}/git/matching-refs/claims/ -q .[].ref': 'refs/claims/issue-185' });
-  const r = probeClaims({ scope: SCOPE, run });
-  assert.deepStrictEqual(r.findings, [], 'releasing a claim whose state is unknown could unclaim live work');
-  assert.strictEqual(r.ran, true, 'the scan itself ran; it simply had nothing provable');
 });

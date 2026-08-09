@@ -14,7 +14,6 @@ const { hasTestScript } = require('./lib/residue/detect-test-script');
 const { probeWorktrees } = require('./lib/residue/probes/worktrees');
 const { probeBranches } = require('./lib/residue/probes/branches');
 const { probeForge } = require('./lib/residue/probes/forge');
-const { probeClaims } = require('./lib/residue/probes/claims');
 const { probeSuite } = require('./lib/residue/probes/suite');
 const { probeRelease } = require('./lib/residue/probes/release');
 const { renderOutstanding } = require('./lib/residue/render');
@@ -92,14 +91,13 @@ function main() {
   // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
   // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
   // probeRelease calls run(['git', 'show', ...]) — full argv including the
-  // executable — so it gets the raw `run`, like probeForge/probeClaims.
+  // executable — so it gets the raw `run`, like probeForge.
   // Passing `git` here yields `git git show …`, and the probe then reports
   // ran:false on every invocation of a perfectly healthy repo.
   const results = filterResultsByScope([
     probeWorktrees({ scope }),
     probeBranches({ scope, integrationBranch: opts.integrationBranch, run: git }),
     probeForge({ scope, run }),
-    probeClaims({ scope, run }),
     suiteResult,
     probeRelease({ scope, manifest, run }),
   ], opts.scope);

@@ -149,13 +149,6 @@ deprecation window (see that section's End condition).
 gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
 ```
 
-**Not re-pointed at `bin/residue.js`.** That CLI's `kind: claim` probe (`probeClaims`) checks
-only whether each claim ref's issue is closed — it never reads a claim blob and never calls
-`classifyClaimBlob`, so it covers just the first row of the table below and has no way to
-produce the rest, nor any of the three backstops that follow. Folding it in would drop, not
-replace, most of the status rows plus every backstop; this step keeps its own full listing and
-classify fold unchanged.
-
 | Status | Recommendation |
 |--------|---------------|
 | Issue closed (any claim state) | Release (orphan — the work is done or dismissed) |

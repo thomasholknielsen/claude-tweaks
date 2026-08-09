@@ -1,12 +1,9 @@
 // bin/lib/issues/claims.js
 // Pure: build claim/release payloads for the claims-registry blob store
 // (`claims/issue-<n>.json` on the `claims-registry` branch — the one lock
-// keyspace both the gh-CLI and MCP transports write to) and fold claim-
-// comment markers into claim status. The SKILL.md runs gh (or the MCP
-// tools) and passes results back — no network here. `claimRef`/`claimPath`
-// (the `refs/claims/issue-<n>` git-ref keyspace) are read-only-compat
-// surface for the deprecation window described in issue-claims.md — no
-// current code path *writes* a claim there; `classifyClaimBlob` below is
+// keyspace both the gh-CLI and MCP transports write to) and classify a
+// claim blob's current content. The SKILL.md runs gh (or the MCP tools)
+// and passes results back — no network here. `classifyClaimBlob` below is
 // the one classification function both transports' write paths share.
 // Time-dependent functions take `now` (epoch ms).
 // Contract: skills/_shared/issue-claims.md.
@@ -14,38 +11,24 @@
 
 const DEFAULT_TTL_HOURS = 72;
 const CLAIMS_BRANCH = 'claims-registry';
-const RELEASE_RE = /<!--\s*agent-claim-release:\s*(\{[\s\S]*?\})\s*-->/;
-const CLAIM_RE = /<!--\s*agent-claim:\s*(\{[\s\S]*?\})\s*-->/;
-
-function claimRef(issueNumber) {
-  return `refs/claims/issue-${issueNumber}`;
-}
 
 function claimFilePath(issueNumber) {
   return `claims/issue-${issueNumber}.json`;
 }
 
-// opts: { issueNumber, sha, runId, sessionId, ttlHours?, host?, owner?, repo?, note?, now }
+// opts: { issueNumber, runId, sessionId, ttlHours?, host?, owner?, repo?, note?, now }
 // owner/repo default to gh's {owner}/{repo} placeholders (auto-filled from the current repo).
-// Returns { ref, sha, owner, repo, claimPath, fileContent, commentBody }.
-// gh-CLI path: `gh api "repos/${owner}/${repo}/git/refs" -f "ref=${ref}" -f "sha=${sha}"`
-//   (201 = claimed, 422 = contested).
-// MCP path: create_or_update_file(owner, repo, claimPath, fileContent, branch: CLAIMS_BRANCH).
-//   CLAIMS_BRANCH does NOT auto-create on first write — branch creation there is a separate
-//   `create_branch` tool call, and an existing claim file may be a release tombstone rather
-//   than a live claim, so that path is a read-then-branch procedure rather than a bare
-//   create-only write. See `_shared/issue-claims.md`'s "The lock" section for the full
-//   procedure; never pass this payload's own `sha` field (a commit sha, for the gh path's
-//   ref creation) to `create_or_update_file`, whose `sha` means the target file's blob sha.
-function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_TTL_HOURS, host = '', owner = '{owner}', repo = '{repo}', note, now }) {
+// Returns { owner, repo, claimPath, fileContent, commentBody }.
+// Both transports write `fileContent` to `claimPath` on `CLAIMS_BRANCH`
+// (create-only when absent, conditional-update with the blob's current sha
+// when reclaiming a tombstone/stale claim — see `_shared/issue-claims.md`'s
+// "The lock" section for the full read-classify-write procedure).
+function claimPayload({ issueNumber, runId, sessionId, ttlHours = DEFAULT_TTL_HOURS, host = '', owner = '{owner}', repo = '{repo}', note, now }) {
   const claimedAt = new Date(now).toISOString();
-  const ref = claimRef(issueNumber);
   const marker = { runId, sessionId, claimedAt, ttlHours, host };
   const humanLines = [`Claimed by claude-tweaks run ${runId} at ${claimedAt} (TTL ${ttlHours}h).`];
   if (note) humanLines.push(note);
   return {
-    ref,
-    sha,
     owner,
     repo,
     claimPath: claimFilePath(issueNumber),
@@ -55,48 +38,23 @@ function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_T
 }
 
 // opts: { issueNumber, runId, reason, link?, owner?, repo?, now }
-// Returns { ref, owner, repo, claimPath, tombstoneContent, commentBody }.
-// gh-CLI path: `gh api -X DELETE "repos/${owner}/${repo}/git/${ref}"`.
-// MCP path: create_or_update_file(owner, repo, claimPath, tombstoneContent, branch:
-//   CLAIMS_BRANCH, sha: <current file's sha, fetched first>) — overwrites with a tombstone
-//   rather than deleting, since a delete-file MCP tool isn't confirmed to exist. A sha
-//   mismatch here means someone else already broke/re-claimed — treat as a release race,
-//   not this run's problem (mirrors the gh-path's own "release fails -> log, TTL is the
-//   backstop" posture).
+// Returns { owner, repo, claimPath, tombstoneContent, commentBody }.
+// Both transports overwrite the blob at `claimPath` with `tombstoneContent`
+// (conditional-update, `sha` = the target file's current blob sha from a
+// fresh read) rather than deleting it. A sha mismatch here means someone
+// else already broke/re-claimed — treat as a release race, not this run's
+// problem (mirrors the "release fails -> log, TTL is the backstop" posture).
 function releasePayload({ issueNumber, runId, reason, link, owner = '{owner}', repo = '{repo}', now }) {
   const releasedAt = new Date(now).toISOString();
-  const ref = claimRef(issueNumber);
   const marker = link ? { runId, reason, releasedAt, link } : { runId, reason, releasedAt };
   const human = `Released by run ${runId}: ${reason}.` + (link ? ` See ${link}.` : '');
   return {
-    ref,
     owner,
     repo,
     claimPath: claimFilePath(issueNumber),
     tombstoneContent: JSON.stringify({ released: true, ...marker }, null, 2),
     commentBody: `<!-- agent-claim-release: ${JSON.stringify(marker)} -->\n${human}`,
   };
-}
-
-// Never throws. Returns { kind: 'claim'|'release', ...markerFields } or null.
-// The derived kind (from which marker prefix matched) always wins over any
-// "kind" key inside the marker JSON — fields spread first, kind last.
-// Release is checked first; the claim regex cannot match a release marker
-// ("agent-claim-release:" has "-" after "agent-claim", not ":").
-function parseClaimMarker(body) {
-  if (typeof body !== 'string') return null;
-  for (const [kind, re] of [['release', RELEASE_RE], ['claim', CLAIM_RE]]) {
-    const m = re.exec(body);
-    if (!m) continue;
-    try {
-      const fields = JSON.parse(m[1]);
-      if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) return null;
-      return { ...fields, kind };
-    } catch {
-      return null;
-    }
-  }
-  return null;
 }
 
 // claim: a parsed claim marker. now: epoch ms.
@@ -107,31 +65,6 @@ function isStale(claim, now) {
   if (Number.isNaN(t)) return false;
   const ttl = typeof claim.ttlHours === 'number' ? claim.ttlHours : DEFAULT_TTL_HOURS;
   return now >= t + ttl * 3600 * 1000;
-}
-
-// comments: array of body strings or {body} objects, chronological (gh api order).
-// Folds markers in order: a claim activates, a release clears. `claimed` is true
-// even when stale — staleness signals breakability, not absence.
-//
-// When claimed is false, `everReleased` distinguishes two outcomes a bare 422 can't tell
-// apart on its own (see `_shared/issue-claims.md`'s Failure-posture table): `true` means the
-// last marker seen was a valid release (the ref-delete failed after the release comment
-// posted — safe to break: delete, recreate, takeover comment). `false` means no marker was
-// ever found at all (comment-post failed after an earlier claim, or the marker is corrupted) —
-// treat as live: skip, log; never break on this signal alone.
-function claimStatus(comments, now) {
-  let active = null;
-  let lastMarkerKind = null;
-  for (const item of comments || []) {
-    const body = typeof item === 'string' ? item : item && item.body;
-    const marker = parseClaimMarker(body);
-    if (!marker) continue;
-    lastMarkerKind = marker.kind;
-    if (marker.kind === 'claim') active = marker;
-    else active = null;
-  }
-  if (!active) return { claimed: false, claim: null, stale: false, everReleased: lastMarkerKind === 'release' };
-  return { claimed: true, claim: active, stale: isStale(active, now) };
 }
 
 // Classify a claim blob's *current* content — the same read-then-classify
@@ -171,6 +104,6 @@ function classifyClaimBlob(content, now) {
 }
 
 module.exports = {
-  DEFAULT_TTL_HOURS, CLAIMS_BRANCH, claimRef, claimFilePath, claimPayload, releasePayload,
-  parseClaimMarker, isStale, claimStatus, classifyClaimBlob,
+  DEFAULT_TTL_HOURS, CLAIMS_BRANCH, claimFilePath, claimPayload, releasePayload,
+  isStale, classifyClaimBlob,
 };
