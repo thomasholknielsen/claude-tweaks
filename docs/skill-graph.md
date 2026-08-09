@@ -66,6 +66,7 @@ depends on them.
 | `/test` | Runs AFTER `/build`. In pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist. Standalone: runs the same checks as `/build` Common Step 5. |
 | `/tidy` | Reviews specs from `/build` for staleness — periodic cleanup complement. |
 | `/superpowers:brainstorming` | Produces the design doc `/build`'s design mode consumes directly. |
+| `skills/_shared/causal-depth.md` | `_shared/reproduce-first-discipline.md`'s step 3 walks this why-chain on every confirmed behavioral-bug cause reached via `/build` Common Step 5, `/test` Step 3 Fix Mode, or `/review`. Inherited transitively — this contract isn't `/build`-specific, it's owned here because `/build` is the alphabetically-first of the three skills that reach it through `reproduce-first-discipline.md`. |
 | `skills/_shared/integration-branch.md` | Names the expected fork point when set, replacing the upstream-then-`origin/HEAD` derivation in `worktree-setup.md`. Shared with `/flow`'s `validation.md`, which runs the identical check. |
 | `_shared/learning-routing.md` | Common Step 4.5 classifies every architecture-alignment observation through this contract, tagging the ledger entry `[route: D4]`/`[route: D5]` when applicable so `/wrap-up`'s Skills curation row hands it to the Memory or Upstream feedback row instead of seeding it as a skill update. |
 
@@ -267,6 +268,7 @@ depends on them.
 |---|---|
 | `/feedback` | Insights classified via `_shared/learning-routing.md` that resolve to D5 route to `/feedback` for upstream filing. |
 | `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
+| `skills/_shared/causal-depth.md` | `full-mode.md`'s Near-misses lens walks this why-chain on every near-miss finding before Step 3 routing — `light-mode.md` inherits the binding by reusing the same lens definition verbatim, with no separate edge. |
 | `_shared/learning-routing.md` | Routes every insight/finding through this contract's classifier instead of reflect's own destination table; hindsight mode additionally tags a D4/D5 ledger entry `[route: D4]`/`[route: D5]` for `/wrap-up`'s Skills curation row to pick up and hand on. |
 
 ## research
