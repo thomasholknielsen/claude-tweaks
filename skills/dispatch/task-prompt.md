@@ -56,7 +56,7 @@ pipeline's own steps select their own models as usual.]
 
 **Export `PIPELINE_RUN_DIR` on this call.** Derived from the first call's `MANIFEST:` path per `two-call-gate.md` sections 1 and 3, and non-negotiable: `/flow` always creates a fresh run directory of its own, so without it this call orphans everything the first call staged. If it cannot be derived, this call is not dispatched at all (section 4).
 
-This call's prompt names ONLY the record number(s) and `CLAIM_RUN_ID` — never a summary of the first call's outcome. It is a fresh Task-tool dispatch with zero conversation history from the first call, and its own review step must re-derive its verdict from raw artifacts (the actual diff, the actual test-output artifact — via the same shape `bin/lib/dispatch/artifact-verdict.js`'s `deriveTestVerdict` pins as a testable invariant) rather than trusting any claim the first call made, including claims written to `decisions.md`, ledger entries, or staged proposals the first call produced. File-based state is readable across the two calls even though conversation history is not — the instruction below states this explicitly because that distinction is easy to lose.
+This call's prompt names ONLY the record number(s), `CLAIM_RUN_ID`, and the `PIPELINE_RUN_DIR` path above — never a summary of the first call's outcome. All three are resolution targets, not findings; that is what keeps the no-echo rule intact while the run itself is handed over. It is a fresh Task-tool dispatch with zero conversation history from the first call, and its own review step must re-derive its verdict from raw artifacts (the actual diff, the actual test-output artifact — via the same shape `bin/lib/dispatch/artifact-verdict.js`'s `deriveTestVerdict` pins as a testable invariant) rather than trusting any claim the first call made, including claims written to `decisions.md`, ledger entries, or staged proposals the first call produced. File-based state is readable across the two calls even though conversation history is not — the instruction below states this explicitly because that distinction is easy to lose.
 
 ```
 Task scope: Execute claude-tweaks review+polish+wrap-up for this already-claimed file-overlap
@@ -101,7 +101,7 @@ MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singlet
 One line per issue in this group that hit a HARD-GATE or the retry ceiling (omit if none):
 ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 
-[Use: Standard model -- this dispatch wraps full pipeline execution, not analysis; the
+[Use: Standard model -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual.]
 ```
 
