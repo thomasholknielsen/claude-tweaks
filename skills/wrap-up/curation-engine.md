@@ -143,7 +143,7 @@ Write those fields as a reader would say them: the target's name, what changes, 
 3. For each open row, apply its judge file to its scope — using the table's own cap where one is stated, narrowed under `fast-lane`.
 4. Write the row's `SCANNED` line by hand in the section 3 format, into `decisions.md`.
 5. Compose the phase-trace row by hand: `| {target} | {n/a | Clean | {n} applied | {n} staged | {a} applied, {s} staged} | {detail} |`.
-6. Honor sections 3 and 5 unchanged — the `applied` precondition, the stage-only rows, and the vocabulary rule are contracts the engine also enforces when it runs; under the fallback they bind the judge directly.
+6. Honor sections 3 and 5 unchanged — the stage-only-rows check and the vocabulary rule are engine-enforced; the remaining three clauses of the applied precondition (additive-only, reversibility, confidence) are judgment-only and not engine-validated — under the fallback all of them bind the judge directly.
 
 **The report MUST state `(engine unavailable — prose fallback ran)` in the Phase 2 table caption.** A hand-composed trace that looks engine-produced is worse than no trace: the trace's whole value is that it is mechanical, and a reader cannot tell the two apart from the table alone.
 
