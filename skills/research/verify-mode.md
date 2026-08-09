@@ -83,6 +83,21 @@ do not rank candidates by importance, confidence, or cost, and do not assign poi
 Both branches converging is the *only* reason to drop a question. A question is never dropped for
 being expensive, broad, or unlikely to resolve.
 
+**"The design would be whichever branch the answer picks" is divergence, not convergence.** A
+question whose answers select between two different systems to build — different components,
+different endpoints, different failure modes — is always a keep, even when the design brief
+already sketches both branches. Convergence means the *same* design gets built under either
+answer; it does not mean "we have a plan for either answer." The brief describing both outcomes is
+evidence the question matters, not evidence it is settled.
+
+**Dropping requires a positive demonstration, and on new ground that demonstration is rarely
+available.** To drop, you must be able to state the concrete reason both branches yield the same
+design (a stated constraint that already fixes the choice, a value that is rebuilt regardless —
+the kind of reason the drop log requires). "This reads like a tunable detail someone can adjust
+later" is not that demonstration: whether something is a tunable knob on one design or a fork
+between two designs is exactly what priors tell you, so on a no-priors topic the doubt resolves to
+keep.
+
 Order the surviving questions by **divergence** — how different the two designs are — highest
 first. That ordering is the output; it is what makes a partial run useful when one is cut short.
 
