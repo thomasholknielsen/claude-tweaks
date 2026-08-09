@@ -44,25 +44,43 @@ This is a sequencing requirement, not a formality. `ISSUES_FILE` is the only inp
 
 ## F1 — Run the generator
 
+`$FOCUS` and `$ROOT` are passed as `process.argv` arguments after `--`, never spliced into the JS source itself — a `--root` value containing a single quote (a realistic path like `O'Brien's-repo`) would otherwise break out of a string literal:
+
 ```bash
 node -e "
 const { FOCUS_GENERATORS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/candidates-dead-code.js');
-const gen = FOCUS_GENERATORS['${FOCUS}'];
-console.log(JSON.stringify(gen('${ROOT:-$PWD}')));
-" > /tmp/code-health-focus-scan.json
+const focus = process.argv[1];
+const root = process.argv[2];
+const gen = FOCUS_GENERATORS[focus];
+if (!gen) {
+  console.error('focus-mode: unrecognized focus: ' + focus + '. Known values: ' + Object.keys(FOCUS_GENERATORS).join(', '));
+  process.exit(1);
+}
+console.log(JSON.stringify(gen(root)));
+" -- "$FOCUS" "${ROOT:-$PWD}" > /tmp/code-health-focus-scan.json
 ```
 
-Read `/tmp/code-health-focus-scan.json`. It is `{ candidates, scannedFiles, skippedFiles }` — always the rich shape, never the bare `candidatesDeadCode(rootDir, opts) → [...]` array (that narrower signature exists too, for direct unit testing, but this wiring always goes through the registry's richer generator function so scan coverage is always reportable, per the zero-candidates contract below). `scannedFiles` is a count of every tracked source file the scan considered; `skippedFiles` is an array of `{ file, reason }` naming the subset it then skipped, so `scannedFiles - skippedFiles.length` is what was actually examined. Each candidate is `{ file, kind, evidence }` plus a `symbol` on the `unreferenced-export` kind.
+The `if (!gen)` guard makes the documented "an unrecognized `focus=` value fails loud, naming the known values" contract self-enforcing here, rather than depending on the "Known values" lookup above having actually been run first — if `$FOCUS` is somehow still unrecognized when F1 fires, this reports the same known-values list and exits non-zero instead of throwing a raw `TypeError` out of `gen(...)`.
+
+Read `/tmp/code-health-focus-scan.json`. It is `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }` — always the rich shape, never the bare `candidatesDeadCode(rootDir, opts) → [...]` array (that narrower signature exists too, for direct unit testing, but this wiring always goes through the registry's richer generator function so scan coverage is always reportable, per the zero-candidates contract below). `scannedFiles` is a count of every tracked source file the scan considered; `skippedFiles` is an array of `{ file, reason }` naming the subset it then skipped, so `scannedFiles - skippedFiles.length` is what was actually examined. `discoveryFailed` is `true` only when file discovery itself errored (see F2); `discoveryReason` is present only then. Each candidate is `{ file, kind, evidence }` plus a `symbol` on the `unreferenced-export` kind.
 
 ## F2 — Zero candidates is a clean no-op, not an error
 
-If `candidates` is an empty array, this firing is done. Do not treat it as a failure and do not retry. Report exactly:
+Check `discoveryFailed` first. If it is `true`, file discovery itself errored (git timeout, permission denied, repo corruption, non-git root, or output past the discovery call's `maxBuffer`) — this is NOT a clean tree, and `scannedFiles: 0` here means "discovery never ran," not "nothing to scan." Report exactly:
+
+```
+focus=<vertical>: discovery failed: <discoveryReason>
+```
+
+and stop. Do not write a clean no-op run record for this case — it is a scan failure needing investigation, not a firing to log and move past.
+
+Otherwise, if `candidates` is an empty array, this firing is done. Do not treat it as a failure and do not retry. Report exactly:
 
 ```
 focus=<vertical>: no candidates this firing (scanned: <scannedFiles> files, skipped: <skippedFiles.length>)
 ```
 
-Write the run record via the same convention the generalist run already uses (Step 8's `validate-findings` with an empty findings array, `--slice "focus:<vertical>"`, so the run-log entry exists) and stop. Reporting both counts is what makes a genuinely clean tree distinguishable from a silent total skip (IL-115) — a `scannedFiles: 0` line is a signal something is wrong (non-git root, `git` unavailable), not evidence of a clean repo.
+Write the run record via the same convention the generalist run already uses (Step 8's `validate-findings` with an empty findings array, `--slice "focus:<vertical>"`, so the run-log entry exists) and stop. Reporting both counts is what makes a genuinely clean tree distinguishable from a silent total skip (IL-115) — `discoveryFailed: false` with `scannedFiles: 0` is what makes that a legitimately empty tracked tree rather than a broken scan wearing the same sentinel.
 
 Both counts are reported the same way on a **non-empty** firing too — they are the focus-mode substitute for the slice-coverage line SKILL.md Step 10 asks for. This section only fixes their wording; they always come from F1's output.
 

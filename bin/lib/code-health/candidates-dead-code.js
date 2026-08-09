@@ -77,9 +77,11 @@
 // ignored. A future reader should not go looking for a grep subprocess.
 //
 // Why two functions. `scanDeadCode` does the whole scan and returns the
-// rich `{ candidates, scannedFiles, skippedFiles }` shape that
-// focus-mode.md's zero-candidates report needs (IL-115: zero candidates on
-// zero scanned files is a broken scan, not a clean repo). `candidatesDeadCode`
+// rich `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }`
+// shape that focus-mode.md's zero-candidates report needs (IL-115:
+// `discoveryFailed` distinguishes a broken scan from a clean repo — the two
+// used to collapse into the identical `scannedFiles: 0` sentinel).
+// `candidatesDeadCode`
 // is a thin wrapper returning just `.candidates`, matching the spec's pinned
 // signature — needed as its own function because `JSON.stringify` of an array
 // drops any extra properties hung off it, so the counts cannot ride along on
@@ -332,26 +334,38 @@ function isFileOrphan(relFile, allFiles, contentsByFile) {
 // but not ignored) together, so a fixture tree needs only `git init` and a
 // `.gitignore` on disk; nothing needs to be `git add`ed or committed for
 // exclusion to take effect. Filters to JS/TS source extensions and sorts
-// for deterministic ordering. Fails open to [] on any git error (not a
-// repo, git unavailable) rather than throwing — a focus-mode firing must
-// degrade to "zero candidates" (Step F2's clean no-op contract), never
-// crash the sweep.
+// for deterministic ordering.
+//
+// Returns `{ files, discoveryFailed, reason? }`, never a bare array —
+// `discoveryFailed` distinguishes "git itself failed" (timeout, permission
+// denied, repo corruption, non-git root, output past maxBuffer) from a
+// legitimately empty tracked tree, both of which would otherwise collapse
+// into the identical `files: []` sentinel a caller can't tell apart
+// (IL-115: a focus-mode firing must be able to report which one happened,
+// not silently degrade a real failure into "zero candidates, clean repo").
+// `reason` is the captured stderr (or, failing that, the error message) and
+// is present only when `discoveryFailed` is true. `maxBuffer` is set
+// explicitly (Node's execFileSync default is ~1MB) since a large consumer
+// repo's `git ls-files` output can exceed that on the default.
 function listTrackedSourceFiles(rootDir) {
   let raw;
   try {
     raw = execFileSync(
       'git',
       ['-C', rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
     );
-  } catch {
-    return [];
+  } catch (err) {
+    const stderr = err && err.stderr ? String(err.stderr).trim() : '';
+    const reason = stderr || (err && err.message) || 'unknown error';
+    return { files: [], discoveryFailed: true, reason };
   }
-  return raw
+  const files = raw
     .split('\0')
     .filter(Boolean)
     .filter((f) => SOURCE_EXTS.has(path.extname(f)))
     .sort();
+  return { files, discoveryFailed: false };
 }
 
 function hasNulByte(buffer) {
@@ -364,21 +378,28 @@ function hasNulByte(buffer) {
 // status FIRST (an orphan file's own exports are not separately flagged —
 // that would double-count the same root cause) and otherwise checks each
 // of its module.exports symbols for a reference. Returns the rich shape
-// `{ candidates, scannedFiles, skippedFiles }` — `candidatesDeadCode` below
-// is the spec-pinned narrow wrapper returning just `.candidates`.
+// `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }`
+// — `candidatesDeadCode` below is the spec-pinned narrow wrapper returning
+// just `.candidates`.
 //
 // `scannedFiles` counts every tracked source file the scan considered,
 // including the ones it then skipped; `skippedFiles` names that subset with
 // a reason, so `scannedFiles - skippedFiles.length` is the number actually
-// examined. A `scannedFiles` of 0 on a non-empty repo means discovery
-// itself failed (IL-115) — which is why the count is of what git listed,
-// not of what survived filtering.
+// examined. `discoveryFailed` (from `listTrackedSourceFiles`) is the actual
+// IL-115 signal: `true` means discovery itself failed (git timeout,
+// permission denied, repo corruption, non-git root, output past
+// maxBuffer) and `discoveryReason` names why — a `scannedFiles` of 0 with
+// `discoveryFailed: false` is instead a legitimately empty tracked tree.
+// The two cases produced the identical `scannedFiles: 0` sentinel before
+// this field existed; callers must key off `discoveryFailed`, not
+// `scannedFiles === 0`, to tell them apart.
 //
 // `opts` is accepted for signature parity with the spec's pinned
 // `candidatesDeadCode(rootDir, opts)` API and reserved for future use;
 // nothing in this leaf reads any property off it.
 function scanDeadCode(rootDir, opts = {}) {
-  const files = listTrackedSourceFiles(rootDir);
+  const discovery = listTrackedSourceFiles(rootDir);
+  const files = discovery.files;
   const entrypoints = detectEntrypoints(rootDir, files);
   const contentsByFile = new Map();
   const skippedFiles = [];
@@ -430,7 +451,9 @@ function scanDeadCode(rootDir, opts = {}) {
 
   candidates.sort((a, b) => (a.file === b.file ? String(a.symbol || '').localeCompare(String(b.symbol || '')) : a.file.localeCompare(b.file)));
 
-  return { candidates, scannedFiles: files.length, skippedFiles };
+  const result = { candidates, scannedFiles: files.length, skippedFiles, discoveryFailed: discovery.discoveryFailed };
+  if (discovery.discoveryFailed) result.discoveryReason = discovery.reason;
+  return result;
 }
 
 // Spec-pinned Data/API Surface signature — a bare array, matching
@@ -445,8 +468,8 @@ function candidatesDeadCode(rootDir, opts) {
 
 // The framework's focus-vertical registry (shared machinery this leaf
 // introduces, per the parent design doc): focus value -> generator function
-// returning the rich `{ candidates, scannedFiles, skippedFiles }` shape,
-// so SKILL.md's zero-candidates report (IL-115) works uniformly regardless
+// returning the rich `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }`
+// shape, so SKILL.md's zero-candidates report (IL-115) works uniformly regardless
 // of which focus fired. Exactly one entry ships in this leaf — the other
 // three verticals (test-hygiene, abstraction-police, experiment-cleanup)
 // are separate leaves, blocked on this framework (see the spec's

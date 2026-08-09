@@ -448,7 +448,7 @@ test('referencedFileSpecifiers: finds require, static import, side-effect import
 });
 
 const { execFileSync } = require('node:child_process');
-const { candidatesDeadCode, scanDeadCode, FOCUS_GENERATORS } = require('../candidates-dead-code');
+const { candidatesDeadCode, scanDeadCode, FOCUS_GENERATORS, listTrackedSourceFiles } = require('../candidates-dead-code');
 
 function gitInit(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);
@@ -461,6 +461,26 @@ function tmpGitRepo() {
   gitInit(root);
   return root;
 }
+
+// ── listTrackedSourceFiles: the {files, discoveryFailed, reason?} shape ─────
+
+test('listTrackedSourceFiles: a real git repo returns {files, discoveryFailed: false}, no reason key', () => {
+  const root = tmpGitRepo();
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'lib', 'a.js'), 'module.exports = {};\n');
+  const result = listTrackedSourceFiles(root);
+  assert.deepStrictEqual(result.files, ['lib/a.js']);
+  assert.strictEqual(result.discoveryFailed, false);
+  assert.ok(!('reason' in result));
+});
+
+test('listTrackedSourceFiles: a non-git root returns {files: [], discoveryFailed: true, reason: <non-empty>}', () => {
+  const root = tmp(); // no git init
+  const result = listTrackedSourceFiles(root);
+  assert.deepStrictEqual(result.files, []);
+  assert.strictEqual(result.discoveryFailed, true);
+  assert.ok(typeof result.reason === 'string' && result.reason.length > 0);
+});
 
 // ── AC1: a fixture tree with a known dead export, a live export, an orphan
 // file, an entrypoint, and a gitignored file yields EXACTLY the dead export +
@@ -575,30 +595,42 @@ test('AC2: a spread-based barrel re-export beyond one hop produces no candidate 
 
 // ── FOCUS_GENERATORS registry ────────────────────────────────────────────────
 
-test('FOCUS_GENERATORS: registers "dead-code" mapped to scanDeadCode (the rich {candidates,scannedFiles,skippedFiles} shape)', () => {
+test('FOCUS_GENERATORS: registers "dead-code" mapped to scanDeadCode (the rich {candidates,scannedFiles,skippedFiles,discoveryFailed} shape)', () => {
   assert.deepStrictEqual(Object.keys(FOCUS_GENERATORS), ['dead-code']);
   const root = buildAc1Fixture();
   const result = FOCUS_GENERATORS['dead-code'](root);
   assert.ok(Array.isArray(result.candidates));
   assert.strictEqual(typeof result.scannedFiles, 'number');
   assert.ok(Array.isArray(result.skippedFiles));
+  assert.strictEqual(result.discoveryFailed, false);
 });
 
 // ── Zero-candidates is a clean no-op, not a crash ───────────────────────────
 
-test('an empty tree (git repo, no source files) returns zero candidates with scannedFiles: 0', () => {
+test('an empty tree (git repo, no source files) returns zero candidates with scannedFiles: 0 and discoveryFailed: false', () => {
   const root = tmpGitRepo();
-  const { candidates, scannedFiles, skippedFiles } = scanDeadCode(root);
+  const { candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason } = scanDeadCode(root);
   assert.deepStrictEqual(candidates, []);
   assert.strictEqual(scannedFiles, 0);
   assert.deepStrictEqual(skippedFiles, []);
+  // The IL-115 distinguishing signal: a legitimately empty tracked tree is
+  // discoveryFailed: false, NOT the same scannedFiles: 0 sentinel a broken
+  // discovery call also produces (see the next test).
+  assert.strictEqual(discoveryFailed, false);
+  assert.strictEqual(discoveryReason, undefined);
 });
 
-test('a non-git root fails open to zero candidates and zero scannedFiles rather than throwing', () => {
+test('a non-git root reports discoveryFailed: true with a captured reason, not the same scannedFiles: 0 a clean tree produces', () => {
   const root = tmp(); // no git init
-  const { candidates, scannedFiles } = scanDeadCode(root);
+  const { candidates, scannedFiles, discoveryFailed, discoveryReason } = scanDeadCode(root);
   assert.deepStrictEqual(candidates, []);
   assert.strictEqual(scannedFiles, 0);
+  // This is the case Finding 2 fixes: previously indistinguishable from a
+  // real empty repo's scannedFiles: 0. discoveryFailed: true plus a
+  // non-empty reason (git's own "not a git repository" stderr) is what
+  // makes the two tell-apart-able now.
+  assert.strictEqual(discoveryFailed, true);
+  assert.ok(typeof discoveryReason === 'string' && discoveryReason.length > 0, 'discoveryReason must capture the underlying git failure, not be silently dropped');
 });
 
 // ── Output contract: coverage counts, ordering, evidence ────────────────────
@@ -609,10 +641,11 @@ test('a non-git root fails open to zero candidates and zero scannedFiles rather 
 // wrong coverage number is worse than no number (IL-77).
 test('scannedFiles counts every tracked source file considered, skipped ones included, and gitignored files are never considered at all', () => {
   const root = buildAc1Fixture();
-  const { scannedFiles, skippedFiles } = scanDeadCode(root);
+  const { scannedFiles, skippedFiles, discoveryFailed } = scanDeadCode(root);
   // bin/entry.js, blob.js, lib/caller.js, lib/used.js, orphan.js —
   // NOT ignored.js (gitignored) and NOT .gitignore (not a source extension).
   assert.strictEqual(scannedFiles, 5);
+  assert.strictEqual(discoveryFailed, false);
   assert.deepStrictEqual(
     skippedFiles.map((s) => `${s.file}:${s.reason}`).sort(),
     ['bin/entry.js:entrypoint', 'blob.js:binary-or-nul'],
@@ -686,4 +719,41 @@ test('cursor-neutrality: the module imports nothing beyond fs/path/child_process
   const codeOnly = src.split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
   const imports = (codeOnly.match(/require\(\s*['"][^'"]+['"]\s*\)/g) || []).sort();
   assert.deepStrictEqual(imports, ["require('child_process')", "require('fs')", "require('path')"]);
+});
+
+// Behavioral counterpart to the source-grep test above (review finding: the
+// grep proves the import list is clean but not that runtime behavior
+// matches — a refactor-safe rename or a dynamic `require` built from string
+// concatenation would evade it without violating the real guarantee). This
+// asserts the actual guarantee directly: a real scanDeadCode call must leave
+// every on-disk/ref surface the generalist rotation's state lives on
+// byte-identical. Two such surfaces exist:
+//   - the local dedup cache, .claude-tweaks/<skill>/cache.json
+//     (bin/lib/health-core/cache.js) — must never be created here;
+//   - the durable rotation-cursor/content-hash state, which is NOT a local
+//     file at all — it lives on a dedicated `health-state` git branch
+//     (bin/lib/health-core/durable-state.js), fetched/pushed via
+//     `git ... origin/health-state`. A fetch/push against it would create or
+//     move a `health-state` ref in this fixture repo, which `for-each-ref`
+//     catches; `git status --porcelain` additionally catches any other
+//     unexpected write anywhere in the tree (new/modified/untracked files).
+test('cursor-neutrality (behavioral): a real scanDeadCode call leaves durable rotation-cursor/content-hash state and the local dedup cache byte-identical', () => {
+  const root = buildAc1Fixture();
+  const cacheDir = path.join(root, '.claude-tweaks');
+
+  function snapshot() {
+    return {
+      cacheDirExists: fs.existsSync(cacheDir),
+      refs: execFileSync('git', ['-C', root, 'for-each-ref'], { encoding: 'utf8' }),
+      status: execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' }),
+    };
+  }
+
+  const before = snapshot();
+  assert.strictEqual(before.cacheDirExists, false, 'sanity check: the fixture must not already have a cache dir, or this test would prove nothing');
+
+  scanDeadCode(root);
+
+  const after = snapshot();
+  assert.deepStrictEqual(after, before);
 });
