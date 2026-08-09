@@ -11,6 +11,7 @@ const {
   rowIdentifiers,
   compareTables,
 } = require('../anti-patterns.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../skill-catalog.js');
 
 const SAMPLE = [
   '# Some skill',
@@ -116,11 +117,13 @@ test('compareTables CATCHES a dropped identifier inside a surviving row', () => 
 
 test('every shipped skill has a parseable Anti-Patterns table', () => {
   const skillsDir = path.join(__dirname, '..', '..', '..', '..', 'skills');
-  const names = fs
-    .readdirSync(skillsDir)
-    .filter((n) => fs.existsSync(path.join(skillsDir, n, 'SKILL.md')))
-    .sort();
-  assert.strictEqual(names.length, 33);
+  const repoRoot = path.join(__dirname, '..', '..', '..', '..');
+  const names = listSkillDirs(repoRoot);
+  // Directory-derived, not a hard-coded `33` -- see skill-catalog.js.
+  assert.ok(names.length >= 30, `expected the whole skill corpus, found ${names.length}`);
+  for (const known of KNOWN_SKILLS) {
+    assert.ok(names.includes(known), `corpus is missing a known skill: ${known}`);
+  }
 
   let total = 0;
   for (const name of names) {

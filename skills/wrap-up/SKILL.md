@@ -19,6 +19,10 @@ Lifecycle: `/claude-tweaks:review` → **`/claude-tweaks:wrap-up`** — last ste
 - You finished conversation-based work and want to capture learnings
 - `/claude-tweaks:help` flags specs awaiting wrap-up
 
+## Input
+
+`$ARGUMENTS` is parsed as `[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]` — see Overview and the Phase sections below for what each token resolves to.
+
 ## Overview
 
 `/claude-tweaks:review` verified the code is good. `/claude-tweaks:wrap-up` asks: what did we learn, and what needs cleaning up?
@@ -271,7 +275,7 @@ Execute the cleanup planned above (canonical list in `cleanup-procedures.md`, fi
 
 When this run **inherited** its run directory (see the Component-Skill Contract below), omit this block — the parent `/claude-tweaks:flow` renders its own Pipeline Summary + Next Actions after the report.
 
-When invoked directly by a user (standalone wrap-up), resolve 2-4 options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply, never itself shown to the user or converted into an `AskUserQuestion` option:
+When invoked directly by a user (standalone wrap-up), resolve 2-4 options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/claude-tweaks:help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply, never itself shown to the user or converted into an `AskUserQuestion` option:
 
 | Signal | Option |
 |--------|--------|
