@@ -138,7 +138,9 @@ function sleepSync(ms) {
 function resolveLockWaitMs() {
   const raw = process.env.CLAUDE_TWEAKS_LOCK_WAIT_MS;
   const n = Number(raw);
-  return raw !== undefined && Number.isInteger(n) && n >= 0 ? n : 500;
+  // raw.trim() !== '' guards the JS quirk that Number('') === 0 — an empty
+  // or whitespace-only value is garbage and falls back like any other.
+  return raw !== undefined && raw.trim() !== '' && Number.isInteger(n) && n >= 0 ? n : 500;
 }
 const LOCK_WAIT_MS = resolveLockWaitMs();
 const LOCK_POLL_MS = 10;
