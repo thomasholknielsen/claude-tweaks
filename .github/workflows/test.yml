@@ -21,6 +21,10 @@ jobs:
       GIT_COMMITTER_EMAIL: ci@invalid.example
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: changelog-coverage and shipped-record tests walk
+          # origin/main's history; a shallow clone makes those gates vacuous.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
