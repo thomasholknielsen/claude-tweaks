@@ -17,6 +17,7 @@ const FACT_REASONS = {
   journeysExist: { open: 'docs/journeys/ exists', closed: 'no journeys' },
   claudeMdCommandRenamed: { open: 'CLAUDE.md Commands section changed', closed: 'CLAUDE.md Commands section unchanged' },
   renamedOrDeleted: { open: 'renames or deletions in diff', closed: 'no renames or deletions in diff' },
+  headingRenamed: { open: 'a heading was renamed in a modified file', closed: 'no renamed headings' },
 };
 
 // Plain-language reasons for the boolean orSignals used by the claude-md

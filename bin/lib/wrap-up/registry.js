@@ -51,7 +51,7 @@ const REGISTRY = [
     target: 'Broken references',
     judge: 'reference-sweep.md',
     disposition: 'apply-or-stage',
-    gate: Object.freeze({ kind: 'facts', anyOf: ['renamedOrDeleted'] }),
+    gate: Object.freeze({ kind: 'facts', anyOf: ['renamedOrDeleted', 'headingRenamed'] }),
     scope: Object.freeze({ kind: 'renamed-deleted' }),
   },
   {

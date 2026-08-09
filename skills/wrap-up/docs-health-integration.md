@@ -4,12 +4,14 @@ Judge file for the `docs` registry row (`Docs`), loaded per that row when its ga
 
 Loaded by `/claude-tweaks:wrap-up`'s Docs curation row to judge the health of docs this work actually touched or is closely related to, and to detect documentation this work should have produced but didn't. Three checks — D0 broadens which existing docs get judged beyond the touched set via a domain-overlap scan, D1 applies the shared docs-health judgment to that combined scope, D2 judges the diff for missing coverage.
 
+**Fast-lane narrows breadth, never gates existence.** Under `ceremony-profile: fast-lane` the engine applies the profile to `scope.cap` only, never to gate evaluation (`engine-plan.js`'s `resolveDomainOverlapScope`) — D0's scan still runs whenever the row's gate is open, with a smaller cap. The same principle `skill-curation.md` states for the Skills row; it holds for this row too.
+
 ## D0: Domain-Overlap Scan
 
 **Purpose:** rank existing docs by how much they cover the changed subsystem, so D1 also judges docs that weren't directly touched but are still relevant — the documentation equivalent of skill curation's independent domain-scoped scan (`skill-curation.md` 7.2).
 
 1. Read `docs/REGISTRY.md`. **Explicit fallback:** if it doesn't exist, or exists with no Auto-detect patterns, skip this scan for the run entirely — do not fall back to scanning the whole `docs/` tree (that's `/claude-tweaks:docs-health`'s own rotation's job, not this leaf's). Report this via the payload's `detail` as `"registry absent/empty — domain-overlap scan skipped"`; this is not an error.
-2. Otherwise, score each registry entry by how much its Auto-detect patterns intersect this work's `git diff --name-only` — reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` the same way the CLAUDE.md & rules row's fast-lane pre-check does (map each bare filename to `{path: f}` first, since the function reads `f.path`), passing the registry's own Auto-detect patterns as the `sensitivePaths` argument. A result's `isSensitive: true` means a registry-pattern hit here.
+2. Otherwise, score each registry entry by how much its Auto-detect patterns intersect this work's `git diff --name-only` — reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` directly (map each bare filename to `{path: f}` first, since the function reads `f.path`), passing the registry's own Auto-detect patterns as the `sensitivePaths` argument. A result's `isSensitive: true` means a registry-pattern hit here.
 3. Rank descending by overlap-hit count. Take the **top-N**, where N is the cap that arrives in the worklist row (`scope.cap`), resolved by the engine. Exclude any doc already in D1's touched-docs scope below — it's already covered, don't double-judge it.
 4. If more docs than the applicable cap have a nonzero overlap score, **note the overflow explicitly** in the payload's `detail` (name the cap and how many were left unread) — never silently truncate. `/claude-tweaks:tidy` and future wrap-ups pick up the remainder.
 5. Add the selected top-N docs to D1's scope below — they go through the identical JUDGE procedure (D1 Steps 1-3) as touched docs, with no special-casing.

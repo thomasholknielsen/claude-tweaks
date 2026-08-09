@@ -22,6 +22,12 @@ renamed anchors and headings from the diff of files that were modified rather th
 heading that changed text is a target for any `#anchor` link or "see the X section" citation
 pointing at it.
 
+`scope.candidates` carries **paths only**; the heading targets are yours to collect here. The
+gate opens on either fact — a rename/deletion (`renamedOrDeleted`) *or* a heading removed from a
+modified `.md` file (`headingRenamed`) — so a run that renamed nothing but a section heading still
+reaches this step, and will arrive with an empty `scope.candidates`. That is not a signal to skip:
+an empty path set with an open gate means the heading half is the whole target set.
+
 ## Step 2: Find surviving references
 
 For each target, grep the repository for the **old** name. Two exclusions are mandatory:

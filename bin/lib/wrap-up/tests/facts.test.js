@@ -109,6 +109,48 @@ test('gatherFacts journeyFiles lists the journey markdown files', () => {
   assert.ok(f.journeyFiles.some((p) => p.endsWith('j1.md')));
 });
 
+test('gatherFacts headingRenamed is false when no modified md file changed a heading', () => {
+  const f = gatherFacts({ cwd: repoDir, base: baseSha });
+  // CLAUDE.md was modified (a Commands line went) and docs/guide.md was
+  // renamed — neither touches a heading line.
+  assert.strictEqual(f.headingRenamed, false);
+});
+
+test('gatherFacts headingRenamed separates a modified heading from a deleted file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-heading-'));
+  try {
+    git(['init', '-q'], dir);
+    git(['config', 'user.email', 'test@example.com'], dir);
+    git(['config', 'user.name', 'Test'], dir);
+    fs.writeFileSync(path.join(dir, 'a.md'), '# Alpha\n\nbody\n');
+    fs.writeFileSync(path.join(dir, 'b.md'), '## Beta\n\nbody\n');
+    git(['add', '.'], dir);
+    git(['commit', '-q', '-m', 'base'], dir);
+    const sha = git(['rev-parse', 'HEAD'], dir);
+
+    // Deleting b.md removes its `## Beta` line from the diff, but the file is
+    // D, not M — a deletion is already `renamedOrDeleted`'s job and must not
+    // masquerade as a renamed heading.
+    fs.rmSync(path.join(dir, 'b.md'));
+    fs.writeFileSync(path.join(dir, 'a.md'), '# Alpha\n\nbody edited\n');
+    git(['add', '-A'], dir);
+    git(['commit', '-q', '-m', 'delete b, edit a body'], dir);
+    assert.strictEqual(gatherFacts({ cwd: dir, base: sha }).headingRenamed, false);
+
+    // Now rename a heading inside the surviving, modified file.
+    fs.writeFileSync(path.join(dir, 'a.md'), '# Alpha renamed\n\nbody edited\n');
+    git(['add', '-A'], dir);
+    git(['commit', '-q', '-m', 'rename a heading'], dir);
+    assert.strictEqual(gatherFacts({ cwd: dir, base: sha }).headingRenamed, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gatherFacts headingRenamed degrades to false outside a repo', () => {
+  assert.strictEqual(gatherFacts({ cwd: os.tmpdir(), base: 'HEAD' }).headingRenamed, false);
+});
+
 test('gatherFacts claudeMdCommandRenamed is false when CLAUDE.md is absent at base', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-nobase-'));
   try {

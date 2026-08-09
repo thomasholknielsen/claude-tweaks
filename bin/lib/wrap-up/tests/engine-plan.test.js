@@ -6,7 +6,7 @@ const { buildWorklist } = require('../engine-plan');
 const FACTS = { isRepo: true, changedFiles: ['src/a.js', 'src/b.js'], renamedDeleted: [],
   skillsLibraryExists: false, multiFileDiff: true, docsTreeNonEmpty: false,
   journeysExist: true, journeyFiles: ['docs/journeys/j1.md', 'docs/journeys/j2.md'],
-  claudeMdCommandRenamed: false, renamedOrDeleted: false };
+  claudeMdCommandRenamed: false, renamedOrDeleted: false, headingRenamed: false };
 
 test('fact gates open on any listed fact', () => {
   const wl = buildWorklist({ facts: FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
@@ -15,6 +15,23 @@ test('fact gates open on any listed fact', () => {
   assert.strictEqual(row('docs').gate, 'closed');
   assert.strictEqual(row('references').gate, 'closed');
   assert.match(row('docs').gateReason, /docs/);
+});
+
+test('references gate opens on a renamed heading alone', () => {
+  // No rename and no deletion — only a heading changed inside a modified file.
+  // The old gate (renamedOrDeleted only) closed the row here, which made
+  // reference-sweep.md's heading-collection instruction unreachable.
+  const wl = buildWorklist({ facts: { ...FACTS, headingRenamed: true }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  const row = wl.rows.find((r) => r.id === 'references');
+  assert.strictEqual(row.gate, 'open');
+  assert.strictEqual(row.gateReason, 'a heading was renamed in a modified file');
+});
+
+test('references closed reason names both facts', () => {
+  const wl = buildWorklist({ facts: FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(
+    wl.rows.find((r) => r.id === 'references').gateReason,
+    'no renames or deletions in diff, no renamed headings');
 });
 
 test('signal gates open on signals and close without', () => {

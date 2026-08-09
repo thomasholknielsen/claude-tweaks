@@ -7,7 +7,7 @@ fact worth persisting to the user's cross-project memory directory.
 
 ## Step 1: Classify, dedup, stage
 
-Classify every reflection insight and ledger learning not already routed by Steps 6–7.9 through
+Classify every reflection insight and ledger learning not already routed by an earlier registry row through
 `_shared/learning-routing.md`. For each that resolves to **D4**, dedup against `MEMORY.md` per the
 contract, then stage — never write directly:
 
@@ -43,5 +43,5 @@ rule 4 *here* and act on the result in this step:
 
 | Re-classified outcome | Where it goes |
 |---|---|
-| D1 / D2 | Stages as a configuration or skill update, alongside Steps 6/7's own output |
+| D1 / D2 | Stages as a configuration or skill update, alongside the CLAUDE.md & rules and Skills rows' own output |
 | D3 | Becomes a queue-write proposal, staged the way `ledger/resolve-gate.md` Phase 3 stages `Keep`/`Defer`, for the Review Console to create on approval |

@@ -69,6 +69,18 @@ function extractCommandsSection(text) {
   return section;
 }
 
+// True when a file that was MODIFIED in place (not renamed, not deleted) removed
+// a markdown heading line. `--diff-filter=M` is what keeps a deleted file's
+// headings out — a deletion is already `renamedOrDeleted`'s territory, and the
+// two gates would otherwise be indistinguishable. `-U0` keeps context lines out
+// of the scan, so a `-` line is always a real removal. `---` file markers cannot
+// match: the pattern requires a `#` immediately after the leading `-`.
+function computeHeadingRenamed(git, base) {
+  const diff = git(['diff', '-U0', '--diff-filter=M', `${base}...HEAD`, '--', '*.md']);
+  if (!diff) return false;
+  return diff.split('\n').some((line) => /^-#{1,6} /.test(line));
+}
+
 function computeClaudeMdCommandRenamed(git, cwd, base) {
   const baseContent = git(['show', `${base}:CLAUDE.md`]);
   if (baseContent === null) return false; // no CLAUDE.md at base
@@ -92,6 +104,7 @@ function gatherFacts({ cwd, base } = {}) {
   let changedFiles = [];
   let renamedDeleted = [];
   let claudeMdCommandRenamed = false;
+  let headingRenamed = false;
 
   if (isRepo) {
     const diffOut = git(['diff', '--name-only', `${base}...HEAD`]);
@@ -101,6 +114,7 @@ function gatherFacts({ cwd, base } = {}) {
     renamedDeleted = parseRenamedDeleted(rdOut);
 
     claudeMdCommandRenamed = computeClaudeMdCommandRenamed(git, cwd, base);
+    headingRenamed = computeHeadingRenamed(git, base);
   }
 
   const skillsLibraryExists = fs.existsSync(path.join(cwd, '.claude', 'skills'));
@@ -118,6 +132,7 @@ function gatherFacts({ cwd, base } = {}) {
     journeyFiles,
     claudeMdCommandRenamed,
     renamedOrDeleted: renamedDeleted.length > 0,
+    headingRenamed,
   };
 }
 

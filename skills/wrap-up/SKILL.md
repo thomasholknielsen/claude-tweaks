@@ -150,7 +150,7 @@ One mechanism, one registry, one engine. Every knowledge asset wrap-up curates i
 | Journeys | At least one `docs/journeys/*.md` exists | Journeys whose `files:` frontmatter overlaps the diff (deterministic, no cap) | `journey-curation.md` | `apply-or-stage` |
 | CLAUDE.md & rules | CLAUDE.md's `## Commands` section changed since the base, or a don't-repeat candidate, a contradicted convention, or a recorded incident was signalled | `CLAUDE.md` plus `.claude/rules/` | `claude-md-curation.md` | `stage-only` |
 | Decision records | One or more decision candidates were signalled for the ADR gate | The decisions this run surfaced | `adr-curation.md` | `stage` |
-| Broken references | The diff contains a rename or a deletion | Repo-wide references surviving a renamed or deleted target | `reference-sweep.md` | `apply-or-stage` |
+| Broken references | Renames/deletions in diff, or a renamed heading | Repo-wide references surviving a renamed or deleted target | `reference-sweep.md` | `apply-or-stage` |
 | Memory | One or more learnings were signalled as memory-bound | Learnings no earlier row claimed | `memory-curation.md` | `stage` |
 | Upstream feedback | One or more learnings were signalled as upstream-bound | Those learnings, after the self-reference check | `upstream-feedback.md` | `stage` |
 
