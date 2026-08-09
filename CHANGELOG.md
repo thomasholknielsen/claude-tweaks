@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.74.0 — Canonical logging cloud-setup Setup-script line with self-upgrading field procedure, routine-preamble setup-log evidence + self-heal-to-execution fallback (dispatch/tidy excluded), cloud-parity Routine-scope corrections (IL-117)
+
+Canonical logging cloud-setup Setup-script line with self-upgrading field procedure, routine-preamble setup-log evidence + self-heal-to-execution fallback (dispatch/tidy excluded), cloud-parity Routine-scope corrections (IL-117).
+
 ## v6.73.1 — Close the claim deprecation window, retire the per-run record cache, fix the writeRunState CI flake
 
 Close the claim deprecation window, retire the per-run record cache, fix the writeRunState CI flake.

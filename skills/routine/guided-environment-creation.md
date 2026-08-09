@@ -90,11 +90,12 @@ step 6 below).
    leave Network access at its default (`Trusted`), leave Environment variables empty, and set
    Setup script to exactly:
    ```
-   bash scripts/claude-cloud-setup.sh 2>/dev/null || true
+   { bash scripts/claude-cloud-setup.sh || bash */scripts/claude-cloud-setup.sh; } > "$HOME/claude-cloud-setup.log" 2>&1 || true
    ```
-   (repo-agnostic by construction — a safe no-op on any repo that hasn't run `/claude-tweaks:init`
-   yet). Click "Create environment". This returns to the new-routine form with the new environment
-   now selected in the Environment combobox.
+   (repo-agnostic and non-blocking by construction — the fallback path covers the field's
+   workspace-root cwd, and on a repo that hasn't run `/claude-tweaks:init` the log records bash's
+   no-such-file error while session start proceeds). Click "Create environment". This returns to
+   the new-routine form with the new environment now selected in the Environment combobox.
 6. Fill in the routine's own real fields on that same form — confirmed live against the actual
    new-routine form layout:
    - Type `routine_name` into the "Name" field.
@@ -155,23 +156,39 @@ and does not go through the Routines UI at all.
    icon appears on hover and is not present in a screenshot taken before hovering. Click the gear.
    This opens an **Update cloud environment** dialog with Name, Network access, Environment
    variables, Setup script, and `Archive` / `Cancel` / `Save changes` controls.
-4. Read the Setup script field. Record whether it was non-empty as `had_script`.
-   - Already contains a `claude-cloud-setup.sh` invocation: click `Cancel` (never `Save changes` —
-     same read-only discipline as the Audit procedure) and report success without editing.
-   - Empty: click into the field and type exactly `bash scripts/claude-cloud-setup.sh 2>/dev/null || true`
-     — the same repo-agnostic line Create step 5 uses, safe on a repo that has never run
-     `/claude-tweaks:init`. Restating it here rather than citing Create's step 5 is deliberate: the
-     two are the same string today but reach different environment classes, and a future change to
-     one is not automatically correct for the other.
-   - Non-empty with unrelated content (e.g. `npm install`): **do not overwrite it.** Append the
-     invocation on its own new line after the existing content. An environment shared with other
-     work can carry a setup script this plugin knows nothing about, and replacing it silently
-     breaks that work.
-5. Click `Save changes`. The dialog notes that changes apply to **new** sessions only — an already-
-   running session does not pick this up, so any verification must start a fresh session.
-6. Report `{success: true, environment_name: <the name acted on>, had_script: <boolean>}`. On
-   failure at any step, report the failure shape from this file's header and leave the environment
-   untouched.
+4. Read the Setup script field. Record whether it was non-empty as `had_script`. Classify it into
+   exactly one of the four branches below. The canonical line, restated here rather than cited
+   from Create's step 5 deliberately (the two are the same string today but reach different
+   environment classes, and a future change to one is not automatically correct for the other):
+
+   ```
+   { bash scripts/claude-cloud-setup.sh || bash */scripts/claude-cloud-setup.sh; } > "$HOME/claude-cloud-setup.log" 2>&1 || true
+   ```
+
+   The upgrade decision keys on one exact, checkable rule: does the field's
+   `claude-cloud-setup.sh` invocation line contain the substring `claude-cloud-setup.log`?
+   - **Canonical/current** — the field contains a `claude-cloud-setup.sh` invocation that
+     redirects into a `claude-cloud-setup.log` file: click `Cancel` (never `Save changes` — same
+     read-only discipline as the Audit procedure) and report success without editing
+     (`field_action: unchanged`).
+   - **Old form** — the field contains a `claude-cloud-setup.sh` invocation with **no**
+     `claude-cloud-setup.log` redirect (with or without `2>/dev/null`): replace that line with the
+     canonical line above, leaving any other field content untouched (`field_action: upgraded`).
+   - **Empty**: click into the field and type exactly the canonical line above — repo-agnostic,
+     safe on a repo that has never run `/claude-tweaks:init` (`field_action: typed`); the
+     canonical line always writes `$HOME/claude-cloud-setup.log` on every session start (created
+     or truncated fresh each time), the intended evidence trail.
+   - **Unrelated content** — no `claude-cloud-setup.sh` invocation at all: **do not overwrite
+     it.** Append the canonical line on its own new line after the existing content
+     (`field_action: appended`). An
+     environment shared with other work can carry a setup script this plugin knows nothing about,
+     and replacing it silently breaks that work.
+5. Click `Save changes` (skip when step 4's Canonical/current branch already cancelled). The
+   dialog notes that changes apply to **new** sessions only — an already-running session does not
+   pick this up, so any verification must start a fresh session.
+6. Report `{success: true, environment_name: <the name acted on>, had_script: <boolean>,
+   field_action: <one of unchanged|typed|upgraded|appended>}`. On failure at any step, report the
+   failure shape from this file's header and leave the environment untouched.
 
 ## Audit procedure
 
