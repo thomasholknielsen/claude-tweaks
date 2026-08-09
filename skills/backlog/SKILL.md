@@ -49,7 +49,7 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 
 Read the project's `work-backend` config key (per `_shared/work-record-config.md`, the key table's canonical home, written by `/claude-tweaks:init`). Preflight is **mode-conditional**, not skill-wide:
 
-**`overview` mode (either driver):** under `work-backend: github-issues`, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3) before any `gh` command — treat any ladder failure as a hard gate (there is no meaningful degraded mode when the whole fetch depends on `gh`). Report the specific failing check and stop. Under `work-backend: local-files`, skip the Detection Ladder entirely.
+**`overview` mode (either driver):** under `work-backend: github-issues`, run the Detection Ladder from `_shared/forge-detection.md` (checks 1-3) before any `gh` command — treat any ladder failure as a hard gate (there is no meaningful degraded mode when the whole fetch depends on `gh`). Report the specific failing check and stop. Under `work-backend: local-files`, skip the Detection Ladder entirely.
 
 **`refine` mode, priority/Related sub-stage (either driver):** identical to `overview` mode's preflight above — both drivers supported, Detection Ladder hard gate under `github-issues`.
 

@@ -115,49 +115,63 @@ Anchor with `cd "{REPO_ROOT}" &&` / `cd "{RUN_ROOT}" &&` at the start of each co
 
 Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
 `gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
-use the MCP path instead. If the ref-listing call itself fails mid-scan (rate limit, transient
+use the MCP path instead. If the listing call itself fails mid-scan (rate limit, transient
 API error) after passing that pre-check, skip the rest of this step and note it in the
-report — per `_shared/issue-claims.md`'s Failure posture table ("Ref listing fails in /tidy
+report — per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy
 → skip the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md`
 for the full protocol.
 
-List claim refs; for each, fetch the issue's state and comments, and fold through
-`claimStatus`:
+**Primary: list the `claims/` blob keyspace** (`_shared/issue-claims.md`'s "The lock" — "List
+all claims"). For each entry, read the blob and classify with `classifyClaimBlob`:
+
+```bash
+gh api "repos/{owner}/{repo}/contents/claims?ref=claims-registry" -q '.[].name'
+# for each claims/issue-<n>.json:
+gh issue view <n> --json state -q .state
+gh api "repos/{owner}/{repo}/contents/claims/issue-<n>.json?ref=claims-registry" -q '.content' | base64 -d > /tmp/tidy-claim-<n>.json
+node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+  const content = require('fs').readFileSync(process.argv[1],'utf8');
+  console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" /tmp/tidy-claim-<n>.json
+```
+
+(gh path shown above; use `_shared/issue-claims.md`'s MCP-path "List all claims" / read-file
+call when `gh` is unavailable — the same `claims/` directory on `claims-registry`, MCP tools
+instead of `gh api`.)
+
+**Deprecation-window secondary: the legacy `refs/claims/issue-<n>` keyspace.** Per
+`_shared/issue-claims.md`'s "Deprecation window" section, also list `git/matching-refs/claims/`
+and fold any match through the legacy `claimStatus` comment-fold — this is the one path that can
+still surface an in-flight claim made under the retired ref mechanism before rollout. Drop this
+whole secondary listing (and its table rows below) in the same change that closes the
+deprecation window (see that section's End condition).
 
 ```bash
 gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
-# for each refs/claims/issue-<n>:
-gh issue view <n> --json state -q .state
-gh api "repos/{owner}/{repo}/issues/<n>/comments?per_page=100" > /tmp/tidy-claims-<n>.json
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" /tmp/tidy-claims-<n>.json
 ```
 
-(gh path shown above; use `_shared/issue-claims.md`'s MCP-path "List all claims" when `gh` is
-unavailable — a directory listing of `claims/` on the `claims-registry` branch instead of
-`git/matching-refs`.)
-
 **Not re-pointed at `bin/residue.js`.** That CLI's `kind: claim` probe (`probeClaims`) checks
-only whether each claim ref's issue is closed — it never fetches comments and never calls
-`claimStatus`, so it covers just the first row of the table below and has no way to produce
-the other five, nor any of the three backstops that follow. Folding it in would drop, not
-replace, five of six status rows plus every backstop; this step keeps its own full listing and
-`claimStatus` fold unchanged.
+only whether each claim ref's issue is closed — it never reads a claim blob and never calls
+`classifyClaimBlob`, so it covers just the first row of the table below and has no way to
+produce the rest, nor any of the three backstops that follow. Folding it in would drop, not
+replace, most of the status rows plus every backstop; this step keeps its own full listing and
+classify fold unchanged.
 
 | Status | Recommendation |
 |--------|---------------|
 | Issue closed (any claim state) | Release (orphan — the work is done or dismissed) |
-| Claim stale (`stale: true`) | Release (crashed or abandoned run) |
-| Ref exists, `claimed: false, everReleased: true`, issue open | Release (orphaned ref — a prior release's comment posted but the ref-delete failed; safe to break, per `_shared/issue-claims.md`'s Failure posture table) |
-| Ref exists, `claimed: false, everReleased: false`, issue open | Manual review (never break a claim you cannot read) |
-| Ref exists, `claimed: true, stale: false`, but `claim.claimedAt` fails to parse as a date | Manual review (per `bin/lib/issues/claims.js`'s `isStale` fail-closed contract — a corrupted-but-JSON-valid claim is never automatically stale; flag it explicitly rather than keeping it silently forever) |
-| Claim live, issue open | Keep |
+| Blob classified `'stale'` | Release (crashed or abandoned run) |
+| Blob classified `'unreadable'` | Manual review (never break a claim you cannot read) |
+| Live claim (`'live'`), but its `claimedAt` fails to parse as a date | Manual review (per `bin/lib/issues/claims.js`'s `isStale` fail-closed contract — a corrupted-but-JSON-valid claim is never automatically stale; flag it explicitly rather than keeping it silently forever) |
+| Blob classified `'live'`, issue open | Keep |
+| **Deprecation window only:** legacy ref found, `claimStatus` folds to `everReleased: true` | Release (orphaned legacy claim — a prior release's comment posted but the ref-delete failed; safe to break) |
+| **Deprecation window only:** legacy ref found, `claimStatus` folds to `everReleased: false` | Manual review (never break a claim you cannot read) |
 
-Releasing = delete the ref + post the release comment generated by `releasePayload`
-(reason `swept: stale claim` or `swept: issue closed`). Releases execute only after Step 6
-batch approval — breaking a lock is never autonomous in /tidy.
+Releasing = the current-blob conditional overwrite with the tombstone content
+`releasePayload` generates (reason `swept: stale claim` or `swept: issue closed`), or — for a
+deprecation-window-only legacy ref — delete the ref and post the same release comment. Releases
+execute only after Step 6 batch approval — breaking a lock is never autonomous in /tidy.
 
-→ Collect each as: `[claim] refs/claims/issue-{n} — {status} — {recommendation}`
+→ Collect each as: `[claim] claims/issue-{n}.json — {status} — {recommendation}`
 
 ### Backstop: missed `parked` restoration
 
@@ -189,7 +203,7 @@ For each result: flag as a likely missed restoration when the issue is `OPEN`, i
 not include `parked`, `closedByPullRequestsReferences` is empty (no linked PR, open or
 merged — a linked PR means the outcome was `merged:`/`pr-opened:`, where skipping restoration
 is correct behavior, not a missed one), and it has no active claim (cross-reference against
-this step's own claim listing above — `claimed && !stale` for `refs/claims/issue-{n}`).
+this step's own claim listing above — blob classified `'live'` for `claims/issue-{n}.json`).
 Recommend the same `gh issue edit {n} --add-label parked` command the release step itself
 would run.
 
@@ -247,7 +261,7 @@ aren't even sufficient to redo item 1's classification below (no `updatedAt`, `i
 `reviewDecision`, or `url`), so this step still fetches PRs itself and keeps its full procedure
 below unchanged.
 
-Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** and **`family-gate`** scopes. The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `family-gate` procedure), the Detection Ladder, and the Output Contract into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `family-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero leaves from every parent, so every leaf re-enters `acceptance-gap` as a false row and `family-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** and **`family-gate`** scopes. The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `family-gate` procedure) and this file's Output Contract, plus `_shared/forge-detection.md`'s Detection Ladder, into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `family-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero leaves from every parent, so every leaf re-enters `acceptance-gap` as a false row and `family-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 

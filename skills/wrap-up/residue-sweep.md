@@ -51,7 +51,7 @@ does for every other ledger producer (build, test, review, reflect):
 ## `remedy: auto` findings and the scratch worktree
 
 A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a merged-but-undeleted
-branch, a claim ref for a closed issue, a missing release-triple entry) is naturally a Phase 1
+branch, a claim blob for a closed issue, a missing release-triple entry) is naturally a Phase 1
 fix-now candidate — its `Item` description should say so. When Phase 1 (or a user's "Fix anyway"
 choice in Phase 2) applies it and the write is not legal from wherever this session currently
 sits, provision a worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own

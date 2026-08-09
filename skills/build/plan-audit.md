@@ -2,7 +2,7 @@
 
 Audit the plan against the actual repo before dispatching execution work. Catches the failure mode where the plan's "Files" sections omit a relevant file and the omission isn't noticed until a late cross-reference audit.
 
-**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a `ceremony-check` verdict of `fast-lane` is itself a judgment that this record's plan doesn't need auditing against scope creep. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone.
+**Skip condition lives in `build/SKILL.md`'s Common Step 1.5 stub, not here** (the re-read cut: a caller deciding skip-vs-run must never need to load this file to make that decision). This file loads only once the step is confirmed to run.
 
 ## Check A — Plan files exist (always runs)
 

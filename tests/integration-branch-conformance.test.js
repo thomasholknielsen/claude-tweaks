@@ -27,7 +27,6 @@ const ALLOWLIST = new Map([
   ['_shared/integration-branch.md', 'this is the canonical fragment itself — it documents the literal git/gh resolution commands and per-consumer fallbacks that every other site cites; it cannot cite itself'],
   ['_shared/issue-claims.md', 'claim refs need any always-present base SHA; the default branch is arbitrary but reliable, not a statement about where work lands'],
   ['_shared/routine-template-schema.md', 'quotes the unresolved fallback wording verbatim as documentation of what gets substituted'],
-  ['dispatch/SKILL.md', 'same claim-ref base SHA as _shared/issue-claims.md'],
 ]);
 
 function walk(dir, acc = []) {

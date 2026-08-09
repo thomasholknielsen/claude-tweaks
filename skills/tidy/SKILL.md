@@ -64,7 +64,7 @@ Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
-> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, `bin/residue.js` + local branches, issue-claim refs + comments, gh PR/issue queries, recent git history). No cross-cutting analysis at the per-scan level; Step 5 does the synthesis sequentially in the main thread after the parallel batch (including Step 5.5) completes.
+> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, `bin/residue.js` + local branches, issue-claim blobs + comments, gh PR/issue queries, recent git history). No cross-cutting analysis at the per-scan level; Step 5 does the synthesis sequentially in the main thread after the parallel batch (including Step 5.5) completes.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -104,7 +104,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4 (main thread, parallel with the agent batch) | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
 | 4.5 | `bin/residue.js` (`kind: worktree` — all worktrees; `kind: branch` — merged remote-tracking branches, supplementary), `git branch --list "build/*"` (local branches, any merge state — the CLI has no equivalent) | `[git]` |
 | 4.6 (main thread, parallel with the agent batch) | `docs/REGISTRY.md` | `[registry]` |
-| 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
+| 4.7 | `gh api contents/claims` on `claims-registry` (primary) + `git/matching-refs/claims/` legacy fallback, deprecation window only | `[claim]` |
 | 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope), plus closed records with no acceptance disposition per that file's `acceptance-gap` scope, plus decomposition families complete but ungated per that file's `family-gate` scope | `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[family-gate]` |
 | 4.9 (main thread, parallel with the agent batch) | `/claude-tweaks:design-wrapper doctor --source tidy` — the project's own Impeccable artifacts | `[doctor]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |

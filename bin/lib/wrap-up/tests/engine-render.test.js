@@ -204,6 +204,76 @@ test('FORBIDDEN_VOCABULARY exports exactly the five specified patterns', () => {
   assert.deepStrictEqual(src, expected);
 });
 
+// ---- renderTrace collapse (re-read cut: all-empty run -> one summary line) --
+
+test('renderTrace collapses to one summary line when every row is na or clean-with-zero-findings', () => {
+  const worklist = makeWorklist();
+  const results = {};
+  for (const row of worklist.rows) {
+    results[row.id] = { rowId: row.id, target: row.target, result: 'na', detail: 'gate closed' };
+  }
+  const state = { version: 1, worklist, results };
+  const out = renderTrace(state);
+  assert.strictEqual(out, `${worklist.rows.length} rows scanned, 0 findings — nothing to update.`);
+  assert.doesNotMatch(out, /\|/); // not a table
+});
+
+test('renderTrace collapse also fires when every row is clean with an empty findings array', () => {
+  const worklist = makeWorklist();
+  const results = {};
+  for (const row of worklist.rows) {
+    results[row.id] = { rowId: row.id, target: row.target, result: 'clean', detail: 'read, nothing found', findings: [] };
+  }
+  const state = { version: 1, worklist, results };
+  const out = renderTrace(state);
+  assert.match(out, /^\d+ rows scanned, 0 findings — nothing to update\.$/);
+});
+
+test('renderTrace does NOT collapse when a row is MISSING, even if every present row is empty', () => {
+  const worklist = makeWorklist();
+  const results = {};
+  for (const row of worklist.rows) {
+    results[row.id] = { rowId: row.id, target: row.target, result: 'na', detail: 'gate closed' };
+  }
+  delete results[worklist.rows[0].id];
+  const state = { version: 1, worklist, results };
+  const out = renderTrace(state);
+  assert.match(out, /^\| Target \| Result \| Detail \|/);
+  assert.match(out, /MISSING — judge never reported/);
+});
+
+test('renderTrace does NOT collapse when any single row has findings', () => {
+  const worklist = makeWorklist();
+  const results = {};
+  for (const row of worklist.rows) {
+    results[row.id] = { rowId: row.id, target: row.target, result: 'na', detail: 'gate closed' };
+  }
+  const firstId = worklist.rows[0].id;
+  results[firstId] = {
+    rowId: firstId, target: worklist.rows[0].target, result: 'findings', detail: '1 change',
+    findings: [{ kind: 'addition', summary: 'x', targetPath: 'y', action: 'applied', stagePath: null, commit: 'a' }],
+  };
+  const state = { version: 1, worklist, results };
+  const out = renderTrace(state);
+  assert.match(out, /^\| Target \| Result \| Detail \|/);
+});
+
+test('renderTrace does NOT collapse a clean row that (defensively) carries findings', () => {
+  const worklist = makeWorklist();
+  const results = {};
+  for (const row of worklist.rows) {
+    results[row.id] = { rowId: row.id, target: row.target, result: 'na', detail: 'gate closed' };
+  }
+  const firstId = worklist.rows[0].id;
+  results[firstId] = {
+    rowId: firstId, target: worklist.rows[0].target, result: 'clean', detail: 'unexpected',
+    findings: [{ kind: 'addition', summary: 'x', targetPath: 'y', action: 'staged', stagePath: 'staged/x.md', commit: null }],
+  };
+  const state = { version: 1, worklist, results };
+  const out = renderTrace(state);
+  assert.match(out, /^\| Target \| Result \| Detail \|/);
+});
+
 // ---- renderConsoleSections ------------------------------------------------
 
 function makeConsoleResults() {

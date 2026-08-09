@@ -169,7 +169,7 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 
 **Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
 
-**Skip this step entirely** under the size + ceremony-profile conditions detailed in plan-audit.md's own Skip section — read that section rather than this summary for the exact gate, since it's the one place this condition is defined.
+**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a `ceremony-check` verdict of `fast-lane` is itself a judgment that this record's plan doesn't need auditing against scope creep. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone. This is the full gate — deciding skip-vs-run never requires loading `plan-audit.md` itself.
 
 > **Project setting:** When `.claude-tweaks/policy.yml` declares `scope-keywords-required: true`, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
@@ -242,7 +242,7 @@ When a mismatch is an architectural deviation at module level — a boundary in 
 
 After code simplification, run the shared verification procedure (`skills/test/verification.md`). This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
 
-**Note:** `/build` always runs verification (it is the *producer* of `VERIFICATION_PASSED`). The skip-if-recent rule in `test/verification.md` applies only to `/test` callers — never to this step.
+**Note:** `/build` always runs verification (it is the *producer* of `VERIFICATION_PASSED`). The skip-if-recent rule in `test/verification.md` applies only to `/test` callers — never to this step. On a pass, also capture `VERIFICATION_SHA=$(git rev-parse HEAD)` — passed forward alongside `VERIFICATION_PASSED=true` so `/test`'s skip-if-recent check can detect a tree change between this step and its own invocation (see `verification.md`'s "Skip-if-recent" section) instead of trusting a bare boolean.
 
 If anything fails, fix it and commit the fix. **When a failure is a behavioral bug — not a mechanical type/lint error — follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before changing code** (reproduce on command, fix the confirmed cause, escalate rather than guess if it can't be reproduced) — see `failure-recovery.md` for the fuller recovery table this step falls back to.
 

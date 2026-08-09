@@ -1,0 +1,55 @@
+---
+record: 237
+origin: capture
+risk: high
+effort: high
+ceremony: standard
+grants: [build]
+surface: backend
+---
+# 237: Core-loop re-read cuts: ~300 KB less instruction text per pipeline run
+
+Surface: backend
+
+## Current State
+
+A straight-through `/flow → /build → /wrap-up` run on one record loads ~680 KB of instruction markdown; ~340 KB of that is re-reads of content the run already loaded. Measured contributors: `_shared/auto-mode-contract.md` (30,519 B, cited by 56 files) is read by `/flow` at setup and again by up to 7 child skills in the same run (~215 KB of pure duplication); `/build` re-executes `/flow`'s merge check byte-for-byte (two network fetches, two divergence prompts per run — `flow/validation.md` and `build/worktree-setup.md` carry identical 900 B blocks); `/test` loads `test/verification.md` only to learn `VERIFICATION_PASSED=true` means skip; `build/plan-audit.md` (4,412 B) and `build/architecture-alignment.md` (5,431 B) keep their own skip conditions inside the file being skipped, so they can never be lazily avoided; `/dispatch` loads `_shared/github-pr-scan.md` (39,213 B) in Preflight to evaluate three booleans; `/wrap-up` loads ~280 KB regardless of ceremony profile — more than `/flow` + `/build` combined. `flow/SKILL.md:103` (failure-cards, "load only when a gate has actually failed") is the one disciplined lazy read in the loop.
+
+## Deliverables
+
+- A ~2 KB `_shared/auto-mode-card.md` (operating card: mode states, precedence chain, never-silenced list, log-line format) that child skills cite; the full contract stays `/flow`-only. Sweep the 56 citing files to point children at the card.
+- Run-dir memo stamps: a machine-readable `done:` block in `run-state.json` (or a sibling) that `/flow` writes after its merge check (`merge-check: <sha>`) and verification (`verification: passed`), with `/build` and `/test` skipping the corresponding work/read when the stamp matches the current state.
+- Skip conditions hoisted out of `build/plan-audit.md` and `build/architecture-alignment.md` into the citing stub in `build/SKILL.md`, so the files load only when their step actually runs.
+- The Detection Ladder extracted from `_shared/github-pr-scan.md` into a ~1.5 KB `_shared/forge-detection.md`; `/dispatch` Preflight cites only that.
+- Ceremony-tiered `/wrap-up` loading: a fast-lane run loads a defined subset (decided at build from the step list); the seven mandatory per-step `SCANNED … 0` lines collapse to one summary line when every step is empty.
+
+## Acceptance Criteria
+
+- Re-measured always-loaded bytes for the straight-through run drop by at least 250 KB against the audit's per-skill table (measure with the same method: SKILL.md + always-read files per skill).
+- The merge check executes exactly once per `/flow`-orchestrated run (the `/build` path consults the stamp; standalone `/build` without a run dir still runs its own check — fail-open, never fail-skip).
+- No consumer of the full auto-mode contract loses content: every clause on the card exists verbatim-or-tighter in the contract, and the contract remains the single source for precedence disputes.
+- `/dispatch`'s three Preflight booleans behave identically with only the extracted ladder loaded (fixture-check the gh-absent branch).
+- All existing suites green, including `tests/hooks-*` (run-state.json shape is read by hooks — additive fields only).
+
+## Technical Approach
+
+Land as a sequence of independent cuts (card, stamps, skip-hoists, ladder extraction, wrap-up tiering) — each separately revertible with its own before/after byte measurement. The stamps are additive `run-state.json` fields written via the existing `bin/hooks.js` write path or direct file edit per `_shared/pipeline-run-dir.md`'s conventions.
+
+## Gotchas
+
+- This is the IL-93 hazard class end-to-end: widening/narrowing what a mechanism covers while 56 files describe its old reach. Every cut owes a case-insensitive sweep for prose describing the old loading behavior — including files the cut doesn't touch.
+- IL-76: measure what each resolved mode loads afterward, not bytes moved — a stub plus sub-file header can exceed what a skipped branch saved. The acceptance criterion is the re-measured table, not the diff stat.
+- The verification stamp must not let `/test` skip when the tree changed after `/build`'s verification — stamp carries the commit SHA it verified, and mismatch means run, not skip.
+- IL-82: `github-pr-scan.md` sections are dispatcher-inlined by `/tidy` and `/help` — confirm which regions their dispatch prompts inline before moving the ladder, and update those "what the dispatcher inlines" sentences (IL-60).
+- `run-state.json` is parsed by hook modules with tests pinning its shape — additive fields only, and run the hooks suite locally per cut.
+- #236 adds `## Input` sections to `build`/`flow`/`wrap-up` SKILL.md in a parallel wave — coordinate merge order on those three files.
+
+## Original request
+
+Core-loop re-read cuts: ~300 KB less instruction text per pipeline run
+
+**Related:** none
+
+Context: Session audit: one /flow -> /build -> /wrap-up run loads ~680 KB of instruction markdown, ~340 KB of it re-reads; _shared/auto-mode-contract.md (30.5 KB, cited by 56 files) loads up to 8x per run; /dispatch loads 39 KB of github-pr-scan.md to evaluate 3 booleans.
+
+Scope: A ~2 KB auto-mode operating card children cite (full contract only for /flow); run-dir done-stamps so /build skips /flow's already-run merge check and /test skips loading on VERIFICATION_PASSED; move skip-conditions out of build/plan-audit.md and architecture-alignment.md; extract the pr-scan Detection Ladder; ceremony-tiered /wrap-up loading.

@@ -179,7 +179,7 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-card.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
 
 ### Delete
 
@@ -244,4 +244,4 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Modifying the ledger file format | Multiple skills parse the table — structural changes break them |
 | Using the ledger for feature tracking | The ledger covers one pipeline run. Cross-spec/cross-run tracking belongs on the decomposition's parent record's `## Cross-Spec Promises` section (`_shared/work-record.md`). |
 | Skipping the resolve gate | Non-negotiable — no pipeline completes with open items |
-| Treating `auto` mode as authorization to bypass the resolve gate | Phase 2 always requires per-item user input; `auto` never silences it — see `_shared/auto-mode-contract.md` |
+| Treating `auto` mode as authorization to bypass the resolve gate | Phase 2 always requires per-item user input; `auto` never silences it — see `_shared/auto-mode-card.md` |

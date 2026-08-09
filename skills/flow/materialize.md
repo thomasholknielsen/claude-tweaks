@@ -119,6 +119,8 @@ This is a lift, not a move: the body keeps its own `Surface:`/`Design-intent:`/`
 
 `{title}` is the title fetched during Resolution (`gh issue view`'s `.title` field, or `readRecord(path).title`) — title is a record facet, never body content (`spec-template.md`'s Facets section), so it is not part of "record body verbatim" and needs this explicit heading line to stay visible to everything downstream that expects a spec file's first line to be its title. `{record body verbatim}` is exactly the fetched body, unmodified — including its own `Surface:`/`Design-intent:`/`Design-seed:` lines; the header's copies of those values are a lift, never a strip.
 
+**Record cache write (no second fetch).** At the same point this file is written, also write the raw object Resolution fetched (`{ number, title, body, labels, url }` or the local-files equivalent) to `work/record-{n}.json` next to it — same directory, same commit. This is `_shared/pipeline-run-dir.md`'s "Per-run record cache" convention; read that section for the invalidation rule before adding a consumer that reads this file. Unlike the composed spec file above (a frozen build-time artifact, intentionally never re-read as live data), this cache holds the record's raw fetched fields for any later same-run stage that needs them.
+
 ## Multi-record layout
 
 Each record in a multi-record run (`#A,#B,...`) materializes to its own file, one per record — a partial materialization never happens silently; the hard gate above checks every record in the batch before any file is written.

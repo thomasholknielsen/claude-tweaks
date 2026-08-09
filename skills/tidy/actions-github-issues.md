@@ -24,7 +24,7 @@ Continuing from the shared step (1) in `SKILL.md`'s table: (2) comment naming th
 
 The `[family-gate]` findings this action resolves come from `_shared/github-pr-scan.md`'s
 `family-gate` scope, which queries the `family:parent` label and therefore only ever finds
-`work-backend: github-issues` families — that file's Detection Ladder gates on `gh` reachability,
+`work-backend: github-issues` families — `_shared/forge-detection.md`'s Detection Ladder (which that scope runs behind) gates on `gh` reachability,
 not on the driver. The `local-files` driver has its own twin of this action
 (`actions-local-files.md`'s `## Open family gate`), fed by `step-1-records.md`'s Shape 7
 instead; both run the same Family-Gate Procedure, and the finding prefix is identical on either

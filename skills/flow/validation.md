@@ -40,6 +40,8 @@ AUTO {time} — Step 2.5: pre-flight merge-check — {UPSTREAM} is {N} ahead. Co
 
 > **Base ref:** `/flow` worktrees branch from the current local HEAD via `worktree.baseRef: "head"` (settings.json), and `/build` Common Step 1 verifies the resulting base after creation. See `skills/build/worktree-setup.md` ("Base ref" + Step 0/4) — the harness default `fresh` branches from a possibly-stale `origin/<default-branch>` and the plugin cannot override it through `EnterWorktree`.
 
+**Memo stamp (re-read cut).** When this check runs (worktree strategy resolves to `worktree` and `merge-check: true`), capture `$UPSTREAM` and `$(git rev-parse "$UPSTREAM" 2>/dev/null)` from the block above. Step 4's `/claude-tweaks:build` invocation carries these forward as `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` so `build/worktree-setup.md`'s own Pre-flight merge check — otherwise a byte-for-byte re-run of this same fetch-and-compare, moments later, in the freshly created worktree — can trust this run's result instead of repeating it. This is the same conversational context-threading convention already used for `VERIFICATION_PASSED`/`STORIES_DIR`/`DEV_URL` (`SKILL.md` Step 4's "Pass context forward"), not a new file — the value only needs to survive one hop (this step to the `/build` invocation the same orchestrating turn composes), and every consumer of `_shared/pipeline-run-dir.md`'s state already lives in files, which this narrow, single-hop value doesn't need to. When `merge-check: false` or git strategy is `current-branch`, this step is skipped entirely — nothing to stamp, and `MERGE_CHECK_PASSED` is simply never passed (build's own check runs normally, fail-open).
+
 ## 2.6 — Shape check (structural coupling)
 
 Replaces the previous size-based scope check. Plan size (line count, file count, task count) is **not** a stop signal — a clean 50-task spec is mechanically simpler than a tangled 5-task spec. What matters is structural coupling between tasks. Apply these structural signals before starting:
@@ -86,4 +88,4 @@ Decompose first:
 Then /flow on the produced specs:
   /claude-tweaks:flow {N},{M},{P}                    — sequential execution
 ```
-Stop the pipeline with this message. **Do not** silently proceed — the design-mode escape hatch was the source of the wrong-granularity bug. Under `auto`, this rejection still fires (it's a hard validation failure, not a UX preference — see `_shared/auto-mode-contract.md`).
+Stop the pipeline with this message. **Do not** silently proceed — the design-mode escape hatch was the source of the wrong-granularity bug. Under `auto`, this rejection still fires (it's a hard validation failure, not a UX preference — see `_shared/auto-mode-card.md`).
