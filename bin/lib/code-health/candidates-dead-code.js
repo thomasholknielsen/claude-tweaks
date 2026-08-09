@@ -24,6 +24,13 @@
 //     share one line (e.g. a self-recursive function called nowhere else)
 //     reads as unreferenced, since the whole line is skipped as a
 //     definition — correct for the export question being asked.
+//   - Reference detection is NOT transitive, and the two checks do not feed
+//     each other: an export used only from a file this same scan reports as
+//     an orphan still reads as referenced, because a dead file's text stays
+//     in the reference-search set. Deleting an orphan can therefore expose
+//     exports this run called live — one layer per run, found by re-running
+//     after the removal lands, never in a single pass. Accepted false
+//     negative, same conservative direction as the rest of this block.
 //   - Orphan-file detection is specifier-NAME-based, not module-resolution
 //     based: a file counts as referenced when any other tracked file's
 //     require/import specifier ends in its basename (extension-insensitive),

@@ -53,7 +53,7 @@ Read `focus-mode.md` in this skill's directory for the full procedure: candidate
 
 **Step 1 — SCOPE: select the target slice.**
 
-If `focus=<vertical>` was provided, skip this step entirely — `focus-mode.md`'s own procedure replaces it, and hands off directly to Step 4's criterion pinning. Otherwise, unless `--area` was provided, call the engine to pick the next slice to judge:
+If `focus=<vertical>` was provided, skip this step entirely — `focus-mode.md`'s own procedure replaces it. That procedure runs Step 2 (GATHER OPEN ISSUES) unchanged at its F0, before its own candidate generation and criterion pinning (which stand in for Steps 3 and 4). Only Steps 1, 3, and 4 are skipped. Otherwise, unless `--area` was provided, call the engine to pick the next slice to judge:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root "${ROOT:-$PWD}" ${BUDGET:+--budget "$BUDGET"}
@@ -149,10 +149,10 @@ Before or during judging, the judge MAY call the following deterministic tools t
 
 | Tool | Command | Evidence it provides |
 |------|---------|----------------------|
-| Project lint/typecheck | `npm run lint --if-present 2>&1 \| tail -40` or `npx tsc --noEmit 2>&1 \| head -40` | Concrete type errors and lint violations in the slice |
+| Project lint/typecheck | `npm run lint --if-present 2>&1 \| tail -40` or `npx tsc --noEmit 2>&1 \| head -40` | Concrete type errors and lint violations in the slice (under focus mode, in the candidate set) |
 | Dead code / unused deps | `npx knip --reporter json \| head -c 4000` or `npx depcheck --json \| jq '{dependencies, devDependencies}'` | Unused exports, unreferenced packages |
 | Dependency vulnerabilities | `npm audit --json \| jq '{critical:.metadata.vulnerabilities.critical, high:.metadata.vulnerabilities.high}'` or `npx osv-scanner --format json . \| jq '[.results[].packages[].vulnerabilities[]] \| length'` | Known CVEs in installed packages |
-| Dependency cycles | `npx madge --circular --json <slice-path> \| jq 'length'` | Import cycles in the slice |
+| Dependency cycles | `npx madge --circular --json <slice-path> \| jq 'length'` | Import cycles in the slice (under focus mode, pass a candidate file's own directory) |
 | Grep / git log | Standard Bash + git CLI | Code patterns, recent churn, authorship |
 
 Every command above is already projected or capped — the raw JSON/text a tool prints can run past 200 KB, and none of it is worth reading in full for evidence purposes. A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant bounded excerpt (the jq projection's result, or the `head`/`tail` slice) as part of the finding's `evidence` field (not as a separate finding). If a bounded run signals something worth deeper diagnosis (e.g. `critical` or `high` counts are non-zero), it's fine to re-run that one tool without the cap to pull the specific detail into evidence — never file a finding wider than what the judge actually read.
@@ -374,3 +374,4 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Filing before presenting the interactive gate | The two-tier decision precedes any `gh issue create` for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
 | Reading a `"recursive": false` slice's subdirectories | Separate slices with own ids and cursors — sweeping them blows the read budget and files under the wrong slice id. Add `-maxdepth 1`. |
 | Dropping files at Step 3's read budget without listing them | Implies whole-slice coverage the sweep never had. Over-budget files are read bounded and reported **deferred** in Step 10. |
+| Treating a focus-mode candidate set as fully read | The 60 KB budget defers most candidates on any real repo (`focus-mode.md`'s F3) — the judge only sees what was actually read. Check the deferred count and `skippedFiles` before trusting a clean-looking result. |

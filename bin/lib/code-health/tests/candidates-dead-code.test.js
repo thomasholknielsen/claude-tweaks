@@ -492,7 +492,7 @@ function buildAc1Fixture() {
   fs.writeFileSync(path.join(root, 'ignored.js'), 'function neverSeen() {}\nmodule.exports = { neverSeen };\n');
 
   // A NUL-byte / binary-ish file — must be skipped silently (no crash, no
-  // candidate), and must show up in scanStats().skippedFiles with a reason.
+  // candidate), and must show up in scanDeadCode's skippedFiles with a reason.
   fs.writeFileSync(path.join(root, 'blob.js'), Buffer.from([0x6d, 0x00, 0x6f, 0x64]));
 
   return root;

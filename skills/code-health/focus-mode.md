@@ -1,6 +1,6 @@
 # Focus Mode — candidate-driven scoping
 
-Referenced from `skills/code-health/SKILL.md`'s "Focus Mode" section. This file owns the full procedure for `focus=<vertical>` runs — the candidate-driven alternative to `next-slice` directory rotation. SKILL.md Step 2 (gather open issues) and Steps 5 (JUDGE) onward are unmodified and apply exactly as written once this procedure hands off a criterion and a set of already-read candidate files.
+Referenced from `skills/code-health/SKILL.md`'s "Focus Mode" section. This file owns the full procedure for `focus=<vertical>` runs — the candidate-driven alternative to `next-slice` directory rotation. It replaces SKILL.md Steps 1, 3, and 4 only. SKILL.md Step 2 (gather open issues) is **run by this procedure**, at F0 below — not skipped — and Steps 5 (JUDGE) onward are unmodified and apply exactly as written once this procedure hands off a criterion and a set of already-read candidate files.
 
 ## Known values
 
@@ -18,6 +18,8 @@ If `$ARGUMENTS` names a `focus=` value not in that list, fail loud and stop — 
 
 Every generator is a heuristic pre-filter, never an inventory. Its candidate set is deliberately partial in ways its own module header enumerates — for `dead-code`, the Coverage block at the top of `bin/lib/code-health/candidates-dead-code.js` (JS/TS only, the CommonJS `module.exports = { ... }` shorthand-brace shape only, identifier-bounded bare-symbol reference search, specifier-name-based orphan detection, dynamic patterns out of scope by construction). Read that block before reporting anything about the run's reach, and state the boundary rather than implying totality: "the generator found N candidates under its stated coverage," never "the repo has N dead exports" (IL-110). An empty candidate set is evidence about the generator's coverage, not a clean bill of health for the repo.
 
+This section names one vertical's generator specifically, so it is per-vertical prose exactly like the Criterion-pinning table below, and carries the same must-update rule: every new `FOCUS_GENERATORS` key owes this section a pointer to its own generator's Coverage block, or that focus firing reports a reach it never had.
+
 ## Criterion pinning
 
 Each focus pins exactly one criterion — no `classify`/`criteriaForArea` call, since focus-mode candidates are scattered across the whole repo rather than confined to one classified area:
@@ -33,6 +35,12 @@ Look the pinned criterion up via `getCriterion` (`bin/lib/code-health/criteria.j
 ```bash
 node -e "const {getCriterion}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(JSON.stringify(getCriterion('dead-code')))"
 ```
+
+## F0 — Gather open issues (SKILL.md Step 2, unchanged)
+
+Before anything below, run **SKILL.md Step 2 (GATHER OPEN ISSUES) exactly as written**, populating `ISSUES_FILE` (`/tmp/code-health-open.json`) — the `gh issue list` query, the `extractFingerprint` parse, the `_shared/health-issue-index.md` transport rules, and the digest-mode fold all apply verbatim. Focus mode replaces Steps 1, 3, and 4; it never replaces Step 2.
+
+This is a sequencing requirement, not a formality. `ISSUES_FILE` is the only input to Step 8's `validate-findings --issues "$ISSUES_FILE"` dedup against GitHub. Leave it unset and dedup falls back to the local cache alone — which a Routine's fresh container recreates empty on every firing, so a focus routine re-files the same issues every single run.
 
 ## F1 — Run the generator
 
@@ -66,15 +74,25 @@ Stamp the freshness marker first, exactly as SKILL.md Step 3 does for the genera
 touch /tmp/code-health-read-marker
 ```
 
-Then, for every distinct `file` named across `candidates`, read it in full under SKILL.md Step 3's existing 60 KB read-budget discipline — the byte-tracking, the bounded-read fallback past budget, and the "never silently skip, report deferred" rule all apply unchanged. A focus-mode candidate set is typically far smaller than a directory slice, so hitting the budget here is the exception, not the rule — but the same discipline applies exactly the same way if it happens.
+Then, for every distinct `file` named across `candidates`, read it in full under SKILL.md Step 3's existing 60 KB read-budget discipline — the byte-tracking, the bounded-read fallback past budget, and the "never silently skip, report deferred" rule all apply unchanged.
+
+**Expect to exhaust the budget, and say so.** A generator's candidate set is repo-wide, not slice-sized, so on any real repo it dwarfs the 60 KB budget rather than fitting inside it. Measured on this repo (2026-08): `focus=dead-code` returned 219 candidate files totalling ~1.6 MB — roughly five get a full read and the remaining ~213 are deferred to a bounded read. Because candidates arrive sorted file-then-symbol, the deferred tail is an *alphabetical* tail, not a low-value one: a run's one genuine finding can sort past the cutoff and never reach the judge at all.
+
+This is a known, unfixed limitation of focus mode at this repo's size or larger — do not minimize it. Report every deferred file per Step 3's rule and per Step 10, and never present a focus firing's findings as coverage of the candidate set: the judge saw the files that were actually read, not the ones the generator named.
 
 ## F4 — Judge
 
-Hand the judge: the criterion pinned above (with its fragment, if any, embedded per SKILL.md Step 4's existing convention), and the candidate list itself as the material to judge — each candidate's `file`, `symbol` (if present), `kind`, and `evidence` field is a starting pointer, not a finding. The judge still applies the criterion holistically (SKILL.md Step 5) and may reject a candidate outright — a candidate the judge rejects files nothing. Continue at SKILL.md Step 6 (EMIT FINDINGS) exactly as written; `areaId` for a focus-mode finding is the candidate's own `file` path (there is no directory-shaped area).
+Hand the judge: the criterion pinned above (with its fragment, if any, embedded per SKILL.md Step 4's existing convention), and the candidate list itself as the material to judge — each candidate's `file`, `symbol` (if present), `kind`, and `evidence` field is a starting pointer, not a finding. The judge still applies the criterion holistically (SKILL.md Step 5) and may reject a candidate outright — a candidate the judge rejects files nothing. Continue at SKILL.md Step 6 (EMIT FINDINGS) exactly as written — including its `areaId` definition, which focus mode does **not** override.
+
+**`areaId` is the candidate file's directory, never the file itself.** Emit `path.dirname(file)` relative to root — `bin/lib` for `bin/lib/color.js`, `.` for a root-level file. That is exactly what the generalist path emits for the same file: `classify`'s `areaId` is the directory-shaped slice id (`bin`, `bin/lib`, `bin/lib/issues` — see `bin/lib/code-health/scope.js`'s `splitOversized`), and SKILL.md Step 6 already specifies `areaId` as "directory path relative to root".
+
+Getting this wrong forks dedup. `areaId` is one of the three fingerprint inputs (`criterion + areaId + normalizeAnchor(anchor)` — `bin/lib/code-health/fingerprint.js`), so a file-shaped `areaId` gives one real finding two different fingerprints depending on which mode found it: `dead-code` at `bin/lib/color.js#dim` files twice, and a `wontfix` suppression recorded under one mode's fingerprint is invisible to the other.
 
 ## F5 — Everything from Step 7 onward is unmodified
 
 VERIFY GATE, FRESHNESS RE-CHECK, VALIDATE/FINGERPRINT/DEDUP, FILE/REOPEN, and SUMMARIZE all run exactly as SKILL.md documents them. Use `--slice "focus:<vertical>"` as the `SLICE_ID` for Step 8's `validate-findings` call — a stable, non-colliding cursor key distinct from every directory-shaped generalist slice id.
+
+`SLICE_ID` and `areaId` are two different identities and must not be reconciled. `SLICE_ID` is a **cursor key only**: it names this firing's scope, is never hashed, and never reaches a finding. `areaId` is per-finding, travels into the fingerprint, and must match what the generalist path would emit for the same file (F4). Do not substitute `focus:<vertical>` for `areaId`, and do not substitute a directory for `SLICE_ID`.
 
 ## Cursor neutrality
 
@@ -85,6 +103,6 @@ A focus firing never touches `next-slice`'s rotation cursor or content-hash stat
 A focus-mode routine sweeps the generator's whole repo-wide candidate set on every firing, rather than one directory slice per firing. Two consequences a generalist routine does not have:
 
 - **Cost does not self-limit.** There is no `--budget` knob holding a firing to one slice (SKILL.md's `## Input`: `--budget` has no consumer under focus mode, since Step 1 is skipped). What bounds a firing is the generator's own candidate count and F3's 60 KB read budget — so a focus routine's cost tracks the repo, not a fixed sip.
-- **Nothing goes stale-then-due.** There is no rotation to fall behind, so a skipped firing costs nothing but a delay: the next one re-derives the same candidate set from scratch. Dedup against open `by:code-health` issues (SKILL.md Step 2) is what keeps a repeatedly-derived candidate from re-filing.
+- **Nothing goes stale-then-due.** There is no rotation to fall behind, so a skipped firing costs nothing but a delay: the next one re-derives the same candidate set from scratch. Dedup against open `by:code-health` issues (F0, running SKILL.md Step 2) is what keeps a repeatedly-derived candidate from re-filing — which is exactly why F0 is not optional on a routine firing.
 
 No shipped routine template sets a `focus` field today — see `skills/_shared/routine-template-schema.md`.
