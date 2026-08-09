@@ -73,6 +73,15 @@ function buildFixture(scenario, fixturesDir) {
     if (step['branch']) {
       seedBranch(dir, step['branch']);
     }
+    // Minimal arm (#180): writes files directly to the fixture's single
+    // branch, with no branching semantics at all. Added for the
+    // consequence-filter matrix, which only needs a per-case brief file on
+    // disk — seedBranch would work but drags in a rename-default-branch +
+    // checkout-a-feature-branch side effect the skill under test (research
+    // verify, which never inspects `git diff`) has no use for.
+    if (step['files']) {
+      seedFiles(dir, step['files']);
+    }
   }
   return dir;
 }

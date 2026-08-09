@@ -382,6 +382,42 @@ test('runScenarioWith: a branch seed step checks out a feature branch ahead of t
   assert.match(numstat, /feature\.txt/);
 });
 
+// ── files fixture seed step (#180) ──────────────────────────────────────────
+
+test('runScenarioWith: a files seed step writes and commits files with no branching side effect', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-files',
+    'fixture:',
+    '  base: none',
+    '  seed:',
+    '    - files:',
+    '        docs/brief.md: "hello brief\\n"',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedOptions = null;
+  await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingOptions, resultsDir, fixturesDir: scenariosDir });
+
+  const repoDir = capturedOptions.cwd;
+  assert.strictEqual(fs.readFileSync(path.join(repoDir, 'docs/brief.md'), 'utf8'), 'hello brief\n');
+  // Unlike the branch arm, this must leave the fixture on its single,
+  // un-renamed default branch (whatever git's init.defaultBranch resolves to
+  // in this environment) — no rename, no checkout to a second branch.
+  const branches = execFileSync('git', ['-C', repoDir, 'branch', '--list'], { encoding: 'utf8' }).trim().split('\n');
+  assert.strictEqual(branches.length, 1, `expected exactly one branch, got: ${branches.join(', ')}`);
+  const status = execFileSync('git', ['-C', repoDir, 'status', '--porcelain'], { encoding: 'utf8' });
+  assert.strictEqual(status, '', 'seedFiles must commit, leaving the worktree clean');
+});
+
 // ── Matrix expansion (#158) ─────────────────────────────────────────────────
 
 function writeCorpus(dir, entries) {
