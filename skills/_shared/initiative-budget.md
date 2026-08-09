@@ -4,8 +4,8 @@ Single source of truth for the in-run initiative budget — the narrow carve-out
 **repair a reference its own change broke** instead of filing a record about it. Referenced, not
 restated, by every consumer: `_shared/auto-mode-contract.md` ("code modifications outside the
 skill's documented scope" row), `_shared/autonomy-ceiling.md` (the `trusted` tier row),
-`wrap-up/docs-health-integration.md` (D1 staging), `wrap-up/review-console.md` (Step 8.6),
-`wrap-up/execution-and-verification.md` (Step 10's separate commit).
+`wrap-up/docs-health-integration.md` (D1 staging), `wrap-up/review-console.md` (the Review
+Console), `wrap-up/execution-and-verification.md` (Phase 4 execution's separate commit).
 
 It has **no lever of its own.** It is authorized by `autonomy: trusted` or `unattended`
 (`_shared/autonomy-ceiling.md`) and by nothing else. Do not add an `initiative-budget:` key to

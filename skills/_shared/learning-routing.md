@@ -1,8 +1,8 @@
 # Learning Routing — the destination contract
 
 Canonical home for the decision "where does this learning go?". Read by
-`/claude-tweaks:reflect` (all three modes), `/claude-tweaks:wrap-up` (Steps 6, 7,
-7.10, 7.11), `/claude-tweaks:review` (lens 3a), `/claude-tweaks:build`
+`/claude-tweaks:reflect` (all three modes), `/claude-tweaks:wrap-up` (its CLAUDE.md & rules,
+Skills, Memory, and Upstream feedback curation rows), `/claude-tweaks:review` (lens 3a), `/claude-tweaks:build`
 (Common Step 4.5), and the four health-sweep skills. Consumers cite this file;
 they do not restate its tables.
 
@@ -12,8 +12,8 @@ Routing resolves on an **audience x durability** axis.
 
 | | Destination | Audience | Context cost | Writer |
 |---|---|---|---|---|
-| **D1** | `CLAUDE.md` Don'ts / `.claude/rules/` | this project | highest — every dispatched agent | `wrap-up` Step 6.1 |
-| **D2** | Project skill / doc / ADR / journey | this project | medium — lazy-loaded | `wrap-up` Steps 6.2, 7, 7.7, 7.8 |
+| **D1** | `CLAUDE.md` Don'ts / `.claude/rules/` | this project | highest — every dispatched agent | `wrap-up`'s CLAUDE.md & rules curation row |
+| **D2** | Project skill / doc / ADR / journey | this project | medium — lazy-loaded | `wrap-up`'s Skills, Docs, Journeys, and Decision records curation rows |
 | **D3** | Backlog work record | this project, deferred | none until claimed | `_shared/work-record.md` |
 | **D4** | Memory file | this user, **all** projects | high — every session | this file, "Memory write procedure (D4)" |
 | **D5** | Upstream issue to `claude-tweaks` | everyone using the plugin | none locally | `/claude-tweaks:feedback` |
@@ -89,7 +89,7 @@ contract introduces no index.
 | Store | Mechanism |
 |---|---|
 | **D1** | `CLAUDE.md` is loaded into every session as project instructions — its `Don't` bullets are already resident. Compare against them directly; no read needed. |
-| **D2** | Not resident. Dedup against a read the routing step is already doing: `wrap-up` Step 7.2's domain-overlap skill scan, Step 7.7's doc scan, and Step 7.8's journey-frontmatter overlap each open the candidate target before writing. Compare there — never write a D2 learning without having read the file it lands in. |
+| **D2** | Not resident. Dedup against a read the routing row is already doing: the Skills row's domain-overlap scan, the Docs row's doc scan, and the Journeys row's frontmatter overlap each open the candidate target before writing. Compare there — never write a D2 learning without having read the file it lands in. |
 | **D4** | Read `MEMORY.md` in the supplied memory directory — the harness maintains it as a one-line-per-memory index. |
 | **D5** | Content fingerprint plus `gh issue list --search`. See `/claude-tweaks:feedback`. |
 
@@ -177,7 +177,7 @@ unchanged.
 | Consumer | How it uses this file |
 |---|---|
 | `/claude-tweaks:reflect` | Routes each insight through the classifier instead of its own destination table |
-| `/claude-tweaks:wrap-up` | Step 6 classifies each candidate before collecting it (`config-updates.md` 6.1); Step 7 classifies each ledger-entry seed before seeding it (`skill-curation.md` 7.1); Steps 7.10/7.11 own the D4/D5 stage-and-surface |
-| `/claude-tweaks:review` lens 3a | Records a `review/skill` ledger entry; does not classify itself — `/claude-tweaks:wrap-up` Step 7 classifies it afterward |
+| `/claude-tweaks:wrap-up` | The CLAUDE.md & rules curation row classifies each candidate before collecting it (`claude-md-curation.md` Step 1); the Skills curation row classifies each ledger-entry seed before seeding it (`skill-curation.md` 7.1); the Memory and Upstream feedback rows own the D4/D5 stage-and-surface |
+| `/claude-tweaks:review` lens 3a | Records a `review/skill` ledger entry; does not classify itself — `/claude-tweaks:wrap-up`'s Skills curation row classifies it afterward |
 | `/claude-tweaks:build` Common Step 4.5 | Classifies architecture-alignment learnings |
 | health sweeps | A finding whose subject is a claude-tweaks skill routes to D5 rather than a project issue |

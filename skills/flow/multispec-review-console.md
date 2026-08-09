@@ -1,6 +1,6 @@
 # Multi-Spec Consolidated Review Console
 
-For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Review Consoles (`/wrap-up` Step 8.6) are **deferred** so the user is not interrupted between specs. After the final spec's wrap-up completes, `/flow` runs **one consolidated Review Console** that aggregates decisions and staged items from every spec in the run.
+For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Review Consoles (`/wrap-up`'s Phase 4) are **deferred** so the user is not interrupted between specs. After the final spec's wrap-up completes, `/flow` runs **one consolidated Review Console** that aggregates decisions and staged items from every spec in the run.
 
 This preserves the bookend architecture (Manifesto at start, one Review Console at end) even when N > 1 specs run sequentially.
 
@@ -14,7 +14,7 @@ The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run 
 
 ## When to run the consolidated console
 
-After every spec's pipeline reaches `/wrap-up` Step 10 (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
+After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
 
 1. Read `manifest.yml` to enumerate per-spec subdirectories
 2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any
@@ -37,7 +37,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 
 ## Numbering rules
 
-Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Three sections sit outside that global sequence because they require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s own three per-item sections (never counted into its nine named batch sections): **Queue writes** use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own. **Memory updates** use a separate `M`-prefixed sequence (`M1`, `M2`, …) — aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own. **Upstream feedback** uses a separate `U`-prefixed sequence (`U1`, `U2`, …) — aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own. Do not restart any of the four sequences per spec or per section.
+Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Three sections sit outside that global sequence because they require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s own three per-item sections (never counted among its named batch sections): **Queue writes** use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own. **Memory updates** use a separate `M`-prefixed sequence (`M1`, `M2`, …) — aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own. **Upstream feedback** uses a separate `U`-prefixed sequence (`U1`, `U2`, …) — aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own. Do not restart any of the four sequences per spec or per section.
 
 ## Present the consolidated console
 
@@ -65,7 +65,7 @@ A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-
 | 6 | 157 | /review | 2 severity:medium findings | Unhandled rejection in src/api.ts:180; missing null check in src/auth/session.ts:42 | `spec-157/staged/review-2.patch`, `spec-157/staged/review-3.patch` |
 | 7 | 159 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `spec-159/staged/wrap-up-skill-restructure.md` |
 
-#### Skill updates (from each spec's Step 7)
+#### Skill updates (from each spec's Skills curation row)
 
 | # | Spec | Skill | Section | Change |
 |---|---|---|---|---|
@@ -110,7 +110,7 @@ Below each row, show the full staged file content for the item so the user can s
 
 #### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when any spec's Step 7.10 (or the parent run dir's own) staged a memory-file proposal (`staged/wrap-up-memory-*.md`). Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s memory-write row, exactly as `wrap-up/review-console.md`'s Memory updates section. A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project.
+Render this section only when any spec's Memory curation row (or the parent run dir's own) staged a memory-file proposal (`staged/wrap-up-memory-*.md`). Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s memory-write row, exactly as `wrap-up/review-console.md`'s Memory updates section. A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project.
 
 | M# | Spec | Name | Type | Fact | Index line | Patch |
 |---|---|---|---|---|---|---|
@@ -120,7 +120,7 @@ Below each row, show the full staged file content for the item so the user can s
 
 #### Upstream feedback — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when any spec's Step 7.11 (or the parent run dir's own) staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`). Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s upstream-filing row, exactly as `wrap-up/review-console.md`'s Upstream feedback section. Filing publishes privately-derived content to a public repository; the body shown is already scrubbed.
+Render this section only when any spec's Upstream feedback curation row (or the parent run dir's own) staged an upstream defect/gap report (`staged/wrap-up-upstream-*.md`). Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s upstream-filing row, exactly as `wrap-up/review-console.md`'s Upstream feedback section. Filing publishes privately-derived content to a public repository; the body shown is already scrubbed.
 
 | U# | Spec | Kind | Component | Summary | Patch |
 |---|---|---|---|---|---|
@@ -140,7 +140,7 @@ The run shares **one** worktree (see `multi-spec.md`, "Shared worktree"), so the
 Status values:
 - **failed** — spec hit a HARD-GATE but the run continued (only happens under `keep-going`). Worktree is preserved for inspection.
 - **not-run** — spec was skipped because an earlier spec failed and `keep-going` was not set. No worktree was created.
-- **running** (stuck) — spec started but the run never reached `/wrap-up` Step 10 or a HARD-GATE for it (rare; e.g., subagent crash). `manifest.yml`'s status schema (`multi-spec.md`) has no dedicated `incomplete` value and no procedure ever writes one — a crash simply leaves the entry at whatever status it last had, almost always `running`. Treat any spec whose manifest status is still `running` when the console renders as this case.
+- **running** (stuck) — spec started but the run never reached `/wrap-up`'s Phase 4 execution step or a HARD-GATE for it (rare; e.g., subagent crash). `manifest.yml`'s status schema (`multi-spec.md`) has no dedicated `incomplete` value and no procedure ever writes one — a crash simply leaves the entry at whatever status it last had, almost always `running`. Treat any spec whose manifest status is still `running` when the console renders as this case.
 
 Populate this footer from `manifest.yml` — any spec with `status: failed`, `not-run`, or still `running` gets a row.
 
@@ -178,7 +178,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 2. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged record-proposal file (`leftover-*.md`, `ledger-record-*.md`, or any other `Title:`-headed staged proposal — the same generic clause `wrap-up/review-console.md`'s create step uses). Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level leftover) with the user's stated reason, or "declined, no reason given" when none was offered.
 3. For each `M#` memory update, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)", reading the proposed file and index line from the item's staged file (aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the multi-spec wrap-up commit below. Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level item) with the user's stated reason, or "declined, no reason given" when none was offered.
 4. For each `U#` upstream feedback item, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): invoke `/claude-tweaks:feedback` with the staged, already-scrubbed body from the item's staged file (aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own) — that skill re-runs its own scrub and confirm gates, since its Component-Skill Contract states a pipeline never relaxes them. Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level item) with the user's stated reason, or "declined, no reason given" when none was offered.
-5. Apply skill updates and create new skills (from each spec's Step 7)
+5. Apply skill updates and create new skills (from each spec's Skills curation row)
 6. Apply config updates (docs, CLAUDE.md, rules)
 7. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
 8. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)

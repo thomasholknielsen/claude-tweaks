@@ -24,7 +24,7 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 - `/claude-tweaks:backlog refine`'s Step 2 needs a grant recommendation for a worklist record.
 - `/claude-tweaks:dispatch`'s Auto-merge gate needs a merge-or-human verdict for a clean, reviewed run.
 - `/claude-tweaks:dispatch`'s Settle step needs to classify why a run failed.
-- `/claude-tweaks:wrap-up`'s Step 8.6 Auto-merge short-circuit needs the same merge-or-human verdict
+- `/claude-tweaks:wrap-up`'s Review Console Auto-merge short-circuit needs the same merge-or-human verdict
   for its own single-record run — the version wrap-up runs directly whether or not
   `/claude-tweaks:dispatch` was involved.
 - `/claude-tweaks:specify`'s Step 3 (Create the Records) needs a ceremony-depth verdict for a
@@ -458,7 +458,7 @@ bad or under-reflect on real complexity.
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
 `/claude-tweaks:backlog refine` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
-`merge-check`; Settle step, `failure-check`), `/claude-tweaks:wrap-up` (Step 8.6's Auto-merge
+`merge-check`; Settle step, `failure-check`), `/claude-tweaks:wrap-up` (the Review Console's Auto-merge
 short-circuit, `merge-check` — the single-record version of dispatch's same gate, run whether or not
 `/claude-tweaks:dispatch` was involved), `/claude-tweaks:specify` (Step 3, `ceremony-check`), and
 `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when record carries no

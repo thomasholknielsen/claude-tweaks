@@ -9,7 +9,7 @@ In every mode except `interactive`, the Manifesto **computes the levers and writ
 - **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path.
 - **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first.
 - **`hybrid` mode** — approval gate (same as `confirm`); policies set here are honored, but skills still prompt for non-floor decisions.
-- **`interactive` mode** — no Manifesto and no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`).
+- **`interactive` mode** — no Manifesto, and this step creates no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`). The run does still acquire a run directory before it ends: `/claude-tweaks:wrap-up`'s Phase 1 creates one unconditionally, in every mode, because its Review Console runs in every mode. That one carries no `config.yml` — nothing ran a Manifesto to write one — so the in-flow prompting above is unaffected.
 
 ## Compute recommendations
 
