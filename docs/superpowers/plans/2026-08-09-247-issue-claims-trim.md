@@ -32,6 +32,12 @@ Consumers: remove `claim-outcomes.md`'s deprecation-window fallback paragraph; r
 
 Commit 2 (with Task 3): see Task 3.
 
+## Task 2.5: Retire the deprecation-window residue probe (scope added at build time)
+
+Files: `bin/lib/residue/probes/claims.js`, `bin/residue.js`, `bin/lib/residue/tests/probes-forge.test.js`, `skills/tidy/scan-procedures.md`
+
+`probeClaims`' own header states it "should be retired in the same change that removes issue-claims.md's Deprecation window subsection" — this is that change, executing the probe's recorded removal condition (IL-85). Delete the probe module, remove its registration/invocation from `bin/residue.js` (line ~17, ~102), delete its three stubbed tests from `probes-forge.test.js` (delete, not skip — other probes' tests stay), and remove `scan-procedures.md`'s by-name reference to the probe module (distinct from the deprecation-window prose already in Task 2's scope). Rides in Commit 1 (it is code-side legacy surface, same logical change as claims.js).
+
 ## Task 3: Editorial trim of the remaining contract prose
 
 Files: `skills/_shared/issue-claims.md`
