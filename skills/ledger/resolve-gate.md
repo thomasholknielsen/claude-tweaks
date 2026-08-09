@@ -1,6 +1,6 @@
 # Ledger Resolve Gate
 
-The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5 — the latter only when `wrap-up` is in that invocation's resolved step list (`flow/steps-and-gates.md`'s **Partial step lists**). That condition defers *when* the gate runs onto the invocation that reaches wrap-up; it does not silence it, and does not touch the `auto` rule below.
 
 The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 always require explicit per-item user input.
 
