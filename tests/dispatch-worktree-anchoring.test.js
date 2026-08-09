@@ -19,6 +19,13 @@ const path = require('path');
 // that reintroduces the retired model fails the suite instead of shipping a prompt that
 // contradicts its own step.
 //
+// #296 later split the single Task() prompt into two sequential calls (build,test then
+// review,polish,wrap-up) and extracted both templates out of SKILL.md into a sub-file,
+// task-prompt.md, that SKILL.md's Step 5 now only stubs and points to ("read it and
+// inline each call's content verbatim"). The anchoring assertions below moved with the
+// content they check — reading only SKILL.md after that extraction would silently stop
+// checking anything real, the same class of gap this file exists to prevent elsewhere.
+//
 // See CLAUDE.md's Don't: "Don't pass isolation: 'worktree' to the Agent tool when
 // dispatching from inside a worktree already set up for the task ... Anchor to the
 // existing path via the prompt."
@@ -28,6 +35,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
 const SKILL = read('skills', 'dispatch', 'SKILL.md');
 const SEQUENTIAL = read('skills', 'dispatch', 'sequential-execution.md');
+const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
 
 // Scope the sweep to Step 5 rather than the whole SKILL.md: the retired model is a
 // Step 5 claim, and a whole-file sweep would be at the mercy of unrelated prose
@@ -39,19 +47,36 @@ function step5Region(text) {
   return text.slice(start, end === -1 ? text.length : end);
 }
 
-// The literal prompt handed to each group's Task agent — the part of Step 5 that
-// actually executes, and where the pre-fix instruction survived the rewrite.
-function taskPromptRegion(text) {
-  const start = text.indexOf("Each group's `Task()` prompt");
-  assert.notStrictEqual(start, -1, 'skills/dispatch/SKILL.md no longer introduces the per-group Task() prompt — this guard has lost its anchor');
-  const end = text.indexOf('None of Templates A/B/C', start);
-  assert.notStrictEqual(end, -1, 'the Task() prompt block is no longer followed by its template note — this guard has lost its anchor');
+// The two literal prompts handed to each group's two Task calls (#296) — the part of
+// Step 5 that actually executes, and where the pre-fix instruction survived the rewrite
+// once already. Each is checked independently: a whole-file (both-calls-concatenated)
+// check would false-pass if only one call regressed while the other still had the
+// correct wording.
+function firstCallRegion(text) {
+  const start = text.indexOf('## First call');
+  assert.notStrictEqual(start, -1, 'skills/dispatch/task-prompt.md no longer has a "## First call" heading — this guard has lost its anchor');
+  const end = text.indexOf('## Second call', start);
+  assert.notStrictEqual(end, -1, 'skills/dispatch/task-prompt.md no longer has a "## Second call" heading — this guard has lost its anchor');
   return text.slice(start, end);
 }
+
+function secondCallRegion(text) {
+  const start = text.indexOf('## Second call');
+  assert.notStrictEqual(start, -1, 'skills/dispatch/task-prompt.md no longer has a "## Second call" heading — this guard has lost its anchor');
+  const end = text.indexOf('None of Templates A/B/C', start);
+  assert.notStrictEqual(end, -1, 'the second call is no longer followed by its template note — this guard has lost its anchor');
+  return text.slice(start, end);
+}
+
+const CALL_REGIONS = [
+  ['skills/dispatch/task-prompt.md (first call)', firstCallRegion(TASK_PROMPT)],
+  ['skills/dispatch/task-prompt.md (second call)', secondCallRegion(TASK_PROMPT)],
+];
 
 const REGIONS = [
   ['skills/dispatch/SKILL.md (Step 5)', step5Region(SKILL)],
   ['skills/dispatch/sequential-execution.md', SEQUENTIAL],
+  ...CALL_REGIONS,
 ];
 
 // Each entry is one pre-fix phrasing. One test per pattern per region — a single test
@@ -71,7 +96,7 @@ const FORBIDDEN = [
   ],
   [
     /parallel\s+Task\s+agents?\b/i,
-    'Step 5 dispatches exactly one Task agent at a time; a "parallel Task agent" claim is the retired model',
+    'Step 5 dispatches Task agents sequentially, never in parallel; a "parallel Task agent" claim is the retired model',
   ],
 ];
 
@@ -89,31 +114,33 @@ for (const [name, region] of REGIONS) {
 
 // Negative guards alone would also pass if the Working-directory instruction were simply
 // deleted. These pin that the replacement is actually present and says the anchoring
-// thing, so a deletion fails too.
+// thing, so a deletion fails too. Checked per call region (#296): each of the two Task()
+// calls carries its own Working-directory instruction, and a regression could drop it
+// from either one independently.
 
-test('the Task() prompt anchors the agent to the inherited worktree', () => {
-  const prompt = taskPromptRegion(SKILL);
-  assert.match(
-    prompt,
-    /Working directory:/,
-    'the dispatched prompt must still carry a Working directory instruction — agents only see what is in their prompt',
-  );
-  assert.match(
-    prompt,
-    /inherit/i,
-    'the prompt must tell the agent it INHERITS the dispatching session\'s worktree',
-  );
-});
+for (const [name, region] of CALL_REGIONS) {
+  test(`${name}: anchors the agent to the inherited worktree`, () => {
+    assert.match(
+      region,
+      /Working directory:/,
+      `${name} must still carry a Working directory instruction — agents only see what is in their prompt`,
+    );
+    assert.match(
+      region,
+      /inherit/i,
+      `${name} must tell the agent it INHERITS the dispatching session's worktree`,
+    );
+  });
 
-test('the Task() prompt still requires a pwd / rev-parse check before committing', () => {
-  const prompt = taskPromptRegion(SKILL);
-  assert.match(prompt, /git rev-parse --show-toplevel/, 'the executable cwd check must survive the rewrite');
-  assert.match(
-    prompt,
-    /BLOCKED/,
-    'a resolved-to-the-main-checkout cwd must stop the agent, not merely be noticed',
-  );
-});
+  test(`${name}: still requires a pwd / rev-parse check before committing`, () => {
+    assert.match(region, /git rev-parse --show-toplevel/, `${name}: the executable cwd check must survive any rewrite`);
+    assert.match(
+      region,
+      /BLOCKED/,
+      `${name}: a resolved-to-the-main-checkout cwd must stop the agent, not merely be noticed`,
+    );
+  });
+}
 
 test('Step 5 states that the dispatching session enters the worktree before dispatching', () => {
   const step5 = step5Region(SKILL);
