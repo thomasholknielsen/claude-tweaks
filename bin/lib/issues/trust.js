@@ -167,6 +167,49 @@ function discoverClosingCommits(record, gitLog) {
   return shas;
 }
 
+const REVERT_TRAILER_RE = /This reverts commit ([0-9a-f]{7,40})/gi;
+const REVERT_SUBJECT_RE = /^Revert\b/i;
+
+// (closingShas, recordNumber, gitLog) -> boolean. All-or-nothing: any one
+// reverted closing commit disqualifies the whole record (multi-commit
+// records are conservative-direction, never partial credit). Two detectors,
+// checked per log entry:
+//   (a) a `This reverts commit <sha>` trailer naming one of closingShas —
+//       matched by SHA prefix in either direction, since `git revert` writes
+//       the full SHA but a caller-supplied timeline SHA might be shortened.
+//   (b) a revert-shaped commit (subject starting `Revert`) whose message
+//       also references the same record number — the fallback for
+//       squash/rebase-rewritten SHAs, where the trailer's named SHA no
+//       longer matches anything in the (rewritten) log (IL-45).
+// A manual revert with neither signal is the module's own stated coverage
+// boundary (see the header comment above discoverClosingCommits).
+function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
+  const shas = Array.isArray(closingShas) ? closingShas.filter(Boolean) : [];
+  if (shas.length === 0) return false;
+  const log = Array.isArray(gitLog) ? gitLog : [];
+
+  for (const entry of log) {
+    if (!entry || typeof entry.message !== 'string') continue;
+
+    for (const match of entry.message.matchAll(REVERT_TRAILER_RE)) {
+      const named = match[1].toLowerCase();
+      const hit = shas.some((sha) => {
+        const lower = String(sha).toLowerCase();
+        return lower.startsWith(named) || named.startsWith(lower);
+      });
+      if (hit) return true;
+    }
+
+    const subject = entry.message.split('\n', 1)[0] || '';
+    if (REVERT_SUBJECT_RE.test(subject)) {
+      for (const match of entry.message.matchAll(CLOSING_REF_RE)) {
+        if (Number(match[1]) === recordNumber) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function trustRows(records) {
   const all = Array.isArray(records) ? records : [];
   // A decomposed leaf is not independently graded work — its family's parent
@@ -252,5 +295,5 @@ function trustRows(records) {
 
 module.exports = {
   riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, DEFAULT_REVERT_WINDOW_DAYS,
-  discoverClosingCommits,
+  discoverClosingCommits, isClosingCommitReverted,
 };

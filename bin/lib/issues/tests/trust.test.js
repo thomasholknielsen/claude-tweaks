@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
-  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, discoverClosingCommits,
+  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, discoverClosingCommits, isClosingCommitReverted,
 } = require('../trust.js');
 
 test('riskBand splits low from everything else', () => {
@@ -348,4 +348,49 @@ test('discoverClosingCommits ignores a closingCommitShas array of falsy/empty en
   const gitLog = [{ sha: 'from-log', message: 'refs #5' }];
   const record = { number: 5, closingCommitShas: [null, ''] };
   assert.deepEqual(discoverClosingCommits(record, gitLog), ['from-log']);
+});
+
+test('isClosingCommitReverted detects a trailer naming the closing commit', () => {
+  const sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const gitLog = [
+    { sha, message: 'refs #1' },
+    { sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', message: `Revert "Fix the thing"\n\nThis reverts commit ${sha}.` },
+  ];
+  assert.equal(isClosingCommitReverted([sha], 1, gitLog), true);
+});
+
+test('isClosingCommitReverted falls back to a Revert-subject commit referencing the same record number', () => {
+  // Squash/rebase rewrote the SHA, so the trailer no longer names anything in
+  // this log — the subject-based fallback is what catches this (IL-45).
+  const gitLog = [{ sha: 'revert-sha', message: 'Revert "Fix the thing"\n\nrefs #1' }];
+  assert.equal(isClosingCommitReverted(['some-other-sha-not-in-any-trailer'], 1, gitLog), true);
+});
+
+test('isClosingCommitReverted is false when nothing reverts the closing commit', () => {
+  assert.equal(isClosingCommitReverted(['sha-1'], 1, [{ sha: 'sha-1', message: 'refs #1' }]), false);
+});
+
+test('isClosingCommitReverted is all-or-nothing: one reverted commit among several disqualifies all', () => {
+  const shaA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const shaB = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const gitLog = [
+    { sha: shaA, message: 'refs #2' },
+    { sha: shaB, message: 'refs #2' },
+    { sha: 'cccccccccccccccccccccccccccccccccccccccc', message: `This reverts commit ${shaA}.` },
+  ];
+  assert.equal(isClosingCommitReverted([shaA, shaB], 2, gitLog), true);
+});
+
+test('isClosingCommitReverted returns false for an empty closing-commit list', () => {
+  assert.equal(isClosingCommitReverted([], 1, [{ sha: 'x', message: 'This reverts commit x.' }]), false);
+});
+
+test('a Revert-subject commit for a DIFFERENT record does not revert this one', () => {
+  const gitLog = [{ sha: 'revert-sha', message: 'Revert "Something else"\n\nrefs #999' }];
+  assert.equal(isClosingCommitReverted(['sha-1'], 1, gitLog), false);
+});
+
+test('isClosingCommitReverted returns false for an empty or missing git log', () => {
+  assert.equal(isClosingCommitReverted(['sha-1'], 1, []), false);
+  assert.equal(isClosingCommitReverted(['sha-1'], 1, undefined), false);
 });
