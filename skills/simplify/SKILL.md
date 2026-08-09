@@ -116,7 +116,7 @@ Write a stage entry to `{run-dir}/staged/simplify-{n}.md` naming the failing che
 - STAGED {HH:MM:SS} — Step 3 verify: {check} failed after simplifying {files}. Stage path: staged/simplify-{n}.md.
 ```
 
-Surface at the Wrap-Up Review Console. At this point the simplification is still an uncommitted change in the working tree (`/simplify` never commits — see Step 4's Note on committing). Continue only if it can be safely discarded via `git checkout -- <files>` / `git restore <files>` if the caller ultimately rejects it at the console; if not, fall back to BLOCKED.
+Surface at the Wrap-Up Review Console. At this point the simplification is still an uncommitted change in the working tree (`/claude-tweaks:simplify` never commits — see Step 4's Note on committing). Continue only if it can be safely discarded via `git checkout -- <files>` / `git restore <files>` if the caller ultimately rejects it at the console; if not, fall back to BLOCKED.
 
 Silent self-fixing is forbidden — see `_shared/auto-mode-contract.md`.
 
@@ -143,7 +143,7 @@ No simplifications needed — code is already clean.
 
 ### Note on committing
 
-`/simplify` never commits — it edits the working tree and verifies, then returns control. When invoked by `/claude-tweaks:build` or `/claude-tweaks:review`, the parent skill commits the resulting changes as part of its own flow. When invoked standalone, the user commits (or discards, via `git checkout -- <files>` / `git restore`) the changes themselves.
+`/claude-tweaks:simplify` never commits — it edits the working tree and verifies, then returns control. When invoked by `/claude-tweaks:build` or `/claude-tweaks:review`, the parent skill commits the resulting changes as part of its own flow. When invoked standalone, the user commits (or discards, via `git checkout -- <files>` / `git restore`) the changes themselves.
 
 ## Next Actions
 

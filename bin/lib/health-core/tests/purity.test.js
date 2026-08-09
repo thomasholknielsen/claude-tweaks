@@ -11,6 +11,7 @@ const path = require('node:path');
 const PURE_MODULES = [
   'dedup.js', 'finding-validation.js', 'fingerprint.js', 'budget.js',
   'rotation.js', 'mark.js', 'churn-report.js', 'frontmatter-list.js', 'runs.js',
+  'digest.js',
 ];
 const FORBIDDEN = ['fs', 'node:fs', 'child_process', 'node:child_process', './durable-state', './cache'];
 

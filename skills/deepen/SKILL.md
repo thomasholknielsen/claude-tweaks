@@ -95,7 +95,7 @@ If zero candidates, state: "No shallow modules found in scope — the abstractio
 
 **Filtering by kind:** `/claude-tweaks:deepen --kind deepen|collapse` scopes this table (and the `AskUserQuestion` options built from it) to only that kind before presenting — use it for a pass focused solely on the cheap, low-ceremony collapse cleanups (or, conversely, only the real-abstraction deepen candidates). Candidates of the excluded kind still count toward "Found {N}" in the summary line but are not shown as selectable options, and are folded into the Report's "Candidates not actioned" total. Omit the flag to see the full mixed list, as today.
 
-Note: neither the ledger nor any other durable store remembers a declined or filtered-out candidate across runs (the ledger records resolutions, not declined candidates) — a later `/deepen` run over overlapping scope will re-rank and re-present it as if seen for the first time.
+Note: neither the ledger nor any other durable store remembers a declined or filtered-out candidate across runs (the ledger records resolutions, not declined candidates) — a later `/claude-tweaks:deepen` run over overlapping scope will re-rank and re-present it as if seen for the first time.
 
 ### Auto mode
 

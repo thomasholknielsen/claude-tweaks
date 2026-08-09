@@ -29,6 +29,10 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 - The plan has tangled cross-task dependencies — tighten via `/claude-tweaks:specify` first. Don't rely on flow's shape gate (Step 2.6) to stop you: under flow's own default `auto` mode, a Step 2.6 hard-fail auto-resolves to "proceed anyway" with an `ops` ledger note rather than actually stopping the pipeline (it only stops in `interactive`/`hybrid` mode)
 - When you expect significant review findings that need discussion
 
+## Input
+
+`$ARGUMENTS` is parsed as `<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]` — see Syntax and Arguments below for what each token resolves to.
+
 ## Syntax
 
 ```
@@ -288,7 +292,7 @@ For the terminal-example syntax for true parallel execution, mode-selection guid
 
 ## Next Actions
 
-Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical `AskUserQuestion` call on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
+Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical `AskUserQuestion` call on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
 
 ## Component-Skill Contract
 

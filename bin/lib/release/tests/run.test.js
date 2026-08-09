@@ -27,7 +27,7 @@ function makeDeps(overrides = {}) {
       const key = args.join(' ');
       state.gitCalls.push(key);
       if (key === 'branch --show-current') return state.branch + '\n';
-      if (key === 'status --porcelain') return state.dirty;
+      if (key === 'status --porcelain --untracked-files=no') return state.dirty;
       if (key.startsWith('fetch')) return '';
       if (key.startsWith('show origin/main:')) return manifest('6.70.1');
       if (key.startsWith('show main:')) return manifest('6.70.1');
@@ -84,7 +84,7 @@ test('live run: write → add → verify staged → commit → ancestor check �
 
 test('refuses to run off main or with a dirty tree', () => {
   assert.throws(() => runRelease(makeDeps({ branch: 'feature' }).deps, { part: 'patch', summary: 'S', date: '2026-08-08', dryRun: true, log: () => {} }), /main/);
-  assert.throws(() => runRelease(makeDeps({ dirty: ' M x.js' }).deps, { part: 'patch', summary: 'S', date: '2026-08-08', dryRun: true, log: () => {} }), /clean/i);
+  assert.throws(() => runRelease(makeDeps({ dirty: ' M x.js' }).deps, { part: 'patch', summary: 'S', date: '2026-08-08', dryRun: true, log: () => {} }), /tracked modifications/i);
 });
 
 test('aborts before commit when the staged set is not exactly the release trio [IL-42]', () => {

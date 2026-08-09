@@ -89,7 +89,7 @@ When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (s
 - **By pattern** — pass the pattern to the test runner's filter flag (e.g., `jest --testNamePattern`, `pytest -k`)
 - **`affected`** — use `git diff --name-only` to identify changed files, then scope tests to those files and their dependents
 
-> **Parallel execution:** When running multiple check types (e.g., `/test types lint`), run them as parallel Bash calls — they are independent.
+> **Parallel execution:** When running multiple check types (e.g., `/claude-tweaks:test types lint`), run them as parallel Bash calls — they are independent.
 
 ### QA mode (`qa`)
 
@@ -118,7 +118,7 @@ When the `affected` argument is present, filter stories to only those whose `sou
 
 ### All mode (`all`)
 
-Run the full standard suite (types + lint + tests) AND QA story validation. Equivalent to running `/test` followed by `/test qa`.
+Run the full standard suite (types + lint + tests) AND QA story validation. Equivalent to running `/claude-tweaks:test` followed by `/claude-tweaks:test qa`.
 
 1. Run the shared verification procedure from `verification.md` (types, lint, tests).
 2. If verification passes and stories exist, run QA mode (see above).
@@ -126,13 +126,13 @@ Run the full standard suite (types + lint + tests) AND QA story validation. Equi
 
 ### Skip-QA mode (`skip-qa`)
 
-Run types/lint/tests only — skip QA story validation entirely, even when stories exist. Used by `/flow`'s polish-phase re-verify gate to avoid re-running browser QA after stylistic-only changes.
+Run types/lint/tests only — skip QA story validation entirely, even when stories exist. Used by `/claude-tweaks:flow`'s polish-phase re-verify gate to avoid re-running browser QA after stylistic-only changes.
 
 1. Run the shared verification procedure from `verification.md` (types, lint, tests).
 2. **Do not** run QA, regardless of whether stories exist or `STORIES_DIR` is set.
 3. The Design CLI gate (Step 1.5) still runs — `skip-qa` skips QA stories, not the deterministic CLI check.
 
-**Composability:** `skip-qa` can be combined with targeted scope arguments (e.g., `/test types skip-qa` runs only type checking; `skip-qa` is redundant in that case but harmless).
+**Composability:** `skip-qa` can be combined with targeted scope arguments (e.g., `/claude-tweaks:test types skip-qa` runs only type checking; `skip-qa` is redundant in that case but harmless).
 
 When invoked with `skip-qa` and verification passes, set `TEST_PASSED=true` and report (see Step 1.5 below for the `Design CLI:` line, which the Design CLI Gate still runs and reports on even in `skip-qa` mode):
 
@@ -172,7 +172,7 @@ If tests fail and the failures look straightforward (type errors, lint violation
 
 ### Auto mode
 
-When a pipeline run directory exists, apply the `/test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `lint+type`) and route per the `/test` row in `_shared/auto-mode-contract.md`. QA failures never auto-fix — they always stage.
+When a pipeline run directory exists, apply the `/claude-tweaks:test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `lint+type`) and route per the `/claude-tweaks:test` row in `_shared/auto-mode-contract.md`. QA failures never auto-fix — they always stage.
 
 **Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Reversibility: high; commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
 
@@ -227,7 +227,7 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 
 ## Component-Skill Contract
 
-`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var — the primary signal. `/claude-tweaks:review`'s standalone auto-trigger (Step 1.5, "No recent pass" branch — no pipeline run dir exists yet) may pass `--source review` as an explicit fallback. When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
+`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `$PIPELINE_RUN_DIR` env var — the primary signal. `/claude-tweaks:review`'s standalone auto-trigger (Step 1.5, "No recent pass" branch — no pipeline run dir exists yet) may pass `--source review` as an explicit fallback. When `$PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
 
 ## Anti-Patterns
 

@@ -72,6 +72,22 @@ never a gate, never a reason to stop — but without it a sandbox pinned to a st
 plugin build and a real bug in the current build are indistinguishable from the
 outside.
 
+Regardless of which rung resolved, also run `claude plugin list --json` once and print
+its output verbatim (fall back to `ls -la ~/.claude/plugins/cache/*/*/ 2>&1` if that
+command errors). This is the single, deterministic listing of every plugin actually
+installed, not just claude-tweaks — printing it now means a later diagnostic pass, if
+one becomes necessary, doesn't have to re-derive the same fact through several more
+exploratory commands.
+
+If all four rungs above came up empty (`unresolved`), the plugin cache is genuinely
+empty. Do not attempt the kickoff below first — invoking a skill against zero installed
+plugins fails predictably and only spends a turn re-establishing what the `unresolved`
+line already established. Go straight to `bash scripts/claude-cloud-setup.sh` to
+self-heal (the same script this project's cloud environment's Setup script field should
+already run automatically — if it simply wasn't invoked for this container, this
+repairs it for the rest of this session), then re-run the resolved-build line once
+before proceeding to the kickoff.
+
 Then: /claude-tweaks:{skill}
 ```
 

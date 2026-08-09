@@ -110,13 +110,13 @@ Unresolved:
 Next: caller decides whether to escalate, defer, or accept.
 ```
 
-> The `BLOCKED` status word here matches the Subagent Contract's `BLOCKED` (one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`). When `/journeys` is invoked from a parent skill (e.g., `/build`), the parent treats `BLOCKED` exactly like any other subagent BLOCKED — diagnose and re-dispatch with more context, or escalate. When invoked directly by a user, render the same block — the user is the "caller" who decides next steps.
+> The `BLOCKED` status word here matches the Subagent Contract's `BLOCKED` (one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`). When `/claude-tweaks:journeys` is invoked from a parent skill (e.g., `/claude-tweaks:build`), the parent treats `BLOCKED` exactly like any other subagent BLOCKED — diagnose and re-dispatch with more context, or escalate. When invoked directly by a user, render the same block — the user is the "caller" who decides next steps.
 
 Do NOT loop on fix attempts or silently ship a journey with known self-review issues.
 
 ## Step 3.6: Diagram Suggestion
 
-Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 12). When the flag is `disabled` or missing, skip this step silently.
+Read the `diagram-suggestions` flag from CLAUDE.md (written by `/claude-tweaks:init` Step 12). When the flag is `disabled` or missing, skip this step silently.
 
 When the flag is `enabled`, scan the journey file(s) just written/updated and detect the strongest signal:
 
