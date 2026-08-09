@@ -15,7 +15,7 @@ The gate is item-*existence*, not open-item-existence: the bulk-resolve fast pat
 
 The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. Before reporting completion, check every `acknowledged` item for a staged proposal (a producer can create an item pre-set to `acknowledged`, bypassing Phase 3 entirely — e.g. `build/worktree-setup.md`'s auto-mode divergence entry): stage one now, per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, for any that lack one. Then report: "All {N} ledger items resolved. No open items." and proceed to Phase 4.
 
-Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is never skipped, regardless of `auto` state, when any `open` item exists.
+Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-card.md` — it is never skipped, regardless of `auto` state, when any `open` item exists.
 
 ### Ops acknowledgment (when ops items exist)
 

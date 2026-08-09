@@ -174,7 +174,7 @@ For the full exit-path rule, the merge-don't-overwrite write procedure, and the 
 
 After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based Phase scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases; or one or more Enhancement filter tokens with no Phase scope, in which case skip this gate and stop after Phase 0 (same as `bootstrap` alone) — see the `## Input` section.
 
-**Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
+**Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-card.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 
 The gate is one `AskUserQuestion` with four options — Auto (run every included phase end-to-end), Interactive (a per-phase continue/skip/stop gate re-issued after each phase), Essentials (Phases 2, 3, 5 only — the `config` scope), and Done (stop after Phase 0). Auto and Essentials still reach Phase 9; Interactive's "Stop here" and Done end the invocation early, and when they do and Step 6 queued a `worktree.always` decision, write it first — see "Finalizing the worktree.always Decision" above.
 

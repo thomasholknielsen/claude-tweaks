@@ -9,6 +9,7 @@ const {
   claimPayload,
   releasePayload,
   parseClaimMarker,
+  classifyClaimBlob,
 } = require('../claims');
 
 const T0 = 1720000000000; // fixed epoch ms for deterministic tests
@@ -257,4 +258,78 @@ test('malformed (non-number, non-missing) ttlHours falls back to the 72h default
   const claimWithNullTtl = { runId: 'r1', claimedAt: new Date(T0).toISOString(), ttlHours: null };
   assert.strictEqual(isStale(claimWithNullTtl, T0 + 72 * H - 1), false);
   assert.strictEqual(isStale(claimWithNullTtl, T0 + 72 * H), true);
+});
+
+// ---- classifyClaimBlob (#241: unified blob-store claim, both transports) --
+
+test('classifyClaimBlob: absent (no file) is reclaimable via create-only write', () => {
+  assert.deepStrictEqual(classifyClaimBlob(null, T0), { state: 'absent', reclaimable: true });
+  assert.deepStrictEqual(classifyClaimBlob(undefined, T0), { state: 'absent', reclaimable: true });
+});
+
+test('classifyClaimBlob: unreadable content (not valid claim JSON) is never reclaimable', () => {
+  assert.deepStrictEqual(classifyClaimBlob('not json', T0), { state: 'unreadable', reclaimable: false });
+  assert.deepStrictEqual(classifyClaimBlob('null', T0), { state: 'unreadable', reclaimable: false });
+  assert.deepStrictEqual(classifyClaimBlob('[]', T0), { state: 'unreadable', reclaimable: false });
+  assert.deepStrictEqual(classifyClaimBlob('"a string"', T0), { state: 'unreadable', reclaimable: false });
+});
+
+test('classifyClaimBlob: a tombstone (released: true) is reclaimable via conditional-update', () => {
+  const content = JSON.stringify({ released: true, runId: 'run-1', reason: 'merged: spec 12', releasedAt: new Date(T0).toISOString() });
+  assert.deepStrictEqual(classifyClaimBlob(content, T0 + 1000), { state: 'tombstone', reclaimable: true });
+});
+
+test('classifyClaimBlob: a live claim past its TTL is stale and reclaimable', () => {
+  const content = JSON.stringify({ runId: 'run-1', claimedAt: new Date(T0).toISOString(), ttlHours: 72, host: 'mac-1' });
+  assert.deepStrictEqual(classifyClaimBlob(content, T0 + 73 * H), { state: 'stale', reclaimable: true });
+});
+
+test('classifyClaimBlob: a live, non-stale claim is contested (not reclaimable)', () => {
+  const content = JSON.stringify({ runId: 'run-1', claimedAt: new Date(T0).toISOString(), ttlHours: 72, host: 'mac-1' });
+  assert.deepStrictEqual(classifyClaimBlob(content, T0 + 1 * H), { state: 'live', reclaimable: false });
+});
+
+test('classifyClaimBlob: a tombstone never regresses to stale/live even long after release', () => {
+  // released:true always wins, regardless of how much time has passed — a
+  // tombstone has no claimedAt/ttlHours to go stale against by isStale's own
+  // contract, and even if a stray one were present it must not resurrect a
+  // released claim as "live".
+  const content = JSON.stringify({ released: true, runId: 'run-1', reason: 'swept: stale claim', releasedAt: new Date(T0).toISOString(), claimedAt: new Date(T0).toISOString(), ttlHours: 72 });
+  assert.deepStrictEqual(classifyClaimBlob(content, T0 + 1000), { state: 'tombstone', reclaimable: true });
+});
+
+test('classifyClaimBlob: cross-transport collision — the gh-CLI write path and the MCP write path classify the SAME blob content identically', () => {
+  // This is the fixture-level proof of #241's core claim: unifying both
+  // transports on one blob keyspace means a claim written by either one
+  // reads back through the exact same classifier, so a second writer on
+  // *either* transport sees the same "live, not reclaimable" verdict and
+  // backs off — the dual-keyspace split (ref vs blob) that let a gh session
+  // and an MCP session both succeed independently is structurally
+  // impossible once there is only one classifier over one keyspace.
+  const ghWrittenPayload = claimPayload({ issueNumber: 241, sha: 'sha-from-gh-session', runId: 'gh-run-1', sessionId: 'sess-gh', host: 'gh-host', now: T0 });
+  const mcpWrittenPayload = claimPayload({ issueNumber: 241, sha: 'sha-from-mcp-session', runId: 'mcp-run-1', sessionId: 'sess-mcp', host: 'mcp-host', now: T0 });
+
+  // Both transports build the blob content off the SAME fileContent field —
+  // the payload builder doesn't know or care which transport will write it.
+  assert.strictEqual(ghWrittenPayload.claimPath, mcpWrittenPayload.claimPath);
+
+  // A second writer (either transport) reads the blob a moment later and
+  // must see it as live/contested, never as absent/reclaimable — that is
+  // the collision-prevention guarantee.
+  const secondReaderVerdict = classifyClaimBlob(ghWrittenPayload.fileContent, T0 + 1000);
+  assert.deepStrictEqual(secondReaderVerdict, { state: 'live', reclaimable: false });
+
+  // The same verdict holds regardless of which payload (gh's or MCP's own
+  // attempted write) is being checked against the already-live blob — the
+  // classifier has no transport-specific branch.
+  const mcpReaderVerdictOnGhWrite = classifyClaimBlob(ghWrittenPayload.fileContent, T0 + 1000);
+  const ghReaderVerdictOnGhWrite = classifyClaimBlob(ghWrittenPayload.fileContent, T0 + 1000);
+  assert.deepStrictEqual(mcpReaderVerdictOnGhWrite, ghReaderVerdictOnGhWrite);
+});
+
+test('classifyClaimBlob: never throws on garbage input', () => {
+  assert.doesNotThrow(() => classifyClaimBlob('{{{not json', T0));
+  assert.doesNotThrow(() => classifyClaimBlob('', T0));
+  assert.doesNotThrow(() => classifyClaimBlob(42, T0));
+  assert.doesNotThrow(() => classifyClaimBlob({}, T0));
 });

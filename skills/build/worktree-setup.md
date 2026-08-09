@@ -23,6 +23,8 @@ surfaces a mismatch loudly rather than letting it pass silently.
 
 1. **Pre-flight merge check** — read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
 
+   **Skip when already stamped by `/flow` (re-read cut).** When this invocation received `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` from `/flow`'s Step 2.5 (per `flow/validation.md`'s "Memo stamp" note), resolve `$UPSTREAM` the same way the block below does and compare `git rev-parse "$UPSTREAM"` against the stamped `{sha}`. A match means `/flow` already ran this exact check moments ago in this same run — skip the fetch and the divergence prompt entirely, and proceed straight to Step 2. A mismatch (the ref moved since the stamp — rare, but possible under a slow Manifesto or materialize step) or a missing stamp (standalone `/claude-tweaks:build`, no `/flow` parent) runs the full check below — **fail-open, never fail-skip**: an absent or stale stamp is not a reason to skip the safety check, only a matching one is.
+
    A project that pins an integration branch names the expected fork point directly, replacing the upstream-then-`origin/HEAD` guess. Only the *stated* ranks of `skills/_shared/integration-branch.md` apply here — the policy line below, and any explicit argument or CLAUDE.md statement above it. **That fragment's git-inference rank must not be used for this check:** it resolves a branch in nearly every repo, which would shadow the `@{upstream}` fallback and make `/claude-tweaks:build` on a tracked feature branch compare against the wrong ref and warn about a divergence that isn't there.
 
    ```bash

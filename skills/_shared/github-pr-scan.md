@@ -1,24 +1,12 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines the Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`family-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`). A scope section is inlined **whole**, its `work-links` resolution and fetch-limit sub-sections included: the `acceptance-gap` and `family-gate` scopes each carry a `work-links: body-text` / `work-links: native` branch pair, and an agent that cannot resolve `work-links` cannot choose between them — taking the first-listed `body-text` branch on a `native` repo returns zero leaves from every parent and makes both scopes silently wrong (see each scope's own resolution sub-section for the failure it produces).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines `_shared/forge-detection.md`'s Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`family-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section and this file's Output Contract, plus `_shared/forge-detection.md`'s Detection Ladder, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`). A scope section is inlined **whole**, its `work-links` resolution and fetch-limit sub-sections included: the `acceptance-gap` and `family-gate` scopes each carry a `work-links: body-text` / `work-links: native` branch pair, and an agent that cannot resolve `work-links` cannot choose between them — taking the first-listed `body-text` branch on a `native` repo returns zero leaves from every parent and makes both scopes silently wrong (see each scope's own resolution sub-section for the failure it produces).
 
 Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — `gh`'s implicit default is 30, which silently truncates instead of erroring. A result count landing exactly at the stated limit means the scan may be incomplete; treat that as a signal to narrow the query (a tighter label/state filter) or re-run with a higher `--limit`, not as a final count.
 
 ## Detection Ladder (fail-open)
 
-Run these checks in order before any scan. On the first failure, emit the single info row shown and stop — a skipped GitHub scan is normal, never a `BLOCKED` status, never a hard gate.
-
-| # | Check | Command | On failure, emit Finding / Evidence |
-|---|-------|---------|-------------------------------------|
-| 1 | GitHub remote exists | `git -C "{REPO_ROOT}" remote get-url origin` exits 0 (any host — no longer string-matched against `github.com`, which false-negated on GitHub Enterprise hosts like `github.mycompany.com`) | `GitHub scan skipped` / `no GitHub remote` |
-| 2 | gh CLI installed | `command -v gh` exits 0 | `GitHub scan skipped` / `gh CLI not installed` |
-| 3 | gh authenticated + repo reachable | `gh repo view --json owner,name` exits 0 (resolves the host from the remote automatically — works identically for github.com and GitHub Enterprise once authenticated for that host; replaces the old bare `gh auth status` check) | `GitHub scan skipped` / `gh not authenticated or repo unreachable` |
-
-The skip row uses severity `info` and Path:Line `(github)`.
-
-Individual `gh` command failures mid-scan (rate limit, network, transient API errors) degrade to a `DONE_WITH_CONCERNS` status line with whatever partial results exist — never `BLOCKED`.
-
-`{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before the agent fires (see Working Directory Discipline in `_shared/subagent-output-contract.md`).
+Extracted to `_shared/forge-detection.md` (the re-read cut: a consumer needing only the three-check gate no longer has to load this file's full 39 KB to get it). This heading stays as a stub so existing section references still resolve in one hop. Every scope section below still runs behind this ladder exactly as before — read `forge-detection.md` for the checks, the skip-row format, the fail-open posture, and the transport-aware check-2 note.
 
 ## Staleness Thresholds
 

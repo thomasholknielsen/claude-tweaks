@@ -25,7 +25,7 @@ lever's state.
 
 ## Precedence
 
-Same resolution order as every other lever in `_shared/auto-mode-contract.md`:
+Same resolution order as every other lever in `_shared/auto-mode-card.md`:
 
 1. Explicit CLI arg
 2. `config.yml` (this run's Manifesto answer)

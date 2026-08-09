@@ -168,7 +168,7 @@ None of these three options carries `(Recommended)` — the source text requires
 ## Preflight
 
 Before "On approval" or "On override" below runs any `gh` command, run the Detection Ladder
-from `_shared/github-pr-scan.md` (checks 1-3). A ladder failure is a hard gate here, matching
+from `_shared/forge-detection.md` (checks 1-3). A ladder failure is a hard gate here, matching
 `wrap-up/cleanup-procedures.md` Section E's own posture — this console's entire approval path
 writes GitHub state (releases, grant removal), so there is no fail-open degraded mode.
 

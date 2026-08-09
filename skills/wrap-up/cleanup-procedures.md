@@ -14,7 +14,7 @@ Eight cleanup actions, executed in order (Phase 4's execution step) and surfaced
 | 4 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
 | 5 | Record lifecycle | `work-backend: github-issues`: no-op — closure is close-via-merge (items 4 and 7 stamp the carrier commit and release the claim). `work-backend: local-files`: on 100% completion (confirmed by `/claude-tweaks:review`), call `closeRecord(path)` (`bin/lib/issues/local-store.js`) on the record's file and commit — the record stays on disk as history, excluded from `queryRecords`' default results | record-based work | No (idempotent — does not interact with parent multi-spec archival either way) |
 | 6 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
-| 7 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for this spec's record | record-based work | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
+| 7 | Issue claim release | Section E below — release `claims/issue-{n}.json` on `claims-registry` for this spec's record | record-based work | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
 | 8 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 
 The detailed procedures for items 3, 4, 6, 7, and 8 follow — see each row's Procedure ref column for its Section letter. Items 1, 2, and 5 are simple enough to execute inline at Phase 4's execution step without a dedicated sub-procedure.
@@ -214,15 +214,15 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 This spec's record is identified whenever this section runs (`SKILL.md` Phase 1 — an argument, a
 branch/commit reference, or, when `skills/flow/materialize.md` wrote one, a materialized header's
-`record:` field). Call that number `<n>`: the pipeline may hold `refs/claims/issue-<n>` per
-`_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
+`record:` field). Call that number `<n>`: the pipeline may hold `claims/issue-<n>.json` on
+`claims-registry` per `_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
 through `/claude-tweaks:dispatch` never held a claim either: step 3's ownership check ends the
-section harmlessly there, before the delete is attempted, logging the misleading-but-harmless
+section harmlessly there, before the write is attempted, logging the misleading-but-harmless
 `claim held by run undefined`. Release it only after the branch outcome is known (item 4, Git
 Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
-`_shared/github-pr-scan.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
+`_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
 skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
 `gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
 stop before attempting any release.
@@ -249,25 +249,32 @@ stop before attempting any release.
    the lock" and skip the delete and the comment on every success. A spec reaching this point
    through any other path (a human running `/flow #{issue}` directly, or a spec merely *derived
    from* an issue with no live claim) falls back to this pipeline's own run id — the only value
-   used here before this distinction existed. Fetch the issue's comments and fold through
-   `claimStatus`. If `claim.runId` is not the resolved `$RUN_ID`, a successor holds the lock —
-   skip the delete AND the comment, log
+   used here before this distinction existed. Read the claim blob at `claims/issue-${ISSUE}.json`
+   on `claims-registry` (per `_shared/issue-claims.md`'s "The lock"). If its `runId` is not the
+   resolved `$RUN_ID`, a successor holds the lock — skip the write AND the comment, log
    `AUTO — skipped release of issue #{issue}: claim held by run {claim.runId}`, and continue.
-4. Generate the release comment with `releasePayload`, delete the ref, post the comment:
+4. Generate the release content/comment with `releasePayload`, conditionally overwrite the
+   blob with the tombstone (sha = the blob's current sha, from step 3's read), post the comment:
 
    ```bash
    node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-     console.log(c.releasePayload({issueNumber:Number(process.argv[1]),runId:process.argv[2],
-     reason:process.argv[3],link:process.argv[4]||undefined,now:Date.now()}).commentBody)" \
-     "$ISSUE" "$RUN_ID" "$REASON" "$LINK" \
+     const p = c.releasePayload({issueNumber:Number(process.argv[1]),runId:process.argv[2],
+     reason:process.argv[3],link:process.argv[4]||undefined,now:Date.now()});
+     require('fs').writeFileSync(process.argv[5], p.tombstoneContent);
+     console.log(p.commentBody)" \
+     "$ISSUE" "$RUN_ID" "$REASON" "$LINK" "${RUN_DIR}/release-tombstone-${ISSUE}.json" \
      > "${RUN_DIR}/release-${ISSUE}.md"
-   gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${ISSUE}"
+   gh api --method PUT "repos/{owner}/{repo}/contents/claims/issue-${ISSUE}.json" \
+     -f "message=Release claim on issue #${ISSUE}" \
+     -f "content=$(base64 < "${RUN_DIR}/release-tombstone-${ISSUE}.json")" \
+     -f "branch=claims-registry" -f "sha=${CURRENT_BLOB_SHA}"
    gh issue comment "$ISSUE" --body-file "${RUN_DIR}/release-${ISSUE}.md"
    ```
 
-5. A 404/422 from the ref delete means the claim was already released or swept — log it and
-   still post the release comment (the comment trail should record the outcome). Any other
-   failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
+5. A 404/422 from the blob write means the claim was already released or swept (or the sha went
+   stale between the read and this write) — log it and still post the release comment (the
+   comment trail should record the outcome). Any other failure: retry once, then log and
+   continue — TTL is the backstop, never block wrap-up.
 6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: remove `auto:build` and
    `auto:merge`, whichever are present (`gh issue edit "$ISSUE" --remove-label auto:build` /
    `--remove-label auto:merge`, best-effort per label) — reversible, log each removal to

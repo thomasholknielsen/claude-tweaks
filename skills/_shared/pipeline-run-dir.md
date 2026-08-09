@@ -76,6 +76,37 @@ fi
 - Topic runs: pass `SPEC_SLUG="meal-planning"` (no prefix — non-numeric slugs don't collide).
 - Last-resort: `git branch --show-current` after a worktree exists. `/flow` and `/build` create the worktree before any path-sensitive command, so this fallback is safe at the time the resolution runs.
 
+## Per-run record cache
+
+For a work-record reference (`#N`), the first stage in a run that fetches the full record body
+writes it to `{run-dir}/work/record-{n}.json` (single-record run) or
+`{parent-run-dir}/spec-{n}/work/record-{n}.json` (multi-record run — the same `spec-{N}/`
+sub-namespacing `materialize.md`'s Multi-record layout already uses). A later stage in the
+**same run** that needs the record's raw fetched fields (not the composed header — that's
+`work/{n}-spec.md`, the frozen build-time artifact) reads this file instead of re-issuing
+`gh issue view` / `readRecord`.
+
+**Today's one writer:** `materialize.md`'s Resolution step already fetches the full record as
+its first act (`{ number, title, body, labels, url }` / the local-files equivalent) — write that
+same fetched object to this path at the same point the header is composed (worktree-first
+ordering; see `materialize.md`'s "When this runs"), no second fetch. This is the whole of what
+ships today: a real, correctly-scoped write with no reader yet promised to consume it, because
+the skills named in the "5 separate fetches" audit that motivated this cache (`/specify`,
+`/claude-tweaks:backlog refine`, `/claude-tweaks:demo`) mostly run **outside** any run dir's
+lifetime — `/specify` and `backlog refine` before `/flow` creates one, `/demo` typically after
+`/wrap-up` has archived it — so a run-scoped cache cannot address those hops by construction.
+Anything that later runs inside the *same* run dir as a materialized record (a future consumer)
+should read this file first and fall back to a live fetch when it's absent, never the reverse.
+
+**Invalidation rule — cache serves reads, every mutation writes through.** This is stated as an
+unconditional rule, not an enumeration of stages (IL-14: enumeration always misses a stage). Any
+step that mutates the live record (a label add/remove, a body edit) after this cache was written
+must overwrite this same file with the post-mutation state in the same step, or delete it — a
+stale cache silently reappears to the next reader otherwise. A step that only needs to confirm
+current label state for a decision (e.g. a contested-claim check) reads live and does **not**
+consult or refresh this cache; the cache exists for the record's descriptive fields
+(title/body/url), which don't change out from under a running pipeline as often as labels do.
+
 ## See also
 
 - `_shared/auto-mode-contract.md` — full spec (directory layout, lifecycle, archive rules)

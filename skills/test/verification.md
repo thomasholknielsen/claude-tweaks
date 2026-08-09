@@ -58,7 +58,10 @@ grep -n -B 2 -A 20 -E 'FAIL|Error:' "$LOG" | head -100     # other runners
 
 ### Skip-if-recent (for /flow pipelines)
 
-When running inside a `/claude-tweaks:flow` pipeline and the previous step already ran verification successfully (indicated by `VERIFICATION_PASSED=true` in the pipeline context), **skip this procedure entirely** and note: "Verification skipped — passed in previous pipeline step." This prevents redundant type check + lint + test runs when `/flow` chains build → test.
+When running inside a `/claude-tweaks:flow` pipeline and the previous step already ran verification successfully (indicated by `VERIFICATION_PASSED=true` in the pipeline context), check the accompanying `VERIFICATION_SHA` (set by `build/SKILL.md` Common Step 5) against the current `git rev-parse HEAD`:
+
+- **Match** — `skip this procedure entirely` and note: "Verification skipped — passed in previous pipeline step." This prevents redundant type check + lint + test runs when `/flow` chains build → test.
+- **Mismatch, or `VERIFICATION_SHA` absent** — the tree changed since build's verification (or the signal predates this stamp) — **do not skip**; run the full procedure below and note why: "Verification re-run — tree changed since build's pass ({old-sha} → {current-sha})." Fail-open: a missing or stale stamp is never a reason to trust a skip, only a matching one is.
 
 **Note:** Skipping verification does not skip QA. When `/claude-tweaks:test` receives `VERIFICATION_PASSED=true` and QA stories exist, it skips this procedure but still runs QA story validation separately.
 

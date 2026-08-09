@@ -1,7 +1,14 @@
 // bin/lib/issues/claims.js
-// Pure: build claim/release payloads for refs/claims/* and fold claim-comment
-// markers into claim status. The SKILL.md runs gh and passes results back —
-// no network here. Time-dependent functions take `now` (epoch ms).
+// Pure: build claim/release payloads for the claims-registry blob store
+// (`claims/issue-<n>.json` on the `claims-registry` branch — the one lock
+// keyspace both the gh-CLI and MCP transports write to) and fold claim-
+// comment markers into claim status. The SKILL.md runs gh (or the MCP
+// tools) and passes results back — no network here. `claimRef`/`claimPath`
+// (the `refs/claims/issue-<n>` git-ref keyspace) are read-only-compat
+// surface for the deprecation window described in issue-claims.md — no
+// current code path *writes* a claim there; `classifyClaimBlob` below is
+// the one classification function both transports' write paths share.
+// Time-dependent functions take `now` (epoch ms).
 // Contract: skills/_shared/issue-claims.md.
 'use strict';
 
@@ -127,7 +134,43 @@ function claimStatus(comments, now) {
   return { claimed: true, claim: active, stale: isStale(active, now) };
 }
 
+// Classify a claim blob's *current* content — the same read-then-classify
+// step both transports now run against the one `claimPath` keyspace before
+// deciding create-only vs conditional-update vs contested. `content` is the
+// raw string read from the blob, or `null`/`undefined` when the file does
+// not exist yet (never-claimed). Never throws.
+//
+//   'absent'     — file does not exist. Reclaimable via a create-only write
+//                  (no `sha`) — a concurrent create-only write from the
+//                  other transport racing for the same path is exactly the
+//                  cross-transport collision this unification closes: only
+//                  one create-only write can land, GitHub rejects the other.
+//   'unreadable' — file exists but isn't valid claim JSON. Fails closed to
+//                  *not* reclaimable — a claim you cannot read is not yours
+//                  to break (mirrors `isStale`'s unparseable-date posture).
+//   'tombstone'  — a past claim already released (`released: true`).
+//                  Reclaimable via a conditional-update write (`sha` = the
+//                  blob's current sha, from the same read).
+//   'stale'      — a live claim past its TTL (`isStale`). Reclaimable the
+//                  same conditional-update way as a tombstone.
+//   'live'       — an active, non-stale claim. Not reclaimable — contested.
+function classifyClaimBlob(content, now) {
+  if (content === null || content === undefined) return { state: 'absent', reclaimable: true };
+  let parsed = null;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    /* stays null */
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { state: 'unreadable', reclaimable: false };
+  }
+  if (parsed.released === true) return { state: 'tombstone', reclaimable: true };
+  if (isStale(parsed, now)) return { state: 'stale', reclaimable: true };
+  return { state: 'live', reclaimable: false };
+}
+
 module.exports = {
   DEFAULT_TTL_HOURS, CLAIMS_BRANCH, claimRef, claimFilePath, claimPayload, releasePayload,
-  parseClaimMarker, isStale, claimStatus,
+  parseClaimMarker, isStale, claimStatus, classifyClaimBlob,
 };

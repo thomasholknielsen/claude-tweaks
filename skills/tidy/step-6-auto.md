@@ -29,7 +29,7 @@ For each finding, route by recommendation type:
 | **Add rule to CLAUDE.md** (cross-spec patterns) | Stage | Stage | Stage — CLAUDE.md never edited autonomously |
 | **Design record drift** (Step 4.9's `[doctor]` findings; no mutation, informational) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) — there is no tier at which this becomes an action. The scan step never edits a project file: applying an `auto` finding means `doctor.mjs --fix`, which rewrites `PRODUCT.md`, and `_shared/auto-mode-contract.md` reserves that for explicit human approval. A skipped scan surfaces nothing at all. |
 | **Close (GitHub) / Resolve thread** (outward-facing GitHub mutations) | Stage | Stage | Stage — visible to collaborators and may trigger notifications; never auto-applied per the auto-mode contract's reversibility floor |
-| **Capture** (PR/issue → backlog record) | Stage | Stage | Stage — new backlog-record writes are on the auto-mode contract's never-silenced list (`_shared/auto-mode-contract.md`: "Work-record creation") |
+| **Capture** (PR/issue → backlog record) | Stage | Stage | Stage — new backlog-record writes are on the auto-mode contract's never-silenced list (`_shared/auto-mode-card.md`: "Work-record creation") |
 
 **Log entries:** Write each auto-resolution to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md`. Example entries:
 ```

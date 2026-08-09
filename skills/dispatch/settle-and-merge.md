@@ -10,7 +10,7 @@ This procedure runs inside each group's own Task agent (Step 5), against that ag
 
 When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
-1. Before releasing, fold this record's comments through `claimStatus` (per `_shared/issue-claims.md`'s Ownership rule) and confirm `claim.runId` equals this run's `$RUN_ID`. A mismatch means a successor already broke the stale claim and now holds the lock — skip the rest of this step entirely (no release, no label changes, no comment), log, and move to the next record.
+1. Before releasing, read this record's claim blob (`claims/issue-{n}.json` on `claims-registry`, per `_shared/issue-claims.md`'s "The lock" and Ownership rule) and confirm its `runId` equals this run's `$RUN_ID`. A mismatch means a successor already broke the stale claim and now holds the lock — skip the rest of this step entirely (no release, no label changes, no comment), log, and move to the next record.
 2. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s Release triggers table), then remove `bot:in-progress` the same way `wrap-up/cleanup-procedures.md` Section E's claim-mirror removal does (best-effort — log a warning and continue on failure). This is a cross-reference, not a restatement — if Section E's mechanics for this step ever change, this step must be re-verified against it rather than assumed still correct.
 3. **Classify the failure and act on `auto:merge` accordingly.** Invoke `/claude-tweaks:assess-agent-autonomy` in `failure-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "failure-check #{n}")`. If `CLASSIFICATION` is `correctness` or `ambiguous`, revoke `auto:merge` if present — today's behavior for this class, unchanged:
 

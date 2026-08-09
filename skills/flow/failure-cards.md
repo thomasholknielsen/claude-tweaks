@@ -10,8 +10,8 @@ Two templates live here. Pick by failure shape:
 | Any other gate (build / stories / test / review / wrap-up) | "Generic gate failure" below |
 
 **Claims held by a record-mode run:** when the stopped run holds issue claims
-(`refs/claims/issue-{issue}`, claimed by `/claude-tweaks:dispatch` before hand-off, per
-`_shared/issue-claims.md`), the card must OFFER release — never auto-release. Resuming is the
+(`claims/issue-{issue}.json` on `claims-registry`, claimed by `/claude-tweaks:dispatch` before
+hand-off, per `_shared/issue-claims.md`), the card must OFFER release — never auto-release. Resuming is the
 recommended next action, and a resumed run needs its claims intact; an unreleased claim ages
 out via TTL anyway.
 
@@ -29,7 +29,7 @@ Release remains offered-only — see below. When claims are held, append this as
 additional `AskUserQuestion` option to whichever template's Next Actions call applies
 — not as a separate freestanding numbered item:
 
-- `label`: `"Release claims"`, `description`: `"Release held claims if you will not resume (reason failed: {gate}): gh api -X DELETE \"repos/{owner}/{repo}/git/refs/claims/issue-{issue}\", after the ownership check (_shared/issue-claims.md, 'Release triggers') + release comment per _shared/issue-claims.md, then best-effort gh issue edit \"$ISSUE\" --remove-label bot:in-progress (every release removes the cosmetic claim mirror, regardless of outcome) — otherwise they expire after the TTL (72h default). Grants (auto:build/auto:merge) are untouched by a failed-gate release — see issue-claims.md's Release triggers table; grant removal is scoped to a merged:/pr-opened: outcome only, so the record stays eligible for a future dispatch retry."`
+- `label`: `"Release claims"`, `description`: `"Release held claims if you will not resume (reason failed: {gate}): read claims/issue-{issue}.json on claims-registry for its current sha, then overwrite it with the release tombstone (per _shared/issue-claims.md, 'The lock' → Release), after the ownership check (_shared/issue-claims.md, 'Release triggers') + release comment, then best-effort gh issue edit \"$ISSUE\" --remove-label bot:in-progress (every release removes the cosmetic claim mirror, regardless of outcome) — otherwise they expire after the TTL (72h default). Grants (auto:build/auto:merge) are untouched by a failed-gate release — see issue-claims.md's Release triggers table; grant removal is scoped to a merged:/pr-opened: outcome only, so the record stays eligible for a future dispatch retry."`
 
 ## Generic gate failure
 

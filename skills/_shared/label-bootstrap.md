@@ -27,6 +27,46 @@ done
 consumer with its own label list — for a single label, use a one-element array
 (`[['bot:blocked', '...']]`) rather than reaching for a separate single-label variant.
 
+## One-shot bootstrap marker
+
+Before running the check-then-create loop above, every consumer checks one repo-wide marker
+label instead of probing each label it's about to apply individually — this is the fix for the
+common case (11 `gh label list` probes repeating every run once the canonical set already
+exists):
+
+```bash
+gh label list --search "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" --json name -q '.[].name' \
+  | grep -qx "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" && SKIP_BOOTSTRAP=true || SKIP_BOOTSTRAP=false
+```
+
+`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `1`**. Bump it (and
+this literal) whenever a label is added to or removed from the canonical `LABELS_JSON` array
+below. A marker stamped under the old version no longer matches the search after a bump, so the
+next consumer's Preflight falls through to the full loop, re-establishes the set (including
+whatever changed), and re-stamps the marker at the new version — the versioning is what keeps this
+compatibility path from silently stopping coverage of labels added later (IL-85).
+
+- **`SKIP_BOOTSTRAP=true`** — the canonical set already exists (established by a prior consumer
+  in this repo, or `/init`'s one-time provision-now offer). Skip the check-then-create loop
+  entirely for this consumer's own labels — zero `gh label list` probes.
+- **`SKIP_BOOTSTRAP=false`** — run the check-then-create loop above exactly as documented
+  (unchanged: per-label probe-then-create). After it completes with no `ensureLabelPayload`
+  errors, retire any stale-version marker and stamp the current one:
+  ```bash
+  gh label list --search "claude-tweaks:bootstrapped-v" --json name -q '.[].name' | grep "^claude-tweaks:bootstrapped-v" \
+    | while read -r OLD; do gh label delete "$OLD" --yes 2>/dev/null; done
+  gh label create "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" \
+    --description "claude-tweaks: canonical label set established (internal bootstrap marker, not a work-record facet)" 2>/dev/null || true
+  ```
+
+The marker is bootstrap-only bookkeeping: never applied to an issue, never read by
+`parseRecordFacets` (which ignores unrecognized label prefixes), and carries no locking
+semantics — a race between two concurrent first-bootstrappers at worst runs the check-then-create
+loop twice, which is already idempotent (`gh label list --search` gates every `gh label create`).
+A virgin repo (no marker, no labels) still creates the full set on its first bootstrapping
+consumer, exactly as today; only the *re-probing* on every subsequent run is what this marker
+removes.
+
 ## Canonical LABELS_JSON — the full work-record taxonomy
 
 The complete label set from `_shared/work-record.md`'s Label taxonomy table (the core label
