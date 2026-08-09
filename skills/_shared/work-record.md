@@ -57,6 +57,19 @@ body line instead (e.g. `Origin: wrap-up leftover from #42`). The `by:*` family'
 is stated once — the Label taxonomy table's Origin row below — and never restated in prose
 here or in a consuming skill; read that row rather than re-deriving the list.
 
+**"Effort" has three surviving meanings — know which one a given field is.** The Scoring axis's
+`size:*` above is one of them, not the only one: (1) the record facet documented here is
+`size` (renamed from `effort` in #217) — task size/complexity, `low|medium|high`; (2)
+`finding.effort` in code-health's judge-output schema is the *same concept* under its
+pre-rename name, deliberately left unrenamed because it's a live LLM-output contract
+(`bin/lib/code-health/validate-finding.js` and every judge call site depend on that exact
+field name) — not a different meaning, just a different vocabulary boundary; (3)
+`review-effort`/`bin/lib/model-profiles/`'s `EFFORT_SCALE` is reasoning depth
+(`low|medium|high|xhigh|max`), unrelated to task size entirely. Reading (1)'s rename as a
+global invariant and "finishing" it into (2) breaks a live contract; conflating (1) or (2)
+with (3) confuses size with reasoning depth, a different axis this file's Scoring row doesn't
+cover at all.
+
 ## Label taxonomy
 
 The core label families below, plus an optional `priority:*` family (see the table for the

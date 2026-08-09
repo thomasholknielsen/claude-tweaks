@@ -9,6 +9,9 @@
 // Keeping a timing assertion in the correctness run therefore trains the reader to dismiss
 // failures as "probably load," which is exactly how a real regression gets waved through
 // (see issue #107). Correctness runs stay deterministic; this file keeps the coverage.
+//
+// Carries its own model-fixture copy, outside npm test's coverage — check this file too
+// when refreshing tests/statusline.test.js's model literals for a Claude model-family rename.
 'use strict';
 
 const { test } = require('node:test');

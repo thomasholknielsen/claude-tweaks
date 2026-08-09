@@ -136,6 +136,9 @@ test('readStdin: detaches listeners and pauses stdin once the 50ms fallback time
   }
 });
 
+// perf/statusline-render.test.js carries its own, separate model fixture — it sits outside
+// npm test's coverage (timing assertions run only via `npm run test:perf`), so a model-family
+// rename here is easy to miss there. Check it too.
 test('renderModel: nested display_name', () => {
   assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 5', id: 'claude-sonnet-5' } }), 'Sonnet 5');
 });
