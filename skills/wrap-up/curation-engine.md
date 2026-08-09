@@ -27,6 +27,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" plan \
   --signals '{"dontCandidate":false,"contradictedConvention":false,"incidentRecorded":false,"adrCandidateCount":0,"d4Count":0,"d5Count":0}'
 ```
 
+(Substitute the re-resolved run-dir path — env assignments do not survive between calls.)
+
 `--run-dir` and `--base` are required; `--ceremony` defaults to `standard` (`fast-lane` narrows the domain-overlap caps). `--skill-budget n` and `--doc-budget n` override those caps outright. `--dry-run` suppresses the telemetry append. `plan` prints the worklist JSON on stdout and writes `engine-state.json` into the run dir.
 
 Signal keys, all optional (absent reads as zero/false):
@@ -90,7 +92,7 @@ One payload per open row, on stdin:
 
 | Field | Required | Contract |
 |---|---|---|
-| `version` | yes | Always `1`. The engine stores named fields into a fresh object and never spreads the payload `[IL-01]`, so an unknown key is dropped, not honored. |
+| `version` | documented, not validated (reserved) | Always `1`. The engine stores named fields into a fresh object and never spreads the payload `[IL-01]`, so an unknown key is dropped, not honored. |
 | `rowId` | yes | Non-empty string matching an **open**, not-yet-recorded worklist row. |
 | `result` | yes | `clean` or `findings`. Nothing else validates. `n/a` is the engine's word for a closed row and is never sent by a judge. |
 | `read` | no | Array of `{ path, mode }`, `mode` being `full` or `bounded`. Omitted reads as `[]` and renders as `read 0 (none)`. Send it even when the row found nothing — it is the evidence that the row was actually looked at. |
@@ -112,7 +114,7 @@ Fail any one and the finding stages. An applied finding is committed on its own,
 
 **These four are necessary, not sufficient.** A judge file may impose stricter conditions of its own, and clearing this precondition never overrides them — the standing example is `reference-sweep.md`, whose repairs additionally bind to the `autonomy` ceiling and the `_shared/initiative-budget.md` floor rule. When a judge's own conditions and this precondition disagree, the finding stages.
 
-**Stage-only and stage rows.** `CLAUDE.md & rules` (`stage-only`), `Decision records`, `Memory`, and `Upstream feedback` (`stage`) emit **every** finding with `"action": "staged"`. The engine does not enforce this — it will record an `applied` finding on any row — so the constraint is the judge's to honor, and each of those judge files restates it in its own header.
+**Stage-only and stage rows.** `CLAUDE.md & rules` (`stage-only`), `Decision records`, `Memory`, and `Upstream feedback` (`stage`) emit **every** finding with `"action": "staged"`. The engine enforces this — `record` rejects an `applied` finding on a `stage`/`stage-only` row outright (`engine-record.js`'s `validateDispositionForRow`, exit 1, with a message naming the row's disposition) — and each of those judge files restates the discipline in its own header too, so a fallback run (section 6, where nothing calls `record`) honors it as well.
 
 **The `SCANNED` line.** The engine writes it, one per row, to `decisions.md`. Reproduced here only so the prose fallback (section 6) can write it by hand:
 
@@ -141,7 +143,7 @@ Write those fields as a reader would say them: the target's name, what changes, 
 3. For each open row, apply its judge file to its scope — using the table's own cap where one is stated, narrowed under `fast-lane`.
 4. Write the row's `SCANNED` line by hand in the section 3 format, into `decisions.md`.
 5. Compose the phase-trace row by hand: `| {target} | {n/a | Clean | {n} applied | {n} staged | {a} applied, {s} staged} | {detail} |`.
-6. Honor sections 3 and 5 unchanged — the `applied` precondition, the stage-only rows, and the vocabulary rule are contracts, not engine features.
+6. Honor sections 3 and 5 unchanged — the `applied` precondition, the stage-only rows, and the vocabulary rule are contracts the engine also enforces when it runs; under the fallback they bind the judge directly.
 
 **The report MUST state `(engine unavailable — prose fallback ran)` in the Phase 2 table caption.** A hand-composed trace that looks engine-produced is worse than no trace: the trace's whole value is that it is mechanical, and a reader cannot tell the two apart from the table alone.
 

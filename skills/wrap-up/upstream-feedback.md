@@ -8,8 +8,8 @@ a defect or gap belonging to an upstream dependency rather than to this project.
 ## Step 1: Run the self-reference check first
 
 Apply the contract's self-reference check before anything else. When it collapses D5 — the
-"upstream" component turns out to be this project — re-classify the learning and handle the result
-in the appropriate earlier step instead. Nothing is staged here in that case.
+"upstream" component turns out to be this project — re-classify the learning and hand it back to
+the registry row that owns the re-classified destination. Nothing is staged here in that case.
 
 ## Step 2: Stage, never file during the run
 

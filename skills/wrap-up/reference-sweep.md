@@ -72,6 +72,11 @@ Resolve the `autonomy` ceiling per `_shared/autonomy-ceiling.md`.
   the budget, in their own commit with the `Initiative-Fix: {run-id}` trailer. Stage every denial
   with its reason — over budget, over a cap, test file, merge-sensitive path.
 
+When staging a candidate, pack the repair (`{old} → {new}`), the `brokenBy` path, and — at
+`trusted`/`unattended` — `permittedInitiative`'s own reason string into the finding's `summary`
+field. `engine-render.js`'s Change column is a plain string copy of `summary`; that column is the
+only place this detail can surface on an engine-rendered console.
+
 ```js
 const { permittedInitiative } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/initiative-budget.js');
 permittedInitiative({

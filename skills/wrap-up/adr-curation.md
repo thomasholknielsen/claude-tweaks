@@ -10,7 +10,7 @@ Gather from this work's surfaces — the same three that produced the `adrCandid
 
 - Architectural deviations classified in `/build` Common Step 4.5
 - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
-- Tradeoffs accepted during `/review` and reflection insights about approach
+- Tradeoffs accepted during `/claude-tweaks:review` and reflection insights about approach
 
 ## Step 2: Run the ADR gate
 

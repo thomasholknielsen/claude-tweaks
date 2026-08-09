@@ -247,7 +247,7 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. T
 | 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
 
-A `SCANNED` entry (the scan-summary log line the engine writes for any curation row — Skills, Docs, Journeys, CLAUDE.md & rules, and the rest — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the registry row it ran for (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
+A `SCANNED` entry (the scan-summary log line the engine writes for any curation row — Skills, Docs, Journeys, CLAUDE.md & rules, and the rest — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the registry row it ran for (no commit ref, since nothing was applied) — there is nothing to revert for these rows. The `What` cell paraphrases the `SCANNED` line into reader language (what ran, what it found) rather than quoting it — the raw line, with its internal fragments (`gap detection:`, the routing codes, and the rest of section 5's exempt vocabulary), stays in `decisions.md`, never in this table.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
@@ -277,7 +277,9 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 > Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `staged/review-contested-{N}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
 
-Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence). The shapes below are the contract that output satisfies, and the prose-fallback template when the engine did not run.
+Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence).
+
+The engine's real output shape is plainer than the per-section shapes below: `renderConsoleSections` emits a bare `#### {title}` heading per section plus one uniform `| # | Target | Change | Disposition |` table (integer `#`, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same four columns for all five sections, no six-column Reference repairs shape and no `17a`/`17b` sub-lettering. The richer per-section shapes below (`| # | Skill | Section | Change |`, the six-column Reference repairs table, etc.) are the **prose-fallback template**, used when the engine did not run. On an engine run, insert `render`'s output verbatim into this response — do not hand-expand it into these shapes.
 
 #### Skill updates (from the Skills curation row)
 
@@ -333,7 +335,9 @@ two states. **Applied** rows are reported, not re-approved — they already happ
 | 17b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
 
 The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
-run that tripped a cap reads differently from a run that found nothing. **A sweep that found
+run that tripped a cap reads differently from a run that found nothing — under the prose fallback
+directly, and on an engine run via the finding's `summary` field (`reference-sweep.md`'s staging
+guidance), which is what `engine-render.js`'s uniform Change column renders. **A sweep that found
 surviving references but applied none must still render this section** — an empty Auto-applied
 list plus a populated staged list is the signal that the ceiling is holding, and collapsing it to
 silence hides exactly that.

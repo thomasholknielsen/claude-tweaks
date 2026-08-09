@@ -104,7 +104,7 @@ Unchanged in substance, renumbered:
 
 ### One console, every mode
 
-The Review Console runs in every mode, reading the run dir Phase 1 guaranteed. Pipeline `auto`/`hybrid`: unchanged. Standalone/interactive: the console replaces current Step 9's batch decision AND the three per-item Q#/M#/U# ask sequences — queue writes, memory updates, and upstream feedback become console sections, itemized and visible, decided by the single Approve-all/Override/Stop call. This satisfies the contract's never-silenced list: silence means acting without surfacing; the console surfaces each item explicitly and Override preserves per-item control.
+The Review Console runs in every mode, reading the run dir Phase 1 guaranteed. Pipeline `auto`/`hybrid`: unchanged. Standalone/interactive: the console replaces current Step 9's batch decision AND the three per-item Q#/M#/U# ask sequences — queue writes, memory updates, and upstream feedback become console sections, itemized and visible. This satisfies the contract's never-silenced list: silence means acting without surfacing; the console surfaces each item explicitly and Override preserves per-item control. (As shipped: per-item — the never-silenced list's stronger reading. Q#/M#/U# items each get their own `AskUserQuestion` drill, never resolved by the single Approve-all/Override/Stop call; that call governs only the named batch sections. Post-implementation correction to this paragraph's original "decided by the single Approve-all/Override/Stop call" wording.)
 
 `MULTISPEC_REVIEW_DEFER=1` semantics unchanged (skip per-spec console; `/flow`'s consolidated console owns approvals).
 
