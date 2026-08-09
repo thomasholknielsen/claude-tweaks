@@ -23,7 +23,7 @@ The plugin had no module-level architectural review — `/simplify` works at the
 
 ## Consequences
 
-- Adds a skill adjacent to `/simplify`; the boundary is "line-level vs module-level," reinforced in both skills' relationship tables.
+- Adds a skill adjacent to `/simplify`; the boundary is "line-level vs module-level," recorded once as an edge in `docs/skill-graph.md` (the per-skill relationship-table convention this line originally described was removed project-wide in v6.34.0).
 - Clean separation of the auto-apply (simplify) and stage-only (deepen) contracts — no reversibility-floor violations.
 - `/flow` stays responsible in auto: analysis runs, action is deliberate. The Creative Opportunities survey is the canonical precedent for this "auto-analyze, manual-act" pattern.
 - Revisit trigger: if total skill count or the simplify/deepen adjacency becomes confusing, convert `/deepen` to a `/review deepen` mode (the discipline survives the move).
