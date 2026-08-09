@@ -15,10 +15,15 @@
 //     statements, the `module.exports.NAME = ...` single-assignment form,
 //     and aliased (`{ a: renamed }`) or computed keys are NOT extracted —
 //     accepted false negatives, consistent with the conservative direction.
-//   - Reference detection is a word-bounded bare-symbol search across every
-//     tracked, non-ignored file — an unrelated same-named identifier
+//   - Reference detection is an identifier-bounded bare-symbol search across
+//     every tracked, non-ignored file — an unrelated same-named identifier
 //     elsewhere in the tree makes a dead export read live. Accepted
-//     false-negative, per the spec's explicit policy.
+//     false-negative, per the spec's explicit policy. Bounded by the JS
+//     identifier character class (which includes `$`), not by `\b`; see
+//     identifierBounded below. A symbol whose own definition and only uses
+//     share one line (e.g. a self-recursive function called nowhere else)
+//     reads as unreferenced, since the whole line is skipped as a
+//     definition — correct for the export question being asked.
 //   - Dynamic patterns are out of scope by construction: a computed
 //     `require(x + y)` call site is never treated as a static reference to
 //     whatever it might load at runtime, and a spread-based barrel
@@ -182,4 +187,45 @@ function extractModuleExports(text) {
   return results;
 }
 
-module.exports = { detectEntrypoints, extractPathLikeStrings, collectStrings, extractModuleExports };
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Wraps an already-escaped symbol in identifier boundaries. Deliberately not
+// `\b`: `$` is a legal JS identifier character (IDENTIFIER_RE accepts it) but
+// a NON-word character to the regex engine, so `\b` is wrong in both
+// directions around it — `\b\$fn\b` matches nothing at all (a live symbol
+// would report dead), while `\bdead\b` matches inside `$dead` (a distinct
+// identifier would mask a dead one). Lookarounds over the actual identifier
+// character class are correct for both.
+function identifierBounded(escapedSymbol) {
+  return `(?<![A-Za-z0-9_$])${escapedSymbol}(?![A-Za-z0-9_$])`;
+}
+
+// True if `symbol` is used anywhere in `allFiles` in a way that is neither
+// (a) its own mention inside the module.exports block it was extracted
+// from (declFile + declRange), nor (b) its own function/const/let/var/class
+// definition line (wherever that lives). Identifier-bounded bare-symbol
+// search — an unrelated same-named identifier elsewhere reads as a reference
+// (accepted false-negative, IL-79-safe: never a decorated-token match).
+function isReferenced(symbol, declFile, declRange, allFiles, contentsByFile) {
+  const bounded = identifierBounded(escapeRegExp(symbol));
+  const symbolRe = new RegExp(bounded);
+  const declPatternRe = new RegExp(`\\b(function|class)\\s+${bounded}|\\b(const|let|var)\\s+${bounded}`);
+  for (const file of allFiles) {
+    const text = contentsByFile.get(file);
+    if (!text) continue;
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!symbolRe.test(line)) continue;
+      const lineNo = i + 1;
+      if (file === declFile && lineNo >= declRange.startLine && lineNo <= declRange.endLine) continue;
+      if (declPatternRe.test(line)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+module.exports = { detectEntrypoints, extractPathLikeStrings, collectStrings, extractModuleExports, isReferenced, escapeRegExp };

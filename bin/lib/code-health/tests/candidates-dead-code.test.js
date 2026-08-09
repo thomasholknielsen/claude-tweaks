@@ -226,3 +226,99 @@ test('extractModuleExports: a "module.exports = {" inside a string value is not 
   const found = extractModuleExports(text);
   assert.deepStrictEqual(found.map((f) => f.symbol), ['real']);
 });
+
+const { isReferenced } = require('../candidates-dead-code');
+
+// ── isReferenced ──────────────────────────────────────────────────────────────
+
+test('isReferenced: a symbol used elsewhere in another file is referenced', () => {
+  const contentsByFile = new Map([
+    ['lib/used.js', 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n'],
+    ['lib/caller.js', "const { usedFn } = require('./used');\nusedFn();\n"],
+  ]);
+  const allFiles = ['lib/used.js', 'lib/caller.js'];
+  assert.strictEqual(isReferenced('usedFn', 'lib/used.js', { startLine: 3, endLine: 3 }, allFiles, contentsByFile), true);
+});
+
+test('isReferenced: a symbol with no use anywhere but its own export-block mention and definition line is NOT referenced', () => {
+  const contentsByFile = new Map([
+    ['lib/used.js', 'function usedFn() {}\nfunction deadFn() {}\nmodule.exports = { usedFn, deadFn };\n'],
+    ['lib/caller.js', "const { usedFn } = require('./used');\nusedFn();\n"],
+  ]);
+  const allFiles = ['lib/used.js', 'lib/caller.js'];
+  assert.strictEqual(isReferenced('deadFn', 'lib/used.js', { startLine: 3, endLine: 3 }, allFiles, contentsByFile), false);
+});
+
+test('isReferenced: a same-named identifier elsewhere in the tree is treated as a reference (accepted false-negative)', () => {
+  const contentsByFile = new Map([
+    ['lib/a.js', 'function helper() {}\nmodule.exports = { helper };\n'],
+    ['lib/unrelated.js', 'const helper = 42; // totally unrelated variable, same bare name\nconsole.log(helper);\n'],
+  ]);
+  const allFiles = ['lib/a.js', 'lib/unrelated.js'];
+  // 'helper' is genuinely dead in lib/a.js's own sense, but the word-bounded
+  // bare-symbol search cannot distinguish it from the unrelated identifier —
+  // this is the spec's explicitly accepted false-negative policy.
+  assert.strictEqual(isReferenced('helper', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), true);
+});
+
+test('isReferenced: the symbol\'s own function/const/class definition line is not itself counted as a use', () => {
+  const contentsByFile = new Map([
+    ['lib/a.js', 'const deadConst = 1;\nfunction deadFn() {}\nclass DeadClass {}\nmodule.exports = { deadConst, deadFn, DeadClass };\n'],
+  ]);
+  const allFiles = ['lib/a.js'];
+  assert.strictEqual(isReferenced('deadConst', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, contentsByFile), false);
+  assert.strictEqual(isReferenced('deadFn', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, contentsByFile), false);
+  assert.strictEqual(isReferenced('DeadClass', 'lib/a.js', { startLine: 4, endLine: 4 }, allFiles, contentsByFile), false);
+});
+
+// Every isReferenced test above still passes with the boundary assertions
+// stripped from the search regex — none of them contains the symbol as a
+// substring of a longer identifier. This one fails under that mutation:
+// an unanchored search reads 'undead' and 'deadline' as uses of `dead`.
+test('isReferenced: a bare substring inside a longer identifier is not a reference', () => {
+  const contentsByFile = new Map([
+    ['lib/a.js', 'function dead() {}\nmodule.exports = { dead };\n'],
+    ['lib/b.js', 'console.log(undead, deadline);\n'],
+  ]);
+  const allFiles = ['lib/a.js', 'lib/b.js'];
+  assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), false);
+});
+
+// `$` is legal in a JS identifier (IDENTIFIER_RE accepts it) and is also a
+// regex metacharacter. Without escapeRegExp the pattern for `a$b` reads as
+// "a, end-of-line, b" and matches nothing, so the live symbol reports dead.
+test('isReferenced: a `$` inside the symbol name is matched literally, not as a regex anchor', () => {
+  const contentsByFile = new Map([
+    ['lib/a.js', 'function a$b() {}\nmodule.exports = { a$b };\n'],
+    ['lib/caller.js', "const { a$b } = require('./a');\na$b();\n"],
+  ]);
+  const allFiles = ['lib/a.js', 'lib/caller.js'];
+  assert.strictEqual(isReferenced('a$b', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), true);
+});
+
+// The two tests below pin why the boundaries are identifier-class lookarounds
+// rather than `\b`: to the regex engine `$` is a NON-word character, so `\b`
+// is wrong in both directions around it.
+
+// Direction 1 (the forbidden one — a live symbol reported dead): `\b\$fn\b`
+// matches nothing anywhere, because no word boundary exists before a `$`.
+test('isReferenced: a symbol whose name starts with `$` is still found where it is used', () => {
+  const contentsByFile = new Map([
+    ['lib/a.js', 'function $fn() {}\nmodule.exports = { $fn };\n'],
+    ['lib/caller.js', "const { $fn } = require('./a');\n$fn();\n"],
+  ]);
+  const allFiles = ['lib/a.js', 'lib/caller.js'];
+  assert.strictEqual(isReferenced('$fn', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), true);
+});
+
+// Direction 2 (the accepted one, fixed for free): `\bdead\b` DOES match inside
+// `$dead`, since the `$`-to-`d` transition is a word boundary — so a distinct
+// `$dead` identifier would mask a genuinely dead `dead`.
+test('isReferenced: an unrelated `$`-prefixed identifier is not a use of the bare symbol', () => {
+  const contentsByFile = new Map([
+    ['lib/a.js', 'function dead() {}\nmodule.exports = { dead };\n'],
+    ['lib/b.js', 'console.log($dead);\n'],
+  ]);
+  const allFiles = ['lib/a.js', 'lib/b.js'];
+  assert.strictEqual(isReferenced('dead', 'lib/a.js', { startLine: 2, endLine: 2 }, allFiles, contentsByFile), false);
+});
