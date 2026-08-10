@@ -37,6 +37,7 @@ const EXPECTED_CATALOG_IDS = [
   'doc-freshness', 'dead-code', 'test-quality',
   'resilience', 'observability', 'config-secrets',
   'dependency-health', 'input-validation', 'naming-clarity',
+  'missing-tests',
 ];
 for (const id of EXPECTED_CATALOG_IDS) {
   test(`core criterion '${id}' is in the catalog`, () => {
@@ -222,9 +223,28 @@ test('security-logic loads for frontend and library; the runtime three do not', 
   }
 });
 
-test('gated OUT: a docs-only slice loads none of the four area-gated criteria', () => {
+// ── missing-tests — #272: gated on the SAME set security-logic uses
+// ("test-bearing" area types track the same code shapes security-relevant
+// logic does; a genuinely non-code slice has no coverage question to ask).
+
+test('missing-tests is area-gated the same as security-logic', () => {
+  const c = getCriterion('missing-tests');
+  assert.ok(Array.isArray(c.appliesTo),
+    `missing-tests.appliesTo must be an array, got ${JSON.stringify(c.appliesTo)}`);
+  assert.deepStrictEqual([...c.appliesTo].sort(), [...SECURITY_TYPES].sort());
+});
+
+test('missing-tests loads for every SECURITY_TYPES area and not for docs', () => {
+  for (const t of SECURITY_TYPES) {
+    const ids = criteriaForArea([t]).map((c) => c.id);
+    assert.ok(ids.includes('missing-tests'), `missing-tests must load for ${t}`);
+  }
+  assert.ok(!criteriaForArea(['docs']).some((c) => c.id === 'missing-tests'));
+});
+
+test('gated OUT: a docs-only slice loads none of the five area-gated criteria', () => {
   const ids = criteriaForArea(['docs']).map((c) => c.id);
-  for (const id of AREA_GATED) {
+  for (const id of [...AREA_GATED, 'missing-tests']) {
     assert.ok(!ids.includes(id), `${id} must not load for a docs-only slice`);
   }
 });

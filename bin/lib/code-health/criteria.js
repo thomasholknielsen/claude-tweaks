@@ -69,6 +69,17 @@ const CRITERIA = [
     confidenceFloor: 'medium',
   },
   {
+    // Area-gated (not universal): "test-bearing" area types — same set
+    // security-logic gates on, since load-bearing tested logic and
+    // load-bearing security-relevant logic track the same code shapes. A
+    // genuinely non-code slice (docs, config) has no coverage question to
+    // ask.
+    id: 'missing-tests',
+    appliesTo: ['backend', 'data', 'cli', 'infra', 'frontend', 'library'],
+    fragment: 'criteria-missing-tests.md',
+    confidenceFloor: 'medium',
+  },
+  {
     // Area-gated (not universal): retries/timeouts/failure modes need a runtime.
     id: 'resilience',
     appliesTo: ['backend', 'data', 'cli', 'infra'],

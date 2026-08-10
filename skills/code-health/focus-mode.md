@@ -22,16 +22,19 @@ This section names one vertical's generator specifically, so it is per-vertical 
 
 ## Criterion pinning
 
-Each focus pins exactly one criterion — no `classify`/`criteriaForArea` call, since focus-mode candidates are scattered across the whole repo rather than confined to one classified area:
+Each focus pins one or more criteria (see below) — no `classify`/`criteriaForArea` call, since focus-mode candidates are scattered across the whole repo rather than confined to one classified area:
 
-| Focus | Criterion id | Fragment |
+| Focus | Criterion id(s) | Fragment |
 |---|---|---|
 | `dead-code` | `dead-code` | none (`fragment: null` in `criteria.js` — judge from SKILL.md Step 5's guidance alone, same as any other `fragment: null` criterion) |
 | `abstraction-police` | `architecture-depth` | `criteria-architecture-depth.md` — its "Cross-file calibration (duplicate abstractions)" section, added specifically for this focus |
+| `test-hygiene` | `missing-tests`, `test-quality` | `criteria-missing-tests.md` (for `missing-tests`); none for `test-quality` (`fragment: null`) — judge `coverage-gap` candidates against `missing-tests`, `useless-test` candidates against `test-quality`, per each candidate's own `kind` |
 
 This table is per-vertical data, not a second copy of the registry's key list: a generator carries no criterion field, so the mapping has to live somewhere and this is its only home. It must gain a row whenever `FOCUS_GENERATORS` gains a key. A `focus=` value the registry recognizes but this table has no row for is the same fail-loud stop as an unrecognized value — report the gap and stop rather than falling back to `criteriaForArea`.
 
-Look the pinned criterion up via `getCriterion` (`bin/lib/code-health/criteria.js`) rather than hand-copying its fields, exactly as SKILL.md Step 4 already does for the generalist path:
+Most foci pin exactly one criterion. A focus MAY pin more than one (comma-separated in the table's Criterion id(s) column) when the vertical's candidate stream mixes two genuinely different judgment questions that don't share a criterion — `test-hygiene` above is the shipped example (coverage-gap candidates need `missing-tests`; useless-test candidates need the pre-existing `test-quality`). F4 hands the judge every criterion pinned for the fired focus, each with its own fragment (if any) embedded per SKILL.md Step 4's convention; a candidate is judged only against the criterion matching its own `kind`, never against every pinned criterion indiscriminately.
+
+Look each pinned criterion up via `getCriterion` (`bin/lib/code-health/criteria.js`) rather than hand-copying its fields, exactly as SKILL.md Step 4 already does for the generalist path:
 
 ```bash
 node -e "const {getCriterion}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(JSON.stringify(getCriterion('dead-code')))"
