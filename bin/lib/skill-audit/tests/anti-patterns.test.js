@@ -376,5 +376,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   read budget defers most of it, and a clean-looking result can mean the
   //   judge never saw the candidate rather than that the candidate was fine.
   //   Nothing evicted — the only `^+\|` line in the diff is that row.
-  assert.strictEqual(total, 369);
+  //
+  //   369 -> 370, #269 (backlog grant mode: headless machine-grant unit).
+  //   backlog/SKILL.md's existing "granting from anything but an interactive
+  //   human session" row was rewritten to scope it to `refine` mode
+  //   specifically (a new `grant` mode is the one deliberate machine-origination
+  //   path this leaf adds) and a second row was added covering `grant` mode's
+  //   own hazard ("granting on any record whose gate chain hasn't fully
+  //   cleared, or on a human-filed record"). One row's text changed in place
+  //   (not an eviction — the pattern column still parses to one row, same
+  //   `^-\|`/`^+\|` pairing `extractAntiPatternRows` treats as a same-slot
+  //   edit) and one row was net-added: 369 + 1 = 370. The only file with a
+  //   nonzero delta is backlog/SKILL.md.
+  assert.strictEqual(total, 370);
 });

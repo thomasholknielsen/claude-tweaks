@@ -84,4 +84,4 @@ function blastRadiusSummary(classifiedFiles) {
   return summary;
 }
 
-module.exports = { classifyDiffFiles, blastRadiusSummary };
+module.exports = { classifyDiffFiles, blastRadiusSummary, isSensitivePath };

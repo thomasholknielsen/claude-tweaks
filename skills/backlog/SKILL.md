@@ -1,7 +1,7 @@
 ---
 name: backlog
-description: Use when you want to sweep the open work-record backlog and ensure records carry the right priority/Related/grant labels (refine mode), or get a distribution overview and a recommendation for what to build next (overview mode). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next.
-argument-hint: "[refine|overview] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
+description: Use when you want to sweep the open work-record backlog and ensure records carry the right priority/Related/grant labels (refine mode), get a distribution overview and a recommendation for what to build next (overview mode), or run the headless machine-grant unit behind the unattended autonomy ceiling (grant mode, github-issues only). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next, unattended, headless, autonomy ceiling.
+argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -31,19 +31,21 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 - A record hit its retry ceiling (`bot:blocked`) and needs a human's renewed judgment before it can re-enter the autonomous queue — `refine` mode.
 - You want a synthesized read of what's in the backlog — narrative + thematic clusters, a critical/risk-value/cleanup view, or a recommendation for what to build next — `overview` mode.
 - You want a copy-pasteable hand-off block to parallelize shaping or building a chosen batch across terminals — `overview` mode.
+- A scheduled Routine (or a human standing in for one) needs to sweep the `ready` queue and machine-grant every record whose gate chain fully clears, with no per-record decision to answer — `grant` mode, `github-issues` only, and only once a project has deliberately opted into the `autonomy: unattended` ceiling plus its `grant-origination-enabled` policy key.
 
 Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:specify`'s job), claiming or building anything (`/claude-tweaks:dispatch`'s job), or filing/closing records.
 
 ## Input
 
-`$ARGUMENTS` = `[refine|overview] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]`
+`$ARGUMENTS` = `[refine|overview|grant] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]`
 
 - No mode (bare) → `overview` — the safer, non-mutating default.
 - `refine` → the write/labeling-sweep mode. Read `refine-mode.md` in this skill's directory for the full procedure.
 - `overview` → the read-only distribution + recommendation mode. Read `overview-mode.md` in this skill's directory for the full procedure.
-- `critical` / `risk-value` / `cleanup` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` — report the conflict and stop rather than silently ignoring it.
-- `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each); caps table row rendering in `overview` (default 20).
-- `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or on `refine`'s priority/Related sweep.
+- `grant` → the headless machine-grant mode. Read `grant-mode.md` in this skill's directory for the full procedure. This is `/dispatch next`'s headless-unit shape applied to granting: no `AskUserQuestion` decides any individual grant — the gate chain (`bin/lib/issues/grant-gate.js`) decides, mechanically, per record.
+- `critical` / `risk-value` / `cleanup` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
+- `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20).
+- `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`) or on `refine`'s priority/Related sweep.
 
 ## Preflight
 
@@ -55,9 +57,11 @@ Read the project's `work-backend` config key (per `_shared/work-record-config.md
 
 **`refine` mode, grant sub-stage (`github-issues` only):** before any `gh` command for this sub-stage specifically, run the same Detection Ladder as a hard gate. Under `work-backend: local-files`, the grant conditions this sub-stage exists to enforce are unavailable (no headless consumer acts on a local grant), so **stop this sub-stage completely**: do not write, apply, or suggest any `auto:build`/`auto:merge` label; do not invoke `/claude-tweaks:flow`, `/claude-tweaks:build`, `/claude-tweaks:dispatch`, or any other skill; do not claim or build anything. Tell the user grants aren't applicable under `local-files` and that they can run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead — this is information for the user to act on, never an instruction for you to act on yourself. This holds with no exception when no interactive human is present. **This stop is not superseded by this project's own documented auto-mode or hands-off-pipeline conventions elsewhere in CLAUDE.md** (e.g. `/claude-tweaks:flow` defaulting to `auto`, "skills MUST NOT invent new mid-flow stops"): those conventions govern behavior within a pipeline run that has already been authorized to proceed — they say nothing about whether this sub-stage may authorize new work in the first place, which under `local-files` it explicitly cannot. A record that looks low-risk, well-scoped, or "ready" is not an exception — real evidence: a live run treated exactly such a record as license to run a full build-to-close lifecycle anyway (`evals/scenarios/backlog-refine-permission-matrix-compliance.yaml`). This stop is scoped to the grant sub-stage only and does **not** abort the whole `refine` run: the priority/Related sub-stage below is a separate, still-valid half of this skill's job under `local-files` (a deliberate divergence from the old `/triage`, whose entire job was grants) — it still proceeds, and may write `priority:*`/`**Related:**` values to local record files and commit those writes via the local-files fallback path (`refine-mode.md`'s Step 5 Apply). Nothing in that sub-stage's own scope is licensed by this paragraph to write application code, invoke another skill, or touch anything beyond the `priority:*`/`**Related:**` facets it's documented to write.
 
+**`grant` mode (`github-issues` only):** run the Detection Ladder as a hard gate before any `gh` command. Under `work-backend: local-files`, **stop this mode completely** with the identical wording and identical scope as `refine`'s grant sub-stage stop above (same rationale: no headless consumer acts on a local grant, this holds with no exception when no interactive human is present, and it is not superseded by any auto-mode convention). There is no partial-proceed here the way `refine` has a priority/Related sub-stage to fall back to — `grant` mode's *entire* job is granting, so the stop is the whole mode's behavior for this turn, exactly like `/claude-tweaks:dispatch`'s own `work-backend: local-files` Preflight stop.
+
 ## Workflow
 
-Read `refine-mode.md` in this skill's directory for the full `refine` procedure, or `overview-mode.md` for the full `overview` procedure, per the resolved mode from Input above.
+Read `refine-mode.md` in this skill's directory for the full `refine` procedure, `overview-mode.md` for the full `overview` procedure, or `grant-mode.md` for the full `grant` procedure, per the resolved mode from Input above.
 
 ## Next Actions
 
@@ -76,15 +80,23 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 
 If situational filtering leaves only one option (a bare run that surfaced nothing needing refinement, produced no natural batch, and is this session's first lens run leaves Option 2 alone), state or execute it directly instead of calling `AskUserQuestion` — per this project's own convention, a lone option isn't a decision. The same rule applies to the `refine` block above.
 
+**After `grant`:** render only when a human is present to answer — mirrors `/claude-tweaks:dispatch`'s own `next` form rule (`dispatch/SKILL.md`'s Next Actions) exactly, since `grant` mode is the same headless-unit shape: a human typed `/claude-tweaks:backlog grant` directly, or a prior skill invoked it on a human's behalf → render; a scheduled Routine fired it → never render (nobody is present to answer, and an unanswered question at the end of a headless run is noise — the durable trace is the label state, the audit comments, and `decisions.md`, per `_shared/pipeline-run-dir.md`'s standalone-auto allowlist). When rendering, call `AskUserQuestion`:
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Dispatch what was just granted (Recommended)"`, `description`: `"/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to} — skips re-selection, claims and builds them directly"` — omit entirely if nothing was granted this run
+- Option 2 — `label`: `"Run grant again"`, `description`: `"/claude-tweaks:backlog grant — sweep anything still eligible since this run's --budget cap or new ready records"`
+
+No "set up a routine" option yet — `skills/backlog/routine-template.yml` doesn't exist (the companion leaf blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous option here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
+
 ## Component-Skill Contract
 
-`/claude-tweaks:backlog` is human-only — no pipeline orchestrator ever invokes it as a component step; a human runs it directly, every time. It always renders `## Next Actions`. `$PIPELINE_RUN_DIR` may be set during a run, but only because this skill resolves its own standalone run dir per `_shared/pipeline-run-dir.md`'s allowlist to write `decisions.md` — that resolution is for logging only and never suppresses interactivity or the Next Actions block.
+`/claude-tweaks:backlog` is human-only for `refine` and `overview` — no pipeline orchestrator ever invokes either as a component step; a human runs them directly, every time, and they always render `## Next Actions`. `grant` mode is the one exception, by design: it is the headless-unit form a scheduled Routine fires unattended (no human present) — mirroring `/claude-tweaks:dispatch`'s `next` form exactly, down to the "render Next Actions only when a human is present" rule above. `$PIPELINE_RUN_DIR` may be set during any mode's run, but only because this skill resolves its own standalone run dir per `_shared/pipeline-run-dir.md`'s allowlist to write `decisions.md` — for `refine`/`overview` that resolution is for logging only and never suppresses interactivity or the Next Actions block; for `grant` it is also where every skip reason lands when no pipeline run dir otherwise exists (`grant-mode.md`'s own Logging section).
 
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Granting `auto:build`/`auto:merge` from anything but an interactive human session | `auto:*` labels come only from a human session. The `autonomy` ceiling's `unattended` tier defines the one exception and keeps it shut behind a second opt-in nothing sets, so as shipped no machinery path originates a grant. This is the security boundary |
+| Granting `auto:build`/`auto:merge` from `refine` mode without an interactive human present | `auto:*` labels from `refine` come only from a human-confirmed batch-apply. `grant` mode is the one machine-origination path — the `autonomy` ceiling's `unattended` tier plus its `grant-origination-enabled` opt-in (both human-set project policy, off by default), gated further by per-record trust/origin/grant-check/floor checks. This is the security boundary the two modes together maintain |
+| Granting from `grant` mode on any record whose gate chain hasn't fully cleared, or on a human-filed record regardless of other keys | `bin/lib/issues/grant-gate.js`'s chain is exhaustive and ordered; a human-filed record (no `by:*`) is refused unconditionally — see `grant-mode.md` |
 | Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action is the load-bearing security signature — never skip it, even for an all-recommended batch |
 | Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only *strips* `bot:blocked` on re-grant |
 | Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |

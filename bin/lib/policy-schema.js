@@ -44,6 +44,14 @@ const POLICY_KEYS = [
   { key: 'merge-check', type: 'boolean', default: true },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised' },
   { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14 },
+  // The reserved second opt-in named by skills/_shared/autonomy-ceiling.md —
+  // read by permittedGrants as grantOriginationEnabled. false by default: the
+  // 'unattended' ceiling alone never authorizes a machine-originated grant.
+  { key: 'grant-origination-enabled', type: 'boolean', default: false },
+  // Positive integer counting machine grants issued today (audit-comment
+  // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
+  // Absent = uncapped (optional-when-absent, see #269's Deliverables).
+  { key: 'fleet-daily-grant-cap', type: 'integer', min: 1 },
   { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
 ];
 

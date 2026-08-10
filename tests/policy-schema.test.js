@@ -19,8 +19,10 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 35);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 35);
+  // 35 -> 37, #269 (backlog grant mode): grant-origination-enabled and
+  // fleet-daily-grant-cap, the reserved opt-in + the mode's own soft cap.
+  assert.strictEqual(POLICY_KEYS.length, 37);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 37);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

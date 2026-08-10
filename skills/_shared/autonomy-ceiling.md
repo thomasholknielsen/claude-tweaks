@@ -4,10 +4,12 @@ Single source of truth for the `autonomy` policy lever (`supervised` default | `
 `unattended`). Referenced, not restated, by every consumer: `_shared/work-record.md` (permission
 matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (never-reversible list),
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
-`backlog/refine-mode.md` (Step 3.6), `dispatch/settle-and-merge.md` (Step 6.5's negative-evidence
-persist point — see Revocation below), and — for the three bookkeeping capabilities this file also
-documents — `ledger/resolve-gate.md` (Phase 2 narrowing), `wrap-up/review-console.md` (queue-write
-auto-file), and `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge).
+`backlog/refine-mode.md` (Step 3.6), `backlog/grant-mode.md` (the machine-originated grant path —
+the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
+(Step 6.5's negative-evidence persist point — see Revocation below), and — for the three
+bookkeeping capabilities this file also documents — `ledger/resolve-gate.md` (Phase 2 narrowing),
+`wrap-up/review-console.md` (queue-write auto-file), and `wrap-up/nothing-left-behind.md` (ops-ack
+auto-acknowledge).
 
 **Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
 is about the born-`ready` tier only — it is not a statement about everything the ceiling
@@ -209,10 +211,16 @@ evidence; the eval is a partial guard on it.
 
 So reaching the top tier is **not by itself** an amendment of that invariant. Machine-originated
 grants need a second, explicit opt-in beyond setting `autonomy: unattended`
-(`grantOriginationEnabled` in `permittedGrants`). **Nothing sets it today**, which is its shipped
-state: the tier is defined so the ceiling is complete, and the grant path behind it stays shut
-until amending that invariant is a decision someone makes deliberately rather than a side effect of
-raising a dial.
+(`grantOriginationEnabled` in `permittedGrants`, set via the `grant-origination-enabled` key in
+`policy.yml` — `_shared/policy-schema.md`). **`false` by default**, so a repo that has not opted in
+gets exactly the pre-#269 behavior: the tier is defined so the ceiling is complete, and the grant
+path behind it stays shut until a human amends that invariant deliberately, in `policy.yml`, rather
+than as a side effect of raising a dial. `/claude-tweaks:backlog`'s headless `grant` mode
+(`skills/backlog/grant-mode.md`) is the one path that reads the opt-in and acts on it — it is
+machinery, but it originates nothing on its own judgment: both keys are a human's deliberate
+project-level configuration, and the mode's own gate chain (`bin/lib/issues/grant-gate.js`) still
+requires a clean per-class trust verdict, agent-filed origin, a content-aware `grant-check` clear,
+and no floor trip before a single grant is written.
 
 ## Logging
 

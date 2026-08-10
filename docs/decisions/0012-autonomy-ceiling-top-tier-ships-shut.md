@@ -65,3 +65,16 @@ is hard to reverse is the precedent: once a shipped release lets machinery origi
 consumer that reads `auto:build` as "a human authorized this" is wrong, and there is no way to tell
 retroactively which grants had a signature behind them. The label's audit trail records who applied
 it, which is exactly the property that stops being meaningful.
+
+## Update (2026-08-10, #269)
+
+Open question 4 is answered: `/claude-tweaks:backlog`'s headless `grant` mode
+(`skills/backlog/grant-mode.md`) is the one path that reads `grantOriginationEnabled` (surfaced as
+the `grant-origination-enabled` policy key) and acts on it. The opt-in is still `false` by
+default — a project opts in deliberately, in `policy.yml`, and reaching `unattended` alone still
+does nothing extra by itself. What changed is that a live consumer now exists behind the opt-in,
+narrowed by its own gate chain (`bin/lib/issues/grant-gate.js`): a clean per-class trust verdict,
+an agent-filed (`by:*`) origin — human-filed records are refused unconditionally, regardless of
+every other key — a content-aware `grant-check` clearing, and no floor trip. This does not revise
+the decision above; it exercises the path this ADR always said would exist, once amending the
+invariant became a decision someone made deliberately.
