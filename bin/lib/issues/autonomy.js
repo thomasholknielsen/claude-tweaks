@@ -115,4 +115,65 @@ function permittedGrants(input) {
   return { bornReady, bornAuthorized: true, reason: 'class is clean, ceiling is unattended, grant origination opted in' };
 }
 
-module.exports = { CEILINGS, resolveCeiling, permittedGrants };
+// Floor-check predicate for the autonomy ceiling's ledger-narrowing bookkeeping
+// capability. Decides whether a ledger item's Phase 1 "why not fixed now"
+// blocker reason is one of the four categories ledger/resolve-gate.md's Phase 1
+// already requires as legitimate -- the only categories bookkeeping narrowing is
+// allowed to auto-route without asking. Moved verbatim from the retired
+// unattended-tier.js -- same regex patterns, same logic, no behavior change.
+// See docs/superpowers/specs/2026-07-16-unattended-tier-design.md.
+
+const CATEGORY_PATTERNS = [
+  // External state: third-party data, prod traffic, approvals
+  /external state/i,
+  /third-party/i,
+  /prod(uction)? traffic/i,
+  /\bapprovals?\b/i,
+  // Product/design decision
+  /product( or design)? decision/i,
+  /design decision/i,
+  // Not-yet-built dependency
+  /not[ -]yet[ -]built/i,
+  // Scope expansion: breaks many tests, long rebuild
+  /scope expansion/i,
+  /expands? (pipeline )?scope/i,
+  /long rebuild/i,
+];
+
+// A bare regex can only match a digit run, not compare its magnitude, so the
+// '>10 unrelated tests' numeric threshold ledger/resolve-gate.md's Phase 1
+// actually requires (not merely "some tests") is checked separately from
+// CATEGORY_PATTERNS above. A bare 'breaks N unrelated tests' states the exact
+// count, so N must be strictly >10; a 'breaks more than N unrelated tests'
+// phrasing already asserts the count exceeds N, so N need only be >=10 (e.g.
+// "more than 10", resolve-gate.md's own wording) to guarantee it's >10.
+const UNRELATED_TESTS_RE = /breaks? (more than )?(\d+) unrelated tests/i;
+
+function clearsFloor(blockerReason) {
+  if (typeof blockerReason !== 'string' || blockerReason.trim() === '') return false;
+  if (CATEGORY_PATTERNS.some((re) => re.test(blockerReason))) return true;
+  const testsMatch = UNRELATED_TESTS_RE.exec(blockerReason);
+  if (!testsMatch) return false;
+  const moreThan = Boolean(testsMatch[1]);
+  const count = Number(testsMatch[2]);
+  return moreThan ? count >= 10 : count > 10;
+}
+
+// The three bookkeeping capabilities the retired unattended-tier lever used to
+// gate as one on/off boolean, now unlocked by the merged autonomy ceiling:
+// ledger Phase 2 narrowing and queue-write auto-file at 'trusted'+, ops-ack
+// auto-acknowledge held back to 'unattended' (the one behavior that skips
+// acknowledging a post-merge infrastructure follow-up, not just a reversible
+// bookkeeping item). An unrecognized ceiling falls through to 'supervised' --
+// same handling as permittedGrants, so a typo denies everything rather than
+// granting it.
+function bookkeepingPermissions(ceiling) {
+  const tier = isCeiling(ceiling) ? ceiling : 'supervised';
+  return {
+    ledgerNarrowing: atLeast(tier, 'trusted'),
+    queueWriteAutoFile: atLeast(tier, 'trusted'),
+    opsAckAutoAcknowledge: atLeast(tier, 'unattended'),
+  };
+}
+
+module.exports = { CEILINGS, resolveCeiling, permittedGrants, clearsFloor, bookkeepingPermissions };
