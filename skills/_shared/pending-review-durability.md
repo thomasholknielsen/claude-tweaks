@@ -156,9 +156,12 @@ gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {b
 
 **A bundle's run holds more than one record and still gets exactly one PR** — one branch, one push,
 one review surface. Use the **lowest-numbered** record for both `{n}` and `{record title}`, and list
-every record in the body as one `Refs #{m}` line each. Never `Fixes`/`Closes` there: the branch
-already carries its own closing-keyword carrier commit (`wrap-up/cleanup-procedures.md` Section C
-step 2), and a closing keyword in a PR body would close records on the merge of a PR nobody has
+every record in the body as one `Refs #{m}` line each. Never `Fixes`/`Closes` there. The branch's
+own closing-keyword carrier commit is stamped later — at `/claude-tweaks:wrap-up` Phase 4's
+execution step, via `wrap-up/cleanup-procedures.md` Section C step 2 — which is after the console
+is answered, so on this path it has not run and the branch carries no closing keyword at all yet.
+That makes the omission more important, not less: a `Fixes` line here would be the only closing
+keyword in play, and it would close every listed record the moment someone merged a PR nobody had
 reviewed.
 
 **Leave the PR unassigned.** No convention for who reviews dispatch-originated PRs exists in this
