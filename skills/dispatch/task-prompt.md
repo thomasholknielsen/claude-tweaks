@@ -96,14 +96,16 @@ OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no p
 
 GROUP: {comma-joined issue numbers}
 OUTCOME: {merged | pr-opened | pending-review | failed | blocked}
-Report pending-review -- not `pr-opened` -- when the run reached the Review Console with nobody
-answering it, even though a draft PR was opened for branch durability. `pr-opened` means the branch
-reached its finish decision; a durability PR is an unanswered human gate wearing a review surface.
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
   single-spec run dir path}
 
 One line per issue in this group that hit a HARD-GATE or the retry ceiling (omit if none):
 ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
+
+Choosing between two OUTCOME values: report pending-review -- not `pr-opened` -- when the run
+reached the Review Console with nobody answering it, even though a draft PR was opened for branch
+durability. `pr-opened` means the branch reached its finish decision; a durability PR is an
+unanswered human gate wearing a review surface.
 
 [Use: Standard model -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual.]
