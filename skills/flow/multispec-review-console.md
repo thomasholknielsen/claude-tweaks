@@ -18,7 +18,7 @@ After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stop
 
 1. Read `manifest.yml` to enumerate per-spec subdirectories, in spec execution order.
 2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any `staged/leftover-*.md` queue-write proposals — see Queue writes below) for the prose-aggregated sections (Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback) — this read is unconditional; a spec with no `engine-state.json` (its wrap-up never reached Phase 2, e.g. a spec that failed before that point) still contributes every prose-aggregated row and a Not run/Failed footer row, it simply contributes nothing to the engine call in step 3 below. ALSO read the parent run dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as freeform-issue translations and any parent-level leftover proposals).
-3. Invoke the engine for the 5 engine-rendered sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — using one repeated `--spec-state` flag per spec with an `engine-state.json` present, in the spec execution order from step 1:
+3. Invoke the engine for the five engine-rendered sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — using one repeated `--spec-state` flag per spec with an `engine-state.json` present, in the spec execution order from step 1:
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" render --section console \
@@ -135,7 +135,7 @@ Render this section whenever any spec's broken-reference sweep found a surviving
 
 #### Cleanup actions (executed after approval, per row — branch-finish gates the per-spec rows below it)
 
-Render 2 run-level rows (no `Spec` value, rendered as `—`) plus 3 rows per spec with a populated `Spec` column, drawn from `wrap-up/cleanup-procedures.md`'s Section D (ephemeral dev server) and Section E (issue claim release, grant removal, per-issue label cleanup) — the same 5 steps "Shared teardown" below already performs, now visible and individually overridable before they execute.
+Render 2 run-level rows (no `Spec` value, rendered as `—`) plus 3 rows per spec with a populated `Spec` column, drawn from `wrap-up/cleanup-procedures.md`'s Section D (ephemeral dev server) and Section E (issue claim release, grant removal, per-issue label cleanup) — the same five steps "Shared teardown" below already performs, now visible and individually overridable before they execute.
 
 **Branch-finish is a hard prerequisite for every per-spec row below it.** Claim release needs branch-finish's outcome ($LINK — merge commit sha or PR URL) to release each issue correctly; grant removal and label cleanup key off the same outcome. Dev-server teardown has no such dependency and may be skipped independently of every other row.
 
@@ -262,14 +262,14 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 3. **If the branch-finish row (Cleanup actions) is skipped or reverted:** auto-skip every per-spec claim-release/grant-removal/label-cleanup row for this run — render each as "skipped — depends on branch-finish" rather than executing it against a branch-finish outcome that never happened, and rather than leaving it pending or orphaned. Log the auto-skip to the parent run dir's `decisions.md`. Dev-server teardown is unaffected — it has no dependency on branch-finish and executes (or is skipped) per the user's own choice for that row alone.
 4. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — see "Present the consolidated console" above; the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved across specs either
 5. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
-6. Execute the Cleanup actions rows the user did not skip, in the same dependency order as "On approval" step 8 above (branch-finish must complete before any per-spec claim-release/grant-removal/label-cleanup row; dev-server teardown has no dependency and runs — or is skipped — independently). "Shared teardown" below documents these steps' mechanics.
+6. Execute the Cleanup actions rows the user did not skip, respecting the dependency order established in step 3 above. "Shared teardown" below documents these steps' mechanics.
 7. Archive the parent run dir
 
 ### Shared teardown (dev server, branch finish, claim release, grants)
 
-These 5 steps are now presented as visible, numbered Cleanup actions rows above — this section documents their mechanics; the console template above is what the user actually sees and approves/overrides.
+These five steps are now presented as visible, numbered Cleanup actions rows above, which decide which rows actually run — this section only documents their mechanics; the console template above is what the user actually sees and approves/overrides.
 
-Applies identically after both "On approval" step 8 and "On override" step 6 — this is the same five-step mechanics either way — which rows actually run is decided by the Cleanup actions rows above, only what triggered it differs:
+Applies identically after both "On approval" step 8 and "On override" step 6 — this is the same five-step mechanics either way, only what triggered it differs:
 
 1. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
 2. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
