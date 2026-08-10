@@ -70,7 +70,10 @@ quote character would otherwise break out of the string literal, the same reason
 `code-health/focus-mode.md`'s F1 block passes its own values that way.
 
 ```bash
-gh issue list --state all --json number,labels,body,state,stateReason,closedAt --limit 1000 > /tmp/capture-trust-records.json
+# `comments` carries each record's own comment bodies — the negative-evidence
+# marker path (#268) reads `<!-- trust-negative-evidence: ... -->` back from
+# here; the node block below spreads `...i` so it reaches trustRows unchanged.
+gh issue list --state all --json number,labels,body,state,stateReason,closedAt,comments --limit 1000 > /tmp/capture-trust-records.json
 ```
 
 Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting

@@ -42,11 +42,20 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 5. Post the failure comment, using the `attemptNumber` and `ceilingHit` just computed:
 
    ```bash
+   # Negative-evidence persist point (#268): passing classification here (from
+   # step 3's $CLASSIFICATION) is what persists the marker — attemptFailedCommentBody
+   # embeds a line-anchored `<!-- trust-negative-evidence: attempt=N classification=... -->`
+   # only when classification is 'correctness'/'ambiguous', never 'transient', satisfying
+   # trust.js's classification gate by construction. bin/lib/issues/trust.js's grading reads
+   # this marker back from the record's comments as known-bad evidence for the record's class
+   # (see its "Operational outcome evidence" section and _shared/autonomy-ceiling.md's
+   # Revocation section for the full semantics). No separate write step exists — it rides
+   # this one, the same comment post Settle already performs unconditionally.
    node -e "
      const { attemptFailedCommentBody } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
      const { attemptNumber, ceilingHit } = require(process.argv[1]);
-     console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2], ceilingHit }));
-   " "/tmp/attempt-info-${ISSUE}.json" "$REASON" > /tmp/attempt-comment.md
+     console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2], ceilingHit, classification: process.argv[3] }));
+   " "/tmp/attempt-info-${ISSUE}.json" "$REASON" "$CLASSIFICATION" > /tmp/attempt-comment.md
    gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
    ```
 

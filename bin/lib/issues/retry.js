@@ -9,11 +9,36 @@
 
 const ATTEMPT_RE = /^Attempt (\d+) failed: /;
 
-function attemptFailedCommentBody({ attemptNumber, reason, ceilingHit }) {
+// Negative-evidence marker (#268): embedded in the same comment
+// attemptFailedCommentBody already writes, only when `classification` is
+// 'correctness' or 'ambiguous' — a 'transient' classification's path never
+// carries it, satisfying trust.js's classification gate by construction
+// (nothing downstream needs to re-check classification; its absence IS the
+// gate). Line-anchored HTML-comment shape, matching record.js's
+// work-fingerprint marker convention. The attempt number is carried for
+// audit/debugging only — hasNegativeEvidenceMarker below is a boolean
+// presence check, so N failed attempts on one record still contribute at
+// most one unit of negative evidence to that record's class (idempotent by
+// construction, not by counting).
+const NEGATIVE_EVIDENCE_RE = /<!--\s*trust-negative-evidence:\s*attempt=\d+\s+classification=(?:correctness|ambiguous)\s*-->/;
+
+function attemptFailedCommentBody({ attemptNumber, reason, ceilingHit, classification }) {
   const closing = ceilingHit
     ? 'Retry ceiling reached — no further automatic retries.'
     : 'Claim released, will retry.';
-  return `Attempt ${attemptNumber} failed: ${reason}. ${closing}`;
+  const base = `Attempt ${attemptNumber} failed: ${reason}. ${closing}`;
+  if (classification === 'correctness' || classification === 'ambiguous') {
+    return `${base}\n\n<!-- trust-negative-evidence: attempt=${attemptNumber} classification=${classification} -->`;
+  }
+  return base;
+}
+
+// comments -> boolean. Read by trust.js's grading; also usable standalone by
+// anything else that needs "has this record ever been marked negative"
+// without pulling in the rest of trust.js. Presence-only (see the header
+// comment above NEGATIVE_EVIDENCE_RE for why counting attempts is unnecessary).
+function hasNegativeEvidenceMarker(comments) {
+  return (Array.isArray(comments) ? comments : []).some((c) => NEGATIVE_EVIDENCE_RE.test((c && c.body) || ''));
 }
 
 function countFailedAttempts(comments) {
@@ -34,4 +59,6 @@ function hasHitRetryCeiling(comments, ceiling = 3) {
   return countFailedAttempts(comments) + 1 >= ceiling;
 }
 
-module.exports = { attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling };
+module.exports = {
+  attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling, hasNegativeEvidenceMarker,
+};
