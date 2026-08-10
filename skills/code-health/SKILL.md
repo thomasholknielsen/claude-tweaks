@@ -1,7 +1,7 @@
 ---
 name: code-health
 description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - code-health, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
-argument-hint: "[--area <path>] [--budget <n>] [--min-risk low|medium|high] [--dry-run] [--root <dir>]"
+argument-hint: "[--area <path>] [--budget <n>] [--min-risk low|medium|high] [--dry-run] [--root <dir>] [focus=<value>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
@@ -38,8 +38,11 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 - `--root <dir>` — scan a project elsewhere (default: current working directory).
 - `--budget <n>` — judge up to `n` slices in one run (default: 1). Use with `next-slice` when you want a deeper sweep in a single invocation.
 - `--min-risk <level>` — minimum computed risk tier (severity × likelihood) that gets filed as a GitHub issue (default: `high`; one of `low|medium|high`). Findings below this are held in the local cache as `remembered` — not dropped, not filed — until they escalate or a deliberately deeper sweep lowers the bar. Pass `--min-risk medium` (or `low`) for an intentional deep-dive that surfaces more than the default high-risk-only trickle.
+- `focus=<value>` — swap the sweep's scoping strategy from `next-slice` directory rotation to deterministic repo-wide candidate generation with a pinned criterion (currently `focus=dead-code`). Mutually exclusive with `--area`. Read `focus-mode.md` in this skill's directory before running a `focus=` invocation — it replaces Steps 1-4 below; Step 5 onward is unchanged.
 
 ## Workflow
+
+**If `$ARGUMENTS` contains `focus=<value>`:** stop reading here and read `focus-mode.md` in this skill's directory instead — it replaces Steps 1-4 below (candidate-driven scoping and a pinned criterion, instead of `next-slice` rotation and `criteriaForArea`) and hands off to Step 5 onward, which runs completely unchanged. Everything from Step 1 through Step 4 below describes the generalist (non-focus) path only.
 
 **Step 1 — SCOPE: select the target slice.**
 

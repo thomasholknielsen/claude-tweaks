@@ -127,6 +127,26 @@ function canonicalPreamble() {
     .join('\n\n');
 }
 
+// #271: code-health's Focus Mode (skills/code-health/focus-mode.md) documents a
+// future `--focus <value>` CREATE-time argument (routine-template-schema.md's
+// "Focus-mode variants" section) that would append ` focus=<value>` to this
+// kickoff line. It is not yet wired into /claude-tweaks:routine (fleet
+// provisioning is out of scope for #271) — this pin exists so that later wiring
+// cannot silently change the parameterless (no `--focus`) path, which must keep
+// producing today's generalist prompt byte-identically.
+test('code-health/routine-template.yml: the parameterless kickoff line is exactly "Then: /claude-tweaks:code-health"', () => {
+  const templatePath = path.join(SKILLS_DIR, 'code-health', 'routine-template.yml');
+  const tpl = parseRoutineTemplate(fs.readFileSync(templatePath, 'utf8'));
+  const kickoffAt = tpl.prompt.lastIndexOf('Then: ');
+  assert.ok(kickoffAt > 0, 'prompt must carry a "Then: " kickoff line');
+  assert.equal(
+    tpl.prompt.slice(kickoffAt).trim(),
+    'Then: /claude-tweaks:code-health',
+    'the no-focus kickoff line must stay byte-identical to today\'s generalist prompt — a future ' +
+      '--focus wiring must add to this only when --focus is actually passed, never by default',
+  );
+});
+
 for (const templatePath of findTemplates()) {
   const skillName = path.basename(path.dirname(templatePath));
 
