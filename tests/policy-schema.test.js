@@ -24,8 +24,10 @@ test('POLICY_KEYS entries are unique', () => {
   // 37 -> 42, #219 (model-profile levers): model-stance, frontier-run-cap,
   // model-ceiling, model-profiles, research-mode — count recomputed from the
   // merged list at conflict resolution, never summed from either side (IL-99).
-  assert.strictEqual(POLICY_KEYS.length, 42);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 42);
+  // 42 -> 44, #274 (experiment-cleanup vertical): experiment-flag-patterns,
+  // experiment-flag-exclude — the repo's flag idiom + kill-switch exclusion.
+  assert.strictEqual(POLICY_KEYS.length, 44);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 44);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

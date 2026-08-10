@@ -120,6 +120,12 @@ const CRITERIA = [
   { id: 'privacy-pii', appliesTo: ['frontend', 'backend', 'data'], confidenceFloor: 'high', fragment: 'criteria-privacy-pii.md' },
   // Domain: concurrency → async/shared-state (backend, cli, data)
   { id: 'concurrency', appliesTo: ['backend', 'cli', 'data'], confidenceFloor: 'medium', fragment: 'criteria-concurrency.md' },
+  // Domain: experiment-cleanup → feature-flag/experiment scaffolding whose
+  // decision has been made. Area-gated to the surfaces flag idioms actually
+  // live in — frontend (client-rendered flags) and backend (server-side
+  // gating); pinned directly by code-health's focus=experiment-cleanup
+  // (skills/code-health/focus-mode.md), never selected via criteriaForArea.
+  { id: 'experiment-cleanup', appliesTo: ['frontend', 'backend'], confidenceFloor: 'medium', fragment: 'criteria-experiment-cleanup.md' },
 ];
 
 // Build a lookup map once on load for O(1) getCriterion.

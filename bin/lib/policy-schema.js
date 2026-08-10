@@ -55,6 +55,16 @@ const POLICY_KEYS = [
   // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
   { key: 'fleet-daily-grant-cap', type: 'integer', min: 1 },
+  // experiment-cleanup vertical (code-health focus mode) — the repo's own
+  // feature-flag idiom, as regex-source strings (first capture group =
+  // flag identifier). Empty/absent = the vertical is inactive; there is no
+  // whole-repo-scan fallback (see bin/lib/code-health/candidates-experiment-
+  // cleanup.js and skills/code-health/focus-mode.md).
+  { key: 'experiment-flag-patterns', type: 'list', default: [] },
+  // Kill-switch name substrings, extending (never replacing) the shipped
+  // defaults ["emergency", "circuit", "kill"] — a flag whose identifier
+  // matches is never emitted as a candidate, regardless of decision signals.
+  { key: 'experiment-flag-exclude', type: 'list', default: [] },
   { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
   // Model-profile resolver levers (#216's bin/lib/model-profiles/profiles.js is
   // the runtime reader for these four key names — POLICY_KEYS_READ pins them;

@@ -42,3 +42,4 @@ module.exports = { FOCUS_GENERATORS, registerGenerator };
 // caller requires first. Each new vertical adds one require line here
 // alongside its own `registerGenerator` call in its own file.
 require('./candidates-dead-code');
+require('./candidates-experiment-cleanup');

@@ -107,6 +107,13 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 |---|---|---|---|---|
 | `health-open-cap` | `policy.yml` | `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:docs-health`, `/claude-tweaks:journey-health` — via `bin/lib/health-core/digest.js` | `10` | Per-origin open-singleton-finding cap. At or above this count, a brand-new finding that would otherwise file its own issue is appended to that origin's digest issue instead (see each skill's FILE step). A regressed-reopen always bypasses the cap. `0` or unset disables the throttle — unconditional filing, matching pre-#235 behavior |
 
+## Code-health focus verticals
+
+| Key | Canonical home | Owner skill(s) | Default | Meaning |
+|---|---|---|---|---|
+| `experiment-flag-patterns` | `policy.yml` | `/claude-tweaks:code-health` `focus=experiment-cleanup` — `bin/lib/code-health/candidates-experiment-cleanup.js` | unset (`[]` — vertical inactive) | Comma-separated regex-source strings naming this repo's own feature-flag/experiment idiom — call-site patterns (e.g. `isEnabled\(['\"]([\w.-]+)['\"]`) or registry-entry patterns, each with a first capture group that is the flag identifier. Empty/absent means the generator is inactive: the focus run reports "no flag idiom configured" and never falls back to scanning the whole repo (IL-115 — absence of configuration is not a resolution failure). Example: `experiment-flag-patterns: isEnabled\(['\"]([\w.-]+)['\"]` |
+| `experiment-flag-exclude` | `policy.yml` | `/claude-tweaks:code-health` `focus=experiment-cleanup` — `bin/lib/code-health/candidates-experiment-cleanup.js` | unset (`[]`) | Comma-separated kill-switch name substrings (case-insensitive) — a flag whose identifier matches any of these, or the shipped defaults `emergency`/`circuit`/`kill`, is never emitted as a candidate regardless of how many decision signals fired. Extends the defaults, never replaces them. Example: `experiment-flag-exclude: rollback,failsafe` |
+
 ## Auto-mode levers
 
 These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them into CLAUDE.md — omitting a lever means its default, so writing every lever out contradicts the "omit means default" principle.
