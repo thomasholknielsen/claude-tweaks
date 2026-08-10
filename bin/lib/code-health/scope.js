@@ -474,4 +474,22 @@ function selectSlice(root, cursors, opts = {}) {
 // sourceFiles is exported for tests only — it is the function whose exclusion
 // anchoring caused #111, and asserting on slice ids alone cannot distinguish
 // "found the files" from "emitted an empty slice".
-module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive, sourceFiles };
+//
+// SKIP_DIRS is exported so focus-mode candidate generators (candidates-
+// abstraction-police.js, candidates-test-hygiene.js) import the same
+// exclusion source next-slice uses instead of hand-copying the list — a
+// copied list drifts from this one (IL-40's cardinality-restatement lesson
+// applies equally to a restated set). SOURCE_EXTS is exported for the same
+// reason — the JS/TS extension set candidates-dead-code.js already
+// hand-declares its own copy of, but new verticals should not add a third.
+module.exports = {
+  listSlices,
+  contentHash,
+  selectSlice,
+  listWorkspaceSlices,
+  gitChurn,
+  sliceRecursive,
+  sourceFiles,
+  SKIP_DIRS,
+  SOURCE_EXTS,
+};
