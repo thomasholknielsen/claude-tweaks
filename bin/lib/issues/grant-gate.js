@@ -68,7 +68,13 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   const band = riskBand(names);
   const classKey = `${kind}:${source}|${band}`;
   const row = trustVerdicts instanceof Map ? trustVerdicts.get(classKey) : undefined;
-  const verdict = row ? row.verdict : 'insufficient-evidence';
+  // 'no-cell' (no closed record for this class at all) is distinct from a
+  // present row whose own computed verdict is 'insufficient-evidence' (some
+  // closed records, but too few dispositioned outcomes to grade) — same
+  // two-state convention refine-mode.md's own Trust Signal script uses
+  // ('no-cell' vs the module's real verdict values). Both deny here; the
+  // string is what the audit log names, so it must not conflate them.
+  const verdict = row ? row.verdict : 'no-cell';
   if (verdict !== 'clean') {
     return deny('trust', `class ${classKey} verdict is ${verdict} — only a clean class earns a machine-originated grant`, { classKey, verdict });
   }

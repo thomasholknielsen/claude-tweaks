@@ -77,11 +77,24 @@ test('AC2 key 2: grant-origination opt-in unset refuses even at unattended', () 
   assert.equal(result.failedKey, 'grant-origination-opt-in');
 });
 
-test('AC2 key 3: class trust insufficient-evidence refuses', () => {
+test('AC2 key 3: no cell at all for this class refuses (distinct from a present insufficient-evidence row)', () => {
   const result = evaluateGrantGate({
     record: baseRecord(),
     policy: basePolicy(),
-    trustVerdicts: new Map(), // no cell for this class
+    trustVerdicts: new Map(), // no closed records for this class yet — no cell
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'trust');
+  assert.match(result.reason, /no-cell/);
+});
+
+test('AC2 key 3c: a present row whose own verdict is insufficient-evidence refuses, and names that exact string', () => {
+  const thin = new Map([['producer:code-health|low', { verdict: 'insufficient-evidence', kind: 'producer' }]]);
+  const result = evaluateGrantGate({
+    record: baseRecord(),
+    policy: basePolicy(),
+    trustVerdicts: thin,
     grantCheck: clearGrantCheck,
   });
   assert.equal(result.grant, false);
@@ -199,7 +212,7 @@ test('gate order: ceiling failure short-circuits before trust/origin/grant-check
   const result = evaluateGrantGate({
     record: baseRecord({ labels: ['ready', 'risk:high', 'size:low'] }), // no by:*, risk:high
     policy: basePolicy({ ceiling: 'supervised', grantOriginationEnabled: false }),
-    trustVerdicts: new Map(), // insufficient-evidence
+    trustVerdicts: new Map(), // no-cell
     grantCheck: { clear: false },
   });
   assert.equal(result.failedKey, 'ceiling');
