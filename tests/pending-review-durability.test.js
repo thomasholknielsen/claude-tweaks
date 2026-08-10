@@ -17,6 +17,8 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const DURABILITY = read('skills', '_shared', 'pending-review-durability.md');
 const WRAP_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
 const MULTI_CONSOLE = read('skills', 'flow', 'multispec-review-console.md');
+const BRIEF = read('skills', 'wrap-up', 'verification-brief.md');
+const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
 
 test('the scope guard gates on CLAIM_RUN_ID as the headless signal', () => {
   assert.match(
@@ -134,8 +136,6 @@ test('the multi-spec console cites the durability procedure before it renders', 
   );
 });
 
-const BRIEF = read('skills', 'wrap-up', 'verification-brief.md');
-
 test('the brief renders a Branch section from the durability record', () => {
   assert.match(
     BRIEF,
@@ -143,8 +143,6 @@ test('the brief renders a Branch section from the durability record', () => {
     'the durability step promises a push or PR-open failure reaches the human in the same comment as the brief; without a reader here that promise resolves to a log line nobody opens (IL-02)',
   );
 });
-
-const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
 
 test('the reporting template tells the agent a durability PR is still pending-review', () => {
   assert.match(
