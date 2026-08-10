@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
+const siblingSessions = require('./lib/hooks/sibling-sessions');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -112,6 +113,33 @@ function main(argv) {
       // chain. Without this branch, a call that can't resolve any run dir
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not closed\n');
+    }
+    return 0;
+  }
+  if (cmd === 'check-sibling-sessions') {
+    // [IL-107]: before claiming a record, enumerate live worktrees and their
+    // lock-owning pids, not just branches/claims/labels — those are the
+    // signals that stayed silent while a sibling session sat eleven commits
+    // deep in an unpushed worktree. This fails OPEN by construction: an
+    // unresolvable --record, an unparseable lock, or a dead pid all read as
+    // "no conflict", never as a block with no way forward (see
+    // sibling-sessions.js's own header comment).
+    const args = argv.slice(3);
+    const flagIdx = args.indexOf('--record');
+    const recordRef = flagIdx !== -1 ? args[flagIdx + 1] : null;
+    if (!recordRef) {
+      process.stdout.write('claude-tweaks: --record <id-or-slug> is required — sibling-session check not run\n');
+      return 0;
+    }
+    const match = siblingSessions.findConflictingSession(recordRef, { cwd: process.cwd() });
+    if (match) {
+      process.stdout.write(
+        `claude-tweaks: sibling session may already hold record ${recordRef} — ` +
+        `worktree ${match.path} (branch ${match.branch || '(none)'}, pid ${match.pid}) is in use by a live session; ` +
+        `verify before claiming\n`,
+      );
+    } else {
+      process.stdout.write(`claude-tweaks: no sibling-session conflict found for record ${recordRef}\n`);
     }
     return 0;
   }

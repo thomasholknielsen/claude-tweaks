@@ -1,7 +1,7 @@
 ---
 name: routine
 description: Use when you want to create, update, or check the status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a versioned, project-agnostic routine template (e.g. code-health's) into a live, account-and-project-specific scheduled routine via the RemoteTrigger API. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
-argument-hint: "<create|update|status> <skill>|--all [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
+argument-hint: "<create|update|status> <skill>|--all|<fleet on> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -34,6 +34,7 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
 | `status <skill>` | Show the instantiated record for `<skill>` alongside live routine state. |
 | `status --all` | Bulk drift check across every instantiated record in the project (`.claude-tweaks/routines/*.yml`), regardless of skill — no `<skill>` argument. The only entry point that can discover a record whose named skill no longer exists at all (renamed/retired), since every other path here starts from a skill name and checks that skill's own template file forward. See STATUS Step 1's `--all` branch for the full verdict table. |
+| `fleet on` | Turn on the self-maintaining posture in one action: a Manifesto collecting the human-owned policy levers, then provisioning (or reconciling, on a re-run) every routine in the fleet composition table — vertical finders, generalist sweeps, the conditional grant unit, the dispatch drain, and tidy. See `fleet.md` in this skill's directory. `fleet status`/`fleet off` are a companion leaf, not implemented here. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body (on `create`, when an environment was already resolved) or a text preview (on `create`, when none was — no browser session opens, no body exists to assemble); never make a `create`/`update` call or open a guided-creation browser session (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
 | `--defaults` (combine with `create` or `update`) | On `create`: skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim) and Step 7's interactive confirm (proceed straight to creation once the body is assembled, or straight to the guided-creation flow if none was). On `update`: skip Step 3's schedule re-resolution entirely (keep the record's existing `schedule` field untouched — no cadence picker at all) and Step 5's interactive confirm (proceed straight to Step 6 once the body is assembled). Either way, for non-interactive/batch use. Environment still resolves via Step 4's normal sources (`--environment`, the cache, or its two fallback lookups); if none yields a value, `--defaults` does **not** suppress guided creation's own browser session (opening a browser and creating live, billed infrastructure is a bigger commitment than the batch-confirm callers like `/init` Step 15 already cover — Step 7's preview is still shown as a non-blocking report either way). |
 | `--branch <name>` (combine with `create`/`update`) | Pin the branch the routine audits — substituted into the prompt's `{{TARGET_BRANCH}}` placeholder, skipping every other source in CREATE Step 5.5's precedence. Use it when the repo's active development branch isn't its GitHub default (a `dev` → `staging` → `main` model), which is otherwise the case a routine gets wrong; `integration-branch` in `.claude-tweaks/policy.yml` is the durable form of the same answer. |
@@ -43,17 +44,18 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 
 ## Workflow
 
-Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status`), then read exactly one procedure file from this skill's directory. The three modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
+Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status` | `fleet on`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
 
 | Mode | Read | Covers |
 |---|---|---|
 | `create <skill>` | `create-and-update.md` | CREATE Steps 0-9. Its Step 3 idempotency check routes to UPDATE automatically — same file, no second read. |
 | `update <skill>` | `create-and-update.md` | UPDATE Steps 0-7. UPDATE reuses CREATE's Steps 1, 2, 4, 5.5, and 6 by name, which is why the two modes share one file rather than splitting into two that would each read the other. |
 | `status <skill>` / `status --all` | `status.md` | STATUS Steps 1-3.5, including the `--all` bulk-enumeration branch. Needs nothing from CREATE or UPDATE. |
+| `fleet on` | `fleet.md` | Steps 1-5 (Manifesto, cloud-parity check, conditional grant-unit provisioning, per-routine provisioning loop, summary). Its provisioning loop itself reads `create-and-update.md` per row — same CREATE/UPDATE procedure, parameterized by `fleet.md`'s own composition table rather than a single skill argument. |
 
 `create` and `update` additionally read `schedule-resolution.md` for CREATE Step 5's sub-steps (5a's cron-to-cadence classification, 5b-5d's interactive picker). `update --defaults` skips schedule re-resolution entirely and never reads it; `status` never reaches it at all.
 
-**All three modes** read `record-freshness.md` before touching `.claude-tweaks/routines/*.yml`. Those records are a committed artifact, so the branch they are committed to — not the working checkout — is where one actually lives; reading the checkout directly reports drift that does not exist and, at CREATE Step 3, mints a duplicate live routine that `RemoteTrigger` cannot delete (#190). It is its own file precisely because all three modes need it and `status --all` must not be made to load `create-and-update.md` to get it. The check is fail-open: offline, no remote, or no branch resolved all degrade to the pre-#190 working-checkout read, so the skill stays fully usable without a network.
+**Every mode** reads `record-freshness.md` before touching `.claude-tweaks/routines/*.yml` — including `fleet on`'s per-row reconcile check (`fleet.md` Step 4), which runs it once per composition-table row via the same F1-F2 sub-steps CREATE Step 3 uses. Those records are a committed artifact, so the branch they are committed to — not the working checkout — is where one actually lives; reading the checkout directly reports drift that does not exist and, at CREATE Step 3, mints a duplicate live routine that `RemoteTrigger` cannot delete (#190). It is its own file precisely because every mode needs it and `status --all` must not be made to load `create-and-update.md` to get it. The check is fail-open: offline, no remote, or no branch resolved all degrade to the pre-#190 working-checkout read, so the skill stays fully usable without a network.
 
 Step numbering inside those files is unchanged from before the split, so cross-references from other skills that name a step by number (`/claude-tweaks:init`'s Step 15 and Update Mode, `_shared/routine-diagnostic-probe.md`, `guided-environment-creation.md`) still resolve — via the three stubs below.
 
@@ -69,13 +71,19 @@ Steps 0-7 live in `create-and-update.md` in this skill's directory, after the CR
 
 Steps 1-3.5, including the `--all` branch, live in `status.md` in this skill's directory.
 
+### FLEET `on`
+
+Steps 1-5 live in `fleet.md` in this skill's directory: the Manifesto (policy levers), a cloud-parity honesty check, conditional grant-unit provisioning (gated on the two unattended keys), a per-routine provisioning loop over the fleet composition table (driving CREATE/UPDATE per row, with its own idempotent reconcile marker rule), and a consolidated summary. Re-running `fleet on` is the reconcile path — there is no separate verb.
+
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+For `create`/`update`/`status <skill>`, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 — `label`: `"Check status"`, `description`: `"/claude-tweaks:routine status <skill> — check on a routine you just created"`. Suffix the label `(Recommended)` right after a `create` operation.
 - Option 2 — `label`: `"Use /schedule"`, `description`: `"/schedule — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. Deletion always happens at claude.ai/code/routines."`
 - Option 3 — `label`: `"Re-sync"`, `description`: `"/claude-tweaks:routine update <skill> — re-sync after the template changes"`
+
+For `fleet on`, `fleet.md`'s own Step 5 summary is the terminal output — the `<skill>`-shaped options above don't fit an 11-row batch outcome. Omit this block entirely for that mode.
 
 ## Component-Skill Contract
 

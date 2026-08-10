@@ -39,4 +39,31 @@ function readIntegrationBranch(repoRoot) {
   return null;
 }
 
-module.exports = { isWorktreeAlwaysOn, readIntegrationBranch };
+// Generic single-line comma-separated list-key reader — the same convention
+// already documented for merge-sensitive-paths (assess-agent-autonomy/
+// SKILL.md): `key: a,b,c` on one line, trailing `# comment` tolerated. Empty
+// or absent both return `[]` — a caller needing to distinguish "no value
+// configured" from "configured empty" has nothing to distinguish, since a
+// hand-written `key: ` line with nothing after the colon is indistinguishable
+// from an absent key under this flat-file format. Used by any policy key
+// typed `list` in bin/lib/policy-schema.js whose reader needs the parsed
+// array rather than the raw string (candidates-experiment-cleanup.js's
+// `experiment-flag-patterns` / `experiment-flag-exclude` is the first
+// caller).
+function readListKey(repoRoot, key) {
+  const raw = readPolicyFile(repoRoot);
+  if (!raw) return [];
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`^${escapedKey}:\\s*([^#]*)`);
+  for (const rawLine of raw.split('\n')) {
+    const line = rawLine.trim();
+    const m = re.exec(line);
+    if (!m) continue;
+    const value = m[1].trim();
+    if (!value) return [];
+    return value.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+module.exports = { isWorktreeAlwaysOn, readIntegrationBranch, readListKey };

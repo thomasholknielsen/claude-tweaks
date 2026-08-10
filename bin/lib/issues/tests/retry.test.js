@@ -1,7 +1,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling } = require('../retry');
+const {
+  attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling, hasNegativeEvidenceMarker,
+} = require('../retry');
 
 test('attemptFailedCommentBody formats the human-readable retry comment', () => {
   const body = attemptFailedCommentBody({ attemptNumber: 2, reason: 'test gate failed (3 type errors)' });
@@ -74,4 +76,65 @@ test('hasHitRetryCeiling matches the attemptNumber >= ceiling formula dispatch/S
   assert.strictEqual(attemptNumber, 3);
   assert.strictEqual(hasHitRetryCeiling(comments, ceiling), attemptNumber >= ceiling);
   assert.strictEqual(hasHitRetryCeiling(comments, ceiling), true);
+});
+
+// --- Negative-evidence marker (#268) ---------------------------------------
+
+test('attemptFailedCommentBody embeds the negative-evidence marker for a correctness classification', () => {
+  const body = attemptFailedCommentBody({
+    attemptNumber: 1, reason: 'wrong output shape', classification: 'correctness',
+  });
+  assert.match(body, /^Attempt 1 failed: wrong output shape\. Claim released, will retry\./);
+  assert.match(body, /<!-- trust-negative-evidence: attempt=1 classification=correctness -->$/);
+});
+
+test('attemptFailedCommentBody embeds the marker for an ambiguous classification too', () => {
+  const body = attemptFailedCommentBody({
+    attemptNumber: 2, reason: 'unclear failure', classification: 'ambiguous', ceilingHit: true,
+  });
+  assert.match(body, /<!-- trust-negative-evidence: attempt=2 classification=ambiguous -->$/);
+});
+
+test('attemptFailedCommentBody writes no marker for a transient classification', () => {
+  const body = attemptFailedCommentBody({
+    attemptNumber: 1, reason: 'CI runner timed out', classification: 'transient',
+  });
+  assert.strictEqual(body, 'Attempt 1 failed: CI runner timed out. Claim released, will retry.');
+  assert.doesNotMatch(body, /trust-negative-evidence/);
+});
+
+test('attemptFailedCommentBody writes no marker when classification is omitted (pre-#268 callers)', () => {
+  const body = attemptFailedCommentBody({ attemptNumber: 1, reason: 'build error' });
+  assert.doesNotMatch(body, /trust-negative-evidence/);
+});
+
+test('hasNegativeEvidenceMarker reads a correctness marker back from comments', () => {
+  const comments = [{ body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'x', classification: 'correctness' }) }];
+  assert.strictEqual(hasNegativeEvidenceMarker(comments), true);
+});
+
+test('hasNegativeEvidenceMarker reads an ambiguous marker back from comments', () => {
+  const comments = [{ body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'x', classification: 'ambiguous' }) }];
+  assert.strictEqual(hasNegativeEvidenceMarker(comments), true);
+});
+
+test('hasNegativeEvidenceMarker is false for a transient-classified comment', () => {
+  const comments = [{ body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'x', classification: 'transient' }) }];
+  assert.strictEqual(hasNegativeEvidenceMarker(comments), false);
+});
+
+test('hasNegativeEvidenceMarker is false with no comments, undefined, or unrelated comments', () => {
+  assert.strictEqual(hasNegativeEvidenceMarker([]), false);
+  assert.strictEqual(hasNegativeEvidenceMarker(undefined), false);
+  assert.strictEqual(hasNegativeEvidenceMarker([{ body: 'unrelated' }]), false);
+});
+
+test('idempotency: two failed attempts on the same record still read as present (not counted)', () => {
+  // AC4: settle can run more than once for the same record (retry ceiling) —
+  // the reading side is presence-only, so N markers never inflate a count.
+  const comments = [
+    { body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'a', classification: 'correctness' }) },
+    { body: attemptFailedCommentBody({ attemptNumber: 2, reason: 'b', classification: 'ambiguous' }) },
+  ];
+  assert.strictEqual(hasNegativeEvidenceMarker(comments), true);
 });

@@ -44,3 +44,4 @@ module.exports = { FOCUS_GENERATORS, registerGenerator };
 require('./candidates-dead-code');
 require('./candidates-abstraction-police');
 require('./candidates-test-hygiene');
+require('./candidates-experiment-cleanup');

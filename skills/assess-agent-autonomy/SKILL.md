@@ -9,11 +9,12 @@ argument-hint: "<grant-check|merge-check|failure-check|ceremony-check> [#{n}] [-
 
 Four-mode inline helper that replaces mechanical label lookups with judgment read from actual
 record/diff/failure content. Never invoked directly by a human — always a component step inside
-`/claude-tweaks:backlog refine`, `/claude-tweaks:dispatch`, `/claude-tweaks:specify`, or (fallback only)
-`/claude-tweaks:flow`:
+`/claude-tweaks:backlog refine`, `/claude-tweaks:backlog grant`, `/claude-tweaks:dispatch`,
+`/claude-tweaks:specify`, or (fallback only) `/claude-tweaks:flow`:
 
 ```
 /claude-tweaks:backlog refine         [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
+/claude-tweaks:backlog grant          [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
 /claude-tweaks:dispatch Auto-merge    [ merge-check ]    -> VERDICT: auto-merge | needs-human
 /claude-tweaks:dispatch Settle        [ failure-check ]  -> CLASSIFICATION + NOTIFY_NOW
 /claude-tweaks:specify Step 3         [ ceremony-check ] -> CEREMONY: fast-lane | standard
@@ -22,6 +23,10 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 ## When to Use
 
 - `/claude-tweaks:backlog refine`'s Step 2 needs a grant recommendation for a worklist record.
+- `/claude-tweaks:backlog grant`'s gate chain (gate 4, `bin/lib/issues/grant-gate.js`) needs the
+  identical grant recommendation for a candidate whose ceiling/opt-in/trust/origin gates already
+  cleared — same call shape as `refine`'s, but here `RECOMMEND_BUILD` directly gates a
+  machine-written label instead of feeding a human-confirmed table row.
 - `/claude-tweaks:dispatch`'s Auto-merge gate needs a merge-or-human verdict for a clean, reviewed run.
 - `/claude-tweaks:dispatch`'s Settle step needs to classify why a run failed.
 - `/claude-tweaks:wrap-up`'s Review Console Auto-merge short-circuit needs the same merge-or-human verdict
@@ -69,7 +74,9 @@ cross-process hand-off.
 ## Mode: grant-check
 
 **Called from:** `/claude-tweaks:backlog refine`'s grant-check pass, once per worklist record, every refine run
-— never pre-filtered to "borderline" records.
+— never pre-filtered to "borderline" records. Also called from `/claude-tweaks:backlog grant`'s gate
+chain (gate 4), once per candidate whose ceiling/opt-in/trust/origin gates already cleared —
+`grant-mode.md`'s Step 2 Phase B, same call shape, same non-pre-filtered rule.
 
 ### Step 1: Gather
 
@@ -457,7 +464,9 @@ bad or under-reflect on real complexity.
 
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
-`/claude-tweaks:backlog refine` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
+`/claude-tweaks:backlog refine` (Step 2, `grant-check`), `/claude-tweaks:backlog grant` (gate chain
+gate 4, `grant-check` — same mode, a machine-written label instead of a human-confirmed table row),
+`/claude-tweaks:dispatch` (Auto-merge gate,
 `merge-check`; Settle step, `failure-check`), `/claude-tweaks:wrap-up` (the Review Console's Auto-merge
 short-circuit, `merge-check` — the single-record version of dispatch's same gate, run whether or not
 `/claude-tweaks:dispatch` was involved), `/claude-tweaks:specify` (Step 3, `ceremony-check`), and

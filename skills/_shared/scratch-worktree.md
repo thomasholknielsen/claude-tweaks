@@ -48,22 +48,10 @@ Detect or enumerate existing worktrees via `git worktree list`, or by comparing
 
 ## 3. First action inside: catch up with the integration branch
 
-Unconditionally, before anything else runs in the new worktree:
-
-```bash
-git fetch origin {integration-branch}
-git merge origin/{integration-branch}
-```
-
-Resolve `{integration-branch}` via `skills/_shared/integration-branch.md`'s canonical ladder
-— never hardcode `main`. Run this regardless of which creation path was used, and regardless
-of whether the project has `worktree.baseRef` configured correctly: the harness default is
-`fresh` (branches from `origin/<default-branch>`), while claude-tweaks expects `head`
-(branches from current local HEAD) — see `_shared/worktree-base-ref.md`. A worktree landing on
-the wrong default is an observed failure, not a theoretical one (`[IL-106]`), and this
-fetch-then-merge is what makes the rest of this procedure correct either way — never skipped,
-never conditioned on the creation path, never assumed already-satisfied just because the
-worktree is brand new.
+Run `skills/_shared/worktree-setup.md`'s `## Post-creation catch-up` unconditionally, before
+anything else runs in the new worktree. That section's fetch+merge procedure, its
+`{integration-branch}` resolution, and its conflict-resolution note apply here as written —
+this file no longer carries its own copy (`[IL-32]`).
 
 ## 4. Applying remedies
 

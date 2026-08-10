@@ -16,7 +16,7 @@ If `$ARGUMENTS` names a `focus=` value not in that list, fail loud and stop — 
 
 ## Coverage
 
-Every generator is a heuristic pre-filter, never an inventory. Its candidate set is deliberately partial in ways its own module header enumerates — for `dead-code`, the Coverage block at the top of `bin/lib/code-health/candidates-dead-code.js` (JS/TS only, the CommonJS `module.exports = { ... }` shorthand-brace shape only, identifier-bounded bare-symbol reference search, specifier-name-based orphan detection, dynamic patterns out of scope by construction). Read that block before reporting anything about the run's reach, and state the boundary rather than implying totality: "the generator found N candidates under its stated coverage," never "the repo has N dead exports" (IL-110). An empty candidate set is evidence about the generator's coverage, not a clean bill of health for the repo.
+Every generator is a heuristic pre-filter, never an inventory. Its candidate set is deliberately partial in ways its own module header enumerates — for `dead-code`, the Coverage block at the top of `bin/lib/code-health/candidates-dead-code.js` (JS/TS only, the CommonJS `module.exports = { ... }` shorthand-brace shape only, identifier-bounded bare-symbol reference search, specifier-name-based orphan detection, dynamic patterns out of scope by construction). For `experiment-cleanup`, the Coverage block at the top of `bin/lib/code-health/candidates-experiment-cleanup.js` (pattern-driven only — no opinion about a flag idiom beyond the configured `experiment-flag-patterns`; JS/TS only; a brace-depth guard-block scan that does not resolve `else if` chains or ternaries; text-window heuristics for the registry/dated-comment signals). Read the relevant block before reporting anything about a run's reach, and state the boundary rather than implying totality: "the generator found N candidates under its stated coverage," never "the repo has N dead exports" (IL-110). An empty candidate set is evidence about the generator's coverage, not a clean bill of health for the repo.
 
 This section names one vertical's generator specifically, so it is per-vertical prose exactly like the Criterion-pinning table below, and carries the same must-update rule: every new `FOCUS_GENERATORS` key owes this section a pointer to its own generator's Coverage block, or that focus firing reports a reach it never had.
 
@@ -29,6 +29,7 @@ Each focus pins one or more criteria (see below) — no `classify`/`criteriaForA
 | `dead-code` | `dead-code` | none (`fragment: null` in `criteria.js` — judge from SKILL.md Step 5's guidance alone, same as any other `fragment: null` criterion) |
 | `abstraction-police` | `architecture-depth` | `criteria-architecture-depth.md` — its "Cross-file calibration (duplicate abstractions)" section, added specifically for this focus |
 | `test-hygiene` | `missing-tests`, `test-quality` | `criteria-missing-tests.md` (for `missing-tests`); none for `test-quality` (`fragment: null`) — judge `coverage-gap` candidates against `missing-tests`, `useless-test` candidates against `test-quality`, per each candidate's own `kind` |
+| `experiment-cleanup` | `experiment-cleanup` | `criteria-experiment-cleanup.md` |
 
 This table is per-vertical data, not a second copy of the registry's key list: a generator carries no criterion field, so the mapping has to live somewhere and this is its only home. It must gain a row whenever `FOCUS_GENERATORS` gains a key. A `focus=` value the registry recognizes but this table has no row for is the same fail-loud stop as an unrecognized value — report the gap and stop rather than falling back to `criteriaForArea`.
 
@@ -78,11 +79,13 @@ focus=<vertical>: discovery failed: <discoveryReason>
 
 and stop. Do not write a clean no-op run record for this case — it is a scan failure needing investigation, not a firing to log and move past.
 
-Otherwise, if `candidates` is an empty array, this firing is done. Do not treat it as a failure and do not retry. Report exactly:
+Otherwise, if `candidates` is an empty array, this firing is done. Do not treat it as a failure and do not retry. A generator MAY set `noIdiomConfigured: true` on its rich result to report a vertical-specific no-op message instead of the generic one below — `experiment-cleanup` does this (`bin/lib/code-health/candidates-experiment-cleanup.js`): when `experiment-flag-patterns` is empty/absent, report exactly `focus=experiment-cleanup: no flag idiom configured — set experiment-flag-patterns to enable` and stop, never falling back to a whole-repo scan (IL-115: absence of configuration is not a resolution failure). Otherwise, for a generator with no `noIdiomConfigured` carve-out (or one that ran but still found nothing), report exactly:
 
 ```
 focus=<vertical>: no candidates this firing (scanned: <scannedFiles> files, skipped: <skippedFiles.length>)
 ```
+
+For `experiment-cleanup` specifically, once patterns ARE configured, report `sitesMatched` and `flagsMatched` alongside the standard counts — "patterns configured but missing the repo's real idiom" is `sitesMatched: 0`, distinct from "sites found, none decided" (`sitesMatched` > 0, `candidates: []`).
 
 Write the run record via the same convention the generalist run already uses (Step 8's `validate-findings` with an empty findings array, `--slice "focus:<vertical>"`, so the run-log entry exists) and stop. Reporting both counts is what makes a genuinely clean tree distinguishable from a silent total skip (IL-115) — `discoveryFailed: false` with `scannedFiles: 0` is what makes that a legitimately empty tracked tree rather than a broken scan wearing the same sentinel.
 

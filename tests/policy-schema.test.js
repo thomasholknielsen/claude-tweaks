@@ -19,8 +19,15 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 35);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 35);
+  // 35 -> 37, #269 (backlog grant mode): grant-origination-enabled and
+  // fleet-daily-grant-cap, the reserved opt-in + the mode's own soft cap.
+  // 37 -> 42, #219 (model-profile levers): model-stance, frontier-run-cap,
+  // model-ceiling, model-profiles, research-mode — count recomputed from the
+  // merged list at conflict resolution, never summed from either side (IL-99).
+  // 42 -> 44, #274 (experiment-cleanup vertical): experiment-flag-patterns,
+  // experiment-flag-exclude — the repo's flag idiom + kill-switch exclusion.
+  assert.strictEqual(POLICY_KEYS.length, 44);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 44);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -324,6 +331,95 @@ test('trust-revert-window-days is a recognized integer key with a floor of 1, de
   const negative = tmpRepo();
   writePolicy(negative, 'trust-revert-window-days: -5\n');
   assert.strictEqual(auditPolicy(negative).invalidValues.length, 1, 'a negative value must be flagged too');
+});
+
+test('model-stance, frontier-run-cap, model-ceiling, model-profiles, research-mode are registered', () => {
+  const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
+
+  const stance = byKey.get('model-stance');
+  assert.ok(stance, 'model-stance missing from POLICY_KEYS');
+  assert.strictEqual(stance.type, 'enum');
+  assert.deepStrictEqual(stance.values, ['economy', 'default', 'max-rigor']);
+  assert.strictEqual(stance.default, 'default');
+
+  const cap = byKey.get('frontier-run-cap');
+  assert.ok(cap, 'frontier-run-cap missing from POLICY_KEYS');
+  assert.strictEqual(cap.type, 'integer');
+  assert.strictEqual(cap.default, 3);
+
+  const ceiling = byKey.get('model-ceiling');
+  assert.ok(ceiling, 'model-ceiling missing from POLICY_KEYS');
+  assert.strictEqual(ceiling.type, 'enum');
+  assert.deepStrictEqual(ceiling.values, ['fast', 'standard', 'capable', 'frontier']);
+  assert.strictEqual(ceiling.default, undefined, 'unset means no ceiling clamp');
+
+  const profiles = byKey.get('model-profiles');
+  assert.ok(profiles, 'model-profiles missing from POLICY_KEYS');
+  assert.strictEqual(profiles.type, 'map');
+  assert.deepStrictEqual(profiles.keys, ['fast', 'standard', 'capable', 'frontier']);
+
+  const researchMode = byKey.get('research-mode');
+  assert.ok(researchMode, 'research-mode missing from POLICY_KEYS');
+  assert.strictEqual(researchMode.type, 'enum');
+  assert.deepStrictEqual(researchMode.values, ['quick', 'standard', 'deep', 'ultradeep']);
+  assert.strictEqual(researchMode.default, undefined, 'unset falls through to /claude-tweaks:research\'s own standard default');
+});
+
+test('model-stance/model-ceiling/frontier-run-cap/research-mode accept valid values and flag invalid ones', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'model-stance: economy\nmodel-ceiling: capable\nfrontier-run-cap: 5\nresearch-mode: deep\n');
+  assert.deepStrictEqual(auditPolicy(repo).invalidValues, []);
+  assert.deepStrictEqual(auditPolicy(repo).unrecognizedKeys, []);
+
+  const badStance = tmpRepo();
+  writePolicy(badStance, 'model-stance: turbo\n');
+  const stanceResult = auditPolicy(badStance);
+  assert.strictEqual(stanceResult.invalidValues.length, 1);
+  assert.strictEqual(stanceResult.invalidValues[0].key, 'model-stance');
+
+  const badCeiling = tmpRepo();
+  writePolicy(badCeiling, 'model-ceiling: ultra\n');
+  const ceilingResult = auditPolicy(badCeiling);
+  assert.strictEqual(ceilingResult.invalidValues.length, 1);
+  assert.strictEqual(ceilingResult.invalidValues[0].key, 'model-ceiling');
+
+  const badMode = tmpRepo();
+  writePolicy(badMode, 'research-mode: exhaustive\n');
+  const modeResult = auditPolicy(badMode);
+  assert.strictEqual(modeResult.invalidValues.length, 1);
+  assert.strictEqual(modeResult.invalidValues[0].key, 'research-mode');
+});
+
+test('model-profiles: a row keyed by a real profile name is accepted, any field shape inside it is', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, [
+    'model-profiles:',
+    '  standard:',
+    '    model: opus',
+    '    effort: low',
+    '  capable:',
+    '    effort: medium',
+    '',
+  ].join('\n'));
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.invalidValues, []);
+  assert.deepStrictEqual(result.unrecognizedKeys, [], 'row field lines (model:/effort:) must never be read as top-level flat keys');
+});
+
+test('model-profiles: a row keyed by a non-profile name is flagged, key names only — shallow by design', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, ['model-profiles:', '  bogus:', '    model: opus', ''].join('\n'));
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.invalidValues.length, 1);
+  assert.strictEqual(result.invalidValues[0].key, 'model-profiles');
+  assert.deepStrictEqual(result.invalidValues[0].value, { bogus: true });
+});
+
+test('model-profiles: an unrecognized sub-field inside a valid row is accepted — deep row validation is the resolver\'s job, not the schema\'s', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, ['model-profiles:', '  standard:', '    speed: fast', ''].join('\n'));
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.invalidValues, []);
 });
 
 test('mixed policy.yml + CLAUDE.md content is read independently, both audited together', () => {

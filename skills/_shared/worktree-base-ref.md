@@ -16,24 +16,40 @@ The native `EnterWorktree` tool exposes **no base-ref parameter** (it accepts
 only `name`/`path`). The base is governed entirely by the harness setting
 **`worktree.baseRef`**:
 
-- `fresh` (the harness **default**) → branches from `origin/<default-branch>`.
-  On a project whose integration branch is local and ahead of the remote
-  default (e.g. a long-lived `dev`), this silently branches from a **stale**
-  commit.
+- `fresh` (the harness **default**) → documented as branching from
+  `origin/<default-branch>`. **Observed once to actually branch from the
+  local default branch's ref instead** (`1d4a34b6`, 69 commits behind an
+  already-fetched `origin/main` at `cea8caa3` — this session's own shared
+  worktree for specs #192/#307/#308). One observation is not proof the
+  documented behavior is wrong in general — `EnterWorktree`'s exact resolution
+  logic is a harness-internal, unversioned detail this plugin doesn't own
+  (`[IL-80]`) — but it's also not proof the claim above is *right*, so treat
+  "branches from `origin/<default-branch>`" as unconfirmed rather than settled
+  until corroborated by more than one observation. Either way, a project whose
+  integration branch is local and ahead of (or behind) the remote default can
+  end up on a **stale** base regardless of which direction `fresh` actually
+  resolves against.
 - `head` → branches from your current local HEAD. **This is the value
   claude-tweaks expects.**
 
-Because the plugin cannot pass the base ref through `EnterWorktree`, this has
-two consumers:
+Because the plugin cannot pass the base ref through `EnterWorktree`, and
+because which direction (if any) `fresh` lands stale isn't reliably knowable in
+advance, this has two consumers:
 
 - **Provisioning time** (`init/bootstrap/step-06-worktree-configuration.md` item 4) — offer to
   write `worktree.baseRef: "head"` into `settings.json` up front, so the
-  mismatch never occurs.
-- **Runtime verification** (`build/worktree-setup.md` Common Step 1) — even
-  with the setting correctly configured, verify the resulting base after every
-  worktree creation and surface a mismatch loudly rather than letting it pass
-  silently — belt-and-suspenders, since `settings.json` can drift (a fresh
-  clone, a reset config, a project that never ran `/init`).
+  mismatch is less likely to occur.
+- **Runtime correction** (`build/worktree-setup.md` Common Step 4, via
+  `_shared/worktree-setup.md`'s Post-creation catch-up) — unconditionally
+  catch the new worktree up in both directions (behind the integration
+  branch's `origin/{branch}`, and behind the branch it was meant to start from
+  locally) immediately after creation, every time, regardless of whether
+  `worktree.baseRef` is configured correctly. This replaced an earlier
+  verify-the-base-and-STOP-on-mismatch step — that mechanism only compared the
+  worktree's actual base against local HEAD *at creation time*, so it could
+  not have caught this exact case (local HEAD was itself the stale value) —
+  the unconditional catch-up doesn't need to know in advance which direction,
+  if any, went wrong.
 
 To set it directly: `{ "worktree": { "baseRef": "head" } }` merged into
 `settings.json` (backup first — don't clobber existing keys).

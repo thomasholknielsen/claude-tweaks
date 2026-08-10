@@ -36,6 +36,7 @@ Pipeline config snapshot:
 ## /build
 - AUTO 14:32:14 — Common Step 1.5: scope-creep detected (src/utils/cache.ts mentioned, not in plan). Applied policy `add-to-plan`. Reversibility: high (in worktree commit `abc1234`).
 - AUTO 14:33:48 — Common Step 1 (worktree consent): pre-authorized by `auto` arg. Worktree created at `.worktrees/spec-42`.
+- AUTO 14:34:02 — profile capable resolved opus/high via policy. Reversibility: n/a (dispatch-time model selection, not a code mutation).
 
 ## /review
 - AUTO 14:41:02 — Step 3 Routing: applied 3 severity:low findings (formatting nits). Files: src/auth/login.ts:42, src/auth/logout.ts:18, src/auth/session.ts:91. Reversibility: high (commit `def5678`).

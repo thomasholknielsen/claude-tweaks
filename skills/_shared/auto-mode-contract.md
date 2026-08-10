@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile — `flow/manifesto.md`'s canonical lever numbering) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance — `flow/manifesto.md`'s canonical lever numbering) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
 - **Begin stop is opt-in under `auto`.** `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** (display levers + sources, then proceed) — so the everyday auto pipeline has effectively **one** user-facing stop: the end-of-run Review Console. Pass `confirm` (or use `hybrid`) to turn the begin stop into a real approval gate. The "at most two stops" promise is a ceiling, not a floor.
 - **One message, not many.** When the begin stop *is* a gate (`confirm` / `hybrid`), it is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
@@ -130,7 +130,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
 - Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when the `autonomy` ceiling's `queueWriteAutoFile` bookkeeping capability is unlocked (`trusted`+ — see `_shared/autonomy-ceiling.md`)
-- Originating a work-record grant (`auto:build` / `auto:merge`) — except under the `autonomy` ceiling's `unattended` tier with its explicit grant-origination opt-in, for a class carrying a `clean` trust verdict (see `_shared/autonomy-ceiling.md`). Shut by default; nothing sets that opt-in today
+- Originating a work-record grant (`auto:build` / `auto:merge`) — except via `/claude-tweaks:backlog`'s headless `grant` mode, under the `autonomy` ceiling's `unattended` tier plus its explicit `grant-origination-enabled` opt-in, for an agent-filed class carrying a `clean` trust verdict that also clears a content-aware `grant-check` and every floor (see `_shared/autonomy-ceiling.md`, `backlog/grant-mode.md`). Both keys default off; a human sets them deliberately in `policy.yml`
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying project-policy values — `.claude-tweaks/policy.yml`'s keys, and the
   work-record keys still resident in CLAUDE.md (`work-backend`, `work-types`,
