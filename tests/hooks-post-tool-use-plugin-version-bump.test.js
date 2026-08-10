@@ -141,6 +141,61 @@ test('does not crash on malformed JSON in plugin.json at that commit, and does n
   assert.deepStrictEqual(runPostToolUse(repo), {});
 });
 
+// ─── Release-bypass check (#307) ───────────────────────────────────────────
+//
+// Two commits: the first introduces .claude-plugin/plugin.json at `v1`; the
+// second changes it to `v2` (or leaves it at v1) with `message2`. The
+// bypass check compares the second commit's manifest against the FIRST
+// commit's (its parent), via `git show {hash}^:...` — never a textual or
+// staged-hunk heuristic.
+// `note` makes the manifest's bytes differ between the two commits
+// regardless of whether `version` itself changed — needed for the
+// "touches the file without changing the version" case below, where v1 ===
+// v2 would otherwise produce a byte-identical file that `git diff-tree`
+// (correctly) does not report as changed at all, short-circuiting the whole
+// check before it ever reaches the bypass comparison this is meant to
+// exercise.
+function gitRepoWithVersionSequence({ v1, v2, message2 }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-pvb-bypass-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  fs.mkdirSync(path.join(dir, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claude-tweaks', version: v1, note: 'a' }));
+  execFileSync('git', ['-C', dir, 'add', '.claude-plugin/plugin.json'], { env: gitEnv() });
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'initial'], { env: gitEnv() });
+  fs.writeFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claude-tweaks', version: v2, note: 'b' }));
+  execFileSync('git', ['-C', dir, 'add', '.claude-plugin/plugin.json'], { env: gitEnv() });
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', message2], { env: gitEnv() });
+  return fs.realpathSync(dir);
+}
+
+test('flags a version change whose commit message does not match the release shape', () => {
+  const repo = gitRepoWithVersionSequence({ v1: '1.0.0', v2: '1.1.0', message2: 'Bump version by hand' });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.match(msg, /`bin\/release\.js` appears to have been bypassed/);
+});
+
+test('does not flag a version change whose commit message matches the release shape', () => {
+  const repo = gitRepoWithVersionSequence({ v1: '1.0.0', v2: '1.1.0', message2: 'Release v1.1.0 — routine bump' });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.doesNotMatch(msg, /bypassed/i);
+});
+
+test('does not flag a commit that touches plugin.json without changing the version', () => {
+  const repo = gitRepoWithVersionSequence({ v1: '1.2.3', v2: '1.2.3', message2: 'unrelated docs tweak' });
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.doesNotMatch(msg, /bypassed/i);
+});
+
+test('does not flag the commit that first introduces plugin.json (no parent manifest to compare against)', () => {
+  // gitRepoWithManifestCommit's own first commit is an EMPTY commit with no
+  // .claude-plugin/plugin.json at all — `git show {hash}^:...` on the
+  // manifest-introducing commit therefore fails to resolve, exactly the
+  // "no parent manifest" case this check must fail open on.
+  const repo = gitRepoWithManifestCommit(JSON.stringify({ name: 'claude-tweaks', version: '9.9.9' }));
+  const msg = runPostToolUse(repo).json.systemMessage;
+  assert.doesNotMatch(msg, /bypassed/i);
+});
+
 test('fires even when a runDir IS set (independent of the breadcrumb/other checks)', () => {
   const repo = gitRepoWithManifestCommit(JSON.stringify({ name: 'claude-tweaks', version: '9.9.9' }));
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-pvb-run-'));

@@ -221,6 +221,10 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 
 ### Step 4: Claim the selected group (whole group, or none)
 
+**Sibling-session check, before any write** — run `check-sibling-sessions --record` per group
+member and branch on its output; read `sibling-session-check.md` in this skill's directory and
+follow it. Additive to the existing branches/claims/labels check below, never a replacement.
+
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before
 starting any**. Resolve the detection check once per run, not per issue (per
 `_shared/github-write-transport.md`).

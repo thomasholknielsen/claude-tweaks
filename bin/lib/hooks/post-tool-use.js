@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier).
 'use strict';
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
@@ -9,6 +9,12 @@ const ctxLib = require('./context');
 // gate acts on the answer (worktree-detect -> pre-tool-use's worktree gate).
 const { runGit } = require('./git-exec');
 const { ISSUE_REF_SOURCE } = require('../issue-branch-tracking');
+// Reused rather than reimplemented a third time (CLAUDE.md's don't-duplicate
+// rule) — `resolveIntegrationBranch`'s fallback profile (no explicit arg,
+// policy.yml then origin/HEAD) fits this file's EnterWorktree handler as-is.
+// `parseWorktreeList` is reused for the same reason, for the tool-result
+// fallback path below.
+const { resolveIntegrationBranch, parseWorktreeList } = require('./worktree-reap');
 
 // Field/record separators for recentCommits' combined --format string below.
 // ASCII 0x1f/0x1e (unit/record separator) — practically never appear in a
@@ -189,6 +195,16 @@ function checkDesignDocWrite(ctx) {
 const PLUGIN_MANIFEST_PATH = '.claude-plugin/plugin.json';
 const { RECORD_PATH: SHIPPED_RECORD_PATH } = require('../shipped-record');
 
+// Release-bypass check (#307). `bin/lib/release/compose.js` is the only
+// writer of the manifest's `version` field in code, reached only through
+// `bin/lib/release/run.js`'s own precheck/ancestry-check chain — a hand-edit
+// via Edit/Write bypasses both entirely, with no signal today. A commit that
+// actually went through `bin/release.js` always carries this exact shape
+// (CLAUDE.md's "Commit message style", applied to the release commit
+// specifically). Anything touching the version field without it skipped the
+// script.
+const RELEASE_COMMIT_MESSAGE_RE = /^Release v[\d.]+ — /;
+
 function checkPluginVersionBump(recentByDir) {
   for (const [dir, commits] of recentByDir) {
     for (const commit of commits) {
@@ -226,6 +242,33 @@ function checkPluginVersionBump(recentByDir) {
         outstanding.push(`${SHIPPED_RECORD_PATH} needs a "${version}\t{YYYY-MM-DD}\trelease" line`);
       }
 
+      // Release-bypass check (#307): compare against the PARENT commit's
+      // manifest, JSON-parsed the same way as the current commit — not a
+      // textual/staged-hunk heuristic, and not index/staged state (this
+      // handler runs PostToolUse, after the commit already landed). Skip
+      // merge commits: a legitimate merge carrying a concurrent release's
+      // version bump must not read as a bypass. `commit.hash^` resolves to
+      // the first parent; for a root commit (no parent) `git show` fails,
+      // `parentManifestRaw` stays null, and no comparison is made — fails
+      // open rather than misreading "no prior version" as a bypass.
+      if (version) {
+        const { stdout: parentsRaw } = runGit(['show', '-s', '--format=%P', commit.hash], dir);
+        const parentHashes = parentsRaw === null ? [] : parentsRaw.trim().split(/\s+/).filter(Boolean);
+        if (parentHashes.length <= 1) {
+          const { stdout: parentManifestRaw } = runGit(['show', `${commit.hash}^:${PLUGIN_MANIFEST_PATH}`], dir);
+          let parentVersion = null;
+          if (parentManifestRaw !== null) {
+            try {
+              const parentManifest = JSON.parse(parentManifestRaw);
+              parentVersion = typeof parentManifest.version === 'string' ? parentManifest.version : null;
+            } catch { /* unparseable parent manifest -> no comparison, fail open */ }
+          }
+          if (parentVersion !== null && parentVersion !== version && !RELEASE_COMMIT_MESSAGE_RE.test(commit.message)) {
+            outstanding.push('`bin/release.js` appears to have been bypassed for this version change');
+          }
+        }
+      }
+
       // Unverifiable from here — it lives in a separate repository.
       outstanding.push("mirror the version into claude-tweaks-marketplace's marketplace.json (plugins[].version)");
 
@@ -240,6 +283,133 @@ function checkPluginVersionBump(recentByDir) {
     }
   }
   return null;
+}
+
+// EnterWorktree staleness backstop (#307, warn tier). `skills/_shared/
+// worktree-setup.md`'s "Post-creation catch-up" section is the canonical
+// fetch+merge procedure every worktree-creation call site is supposed to
+// cite. This is the mechanical backstop for a future call site that forgets
+// to: if a freshly-created worktree is already behind the resolved
+// integration branch's `origin/{branch}`, warn — the catch-up itself stays
+// agent/skill-driven (this hook only warns, per #307's Non-Goals; it never
+// fetches+merges on the caller's behalf).
+const WORKTREE_FETCH_TIMEOUT_MS = 20000; // network-bound; longer than git-exec's local-op default budget
+
+// The EnterWorktree tool result's shape, observed directly from real
+// transcripts (this plugin does not own or version-pin it — see this file's
+// header contract and #307's Gotchas):
+//   "Created worktree at <path> on branch <branch>. ..."   (new worktree)
+//   "Entered worktree at <path> on branch <branch>. ..."   (existing worktree)
+// A frozen-fixture concern, not a live-output one — tests below exercise this
+// against literal strings, never a real invocation of the tool itself.
+const ENTER_WORKTREE_PATH_RE = /(?:Created|Entered) worktree at (.+?) on branch\b/;
+
+// `tool_response` shapes seen across this plugin's hook consumers vary (a
+// bare string, `{content: string}`, or an Anthropic-style content-block
+// array) — none of them are a contract this file owns, so all three are
+// handled rather than assuming one.
+function extractToolResponseText(toolResponse) {
+  if (typeof toolResponse === 'string') return toolResponse;
+  if (!toolResponse || typeof toolResponse !== 'object') return null;
+  if (typeof toolResponse.content === 'string') return toolResponse.content;
+  if (Array.isArray(toolResponse.content)) {
+    const block = toolResponse.content.find((b) => b && typeof b.text === 'string');
+    if (block) return block.text;
+  }
+  return null;
+}
+
+// Resolves the worktree path EnterWorktree just created/entered. Primary
+// path: parse it straight out of the tool result (see ENTER_WORKTREE_PATH_RE
+// above). Fallback, per #307's Deliverables — the tool result did not expose
+// it in a recognized shape: `git worktree list --porcelain` (parsed via
+// worktree-reap.js's own parser, not a second copy) and take the entry
+// matching the session's own tracked cwd. This is deliberately a single
+// snapshot, not a genuine before/after diff — no PreToolUse companion for
+// EnterWorktree exists to capture a "before" list — but it is equivalent for
+// this purpose: the entry matching the caller's OWN cwd is definitionally the
+// one EnterWorktree just switched this session into.
+function resolveCreatedWorktreePath(ctx) {
+  const text = extractToolResponseText(ctx.input.tool_response);
+  if (text) {
+    const m = ENTER_WORKTREE_PATH_RE.exec(text);
+    if (m) return m[1];
+  }
+  const cwd = ctx.cwd;
+  if (typeof cwd !== 'string' || !cwd) return null;
+  const { stdout, failure } = runGit(['worktree', 'list', '--porcelain'], cwd);
+  if (failure || stdout === null) return null;
+  const match = parseWorktreeList(stdout).find((e) => e.path === cwd);
+  return match ? match.path : null;
+}
+
+// Log-tier breadcrumb, gated on ctx.ownedRun.dir exactly like the commit
+// breadcrumbs in run() below — never a durable trace when no run dir
+// resolves. `result` distinguishes "checked, clean" from "checked, stale"
+// from "check didn't run" (fetch/rev-list failure) — the acceptance
+// criterion this exists for is a reader of events.jsonl being able to tell
+// those three apart, not just "clean" from "everything else".
+function logWorktreeStalenessEvent(ctx, data) {
+  const ownedRun = ctx.ownedRun || {};
+  if (!ownedRun.dir) return;
+  ctxLib.appendEvent(ownedRun.dir, 'worktree-staleness', data, ownedRun.attribution);
+}
+
+function checkWorktreeStaleness(ctx) {
+  if (ctx.input.tool_name !== 'EnterWorktree') return null;
+  try {
+    const worktreePath = resolveCreatedWorktreePath(ctx);
+    if (!worktreePath) return null; // couldn't resolve where we landed — nothing to check, fail open
+    const branch = resolveIntegrationBranch(worktreePath);
+    if (!branch) return null; // no integration branch resolved — nothing to compare against
+
+    // `--` guards against argument injection: `branch` traces back to
+    // policy.yml's hand-editable `integration-branch:` value (parsed by a
+    // permissive regex that doesn't reject a leading `-`), and a bare
+    // positional git arg starting with `-` is parsed as a flag rather than a
+    // refspec — e.g. `--upload-pack=<cmd>` runs `<cmd>` as a subprocess over
+    // ssh/file transports (verified: inert over this repo's https origin,
+    // which warns and ignores it, but not every consumer of this plugin uses
+    // https remotes). `--` forces everything after it to be read as a
+    // positional refspec regardless of leading characters.
+    const fetch = runGit(['fetch', 'origin', '--', branch], worktreePath, { timeoutMs: WORKTREE_FETCH_TIMEOUT_MS });
+    if (fetch.failure) {
+      logWorktreeStalenessEvent(ctx, { worktree: worktreePath, branch, result: 'check-failed', reason: fetch.failure });
+      return null;
+    }
+
+    const revList = runGit(['rev-list', '--count', `HEAD..origin/${branch}`], worktreePath);
+    if (revList.failure || revList.stdout === null) {
+      logWorktreeStalenessEvent(ctx, {
+        worktree: worktreePath, branch, result: 'check-failed', reason: revList.failure || 'unparseable-count',
+      });
+      return null;
+    }
+    const behind = Number(revList.stdout.trim());
+    if (!Number.isFinite(behind)) {
+      // rev-list exited 0 but produced non-numeric stdout — a check that
+      // didn't run, not a clean result. Logged distinctly per this section's
+      // own "checked, clean" vs "check didn't run" acceptance criterion.
+      logWorktreeStalenessEvent(ctx, { worktree: worktreePath, branch, result: 'check-failed', reason: 'unparseable-count' });
+      return null;
+    }
+    if (behind <= 0) {
+      logWorktreeStalenessEvent(ctx, { worktree: worktreePath, branch, result: 'clean', behind: 0 });
+      return null;
+    }
+
+    logWorktreeStalenessEvent(ctx, { worktree: worktreePath, branch, result: 'stale', behind });
+    return {
+      json: {
+        systemMessage:
+          `claude-tweaks: this worktree is already ${behind} commit${behind === 1 ? '' : 's'} behind ` +
+          `origin/${branch}. Run skills/_shared/worktree-setup.md's Post-creation catch-up ` +
+          '(git fetch + merge) before building on stale ground.',
+      },
+    };
+  } catch {
+    return null; // never break a session over a nudge
+  }
 }
 
 function run(ctx) {
@@ -305,6 +475,12 @@ function run(ctx) {
     const versionBumpNudge = checkPluginVersionBump(recentByDir);
     if (versionBumpNudge) return versionBumpNudge;
   }
+
+  // EnterWorktree staleness backstop (warn tier) — deliberately NOT gated on
+  // ctx.runDir (matches this file's other nudges); its own log-tier
+  // breadcrumb (inside checkWorktreeStaleness) IS gated on ctx.ownedRun.dir.
+  const worktreeStalenessNudge = checkWorktreeStaleness(ctx);
+  if (worktreeStalenessNudge) return worktreeStalenessNudge;
 
   return {};
 }

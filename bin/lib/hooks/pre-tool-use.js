@@ -229,6 +229,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
             `see _shared/policy-schema.md's worktree.always coverage block) ` +
             `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
             `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
+            `then follow \`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
             `then retry this edit inside the new worktree.`,
         },
       },
