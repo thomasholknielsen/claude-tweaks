@@ -845,12 +845,19 @@ reads:
 OUTCOME: {merged | pr-opened | pending-review | failed | blocked}
 ```
 
-Insert this line immediately after it, inside the same fenced template:
+That line sits inside a block headed `OUTPUT FORMAT (required) … return ONLY these lines, no
+preamble:`, so the note must **not** go directly under it — a line placed there reads as one of the
+lines the agent is told to emit, and this template is inlined verbatim into a real dispatched agent.
+Insert it instead **after the whole enumeration ends** — below the
+`ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}` line and its trailing blank line, immediately
+before the `[Use: Standard model …]` line — still inside the same fenced template, as its own
+paragraph:
 
 ```
-Report pending-review -- not `pr-opened` -- when the run reached the Review Console with nobody
-answering it, even though a draft PR was opened for branch durability. `pr-opened` means the branch
-reached its finish decision; a durability PR is an unanswered human gate wearing a review surface.
+Choosing between two OUTCOME values: report pending-review -- not `pr-opened` -- when the run
+reached the Review Console with nobody answering it, even though a draft PR was opened for branch
+durability. `pr-opened` means the branch reached its finish decision; a durability PR is an
+unanswered human gate wearing a review surface.
 ```
 
 - [ ] **Step 5: Run the guard to verify it passes**
