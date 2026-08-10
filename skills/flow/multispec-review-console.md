@@ -16,12 +16,18 @@ The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run 
 
 After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
 
-1. Read `manifest.yml` to enumerate per-spec subdirectories
-2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any
-   `staged/leftover-*.md` queue-write proposals — see Queue writes below); ALSO read the parent run
-   dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as
-   freeform-issue translations and any parent-level leftover proposals)
-3. Render the consolidated console (template below)
+1. Read `manifest.yml` to enumerate per-spec subdirectories, in spec execution order.
+2. For each `spec-{N}/` whose `engine-state.json` is present: read `decisions.md` + `staged/` contents (including any `staged/leftover-*.md` queue-write proposals — see Queue writes below) for the prose-aggregated sections (Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback). ALSO read the parent run dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as freeform-issue translations and any parent-level leftover proposals). A `spec-{N}/` with no `engine-state.json` present (its wrap-up never reached Phase 2, e.g. a spec that failed before that point) contributes nothing to the engine call in step 2 below, but still contributes to the prose-aggregated sections and to the Not run/Failed footer.
+2.5. Invoke the engine for the 5 engine-rendered sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — using one repeated `--spec-state` flag per spec with an `engine-state.json` present, in the spec execution order from step 1:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" render --section console \
+     --spec-state {id1}={path1} --spec-state {id2}={path2} [...] \
+     --start-at {n} [--strict]
+   ```
+
+   `{id}` is each spec's own id (`157`, `159`, …); `{path}` is that spec's `engine-state.json` path (`spec-{N}/engine-state.json`). `{n}` is the next number in this console's global row sequence — see "Numbering rules" below for how it's derived from whatever prose-aggregated sections precede the engine-fed block. Insert the command's stdout verbatim into the console response — do not hand-expand it into a different table shape, exactly as `wrap-up/review-console.md` instructs for its own single-spec `render --section console` call.
+3. Render the consolidated console (template below): the prose-aggregated sections from step 2's reads, then the engine's verbatim output from step 2.5 in its own position (see the template), then the remaining prose-aggregated sections (Cleanup actions, Queue writes, Memory updates, Upstream feedback, Issue closures, Translated briefs).
 4. Apply the user's approval/override
 5. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
 
@@ -65,6 +71,8 @@ A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-
 | 6 | 157 | /review | 2 severity:medium findings | Unhandled rejection in src/api.ts:180; missing null check in src/auth/session.ts:42 | `spec-157/staged/review-2.patch`, `spec-157/staged/review-3.patch` |
 | 7 | 159 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `spec-159/staged/wrap-up-skill-restructure.md` |
 
+Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via the `--spec-state` engine call in "When to run the consolidated console" step 2.5 above. The engine's real output shape is plainer than the worked examples below: `renderConsoleSectionsMulti` emits a bare `#### {title}` heading per section plus one uniform `| # | Spec | Target | Change | Disposition |` table (integer `#`, the contributing spec's id, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same five columns for all five sections. The richer per-section shapes below are the worked-example illustration of what those rows mean, not a second render shape — on an engine run, insert `render`'s output verbatim into the response; do not hand-expand it into a different table shape.
+
 #### Skill updates (from each spec's Skills curation row)
 
 | # | Spec | Skill | Section | Change |
@@ -72,12 +80,33 @@ A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-
 | 9 | 157 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
 | 10 | 159 | NEW | session-management | Create new skill for session lifecycle patterns |
 
-#### Configuration updates (from each spec's Steps 6 + 8)
+#### Documentation updates (from each spec's Docs curation row)
 
 | # | Spec | Type | Target | Change |
 |---|---|---|---|---|
 | 11 | 157 | doc | docs/api.md | Document new /auth/refresh endpoint |
+
+#### Journey updates (from each spec's Journeys curation row)
+
+| # | Spec | Type | Target | Change |
+|---|---|---|---|---|
+| — | — | — | — | (none in this example) |
+
+#### Configuration updates (from each spec's CLAUDE.md & rules and Decision records curation rows)
+
+| # | Spec | Type | Target | Change |
+|---|---|---|---|---|
 | 12 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
+
+An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — the row's mechanics are unchanged from the single-spec console (`wrap-up/review-console.md`'s Configuration updates section), only its aggregation is per-spec here, the same way Queue writes already aggregates.
+
+#### Reference repairs (from each spec's Broken references curation row)
+
+Render this section whenever any spec's broken-reference sweep found a surviving reference, in either of two states — **applied** (already happened in that spec's own `Initiative-Fix:` commit) or **staged** (an ordinary approval row). Omit the section entirely when every spec's sweep found nothing.
+
+| # | Spec | State | Target | Repair | Broken by | Why |
+|---|---|---|---|---|---|---|
+| — | — | — | — | — | — | (none in this example) |
 
 #### Issue closures (issue-derived specs — closes on YOUR merge/push, not by the pipeline)
 
