@@ -96,6 +96,9 @@ OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no p
 
 GROUP: {comma-joined issue numbers}
 OUTCOME: {merged | pr-opened | pending-review | failed | blocked}
+Report pending-review -- not `pr-opened` -- when the run reached the Review Console with nobody
+answering it, even though a draft PR was opened for branch durability. `pr-opened` means the branch
+reached its finish decision; a durability PR is an unanswered human gate wearing a review surface.
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
   single-spec run dir path}
 

@@ -143,3 +143,13 @@ test('the brief renders a Branch section from the durability record', () => {
     'the durability step promises a push or PR-open failure reaches the human in the same comment as the brief; without a reader here that promise resolves to a log line nobody opens (IL-02)',
   );
 });
+
+const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
+
+test('the reporting template tells the agent a durability PR is still pending-review', () => {
+  assert.match(
+    TASK_PROMPT,
+    /not\s+`pr-opened`/,
+    'the agent picks its OUTCOME from this template and never reads dispatch/SKILL.md; with a draft PR now open on the pending-review path, nothing in its own prompt distinguishes the two values',
+  );
+});
