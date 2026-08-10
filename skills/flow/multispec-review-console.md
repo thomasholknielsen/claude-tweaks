@@ -293,7 +293,7 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 
 ## Hard requirements
 
-- The console MUST present every entry from every per-spec `decisions.md` AND the parent run dir's `decisions.md` (auto-applied + staged + kept-prompt + scanned), and every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`. Silently dropping any item is forbidden.
+- The console MUST present every entry from every per-spec `decisions.md` AND the parent run dir's `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`, every Low-confidence and Contested finding surfaced by any spec's `/review`, and every Cleanup actions row that would otherwise run at teardown. Silently dropping any item is forbidden.
 - The `Spec` column is mandatory in every table — the user must be able to trace any row to its originating spec for context.
 - The `Not run` footer is mandatory when any spec was skipped due to a HARD-GATE earlier in the pipeline — those specs' contexts are explicit, not buried.
 - **Queue writes, Memory updates, and Upstream feedback are per-item only.** Never group any of them under "Approve all," and never batch two items from the same per-item section — `Q#`, `M#`, or `U#` — (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rules for work-record creation, memory writes, and upstream filing, the same as `wrap-up/review-console.md`'s three per-item sections.
