@@ -263,6 +263,13 @@ carry the outcome on this path instead:
   `_shared/auto-mode-contract.md`'s per-item approval rule does not reach it. Best-effort per record:
   log a comment failure to `decisions.md` and continue; it never blocks the console.
 
+  Two accepted residuals on this path, parked rather than fixed here: the `gh issue comment` call
+  above has no `_shared/github-write-transport.md` MCP fallback the way Step 3's PR creation does —
+  in a `gh`-absent environment a bundle push failure degrades to the `decisions.md` log only, same
+  as any other no-forge-transport case in this file. And nothing dedupes the comment itself, so a
+  retried bundle whose push fails again posts a second identical one per record — failure-path-only
+  noise, not silent data loss.
+
 ## Residual: the PR can go stale once a human resumes
 
 This procedure pushes the branch as it stands **before** the console renders, and nothing here
