@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile — `flow/manifesto.md`'s canonical lever numbering 1-10) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile, model-stance — `flow/manifesto.md`'s canonical lever numbering 1-11) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
 - **Begin stop is opt-in under `auto`.** `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** (display levers + sources, then proceed) — so the everyday auto pipeline has effectively **one** user-facing stop: the end-of-run Review Console. Pass `confirm` (or use `hybrid`) to turn the begin stop into a real approval gate. The "at most two stops" promise is a ceiling, not a floor.
 - **One message, not many.** When the begin stop *is* a gate (`confirm` / `hybrid`), it is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
@@ -215,7 +215,7 @@ Per-skill `## Auto-mode behavior` tables in SKILL.md are deprecated as of v4.7.0
 
 ## Adding a new policy lever
 
-Extending the Manifesto with a new lever (as `unattended-tier` did, becoming lever #9, and `ceremony-profile` after it, becoming lever #10) touches more files than the lever's own logic. Checklist, grounded in gaps this exact addition initially missed and caught only at whole-branch review:
+Extending the Manifesto with a new lever (as `unattended-tier` did, becoming lever #9, `ceremony-profile` after it becoming lever #10, and `model-stance` after that becoming lever #11) touches more files than the lever's own logic. Checklist, grounded in gaps this exact addition initially missed and caught only at whole-branch review:
 
 1. **This file** — add the lever name to the Bookend Architecture's computed-levers list (above); add its row(s) to "What `auto` silences" / "does NOT silence" if it changes either list; add a caveat anywhere an existing table row's guarantee narrows.
 2. **`flow/SKILL.md`** Step 3 — add the lever name to the levers-computed sentence.
