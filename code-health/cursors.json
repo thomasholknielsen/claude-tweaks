@@ -14,5 +14,9 @@
   ".": {
     "lastSweptMs": 1784819366651,
     "lastHash": "35aa05b7d1d2519ec2c8a07f9337a5522191b07c"
+  },
+  ".claude-plugin": {
+    "lastSweptMs": 1786331584885,
+    "lastHash": "2cd464bb046584941712774dddca266eed9b45be"
   }
 }
