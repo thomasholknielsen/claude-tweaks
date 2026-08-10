@@ -29,7 +29,9 @@ After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stop
    `{id}` is each spec's own id (`157`, `159`, …); `{path}` is that spec's `engine-state.json` path (`spec-{N}/engine-state.json`). `{n}` is the next number in this console's global row sequence — see "Numbering rules" below for how it's derived from whatever prose-aggregated sections precede the engine-fed block. Insert the command's stdout verbatim into the console response — do not hand-expand it into a different table shape, exactly as `wrap-up/review-console.md` instructs for its own single-spec `render --section console` call.
 
    Skip this engine call entirely when no spec in the run has an `engine-state.json` present — the five engine-rendered sections are then simply absent from the console (no heading, no table, for any of them), and `{n}`'s only consumer becomes the first prose-aggregated section that would otherwise follow the engine block.
-4. Render the consolidated console (template below): the prose-aggregated sections from step 2's reads, then the engine's verbatim output from step 3 in its own position (see the template), then the remaining prose-aggregated sections (Cleanup actions, Queue writes, Memory updates, Upstream feedback, Issue closures, Translated briefs).
+
+   **If the call exits non-zero for any other reason** (a present-but-malformed `engine-state.json` for one spec aborts the whole invocation before producing any stdout, per `wrap-up-engine.js`'s own fail-loud contract — passing every spec's state in one call means one bad file blocks every spec's engine-rendered sections, not just the bad one's): do not silently omit the five engine-fed sections for the run. Drop only the offending spec's `--spec-state` flag and re-run the call with the remaining specs' flags — the same "engine failure is never permission to skip a row" principle `curation-engine.md` states for the single-spec engine path, applied per-spec here. Note the dropped spec in the console's Not run/Failed footer with the CLI's own error text as the reason.
+4. Render the consolidated console (template below): the prose-aggregated sections from step 2's reads, then the engine's verbatim output from step 3 in its own position (see the template), then the remaining prose-aggregated sections in the order "Numbering rules" below states.
 5. Apply the user's approval/override
 6. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
 
@@ -44,6 +46,8 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 3. Else fall back to interactive single-spec behavior (no consolidation)
 
 ## Numbering rules
+
+**Canonical render order.** This is the one place this order is stated — every other reference to it (step 4 above, the template below) points here rather than restating the list: Auto-applied, Pending review, Low-confidence findings, Contested findings, then the five engine-rendered sections in their own position, then Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback.
 
 Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Three sections sit outside that global sequence because they require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s own three per-item sections (never counted among its named batch sections): **Queue writes** use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own. **Memory updates** use a separate `M`-prefixed sequence (`M1`, `M2`, …) — aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own. **Upstream feedback** uses a separate `U`-prefixed sequence (`U1`, `U2`, …) — aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own. Do not restart any of the four sequences per spec or per section.
 
@@ -221,7 +225,7 @@ Below each table, show the full patch / diff for each pending item.
 Immediately after presenting the console tables above, call `AskUserQuestion` with:
 
 - `question`: `"How do you want to handle the Multi-Spec Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates."`
+- Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates, execute cleanup (items {N}-{M})."`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 6, modify 8, revert 2\")."`
 - Option 3 — `label`: `"Stop and re-engage"`, `description`: `"Pause; resume after manual review."`
 
