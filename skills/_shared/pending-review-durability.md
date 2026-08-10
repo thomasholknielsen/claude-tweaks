@@ -29,12 +29,34 @@ below, and continue to the console unchanged — never an error.
    `dispatch/task-prompt.md`'s two Task-call templates, inline on the `/claude-tweaks:flow` command
    line — and no interactive, human-run `/flow` invocation ever does. A human already has the
    branch in their own terminal; there is nothing to protect.
-2. **This run resolved to `pending-review`** — the console is about to render for a human. A
-   `failed` or `blocked` outcome never reaches a console at all (`/claude-tweaks:flow` stops at the
-   HARD-GATE, and `dispatch/settle-and-merge.md`'s Settle procedure handles it there), and the
-   auto-merge short-circuit's merge path returns before this point, so an `auto:merge`'d group
-   never lands here either. Never push or open a PR for a `failed` or `blocked` outcome — an
-   incomplete or broken branch on origin is noise, not signal.
+2. **This run resolved to `pending-review`, positively established — not inferred from "a failure
+   could not have got here."** It could. Both checks below must hold; if either is unmet, or you
+   cannot establish it from this invocation's own state, **skip**. Ambiguity resolves to skip, never
+   to push — a skip is never an error, and an unwanted PR is not retractable by the agent that
+   opened it.
+
+   a. **This `/claude-tweaks:flow` invocation's resolved step list contains `review`.** A dispatched
+      group reaches `pending-review` only through the second Task call's `review,polish,wrap-up`
+      list (`dispatch/two-call-gate.md` section 3). A `wrap-up`-only list is the **failure-path
+      teardown call** that same file's section 5 issues after a first-call (`build,test`)
+      HARD-GATE — issued *because* `wrap-up`'s own gate always passes, so it arrives here with
+      `CLAIM_RUN_ID` set, from inside the group's worktree, on a genuinely `failed` run. It is the
+      only dispatch-issued invocation that omits `review`, and that omission is the discriminator.
+   b. **That `review` step actually ran in this invocation and its gate passed.**
+      `flow/steps-and-gates.md`'s Gate Behavior table gives `review` a **STOP** on any non-PASS
+      verdict, so arriving at this console *through* a `review` step in the same invocation is
+      itself the evidence that it passed. A run that reached the console without one — resumed
+      directly at `wrap-up`, or entered by the teardown call above — supplies no such evidence and
+      fails this check.
+
+   **A `failed` outcome does reach this console.** It once could not; `wrap-up/review-console.md`'s
+   "run whenever a run directory exists, in every mode" plus the teardown call above made it
+   reachable, which is why the checks above are positive tests rather than an argument from
+   impossibility. Only the auto-merge case is still structurally excluded: that short-circuit's
+   merge path returns before this point, so an `auto:merge`'d group never lands here.
+
+   Never push or open a PR for a `failed` or `blocked` outcome — an incomplete or broken branch on
+   origin is noise, not signal.
 3. **A worktree strategy was used** — there is a feature branch distinct from the integration
    branch to push. `current-branch` mode has none; skip.
 
@@ -177,7 +199,7 @@ On success:
 
 `AUTO {time} — Pending-review durability: pushed {branch} to origin; draft PR {url} opened against {integration-branch} for #{n}. Reversibility: high (close the PR; the branch on origin is additive).`
 
-## Step 5: Record the outcome where the Verification Brief will find it
+## Step 5: Record the outcome, and make sure it reaches a human
 
 Every branch above — success, existing PR, skipped PR, push failure, PR failure — writes one file at
 the run directory's **root**:
@@ -185,6 +207,12 @@ the run directory's **root**:
 ```
 {run-dir}/pending-review-durability.md
 ```
+
+`{run-dir}` is the run directory owned by the console that invoked this procedure: the single-record
+run dir on the `wrap-up/review-console.md` path, and the **parent** run dir on the
+`flow/multispec-review-console.md` path — never a `spec-{N}/` subdirectory. One bundle gets one push,
+one PR, and one outcome record; copying it into every `spec-{N}/` would give one fact N homes to
+drift between and still would not reach those specs' briefs, for the ordering reason below.
 
 **Root, never `staged/`.** Both consoles classify any file in `staged/` carrying a
 `Title:`/`Type:`/`Labels:` header as a queue write (`Q#`) needing its own per-item approval; a
@@ -198,6 +226,51 @@ pr: {url} | existing {url} | failed — {reason} | skipped — {reason}
 branch: {branch} -> {integration-branch}
 ```
 
-`wrap-up/verification-brief.md`'s Step 4 reads this file and renders a `### Branch` section from it,
-so a push or PR-open failure reaches the human in the same comment that carries the brief — never
-only in a log nobody opens.
+### Who reads it — and it is a different reader on each path
+
+**Single-record path (`wrap-up/review-console.md`).** `{run-dir}` here is the same
+`$PIPELINE_RUN_DIR` that `/claude-tweaks:wrap-up` Phase 4's execution step runs under, and that step
+— which is where acceptance labeling posts the brief — is still ahead of this console. So
+`wrap-up/verification-brief.md`'s Step 4 reads this file and renders a `### Branch` section from it:
+a push or PR-open failure reaches the human in the same comment that carries the brief, never only
+in a log nobody opens.
+
+**Bundle path (`flow/multispec-review-console.md`) — the brief cannot carry it, so something else
+must.** Every spec in a dispatched bundle has already reached `/claude-tweaks:wrap-up` Phase 4's
+execution step by the time this consolidated console runs (that file's "When to run"), and
+acceptance labeling is **not** among the items `wrap-up/execution-and-verification.md`'s
+`MULTISPEC_REVIEW_DEFER` branch defers — so every per-spec Verification Brief was already posted
+*before* this push happened. No choice of location for this file changes that ordering. Two things
+carry the outcome on this path instead:
+
+- **On success** — the draft PR's own `Refs #{m}` line for each record puts a cross-reference on that
+  record's own timeline, which is where a human holding any of the bundle's records finds the branch
+  and the PR.
+- **On any failure** — push failed, or PR creation failed twice — post one comment to **each** record
+  in the bundle (enumerate via the parent `manifest.yml`'s `specs[].id` list, the same enumeration
+  that console's claim release uses), before rendering the console:
+
+  ```bash
+  gh issue comment {m} --body "Branch durability: {the push:/pr:/branch: lines above, verbatim}"
+  ```
+
+  This is what keeps a failure on this path out of a log nobody opens. It fires only on a failure
+  branch, so a clean bundle posts nothing extra. It is a comment on an existing record, not a
+  work-record creation — the same category of write as the Verification Brief comment itself — so
+  `_shared/auto-mode-contract.md`'s per-item approval rule does not reach it. Best-effort per record:
+  log a comment failure to `decisions.md` and continue; it never blocks the console.
+
+## Residual: the PR can go stale once a human resumes
+
+This procedure pushes the branch as it stands **before** the console renders, and nothing here
+watches it afterwards. When a human later answers the console, `/claude-tweaks:wrap-up` Phase 4's
+execution step commits the approved wrap-up actions and — on the worktree path — the closing-keyword
+carrier commit lands on the reconciliation merge (`wrap-up/cleanup-procedures.md` Section C step 2).
+Neither is pushed to the branch this procedure published, so the draft PR shows the pre-console state
+of the work.
+
+That is not a defect to route around here: whoever resumes has the branch, the worktree, and the
+console in front of them, and the ordinary finish path (`/superpowers:finishing-a-development-branch`,
+via the console's teardown) is what publishes the final state. Adding a second push after the console
+would mean scheduling work *after* the blocking `AskUserQuestion` this whole procedure exists because
+nothing survives. Stated here so a resumed run's stale PR reads as expected, not as a bug.

@@ -236,7 +236,7 @@ Queue writes below — do not drop it.
 
 Run this before rendering the console below, never after — the console ends in a blocking `AskUserQuestion` that a headless firing never returns from, so a step scheduled after it does not run on the very path it exists to protect.
 
-**Gate the read.** Read `_shared/pending-review-durability.md` — the scope guard, the worktree-safe push, the existing-open-PR check, the draft-PR creation, and the push/PR failure fallbacks — only when `CLAIM_RUN_ID` is set and non-empty (dispatch-originated; an interactive human-run `/flow` never sets it) **and** this run used a worktree strategy. Otherwise skip this section entirely and do not read the file.
+**Gate the read.** Read `_shared/pending-review-durability.md` — the scope guard, the worktree-safe push, the existing-open-PR check, the draft-PR creation, and the push/PR failure fallbacks — only when `CLAIM_RUN_ID` is set and non-empty (dispatch-originated; an interactive human-run `/flow` never sets it), **and** this run used a worktree strategy, **and** this `/flow` invocation's step list contained `review` and that step passed (a `wrap-up`-only invocation is `dispatch/two-call-gate.md` section 5's failure-path teardown call, reaching this console with `CLAIM_RUN_ID` set on a genuinely `failed` run — so the outcome condition is enforced here, not merely asserted inside the file). Otherwise skip this section entirely and do not read the file.
 
 That file owns the whole procedure and the reasons behind it, including why it never calls `close-run` and never clears the run's worktree assignment: this run stays `active`, exactly as an un-pushed `pending-review` outcome does today, and only gains a branch on origin plus one open draft PR.
 
