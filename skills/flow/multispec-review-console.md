@@ -17,8 +17,8 @@ The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run 
 After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
 
 1. Read `manifest.yml` to enumerate per-spec subdirectories, in spec execution order.
-2. For each `spec-{N}/` whose `engine-state.json` is present: read `decisions.md` + `staged/` contents (including any `staged/leftover-*.md` queue-write proposals — see Queue writes below) for the prose-aggregated sections (Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback). ALSO read the parent run dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as freeform-issue translations and any parent-level leftover proposals). A `spec-{N}/` with no `engine-state.json` present (its wrap-up never reached Phase 2, e.g. a spec that failed before that point) contributes nothing to the engine call in step 2 below, but still contributes to the prose-aggregated sections and to the Not run/Failed footer.
-2.5. Invoke the engine for the 5 engine-rendered sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — using one repeated `--spec-state` flag per spec with an `engine-state.json` present, in the spec execution order from step 1:
+2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any `staged/leftover-*.md` queue-write proposals — see Queue writes below) for the prose-aggregated sections (Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback) — this read is unconditional; a spec with no `engine-state.json` (its wrap-up never reached Phase 2, e.g. a spec that failed before that point) still contributes every prose-aggregated row and a Not run/Failed footer row, it simply contributes nothing to the engine call in step 3 below. ALSO read the parent run dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as freeform-issue translations and any parent-level leftover proposals).
+3. Invoke the engine for the 5 engine-rendered sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — using one repeated `--spec-state` flag per spec with an `engine-state.json` present, in the spec execution order from step 1:
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" render --section console \
@@ -27,9 +27,11 @@ After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stop
    ```
 
    `{id}` is each spec's own id (`157`, `159`, …); `{path}` is that spec's `engine-state.json` path (`spec-{N}/engine-state.json`). `{n}` is the next number in this console's global row sequence — see "Numbering rules" below for how it's derived from whatever prose-aggregated sections precede the engine-fed block. Insert the command's stdout verbatim into the console response — do not hand-expand it into a different table shape, exactly as `wrap-up/review-console.md` instructs for its own single-spec `render --section console` call.
-3. Render the consolidated console (template below): the prose-aggregated sections from step 2's reads, then the engine's verbatim output from step 2.5 in its own position (see the template), then the remaining prose-aggregated sections (Cleanup actions, Queue writes, Memory updates, Upstream feedback, Issue closures, Translated briefs).
-4. Apply the user's approval/override
-5. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
+
+   Skip this engine call entirely when no spec in the run has an `engine-state.json` present — the five engine-rendered sections are then simply absent from the console (no heading, no table, for any of them), and `{n}`'s only consumer becomes the first prose-aggregated section that would otherwise follow the engine block.
+4. Render the consolidated console (template below): the prose-aggregated sections from step 2's reads, then the engine's verbatim output from step 3 in its own position (see the template), then the remaining prose-aggregated sections (Cleanup actions, Queue writes, Memory updates, Upstream feedback, Issue closures, Translated briefs).
+5. Apply the user's approval/override
+6. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
 
 In `interactive` mode (auto opted out), the per-spec consoles ran inline as usual — no consolidation step. Skip this entirely. (Default `auto`, `confirm`, and `hybrid` all consolidate.)
 
@@ -45,7 +47,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 
 Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Three sections sit outside that global sequence because they require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s own three per-item sections (never counted among its named batch sections): **Queue writes** use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own. **Memory updates** use a separate `M`-prefixed sequence (`M1`, `M2`, …) — aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own. **Upstream feedback** uses a separate `U`-prefixed sequence (`U1`, `U2`, …) — aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own. Do not restart any of the four sequences per spec or per section.
 
-**Two provenances, one sequence.** Five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — are **engine-rendered**: their row numbers and content come verbatim from the `--spec-state` engine call in "When to run the consolidated console" step 2.5, which receives `{n}` (the next number in the global sequence) as its own `--start-at` argument. Every other batch section — Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs — plus the three per-item sections that sit outside the global sequence (Queue writes, Memory updates, Upstream feedback, per the note above) is **prose-aggregated**: composed by hand from each spec's own `decisions.md`/`staged/` reads (step 2 above), the same aggregation pattern this file has always used. `{n}` for the engine call is therefore: 1 (the start of the global sequence) plus the row count of every prose-aggregated section that renders *before* the engine block in the template — Auto-applied, Pending review, Low-confidence findings, Contested findings.
+**Two provenances, one sequence.** Five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — are **engine-rendered**: their row numbers and content come verbatim from the `--spec-state` engine call in "When to run the consolidated console" step 3, which receives `{n}` (the next number in the global sequence) as its own `--start-at` argument. Every other batch section — Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs — plus the three per-item sections that sit outside the global sequence (Queue writes, Memory updates, Upstream feedback, per the note above) is **prose-aggregated**: composed by hand from each spec's own `decisions.md`/`staged/` reads (step 2 above), the same aggregation pattern this file has always used. `{n}` for the engine call is therefore: 1 (the start of the global sequence) plus the row count of every prose-aggregated section that renders *before* the engine block in the template — Auto-applied, Pending review, Low-confidence findings, Contested findings.
 
 ## Present the consolidated console
 
@@ -94,20 +96,20 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 > Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `spec-{N}/staged/review-contested-{M}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
 
-Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via the `--spec-state` engine call in "When to run the consolidated console" step 2.5 above. The engine's real output shape is plainer than the worked examples below: `renderConsoleSectionsMulti` emits a bare `#### {title}` heading per section plus one uniform `| # | Spec | Target | Change | Disposition |` table (integer `#`, the contributing spec's id, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same five columns for all five sections. The richer per-section shapes below are the worked-example illustration of what those rows mean, not a second render shape — on an engine run, insert `render`'s output verbatim into the response; do not hand-expand it into a different table shape.
+Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via the `--spec-state` engine call in "When to run the consolidated console" step 3 above. The engine's real output shape is plainer than the worked examples below: `renderConsoleSectionsMulti` emits a bare `#### {title}` heading per section plus one uniform `| # | Spec | Target | Change | Disposition |` table (integer `#`, the contributing spec's id, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same five columns for all five sections. The richer per-section shapes below are the worked-example illustration of what those rows mean, not a second render shape — on an engine run, insert `render`'s output verbatim into the response; do not hand-expand it into a different table shape.
 
 #### Skill updates (from each spec's Skills curation row)
 
 | # | Spec | Skill | Section | Change |
 |---|---|---|---|---|
-| 9 | 157 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
-| 10 | 159 | NEW | session-management | Create new skill for session lifecycle patterns |
+| 11 | 157 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
+| 12 | 159 | NEW | session-management | Create new skill for session lifecycle patterns |
 
 #### Documentation updates (from each spec's Docs curation row)
 
 | # | Spec | Type | Target | Change |
 |---|---|---|---|---|
-| 11 | 157 | doc | docs/api.md | Document new /auth/refresh endpoint |
+| 13 | 157 | doc | docs/api.md | Document new /auth/refresh endpoint |
 
 #### Journey updates (from each spec's Journeys curation row)
 
@@ -119,7 +121,7 @@ Generate the next five sections — Skill updates, Documentation updates, Journe
 
 | # | Spec | Type | Target | Change |
 |---|---|---|---|---|
-| 12 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
+| 14 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
 An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — the row's mechanics are unchanged from the single-spec console (`wrap-up/review-console.md`'s Configuration updates section), only its aggregation is per-spec here, the same way Queue writes already aggregates.
 
@@ -133,26 +135,26 @@ Render this section whenever any spec's broken-reference sweep found a surviving
 
 #### Cleanup actions (executed after approval, per row — branch-finish gates the per-spec rows below it)
 
-Render 2 run-level rows (no `Spec` column) plus 3 rows per spec with a populated `Spec` column, drawn from `wrap-up/cleanup-procedures.md`'s Section D (ephemeral dev server) and Section E (issue claim release, grant removal, per-issue label cleanup) — the same 5 steps "Shared teardown" below already performs, now visible and individually overridable before they execute.
+Render 2 run-level rows (no `Spec` value, rendered as `—`) plus 3 rows per spec with a populated `Spec` column, drawn from `wrap-up/cleanup-procedures.md`'s Section D (ephemeral dev server) and Section E (issue claim release, grant removal, per-issue label cleanup) — the same 5 steps "Shared teardown" below already performs, now visible and individually overridable before they execute.
 
 **Branch-finish is a hard prerequisite for every per-spec row below it.** Claim release needs branch-finish's outcome ($LINK — merge commit sha or PR URL) to release each issue correctly; grant removal and label cleanup key off the same outcome. Dev-server teardown has no such dependency and may be skipped independently of every other row.
 
 | # | Spec | Action | Details |
 |---|---|---|---|
-| 19 | — | Tear down shared ephemeral dev server | `{parent-run-dir}/ephemeral-server.txt`, if one was started |
-| 20 | — | Finish the shared branch | `/superpowers:finishing-a-development-branch` — merge / PR / discard; every row below depends on this outcome |
-| 21 | 157 | Release issue claim | `claims/issue-157.json` on `claims-registry` |
-| 22 | 157 | Remove grants | `auto:build`/`auto:merge`, if present |
-| 23 | 157 | Per-issue label cleanup | Remove `bot:in-progress`; restore `parked` if applicable |
-| 24 | 159 | Release issue claim | `claims/issue-159.json` on `claims-registry` |
-| 25 | 159 | Remove grants | `auto:build`/`auto:merge`, if present |
-| 26 | 159 | Per-issue label cleanup | Remove `bot:in-progress`; restore `parked` if applicable |
+| 15 | — | Tear down shared ephemeral dev server | `{parent-run-dir}/ephemeral-server.txt`, if one was started |
+| 16 | — | Finish the shared branch | `/superpowers:finishing-a-development-branch` — merge / PR / discard; every row below depends on this outcome |
+| 17 | 157 | Release issue claim | `claims/issue-157.json` on `claims-registry` |
+| 18 | 157 | Remove grants | `auto:build`/`auto:merge`, if present |
+| 19 | 157 | Per-issue label cleanup | Remove `bot:in-progress`; restore `parked` if applicable |
+| 20 | 159 | Release issue claim | `claims/issue-159.json` on `claims-registry` |
+| 21 | 159 | Remove grants | `auto:build`/`auto:merge`, if present |
+| 22 | 159 | Per-issue label cleanup | Remove `bot:in-progress`; restore `parked` if applicable |
 
 #### Issue closures (issue-derived specs — closes on YOUR merge/push, not by the pipeline)
 
 | # | Spec | Issue | Closes via |
 |---|---|---|---|
-| 13 | 157 | #84 | `Fixes #84` in the reconciliation merge commit (worktree) or the spec's wrap-up commit (current-branch) — fires on push to the default branch |
+| 23 | 157 | #84 | `Fixes #84` in the reconciliation merge commit (worktree) or the spec's wrap-up commit (current-branch) — fires on push to the default branch |
 
 Issues resolved without a merge (wontfix/duplicate) list a manual `gh issue close` command
 instead — a user action. Omit this section entirely for runs without any record-derived
@@ -162,7 +164,7 @@ specs in the batch (no materialized header present).
 
 | # | Issue | Translation |
 |---|---|---|
-| 14 | #85 | `staged/translation-85.md` — original prose → three-section brief |
+| 24 | #85 | `staged/translation-85.md` — original prose → three-section brief |
 
 Omit when the run had no freeform issues.
 
@@ -250,7 +252,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 5. Apply skill updates and create new skills (from each spec's Skills curation row)
 6. Apply config updates (docs, CLAUDE.md, rules)
 7. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
-8. Execute Cleanup actions rows in order — dev-server teardown (no dependency) may run any time; branch-finish (row 20 in this example) must complete before any per-spec claim-release/grant-removal/label-cleanup row runs, since those rows read branch-finish's outcome for the release reason and `$LINK`. This is "Shared teardown" below, now gated on the visible rows above instead of running unconditionally.
+8. Execute Cleanup actions rows in order — dev-server teardown (no dependency) may run any time; branch-finish (row 16 in this example) must complete before any per-spec claim-release/grant-removal/label-cleanup row runs, since those rows read branch-finish's outcome for the release reason and `$LINK`. This is "Shared teardown" below, now gated on the visible rows above instead of running unconditionally.
 9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
 
 ## On override (option 2)
@@ -260,14 +262,14 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 3. **If the branch-finish row (Cleanup actions) is skipped or reverted:** auto-skip every per-spec claim-release/grant-removal/label-cleanup row for this run — render each as "skipped — depends on branch-finish" rather than executing it against a branch-finish outcome that never happened, and rather than leaving it pending or orphaned. Log the auto-skip to the parent run dir's `decisions.md`. Dev-server teardown is unaffected — it has no dependency on branch-finish and executes (or is skipped) per the user's own choice for that row alone.
 4. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`): all still prompted per item even under override — see "Present the consolidated console" above; the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved across specs either
 5. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
-6. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)
+6. Execute the Cleanup actions rows the user did not skip, in the same dependency order as "On approval" step 8 above (branch-finish must complete before any per-spec claim-release/grant-removal/label-cleanup row; dev-server teardown has no dependency and runs — or is skipped — independently). "Shared teardown" below documents these steps' mechanics.
 7. Archive the parent run dir
 
 ### Shared teardown (dev server, branch finish, claim release, grants)
 
 These 5 steps are now presented as visible, numbered Cleanup actions rows above — this section documents their mechanics; the console template above is what the user actually sees and approves/overrides.
 
-Applies identically after both "On approval" step 8 and "On override" step 6 — this is the same five-step sequence either way, only what triggered it differs:
+Applies identically after both "On approval" step 8 and "On override" step 6 — this is the same five-step mechanics either way — which rows actually run is decided by the Cleanup actions rows above, only what triggered it differs:
 
 1. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
 2. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
