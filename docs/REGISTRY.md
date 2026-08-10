@@ -12,7 +12,8 @@
 | docs/getting-started.md | Full skill reference — every `/claude-tweaks:*` command with its behavior | `skills/**/SKILL.md` |
 | docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `skills/**`, `bin/**` |
 | docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `skills/**/SKILL.md` |
-| docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts` |
+| docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
+| docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts`, docs/donts.md |
 | docs/shipped-versions.tsv | Authoritative record of every shipped version + date | `.claude-plugin/plugin.json`, `CHANGELOG.md` |
 | docs/github-issues-integration-review.md | GitHub-issues work-record backend design review | `bin/lib/issues/**` |
 | docs/decisions/*.md | Architecture Decision Records — hard-to-reverse, surprising trade-offs | *(no auto-detect — written deliberately by /wrap-up's ADR gate)* |
