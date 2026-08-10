@@ -4,6 +4,19 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 
 `.claude-tweaks/policy.yml` is the canonical **and only** home for every lever below — no key in this table is read from CLAUDE.md. `worktree.always` is additionally enforced mechanically by `bin/lib/hooks/pre-tool-use.js`, which reads `policy.yml` directly. A recognized key still sitting in a project's CLAUDE.md no longer applies to anything; `auditPolicy()` reports it under `migratableKeys` and `/claude-tweaks:init --update`'s Config Home Drift check offers to move it.
 
+## `resolveValue` — canonical coercion contract
+
+`bin/lib/policy-schema.js` also exports `resolveValue(key, rawValue)`: look up `key` in
+`POLICY_KEYS`, validate `rawValue` against that entry's `type` (`boolean`, `integer`, `enum`,
+`string`, `list`, `opaque`), and fall back to the entry's `default` whenever `rawValue` is
+absent, empty, or fails validation — never throwing on malformed input. `integer` and `boolean`
+entries are additionally coerced to their native JS type; other types pass through unchanged once
+validated. An unrecognized `key` returns `rawValue` untouched (nothing to coerce against).
+`bin/lib/issues/trust.js`'s `resolveRevertWindowDays` is the first caller
+(`trust-revert-window-days`); any future lever of the same shape — read a policy key, coerce with a
+typed fallback to a documented default — should call `resolveValue` rather than re-deriving its own
+parsing.
+
 ## Worktree & execution
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
