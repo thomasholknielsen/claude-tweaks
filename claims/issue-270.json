@@ -1,6 +1,7 @@
 {
-  "released": true,
   "runId": "2026-08-10T195455-dispatch-standalone",
-  "reason": "failed: spec-premise-conflict (eval harness cannot exercise github-issues-gated grant mode — network egress denied by design)",
-  "releasedAt": "2026-08-10T19:07:30.069Z"
+  "sessionId": "b1eb386e-d366-4119-81e5-6b62f1608913",
+  "claimedAt": "2026-08-10T19:11:33.900Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
