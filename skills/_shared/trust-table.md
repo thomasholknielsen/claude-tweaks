@@ -190,9 +190,9 @@ parent silently un-suppresses its leaves back into `total`, the same failure dir
 One row per cell, in the module's own `key` sort order (already stable — do not re-sort, and
 never cap or truncate the row count; see the row-count note below):
 
-| Provenance | Risk | Total | Approved | Changes Requested | Operational | Undispositioned | Coverage | Not Planned | Follow-ups | Verdict |
-|---|---|---|---|---|---|---|---|---|---|---|
-| {provenance} | {band} | {total} | {approved} | {changesRequested} | {operationalGood} | {undispositioned} | {coverage} | {notPlanned} | {followUps} | {verdict} |
+| Provenance | Risk | Total | Approved | Changes Requested | Operational | Negative Evidence | Undispositioned | Coverage | Not Planned | Follow-ups | Verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| {provenance} | {band} | {total} | {approved} | {changesRequested} | {operationalGood} | {negativeEvidence} | {undispositioned} | {coverage} | {notPlanned} | {followUps} | {verdict} |
 
 Render `{coverage}` as a percentage with no decimals (`row.coverage`, e.g. `0.125` renders `13%`).
 
@@ -204,10 +204,21 @@ acceptance-verdict discipline yet it is the largest number on the table.
 **Operational is a second, independent evidence source** — a closed record with no `demo:*`
 disposition still counts as known-good when it was merged and stayed unreverted for at least
 `trust-revert-window-days` (default 14 days, `bin/lib/issues/trust.js`). It folds into `Coverage`
-the same way `Approved`/`Changes Requested` do (all three sum into `dispositioned`), so
-`Total = Approved + Changes Requested + Operational + Undispositioned` always holds. A record with
+the same way `Approved`/`Changes Requested` do (it sums into `dispositioned`). A record with
 a `demo:*` verdict is never double-counted here — demo-descent evidence is tried first, and the
 operational path only runs when it found nothing.
+
+**Negative Evidence is what pins a verdict below `clean` regardless of positive count**
+(`bin/lib/issues/trust.js`'s `negativeEvidence`, `_shared/autonomy-ceiling.md`'s Revocation
+section). Two sources feed it, both scoped to the same `demo:*`-absent records the Operational
+column reads: a dispatch Settle failure classified `correctness`/`ambiguous`
+(`dispatch/settle-and-merge.md` Step 6.5's persisted marker), and a closing commit the Operational
+path would have counted known-good but discovers was reverted. It folds into `Coverage` the same
+way every other column does — a known-bad outcome is not an unknown one — so
+`Total = Approved + Changes Requested + Operational + Negative Evidence + Undispositioned` always
+holds, superseding the pre-#268 formula that summed only the first three into `dispositioned`. A
+non-zero cell here reads `mixed` even when `Changes Requested` and `Follow-ups` are both `0` — the
+same precedence a `changes-requested` disposition already had.
 
 **Coverage is the fraction of a class's closed records that carry any verdict at all**
 (`dispositioned / total`), and it is the figure that says whether a Verdict column can be
