@@ -151,6 +151,7 @@ depends on them.
 | `/help` | Surfaces the `authorized` and `building` counts on the dashboard (Stage 1). |
 | `skills/_shared/integration-branch.md` | Resolves the auto-merge target and push target. The concurrent-session guard compares the main checkout against this value, not the GitHub default. |
 | `_shared/pending-review-durability.md` | `SKILL.md`'s Reporting section cites it directly for what a `pending-review` outcome now leaves behind: the group's run dir still parks, but the branch does not wait with it — whichever console the group reaches runs this procedure first and publishes the branch plus one draft PR. Dispatch neither invokes nor gates it (the two consoles do, per the `/flow` and `/wrap-up` rows); it owns the `OUTCOME` vocabulary that has to stay `pending-review` rather than `pr-opened` once a draft PR exists, which `task-prompt.md`'s reporting template states to the agent. |
+| `_shared/autonomy-ceiling.md` | `settle-and-merge.md` Settle Step 5 is the negative-evidence persist point (#268): it threads the failure classification from Step 3 into `attemptFailedCommentBody`, which embeds a `trust-negative-evidence` marker in the same comment only for `correctness`/`ambiguous` classifications. `bin/lib/issues/trust.js` reads that marker back, per this file's Revocation section — dispatch itself never grades a class or checks a verdict. |
 
 ## docs-health
 
