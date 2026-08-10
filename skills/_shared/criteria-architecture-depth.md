@@ -67,3 +67,16 @@ Use exactly these terms when proposing and discussing refactors. Consistent lang
 | **leverage** | The ranking quantity — see above. |
 
 Do **not** drift into `component`, `service`, `API`, or `boundary` in proposals — they blur the distinctions above and make two proposals hard to compare. (`API` is fine when it literally means a network API; not as a synonym for "interface".)
+
+## Cross-file calibration (duplicate abstractions)
+
+The sections above judge one module's own depth. This section applies the same criterion across files, for `code-health`'s `focus=abstraction-police` candidate stream (`bin/lib/code-health/candidates-abstraction-police.js`): a cluster of near-identical exported helpers rebuilt in more than one file. The candidate generator's clustering is lexical/structural (signature shape + body token overlap) — it nominates, it does not decide. Judge each cluster the same way you would judge any depth finding, using the calibration below.
+
+**Unify when the copies drift-fix independently.** The clearest signal a duplicated abstraction is a real depth problem: the same bug gets fixed in one copy and not the others, or a behavior change lands in one copy while its siblings silently keep the old behavior. This is the N-times-fixed-bug shape — every future fix has to remember to touch every copy, and the ones a fixer doesn't know about stay wrong. A cluster with any history of this shape (visible in the candidate's evidence, or inferable from how the copies differ) is a strong unify candidate.
+
+**Do NOT unify when:**
+- The similarity is coincidental shape sharing across genuinely different domains — two functions that happen to validate a similarly-shaped object for unrelated reasons are not the same abstraction merely because their parameter destructuring and control flow look alike. Read what each copy is *for*, not just what it does structurally.
+- Unification would couple modules across a deliberate boundary — if the two files sit on opposite sides of an intentional seam (e.g. a plugin boundary, a client/server split, a public-API/internal-implementation line), merging them re-introduces the coupling the boundary exists to prevent. A little duplication is the price of that boundary, not a defect in it.
+- One copy is about to be deleted anyway — a duplicate inside code already flagged for removal, or behind a flag being sunset, is not worth unifying; the unification would outlive the code it serves.
+
+**Behavioral differences are part of the finding, not noise to reconcile silently.** Per IL-90 (N implementations agreeing is exactly when a shared bug reads as the spec), do not assume the copies are behaviorally identical just because they cluster on structure. When a cluster's members differ in any observable way — one validates a field the other skips, one throws where the other returns false — the unification finding must call that difference out explicitly and flag which copy looks like the bug, rather than silently picking one copy's behavior as canonical. A judge that unifies without surfacing the behavioral drift ships a silent regression into whichever copies didn't have it.

@@ -27,6 +27,7 @@ Each focus pins exactly one criterion — no `classify`/`criteriaForArea` call, 
 | Focus | Criterion id | Fragment |
 |---|---|---|
 | `dead-code` | `dead-code` | none (`fragment: null` in `criteria.js` — judge from SKILL.md Step 5's guidance alone, same as any other `fragment: null` criterion) |
+| `abstraction-police` | `architecture-depth` | `criteria-architecture-depth.md` — its "Cross-file calibration (duplicate abstractions)" section, added specifically for this focus |
 
 This table is per-vertical data, not a second copy of the registry's key list: a generator carries no criterion field, so the mapping has to live somewhere and this is its only home. It must gain a row whenever `FOCUS_GENERATORS` gains a key. A `focus=` value the registry recognizes but this table has no row for is the same fail-loud stop as an unrecognized value — report the gap and stop rather than falling back to `criteriaForArea`.
 
