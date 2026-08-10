@@ -18,5 +18,9 @@
   "skill:autonomy-ceiling": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786336116732
+  },
+  "skill:trust-table": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786336134400
   }
 }
