@@ -159,7 +159,7 @@ External contract (arguments, lifecycle position, `/flow` integration, hooks) un
 
 1. **Substance loss during slimming.** No test reads skill prose. The plan must include an explicit diff-audit task: every substantive line of the old sub-files survives somewhere in the new set (the CLAUDE.md extraction rule).
 2. **Prose/code double maintenance.** The registry exists in SKILL.md (human-readable) and `bin/lib/wrapup/registry.js` (executable). A pinning test (pattern: `tests/hooks-gate-coverage.test.js` pinning prose to `GATE_COVERAGE`) must fail when the two drift.
-3. **`/flow` console drift.** Flow's consolidated multi-spec console is a parallel implementation, out of scope here. Follow-up record: align it to the trace contract.
+3. **`/flow` console drift.** Flow's consolidated multi-spec console is a parallel implementation, out of scope here. Follow-up record: align it to the trace contract. Resolved by `docs/superpowers/specs/2026-08-09-multispec-console-trace-alignment-design.md`.
 4. **Run-dir-everywhere hook interactions.** Verified-in-plan task, not a redesign: `status: active` → archival path is the normal lifecycle; confirm the reaper and E1 treat conversation-mode run dirs correctly.
 5. **JSON contract versioning.** `record`'s input schema is a producer/consumer boundary between prose (judge output instructions) and code (validator). Version it; validator rejects unknown shapes loudly (IL-50: new validators must fail in the same direction as siblings).
 6. **Engine fallback ambiguity.** "Engine absent → prose path" must be a stated unconditional rule in SKILL.md (IL-14: no enumerated termination paths), and the report must say which path ran.
