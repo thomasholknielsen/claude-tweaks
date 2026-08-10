@@ -22,5 +22,9 @@
   "skill:trust-table": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786336134400
+  },
+  "skill:upstream-drift": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786339353644
   }
 }
