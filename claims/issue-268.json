@@ -1,7 +1,5 @@
 {
   "released": true,
-  "runId": "2026-08-10T081820-dispatch-standalone",
-  "reason": "merged: spec 268",
-  "releasedAt": "2026-08-10T17:54:46.478Z",
-  "link": "https://github.com/thomasholknielsen/claude-tweaks/commit/6000d372"
+  "runId": "2026-08-10T195455-dispatch-standalone",
+  "releasedAt": "2026-08-10T18:53:22.327Z"
 }
