@@ -256,7 +256,9 @@ running *this* composition (see the Routing table above), never hardcode
 execution step or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate,
 `` `/claude-tweaks:tidy` `` for the backstop entry. Omit **See it yourself** and
 **Verify it yourself (manual)** — part 2's walkthrough
-already names the entry point inline within Confirmed.
+already names the entry point inline within Confirmed. A parent brief carries the `### Branch`
+section on the same condition Step 4 states — the durability record belongs to the run in hand,
+not to the family, so it is present exactly when that run produced one.
 
 ### Apply the gate
 
@@ -480,6 +482,8 @@ brief's text content is unaffected.
 `![{description}](../../demo-evidence/{record}/{NN}-{description}.png)` (adjust the relative
 depth to the record file's actual location under `specs/`).
 
+**Branch durability (dispatch-originated runs only).** If `{run-dir}/pending-review-durability.md` exists, read its three lines (`push:`, `pr:`, `branch:` — written by `_shared/pending-review-durability.md` Step 5) and render the `### Branch` section of the template below from them: where the branch was pushed, the draft PR's link, and any push or PR-open failure stated plainly rather than paraphrased, so a human knows the branch is local-only or that a PR still needs opening by hand. Omit that section entirely when the file is absent — an interactive run never produces one, and an empty heading would imply a durability step that never ran.
+
 Render this exact template:
 
 ```markdown
@@ -517,6 +521,12 @@ Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 command, file path, or observable behavior per changed area}
 {omit this section entirely for testable records, with or without visual review — mutually
 exclusive with "See it yourself" above, never both}
+
+### Branch
+{dispatch-originated runs only, sourced from {run-dir}/pending-review-durability.md above:
+where the branch was pushed and the draft PR link — or, plainly, that the push failed and the
+branch is local only, or that the push landed but the PR still needs opening by hand}
+{omit this section entirely when that file does not exist}
 
 ---
 

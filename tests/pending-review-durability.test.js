@@ -133,3 +133,13 @@ test('the multi-spec console cites the durability procedure before it renders', 
     'a dispatched bundle defers every per-spec console (MULTISPEC_REVIEW_DEFER=1), so this consolidated console is the only render point a bundle reaches — wiring only the single-record console leaves bundles exactly as unprotected as they were',
   );
 });
+
+const BRIEF = read('skills', 'wrap-up', 'verification-brief.md');
+
+test('the brief renders a Branch section from the durability record', () => {
+  assert.match(
+    BRIEF,
+    /pending-review-durability\.md/,
+    'the durability step promises a push or PR-open failure reaches the human in the same comment as the brief; without a reader here that promise resolves to a log line nobody opens (IL-02)',
+  );
+});
