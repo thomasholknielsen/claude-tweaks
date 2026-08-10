@@ -15,6 +15,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const DURABILITY = read('skills', '_shared', 'pending-review-durability.md');
+const WRAP_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
 
 test('the scope guard gates on CLAIM_RUN_ID as the headless signal', () => {
   assert.match(
@@ -101,5 +102,24 @@ test('the outcome record carries a pr: line for the brief to render', () => {
     DURABILITY,
     /^pr: \{url\} \| existing \{url\} \| failed — \{reason\} \| skipped — \{reason\}$/m,
     'verification-brief.md renders its ### Branch section from these exact fields; changing the shape here silently empties that section (IL-04)',
+  );
+});
+
+test('the wrap-up console cites the durability procedure before it renders', () => {
+  const cite = WRAP_CONSOLE.indexOf('_shared/pending-review-durability.md');
+  const render = WRAP_CONSOLE.indexOf('## Present the console');
+  assert.ok(
+    cite !== -1 && cite < render,
+    'the console ends in a blocking AskUserQuestion a headless firing never returns from, so a durability step cited after it never runs — the citation has to sit above "## Present the console"',
+  );
+});
+
+test("the wrap-up console's dry-run mode suppresses the push and the PR", () => {
+  const start = WRAP_CONSOLE.indexOf('## Dry-run mode');
+  const end = WRAP_CONSOLE.indexOf('## Auto-merge short-circuit', start);
+  assert.match(
+    WRAP_CONSOLE.slice(start, end),
+    /pending-review\s+durability/i,
+    '--dry-run is preview-only for every write on this page; a push to origin and a live PR are writes, and omitting them from that list is how a "preview" run publishes a branch',
   );
 });
