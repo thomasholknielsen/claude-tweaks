@@ -14,5 +14,9 @@
   "skill:policy-schema": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786336087985
+  },
+  "skill:autonomy-ceiling": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786336116732
   }
 }
