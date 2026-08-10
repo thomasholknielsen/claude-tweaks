@@ -24,7 +24,7 @@ files:
 ### 2. Check the Cleanup actions rows before approving — terminal
 - **URL:** the "Cleanup actions" section of the same rendered console.
 - **Action:** Look at the numbered rows — one dev-server-teardown row and one branch-finish row with no `Spec` value, plus three rows per spec (claim release, grant removal, label cleanup) with a populated `Spec` value.
-- **Should feel:** In control of teardown, not just informed about it after the fact — these rows used to execute unconditionally as soon as the batch was approved; now they're visible and can be individually skipped in the next step.
+- **Should feel:** In control of teardown, not just informed about it after the fact — these rows are visible before they run and can be individually skipped in the next step, rather than executing unconditionally on batch approval.
 - **Should understand:** The three per-spec rows depend on the branch-finish row completing first (claim release needs branch-finish's outcome — the merge commit sha or PR URL — to release each issue correctly); the dev-server-teardown row has no such dependency and can be skipped on its own.
 - **Red flags:** A per-spec claim-release row with no visible branch-finish row above it in the same batch (the dependency would be invisible); the section missing entirely when a worktree strategy was used (it should always render for a multi-spec worktree run).
 
