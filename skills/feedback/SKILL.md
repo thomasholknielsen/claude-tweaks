@@ -61,9 +61,14 @@ limit, state this in the summary rather than silently treating it as complete.)
   are already in it — classify, confirm self-reference doesn't apply, dedup search, draft, scrub)
   non-interactively for each candidate, then call `_shared/upstream-feedback-batch.md`'s shared
   batch contract once — chunked per that file's own rule — instead of looping Step 7 individually
-  per candidate. On a checked item filing successfully (Step 8), close the local
-  `upstream-candidate` issue with a comment linking the new upstream issue. An unchecked item is
-  handled per the shared contract's decline rule (comment + leave the local issue open).
+  per candidate. Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one candidate that
+  triggered it — drop that candidate from the batch (report why, alongside the others' results)
+  and continue the loop for the rest; it never aborts the whole `--queue` run, matching Step 7's
+  own per-item isolation for the drift-check fallback. A dedup match in Step 4 does not stop the
+  candidate or ask interactively — see Step 4's own batch-mode text. On a checked item filing
+  successfully (Step 8), close the local `upstream-candidate` issue with a comment linking the new
+  upstream issue. An unchecked item is handled per the shared contract's decline rule (comment +
+  leave the local issue open).
 
 This is what resolves `upstream-candidate`'s dead-write state (#239): the label's own consumer
 was always meant to be a human eyeball plus a manual `/claude-tweaks:feedback` invocation
@@ -119,6 +124,15 @@ gh issue list --repo thomasholknielsen/claude-tweaks --search '<keywords>' --sta
 
 Show any plausible matches and ask whether to file anyway, comment on the
 existing issue instead (then stop), or cancel.
+
+**Inside Step 0's batch loop** (non-interactive), this three-way ask does not run. A match
+instead becomes the drafted item's dedup flag — `**possible duplicate:** #{N}` per
+`_shared/upstream-feedback-batch.md`'s Chunking rule — and the human's check/uncheck decision on
+that flagged item in the shared batch contract stands in for "file anyway" (checked) or "cancel"
+(left unchecked, handled by the contract's decline rule). "Comment on the existing issue instead"
+has no dedicated batch-mode option; a human who wants that outcome uses the contract's free-text
+edit channel (naming the item and requesting "comment on #{N} instead of filing") rather than a
+third checkbox state.
 
 Reuse `bin/lib/health-core/fingerprint.js` (`createFingerprint`, `normalizeText`)
 for the fingerprint marker embedded in the body, so a later run recognizes its
@@ -188,21 +202,26 @@ repository is outward-facing and effectively irreversible.
 
 **`--pre-confirmed`:** the caller passes both the item's staged-file path and the exact body text
 it rendered and got approval for (the approved snapshot) — not just a path reference. Before
-filing, two separate checks run:
+filing, two checks run, always in this order:
 
-1. **Drift check** — re-read `staged/wrap-up-upstream-{N}.md` fresh from disk and compare its
-   current content, byte-for-byte, against the approved snapshot the caller passed. A mismatch
-   means the staged file changed after it was rendered and approved — fall back to the normal
-   `AskUserQuestion` confirm, showing the diff between the approved snapshot and the current
-   staged content, so the human re-approves the changed content specifically. This fallback is
-   per-item — it never aborts sibling items in the same batch.
-2. **Scrub rerun (unconditional)** — Step 6's scrub always reruns on the content that will
-   actually be filed (the current on-disk staged content) as a defense-in-depth safety net before
-   publishing, regardless of the drift check's outcome — a modification the drift check just
-   caught could have reintroduced content that needs scrubbing.
+1. **Scrub rerun (unconditional)** — Step 6's scrub always reruns first, on the current on-disk
+   staged content, as a defense-in-depth safety net before publishing — regardless of whether the
+   drift check below finds a mismatch, since a modification that caused drift could itself have
+   reintroduced content that needs scrubbing. This produces the content that will actually be
+   filed. If this rerun trips Step 6's own hard-stop ("cannot survive the scrub") for this item,
+   treat it exactly like a Step 6 stop anywhere else in a batch: drop this one item (report why)
+   and continue processing the rest of the chunk — it never aborts sibling items.
+2. **Drift check** — if `staged/wrap-up-upstream-{N}.md` no longer exists, treat this as "already
+   filed" (see Step 8's cleanup-on-success below) and skip this item without re-filing or
+   erroring. Otherwise, re-read it fresh from disk (the post-scrub content from step 1 above) and
+   compare it, byte-for-byte, against the approved snapshot the caller passed. A mismatch means
+   the staged file changed after it was rendered and approved — fall back to the normal
+   `AskUserQuestion` confirm, showing the post-scrub content (not the pre-scrub approved snapshot)
+   so the human approves exactly what would be filed. This fallback is per-item — it never aborts
+   sibling items in the same batch.
 
-When the drift check finds no mismatch, skip the `AskUserQuestion` call for that item and file
-after the safety-net scrub.
+When the drift check finds no mismatch, skip the `AskUserQuestion` call for that item and file the
+post-scrub content directly.
 
 **`--dry-run`:** render every draft, state the classified destination and kind, then **stop here**
 — no `AskUserQuestion` call of any kind, and nothing filed. This holds whether or not
@@ -237,6 +256,14 @@ Omit `--label` entirely otherwise and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
 which belongs to records that moved through its in-repo pipeline.
+
+**On success when invoked via `--pre-confirmed`:** delete the staged file at
+`staged/wrap-up-upstream-{N}.md` immediately after `gh issue create` returns the new issue URL —
+this is what makes Step 7's drift check "file not found" branch mean "already filed" rather than
+an error, and prevents a `/claude-tweaks:wrap-up resume` (or the multi-spec console's own resume)
+from re-rendering and re-filing an item whose chunk already succeeded before an interruption. A
+direct (non-`--pre-confirmed`) invocation has no staged file to clean up — this step is a no-op in
+that path.
 
 On failure, do not silently drop the payload. Report the `gh` error verbatim,
 write the drafted body to the run directory's `staged/` as

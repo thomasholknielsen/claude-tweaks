@@ -66,6 +66,12 @@ message channel `review-console.md`'s top-level "Approve all / Override specific
 uses, generalized to name a single item rather than a global choice. This is the **only** override
 mechanism either caller needs — neither defines a separate one.
 
+**No matching title.** When the named title matches no item rendered in this session (a typo, an
+item from an already-answered chunk, or one already filed) — list the titles still open for
+editing and ask the caller to name one of those, rather than guessing which item was meant or
+silently applying the edit to the nearest-matching title. If no reply follows, treat the original
+chunk's checkbox answers as final.
+
 ## Caller responsibilities
 
 The contract handles rendering, chunking, question text, and override/decline logging. Each
