@@ -38,7 +38,11 @@ const { execFileSync } = require('child_process');
 //     nested literal inside the braces is out of scope (the naive
 //     `[^{}]*` capture stops at the first `}`, which would be the nested
 //     literal's own close, not the export block's) — such a file simply
-//     yields fewer or zero extracted export names rather than crashing.
+//     yields fewer or zero extracted export names rather than crashing. Only
+//     the FIRST `module.exports = { ... }` block in a file is parsed — a
+//     file that reassigns `module.exports` more than once (rare; every file
+//     in this repo assigns it exactly once) has any later block's names
+//     silently unextracted, not crashed on.
 //   - Entrypoints are never flagged (neither kind) — see computeEntrypoints
 //     below for the exact rule set, including the bin/lib/hooks/*.js special
 //     case: those files are loaded by bin/hooks.js's string-keyed
