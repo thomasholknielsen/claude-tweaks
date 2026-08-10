@@ -4,6 +4,9 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { PROFILES } = require('./model-profiles/profiles');
+
+const PROFILE_NAMES = Object.keys(PROFILES);
 
 const POLICY_KEYS = [
   { key: 'worktree.always', type: 'boolean', default: false },
@@ -53,6 +56,18 @@ const POLICY_KEYS = [
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
   { key: 'fleet-daily-grant-cap', type: 'integer', min: 1 },
   { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
+  // Model-profile resolver levers (#216's bin/lib/model-profiles/profiles.js is
+  // the runtime reader for these four key names — POLICY_KEYS_READ pins them;
+  // registration here is schema/audit only, deliberately shallow (#219): this
+  // file checks model-profiles' row keys are real profile names, never the
+  // shape of a row's own fields — that's the resolver's job, at resolve time.
+  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default' },
+  { key: 'frontier-run-cap', type: 'integer', default: 3 },
+  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES },
+  { key: 'model-profiles', type: 'map', keys: PROFILE_NAMES },
+  // Read from /claude-tweaks:research's own `## Input` --mode= flag (IL-24:
+  // that file is authoritative for the vocabulary, not this schema).
+  { key: 'research-mode', type: 'enum', values: ['quick', 'standard', 'deep', 'ultradeep'] },
 ];
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
@@ -87,6 +102,12 @@ function parseFlatLines(raw) {
   const result = {};
   if (!raw) return result;
   for (const rawLine of raw.split('\n')) {
+    // Every top-level key in this file's flat convention starts in column 0
+    // (dot-notation namespacing, e.g. harness-health.scoped-rule-budget, is
+    // how nesting is expressed — never indentation). An indented line belongs
+    // to a nested block's own field (today, only model-profiles' rows) and
+    // must never be read as a flat key in its own right.
+    if (/^\s/.test(rawLine)) continue;
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const match = line.match(/^([a-zA-Z0-9_.-]+):\s*([^#]*)/);
@@ -118,6 +139,12 @@ function isValidValue(schemaEntry, value) {
     case 'list':
     case 'opaque':
       return true;
+    case 'map':
+      // Shallow by design (#219 Non-Goals): every row key must name a real
+      // profile; a row's own value shape is never inspected here — the
+      // resolver (bin/lib/model-profiles/policy-fragment.js) validates that
+      // deeply, at resolve time, and rejects an unknown field there instead.
+      return Object.keys(value).every((k) => schemaEntry.keys.includes(k));
     default:
       return true;
   }
@@ -143,11 +170,42 @@ function resolveValue(key, rawValue) {
   return rawValue;
 }
 
+// Shallow extractor for a nested `{topKey}:` block's first-level indented key
+// names — parseFlatLines only sees flat `key: value` lines, so a block-style
+// value (today, only model-profiles) is otherwise invisible to auditPolicy.
+// Returns undefined when the block is absent, distinct from an empty map.
+function extractMapEntry(raw, topKey) {
+  if (!raw) return undefined;
+  const lines = raw.split('\n');
+  let found = false;
+  const map = {};
+  for (let i = 0; i < lines.length; i += 1) {
+    const rawLine = lines[i];
+    const stripped = rawLine.replace(/#.*$/, '').trimEnd();
+    if (!found) {
+      if (/^\S/.test(rawLine) && new RegExp(`^${topKey}:\\s*$`).test(stripped.trim())) found = true;
+      continue;
+    }
+    if (!stripped.trim()) continue;
+    if (!/^\s/.test(rawLine)) break; // dedent — block ended
+    const rowMatch = /^ {2}([A-Za-z0-9_-]+):/.exec(stripped);
+    if (rowMatch) map[rowMatch[1]] = true;
+    // Deeper-nested field lines (4-space `model:`/`effort:`) are ignored —
+    // shallow means only the row's own key name is read here.
+  }
+  return found ? map : undefined;
+}
+
 function auditPolicy(repoRoot) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const claudeMdRaw = readFileSafe(path.join(repoRoot, 'CLAUDE.md'));
   const policyEntries = parseFlatLines(policyRaw);
   const claudeMdEntries = parseFlatLines(claudeMdRaw);
+  // model-profiles is the one block-style (non-flat) key today; parseFlatLines
+  // can't see it, so it's read separately and merged in under its own name —
+  // this never collides with a flat-line entry of the same key.
+  const modelProfilesEntry = extractMapEntry(policyRaw, 'model-profiles');
+  if (modelProfilesEntry !== undefined) policyEntries['model-profiles'] = modelProfilesEntry;
 
   const unrecognizedKeys = Object.keys(policyEntries)
     .filter((key) => !SCHEMA_BY_KEY.has(key) && !RENAMED_KEY_NAMES.has(key));

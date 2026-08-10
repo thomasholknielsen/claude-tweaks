@@ -140,7 +140,7 @@ Any hard fail or rejection stops the pipeline before the Config Manifesto runs. 
 
 **Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry and naming an existing directory is adopted (nothing created or re-initialized, levers read from its `config.yml`); set-but-missing or unset creates as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
 
-This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
+This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
 
 | Mode | Manifesto behavior |
 |------|-------------------|
