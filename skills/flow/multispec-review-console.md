@@ -21,7 +21,7 @@ After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stop
    `staged/leftover-*.md` queue-write proposals — see Queue writes below); ALSO read the parent run
    dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as
    freeform-issue translations and any parent-level leftover proposals)
-3. Render the consolidated console (template below)
+3. Run the pending-review branch durability step below, then render the consolidated console (template below)
 4. Apply the user's approval/override
 5. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
 
@@ -38,6 +38,14 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 ## Numbering rules
 
 Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Three sections sit outside that global sequence because they require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s own three per-item sections (never counted among its named batch sections): **Queue writes** use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own. **Memory updates** use a separate `M`-prefixed sequence (`M1`, `M2`, …) — aggregated across every spec's `staged/wrap-up-memory-*.md` files plus the parent run dir's own. **Upstream feedback** uses a separate `U`-prefixed sequence (`U1`, `U2`, …) — aggregated across every spec's `staged/wrap-up-upstream-*.md` files plus the parent run dir's own. Do not restart any of the four sequences per spec or per section.
+
+## Pending-review branch durability (dispatch-originated runs)
+
+Run this before rendering the consolidated console below, never after — it ends in a blocking `AskUserQuestion` that a headless firing never returns from, so a step scheduled after it does not run on the very path it exists to protect. A dispatched **bundle** reaches this console and no other: every per-spec `/claude-tweaks:wrap-up` deferred its own under `MULTISPEC_REVIEW_DEFER=1`.
+
+**Gate the read.** Read `_shared/pending-review-durability.md` — the scope guard, the worktree-safe push, the existing-open-PR check, the draft-PR creation, and the push/PR failure fallbacks — only when `CLAIM_RUN_ID` is set and non-empty (dispatch-originated; an interactive human-run `/claude-tweaks:flow` never sets it) **and** this run used a worktree strategy. Otherwise skip this section entirely and do not read the file.
+
+One branch is shared across every spec in the run, so this is one push and one draft PR for the whole bundle — that file's own bundle rule fixes which record supplies the PR title and how the rest are referenced. It never calls `close-run` and never clears the run's worktree assignment; the parent run dir stays intact for the console below and for "Shared teardown" afterwards.
 
 ## Present the consolidated console
 

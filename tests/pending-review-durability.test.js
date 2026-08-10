@@ -16,6 +16,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const DURABILITY = read('skills', '_shared', 'pending-review-durability.md');
 const WRAP_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
+const MULTI_CONSOLE = read('skills', 'flow', 'multispec-review-console.md');
 
 test('the scope guard gates on CLAIM_RUN_ID as the headless signal', () => {
   assert.match(
@@ -121,5 +122,14 @@ test("the wrap-up console's dry-run mode suppresses the push and the PR", () => 
     WRAP_CONSOLE.slice(start, end),
     /pending-review\s+durability/i,
     '--dry-run is preview-only for every write on this page; a push to origin and a live PR are writes, and omitting them from that list is how a "preview" run publishes a branch',
+  );
+});
+
+test('the multi-spec console cites the durability procedure before it renders', () => {
+  const cite = MULTI_CONSOLE.indexOf('_shared/pending-review-durability.md');
+  const render = MULTI_CONSOLE.indexOf('## Present the consolidated console');
+  assert.ok(
+    cite !== -1 && cite < render,
+    'a dispatched bundle defers every per-spec console (MULTISPEC_REVIEW_DEFER=1), so this consolidated console is the only render point a bundle reaches — wiring only the single-record console leaves bundles exactly as unprotected as they were',
   );
 });
