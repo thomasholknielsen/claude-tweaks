@@ -160,6 +160,10 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now — see `_shared/work-record.md`'s Label taxonomy table for the current per-family and total counts, rather than a count restated here. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap/step-17-work-record-backend.md` for the full procedure.
 
+### Step 18: Autonomy Level (Optional)
+
+Ask how much claude-tweaks pipelines should decide on their own — ledger bookkeeping, queue-write filing, ops-item acknowledgment — versus asking every time, and write `autonomy` to `.claude-tweaks/policy.yml` when the answer isn't the schema default (`supervised`). `Trusted` is the recommended answer: every capability it unlocks is floor-gated to four narrow, reversible blocker-reason categories and every auto-resolution is logged — see `_shared/autonomy-ceiling.md` for the full contract. Read `bootstrap/step-18-autonomy-level.md` for the full procedure.
+
 ---
 
 ### Finalizing the worktree.always Decision

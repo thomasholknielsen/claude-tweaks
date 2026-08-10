@@ -24,9 +24,9 @@ Highest wins:
 
 Regardless of `auto` state, these always require explicit user input — see the full contract for the "why mandatory" rationale on each:
 
-- Ledger resolve gate Phase 2 (every open item, per-item) — except the narrow `unattended-tier` carve-out
-- Work-record creation (new backlog records) — except born-ready health-skill filing and `unattended-tier`-gated queue writes
-- Ops-acknowledgment, when ops items exist — except `unattended-tier`
+- Ledger resolve gate Phase 2 (every open item, per-item) — except the narrow `autonomy` ceiling's `ledgerNarrowing` carve-out (`trusted`+)
+- Work-record creation (new backlog records) — except born-ready health-skill filing and `queueWriteAutoFile`-gated queue writes (`trusted`+)
+- Ops-acknowledgment, when ops items exist — except `opsAckAutoAcknowledge` (`unattended` only)
 - Memory file writes (`/wrap-up`'s Memory curation row) — never exempt
 - Upstream feedback filing (`/claude-tweaks:feedback`) — never exempt
 - Marking records `parked`

@@ -24,7 +24,7 @@ work.
 Memory writes are never auto-resolved regardless of mode. `_shared/auto-mode-card.md` lists
 them among what `auto` does not silence — a memory file is cross-project and always-loaded, so a
 wrong one silently degrades every future session in every project the user works in, the largest
-blast radius of any routing destination. It is **not** exempt under `unattended-tier`.
+blast radius of any routing destination. It is **not** exempt under any `autonomy` tier.
 
 **This is a per-item gate, not folded into any other approval.** Reflect's insights batch table
 (`reflect/full-mode.md`) resolving an insight to D4 — even under "Apply all" — approves *routing*

@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile — `flow/manifesto.md`'s canonical lever numbering 1-10) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile — `flow/manifesto.md`'s canonical lever numbering) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
 - **Begin stop is opt-in under `auto`.** `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** (display levers + sources, then proceed) — so the everyday auto pipeline has effectively **one** user-facing stop: the end-of-run Review Console. Pass `confirm` (or use `hybrid`) to turn the begin stop into a real approval gate. The "at most two stops" promise is a ceiling, not a floor.
 - **One message, not many.** When the begin stop *is* a gate (`confirm` / `hybrid`), it is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
@@ -129,7 +129,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - Closing or deleting work records
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
-- Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when `unattended-tier` is on (see `_shared/unattended-tier.md`)
+- Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when the `autonomy` ceiling's `queueWriteAutoFile` bookkeeping capability is unlocked (`trusted`+ — see `_shared/autonomy-ceiling.md`)
 - Originating a work-record grant (`auto:build` / `auto:merge`) — except under the `autonomy` ceiling's `unattended` tier with its explicit grant-origination opt-in, for a class carrying a `clean` trust verdict (see `_shared/autonomy-ceiling.md`). Shut by default; nothing sets that opt-in today
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying project-policy values — `.claude-tweaks/policy.yml`'s keys, and the
@@ -174,11 +174,11 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 
 | Item | Why mandatory |
 |---|---|
-| Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce, unless `unattended-tier` is on — see `_shared/unattended-tier.md` for the narrow, backlog-only carve-out |
-| Work-record creation (new backlog records) | Each record filed on the user's tracker needs explicit user approval — the record queue is the user's, not the model's. Scheduled health-skill filing is exempt — born-ready records are those skills' documented output (see `_shared/work-record.md`, born-ready rule). Queue-write proposals are also exempt when `unattended-tier` is on — see `_shared/unattended-tier.md`. |
-| Ops-acknowledgment (`/wrap-up` "Ops acknowledgment" step, when ops items exist) | Ops items represent infrastructure changes the user must action post-merge — bulk-acknowledging without the user reading each one risks a missed action, so every item requires explicit confirmation. Exempt only when `unattended-tier` is on — see `_shared/unattended-tier.md` for the narrow, logged carve-out. |
-| Memory file writes (`/wrap-up`'s Memory curation row, `_shared/learning-routing.md` D4) | A memory file is cross-project and always-loaded — a wrong one silently degrades every future session in every project the user works in, which is the largest blast radius of any routing destination. Always staged, never auto-applied. **Not** exempt under `unattended-tier`. |
-| Upstream feedback filing (`/wrap-up`'s Upstream feedback curation row, `/claude-tweaks:feedback`) | Publishes privately-derived content to a public repository — outward-facing and effectively irreversible, the same category as work-record creation. The scrub and confirm gates run in every mode. **Not** exempt under `unattended-tier`. |
+| Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce, unless the `autonomy` ceiling's `ledgerNarrowing` bookkeeping capability is unlocked (`trusted`+) — see `_shared/autonomy-ceiling.md` for the narrow, backlog-only carve-out |
+| Work-record creation (new backlog records) | Each record filed on the user's tracker needs explicit user approval — the record queue is the user's, not the model's. Scheduled health-skill filing is exempt — born-ready records are those skills' documented output (see `_shared/work-record.md`, born-ready rule). Queue-write proposals are also exempt when `queueWriteAutoFile` is unlocked (`trusted`+) — see `_shared/autonomy-ceiling.md`. |
+| Ops-acknowledgment (`/wrap-up` "Ops acknowledgment" step, when ops items exist) | Ops items represent infrastructure changes the user must action post-merge — bulk-acknowledging without the user reading each one risks a missed action, so every item requires explicit confirmation. Exempt only when `opsAckAutoAcknowledge` is unlocked (`unattended` only) — see `_shared/autonomy-ceiling.md` for the narrow, logged carve-out. |
+| Memory file writes (`/wrap-up`'s Memory curation row, `_shared/learning-routing.md` D4) | A memory file is cross-project and always-loaded — a wrong one silently degrades every future session in every project the user works in, which is the largest blast radius of any routing destination. Always staged, never auto-applied. **Not** exempt under any `autonomy` tier. |
+| Upstream feedback filing (`/wrap-up`'s Upstream feedback curation row, `/claude-tweaks:feedback`) | Publishes privately-derived content to a public repository — outward-facing and effectively irreversible, the same category as work-record creation. The scrub and confirm gates run in every mode. **Not** exempt under any `autonomy` tier. |
 | Marking records `parked` | Same — putting work on hold is a user decision |
 | `/init` Phase 4 (skill manifest), Phase 8 (Impeccable), Phase 9 (final confirmation), scope-selection gate | Project-shape governance decisions are user-only |
 | HARD-GATE / BLOCKED / STOP conditions | `/review` Step 1 spec compliance, `/review` Step 1.5 test gate, `/flow` Step 2.7 design-doc rejection, `/build` Design Step 3 plan validation, `/build` Common Step 1.5 plan audit hard-fails. These prevent degraded output. (`/flow` Step 2.6's shape-check hard-fail is NOT in this list — under `auto` it auto-resolves to "proceed anyway" with an `ops` ledger note per the row above; it only actually stops the pipeline in `interactive`/`hybrid` mode.) |
@@ -215,7 +215,7 @@ Per-skill `## Auto-mode behavior` tables in SKILL.md are deprecated as of v4.7.0
 
 ## Adding a new policy lever
 
-Extending the Manifesto with a new lever (as `unattended-tier` did, becoming lever #9, and `ceremony-profile` after it, becoming lever #10) touches more files than the lever's own logic. Checklist, grounded in gaps this exact addition initially missed and caught only at whole-branch review:
+Extending the Manifesto with a new lever touches more files than the lever's own logic — a past lever's addition initially missed several of these and caught the gaps only at whole-branch review. Checklist, grounded in that experience:
 
 1. **This file** — add the lever name to the Bookend Architecture's computed-levers list (above); add its row(s) to "What `auto` silences" / "does NOT silence" if it changes either list; add a caveat anywhere an existing table row's guarantee narrows.
 2. **`flow/SKILL.md`** Step 3 — add the lever name to the levers-computed sentence.
@@ -264,7 +264,7 @@ These are the failure modes this contract prevents. If you (the model) catch you
 | Inserting a "Pipeline reality check" or "I want to surface a concern before we proceed" mid-pipeline | The user said `auto`. Concerns belong in the ledger or final summary, not as blocking prompts. |
 | Offering "three paths forward" when the skill prescribes one | If the skill defines a default, take it. If not, that's a skill bug — fix the skill. |
 | Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate Phase 2 is non-negotiable. Per-item input always. |
-| Filing work records autonomously because a finding "obviously belongs there" | Each record needs user approval. "Obvious" is the model's judgment, not the user's. This still holds by default — `unattended-tier` (see `_shared/unattended-tier.md`) is a separate, explicit, project-level opt-in with its own floor and audit trail, not a model deciding something is "obvious" on its own. |
+| Filing work records autonomously because a finding "obviously belongs there" | Each record needs user approval. "Obvious" is the model's judgment, not the user's. This still holds by default — the `autonomy` ceiling's `trusted`/`unattended` bookkeeping capabilities (see `_shared/autonomy-ceiling.md`) are a separate, explicit, project-level opt-in with their own floor and audit trail, not a model deciding something is "obvious" on its own. |
 | Adding more model-side reality-checks "to be safe" | The contract is the safety. Model-added prompts under `auto` are contract violations. |
 | Stopping the pipeline because of context-window concerns the user didn't raise | Pre-emptive stops violate `auto`. Loud failure at gates only. |
 | Re-asking a question the user already answered with `auto` or in the Config Manifesto | If the user answered upstream, don't ask again per skill. |
