@@ -13,6 +13,11 @@ const POLICY_KEYS = [
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
   { key: 'integration-branch', type: 'string' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
+  { key: 'dispatch-batch-size', type: 'integer', default: 3 },
+  // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
+  // sequential batch count, never a concurrency slot count). Still recognized so a
+  // project's existing policy.yml validates; removal condition in
+  // skills/dispatch/deprecated-aliases.md.
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3 },
   { key: 'automerge-max-lines', type: 'integer', default: 40 },
   { key: 'automerge-max-files', type: 'integer', default: 2 },
