@@ -1,7 +1,7 @@
 ---
 name: dispatch
 description: Use when you want to claim and build already-authorized GitHub work records — the queue consumer between the human gate and the executor. Bare picklist, next for the headless routine unit, or #N direct; claims the whole file-overlap group, hands off to /flow, and settles the result. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine.
-argument-hint: "[next|#N[,#M...]] [--claim-only] [--concurrent <n>] [--priority high|medium|low]"
+argument-hint: "[next|#N[,#M...]] [--claim-only] [--batch-size <n>] [--priority high|medium|low]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -36,7 +36,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 
 Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), deriving a spec, or building anything yourself. Dispatch only ever claims, hands off to `/claude-tweaks:flow`, and settles the result.
 
-**Why no `drain` mode.** There is no mode that shepherds every authorized group to completion in one session. A session babysitting N pipeline runs accumulates context until it rots; throughput comes from routine cadence × single-group firings (a Routine firing `next` on a schedule), not session breadth. The old design's consolidated multi-group Review Console existed to aggregate a drain session's N outcomes into one table; a single-group firing has nothing to consolidate, so it dies with drain — see Reporting below.
+**Why no `drain` mode.** No mode shepherds every authorized group to completion in one session — context rot; throughput comes from routine cadence × single-group firings. The old multi-group Review Console dies with it (see Reporting below). Read `design-notes.md` in this skill's directory.
 
 ## Input
 
@@ -44,12 +44,13 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 
 | Argument | Behavior |
 |---|---|
-| *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-pick-max-concurrent` groups per firing |
+| *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-batch-size` groups per firing |
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 | `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic blob write, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
-| `--concurrent <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-pick-max-concurrent` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (concurrency throttle). |
+| `--batch-size <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-batch-size` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (sequential dispatch order). |
+| `--concurrent <n>` (deprecated alias) | Deprecated alias for `--batch-size <n>` — same effect, logs one warn-tier notice per invocation. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
 
 ## Preflight
@@ -83,7 +84,7 @@ at this bridge that shipped the gate change before the read path was finished.
 
 ### Step 1: Resolve this firing's run id
 
-Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run-dir resolution in `_shared/pipeline-run-dir.md` (dispatch is on the allowlist) — `$RUN_ID` is that run directory's basename (e.g. `2026-07-14T140322-dispatch-standalone`). Every claim this firing makes in Step 4 embeds this same value as `claimPayload`'s `runId`, and every group's Task agent in Step 5 receives it explicitly as `CLAIM_RUN_ID` (Task agents don't inherit shell variables — per `_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room), so Step 6's ownership check (`claim.runId === $RUN_ID`), performed inside that agent rather than in this thread, compares against the firing that actually claimed the record.
+Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run-dir resolution in `_shared/pipeline-run-dir.md` (dispatch is on the allowlist) — `$RUN_ID` is that run directory's basename (e.g. `2026-07-14T140322-dispatch-standalone`). Every claim this firing makes in Step 4 embeds this same value as `claimPayload`'s `runId`, and every Task call Step 5 dispatches for a group — both of them — receives it explicitly as `CLAIM_RUN_ID` (Task agents don't inherit shell variables — per `_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room), so Step 6's ownership check (`claim.runId === $RUN_ID`) — performed inside whichever of that group's two Task calls handles its terminal outcome (the first call on a `build,test` failure, the second on every path that reaches wrap-up), never in this thread — compares against the firing that actually claimed the record.
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
@@ -185,12 +186,12 @@ The `bot:*` filter here is the cheap label-based pre-filter — labels are proje
 | 2 | singleton | #130 | — | yes |
 ```
 
-Resolve `{effective-concurrent}` first — `--concurrent <n>` if present on this invocation (Input table above), else `dispatch-pick-max-concurrent` from Configuration below (CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order). Then one `AskUserQuestion`:
+Resolve `{batch-size}` first — `--batch-size <n>` if present on this invocation (or its deprecated `--concurrent <n>` alias, which also emits the one-time warn-tier notice), else `dispatch-batch-size` from Configuration below — or, when only its deprecated `dispatch-pick-max-concurrent` policy key is set, that key's value, which likewise emits the one-time warn-tier notice. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order. Then one `AskUserQuestion`:
 
-- `question`: `"Which groups should this firing dispatch (up to {effective-concurrent} concurrently)?"`, `header`: `"Dispatch pick"`, `multiSelect`: `true`
-- One option per group — `label`: the group's record numbers (e.g. `"#123, #124"`), `description`: titles + priority + whether it carries `auto:merge`. Pre-mark the top `{effective-concurrent}` groups, ranked by the `next` ordering below, as `(Recommended)`.
+- `question`: `"Which groups should this firing dispatch? (up to {batch-size}, processed one after another)"`, `header`: `"Dispatch pick"`, `multiSelect`: `true`
+- One option per group — `label`: the group's record numbers (e.g. `"#123, #124"`), `description`: titles + priority + whether it carries `auto:merge`. Pre-mark the top `{batch-size}` groups, ranked by the `next` ordering below, as `(Recommended)`.
 
-Selecting more groups than `{effective-concurrent}` is not an error — the extra selections queue and start as slots free (Step 5), same as overlapping `next` firings do across routine windows.
+Selecting more groups than `{batch-size}` is not an error — the extra selections stay claimed for a later firing to process (Step 5 no longer runs them this firing at all, since there are no concurrent slots to free), same posture overlapping `next` firings already have across routine windows.
 
 **`next`** — no human decision. Pick exactly ONE group by this literal ordering: `priority:high` > `priority:medium` > `priority:low` > unprioritized, oldest-first within each band. **A group's rank = its highest-priority member** — find each group's highest-priority (then oldest) member as its representative, then sort groups by that representative's priority band and `createdAt`. When `--priority <band>` (Input table above) is present, filter to only groups whose representative's band matches before ranking — this lets multiple differently-scheduled Routines each own a distinct slice of the queue instead of competing for the same top-of-queue pick:
 
@@ -216,7 +217,7 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 
 **`#N`** — direct. Fetch issue `#N`, confirm it currently carries `auto:build` and no `bot:*` label (re-verify against Step 2's live queue, not a cached table); if it doesn't qualify, report why (no grant, already claimed, or blocked) and stop. Otherwise pull its **whole file-overlap group** from Step 2's output — claiming a single member of a group alone is forbidden; every one of that record's overlap partners comes along, whether or not the user named them.
 
-**`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-pick-max-concurrent` (extra groups queue for a freed slot, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
+**`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-batch-size` (extra groups stay claimed for a later firing, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
 
 ### Step 4: Claim the selected group (whole group, or none)
 
@@ -269,66 +270,25 @@ gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
-Two `/dispatch` firings running close together (e.g. two terminals, or a Routine firing overlapping a human-run session) each do their own single Preflight read of CLAUDE.md's `work-backend` key. That read is not synchronized against a concurrent CLAUDE.md edit by a third actor (a human hand-edit, or another firing's own out-of-band fix) — one firing's Preflight can see different content than another's, purely from wall-clock timing. This is accepted, not engineered around, for the same reason `/claude-tweaks:backlog refine`'s own Concurrency section accepts its last-writer-wins label race: it's self-correcting (the next Preflight read picks up whatever state won) and never risks a double-build — Step 4's atomic claim write, not the Preflight read, is the actual correctness boundary, and it's completely unaffected by what any concurrent Preflight check decided. Worst case is a firing bailing on a Preflight check that would have passed a few seconds later (or vice versa), not a corrupted claim or a double-build.
+Two firings running close together each do their own unsynchronized Preflight read, so one can see different `work-backend` content than another purely from wall-clock timing. Accepted, not engineered around: it's self-correcting, and Step 4's atomic claim write — not the Preflight read — is the actual correctness boundary, so no concurrent Preflight check can cause a double-build. Read `design-notes.md` in this skill's directory.
 
-### Step 5: Dispatch — one Task agent per group
+### Step 5: Dispatch — one group at a time, sequentially
 
-> **Parallel execution:** Dispatch every selected group as a parallel Task agent — each runs independently, owns its own worktree, and returns the GROUP/OUTCOME/MANIFEST template below. Assemble results after all agents complete.
+> **Sequential execution, not parallel.** A Task-tool subagent is always launched cwd-pinned to the dispatching session's own worktree, so two groups can never safely run concurrently (see #155) — the dispatching session itself switches worktrees between groups, one at a time. Read `sequential-execution.md` in this skill's directory for the full mechanism and the module a regression here should be checked against.
 
-Work through the selected group(s) — bare / `#N,#M,...`: as many as were picked, up to `{effective-concurrent}` (Step 3's resolved `--concurrent` override, or `dispatch-pick-max-concurrent` when absent) running at once, remainder queued for a freed slot; `next` / `#N`: exactly one. Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). There is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
+Work through the selected group(s) in the order Step 3's selection already established — bare / `#N,#M,...`: up to `{batch-size}` (Step 3's resolved `--batch-size` override, or `dispatch-batch-size` when absent) groups processed one after another this firing, remainder left claimed for a later firing to pick up; `next` / `#N`: exactly one, unaffected by batch size. For each group in turn, **this dispatching session** creates and enters that group's worktree (via `/superpowers:using-git-worktrees`, exactly as a normal `/flow` invocation would) *before* dispatching that group's first Task call — every Task call dispatched for this group inherits that one cwd and must never create a worktree of its own. This session enters the next group's worktree only once this group's own dispatch sequence has reached its terminal point *and* that worktree has been torn down — always through wrap-up's own cleanup, never a raw removal (`[IL-116]`), which on a first-call failure means one further explicit `/claude-tweaks:flow {target} wrap-up` call. Both terminal paths are specified in `two-call-gate.md` in this skill's directory. Never share a worktree path across groups. There is no per-group timeout, same posture as existing parallel-Task dispatch sites (e.g. `/help`'s Stage 1-7). See `sequential-execution.md` for the wall-clock trade-off this implies.
 
-Export `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) before invoking `/claude-tweaks:flow`. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different, later-created) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
+Pass `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) inline on the `/claude-tweaks:flow` command line, as the templates already show: a dispatched Task agent inherits no shell environment from this session (see the clean-room note in the `$RUN_ID` paragraph above), so an export here would never reach it. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
 
-**Singleton group** `[123]` — the agent's job is exactly today's single-record dispatch: invoke `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123`.
+**Two Task() calls per group, not one.** The agent's job is now split: a first call runs `/claude-tweaks:flow {target} build,test` and stops; only on a clean `build-test-ok` outcome does a second, entirely fresh Task() call run `/claude-tweaks:flow {target} review,polish,wrap-up`. This gives the reviewing agent genuine conversational isolation from the build — a live dispatch test found build/test/review running in one continuous context, defeating `/review`'s own adversarial multi-lens contract.
 
-**Bundle group** `[123, 456]` — a granted record is already spec-shaped (`ready` + spec-shaped body per `_shared/work-record.md`); there is no per-member `/specify` pre-step to run first. That derivation loop is deleted — bundle materialization is `/flow`'s own concern (an opaque executor from dispatch's point of view):
+**Singleton group** `[123]` — first call: `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123 build,test`. Second call (gated): `PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123 review,polish,wrap-up`.
 
-```bash
-CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456"
-```
+**Bundle group** `[123, 456]` — a granted record is already spec-shaped (`ready` + spec-shaped body per `_shared/work-record.md`); there is no per-member `/specify` pre-step to run first. First call: `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456" build,test`. Second call (gated): `PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456" review,polish,wrap-up`.
 
-Each group's `Task()` prompt (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history):
+**The gate between calls — read `two-call-gate.md` in this skill's directory and follow it.** Not optional bookkeeping: `/flow` creates and owns a *fresh* run directory whenever it is not handed an existing one, so without that file's handoff the second call silently starts a disconnected run and orphans everything build/test staged. In outline — capture the first call's reported `MANIFEST:` path, derive `{run-dir}` from it, and substitute it into the second call's command line as the `PIPELINE_RUN_DIR="{run-dir}"` prefix beside `CLAIM_RUN_ID` (inline in the command string, never an env export in this session — a resolution target, not an echoed finding, so the no-echo rule holds); gate on status `DONE`/`DONE_WITH_CONCERNS` **and** `OUTCOME: build-test-ok`. Anything else, or an underivable `{run-dir}`, means the second call is never dispatched: fail loud rather than proceed, leave Settle to the first call's own agent (it runs there, not in this thread — `settle-and-merge.md`), and tear down via that file's section 5.
 
-```
-Task scope: Execute claude-tweaks pipeline work for this already-claimed file-overlap group of
-GitHub records: {issue list}. This firing's run id, for the ownership check in the Settle step,
-is: {RUN_ID} -- the same value already embedded as runId in each of this group's claim markers
-by Step 4. Singleton -> run `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{issue}`. Bundle (2+
-issues) -> run `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#{n1},#{n2},..."` once, comma-joined.
-The CLAIM_RUN_ID export matters on the success path too, not just failures below -- /flow threads
-it to /wrap-up's release step so its ownership check compares against the run that actually
-claimed the record, not /flow's own later PIPELINE_RUN_DIR. Handle any HARD-GATE failure per
-skills/dispatch/settle-and-merge.md's Settle procedure (retry ceiling / classification-driven
-auto:merge revocation) before finishing -- do not leave a failed record's claim or label state
-unresolved. That procedure's ownership check compares each record's claim.runId against the {RUN_ID} given above, not any run
-id you generate yourself. If you reference any of these issue numbers in an intermediate commit
-message during this run, write "refs #N" -- never "closes #N" or "fixes #N". The real closing
-keyword is stamped once, at the end, by wrap-up's carrier commit or the merge commit
-(close-via-merge, `_shared/issue-claims.md`) -- an early closing keyword on an intermediate commit
-would close the record before the work is actually done.
-
-Working directory: create your own worktree via /superpowers:using-git-worktrees; do not
-reuse a path from another group. Echo `pwd` and `git rev-parse --show-toplevel` before any
-commit and verify both resolve to your own worktree.
-
-Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
-/ NEEDS_CONTEXT / BLOCKED.
-
-OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
-
-GROUP: {comma-joined issue numbers}
-OUTCOME: {merged | pr-opened | pending-review | failed | blocked}
-MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
-  single-spec run dir path}
-
-One line per issue in this group that hit a HARD-GATE or the retry ceiling (omit if none):
-ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
-
-[Use: Standard model -- this dispatch wraps full pipeline execution, not analysis; the
-pipeline's own steps select their own models as usual.]
-```
-
-None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes a full pipeline rather than returning findings/locations/a yes-no, so this is its own minimal template, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.
+Each group's two `Task()` prompts are defined in `task-prompt.md` in this skill's directory — read it and inline each call's content verbatim into its own `Task()` tool call (per `_shared/subagent-output-contract.md`'s input discipline: minimal input, literal output template inlined, no conversation history). Do not paraphrase or summarize either template; the exact wording is load-bearing for the four-value status line and output format contracts downstream skills parse.
 
 ### Step 6: Settle — on pipeline failure, and the Auto-merge gate
 
@@ -336,26 +296,27 @@ Two conditional branches that don't run on the common clean pending-review path 
 
 ## Reporting
 
-Per-firing output is one group's outcome (bare mode with M ≤ `dispatch-pick-max-concurrent` groups: one report block per dispatched group) — there is **no consolidated multi-group console**. The old design's console existed to support `drain`; it dies with it (see When to Use above).
+Per-firing output is one group's outcome (bare mode with M ≤ `dispatch-batch-size` groups: one report block per dispatched group) — there is **no consolidated multi-group console**. The old design's console existed to support `drain`; it dies with it (see When to Use above).
 
 A headless (Routine-fired) firing's report has nobody live to read it — the durable trace is the label state change, the claim-comment trail, and `decisions.md`, not a rendered console. Over time, a human sees the aggregate picture via `/claude-tweaks:tidy`'s own periodic sweep (`tidy/SKILL.md`) — it scans GitHub state independently on its own cadence and surfaces `bot:blocked` records and stale claims without dispatch having to push anything to it directly.
 
-`pending-review` outcomes park: the branch (and, for the group's `/flow`-created run dir) sit waiting for a human — an unanswered Review Console `AskUserQuestion` during a headless firing is not an error, it is the expected resting state until a human resumes that session or the branch directly, or the claim's TTL expires and a later firing supersedes it.
+`pending-review` outcomes park the group's `/flow`-created run dir, not the branch — an unanswered Review Console `AskUserQuestion` during a headless firing is not an error, it is the expected resting state until a human resumes that session or the branch directly, or the claim's TTL expires and a later firing supersedes it. The branch itself no longer waits with it: before either console renders, `_shared/pending-review-durability.md` pushes it to origin and opens one draft PR carrying its Verification Brief, so the work outlives the container that built it.
 
 `PushNotification` fires only at the retry ceiling and for auto-merge FYIs (Step 6's Settle procedure and Auto-merge gate, both in `settle-and-merge.md`) — never per-firing just because a firing happened, to avoid notification fatigue.
 
 ## Configuration
 
-These four rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from `.claude-tweaks/policy.yml`:
+These rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from `.claude-tweaks/policy.yml`:
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
 | `automerge-max-lines` | `40` | Auto-merge blast-radius guideline on changed lines — a weighted input to `merge-check`'s judgment, not a hard cutoff. |
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
-| `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
+| `dispatch-batch-size` | `3` | Maximum groups (bundles or singleton records) one firing processes sequentially, in the order Step 3's selection establishes; remaining groups stay claimed for a later firing. |
+| `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — reading it from `.claude-tweaks/policy.yml` emits one warn-tier notice per invocation and applies its value to `dispatch-batch-size`. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 
-**Per-firing CLI overrides:** `--concurrent <n>` (Input table above) overrides `dispatch-pick-max-concurrent` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
+**Per-firing CLI overrides:** `--batch-size <n>` (or its deprecated `--concurrent <n>` alias, Input table above) overrides `dispatch-batch-size` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 
 ## Routine Configuration
 
@@ -380,7 +341,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 `/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its four forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
 
-`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing. Each dispatched group's `/claude-tweaks:flow` invocation creates a separate, later `PIPELINE_RUN_DIR` of its own for the actual pipeline execution; the two are never the same directory, which is exactly why Step 5 threads `CLAIM_RUN_ID` explicitly into the Task agent rather than relying on `/flow` inheriting dispatch's run id.
+`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing. It is never the same directory as a dispatched group's `/flow` run dir, which is why Step 5 threads `CLAIM_RUN_ID` explicitly; read `design-notes.md` in this skill's directory.
 
 ## Anti-Patterns
 

@@ -1,10 +1,10 @@
 # Ledger Resolve Gate
 
-The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5 — the latter only when `wrap-up` is in that invocation's resolved step list (`flow/steps-and-gates.md`'s **Partial step lists**). That condition defers *when* the gate runs onto the invocation that reaches wrap-up; it does not silence it, and does not touch the `auto` rule below.
 
 The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 always require explicit per-item user input.
 
-**`auto` mode does NOT silence this gate.** Per-item user input on the resolve gate is mandatory regardless of mode. For the full list of what `auto` silences (and what it does not), see `_shared/auto-mode-contract.md`. The one narrow exception is the `unattended-tier` lever (off by default) — see `_shared/unattended-tier.md` and the narrowing step at the top of Phase 2 below.
+**`auto` mode does NOT silence this gate.** Per-item user input on the resolve gate is mandatory regardless of mode. For the full list of what `auto` silences (and what it does not), see `_shared/auto-mode-contract.md`. The one narrow exception is the autonomy ceiling's `ledgerNarrowing` bookkeeping capability (locked at `supervised`, unlocked from `trusted` up) — see `_shared/autonomy-ceiling.md` and the narrowing step at the top of Phase 2 below.
 
 **The pipeline cannot complete with unresolved items.** This is a hard gate.
 
@@ -35,13 +35,14 @@ If the item qualifies, fix it, commit it, update status to `fixed` with the comm
 
 ## Phase 2 — Present remainder (per-item user input required)
 
-### Unattended-tier narrowing (runs first, before the table below)
+### Ledger narrowing (runs first, before the table below)
 
-If `unattended-tier: on` (see `_shared/unattended-tier.md`), before building the table below,
-check each remaining `open` item's Phase 1 blocker reason against
-`bin/lib/issues/unattended-tier.js`'s `clearsFloor(blockerReason)`. For every item where it
+Resolve the `ceiling` per `_shared/autonomy-ceiling.md`'s existing precedence ladder. If
+`bookkeepingPermissions(ceiling).ledgerNarrowing === true` (`bin/lib/issues/autonomy.js`), before
+building the table below, check each remaining `open` item's Phase 1 blocker reason against
+`bin/lib/issues/autonomy.js`'s `clearsFloor(blockerReason)`. For every item where it
 returns `true`: auto-select `Route to a record → Keep (backlog)` — the only disposition this
-lever ever authorizes from this drill; never `Fix anyway`, `Accept`, `Drop`, or `Defer →
+capability ever authorizes from this drill; never `Fix anyway`, `Accept`, `Drop`, or `Defer →
 parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch below already does,
 update ledger status to `deferred` (note `→ backlog`), and log:
 
@@ -63,9 +64,9 @@ entry above, since no run-dir log exists to write it to.
 Remove the item from this phase's remaining set — it does not appear in the table below and does
 not get an `AskUserQuestion` drill. Items whose blocker reason returns `false` (ambiguous, or
 outside the four categories) fall through to the unchanged per-item drill below — the floor check
-fails closed, exactly as if the lever were off for that one item.
+fails closed, exactly as if the capability were locked for that one item.
 
-After Phase 1 (and, when the lever is on, after the narrowing above), only items that qualify for
+After Phase 1 (and, when the capability is unlocked, after the narrowing above), only items that qualify for
 neither — Phase 1's fix-now criteria nor the narrowing's floor check — remain `open`. Present the
 full table once, upfront — it is not re-rendered per item as the drill below proceeds:
 
@@ -84,32 +85,35 @@ Both `parked` and `backlog` are valid stage destinations for a new work record (
 - **`parked`** when the item has a clear trigger ("revisit after P5 ships," "when consumer X exists")
 - **`backlog`** (no stage label) when the item is a captured idea without a specific trigger yet — to be triaged later
 
-For each item, run a two-step `AskUserQuestion` drill (the old 6-option flat list exceeds the tool's 4-option-per-question cap):
+For each item, run a two-step drill, chunked per `_shared/batched-item-drill.md`'s contract (the old one-`AskUserQuestion`-per-item shape exceeded a reasonable call count for any batch bigger than a handful of items):
 
-**Guardrail:** No step of this drill may gain a 4th/"apply to all" option, even though the option cap would allow it — bulk routing is user-initiated via `Other` only, never a presented default. See Anti-Patterns: "Bulk-resolving open items without per-item user input."
+**Guardrail:** No chunk of this drill may gain a shared "apply to all" option answered once for the whole chunk — the checkbox state (Step 2a) or each item's own distinct question (Step 1, Step 2b) *is* the per-item choice. Bulk routing is user-initiated via `Other` only, never a presented default. See Anti-Patterns: "Bulk-resolving open items without per-item user input."
 
-**Step 1 (always) — call `AskUserQuestion` with `question`: `"How do you want to handle item #{N}: {short description}?"`, `header`: `"Item #{N}"`, `multiSelect`: `false`, and:**
+**Step 1 (always).** Step 1 is a genuine three-way choice (Fix anyway / Route to a record / Close out) — a checkbox can't represent "which of three sets," so this step uses **bundled single-select chunking**: up to 4 remaining items' separate single-select questions in one `AskUserQuestion` call (chunked per the shared contract), each item keeping its own distinct question and its own three options:
 
+- `question`: `"How do you want to handle item #{N}: {short description}?"`, `header`: `"Item #{N}"`
 - Option 1 — `label`: `"Fix anyway"`, `description`: `"Address it now even though it expands scope"`
 - Option 2 — `label`: `"Route to a record"`, `description`: `"Defer (new record, parked) or keep (new record, backlog) — staged for per-item approval before the record is created"`
 - Option 3 — `label`: `"Close out"`, `description`: `"Accept, acknowledge, or drop it"`
 
-None of these three options carries `(Recommended)` — Phase 1 already fixed everything fixable; every remaining item is a genuine judgment call with no safe default.
+None of these three options carries `(Recommended)` — Phase 1 already fixed everything fixable; every remaining item is a genuine judgment call with no safe default. Restate the free-text override hint (shared contract) in this chunk's first question.
 
-**Step 2a (only if "Route to a record" was chosen) — call `AskUserQuestion` with `question`: `"Where should item #{N} go?"`, `header`: `"Route item #{N}"`, `multiSelect`: `false`, and:**
+**Step 2a (only for items that chose "Route to a record" in Step 1) — genuinely binary, so this step uses multiSelect chunking**: one `multiSelect: true` `AskUserQuestion` call per chunk of ≤4 items in the "Route to a record" subset, one checkbox per item — checked = `Keep` (new record, backlog), unchecked = `Defer` (new record, parked). No item is pre-checked — every remaining item is inherently ambiguous (that's why it wasn't auto-routed by the narrowing step above), so there is no sensible default to pre-check toward.
 
-- Option 1 — `label`: `"Defer"`, `description`: `"New record, parked — has a trigger condition for when to revisit"`
-- Option 2 — `label`: `"Keep"`, `description`: `"New record, backlog — captured for later evaluation, no specific trigger yet"`
+- `question`: `"Where should these items go? (checked = Keep/backlog, unchecked = Defer/parked)"`, `header`: `"Route items"`
 
-**Step 2b (only if "Close out" was chosen) — call `AskUserQuestion` with `question`: `"How should item #{N} be closed out?"`, `header`: `"Close item #{N}"`, `multiSelect`: `false`, and:**
+**Step 2b (only for items that chose "Close out" in Step 1) — three-way (Accept / Acknowledge / Drop), so this step keeps bundled single-select chunking**, same shape as Step 1: up to 4 items' separate single-select questions per `AskUserQuestion` call, chunked over the "Close out" subset:
 
+- `question`: `"How should item #{N} be closed out?"`, `header`: `"Close item #{N}"`
 - Option 1 — `label`: `"Accept"`, `description`: `"Intentional, with stated reason"`
 - Option 2 — `label`: `"Acknowledge"`, `description`: `"Ops item requiring action outside the codebase — filed as a trackable backlog record"`
 - Option 3 — `label`: `"Drop"`, `description`: `"No longer relevant"`
 
-Neither Step 2a nor Step 2b carries a `(Recommended)` option either — same reasoning as Step 1.
+None of Step 1/2a/2b's options carries `(Recommended)` — every remaining item is a genuine judgment call with no safe default (Step 2a's binary encoding is a checkbox with no pre-check, not a recommendation).
 
-**Wait for the user's reply at every step.** Do NOT pre-classify items, do NOT pick "obviously correct" resolutions, do NOT auto-route to "apply all" — every remaining item gets an explicit per-item response, at every step of the drill. The user may bulk-route by answering any step's `Other` free-text field with a bulk instruction (e.g., Step 1 `Other`: "apply Route to a record + Defer to all remaining items"; Step 2b `Other`, after answering Step 1 individually per item: "Drop the rest") — apply it to all remaining like-classified items and skip individual calls for those. This is the direct replacement for the old `all: {choice}` free-text convention, generalized to both steps of the drill — but the request must come from them, never a presented button at any step, at any level of the drill.
+**Step 1 must fully resolve (across however many chunked calls it took) before Step 2a/2b begin** — which items go to 2a vs. 2b isn't known until Step 1's responses return.
+
+**Wait for the user's reply at every chunk.** Do NOT pre-classify items, do NOT pick "obviously correct" resolutions, do NOT auto-route to "apply all" — every remaining item gets an explicit per-item response (a checkbox state or its own distinct question), across however many chunks the drill takes. The user may bulk-route by answering any chunk's `Other` free-text field with a bulk instruction (e.g., Step 1 `Other`: "apply Route to a record + Defer to all remaining items"; Step 2b `Other`: "Drop the rest") — apply it to all remaining like-classified items and skip individual encoding for those. This is the direct replacement for the old `all: {choice}` free-text convention — but the request must come from them, never a presented button at any step, at any level of the drill.
 
 ---
 
@@ -120,7 +124,7 @@ For each item, apply the user-chosen disposition. **Each new work record (`parke
 - `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
 - `Defer` → stage a record proposal at `{run-dir}/staged/ledger-record-{slug}.md` (`Title:`/`Type:`/`Labels:` header + body, same shape as `leftover-{slug}.md` — see `wrap-up/leftover-routing.md` step 3): `parked`, a `Trigger:` line from the user-stated trigger, an `Origin: ledger resolve gate` line, and affected files. Update ledger status to `deferred`. Resolves on per-item approval at the Wrap-Up (or Flow) Review Console's Queue writes section, which runs in every mode. The console creates the record (`gh issue create` under `work-backend: github-issues`, or `local-store.js`'s `writeRecord` under `work-backend: local-files`)
 - `Keep` → same staging shape, backlog (no `Trigger:` line, no stage label), `Origin: ledger resolve gate` line, and short context. Update ledger status to `deferred` (with note `→ backlog` in Resolution column). Same two-surface resolution as `Defer` above
-- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `unattended-tier: on`, apply Phase 2's narrowing check inline here too (no wrap-up runs on this path, so there is no Review Console to centralize the auto-file decision through).
+- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `bookkeepingPermissions(ceiling).ledgerNarrowing === true`, apply Phase 2's narrowing check inline here too (no wrap-up runs on this path, so there is no Review Console to centralize the auto-file decision through).
 - `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
 - `Acknowledge` (ops items only) → **stages a record proposal**, same shape as `Keep` above (backlog, no `Trigger:` line), but `Origin: ledger resolve gate (acknowledged)` and `Type: task` — an ops item is action still outstanding, just not something the agent can perform, so unlike `Accept`/`Drop` it must not disappear once the ledger file is deleted at cleanup. Update ledger status to `acknowledged` (unchanged from before — this only adds the staged proposal, it doesn't rename the status). Same two-surface resolution as `Defer`/`Keep`.
 - `Drop` → mark as `accepted` with reason "dropped per user — no longer relevant"

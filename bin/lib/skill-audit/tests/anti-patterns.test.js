@@ -368,5 +368,13 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   closed", "Composing the Phase 2 trace or SCANNED lines by hand when the
   //   engine is available", "Treating engine failure as permission to skip
   //   curation" — the three hazards the mechanism itself introduces.
-  assert.strictEqual(total, 368);
+  //
+  //   368 -> 369, code-health's `focus=dead-code` scoping mode. One row added
+  //   to code-health/SKILL.md ("Treating a focus-mode candidate set as fully
+  //   read"), covering the hazard focus mode introduces and generalist mode
+  //   does not: a generator's candidate set is repo-wide, so Step 3's 60 KB
+  //   read budget defers most of it, and a clean-looking result can mean the
+  //   judge never saw the candidate rather than that the candidate was fine.
+  //   Nothing evicted — the only `^+\|` line in the diff is that row.
+  assert.strictEqual(total, 369);
 });

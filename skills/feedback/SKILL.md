@@ -1,7 +1,7 @@
 ---
 name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than in this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files it as a GitHub issue against thomasholknielsen/claude-tweaks after an explicit scrub and confirmation.
-argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue]"
+argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--pre-confirmed]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -31,15 +31,16 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue]`:
+`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue] [--pre-confirmed]`:
 
 | Argument | Behavior |
 |----------|----------|
 | Free-text learning | The substance of the report. When absent, gather it from the conversation or ask. |
 | `--kind=defect` | The plugin does something wrong. Skips Step 2's inference. |
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
-| `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. |
+| `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
+| `--pre-confirmed` | Presence-only like `--dry-run`; the caller passes the item's staged-file path and the approved snapshot body alongside it. Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
 
@@ -48,13 +49,32 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this project may already hold headless-filed candidates waiting for a human — the health sweeps' Subject check (`_shared/learning-routing.md`) files these locally with `upstream-candidate` plus the sweep's own `by:` label, deliberately without `ready`, precisely because nothing else in the plugin queries them (#239). Check for them before falling back to "gather from the conversation or ask":
 
 ```bash
-gh issue list --label upstream-candidate --state open --json number,title,body,labels --limit 50
+gh issue list --label upstream-candidate --state open --json number,title,body,labels --limit 100
 ```
 
-- **None found:** proceed to Step 1 as usual (gather from the conversation, or ask).
-- **One or more found:** present a batch table (number, title, originating sweep from the `by:*` label) and ask which to forward now — "Apply all" runs each selected issue through Steps 1-8 below in turn (Step 1's gather is seeded from that issue's own body: component and symptom are already in it), then closes the local `upstream-candidate` issue with a comment linking the new upstream issue once Step 8 successfully files it. "None — I have a new learning to report" falls through to Step 1 with whatever free-text was given (or a fresh ask). Selecting individual issues to skip is a normal batch-table override — the interaction convention in CLAUDE.md's Interaction patterns section, not a per-item prompt.
+(matching the label's expected low cardinality — a handful of headless-filed candidates, not the
+full backlog — while still bounding the read per `[IL-67]`; if the count returned equals the
+limit, state this in the summary rather than silently treating it as complete.)
 
-This is what resolves `upstream-candidate`'s dead-write state (#239): the label's own consumer was always meant to be a human eyeball plus a manual `/claude-tweaks:feedback` invocation (`_shared/learning-routing.md`'s Headless-runs paragraph says exactly this), and this step is what makes that eyeball's job a single command instead of a `gh issue list` a human has to remember to run.
+- **None found:** proceed to Step 1 as usual (gather from the conversation, or ask).
+- **One or more found:** run Steps 1-6 (gather from the issue's own body — component and symptom
+  are already in it — classify, confirm self-reference doesn't apply, dedup search, draft, scrub)
+  non-interactively for each candidate, then call `_shared/upstream-feedback-batch.md`'s shared
+  batch contract once — chunked per that file's own rule — instead of looping Step 7 individually
+  per candidate. Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one candidate that
+  triggered it — drop that candidate from the batch (report why, alongside the others' results)
+  and continue the loop for the rest; it never aborts the whole `--queue` run, matching Step 7's
+  own per-item isolation for the drift-check fallback. A dedup match in Step 4 does not stop the
+  candidate or ask interactively — see Step 4's own batch-mode text. On a checked item filing
+  successfully (Step 8), close the local `upstream-candidate` issue with a comment linking the new
+  upstream issue. An unchecked item is handled per the shared contract's decline rule (comment +
+  leave the local issue open).
+
+This is what resolves `upstream-candidate`'s dead-write state (#239): the label's own consumer
+was always meant to be a human eyeball plus a manual `/claude-tweaks:feedback` invocation
+(`_shared/learning-routing.md`'s Headless-runs paragraph says exactly this), and this step is what
+makes that eyeball's job a single command instead of a `gh issue list` a human has to remember to
+run.
 
 ### Step 1: Gather
 
@@ -104,6 +124,15 @@ gh issue list --repo thomasholknielsen/claude-tweaks --search '<keywords>' --sta
 
 Show any plausible matches and ask whether to file anyway, comment on the
 existing issue instead (then stop), or cancel.
+
+**Inside Step 0's batch loop** (non-interactive), this three-way ask does not run. A match
+instead becomes the drafted item's dedup flag — `**possible duplicate:** #{N}` per
+`_shared/upstream-feedback-batch.md`'s Chunking rule — and the human's check/uncheck decision on
+that flagged item in the shared batch contract stands in for "file anyway" (checked) or "cancel"
+(left unchecked, handled by the contract's decline rule). "Comment on the existing issue instead"
+has no dedicated batch-mode option; a human who wants that outcome uses the contract's free-text
+edit channel (naming the item and requesting "comment on #{N} instead of filing") rather than a
+third checkbox state.
 
 Reuse `bin/lib/health-core/fingerprint.js` (`createFingerprint`, `normalizeText`)
 for the fingerprint marker embedded in the body, so a later run recognizes its
@@ -165,19 +194,38 @@ cannot be scrubbed cannot be published.
 
 ### Step 7: Confirm — HARD GATE
 
-Show the full scrubbed draft and call `AskUserQuestion`:
-
-- `question`: `"File this upstream against thomasholknielsen/claude-tweaks?"`,
-  `header`: `"File upstream"`, `multiSelect`: `false`
-- Option 1 — `label`: `"File it (Recommended)"`, `description`: `"Create the issue as drafted"`
-- Option 2 — `label`: `"Edit first"`, `description`: `"Tell me what to change before filing"`
-- Option 3 — `label`: `"Don't file"`, `description`: `"Discard — the learning stays local"`
-
-Never file without this confirmation, in any mode. Publishing to a public
+Show the full scrubbed draft(s) and call into `_shared/upstream-feedback-batch.md`'s shared batch
+contract — one item (this invocation's single learning, or a single surviving `--queue` candidate)
+is the contract's degenerate single-chunk case; N items under `--queue` chunk per that file's own
+rule. Never file without the resulting per-item confirmation, in any mode. Publishing to a public
 repository is outward-facing and effectively irreversible.
 
-When `--dry-run` was passed, render the draft, state the classified destination
-and kind, and **stop here** — do not call `AskUserQuestion` and do not file.
+**`--pre-confirmed`:** the caller passes both the item's staged-file path and the exact body text
+it rendered and got approval for (the approved snapshot) — not just a path reference. Before
+filing, two checks run, always in this order:
+
+1. **Scrub rerun (unconditional)** — Step 6's scrub always reruns first, on the current on-disk
+   staged content, as a defense-in-depth safety net before publishing — regardless of whether the
+   drift check below finds a mismatch, since a modification that caused drift could itself have
+   reintroduced content that needs scrubbing. This produces the content that will actually be
+   filed. If this rerun trips Step 6's own hard-stop ("cannot survive the scrub") for this item,
+   treat it exactly like a Step 6 stop anywhere else in a batch: drop this one item (report why)
+   and continue processing the rest of the chunk — it never aborts sibling items.
+2. **Drift check** — if `staged/wrap-up-upstream-{N}.md` no longer exists, treat this as "already
+   filed" (see Step 8's cleanup-on-success below) and skip this item without re-filing or
+   erroring. Otherwise, re-read it fresh from disk (the post-scrub content from step 1 above) and
+   compare it, byte-for-byte, against the approved snapshot the caller passed. A mismatch means
+   the staged file changed after it was rendered and approved — fall back to the normal
+   `AskUserQuestion` confirm, showing the post-scrub content (not the pre-scrub approved snapshot)
+   so the human approves exactly what would be filed. This fallback is per-item — it never aborts
+   sibling items in the same batch.
+
+When the drift check finds no mismatch, skip the `AskUserQuestion` call for that item and file the
+post-scrub content directly.
+
+**`--dry-run`:** render every draft, state the classified destination and kind, then **stop here**
+— no `AskUserQuestion` call of any kind, and nothing filed. This holds whether or not
+`--pre-confirmed` was also passed: `--dry-run` takes precedence over it.
 
 ### Step 8: File
 
@@ -208,6 +256,14 @@ Omit `--label` entirely otherwise and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
 which belongs to records that moved through its in-repo pipeline.
+
+**On success when invoked via `--pre-confirmed`:** delete the staged file at
+`staged/wrap-up-upstream-{N}.md` immediately after `gh issue create` returns the new issue URL —
+this is what makes Step 7's drift check "file not found" branch mean "already filed" rather than
+an error, and prevents a `/claude-tweaks:wrap-up resume` (or the multi-spec console's own resume)
+from re-rendering and re-filing an item whose chunk already succeeded before an interruption. A
+direct (non-`--pre-confirmed`) invocation has no staged file to clean up — this step is a no-op in
+that path.
 
 On failure, do not silently drop the payload. Report the `gh` error verbatim,
 write the drafted body to the run directory's `staged/` as
@@ -242,6 +298,16 @@ ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
 
 Being inside a pipeline never relaxes Steps 6 and 7. `auto` mode does not
 silence this skill — see `_shared/auto-mode-card.md`.
+
+**`--pre-confirmed` legitimacy is narrower than "inside a pipeline."** The only legitimate source
+of `--pre-confirmed` is `/claude-tweaks:wrap-up`'s Review Console, or the consolidated multi-spec
+console at `/claude-tweaks:flow`'s end-of-run, invoking this skill per checked `U#` item — not a
+general condition any pipeline orchestrator may claim, and not inferred from `$PIPELINE_RUN_DIR`
+or any other ambient signal. This is a prose-enforced, auditable contract — a named caller, not an
+ambient signal — because skills are markdown instructions the model follows, not executable code;
+nothing structurally prevents a future second caller from passing the flag. A future caller other
+than those two consoles passing `--pre-confirmed` is a scope violation to flag at review time, not
+a precedent to extend the carve-out to.
 
 ## Anti-Patterns
 

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { POLICY_KEYS, auditPolicy } = require('../bin/lib/policy-schema');
+const { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue } = require('../bin/lib/policy-schema');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-policy-schema-'));
@@ -19,8 +19,29 @@ function writeClaudeMd(repo, content) {
 }
 
 test('POLICY_KEYS entries are unique', () => {
-  assert.strictEqual(POLICY_KEYS.length, 34);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 34);
+  assert.strictEqual(POLICY_KEYS.length, 35);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 35);
+});
+
+test('dispatch-batch-size is registered alongside its deprecated alias', () => {
+  // #295 renamed dispatch-pick-max-concurrent -> dispatch-batch-size. Registering
+  // only the old name made auditPolicy reject the name every skill now documents.
+  const renamed = POLICY_KEYS.find((k) => k.key === 'dispatch-batch-size');
+  assert.ok(renamed, 'dispatch-batch-size missing from POLICY_KEYS — the renamed key must validate');
+  assert.strictEqual(renamed.type, 'integer');
+  assert.strictEqual(renamed.default, 3);
+
+  const alias = POLICY_KEYS.find((k) => k.key === 'dispatch-pick-max-concurrent');
+  assert.ok(alias, 'the deprecated alias must stay recognized until its removal condition is met');
+  assert.strictEqual(alias.default, renamed.default, 'alias and canonical key must resolve the same default');
+});
+
+test('unattended-tier is retired from POLICY_KEYS', () => {
+  assert.strictEqual(
+    POLICY_KEYS.find((k) => k.key === 'unattended-tier'),
+    undefined,
+    'unattended-tier was merged into autonomy; RENAMED_KEYS carries the migration, not POLICY_KEYS',
+  );
 });
 
 test('integration-branch is a recognized string key with no default', () => {
@@ -146,7 +167,48 @@ test('invalidValues entries no longer carry a source field', () => {
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
   const result = auditPolicy(tmpRepo());
-  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [] });
+  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [], renamedKeys: [] });
+});
+
+test('a stray unattended-tier: on with no autonomy key -> renamedKeys entry, and never also unrecognizedKeys', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'unattended-tier: on\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'unattended-tier', value: 'on', replacedBy: 'autonomy', suggestedValue: 'unattended', currentReplacementValue: null },
+  ]);
+  assert.deepStrictEqual(result.unrecognizedKeys, []);
+});
+
+test('a stray unattended-tier: on alongside an existing autonomy value -> currentReplacementValue reflects it', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'unattended-tier: on\nautonomy: trusted\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'unattended-tier', value: 'on', replacedBy: 'autonomy', suggestedValue: 'unattended', currentReplacementValue: 'trusted' },
+  ]);
+});
+
+test('no unattended-tier key -> renamedKeys is empty', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'autonomy: trusted\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, []);
+});
+
+test('unattended-tier: off (the schema default, distinct from absent) -> suggestedValue is null', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'unattended-tier: off\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'unattended-tier', value: 'off', replacedBy: 'autonomy', suggestedValue: null, currentReplacementValue: null },
+  ]);
+});
+
+test('RENAMED_KEYS names unattended-tier, replaced by autonomy', () => {
+  assert.strictEqual(RENAMED_KEYS.length, 1);
+  assert.strictEqual(RENAMED_KEYS[0].key, 'unattended-tier');
+  assert.strictEqual(RENAMED_KEYS[0].replacedBy, 'autonomy');
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {
@@ -242,6 +304,28 @@ test('doc-convention.adr is an enum with no default — unset means "detect and 
   assert.strictEqual(result.invalidValues[0].key, 'doc-convention.adr');
 });
 
+test('trust-revert-window-days is a recognized integer key with a floor of 1, defaulting to 14', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'trust-revert-window-days');
+  assert.ok(key, 'trust-revert-window-days missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'integer');
+  assert.strictEqual(key.min, 1);
+  assert.strictEqual(key.default, 14);
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'trust-revert-window-days: 21\n');
+  assert.deepStrictEqual(auditPolicy(repo).invalidValues, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'trust-revert-window-days: 0\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, '0 is below the floor of 1 and must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'trust-revert-window-days');
+
+  const negative = tmpRepo();
+  writePolicy(negative, 'trust-revert-window-days: -5\n');
+  assert.strictEqual(auditPolicy(negative).invalidValues.length, 1, 'a negative value must be flagged too');
+});
+
 test('mixed policy.yml + CLAUDE.md content is read independently, both audited together', () => {
   const repo = tmpRepo();
   writePolicy(repo, 'dispatch-retry-ceiling: 5\nmade-up-lever: 1\n');
@@ -251,4 +335,31 @@ test('mixed policy.yml + CLAUDE.md content is read independently, both audited t
   const migrated = result.migratableKeys.find((e) => e.key === 'tidy-aggressiveness');
   assert.ok(migrated, 'expected the CLAUDE.md key to be reported as migratable');
   assert.strictEqual(migrated.alsoInPolicy, false);
+});
+
+test('resolveValue falls back to the schema default when the raw value is absent', () => {
+  assert.strictEqual(resolveValue('trust-revert-window-days', undefined), 14);
+  assert.strictEqual(resolveValue('trust-revert-window-days', null), 14);
+  assert.strictEqual(resolveValue('trust-revert-window-days', ''), 14);
+});
+
+test('resolveValue coerces a valid raw value to a number', () => {
+  assert.strictEqual(resolveValue('trust-revert-window-days', '21'), 21);
+  assert.strictEqual(resolveValue('trust-revert-window-days', 21), 21);
+});
+
+test('resolveValue falls back to the default on a malformed integer — zero, negative, non-integer', () => {
+  assert.strictEqual(resolveValue('trust-revert-window-days', '0'), 14);
+  assert.strictEqual(resolveValue('trust-revert-window-days', 0), 14);
+  assert.strictEqual(resolveValue('trust-revert-window-days', '-5'), 14);
+  assert.strictEqual(resolveValue('trust-revert-window-days', 'abc'), 14);
+});
+
+test('resolveValue passes an unrecognized key through unchanged', () => {
+  assert.strictEqual(resolveValue('made-up-lever', 'anything'), 'anything');
+});
+
+test('resolveValue never throws on a malformed value of any type', () => {
+  assert.doesNotThrow(() => resolveValue('trust-revert-window-days', {}));
+  assert.doesNotThrow(() => resolveValue('trust-revert-window-days', ['x']));
 });

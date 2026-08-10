@@ -61,26 +61,44 @@ Resolve it as a **single decision, before filing**, and only under `work-backend
 `{resolved-ceiling}` — `supervised` when the key is absent. When it resolves to `supervised`, skip
 this block entirely rather than fetching anything.
 
+Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` the same way, substituting for
+`{resolved-window}` below — empty means the default (14) applies. If the `gh` call, the `git log`
+call, or the node block fails for any reason, file without `ready`: this path fails toward the
+default, never toward the grant (unchanged from before this leaf). `{resolved-window}` reaches the
+script as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a
+quote character would otherwise break out of the string literal, the same reason
+`code-health/focus-mode.md`'s F1 block passes its own values that way.
+
 ```bash
-gh issue list --state all --json number,labels,body,state,stateReason --limit 1000 > /tmp/capture-trust-records.json
+gh issue list --state all --json number,labels,body,state,stateReason,closedAt --limit 1000 > /tmp/capture-trust-records.json
+```
+
+Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
+its value for `{integration-branch}` below:
+
+```bash
+git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
 ```
 
 ```bash
 node -e "
+  const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
-  const { trustRows } = require(root + '/bin/lib/issues/trust.js');
+  const { trustRows, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  const gitLog = parseGitLog(fs.readFileSync('/tmp/capture-trust-git-log.txt', 'utf8'));
+  const policy = { 'trust-revert-window-days': process.argv[1] };
   // This skill's own class. A fresh capture carries by:capture and no risk
   // score, and riskBand() bands an unscored record 'elevated' — so that is the
   // cell the record about to be filed will land in, and the only one that may
   // authorize it. Never read producer:capture|low here: it is a different class
   // with different evidence.
-  const row = trustRows(issues).find((r) => r.key === 'producer:capture|elevated');
+  const row = trustRows(issues, gitLog, Date.now(), policy).find((r) => r.key === 'producer:capture|elevated');
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const { bornReady, reason } = permittedGrants({ ceiling, row });
   console.log(JSON.stringify({ bornReady, reason, verdict: row ? row.verdict : 'no-cell' }));
-"
+" -- "{resolved-window}"
 ```
 
 Add `ready` to the label set below **only** when `bornReady` is `true`, and log one

@@ -142,3 +142,27 @@ for (const templatePath of findTemplates()) {
     );
   });
 }
+
+// AC4: the parameterless (as-shipped) template's kickoff line must stay
+// byte-identical — no `focus=` argument — so today's generalist routine
+// keeps firing exactly as it does now once the `focus` field exists in the
+// schema. This is a narrower, more precise pin than re-snapshotting the
+// whole ~4 KB preamble (already covered by the canonical-preamble test
+// above): what actually varies with focus's presence/absence is the
+// kickoff line's argument, nothing else.
+test('code-health/routine-template.yml: parameterless template has no focus field and its kickoff carries no focus= argument (AC4/IL-115 regression pin)', () => {
+  const templatePath = path.join(SKILLS_DIR, 'code-health', 'routine-template.yml');
+  const tpl = parseRoutineTemplate(fs.readFileSync(templatePath, 'utf8'));
+  assert.equal(
+    tpl.focus,
+    undefined,
+    'the shipped generalist template must not set focus — presence would change which routine this template instantiates',
+  );
+  const kickoffAt = tpl.prompt.lastIndexOf('Then: ');
+  const kickoffLine = tpl.prompt.slice(kickoffAt).trim();
+  assert.equal(
+    kickoffLine,
+    'Then: /claude-tweaks:code-health',
+    "the parameterless template's kickoff must stay exactly this — no focus= suffix",
+  );
+});

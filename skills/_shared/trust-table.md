@@ -129,22 +129,44 @@ node -e "
 With `/tmp/trust-table-family-leaves.json` written by whichever branch applies, fetch the record
 set itself — this block resolves its own `$LIMIT`/`FETCH_LIMIT` too, for the same reason:
 
+Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
+its value for `{integration-branch}` below. Dump the full history once, in a form the operational
+evidence path can scan for `(refs|closes|fixes) #N` references and revert trailers — `%x1f`/`%x1e`
+are unit/record separator bytes, never appearing in real commit text, so a multi-line commit
+message can never be mistaken for a SHA or split across records. `trust.js`'s own `parseGitLog`
+turns that raw dump into the `[{ sha, message }]` shape `trustRows` expects; never hand-roll the
+split, or two call sites can silently disagree about identical evidence:
+
+```bash
+git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/trust-table-git-log.txt
+```
+
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
-gh issue list --state all --json number,labels,body,state,stateReason \
+gh issue list --state all --json number,labels,body,state,stateReason,closedAt \
   --limit "$LIMIT" > /tmp/trust-table-records.json
 node -e "
-  const { trustRows } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
+  const fs = require('fs');
+  const { trustRows, parseGitLog } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
   const issues = require('/tmp/trust-table-records.json');
   const familyLeaves = new Set(require('/tmp/trust-table-family-leaves.json'));
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' records (the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
   const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: familyLeaves.has(i.number) }));
-  console.log(JSON.stringify(trustRows(records)));
-"
+  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
+  const policy = { 'trust-revert-window-days': process.argv[1] };
+  console.log(JSON.stringify(trustRows(records, gitLog, Date.now(), policy)));
+" -- "{resolved-window}"
 ```
+
+Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
+for `{resolved-window}` above — an empty substitution is fine, `trustRows` and the policy-schema
+resolver it calls both treat an absent/empty value as "use the default (14)". It reaches the script
+as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a quote
+character would otherwise break out of the string literal, the same reason
+`code-health/focus-mode.md`'s F1 block passes its own values that way.
 
 Note the spread order: derived fields (`labels`, `hasParent`) come after the parsed spread, never
 before (`[IL-01]`).
@@ -162,9 +184,9 @@ parent silently un-suppresses its leaves back into `total`, the same failure dir
 One row per cell, in the module's own `key` sort order (already stable — do not re-sort, and
 never cap or truncate the row count; see the row-count note below):
 
-| Provenance | Risk | Total | Approved | Changes Requested | Undispositioned | Coverage | Not Planned | Follow-ups | Verdict |
-|---|---|---|---|---|---|---|---|---|---|
-| {provenance} | {band} | {total} | {approved} | {changesRequested} | {undispositioned} | {coverage} | {notPlanned} | {followUps} | {verdict} |
+| Provenance | Risk | Total | Approved | Changes Requested | Operational | Undispositioned | Coverage | Not Planned | Follow-ups | Verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| {provenance} | {band} | {total} | {approved} | {changesRequested} | {operationalGood} | {undispositioned} | {coverage} | {notPlanned} | {followUps} | {verdict} |
 
 Render `{coverage}` as a percentage with no decimals (`row.coverage`, e.g. `0.125` renders `13%`).
 
@@ -172,6 +194,14 @@ Render `{coverage}` as a percentage with no decimals (`row.coverage`, e.g. `0.12
 closed records carrying no `demo:*` disposition at all — not a count of failures, a count of
 unknowns. It is the measure of how blind the system currently is, and on a repo with no
 acceptance-verdict discipline yet it is the largest number on the table.
+
+**Operational is a second, independent evidence source** — a closed record with no `demo:*`
+disposition still counts as known-good when it was merged and stayed unreverted for at least
+`trust-revert-window-days` (default 14 days, `bin/lib/issues/trust.js`). It folds into `Coverage`
+the same way `Approved`/`Changes Requested` do (all three sum into `dispositioned`), so
+`Total = Approved + Changes Requested + Operational + Undispositioned` always holds. A record with
+a `demo:*` verdict is never double-counted here — demo-descent evidence is tried first, and the
+operational path only runs when it found nothing.
 
 **Coverage is the fraction of a class's closed records that carry any verdict at all**
 (`dispositioned / total`), and it is the figure that says whether a Verdict column can be

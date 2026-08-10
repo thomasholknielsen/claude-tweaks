@@ -1,14 +1,14 @@
 ---
 name: code-health
 description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - code-health, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
-argument-hint: "[--area <path>] [--budget <n>] [--min-risk low|medium|high] [--dry-run] [--root <dir>]"
+argument-hint: "[--area <path>] [focus=<vertical>] [--budget <n>] [--min-risk low|medium|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
 # Code-Health — LLM-as-Code-Judge, Proactive Repo Improvement
 
-A recurring health check doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
+A recurring health check doing rounds: reads one directory slice (or, under `focus=<vertical>`, a generator's repo-wide candidate set), judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
 
 ```
               [ /claude-tweaks:code-health ] <- utility (no fixed lifecycle position)
@@ -26,6 +26,7 @@ The plugin reacts to changes you make; `/code-health` surfaces the changes worth
 - You want LLM-judged improvements filed as GitHub issues that drop into `/specify` with near-zero translation.
 - You want findings deduplicated against work already tracked — never re-flood the tracker.
 - You want to run on demand against a specific area, or let `next-slice` pick the highest-priority area automatically.
+- You want one vertical swept repo-wide in a single firing rather than one directory slice — `focus=<vertical>` (see "Focus Mode" below).
 
 Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing `/capture`/`/specify` (code-health owns no backlog — it routes findings into the stores that already exist).
 
@@ -34,16 +35,25 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 `$ARGUMENTS` may contain:
 
 - `--area <path>` — manual override: scope the run to one specific area, bypassing `next-slice` rotation. Use for targeted re-inspection.
+- `focus=<vertical>` — candidate-driven scoping: bypass `next-slice` rotation entirely and instead run a deterministic candidate generator for the named vertical, judging its candidates with that vertical's pinned criterion instead of `criteriaForArea`'s area-type lookup. Mutually exclusive with `--area`. See "Focus Mode" below — full procedure in `focus-mode.md` in this skill's directory. `--min-risk`, `--dry-run`, and `--root` all still apply; `--budget` does not — Step 1 is skipped entirely under focus mode, so nothing consumes it, and a focus firing sweeps the generator's whole repo-wide candidate set regardless.
 - `--dry-run` — emit the plan but write nothing (cache untouched, no issues filed). Use for the smoke check.
 - `--root <dir>` — scan a project elsewhere (default: current working directory).
 - `--budget <n>` — judge up to `n` slices in one run (default: 1). Use with `next-slice` when you want a deeper sweep in a single invocation.
 - `--min-risk <level>` — minimum computed risk tier (severity × likelihood) that gets filed as a GitHub issue (default: `high`; one of `low|medium|high`). Findings below this are held in the local cache as `remembered` — not dropped, not filed — until they escalate or a deliberately deeper sweep lowers the bar. Pass `--min-risk medium` (or `low`) for an intentional deep-dive that surfaces more than the default high-risk-only trickle.
 
+## Focus Mode
+
+`focus=<vertical>` swaps ONLY the scoping strategy (Steps 1 and 3 below) and the criterion selection (Step 4): a deterministic generator produces a fixed set of candidate files/symbols repo-wide, instead of `next-slice` picking one directory-shaped slice per firing, and the focus pins its own criterion instead of `criteriaForArea`'s area-type lookup. Step 2 (gather open issues for dedup) and Steps 5 onward (JUDGE through SUMMARIZE) run completely unchanged — a focus firing is still judged holistically, still passes the verify gate, still gets fingerprinted, deduped, and filed exactly like a generalist run. A focus firing never touches the generalist rotation's cursor or content-hash state (both live in `bin/lib/code-health/scope.js`, which the focus-mode generator never imports) — it is cursor-neutral by design.
+
+A generator's candidate set is a heuristic, explicitly partial starting point — never read it as a complete inventory of the vertical, and never report it as one. Each generator's own module header states its coverage boundaries in full (IL-110), and `focus-mode.md`'s Coverage section says where to read them.
+
+Read `focus-mode.md` in this skill's directory for the full procedure: candidate generation, the zero-candidates no-op contract, criterion pinning, and the unrecognized-focus fail-loud rule. Which verticals are shipped changes as generators are added, so `focus-mode.md`'s registry lookup — not prose — is what names every currently-known value; never hand-list them here, in `focus-mode.md`, or anywhere else (a list restated in two places drifts, IL-40).
+
 ## Workflow
 
 **Step 1 — SCOPE: select the target slice.**
 
-Unless `--area` was provided, call the engine to pick the next slice to judge:
+If `focus=<vertical>` was provided, skip this step entirely — `focus-mode.md`'s own procedure replaces it. That procedure runs Step 2 (GATHER OPEN ISSUES) unchanged at its F0, before its own candidate generation and criterion pinning (which stand in for Steps 3 and 4). Only Steps 1, 3, and 4 are skipped. Otherwise, unless `--area` was provided, call the engine to pick the next slice to judge:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root "${ROOT:-$PWD}" ${BUDGET:+--budget "$BUDGET"}
@@ -91,7 +101,7 @@ A matched issue carrying the `wontfix` label is a standing suppression decision,
 
 **Step 3 — READ THE SLICE.**
 
-Stamp a freshness marker before reading anything, so Step 7.5 can later detect whether the slice changed underneath this run — a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit landing between this read and eventual filing:
+If `focus=<vertical>` was provided, skip this step entirely — `focus-mode.md`'s Step F3 reads every candidate file under this same 60 KB read-budget discipline, restated there rather than here. Otherwise, stamp a freshness marker before reading anything, so Step 7.5 can later detect whether the slice changed underneath this run — a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit landing between this read and eventual filing:
 
 ```bash
 touch /tmp/code-health-read-marker
@@ -113,13 +123,15 @@ Never silently skip a file. Every file not read in full must be listed in the St
 
 **Step 4 — CLASSIFY: detect area type + select criteria.**
 
-Call the `classify` command to determine the area's type:
+If `focus=<vertical>` was provided, skip this step entirely — the focus pins its own criterion (`focus-mode.md`'s Criterion pinning table), so there is no area to classify and no `criteriaForArea` call. Otherwise, call the engine to determine the area's type:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root "${ROOT:-$PWD}" --area "<slice-id>"
 ```
 
 The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — matching is a `.some()` intersection against each area-gated criterion's `appliesTo` array, not exact-equality, so an area gets the universal criteria plus *every* area-gated criterion whose `appliesTo` includes at least one of the area's types. Do not hand-copy any example result into a mental shortcut; call `criteriaForArea` for the real slice instead, since `criteria.js` is the single source of truth and the result drifts as criteria are added or re-gated.
+
+**This command's own `areaId` field is a different identity from Step 6's per-finding `areaId` — do not conflate them.** This `classify` output's `areaId` echoes back the slice id (the directory Step 1/`--area` scoped the whole sweep to — e.g. `bin/lib/code-health` for a recursive slice covering its own nested subdirectories too). It exists here only alongside `types` for classification purposes. Never copy this value into a Step 6 finding's `areaId` — see that step's derivation rule, which is per-finding and can name a deeper directory than this slice id whenever the finding's anchor file sits in a nested subdirectory of a recursive slice.
 
 If `types` is `[]` (unknown area), apply universal criteria only — run the same `criteriaForArea([])` call below to get the current list (do not hand-maintain a separate copy of it; the catalog in `criteria.js` is the single source of truth):
 
@@ -139,10 +151,10 @@ Before or during judging, the judge MAY call the following deterministic tools t
 
 | Tool | Command | Evidence it provides |
 |------|---------|----------------------|
-| Project lint/typecheck | `npm run lint --if-present 2>&1 \| tail -40` or `npx tsc --noEmit 2>&1 \| head -40` | Concrete type errors and lint violations in the slice |
+| Project lint/typecheck | `npm run lint --if-present 2>&1 \| tail -40` or `npx tsc --noEmit 2>&1 \| head -40` | Concrete type errors and lint violations in the slice (under focus mode, in the candidate set) |
 | Dead code / unused deps | `npx knip --reporter json \| head -c 4000` or `npx depcheck --json \| jq '{dependencies, devDependencies}'` | Unused exports, unreferenced packages |
 | Dependency vulnerabilities | `npm audit --json \| jq '{critical:.metadata.vulnerabilities.critical, high:.metadata.vulnerabilities.high}'` or `npx osv-scanner --format json . \| jq '[.results[].packages[].vulnerabilities[]] \| length'` | Known CVEs in installed packages |
-| Dependency cycles | `npx madge --circular --json <slice-path> \| jq 'length'` | Import cycles in the slice |
+| Dependency cycles | `npx madge --circular --json <slice-path> \| jq 'length'` | Import cycles in the slice (under focus mode, pass a candidate file's own directory) |
 | Grep / git log | Standard Bash + git CLI | Code patterns, recent churn, authorship |
 
 Every command above is already projected or capped — the raw JSON/text a tool prints can run past 200 KB, and none of it is worth reading in full for evidence purposes. A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant bounded excerpt (the jq projection's result, or the `head`/`tail` slice) as part of the finding's `evidence` field (not as a separate finding). If a bounded run signals something worth deeper diagnosis (e.g. `critical` or `high` counts are non-zero), it's fine to re-run that one tool without the cap to pull the specific detail into evidence — never file a finding wider than what the judge actually read.
@@ -162,7 +174,7 @@ For each finding, emit exactly this shape:
 ```json
 {
   "criterion": "<catalog id, e.g. 'simplification'>",
-  "areaId": "<directory path relative to root, e.g. 'src/api'>",
+  "areaId": "<the anchor file's own containing directory, relative to root — see the pinned derivation rule below, e.g. 'src/api'>",
   "anchor": "<relfile#NearestNamedSymbol — see anchor rules below>",
   "relatedAnchors": "<optional array of relfile#NearestNamedSymbol strings — sibling occurrences of the same root cause; omit if there's only one occurrence>",
   "severity": "<low|medium|high>",
@@ -176,6 +188,8 @@ For each finding, emit exactly this shape:
 }
 ```
 
+**`areaId` derivation (pinned, canonical across every scoping mode):** `areaId` is always `path.dirname(anchor-file)` — the directory, relative to root, that directly contains the finding's own `anchor` file — computed per finding, never per slice. This is the one rule every code-health scoping mode must satisfy identically: the generalist rotation path (Steps 1-4 above) and any focus-mode-style candidate-driven path (`focus-mode.md`) MUST derive `areaId` this same way, so the same file produces the identical fingerprint input (Step 8: `criterion + areaId + normalizeAnchor(anchor)`) no matter which mode found it. Do NOT substitute the slice id from Step 1 (`next-slice`'s `id`/`path`) or Step 4's `classify` output — both name the *slice*, which is coarser than the anchor file's own directory whenever the slice is recursive and the finding's anchor sits in a nested subdirectory (e.g. a `tests/` folder inside a recursively-swept slice). Example: a finding anchored at `bin/lib/code-health/tests/foo.test.js#bar`, found while judging the recursive `bin/lib/code-health` slice, still gets `areaId: "bin/lib/code-health/tests"` — never `"bin/lib/code-health"`. Getting this wrong duplicates the same finding under two different fingerprints depending on which scoping mode happened to find it first.
+
 **`criteria-review-quality.md` references a `critical` or `info` tier inherited from `/claude-tweaks:review`'s broader 5-tier scale** (the only fragment this applies to — every other criterion fragment's own severity calibration already uses only `high`/`medium`/`low`, matching the schema directly). Code-health's own schema accepts only `low|medium|high` for `severity` — never emit `critical` or `info`. When this fragment's calibration language points toward `critical`, map it to `severity: high` (code-health has no higher tier); treat anything it would call `info` as not worth filing at all rather than as a `low` finding.
 
 **Severity, likelihood, and effort are three separate, simpler judgments — do not conflate them:**
@@ -187,7 +201,7 @@ For each finding, emit exactly this shape:
   - **Exploitability** — for security-relevant criteria specifically: can external input actually reach and trigger this, or is it a theoretical concern with no real attack surface? Non-security criteria simply have no exploitability consideration to weigh.
 - **`effort`** — the cost/complexity of the finding's own `suggestedApproach`. A one-line parameter addition is `low`; a bundled fix across several sibling occurrences is `medium`; a structural change (new abstraction, cross-file rework) is `high`.
 
-**Bundling rule (recurring root causes)** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings): when the same criterion and the same suggested fix recur at multiple call sites within the slice being judged, file **one** finding, not one per call site. Pick the clearest/most representative occurrence as the primary `anchor`; list every other occurrence in `relatedAnchors`; make `evidence` enumerate all occurrences; make `acceptance` require all of them fixed, not just the primary. Only bundle occurrences that share both the criterion AND the fix — do not bundle unrelated findings under one anchor just because they're nearby in the same file or directory.
+**Bundling rule (recurring root causes)** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings): when the same criterion and the same suggested fix recur at multiple call sites within the slice being judged (under focus mode, within the candidate set being judged), file **one** finding, not one per call site. Pick the clearest/most representative occurrence as the primary `anchor`; list every other occurrence in `relatedAnchors`; make `evidence` enumerate all occurrences; make `acceptance` require all of them fixed, not just the primary. Only bundle occurrences that share both the criterion AND the fix — do not bundle unrelated findings under one anchor just because they're nearby in the same file or directory.
 
 **Anchor rules (critical for dedup stability):**
 - Format: `relative/file/path#NearestNamedSymbol`
@@ -246,7 +260,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings /tmp/code-heal
   > /tmp/code-health-payloads.json
 ```
 
-`SLICE_ID` is the `id` field from the `next-slice` output in Step 1 (or the `--area` value when using manual override). `RUN_ID` is the run identifier for this sweep (ISO timestamp or any stable string unique per run).
+`SLICE_ID` is the `id` field from the `next-slice` output in Step 1 (or the `--area` value when using manual override; under focus mode, `focus:<vertical>` — see `focus-mode.md`'s F5). `RUN_ID` is the run identifier for this sweep (ISO timestamp or any stable string unique per run).
 
 Read `/tmp/code-health-payloads.json`. The command:
 - Validates each finding (drops malformed ones with a logged reason on stderr).
@@ -275,7 +289,7 @@ run is truly a no-op for all persistence.
 
 Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
 
-Also report the slice's read coverage, so the summary can never imply more coverage than the sweep had: the slice id, whether it was read recursively or own-files-only (Step 1's `recursive`), bytes read, and — if Step 3's read budget was reached — every **deferred** file with its size, under a `Deferred (read budget)` heading. When nothing was deferred, say so in one line rather than omitting the section; an absent section is indistinguishable from a forgotten one.
+Also report the slice's read coverage, so the summary can never imply more coverage than the sweep had: the slice id, whether it was read recursively or own-files-only (Step 1's `recursive`), bytes read, and — if Step 3's read budget was reached — every **deferred** file with its size, under a `Deferred (read budget)` heading. When nothing was deferred, say so in one line rather than omitting the section; an absent section is indistinguishable from a forgotten one. Under focus mode, there is no slice id or `recursive` flag — report `focus-mode.md`'s scanned-file and skipped-file counts instead (Step F2).
 
 ## Routine Configuration
 
@@ -288,6 +302,8 @@ Also report the slice's read coverage, so the summary can never imply more cover
 This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to inspect the assembled configuration before anything is created.
 
 **Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → VERIFY GATE → FRESHNESS RE-CHECK → `validate-findings` → file issues (dropping any finding still flagged `possiblyStale`). Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Code-health's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:code-health --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
+
+A focus-mode routine (`routine-template.yml`'s `focus` field, currently unset in every shipped template — see `skills/_shared/routine-template-schema.md`) does not follow this one-slice-per-run shape at all: it sweeps every candidate the generator finds, repo-wide, on every firing. See `focus-mode.md` for its own routine framing.
 
 A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window. This is now actually true across a scheduled cloud-routine's container recycling too: rotation cursors, the sub-threshold remembered cache, and the filing retry queue all live on the durable `health-state` branch (`_shared/health-state.md`), not local disk that a fresh container wouldn't have.
 
@@ -362,3 +378,4 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Filing before presenting the interactive gate | The two-tier decision precedes any `gh issue create` for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
 | Reading a `"recursive": false` slice's subdirectories | Separate slices with own ids and cursors — sweeping them blows the read budget and files under the wrong slice id. Add `-maxdepth 1`. |
 | Dropping files at Step 3's read budget without listing them | Implies whole-slice coverage the sweep never had. Over-budget files are read bounded and reported **deferred** in Step 10. |
+| Treating a focus-mode candidate set as fully read | The 60 KB budget defers most candidates on any real repo (`focus-mode.md`'s F3) — the judge only sees what was actually read. Check the deferred count and `skippedFiles` before trusting a clean-looking result. |

@@ -7,6 +7,7 @@
 // See docs/superpowers/plans/2026-08-07-supervised-trust-table.md.
 const { resolveProvenance } = require('./provenance.js');
 const { dispositionState } = require('./acceptance.js');
+const { resolveValue } = require('../policy-schema.js');
 
 // At roughly ten closed records per class per month, eight is about a month
 // of evidence — small enough to ever graduate, large enough that one lucky
@@ -113,8 +114,174 @@ function correctiveFollowUpTarget(body) {
   return Number(match[1]);
 }
 
-function trustRows(records) {
+// --- Operational outcome evidence (merged-and-unreverted) -----------------
+//
+// A closed record's outcome becomes known a second way, alongside demo-descent:
+// merged and unreverted for at least `trust-revert-window-days` (default 14).
+// Evaluated lazily at read time from record state + an injected git log — no
+// scheduled job, no cached verdict file. This path only ever ADDS known-good
+// evidence; a reverted or undiscoverable close is never negative evidence,
+// only not-countable (the companion "failure classifications and reverts"
+// leaf owns negative evidence). A record where discovery finds nothing stays
+// unknown — never defaults to known-good. That is the coverage boundary this
+// module states about itself: a manual revert naming neither a `This
+// reverts commit <sha>` trailer nor the record number is an out-of-scope
+// false negative.
+//
+// Route 1 (a GitHub timeline `closed` event's commit reference) needs a
+// per-issue GitHub API call this module cannot make itself — it is pure, no
+// network. A caller that resolves it attaches the SHA(s) to the record as
+// `closingCommitShas` before calling trustRows; discovery below prefers that
+// signal outright when present. Route 2 (a commit-message scan for
+// `(refs|closes|fixes) #N`, word-bounded) is load-bearing for this repo: its
+// own convention writes `refs #N`, which creates no native GitHub close-link,
+// so route 1 finds nothing here and route 2 is what actually resolves a
+// closing commit.
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DEFAULT_REVERT_WINDOW_DAYS = 14;
+const CLOSING_REF_RE = /\b(?:refs|closes|fixes)\s+#(\d+)\b/gi;
+
+const RECORD_SEP = '\x1e';
+const FIELD_SEP = '\x1f';
+
+// Raw `git log --format='%H%x1f%B%x1e'` output -> the `[{ sha, message }]`
+// shape every gitLog-consuming function below expects. The separator bytes are
+// ASCII unit/record separators, which practically never appear in real commit
+// text, so a multi-line commit message can be neither mistaken for a SHA nor
+// split across records.
+//
+// Exported because three skill snippets feed trustRows a git log
+// (`_shared/trust-table.md`, `backlog/refine-mode.md`, `capture/SKILL.md`) and
+// each carried its own verbatim copy of this parse. One copy means a parse fix
+// lands once instead of three times, and means the three call sites cannot
+// silently disagree about the same underlying evidence `[IL-32]`.
+function parseGitLog(raw) {
+  const text = typeof raw === 'string' ? raw : '';
+  // `git log --format='...%x1e'` writes a newline after each record
+  // separator, so every record but the first begins with a stray leading
+  // `\n` once split — trim it off, or a closing commit's SHA never matches
+  // a revert trailer naming the same (clean) SHA.
+  return text
+    .split(RECORD_SEP)
+    .map((entry) => entry.trim())
+    // Drops empty fragments, and — deliberately — any fragment carrying no
+    // field separator at all (a truncated write, or an embedded
+    // record-separator byte splitting one commit's message in two). Slicing
+    // such a fragment into a fabricated "sha" is the fail-open hazard: no
+    // real revert trailer could ever name that phantom, so a genuinely
+    // reverted record could grade known-good.
+    .filter((entry) => entry.includes(FIELD_SEP))
+    .map((entry) => {
+      const sep = entry.indexOf(FIELD_SEP);
+      return { sha: entry.slice(0, sep), message: entry.slice(sep + 1) };
+    });
+}
+
+// (record, gitLog) -> string[] of closing commit SHAs, [] when neither route
+// finds anything. `gitLog` is `[{ sha, message }]` — the integration branch's
+// full history, `sha` a full commit SHA and `message` the FULL commit message
+// (subject + body), as `parseGitLog` above yields. Route 1 wins outright when
+// present; it does not merge with route 2's results.
+function discoverClosingCommits(record, gitLog) {
+  const fromTimeline = Array.isArray(record && record.closingCommitShas)
+    ? record.closingCommitShas.filter((sha) => typeof sha === 'string' && sha)
+    : [];
+  if (fromTimeline.length > 0) return fromTimeline;
+
+  const log = Array.isArray(gitLog) ? gitLog : [];
+  const recordNumber = record && record.number;
+  const shas = [];
+  for (const entry of log) {
+    if (!entry || typeof entry.sha !== 'string' || typeof entry.message !== 'string') continue;
+    for (const match of entry.message.matchAll(CLOSING_REF_RE)) {
+      if (Number(match[1]) === recordNumber) {
+        shas.push(entry.sha);
+        break;
+      }
+    }
+  }
+  return shas;
+}
+
+const REVERT_TRAILER_RE = /This reverts commit ([0-9a-f]{7,40})/gi;
+const REVERT_SUBJECT_RE = /^Revert\b/i;
+
+// (closingShas, recordNumber, gitLog) -> boolean. All-or-nothing: any one
+// reverted closing commit disqualifies the whole record (multi-commit
+// records are conservative-direction, never partial credit). Two detectors,
+// checked per log entry:
+//   (a) a `This reverts commit <sha>` trailer naming one of closingShas —
+//       matched by SHA prefix in either direction, since `git revert` writes
+//       the full SHA but a caller-supplied timeline SHA might be shortened.
+//   (b) a revert-shaped commit (subject starting `Revert`) whose message
+//       also references the same record number — the fallback for
+//       squash/rebase-rewritten SHAs, where the trailer's named SHA no
+//       longer matches anything in the (rewritten) log (IL-45).
+// A manual revert with neither signal is the module's own stated coverage
+// boundary (see the header comment above discoverClosingCommits).
+function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
+  const shas = Array.isArray(closingShas) ? closingShas.filter(Boolean) : [];
+  if (shas.length === 0) return false;
+  const lowerShas = shas.map((sha) => String(sha).toLowerCase());
+  const log = Array.isArray(gitLog) ? gitLog : [];
+
+  for (const entry of log) {
+    if (!entry || typeof entry.message !== 'string') continue;
+
+    for (const match of entry.message.matchAll(REVERT_TRAILER_RE)) {
+      const named = match[1].toLowerCase();
+      if (lowerShas.some((sha) => sha.startsWith(named) || named.startsWith(sha))) return true;
+    }
+
+    const subject = entry.message.split('\n', 1)[0] || '';
+    if (REVERT_SUBJECT_RE.test(subject)) {
+      for (const match of entry.message.matchAll(CLOSING_REF_RE)) {
+        if (Number(match[1]) === recordNumber) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// (record, gitLog, now, windowDays) -> { known: false } | { known: true, grade: 'good', source: 'operational' }.
+// `now` is epoch milliseconds (the injected clock). The window anchors on
+// the record's tracker `closedAt` — never a git commit date or a PR
+// `merged_at` (this repo's squash/rebase conventions rewrite commit dates,
+// and a direct-push close has no PR at all). `closedAt` on a currently-CLOSED
+// record is GitHub's own latest-close timestamp — a record reopened and
+// re-closed is evaluated against that latest close with no extra bookkeeping
+// here; a record that is currently OPEN never needs to reach this function
+// meaningfully, since trustRows only builds cells from records whose `state`
+// is `'CLOSED'` in the first place.
+function resolveOperationalOutcome(record, gitLog, now, windowDays) {
+  if (!record || record.state !== 'CLOSED') return { known: false };
+  const closedAtMs = typeof record.closedAt === 'string' ? Date.parse(record.closedAt) : NaN;
+  if (!Number.isFinite(closedAtMs)) return { known: false };
+
+  const ageDays = (now - closedAtMs) / MS_PER_DAY;
+  if (ageDays < windowDays) return { known: false };
+
+  const closingShas = discoverClosingCommits(record, gitLog);
+  if (closingShas.length === 0) return { known: false };
+
+  if (isClosingCommitReverted(closingShas, record.number, gitLog)) return { known: false };
+
+  return { known: true, grade: 'good', source: 'operational' };
+}
+
+// raw policy['trust-revert-window-days'] -> a validated integer >= 1.
+// Malformed-value coercion is owned centrally by bin/lib/policy-schema.js —
+// this is the one place trust.js asks it, and the caller of this function
+// (trustRows, below) trusts what comes back without re-checking it.
+function resolveRevertWindowDays(policy) {
+  const raw = policy && policy['trust-revert-window-days'];
+  return resolveValue('trust-revert-window-days', raw);
+}
+
+function trustRows(records, gitLog, now, policy) {
   const all = Array.isArray(records) ? records : [];
+  const clock = Number.isFinite(now) ? now : Date.now();
+  const windowDays = resolveRevertWindowDays(policy);
   // A decomposed leaf is not independently graded work — its family's parent
   // carries the one verdict. Counting leaves here would let `total >= 8` be
   // satisfied by records nobody judged.
@@ -140,6 +307,7 @@ function trustRows(records) {
         total: 0,
         approved: 0,
         changesRequested: 0,
+        operationalGood: 0,
         undispositioned: 0,
         notPlanned: 0,
         followUps: 0,
@@ -151,9 +319,22 @@ function trustRows(records) {
     if (record.stateReason === 'NOT_PLANNED') cell.notPlanned += 1;
 
     const disposition = dispositionState(record.labels);
-    if (disposition === 'approved') cell.approved += 1;
-    else if (disposition === 'changes-requested') cell.changesRequested += 1;
-    else cell.undispositioned += 1;
+    if (disposition === 'approved') {
+      cell.approved += 1;
+    } else if (disposition === 'changes-requested') {
+      cell.changesRequested += 1;
+    } else if (disposition === 'none') {
+      // No demo:* disposition at all — try the operational path before giving up.
+      const operational = resolveOperationalOutcome(record, gitLog, clock, windowDays);
+      if (operational.known) cell.operationalGood += 1;
+      else cell.undispositioned += 1;
+    } else {
+      // 'pending' — an outstanding, unresolved human-review request. It IS a
+      // demo:* disposition, so it must never reach the operational path above
+      // and be silently promoted to known-good just because a human hasn't
+      // gotten to /demo yet. Any unrecognized state lands here too, undispositioned.
+      cell.undispositioned += 1;
+    }
 
     cellByNumber.set(record.number, cell);
   }
@@ -169,7 +350,7 @@ function trustRows(records) {
   }
 
   const rows = Array.from(cells.values()).map((cell) => {
-    const dispositioned = cell.approved + cell.changesRequested;
+    const dispositioned = cell.approved + cell.changesRequested + cell.operationalGood;
     const coverage = cell.total === 0 ? 0 : dispositioned / cell.total;
     let verdict = 'insufficient-evidence';
     if (
@@ -196,4 +377,7 @@ function trustRows(records) {
   return rows;
 }
 
-module.exports = { riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS };
+module.exports = {
+  riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, DEFAULT_REVERT_WINDOW_DAYS,
+  parseGitLog, discoverClosingCommits, isClosingCommitReverted, resolveOperationalOutcome,
+};

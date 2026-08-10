@@ -145,14 +145,26 @@ as the `backlog-fetch-limit` substitution in the Fetch section this step already
 failure is quiet and in the safe direction, which is exactly why it needs stating: nothing errors,
 the console simply renders a false claim about live policy.
 
+Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
+for `{resolved-window}` below the same way — an empty substitution is fine, the default (14)
+applies. This block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section
+above — it must never shell its own separate `git log` call, or its verdicts could silently
+disagree with the trust table this same run just rendered from the identical underlying evidence.
+`{resolved-window}` reaches the script as a `process.argv` arg after `--`, never spliced into the
+JS source — a value containing a quote character would otherwise break out of the string literal,
+the same reason `code-health/focus-mode.md`'s F1 block passes its own values that way.
+
 ```bash
 node -e "
+  const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
-  const { trustRows, riskBand } = require(root + '/bin/lib/issues/trust.js');
+  const { trustRows, riskBand, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const rows = new Map(trustRows(issues).map((r) => [r.key, r]));
+  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
+  const policy = { 'trust-revert-window-days': process.argv[1] };
+  const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
   const out = {};
   for (const issue of issues.filter((i) => i.state === 'OPEN')) {
@@ -170,7 +182,7 @@ node -e "
     };
   }
   console.log(JSON.stringify(out));
-" > /tmp/backlog-refine-trust.json
+" -- "{resolved-window}" > /tmp/backlog-refine-trust.json
 ```
 
 **This signal never changes what the gate recommends.** `/claude-tweaks:assess-agent-autonomy`'s
