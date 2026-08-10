@@ -6,6 +6,7 @@ const {
   riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, parseGitLog, discoverClosingCommits,
   isClosingCommitReverted, resolveOperationalOutcome, DEFAULT_REVERT_WINDOW_DAYS,
 } = require('../trust.js');
+const { attemptFailedCommentBody } = require('../retry.js');
 
 test('riskBand splits low from everything else', () => {
   assert.equal(riskBand(['risk:low']), 'low');
@@ -358,14 +359,17 @@ test('resolveOperationalOutcome is unknown with no discoverable closing commit',
   assert.deepEqual(resolveOperationalOutcome(record, [], NOW, 14), { known: false });
 });
 
-test('resolveOperationalOutcome is not-countable (unknown) when the closing commit was reverted', () => {
+test('resolveOperationalOutcome grades a discovered revert as negative evidence, not merely not-countable (#268)', () => {
   const sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const record = { number: 1, state: 'CLOSED', closedAt: closedDaysAgo(30) };
   const gitLog = [
     { sha, message: 'refs #1' },
     { sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', message: `This reverts commit ${sha}.` },
   ];
-  assert.deepEqual(resolveOperationalOutcome(record, gitLog, NOW, 14), { known: false });
+  assert.deepEqual(
+    resolveOperationalOutcome(record, gitLog, NOW, 14),
+    { known: true, grade: 'bad', source: 'revert' },
+  );
 });
 
 test('resolveOperationalOutcome respects a widened window passed in explicitly', () => {
@@ -585,12 +589,13 @@ test('AC2: the revert window is inclusive at the boundary, both directions', () 
   assert.equal(belowBoundary[0].undispositioned, MIN_SAMPLES);
 });
 
-test('AC3: a reverted closing commit does not count as known-good', () => {
+test('AC3 (#267): a reverted closing commit does not count as known-good — it counts as negative evidence instead (#268)', () => {
   const record = operationalFixture(1, 30);
   const gitLog = [commitFor(1), { sha: sha40(999), message: `This reverts commit ${sha40(1)}.` }];
   const rows = trustRows([record], gitLog, NOW, {});
   assert.equal(rows[0].operationalGood, 0);
-  assert.equal(rows[0].undispositioned, 1);
+  assert.equal(rows[0].undispositioned, 0);
+  assert.equal(rows[0].negativeEvidence, 1);
 });
 
 test('AC4: no discoverable closing commit contributes nothing, asserted explicitly', () => {
@@ -686,4 +691,97 @@ test('regression: a demo:pending record is never promoted to operational known-g
   assert.equal(rows[0].undispositioned, 1);
   assert.equal(rows[0].approved, 0);
   assert.equal(rows[0].changesRequested, 0);
+});
+
+// --- Negative evidence: failure classifications and reverts (#268) --------
+
+function negativeEvidenceFixture(number, classification) {
+  return {
+    number,
+    labels: ['by:capture', 'risk:low'],
+    body: '',
+    state: 'CLOSED',
+    // Fresh close, well inside the revert window and with no closing commit
+    // in the fixture git log — the operational path must find nothing here,
+    // isolating the marker-based negative-evidence path under test.
+    closedAt: closedDaysAgo(1),
+    comments: [{
+      body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'boom', classification }),
+    }],
+  };
+}
+
+test('AC1 (#268): one correctness-classified failure marker pins a class below clean; removing it restores clean', () => {
+  const goodOperational = Array.from({ length: 7 }, (_, i) => operationalFixture(i + 1, 30));
+  const gitLog = goodOperational.map((r) => commitFor(r.number));
+
+  const withMarker = [...goodOperational, negativeEvidenceFixture(100, 'correctness')];
+  const withMarkerRows = trustRows(withMarker, gitLog, NOW, {});
+  assert.equal(withMarkerRows[0].total, 8);
+  assert.equal(withMarkerRows[0].operationalGood, 7);
+  assert.equal(withMarkerRows[0].negativeEvidence, 1);
+  assert.equal(withMarkerRows[0].dispositioned, 8);
+  assert.equal(withMarkerRows[0].verdict, 'mixed', 'negative evidence pins the class below clean');
+
+  const withoutMarker = [...goodOperational, { ...negativeEvidenceFixture(100, 'correctness'), comments: [] }];
+  const withoutMarkerRows = trustRows(withoutMarker, gitLog, NOW, {});
+  assert.equal(withoutMarkerRows[0].negativeEvidence, 0);
+  assert.equal(withoutMarkerRows[0].verdict, 'clean', 'removing the marker restores clean');
+});
+
+test('AC2 (#268): a transient-classified failure writes no negative evidence and leaves the verdict unchanged', () => {
+  const goodOperational = Array.from({ length: 7 }, (_, i) => operationalFixture(i + 1, 30));
+  const gitLog = goodOperational.map((r) => commitFor(r.number));
+
+  const withTransient = [...goodOperational, negativeEvidenceFixture(100, 'transient')];
+  const rows = trustRows(withTransient, gitLog, NOW, {});
+  assert.equal(rows[0].negativeEvidence, 0);
+  assert.equal(rows[0].undispositioned, 1, 'a transient marker leaves the record undispositioned, not negative');
+  assert.equal(rows[0].verdict, 'clean');
+});
+
+test('AC3 (#268): a revert on a previously-counted known-good record downgrades the class verdict with no other state change', () => {
+  const good = Array.from({ length: 8 }, (_, i) => operationalFixture(i + 1, 30));
+  const cleanLog = good.map((r) => commitFor(r.number));
+  const clean = trustRows(good, cleanLog, NOW, {});
+  assert.equal(clean[0].verdict, 'clean');
+  assert.equal(clean[0].total, 8);
+
+  // Revert record #1's closing commit — same record set, same total, only
+  // its own contribution flips from operationalGood to negativeEvidence.
+  const revertedLog = [...cleanLog, { sha: sha40(999), message: `This reverts commit ${sha40(1)}.` }];
+  const reverted = trustRows(good, revertedLog, NOW, {});
+  assert.equal(reverted[0].total, 8, 'no other state change — same records, same total');
+  assert.equal(reverted[0].operationalGood, 7, 'exactly one contribution flipped');
+  assert.equal(reverted[0].negativeEvidence, 1);
+  assert.equal(reverted[0].verdict, 'mixed', 'the class verdict downgrades on the next read');
+});
+
+test('AC4 (#268): two failed attempts on the same record still contribute one unit of negative evidence, not two', () => {
+  const goodOperational = Array.from({ length: 7 }, (_, i) => operationalFixture(i + 1, 30));
+  const gitLog = goodOperational.map((r) => commitFor(r.number));
+
+  const record = {
+    ...negativeEvidenceFixture(100, 'correctness'),
+    comments: [
+      { body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'a', classification: 'correctness' }) },
+      { body: attemptFailedCommentBody({ attemptNumber: 2, reason: 'b', classification: 'ambiguous' }) },
+    ],
+  };
+  const rows = trustRows([...goodOperational, record], gitLog, NOW, {});
+  assert.equal(rows[0].negativeEvidence, 1, 'two failed attempts on one record still count as one unit');
+});
+
+test('a demo:approved record carrying an earlier failed-attempt marker keeps its approved disposition (scoped to disposition: none)', () => {
+  // Negative-evidence reading only applies when there is no demo:* verdict
+  // already recorded (symmetric with the pre-existing operational-good
+  // path) — an eventual approval is not retroactively contradicted by an
+  // earlier failed attempt on the way to it.
+  const record = {
+    number: 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+    comments: [{ body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'x', classification: 'correctness' }) }],
+  };
+  const rows = trustRows([record]);
+  assert.equal(rows[0].approved, 1);
+  assert.equal(rows[0].negativeEvidence, 0);
 });

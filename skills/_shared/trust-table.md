@@ -144,7 +144,13 @@ git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/trust-table-git-lo
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
-gh issue list --state all --json number,labels,body,state,stateReason,closedAt \
+# `comments` carries each record's own comment bodies — the negative-evidence
+# marker path (#268) reads `<!-- trust-negative-evidence: ... -->` back from
+# here (bin/lib/issues/retry.js's hasNegativeEvidenceMarker, consumed by
+# trust.js). It flows through untouched below: the records map spreads `...i`
+# before overriding only `labels`/`hasParent`, so `comments` needs no
+# separate line to reach trustRows.
+gh issue list --state all --json number,labels,body,state,stateReason,closedAt,comments \
   --limit "$LIMIT" > /tmp/trust-table-records.json
 node -e "
   const fs = require('fs');

@@ -4,7 +4,8 @@ Single source of truth for the `autonomy` policy lever (`supervised` default | `
 `unattended`). Referenced, not restated, by every consumer: `_shared/work-record.md` (permission
 matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (never-reversible list),
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
-`backlog/refine-mode.md` (Step 3.6), and — for the three bookkeeping capabilities this file also
+`backlog/refine-mode.md` (Step 3.6), `dispatch/settle-and-merge.md` (Step 6.5's negative-evidence
+persist point — see Revocation below), and — for the three bookkeeping capabilities this file also
 documents — `ledger/resolve-gate.md` (Phase 2 narrowing), `wrap-up/review-console.md` (queue-write
 auto-file), and `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge).
 
@@ -28,6 +29,52 @@ evaluated lazily against the record's tracker `closedAt` and an injected integra
 log. Neither source is exclusive: a class's `dispositioned` count and the `MIN_VERDICTS` floor it
 must clear can be made up of either kind of evidence, or both. Neither module applies a label —
 they answer whether a caller may, and the caller acts.
+
+## Revocation: negative evidence auto-revokes a class
+
+The evidence sources above are positive-only. Two negative-evidence sources write against the
+same cell and pin its verdict below `clean` — machine-granting for that class stops with no human
+action, unconditionally at **every** ceiling tier, not just `unattended`:
+
+1. **A `correctness`- or `ambiguous`-classified failure.** `/claude-tweaks:dispatch`'s Settle step
+   (`dispatch/settle-and-merge.md` Step 6.5) already classifies every HARD-GATE failure via
+   `/claude-tweaks:assess-agent-autonomy` `failure-check` mode. When the classification is
+   `correctness`/`ambiguous`, the same comment Settle already posts (`Attempt N failed: {reason}`)
+   carries a line-anchored `<!-- trust-negative-evidence: attempt=N classification=... -->` marker
+   (`bin/lib/issues/retry.js`'s `attemptFailedCommentBody`) — a `transient` classification's path
+   never carries it, by construction. `trust.js` reads the marker back from the record's comments
+   the next time it grades that record's cell.
+2. **A revert.** A closing commit `trust.js`'s operational-evidence path (above) would otherwise
+   have counted known-good, but a revert was discovered against it (`resolveOperationalOutcome`'s
+   `grade: 'bad'` result) — converts that record's contribution from known-good to known-bad on the
+   same lazy read. No stored verdict to invalidate; recomputation covers it.
+
+Either source is read as `trustRows`' `negativeEvidence` count on the cell. A cell with
+`negativeEvidence > 0` cannot read `clean` regardless of how many positive (approved/operational)
+outcomes it also holds — one known-bad outcome in the sample is disqualifying, the same precedence
+`changesRequested`/`followUps` already had. Negative evidence counts toward `dispositioned` (and
+therefore `MIN_VERDICTS`) exactly like every other real outcome signal — a known-bad record is not
+an unknown one.
+
+**Scope: applies only where no `demo:*` disposition already exists on the record** (the same
+`disposition === 'none'` branch the operational-good path already used) — a record that reached
+`demo:approved` keeps that disposition; an earlier failed attempt on the way to an eventual
+approval is not read as contradicting it. Changing dispatch's failure classification itself, its
+retry ceilings, or its `auto:merge` revocation-on-retry is out of scope here — those are documented
+in full in `dispatch/settle-and-merge.md` and unchanged; this section only makes that classification
+durably visible to the trust table.
+
+**Not currently time-windowed.** `_shared/trust-table.md`'s "Known limitation: no time window"
+section applies here too: `trust.js` has no sample-size cap or aging mechanism today — every count,
+positive or negative, is all-time. A class carrying negative evidence therefore stays pinned below
+`clean` indefinitely under the shipped module, not until it "ages out" — there is no expiry
+machinery to age it out with. A future trailing-evaluation window (see that section's own note) would
+apply uniformly to every count trust.js keeps, negative evidence included, without any change here —
+but until one ships, do not read a class's current `clean` verdict as proof it has never had a
+negative outcome; read it only as "no negative outcome inside its current all-time evidence sample."
+The marker's *absence* on a record means "no correctness/ambiguous failure since this shipped,"
+never "no failures ever" — records built before this leaf landed carry no marker regardless of
+their actual build history.
 
 ## What it authorizes
 

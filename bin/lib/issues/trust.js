@@ -8,6 +8,7 @@
 const { resolveProvenance } = require('./provenance.js');
 const { dispositionState } = require('./acceptance.js');
 const { resolveValue } = require('../policy-schema.js');
+const { hasNegativeEvidenceMarker } = require('./retry.js');
 
 // At roughly ten closed records per class per month, eight is about a month
 // of evidence — small enough to ever graduate, large enough that one lucky
@@ -119,14 +120,16 @@ function correctiveFollowUpTarget(body) {
 // A closed record's outcome becomes known a second way, alongside demo-descent:
 // merged and unreverted for at least `trust-revert-window-days` (default 14).
 // Evaluated lazily at read time from record state + an injected git log — no
-// scheduled job, no cached verdict file. This path only ever ADDS known-good
-// evidence; a reverted or undiscoverable close is never negative evidence,
-// only not-countable (the companion "failure classifications and reverts"
-// leaf owns negative evidence). A record where discovery finds nothing stays
-// unknown — never defaults to known-good. That is the coverage boundary this
-// module states about itself: a manual revert naming neither a `This
-// reverts commit <sha>` trailer nor the record number is an out-of-scope
-// false negative.
+// scheduled job, no cached verdict file. An undiscoverable close stays
+// unknown — never defaults to known-good or known-bad. That is the coverage
+// boundary this module states about itself: a manual revert naming neither a
+// `This reverts commit <sha>` trailer nor the record number is an
+// out-of-scope false negative.
+//
+// A *discovered* revert is negative evidence (#268), not merely
+// not-countable: it converts what would have been known-good into a
+// known-bad outcome for the record's class, on the same lazy read — there is
+// no stored verdict to invalidate, since nothing here is ever cached.
 //
 // Route 1 (a GitHub timeline `closed` event's commit reference) needs a
 // per-issue GitHub API call this module cannot make itself — it is pure, no
@@ -243,7 +246,10 @@ function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
   return false;
 }
 
-// (record, gitLog, now, windowDays) -> { known: false } | { known: true, grade: 'good', source: 'operational' }.
+// (record, gitLog, now, windowDays) ->
+//   { known: false }
+//   | { known: true, grade: 'good', source: 'operational' }
+//   | { known: true, grade: 'bad', source: 'revert' }
 // `now` is epoch milliseconds (the injected clock). The window anchors on
 // the record's tracker `closedAt` — never a git commit date or a PR
 // `merged_at` (this repo's squash/rebase conventions rewrite commit dates,
@@ -253,6 +259,12 @@ function isClosingCommitReverted(closingShas, recordNumber, gitLog) {
 // here; a record that is currently OPEN never needs to reach this function
 // meaningfully, since trustRows only builds cells from records whose `state`
 // is `'CLOSED'` in the first place.
+//
+// The revert branch (#268) only fires once the record has already cleared
+// the revert window and a closing commit was discovered — a young or
+// undiscoverable close still returns `{ known: false }` regardless of any
+// revert entry in the log, exactly as before. Only a *discovered* revert on
+// an otherwise-known-good record becomes negative evidence.
 function resolveOperationalOutcome(record, gitLog, now, windowDays) {
   if (!record || record.state !== 'CLOSED') return { known: false };
   const closedAtMs = typeof record.closedAt === 'string' ? Date.parse(record.closedAt) : NaN;
@@ -264,7 +276,9 @@ function resolveOperationalOutcome(record, gitLog, now, windowDays) {
   const closingShas = discoverClosingCommits(record, gitLog);
   if (closingShas.length === 0) return { known: false };
 
-  if (isClosingCommitReverted(closingShas, record.number, gitLog)) return { known: false };
+  if (isClosingCommitReverted(closingShas, record.number, gitLog)) {
+    return { known: true, grade: 'bad', source: 'revert' };
+  }
 
   return { known: true, grade: 'good', source: 'operational' };
 }
@@ -308,6 +322,7 @@ function trustRows(records, gitLog, now, policy) {
         approved: 0,
         changesRequested: 0,
         operationalGood: 0,
+        negativeEvidence: 0,
         undispositioned: 0,
         notPlanned: 0,
         followUps: 0,
@@ -324,10 +339,28 @@ function trustRows(records, gitLog, now, policy) {
     } else if (disposition === 'changes-requested') {
       cell.changesRequested += 1;
     } else if (disposition === 'none') {
-      // No demo:* disposition at all — try the operational path before giving up.
+      // No demo:* disposition at all — try the operational path, then the
+      // failure-classification marker, before giving up. Scoped to 'none'
+      // deliberately, symmetric with the pre-existing operational branch: a
+      // record already carrying a definitive demo:* verdict (approved,
+      // changes-requested, or pending below) keeps that verdict as its own
+      // disposition — an earlier failed attempt on the way to an eventual
+      // demo:approved is not read as contradicting that approval.
       const operational = resolveOperationalOutcome(record, gitLog, clock, windowDays);
-      if (operational.known) cell.operationalGood += 1;
-      else cell.undispositioned += 1;
+      if (operational.known && operational.grade === 'good') {
+        cell.operationalGood += 1;
+      } else if (operational.known && operational.grade === 'bad') {
+        // A discovered revert (#268) — negative evidence, not "undiscoverable".
+        cell.negativeEvidence += 1;
+      } else if (hasNegativeEvidenceMarker(record.comments)) {
+        // A correctness/ambiguous-classified failed attempt somewhere in this
+        // record's history (dispatch's Settle step, see settle-and-merge.md
+        // Step 6.5) — negative evidence for the record's class even though
+        // the record itself eventually closed with no demo:* disposition.
+        cell.negativeEvidence += 1;
+      } else {
+        cell.undispositioned += 1;
+      }
     } else {
       // 'pending' — an outstanding, unresolved human-review request. It IS a
       // demo:* disposition, so it must never reach the operational path above
@@ -350,7 +383,12 @@ function trustRows(records, gitLog, now, policy) {
   }
 
   const rows = Array.from(cells.values()).map((cell) => {
-    const dispositioned = cell.approved + cell.changesRequested + cell.operationalGood;
+    // negativeEvidence counts toward dispositioned like every other real
+    // outcome signal — a known-bad record is not "unknown", so folding it
+    // into undispositioned instead would understate coverage in the safe
+    // direction's opposite (a class with real negative history would read as
+    // less-observed than it is, when the honest read is the reverse).
+    const dispositioned = cell.approved + cell.changesRequested + cell.operationalGood + cell.negativeEvidence;
     const coverage = cell.total === 0 ? 0 : dispositioned / cell.total;
     let verdict = 'insufficient-evidence';
     if (
@@ -367,7 +405,15 @@ function trustRows(records, gitLog, now, policy) {
       // whatever evidence arrived afterward. It stays counted and stays rendered
       // — it says something real about a class's filing precision — but it is not
       // a verdict input.
-      const clean = cell.changesRequested === 0 && cell.followUps === 0;
+      //
+      // negativeEvidence (#268) is a precedence rule layered on top of this
+      // same clean/mixed split, not a reuse of the changesRequested/followUps
+      // check it sits beside: a correctness/ambiguous-classified failure or a
+      // discovered revert pins the verdict below 'clean' regardless of how
+      // many positive (approved/operationalGood) outcomes the cell also
+      // holds — one known-bad outcome in the sample is disqualifying, full
+      // stop, the same as one changes-requested already was.
+      const clean = cell.changesRequested === 0 && cell.followUps === 0 && cell.negativeEvidence === 0;
       verdict = clean ? 'clean' : 'mixed';
     }
     return { ...cell, dispositioned, coverage, verdict };
