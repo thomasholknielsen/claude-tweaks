@@ -140,7 +140,6 @@ leftover-default: defer            # defer | backlog | drop
 auto-fix-threshold: lint+type      # lint-only | lint+type | lint+type+test
 review-severity-floor: low         # none | low | medium  (auto-apply cutoff)
 tidy-aggressiveness: conservative  # conservative | moderate | aggressive
-unattended-tier: off               # off | on
 ```
 
 ## Don'ts

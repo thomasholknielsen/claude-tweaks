@@ -115,8 +115,9 @@ If the build used worktree git strategy, clean up the worktree directory:
    own git mechanics give the closing keyword no reliable home otherwise. Its "Merge locally"
    option runs a bare `git merge <feature-branch>` with no `--no-ff` — git fast-forwards
    silently whenever possible, producing **no merge commit at all** to carry a message into.
-   Its "Push and Create PR" option only runs `git push` — it never calls `gh pr create`, so
-   there is no PR body either. Stamping the feature branch itself sidesteps both: the keyword
+   Its "Push and Create PR" option pushes, then creates the PR "with the forge's tooling — its
+   CLI if one is available" — for a GitHub remote, that's `gh pr create` — but nothing guarantees
+   the resulting PR body carries a closing keyword. Stamping the feature branch itself sidesteps both: the keyword
    travels with the branch regardless of which of the four options gets chosen (fast-forward
    merge, non-ff merge, push+PR — even one the user creates manually afterward — or
    keep-as-is), because GitHub scans every commit that reaches the default branch, not just a
@@ -242,8 +243,8 @@ stop before attempting any release.
 3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Resolve `$RUN_ID`
    first: `RUN_ID="${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}"`. `CLAIM_RUN_ID` is set by
    `/flow` whenever *its own* caller set it (dispatch always does for both issue-mode singletons
-   and multi-spec bundles — see `dispatch/SKILL.md`'s "Step 5: Dispatch — one Task agent per
-   group") — the issue was claimed under that run
+   and multi-spec bundles, on both of a group's two Task calls — see `dispatch/SKILL.md`'s
+   "Step 5: Dispatch — one group at a time, sequentially") — the issue was claimed under that run
    id, a different and earlier one than this pipeline's own `PIPELINE_RUN_DIR`, so using the
    latter here would make every dispatch-originated release wrongly conclude "a successor holds
    the lock" and skip the delete and the comment on every success. A spec reaching this point

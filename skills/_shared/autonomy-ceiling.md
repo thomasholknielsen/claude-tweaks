@@ -3,8 +3,10 @@
 Single source of truth for the `autonomy` policy lever (`supervised` default | `trusted` |
 `unattended`). Referenced, not restated, by every consumer: `_shared/work-record.md` (permission
 matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (never-reversible list),
-`_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception), and
-`backlog/refine-mode.md` (Step 3.6).
+`_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
+`backlog/refine-mode.md` (Step 3.6), and — for the three bookkeeping capabilities this file also
+documents — `ledger/resolve-gate.md` (Phase 2 narrowing), `wrap-up/review-console.md` (queue-write
+auto-file), and `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge).
 
 **Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
 is about the born-`ready` tier only — it is not a statement about everything the ceiling
@@ -32,8 +34,46 @@ they answer whether a caller may, and the caller acts.
 | Ceiling | Unlocks — only for classes that have earned it |
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
-| `trusted` | Two things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. |
-| `unattended` | Everything `trusted` allows, plus machine-originated `auto:build`. **That half is shut behind its own opt-in** — see below. |
+| `trusted` | Three things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). |
+| `unattended` | Everything `trusted` allows, plus a third bookkeeping capability (`opsAckAutoAcknowledge`) and machine-originated `auto:build`. **The `auto:build` half is shut behind its own opt-in** — see below. |
+
+## Bookkeeping capabilities
+
+Three narrow, opt-in, logged, fully reversible bookkeeping behaviors, resolved by
+`bin/lib/issues/autonomy.js`'s `bookkeepingPermissions(ceiling)`:
+
+| Capability | Unlocked at | What it does |
+|---|---|---|
+| `ledgerNarrowing` | `trusted`+ | `ledger/resolve-gate.md` Phase 2 skips the per-item drill for an item whose Phase 1 blocker reason clears the floor (below), auto-selecting `Route to a record -> Keep (backlog)` only. Never `Fix anyway`, `Accept`, `Drop`, or `Defer -> parked` from this drill specifically. |
+| `queueWriteAutoFile` | `trusted`+ | `wrap-up/review-console.md` creates a proposed record (from the above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead of waiting for a live per-item approval at the Review Console. |
+| `opsAckAutoAcknowledge` | `unattended` only | `wrap-up/nothing-left-behind.md`, wrap-up's Phase 3 ledger gate — auto-acknowledges every ops item instead of presenting the acknowledgment drill. Held to the higher tier deliberately: this is the one bookkeeping capability that skips acknowledging a post-merge infrastructure follow-up, not just a reversible ledger/queue item. |
+
+None of the three touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
+conditions, or merge-conflict resolution — those stay fully human-gated at every tier.
+
+### Floor rule (ledger narrowing)
+
+`ledgerNarrowing` only narrows an item whose Phase 1 blocker reason matches one of the four
+categories `ledger/resolve-gate.md`'s Phase 1 already requires as legitimate:
+
+| Category | Example blocker-reason text |
+|---|---|
+| External state | "Requires external state (third-party API data)" |
+| User product/design decision | "Needs a product decision on the rate-limit value" |
+| Not-yet-built dependency | "Depends on functionality not yet built in this pipeline" |
+| Scope expansion | "Would expand scope — breaks 14 unrelated tests" |
+
+Implemented by `bin/lib/issues/autonomy.js`'s `clearsFloor(blockerReason)`. Anything else —
+including an ambiguous or unrecognized reason — fails closed: ask, exactly as if the capability
+were locked for that one item.
+
+### Restricted-disposition rule
+
+`ledgerNarrowing` only ever authorizes routing to a new **backlog** record (no `parked` stage, no
+trigger to invent) from the ledger drill. Leftover routing is different: it follows whatever
+disposition (`backlog` or `parked`) its own existing `leftover-default` auto-mode policy already
+decided — this capability only changes whether *creating* that record needs a click, never which
+disposition auto-mode policy already picked.
 
 ## Ceiling, not level
 
@@ -136,11 +176,31 @@ uses:
 AUTO {time} — {what}. Reason: {policy-source}. Reversibility: high.
 ```
 
-Example:
+Examples:
 
 ```
 AUTO 15:04:22 — Filed #212 born-ready (class producer:code-health/low, verdict clean, ceiling trusted). Reversibility: high.
+AUTO 15:06:03 — Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
+AUTO 15:06:04 — Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
+AUTO 15:06:05 — Ops acknowledgment: 2 items auto-acknowledged, staged for filing. Reversibility: high.
 ```
 
 A ceiling-authorized action with no log entry is forbidden, exactly as for every other auto-resolved
 decision — silent automation without an audit trail is the one thing `auto` never permits.
+
+## Notification (bookkeeping capabilities)
+
+One consolidated `PushNotification` per run, sent at the same point the existing auto-merge fast
+lane sends its FYI (see `wrap-up/review-console.md`'s auto-merge short-circuit) — not one
+notification per item. Summarize every action the three bookkeeping capabilities resolved in the
+run.
+
+## Error handling (bookkeeping capabilities)
+
+Every failure path fails toward asking, not toward silence:
+
+- Record creation fails (`gh issue create` / `local-store.js` error) — leave the proposal
+  staged, log the failure, let it render as a normal Queue write at the console.
+- `PushNotification` fails or isn't configured — non-blocking; `decisions.md` and the Wrap-Up
+  summary remain the durable record.
+- Floor check is ambiguous — fails closed, ask exactly as if the capability were locked.

@@ -11,10 +11,6 @@ function readFixture(name) {
   return fs.readFileSync(path.join(FIXTURES_DIR, name), 'utf8');
 }
 
-function deepClone(v) {
-  return JSON.parse(JSON.stringify(v));
-}
-
 // Builds one known-valid dependency object (not YAML — a plain JS object,
 // matching what parseManifest would have produced) so validation tests can
 // delete/mutate a single field without re-authoring YAML per case.
@@ -209,7 +205,7 @@ test('each of the eight required dependency keys, when missing, produces a valid
 
 test('a duplicate dependency name produces a validation error', () => {
   const dep1 = validDependency();
-  const dep2 = deepClone(validDependency());
+  const dep2 = validDependency();
   dep2.pinned = '2.0.0';
 
   const errors = validateManifest({ dependencies: [dep1, dep2] });
@@ -399,6 +395,6 @@ test('P3: quoted values containing colons are unaffected, and the real manifest.
   const result = loadManifest(realManifestPath);
   assert.deepStrictEqual(
     result.dependencies.map((d) => d.name),
-    ['impeccable-cli', 'impeccable-plugin'],
+    ['impeccable-cli', 'impeccable-plugin', 'superpowers'],
   );
 });

@@ -26,4 +26,4 @@ A claim is the existence of the ref `refs/claims/issue-<n>`, created via the Git
 - Claims are issue-granular regardless of how work batches into branches; releasing = deleting the ref (fully reversible).
 - Crashed runs leave stale claims — handled by TTL aging plus `/tidy`'s sweep (Step 4.7), never by silent automation.
 - The sha a claim ref points at is meaningless (ref existence is the lock) — surprising to readers, documented in the contract.
-- Revisit triggers: GitHub shipping a native lease/claim primitive, or Phase 2's ownership-check hardening proving insufficient against claim-deletion races (see the design doc's Phase 2 addendum).
+- Revisit triggers: GitHub shipping a native lease/claim primitive, or Phase 2's ownership-check hardening proving insufficient against claim-deletion races. (Phase 2 has not shipped as of this writing — `skills/_shared/issue-claims.md` has no ownership-check content, and the originating design doc is no longer in the repo, likely swept by ADR 0007's periodic archive prune.)
