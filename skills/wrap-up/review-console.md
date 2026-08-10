@@ -17,6 +17,7 @@ When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md`'s Phase 1
 
 - Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
 - Skip that same branch's acceptance labeling — no `demo:pending` label write and no Verification Brief comment. Compose the brief and print it as a preview line instead. It is a network write to a live record, so it is preview-only for the same reason the merge is; the bullet above names only the two git commands because they were the only writes on that path when it was written.
+- Skip the pending-review durability push and draft-PR creation (see the section of that name below) — print what would have been pushed and which PR would have been opened as preview lines instead. Both are writes to origin and to a live PR surface, preview-only for the same reason the merge is.
 - Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
 - Queue writes (`Q#` items), Memory updates (`M#` items), and Upstream feedback (`U#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead; under `--dry-run` no memory file is ever written and `/claude-tweaks:feedback` is never invoked.
 - Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
@@ -209,28 +210,15 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 
 ## Ledger narrowing auto-file (runs before rendering)
 
-Resolve the `ceiling` per `_shared/autonomy-ceiling.md`'s existing precedence ladder. If
-`bookkeepingPermissions(ceiling).queueWriteAutoFile === true` (`bin/lib/issues/autonomy.js`), before building any of the tables
-below: for every queue-write proposal already staged (from ledger Phase 2's narrowing, leftover
-routing's staging (Phase 3), or `/reflect`'s tangential-idea routing Step 3 — all three run earlier
-in `/wrap-up`'s own phase order, before this console) create the record directly via the same `gh issue
-create` / `local-store.js` path "On approval" step 5 below already uses, log it as `AUTO` instead
-of `STAGED`, and list it under **Auto-applied** instead of **Queue writes**. On a fully-on run
-with no ambiguous residue, the Queue writes section below therefore renders empty.
+Read `ledger-narrowing-auto-file.md` in this skill's directory and follow it before building any of the tables below — when `_shared/autonomy-ceiling.md`'s `queueWriteAutoFile` capability is unlocked, a staged queue-write proposal is created directly and logged as `AUTO` (listed under **Auto-applied**) instead of waiting for the Queue writes section's per-item approval.
 
-Do not sweep up reflect's non-queue-write staged findings (convention drift, pattern
-observations, skill-update proposals) here — identify a queue write the same way this console
-already distinguishes one: a `decisions.md` `STAGED or AUTO` entry phrased as a record proposal
-("-- backlog candidate" / a `leftover-` or `ledger-record-` staged file), not a bare stage path.
-(Ledger Phase 2's own narrowing step logs its entry as `AUTO`, not `STAGED` — the detection
-heuristic must catch both kinds, not just `STAGED`.)
+## Pending-review branch durability (dispatch-originated runs)
 
-Note: auto-filing a narrowed item here therefore produces two `AUTO` log entries — the
-narrowing step's own entry plus this step's own entry for the same item. This is expected,
-not a bug; it is just undocumented elsewhere.
+Run this before rendering the console below, never after — the console ends in a blocking `AskUserQuestion` that a headless firing never returns from, so a step scheduled after it does not run on the very path it exists to protect.
 
-If record creation fails for one proposal, leave that one staged and let it render normally in
-Queue writes below — do not drop it.
+**Gate the read.** Read `_shared/pending-review-durability.md` — the scope guard, the worktree-safe push, the existing-open-PR check, the draft-PR creation, and the push/PR failure fallbacks — only when `CLAIM_RUN_ID` is set and non-empty (dispatch-originated; an interactive human-run `/flow` never sets it), **and** this run used a worktree strategy, **and** this `/flow` invocation's step list contained `review` and that step passed (a `wrap-up`-only invocation is `dispatch/two-call-gate.md` section 5's failure-path teardown call, reaching this console with `CLAIM_RUN_ID` set on a genuinely `failed` run — so the outcome condition is enforced here, not merely asserted inside the file). Otherwise skip this section entirely and do not read the file.
+
+That file owns the whole procedure and the reasons behind it, including why it never calls `close-run` and never clears the run's worktree assignment: this run stays `active`, exactly as an un-pushed `pending-review` outcome does today, and only gains a branch on origin plus one open draft PR.
 
 ## Present the console
 

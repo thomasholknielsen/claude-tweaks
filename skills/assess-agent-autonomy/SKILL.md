@@ -57,12 +57,12 @@ site invokes this skill as bare `ceremony-check` with no trailing `#{n}` at all.
 and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass `#{n}`.
 
 `--base <ref>` is `merge-check`-only: an optional pre-known merge-base commit or ref the caller
-already has in context (e.g. dispatch's per-group Task agent, which ran `/flow` and set up the
-worktree itself). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
+already has in context (e.g. one of dispatch's per-group Task calls, which ran `/flow` inside the
+worktree its dispatching session set up). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
 the merge base from this project's integration branch. Ignored by the other three modes.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
-human-driven `/claude-tweaks:backlog refine` session, or dispatch's per-group Task agent running `/flow`)
+human-driven `/claude-tweaks:backlog refine` session, or one of dispatch's per-group Task calls running `/flow` — `failure-check` from the `build,test` call, `merge-check` from the `review,polish,wrap-up` one)
 runs this skill's procedure in its own context and reads the produced report directly; there is no
 cross-process hand-off.
 
@@ -167,14 +167,14 @@ verdict are already in its own context. Confirm rather than re-derive where poss
 is the commit this run's worktree branched from — the same base the pipeline's own build started
 from.
 
-- **If the caller passed `--base <ref>`** (see Input — e.g. dispatch's per-group Task agent, which
-  ran `/flow` and set up the worktree itself, often already knows this value), use it directly:
+- **If the caller passed `--base <ref>`** (see Input — e.g. one of dispatch's per-group Task calls,
+  which ran `/flow` inside its dispatching session's worktree, often already knows this value), use it directly:
   `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
 
 - **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`.
   `--base <ref>` short-circuits that ladder entirely rather than being a rank of it — it names a
   merge-base commit, not a branch, so a caller that already knows the merge base
-  (dispatch's per-group Task agent, which set up the worktree itself) passes it and skips
+  (one of dispatch's per-group Task calls, running inside the worktree its dispatching session set up) passes it and skips
   resolution entirely.
 
   If nothing resolves — no `origin` remote, no `gh` auth, an offline or detached runner — stop
