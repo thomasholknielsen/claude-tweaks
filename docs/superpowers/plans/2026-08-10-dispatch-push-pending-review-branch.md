@@ -24,6 +24,7 @@ Copied from the spec (`.claude-tweaks/pipelines/2026-08-09T191318-spec-295-296-2
   | `skills/dispatch/task-prompt.md` | 9449 | 31511 |
   | `skills/flow/SKILL.md` | 40903 | **57 — do not touch this file** |
 - **Never run a full foreground `npm test` between an implementer's last edit and its commit** (`[IL-108]`). Run only the focused suite named in the task, commit, and leave the full suite to the controller.
+- **Every regex in this plan that matches skill-file PROSE is whitespace-flexible — literal spaces are written `\s+`.** Skill markdown is hard-wrapped, so a single-line literal match returns zero while the phrase is plainly present (`[IL-66]`). Regexes matching a single line inside a fenced code block keep their literal spaces; a fenced line does not wrap. Preserve this distinction exactly as each task's test code gives it.
 - Do not use emojis in skill files. Do not add "What's Next?" navigation menus.
 - Every relationship between skills is stated once, in `docs/skill-graph.md` — never restated in a `SKILL.md`.
 - A skill reference inside actionable instruction text uses the fully-qualified `/claude-tweaks:{skill}` form; bare `/{skill}` is for descriptive prose only.
@@ -91,7 +92,7 @@ const DURABILITY = read('skills', '_shared', 'pending-review-durability.md');
 test('the scope guard gates on CLAIM_RUN_ID as the headless signal', () => {
   assert.match(
     DURABILITY,
-    /`CLAIM_RUN_ID` is set and non-empty/,
+    /`CLAIM_RUN_ID`\s+is\s+set\s+and\s+non-empty/,
     'without an explicit CLAIM_RUN_ID gate this pushes and opens PRs for interactive human-run /flow sessions too, where the human already has the branch in their own terminal',
   );
 });
@@ -99,7 +100,7 @@ test('the scope guard gates on CLAIM_RUN_ID as the headless signal', () => {
 test('the scope guard excludes failed and blocked outcomes', () => {
   assert.match(
     DURABILITY,
-    /Never push or open a PR for a `failed` or `blocked` outcome/,
+    /Never\s+push\s+or\s+open\s+a\s+PR\s+for\s+a\s+`failed`\s+or\s+`blocked`\s+outcome/,
     'pushing an incomplete or broken branch is noise, not signal — the exclusion has to be stated, not inferred from the pending-review wording',
   );
 });
@@ -107,7 +108,7 @@ test('the scope guard excludes failed and blocked outcomes', () => {
 test('the procedure states it never calls close-run', () => {
   assert.match(
     DURABILITY,
-    /never calls `close-run`/,
+    /never\s+calls\s+`close-run`/,
     "close-run exists in the merge path to clear the run's worktree assignment for a main-checkout merge; reusing it here would end the run's worktree enforcement for a run that is still active",
   );
 });
@@ -115,7 +116,7 @@ test('the procedure states it never calls close-run', () => {
 test("the procedure states it never clears the run's worktree assignment", () => {
   assert.match(
     DURABILITY,
-    /never clears the run's worktree assignment/,
+    /never\s+clears\s+the\s+run's\s+worktree\s+assignment/,
     'the run must stay active with its worktree assigned — the only difference after this procedure is that the branch also exists on origin',
   );
 });
@@ -139,7 +140,7 @@ test('an existing open PR on the branch is detected before creating one', () => 
 test('a push failure falls back to today behavior instead of attempting the PR', () => {
   assert.match(
     DURABILITY,
-    /the branch stays local, the console renders unchanged/,
+    /the\s+branch\s+stays\s+local,\s+the\s+console\s+renders\s+unchanged/,
     'a failed push must degrade to exactly the pre-#297 behavior, not to a half-state that also tries to open a PR for a branch origin does not have',
   );
 });
@@ -147,7 +148,7 @@ test('a push failure falls back to today behavior instead of attempting the PR',
 test('a PR-creation failure is retried exactly once', () => {
   assert.match(
     DURABILITY,
-    /retry it once/,
+    /retry\s+it\s+once/,
     'the durability goal is already met once the push landed, so the PR gets one retry and then a recorded failure — never an unbounded loop and never a silent drop',
   );
 });
@@ -163,7 +164,7 @@ test('the PR base ref resolves through the shared integration-branch ladder', ()
 test('the outcome record is written to the run-dir root, never staged/', () => {
   assert.match(
     DURABILITY,
-    /\*\*Root, never `staged\/`\.\*\*/,
+    /\*\*Root,\s+never\s+`staged\/`\.\*\*/,
     "both consoles classify a staged file carrying a Title:/Type:/Labels: header as a queue write needing its own per-item approval — a status note is neither a proposal nor a work record",
   );
 });
@@ -480,7 +481,7 @@ test("the wrap-up console's dry-run mode suppresses the push and the PR", () => 
   const end = WRAP_CONSOLE.indexOf('## Auto-merge short-circuit', start);
   assert.match(
     WRAP_CONSOLE.slice(start, end),
-    /pending-review durability/i,
+    /pending-review\s+durability/i,
     '--dry-run is preview-only for every write on this page; a push to origin and a live PR are writes, and omitting them from that list is how a "preview" run publishes a branch',
   );
 });
@@ -804,7 +805,7 @@ const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
 test('the reporting template tells the agent a durability PR is still pending-review', () => {
   assert.match(
     TASK_PROMPT,
-    /not `pr-opened`/,
+    /not\s+`pr-opened`/,
     'the agent picks its OUTCOME from this template and never reads dispatch/SKILL.md; with a draft PR now open on the pending-review path, nothing in its own prompt distinguishes the two values',
   );
 });
