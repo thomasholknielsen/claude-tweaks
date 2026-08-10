@@ -10,35 +10,13 @@ Run substeps 2.5, 2.6, and 2.7 in order. Any hard fail or rejection stops the pi
 
 ## 2.5 — Merge check
 
-Read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled and worktree strategy resolves to `worktree`, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
-
-A project that pins an integration branch names the expected fork point directly, replacing the upstream-then-`origin/HEAD` guess. Only the *stated* ranks of `skills/_shared/integration-branch.md` apply here — the policy line below, and any explicit argument or CLAUDE.md statement above it. **That fragment's git-inference rank must not be used for this check:** it resolves a branch in nearly every repo, which would shadow the `@{upstream}` fallback and make `/claude-tweaks:flow` on a tracked feature branch compare against the wrong ref and warn about a divergence that isn't there.
-
-```bash
-# Integration branch when the project pins one, else the upstream of the current
-# branch, else the remote default branch (origin/HEAD). Assigned and used in the
-# same call — a fresh shell per Bash invocation means a value resolved elsewhere
-# would arrive empty here, and an empty UPSTREAM silently skips the check.
-INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
-UPSTREAM="${INTEGRATION_BRANCH:+origin/$INTEGRATION_BRANCH}"
-[ -n "$UPSTREAM" ] || UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
-  || UPSTREAM="origin/$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
-git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
-ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
-```
-
-If `ahead > 0`, surface the divergence (`git log --oneline HEAD..$UPSTREAM | head -5`) and call `AskUserQuestion`:
-- `question`: `"{UPSTREAM} is {N} commits ahead — how do you want to proceed?"`, `header`: `"Merge check"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Rebase first (Recommended)"`, `description`: `"Rebase onto {UPSTREAM} before continuing"`
-- Option 2 — `label`: `"Continue anyway"`, `description`: `"Proceed as-is; add an ops ledger entry noting the divergence"`
-
-In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
+Read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled and worktree strategy resolves to `worktree`, run `_shared/worktree-setup.md`'s `## Pre-flight divergence check` — the canonical resolution + fetch + `ahead`-count procedure, consolidated out of what were two byte-identical copies here and in `skills/build/worktree-setup.md` (`[IL-32]`). That section's `AskUserQuestion` and auto-mode handling apply as written there; this step's own log line reads:
 
 ```
 AUTO {time} — Step 2.5: pre-flight merge-check — {UPSTREAM} is {N} ahead. Continued and added ops ledger entry. Reversibility: low (divergence persists).
 ```
 
-> **Base ref:** `/flow` worktrees branch from the current local HEAD via `worktree.baseRef: "head"` (settings.json), and `/build` Common Step 1 verifies the resulting base after creation. See `skills/build/worktree-setup.md` ("Base ref" + Step 0/4) — the harness default `fresh` branches from a possibly-stale `origin/<default-branch>` and the plugin cannot override it through `EnterWorktree`.
+> **Base ref:** `/flow` worktrees branch from the current local HEAD via `worktree.baseRef: "head"` (settings.json), and `/build` Common Step 1 unconditionally catches the resulting worktree up with the integration branch after creation regardless of the actual base. See `skills/build/worktree-setup.md` ("Base ref" + Step 4) and `_shared/worktree-setup.md`'s `## Post-creation catch-up` — the harness default `fresh` branches from a possibly-stale `origin/<default-branch>` and the plugin cannot override it through `EnterWorktree`.
 
 **Memo stamp (re-read cut).** When this check runs (worktree strategy resolves to `worktree` and `merge-check: true`), capture `$UPSTREAM` and `$(git rev-parse "$UPSTREAM" 2>/dev/null)` from the block above. Step 4's `/claude-tweaks:build` invocation carries these forward as `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` so `build/worktree-setup.md`'s own Pre-flight merge check — otherwise a byte-for-byte re-run of this same fetch-and-compare, moments later, in the freshly created worktree — can trust this run's result instead of repeating it. This is the same conversational context-threading convention already used for `VERIFICATION_PASSED`/`STORIES_DIR`/`DEV_URL` (`SKILL.md` Step 4's "Pass context forward"), not a new file — the value only needs to survive one hop (this step to the `/build` invocation the same orchestrating turn composes), and every consumer of `_shared/pipeline-run-dir.md`'s state already lives in files, which this narrow, single-hop value doesn't need to. When `merge-check: false` or git strategy is `current-branch`, this step is skipped entirely — nothing to stamp, and `MERGE_CHECK_PASSED` is simply never passed (build's own check runs normally, fail-open).
 

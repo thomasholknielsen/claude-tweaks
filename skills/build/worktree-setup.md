@@ -10,62 +10,21 @@ For why `worktree.baseRef` matters and what `fresh` vs `head` do, see
 `_shared/worktree-base-ref.md` — the canonical explanation, shared with
 `init/bootstrap/step-06-worktree-configuration.md`'s provisioning-time offer. Set
 `worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pass
-the base ref through the tool, Step 0 below **verifies** the resulting base and
-surfaces a mismatch loudly rather than letting it pass silently.
+the base ref through the tool, Step 4 below **unconditionally catches the new
+worktree up** with the integration branch instead of verifying the base and
+stopping on a mismatch — see `_shared/worktree-setup.md`'s `## Post-creation
+catch-up` for why the unconditional form is correct either way.
 
 ## Procedure
 
-0. **Capture the expected base** — before creating anything, record the commit the worktree should branch from:
-   ```bash
-   EXPECTED_BASE=$(git rev-parse HEAD)
-   BASE_BRANCH=$(git branch --show-current)
-   ```
+1. **Pre-flight merge check** — read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`).
 
-1. **Pre-flight merge check** — read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
+   **Skip when already stamped by `/flow` (re-read cut).** When this invocation received `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` from `/flow`'s Step 2.5 (per `flow/validation.md`'s "Memo stamp" note), resolve `$UPSTREAM` the same way `_shared/worktree-setup.md`'s `## Pre-flight divergence check` does and compare `git rev-parse "$UPSTREAM"` against the stamped `{sha}`. A match means `/flow` already ran this exact check moments ago in this same run — skip the fetch and the divergence prompt entirely, and proceed straight to Step 2. A mismatch (the ref moved since the stamp — rare, but possible under a slow Manifesto or materialize step) or a missing stamp (standalone `/claude-tweaks:build`, no `/flow` parent) runs the full check below — **fail-open, never fail-skip**: an absent or stale stamp is not a reason to skip the safety check, only a matching one is.
 
-   **Skip when already stamped by `/flow` (re-read cut).** When this invocation received `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` from `/flow`'s Step 2.5 (per `flow/validation.md`'s "Memo stamp" note), resolve `$UPSTREAM` the same way the block below does and compare `git rev-parse "$UPSTREAM"` against the stamped `{sha}`. A match means `/flow` already ran this exact check moments ago in this same run — skip the fetch and the divergence prompt entirely, and proceed straight to Step 2. A mismatch (the ref moved since the stamp — rare, but possible under a slow Manifesto or materialize step) or a missing stamp (standalone `/claude-tweaks:build`, no `/flow` parent) runs the full check below — **fail-open, never fail-skip**: an absent or stale stamp is not a reason to skip the safety check, only a matching one is.
-
-   A project that pins an integration branch names the expected fork point directly, replacing the upstream-then-`origin/HEAD` guess. Only the *stated* ranks of `skills/_shared/integration-branch.md` apply here — the policy line below, and any explicit argument or CLAUDE.md statement above it. **That fragment's git-inference rank must not be used for this check:** it resolves a branch in nearly every repo, which would shadow the `@{upstream}` fallback and make `/claude-tweaks:build` on a tracked feature branch compare against the wrong ref and warn about a divergence that isn't there.
-
-   ```bash
-   # Integration branch when the project pins one, else the upstream of the current
-   # branch, else the remote default branch (origin/HEAD). Assigned and used in the
-   # same call — a fresh shell per Bash invocation means a value resolved elsewhere
-   # would arrive empty here, and an empty UPSTREAM silently skips the check.
-   INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
-   UPSTREAM="${INTEGRATION_BRANCH:+origin/$INTEGRATION_BRANCH}"
-   [ -n "$UPSTREAM" ] || UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
-     || UPSTREAM="origin/$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
-   git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
-   ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
-   ```
-   If `ahead > 0`, surface the divergence before creating the worktree:
-   ```
-   {UPSTREAM} has {N} commit(s) since your local copy:
-
-   {git log --oneline HEAD..$UPSTREAM | head -5}
-
-   Long-running worktrees diverge from the integration branch and create merge conflicts later. Options:
-   1. Rebase {UPSTREAM} into local first, then create worktree **(Recommended)**
-   2. Continue with current state — accept the conflict at branch finish
-   ```
-   In `auto` mode, automatically choose option 2 and add a ledger entry with phase `ops` and status `acknowledged` documenting the divergence (so wrap-up surfaces it as a manual step).
+   Otherwise, run `_shared/worktree-setup.md`'s `## Pre-flight divergence check` in full — the same procedure `/flow`'s own Step 2.5 runs (`flow/validation.md`), consolidated into one canonical copy rather than two independently maintained ones.
 2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace
 3. The skill handles: branch creation, dependency install, baseline test verification
-4. **Verify the base ref** — immediately after creation, before any commits, confirm the worktree branched from `EXPECTED_BASE`:
-   ```bash
-   ACTUAL_BASE=$(git -C "$WORKTREE" rev-parse HEAD)
-   ```
-   If `ACTUAL_BASE != EXPECTED_BASE`, the worktree branched from the wrong commit (almost always `worktree.baseRef: fresh` pulling a stale `origin/<default-branch>`). **STOP and surface it** — do not proceed on a stale base:
-   ```
-   **Worktree base mismatch** — branched from {ACTUAL_BASE short} but expected {EXPECTED_BASE short} ({BASE_BRANCH}).
-   This is the harness `worktree.baseRef` setting (default `fresh` = origin default branch), which the plugin cannot override through EnterWorktree.
-
-   Fix: set `worktree.baseRef: "head"` in settings.json, then options:
-   1. Remove this worktree and recreate with baseRef=head **(Recommended)**
-   2. Rebase this worktree branch onto {BASE_BRANCH} (replays the empty branch onto the right base)
-   ```
-   **Never recover with `git reset --hard`** — it is forbidden by `_shared/git-discipline.md` (it wipes concurrent work). Use rebase or recreate. In `auto` mode, choose option 1 (remove + recreate) since the branch has no commits yet, and log the correction to the auto-decision log.
+4. **Catch up with the integration branch** — immediately after creation, before any commits, run `_shared/worktree-setup.md`'s `## Post-creation catch-up` unconditionally. This is the correctness net regardless of whether Step 1's divergence check ran or was skipped, and regardless of whether `worktree.baseRef` actually took effect through `EnterWorktree` — a worktree that branched from a stale `origin/<default-branch>` (the harness's `fresh` default) ends this step content-identical to `origin/{integration-branch}` either way. There is no separate base-ref verification step here anymore — the unconditional catch-up makes a stale-base STOP-and-ask moot rather than removing a safety net (the branch has no commits yet, so there is nothing a merge onto the correct base could destroy).
 4.5. **Record the assignment** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "$RUN_DIR" "$WORKTREE"` so the working-directory hook (E1) can enforce commits land in this worktree. Pass `--run "$RUN_DIR"` explicitly — resolve `$RUN_DIR` per `_shared/pipeline-run-dir.md` immediately before this command, do not rely on the command's own fallback resolver (`resolveRunDir`'s "newest non-terminal run" heuristic), which any stale never-closed run elsewhere in the project can win over this one; a Bash tool call does not inherit environment exports from an earlier, separate call, so `$RUN_DIR` must be re-resolved (or read back from wherever this run tracked it) in the same command that invokes `record-worktree`, not assumed to already be in the process environment. Either cwd works — the main checkout or the worktree. Run-dir resolution is anchored to the main checkout (`bin/lib/hooks/context.js`'s `iterRunDirsWithState`, per `_shared/pipeline-run-dir.md`'s Anchoring section), so a session inside a linked worktree resolves the same run set as one in the main checkout, and the `worktree.always` gate's one exemption permits the resulting write to `.claude-tweaks/pipelines/` from either. (Before anchoring shipped, the worktree held no `.claude-tweaks/` directory at all and resolution failed from inside it — hence the older instruction to run this from the main checkout, which is no longer needed.) On success the command prints `claude-tweaks: worktree recorded for <run-id>` to stdout (or `claude-tweaks: no pipeline run dir found — worktree not recorded` if resolution failed); verify that confirmation line before proceeding. The command also stamps the current session as the run's owner (from `CLAUDE_CODE_SESSION_ID`), which scopes E1 enforcement to this session — commits from other sessions in the main checkout get a warning instead of a deny. If a different session later continues this pipeline (e.g. after a session fork), re-run `record-worktree --run "$RUN_DIR"` to reclaim ownership — from either cwd, for the anchoring reason above; it is an idempotent restamp.
 5. All subsequent work happens in the worktree
 

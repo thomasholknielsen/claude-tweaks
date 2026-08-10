@@ -107,7 +107,8 @@ function run(ctx) {
         parts.push(
           'claude-tweaks: this project requires an isolated worktree for all work ' +
             '(policy: worktree.always in .claude-tweaks/policy.yml). Before making any edits, ' +
-            'invoke /superpowers:using-git-worktrees to set one up.',
+            'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
+            "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
         );
       }
     }
