@@ -44,12 +44,52 @@ not a theoretical one (`[IL-106]`), and this fetch-then-merge is what makes the 
 calling procedure correct either way — never skipped, never conditioned on the creation path,
 never assumed already-satisfied just because the worktree is brand new.
 
-On a merge conflict, resolve it per `_shared/git-discipline.md`'s Merge conflict resolution —
-never reset or discard. A freshly created worktree has no local commits yet to protect, so a
-conflict here means the new branch's starting point (the harness's chosen base) actually
-disagrees with the integration branch's tip; read both sides and produce a merged result, or
-surface it to the user if genuinely ambiguous. This is the one case where "unconditional" still
-needs a human/agent decision.
+**Also catch up the other direction, when the caller captured one.** The fetch+merge above only
+protects the "worktree fell behind the integration branch" direction. If the branch the worktree
+was meant to start from itself carries local-only commits not yet on `origin` (observed in
+practice: `worktree.baseRef: fresh` has been seen to actually resolve against a stale *local*
+default-branch ref rather than the freshly fetched `origin/<default-branch>` its own name
+implies), those commits are silently absent from the new worktree with no signal — the same gap
+the base-ref verification this section replaced used to catch, in that one direction. When the
+calling procedure captured a pre-creation `EXPECTED_BASE` (`git rev-parse HEAD` on the branch the
+worktree starts from, taken *before* creation), also run:
+
+```bash
+git merge {EXPECTED_BASE}
+```
+
+This is safe unconditionally: on a freshly created branch with no commits of its own,
+`{EXPECTED_BASE}` and `origin/{integration-branch}` are either already ancestor-related (the
+merge is a no-op) or have genuinely diverged, in which case this merge surfaces exactly the same
+way any other conflict does (see below) — there is no case where running it loses information a
+caller that captured `EXPECTED_BASE` would want kept. A caller with no `EXPECTED_BASE` to
+capture (there was no "branch the worktree starts from" — e.g. a from-scratch scratch worktree)
+skips this merge; the fetch+merge above still runs on its own.
+
+On a merge conflict from either merge, resolve it per `_shared/git-discipline.md`'s Merge conflict
+resolution — never reset or discard. A freshly created worktree has no local commits yet to
+protect, so a conflict here means the new branch's starting point (the harness's chosen base)
+actually disagrees with the integration branch's tip, or with the branch it was meant to start
+from; read both sides and produce a merged result, or surface it to the user if genuinely
+ambiguous. This is the one case where "unconditional" still needs a human/agent decision.
+
+**Fail open on fetch/merge command failure**, distinctly from a conflict: no `origin` remote, no
+network, or an integration branch that was never pushed all make `git fetch` exit non-zero before
+any merge is attempted. Treat this the same way the Pre-flight divergence check treats an empty
+`UPSTREAM` (below) — log it and proceed rather than blocking worktree setup on a check whose
+purpose is staleness protection, not connectivity verification. A caller with `events.jsonl`
+access logs the failure distinctly from a same-shaped successful no-op merge — a reader should be
+able to tell "checked, clean" apart from "check didn't run," the same distinction `[IL-105]`'s
+own repair-loop guidance asks for elsewhere in this plugin.
+
+**Log the correction when it changes anything.** When either merge actually advances the
+worktree's branch (`git rev-parse HEAD` differs before and after — not a no-op), the calling
+procedure appends an entry to the run's `decisions.md` under its own heading:
+`AUTO {time} — Post-creation catch-up: worktree branch advanced from {before short} to {after
+short} ({N} commit(s) from {origin/{integration-branch} or EXPECTED_BASE}). Reversibility: high
+(worktree has no other commits yet).` A no-op merge (branch tip unchanged) writes nothing — this
+mirrors `multi-spec.md`'s own pre-flight verify sweep, which skips the ledger write on a clean
+sweep rather than logging "nothing found."
 
 ## Pre-flight divergence check
 
@@ -107,3 +147,5 @@ result.
 | Using Post-creation catch-up's full ladder for the Pre-flight divergence check | Git-inference shadows a tracked branch's real `@{upstream}`, producing false-positive divergence warnings on ordinary feature branches |
 | Skipping Post-creation catch-up because `worktree.baseRef` is set correctly | The catch-up is unconditional precisely because the plugin cannot verify `baseRef` took effect through `EnterWorktree` — see `[IL-106]` |
 | Restating either section's block in a caller skill instead of citing this file | Recreates the exact duplication this file exists to eliminate |
+| Skipping the `{EXPECTED_BASE}` merge because the fetch+merge against origin "already caught the worktree up" | Origin-relative catch-up only protects the behind direction — a caller that never captures `EXPECTED_BASE` has no protection against locally-committed-but-unpushed work silently missing from the new worktree |
+| Treating a fetch/merge command failure the same as a clean no-op in the log | Both look like "nothing happened" to a reader unless logged distinctly — see the fail-open note above |
