@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.76.0 — Self-maintaining fleet: backlog grant machine-grant unit, trust-ladder negative evidence, fleet on provisioning, test-hygiene/abstraction-police/experiment-cleanup verticals
+
+Self-maintaining fleet: backlog grant machine-grant unit, trust-ladder negative evidence, fleet on provisioning, test-hygiene/abstraction-police/experiment-cleanup verticals.
+
 ## v6.74.0 — Canonical logging cloud-setup Setup-script line with self-upgrading field procedure, routine-preamble setup-log evidence + self-heal-to-execution fallback (dispatch/tidy excluded), cloud-parity Routine-scope corrections (IL-117)
 
 Canonical logging cloud-setup Setup-script line with self-upgrading field procedure, routine-preamble setup-log evidence + self-heal-to-execution fallback (dispatch/tidy excluded), cloud-parity Routine-scope corrections (IL-117).
