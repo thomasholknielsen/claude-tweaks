@@ -60,6 +60,8 @@ Immediately after presenting the report above, call `AskUserQuestion`:
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations shown above"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
+**Hard gate.** Check the response you are about to send: does it already contain the `## Tidy Report` block above as literal rendered markdown, with a row for every finding (Actions, and Cross-Spec Patterns / Design Record Drift when non-empty)? If not, this is not "the report was presented earlier" or "the user can infer the items from the summary" — render it now, in this response, before the tool call. `AskUserQuestion` cannot carry the table itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with the tool call but no report above it has shown the user "Apply all" with nothing to apply it to.
+
 If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's built-in `Other` field.
 
 Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy taxonomy are included for visibility but require no mutation. Only items with an active recommendation (delete, defer, absorb, promote, sync, fix, close, resolve, capture, open family gate) are executed — every mutating entry in `SKILL.md`'s Action Vocabulary table, not a fixed subset of it.
