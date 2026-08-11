@@ -93,13 +93,14 @@ sweep rather than logging "nothing found."
 
 ## Pre-flight divergence check
 
-Read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled,
+Resolve the `merge-check` setting via
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-check`. When enabled,
 compare against the **upstream of the current branch** (or the detected remote default), never a
 hardcoded `main`:
 
 A project that pins an integration branch names the expected fork point directly, replacing the
 upstream-then-`origin/HEAD` guess. Only the *stated* ranks of `skills/_shared/integration-branch.md`
-apply here — the policy line below, and any explicit argument or CLAUDE.md statement above it.
+apply here — the policy read below, and any explicit argument or CLAUDE.md statement above it.
 **That fragment's git-inference rank must not be used for this check:** it resolves a branch in
 nearly every repo, which would shadow the `@{upstream}` fallback and make a worktree-creation
 call site on a tracked feature branch compare against the wrong ref and warn about a divergence
@@ -110,7 +111,7 @@ that isn't there.
 # branch, else the remote default branch (origin/HEAD). Assigned and used in the
 # same call — a fresh shell per Bash invocation means a value resolved elsewhere
 # would arrive empty here, and an empty UPSTREAM silently skips the check.
-INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
+INTEGRATION_BRANCH=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch)
 UPSTREAM="${INTEGRATION_BRANCH:+origin/$INTEGRATION_BRANCH}"
 [ -n "$UPSTREAM" ] || UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
   || UPSTREAM="origin/$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"

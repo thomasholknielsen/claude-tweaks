@@ -22,12 +22,12 @@ Every consumer reads `work-backend` directly, with no alias fallback.
 
 ## `work-backend: github-issues` fetch
 
-Before running the fetch script below, read `backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml`
-(per `_shared/work-record.md`'s Config keys table) and export it as `BACKLOG_FETCH_LIMIT`; if
-the key is absent, leave the variable unset so the script's own `:-1000` default applies.
+The fetch script below resolves `backlog-fetch-limit` itself via the canonical read path (per
+`_shared/work-record.md`'s Config keys table) — the resolver applies the schema default when the
+key is absent.
 
 ```bash
-LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
+LIMIT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit)
 export FETCH_LIMIT="$LIMIT"
 gh issue list --state open --json number,title,labels,milestone,updatedAt{,EXTRA_FIELDS} --limit "$LIMIT" > {tmp-records-file}
 node -e "
@@ -40,7 +40,7 @@ node -e "
 " > {tmp-faceted-file}
 ```
 
-`backlog-fetch-limit` (default `1000`) replaces the previous hardcoded 200/500 per-consumer limits — `gh issue list --limit N` auto-paginates internally regardless of how large `N` is, so raising the default doesn't change the fetch mechanism, only how much it's willing to pull before stopping. A consumer whose own population is naturally small (e.g. a `--label ready` filtered fetch) still uses this same limit and the same truncation check — the limit bounds "how many rows before we assume there might be more," not a per-consumer tuning knob.
+`backlog-fetch-limit` replaces the previous hardcoded 200/500 per-consumer limits — `gh issue list --limit N` auto-paginates internally regardless of how large `N` is, so raising the default doesn't change the fetch mechanism, only how much it's willing to pull before stopping. A consumer whose own population is naturally small (e.g. a `--label ready` filtered fetch) still uses this same limit and the same truncation check — the limit bounds "how many rows before we assume there might be more," not a per-consumer tuning knob.
 
 `{EXTRA_FIELDS}` — a consumer appends its own extra `--json` fields to the base list above
 rather than opening a second round-trip. `/claude-tweaks:help` appends `body` (its own
@@ -90,9 +90,9 @@ fires (see Working Directory Discipline in `_shared/subagent-output-contract.md`
 
 Before computing staleness, read `record-staleness-weeks` from the project's CLAUDE.md (per
 `_shared/work-record.md`'s Config keys table) and export it as `RECORD_STALENESS_WEEKS`; if
-the key is absent, leave the variable unset so each consumer's own default (4) applies —
-the same read-with-shell-default pattern this file already uses for `backlog-fetch-limit`
-above. Each consumer's own classification script converts this to milliseconds
+the key is absent, leave the variable unset so each consumer's own default (4) applies.
+(This is a CLAUDE.md field read, not a `policy.yml` key — the policy resolver does not serve
+it.) Each consumer's own classification script converts this to milliseconds
 (`weeks * 7 * 24 * 60 * 60 * 1000`) and passes the result as `thresholdMs` to
 `classifyStaleness(ageMs, thresholdMs)` (`bin/lib/issues/record-buckets.js`) — the conversion
 is per-consumer inline code, not part of the shared module itself.

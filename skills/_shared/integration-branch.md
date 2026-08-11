@@ -17,10 +17,10 @@ Take the **first** source that yields a branch name; once one does, the rest are
 3. **A flat `integration-branch:` line in `.claude-tweaks/policy.yml`:**
 
    ```bash
-   INTEGRATION_BRANCH=$(grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//')
+   INTEGRATION_BRANCH=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch)
    ```
 
-   The trailing `s/[[:space:]]*#.*$//` strips an inline comment — this value is pasted into checkout and merge-base commands, where a trailing `# note` would become part of the branch name.
+   The resolver strips a trailing inline comment from the value — this value is pasted into checkout and merge-base commands, where a trailing `# note` would become part of the branch name. An unset key prints an empty line, which falls through to rank 4.
 4. **A branching model stated unambiguously in CLAUDE.md prose** — "development happens on `dev`", "branch from `dev`, PR into `dev`". A section that merely *names* several branches, or describes a release train without saying where work lands, resolves nothing: fall through to 5 rather than guessing which name is the one. (This reads project *documentation*, not configuration — it is not a config-key lookup and is unaffected by policy.yml being the sole config home.)
 5. **Git — the current branch, checked against the GitHub default:**
 

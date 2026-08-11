@@ -103,11 +103,11 @@ into every command below; never carry them in shell variables. (Same rule and sa
 ```bash
 git rev-parse --show-toplevel                       # -> {worktree-path}
 git branch --show-current                           # -> {branch}
-grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//'
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch
 git remote show origin | sed -n '/HEAD branch/s/.*: //p'   # only when the line above came back empty
 ```
 
-The last two together resolve `{integration-branch}` — take the `grep`'s output when non-empty,
+The last two together resolve `{integration-branch}` — take the resolver's output when non-empty,
 otherwise the `git remote show origin` fallback. That is this family's rank-3-then-rank-6 behavior
 per `skills/_shared/integration-branch.md`; see that file for the full precedence, including the
 explicit-argument and CLAUDE.md ranks this two-command shorthand collapses. It deliberately skips
