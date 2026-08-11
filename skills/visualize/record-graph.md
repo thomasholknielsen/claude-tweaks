@@ -190,7 +190,7 @@ convention exactly, so Step 6 needs no new registry logic here either.
   correctly). The legend and the "Generated {timestamp}" line still render; the
   empty columns communicate "no open work records" on their own.
 - **Truncated fetch** — `--fetch-limit` is always passed from
-  `backlog-fetch-limit` (or its default 1000); when the fetched count equals it,
+  `backlog-fetch-limit` (resolver-applied default when unset); when the fetched count equals it,
   `bin/record-graph.js` renders the on-diagram truncation note itself — no separate
   handling needed here beyond passing the flag through.
 - **`work-backend: local-files`** — NOT currently supported; Step A's backend gate

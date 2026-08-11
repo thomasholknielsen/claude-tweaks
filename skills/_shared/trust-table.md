@@ -206,7 +206,7 @@ acceptance-verdict discipline yet it is the largest number on the table.
 
 **Operational is a second, independent evidence source** — a closed record with no `demo:*`
 disposition still counts as known-good when it was merged and stayed unreverted for at least
-`trust-revert-window-days` (default 14 days, `bin/lib/issues/trust.js`). It folds into `Coverage`
+`trust-revert-window-days` (applied by `bin/lib/issues/trust.js`; default in `_shared/policy-schema.md`). It folds into `Coverage`
 the same way `Approved`/`Changes Requested` do (it sums into `dispositioned`). A record with
 a `demo:*` verdict is never double-counted here — demo-descent evidence is tried first, and the
 operational path only runs when it found nothing.

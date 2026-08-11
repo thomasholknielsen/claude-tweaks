@@ -186,6 +186,13 @@ test('--values: unknown key and unset no-default key each print an empty line', 
   assert.strictEqual(res.stdout, '\n\nsupervised\n');
 });
 
+test('--values: unset list-typed key ([] default) prints an empty line — empty-means-none preserved', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-empty.yml' });
+  const res = runCli(['--values', 'merge-sensitive-paths', 'autonomy'], tmp);
+  assert.strictEqual(res.status, 0);
+  assert.strictEqual(res.stdout, '\nsupervised\n');
+});
+
 test('--values with model-profiles: exit 1, stderr message, no output', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-model-profiles.yml' });
   const res = runCli(['--values', 'model-profiles'], tmp);
