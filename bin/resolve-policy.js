@@ -8,8 +8,11 @@
 // bin/lib/model-profiles/policy-fragment.js#parsePolicyModelConfig (the one
 // nested-block key). No resolution logic lives here. Zero runtime npm deps.
 //
-// Usage: resolve-policy.js [--run <dir>] <key> [<key>…]
-// Output: one JSON object on stdout keyed by requested name; per-key errors
+// Usage: resolve-policy.js [--values] [--run <dir>] <key> [<key>…]
+// Output: one JSON object on stdout keyed by requested name — or, with
+// --values, one plain value per line in request order (scalar mode for shell
+// captures; empty line for unset-no-default and error entries; not valid for
+// model-profiles). Per-key errors
 // ({"error": "unknown-key"}) are data (exit 0). Invocation failures — zero
 // keys, or a --run dir that does not exist — exit 1 with a stderr message
 // and no JSON. Repo root comes from `git rev-parse --show-toplevel` at the
@@ -50,6 +53,7 @@ function readFileSafe(filePath) {
 function main(argv) {
   const args = argv.slice(2);
   let runDir = null;
+  let valuesMode = false;
   const keys = [];
   while (args.length) {
     const arg = args.shift();
@@ -60,12 +64,19 @@ function main(argv) {
         return;
       }
       runDir = value;
+    } else if (arg === '--values') {
+      valuesMode = true;
     } else {
       keys.push(arg);
     }
   }
   if (keys.length === 0) {
-    fail('usage: resolve-policy.js [--run <dir>] <key> [<key>…]');
+    fail('usage: resolve-policy.js [--values] [--run <dir>] <key> [<key>…]');
+    return;
+  }
+  if (valuesMode && keys.includes('model-profiles')) {
+    // The one nested-block key has no scalar form.
+    fail('--values does not support model-profiles (no scalar form) — use the JSON output');
     return;
   }
   if (runDir !== null) {
@@ -106,6 +117,20 @@ function main(argv) {
       // default — null is the documented absent shape.
       result['model-profiles'] = { value: null, source: 'default', invalid: true };
     }
+  }
+
+  if (valuesMode) {
+    // Scalar mode for shell-variable capture at prose read sites: one value
+    // per line, request order. An {error} entry and a null value (no-default
+    // key unset) both print an empty line — mirroring the empty string the
+    // retired grep-pipeline idiom produced for an absent key.
+    const lines = keys.map((key) => {
+      const entry = result[key];
+      if (!entry || entry.error !== undefined || entry.value === null || entry.value === undefined) return '';
+      return String(entry.value);
+    });
+    process.stdout.write(`${lines.join('\n')}\n`);
+    return;
   }
 
   process.stdout.write(`${JSON.stringify(result)}\n`);

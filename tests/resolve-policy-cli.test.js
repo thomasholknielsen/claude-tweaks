@@ -171,6 +171,29 @@ test('--run pointing at a FILE (not a dir): exit 1, stderr message, no JSON', ()
   assert.strictEqual(res.stdout, '');
 });
 
+test('--values: one plain value per line in request order, native rendering', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const res = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree.always', 'tidy-aggressiveness'], tmp);
+  assert.strictEqual(res.status, 0);
+  assert.strictEqual(res.stderr, '');
+  assert.strictEqual(res.stdout, 'unattended\n5\ntrue\nconservative\n');
+});
+
+test('--values: unknown key and unset no-default key each print an empty line', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-empty.yml' });
+  const res = runCli(['--values', 'no-such-key', 'integration-branch', 'autonomy'], tmp);
+  assert.strictEqual(res.status, 0);
+  assert.strictEqual(res.stdout, '\n\nsupervised\n');
+});
+
+test('--values with model-profiles: exit 1, stderr message, no output', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-model-profiles.yml' });
+  const res = runCli(['--values', 'model-profiles'], tmp);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /no scalar form/);
+  assert.strictEqual(res.stdout, '');
+});
+
 test('zero positional keys: exit 1, stderr usage message, no JSON on stdout', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
   const res = runCli([], tmp);
