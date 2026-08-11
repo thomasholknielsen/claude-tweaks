@@ -85,8 +85,22 @@ step 6 below).
    explicit 1-2 second `wait` action between the click and whatever comes next, every time this
    combobox is opened. Reading or clicking immediately after the open-click, with no wait, was
    observed to silently miss the open state during design verification.
-4. Click "+ Add environment" (the last item in the dropdown, below any existing environments).
-5. In the resulting "New cloud environment" dialog: set Name to `claude-tweaks: <project_slug>`,
+4. **Check for an existing dedicated environment before creating one.** The dropdown opened in
+   step 2 already lists every environment by name — read it (a `find` query for "Environment
+   dropdown options" or `read_page` scoped to the open combobox works) and look for a row already
+   named `claude-tweaks: <project_slug>` (the exact convention step 5 below would otherwise
+   create). This exists whenever `/claude-tweaks:init`'s Step 14 (Cloud/Routine Parity Setup)
+   already provisioned it for interactive sessions via the Ensure-setup-script procedure below —
+   Step 14 runs before this routine-creation flow in every normal `/init` pass, precisely so this
+   check finds something. **Found:** click that row to select it, skip step 5 entirely (nothing to
+   create), and continue to step 6 with this environment already selected. **Not found:** click
+   "+ Add environment" (the last item in the dropdown, below any existing environments) and
+   continue to step 5. Skipping this check would create a second, redundant
+   `claude-tweaks: <project_slug>` environment whenever Step 14 already provisioned one — a live,
+   billed environment with no delete API (the same constraint this procedure's own header states
+   for routines).
+5. In the resulting "New cloud environment" dialog (only reached via step 4's "Not found" branch):
+   set Name to `claude-tweaks: <project_slug>`,
    leave Network access at its default (`Trusted`), leave Environment variables empty, and set
    Setup script to exactly:
    ```
@@ -131,16 +145,24 @@ step 6 below).
 
 ## Ensure-setup-script procedure
 
-Takes: `environment_name` (optional — when omitted, operate on whichever environment the session
-composer currently has selected, which is the one a plainly-started cloud session will use).
+Takes: `environment_name` (optional). When omitted, operate on whichever environment the session
+composer currently has selected — the one a plainly-started cloud session will use. When provided,
+this procedure additionally **makes that environment the composer's current selection**, creating
+it first (with the canonical script already set) if no environment by that name exists yet — see
+step 2's two branches below.
 
-The Create procedure above only ever reaches an environment it is creating for a *routine*. An
-interactive cloud session uses whichever environment is selected in the composer — commonly a
-long-lived, human-named one (`Default`, `General`) that no claude-tweaks flow has ever touched.
-That environment having an empty Setup script is the single most common reason a fully-declared
-project still reports `Unknown command` for every plugin skill. This procedure closes that gap,
-and it is the only one here that edits an environment's own fields rather than which environment
-a routine points at.
+The Create procedure above only ever reaches an environment it is creating for a *routine* — a
+project that has never run `/claude-tweaks:routine` has no dedicated environment at all yet. Left
+to default, an interactive cloud session uses whichever environment happens to be selected in the
+composer — commonly a long-lived, human-named one (`Default`, `General`) that no claude-tweaks flow
+has ever touched. That environment having an empty Setup script is the single most common reason a
+fully-declared project still reports `Unknown command` for every plugin skill. This procedure
+closes that gap. When called with `environment_name` set (as `/claude-tweaks:init`'s Step 14 does,
+passing the same `claude-tweaks: <project_slug>` convention routines use), it does more than patch
+whatever's currently selected — it points interactive sessions at the *same* dedicated environment
+routines use, so there is one Setup script to maintain per project instead of two. It is the only
+procedure here that edits an environment's own fields, or (in the new-environment branch) the
+composer's current selection, rather than which environment a routine points at.
 
 The composer path below is distinct from the routine-form path Create uses — it was confirmed live
 and does not go through the Routines UI at all.
@@ -152,6 +174,21 @@ and does not go through the Routines UI at all.
    opens with `Local` / `Cloud` / `Remote Control`. Click `Cloud` to expand its submenu, which
    lists every environment with a checkmark on the selected one, plus `Add cloud environment…` as
    its last item. Apply Create step 3's 1-2 second `wait` here too.
+   - **`environment_name` was passed and a row already matches it:** click that row to select it —
+     this is what makes it the composer's current environment. Continue to step 3 as usual; a
+     pre-existing environment by that name is not guaranteed to already carry the canonical script
+     (e.g. one a human created by hand under the same naming convention), so it still gets the
+     same verify/upgrade pass as any other target.
+   - **`environment_name` was passed and no row matches it:** click `Add cloud environment…`
+     instead (the same control Create step 4 uses) and, in the resulting "New cloud environment"
+     dialog, set Name to `environment_name`, Network access to `Trusted`, leave Environment
+     variables empty, and set Setup script to the canonical line (step 4 below). Click "Create
+     environment" — this both creates the environment and selects it as the composer's current one
+     in a single action. Skip steps 3-5 entirely (nothing to classify or upgrade on a field that
+     was just typed fresh) and report `{success: true, environment_name, had_script: false,
+     field_action: "created"}`.
+   - **`environment_name` was omitted:** proceed as before — operate on whichever row is currently
+     checkmarked.
 3. Hover the row for `environment_name` (or the checkmarked row when no name was passed) — a gear
    icon appears on hover and is not present in a screenshot taken before hovering. Click the gear.
    This opens an **Update cloud environment** dialog with Name, Network access, Environment
@@ -187,8 +224,10 @@ and does not go through the Routines UI at all.
    dialog notes that changes apply to **new** sessions only — an already-running session does not
    pick this up, so any verification must start a fresh session.
 6. Report `{success: true, environment_name: <the name acted on>, had_script: <boolean>,
-   field_action: <one of unchanged|typed|upgraded|appended>}`. On failure at any step, report the
-   failure shape from this file's header and leave the environment untouched.
+   field_action: <one of created|unchanged|typed|upgraded|appended>}` (`created` only ever reaches
+   this step via step 2's own early report in its "not found" branch above — restated here so the
+   full enum is documented in one place). On failure at any step, report the failure shape from
+   this file's header and leave the environment untouched.
 
 ## Audit procedure
 
