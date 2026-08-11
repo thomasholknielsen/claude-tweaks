@@ -149,7 +149,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 
 | Prompt / decision | Default behavior | Behavior under `auto` |
 |---|---|---|
-| Pre-flight merge-check (`/flow` Step 2.5) | Offer rebase vs continue | Continue and add `ops` ledger entry |
+| Pre-flight branch-divergence-check (`/flow` Step 2.5) | Offer rebase vs continue | Continue and add `ops` ledger entry |
 | Shape-check warnings (`/flow` Step 2.6) | Offer decompose / proceed / cancel | Proceed with the documented default and add `ops` ledger entry naming the signal |
 | Worktree consent (`/build` Common Step 1) | `/superpowers:using-git-worktrees` consent prompt | Pre-authorized by `auto` (user explicitly opted in) |
 | Plan audit scope-creep (`/build` Common Step 1.5) | Add-to-plan / continue / stop | Apply policy from manifesto (default `add-to-plan`) |

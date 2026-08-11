@@ -39,7 +39,7 @@ The axes below are orthogonal and combine freely. Default is `subagent` + `workt
 
 When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has only one value: `current-branch` is not offered and is rejected if passed explicitly — the mechanical PreToolUse gate would deny any edit outside a worktree regardless (see `_shared/git-discipline.md`).
 
-When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Execution axis has only one value: `batched` is not offered and is rejected if passed explicitly — unlike the Git axis, there is no mechanical backstop for this one (see `_shared/git-discipline.md`).
+When `.claude-tweaks/policy.yml` sets `execution-strategy: subagent-only` (or `batched-only`), the Execution axis has only one value — the `-only` suffix is the lock: the other strategy is not offered and is rejected if passed explicitly. Plain `subagent`/`batched` set an overridable default, not a lock. Unlike the Git axis, there is no mechanical backstop for the lock (see `_shared/git-discipline.md`).
 
 ("Rejected" means: substitute the locked value and surface a one-line inline notice, never a hard error or an `AskUserQuestion` prompt — see `build-options.md`'s "Default resolution" step 0 for the exact wording.)
 
@@ -155,9 +155,9 @@ Proceed to **Common Step 2**.
 
 ### Common Step 1: Set Up Worktree (worktree strategy only)
 
-If the user specified `worktree`, set up the isolated workspace via `/superpowers:using-git-worktrees` after a pre-flight merge check and (when in auto mode) pre-authorizing the consent prompt.
+If the user specified `worktree`, set up the isolated workspace via `/superpowers:using-git-worktrees` after a pre-flight branch-divergence check and (when in auto mode) pre-authorizing the consent prompt.
 
-For the full procedure (pre-flight merge check with auto-mode behavior, consent prompt handling, and worktree-creation failure recovery table), read `worktree-setup.md` in this skill's directory.
+For the full procedure (pre-flight branch-divergence check with auto-mode behavior, consent prompt handling, and worktree-creation failure recovery table), read `worktree-setup.md` in this skill's directory.
 
 If the user did not specify `worktree`, skip this step.
 

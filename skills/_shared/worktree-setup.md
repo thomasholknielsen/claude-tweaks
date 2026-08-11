@@ -93,8 +93,8 @@ sweep rather than logging "nothing found."
 
 ## Pre-flight divergence check
 
-Resolve the `merge-check` setting via
-`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-check`. When enabled,
+Resolve the `branch-divergence-check` setting via
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" branch-divergence-check`. When enabled,
 compare against the **upstream of the current branch** (or the detected remote default), never a
 hardcoded `main`:
 
@@ -122,7 +122,7 @@ ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
 If `ahead > 0`, surface the divergence (`git log --oneline HEAD..$UPSTREAM | head -5`) and call
 `AskUserQuestion`:
 - `question`: `"{UPSTREAM} is {N} commits ahead — how do you want to proceed?"`, `header`:
-  `"Merge check"`, `multiSelect`: `false`
+  `"Divergence"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Rebase first (Recommended)"`, `description`: `"Rebase onto {UPSTREAM}
   before continuing"`
 - Option 2 — `label`: `"Continue anyway"`, `description`: `"Proceed as-is; add an ops ledger
@@ -131,7 +131,7 @@ If `ahead > 0`, surface the divergence (`git log --oneline HEAD..$UPSTREAM | hea
 In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
 
 ```
-AUTO {time} — pre-flight merge-check — {UPSTREAM} is {N} ahead. Continued and added ops ledger
+AUTO {time} — pre-flight branch-divergence-check — {UPSTREAM} is {N} ahead. Continued and added ops ledger
 entry. Reversibility: low (divergence persists).
 ```
 
