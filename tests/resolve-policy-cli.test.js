@@ -145,12 +145,30 @@ test('model-profiles malformed block resolves to null/default with invalid: true
   assert.deepStrictEqual(out['model-profiles'], { value: null, source: 'default', invalid: true });
 });
 
-test('AC 10: correct output with CLAUDE_PLUGIN_ROOT deleted from the child env', () => {
+test('AC 10: CLAUDE_PLUGIN_ROOT is never read — deleted env and decoy env both resolve the fixture', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
-  const env = { ...process.env };
-  delete env.CLAUDE_PLUGIN_ROOT;
-  const out = runOk(['autonomy'], tmp, env);
+  const deleted = { ...process.env };
+  delete deleted.CLAUDE_PLUGIN_ROOT;
+  const out = runOk(['autonomy'], tmp, deleted);
   assert.deepStrictEqual(out, { autonomy: { value: 'unattended', source: 'policy' } });
+
+  // Discriminating half: point the var at a decoy repo whose policy.yml holds
+  // a DIFFERENT value — a CLI that read the var (even with a cwd fallback)
+  // would return the decoy's value, not the fixture's.
+  const decoy = fs.mkdtempSync(path.join(os.tmpdir(), 'resolve-policy-decoy-'));
+  tempDirs.push(decoy);
+  fs.mkdirSync(path.join(decoy, '.claude-tweaks'));
+  fs.writeFileSync(path.join(decoy, '.claude-tweaks', 'policy.yml'), 'autonomy: trusted\n');
+  const out2 = runOk(['autonomy'], tmp, { ...process.env, CLAUDE_PLUGIN_ROOT: decoy });
+  assert.deepStrictEqual(out2, { autonomy: { value: 'unattended', source: 'policy' } });
+});
+
+test('--run pointing at a FILE (not a dir): exit 1, stderr message, no JSON', () => {
+  const { tmp, runDir } = makeFixtureRepo({ policy: 'policy-basic.yml', runConfig: 'run-config-override.yml' });
+  const res = runCli(['--run', path.join(runDir, 'config.yml'), 'autonomy'], tmp);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /does not exist or is not a directory/);
+  assert.strictEqual(res.stdout, '');
 });
 
 test('zero positional keys: exit 1, stderr usage message, no JSON on stdout', () => {

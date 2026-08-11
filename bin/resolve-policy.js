@@ -68,9 +68,17 @@ function main(argv) {
     fail('usage: resolve-policy.js [--run <dir>] <key> [<key>…]');
     return;
   }
-  if (runDir !== null && !fs.existsSync(runDir)) {
-    fail(`--run dir does not exist: ${runDir}`);
-    return;
+  if (runDir !== null) {
+    let isDirectory = false;
+    try {
+      isDirectory = fs.statSync(runDir).isDirectory();
+    } catch {}
+    if (!isDirectory) {
+      // A file path (e.g. the config.yml itself) must fail loud here, not
+      // degrade to a silent no-overlay with policy-source answers.
+      fail(`--run dir does not exist or is not a directory: ${runDir}`);
+      return;
+    }
   }
 
   const policyRaw = readFileSafe(path.join(repoRoot(), '.claude-tweaks', 'policy.yml'));
@@ -91,8 +99,11 @@ function main(argv) {
         ? { value: parsed['model-profiles'], source: 'policy' }
         : { value: null, source: 'default' };
     } catch {
-      // Malformed block: same present-but-rejected carve-out as flat keys.
-      // The key has no schema default — null is the documented absent shape.
+      // Any fragment-reader throw lands here — a malformed block, but also a
+      // malformed sibling model key (e.g. frontier-run-cap), since the reader
+      // parses all four model keys and its throws aren't sub-classified. Same
+      // present-but-rejected carve-out as flat keys; the key has no schema
+      // default — null is the documented absent shape.
       result['model-profiles'] = { value: null, source: 'default', invalid: true };
     }
   }

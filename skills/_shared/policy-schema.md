@@ -23,7 +23,7 @@ Output is a single JSON object keyed by requested key. Each key resolves to the 
 Two carve-outs:
 
 - The PreToolUse hook's `worktree.always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
-- `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent.
+- `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
 
 ## `resolveValue` — canonical coercion contract
 
