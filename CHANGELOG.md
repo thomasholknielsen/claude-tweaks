@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.76.1 — Add Hard gate to tidy Step 6 interactive report; fix REPO_SLUG derivation claim and code-simplifier plugin-status docs; restore dispatch routine's tightened 2-hour cadence as the template default — closes gaps found by the pre-release whole-branch review
+
+Add Hard gate to tidy Step 6 interactive report; fix REPO_SLUG derivation claim and code-simplifier plugin-status docs; restore dispatch routine's tightened 2-hour cadence as the template default — closes gaps found by the pre-release whole-branch review.
+
 ## v6.76.0 — Self-maintaining fleet: backlog grant machine-grant unit, trust-ladder negative evidence, fleet on provisioning, test-hygiene/abstraction-police/experiment-cleanup verticals
 
 Self-maintaining fleet: backlog grant machine-grant unit, trust-ladder negative evidence, fleet on provisioning, test-hygiene/abstraction-police/experiment-cleanup verticals.

@@ -95,7 +95,7 @@ Status line (required): First line of your reply must be one of: DONE / DONE_WIT
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
-OUTCOME: {merged | pr-opened | pending-review | failed | blocked}
+OUTCOME: {ready-to-merge | pr-opened | pending-review | failed | blocked}
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
   single-spec run dir path}
 
@@ -106,6 +106,13 @@ Choosing between two OUTCOME values: report pending-review -- not `pr-opened` --
 reached the Review Console with nobody answering it, even though a draft PR was opened for branch
 durability. `pr-opened` means the branch reached its finish decision; a durability PR is an
 unanswered human gate wearing a review surface.
+
+Report `ready-to-merge` when the group's Auto-merge gate passed both layers and you already applied
+acceptance labeling for every member -- never `merged`. You do not merge yourself: a Task-tool
+subagent cannot reach the main checkout (see `settle-and-merge.md`'s header note). Stop right after
+labeling per that file's Auto-merge gate section -- do not run worktree removal, claim release, or
+run-dir archival on this path; the dispatching session completes all three after it merges, per
+`settle-and-merge.md`'s Dispatching-session merge execution section.
 
 [Use: Standard model -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual.]

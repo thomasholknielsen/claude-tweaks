@@ -33,7 +33,7 @@ test('#155 scenario: group 2 worktree is never entered while group 1 is still ac
       await groupAGate.promise; // group A's Task agent takes a while
       return 'pending-review';
     }
-    return 'merged';
+    return 'ready-to-merge';
   }
 
   async function teardownWorktree(worktree) {
@@ -55,7 +55,7 @@ test('#155 scenario: group 2 worktree is never entered while group 1 is still ac
   assert.notStrictEqual(branchOf.get('A'), branchOf.get('B'), 'groups must build on distinct branches');
   assert.deepStrictEqual(
     results.map((r) => r.outcome),
-    ['pending-review', 'merged'],
+    ['pending-review', 'ready-to-merge'],
   );
 });
 
@@ -75,7 +75,7 @@ test('a rejecting dispatchTask still tears its worktree down, and still stops th
   }
   async function dispatchTask(group) {
     if (group.id === 'A') throw boom;
-    return 'merged';
+    return 'ready-to-merge';
   }
   async function teardownWorktree(worktree) {
     tornDown.push(worktree);

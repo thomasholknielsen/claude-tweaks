@@ -8,12 +8,13 @@ a headless firing the container holding the branch is eventually recycled. Obser
 procedure replaces "resume that exact session" with an ordinary GitHub review surface: the branch
 on origin, plus one open draft PR carrying the run's Verification Brief.
 
-Two callers, both invoking it immediately **before** their console renders:
+Three callers. The first two invoke it immediately **before** their console renders; the third is a genuine exception to that shape — see its own row:
 
 | Caller | Invokes from |
 |---|---|
 | `/claude-tweaks:wrap-up`'s Review Console (`wrap-up/review-console.md`) | a single-record run — just before its `## Present the console` |
 | `/claude-tweaks:flow`'s consolidated multi-spec console (`flow/multispec-review-console.md`) | a dispatched **bundle**'s run, whose per-spec consoles deferred — just before its `## Present the consolidated console` |
+| `dispatch/settle-and-merge.md`'s Dispatching-session merge execution | the Auto-merge gate's own conflict fallback — its direct `git merge` failed or aborted, *after* both gate layers already passed and acceptance labeling already ran. No console renders on this path at all; see the Scope guard below for how this caller clears condition 2 differently from the other two. |
 
 **Before, not after, is the whole point.** Both consoles end in a blocking `AskUserQuestion`, and a
 headless firing never returns from it — `dispatch/SKILL.md`'s Reporting section calls that the
@@ -52,8 +53,18 @@ below, and continue to the console unchanged — never an error.
    **A `failed` outcome does reach this console.** It once could not; `wrap-up/review-console.md`'s
    "run whenever a run directory exists, in every mode" plus the teardown call above made it
    reachable, which is why the checks above are positive tests rather than an argument from
-   impossibility. Only the auto-merge case is still structurally excluded: that short-circuit's
-   merge path returns before this point, so an `auto:merge`'d group never lands here.
+   impossibility. The ordinary auto-merge short-circuit still never reaches here — its merge path
+   returns before this point, so a group that never left the Auto-merge gate does not land in this
+   procedure via the two consoles above.
+
+   **The third caller (table above) is the one exception, and it doesn't run checks 2a/2b at all.**
+   It is not itself a `/claude-tweaks:flow` invocation with a step list to inspect — it is the
+   dispatching session's own thread, invoked only after `settle-and-merge.md`'s Auto-merge gate
+   already established both layers passed (which requires `review` to have run and passed, the
+   exact fact 2a/2b exist to establish) and a merge attempt was actually made and failed. That
+   sequence is this caller's own precondition, checked by the caller before it ever gets here — not
+   something this procedure re-derives from a step list that, from this thread, does not exist to
+   inspect.
 
    Never push or open a PR for a `failed` or `blocked` outcome — an incomplete or broken branch on
    origin is noise, not signal.

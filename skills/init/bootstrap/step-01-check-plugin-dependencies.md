@@ -15,6 +15,11 @@ If missing, install:
 
 ### Required: Code Simplifier
 
-Provides the `code-simplifier` subagent used by `/claude-tweaks:build` and `/claude-tweaks:review`.
+Provides the `code-simplifier` subagent (`subagent_type="code-simplifier:code-simplifier"` in the Task tool) used by `/claude-tweaks:build` and `/claude-tweaks:review`.
 
-Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simplifier:code-simplifier"` in the Task tool). No plugin installation needed — verify it's available by checking the Task tool's agent type list.
+Detect: check the Task tool's agent type list for `code-simplifier:code-simplifier`, or use the Glob tool to search for `*code-simplifier*` under the user's `~/.claude/plugins/` directory.
+
+If missing, install:
+```bash
+/plugin install code-simplifier@claude-plugins-official
+```
