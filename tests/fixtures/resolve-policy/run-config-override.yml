@@ -1,0 +1,6 @@
+# Frozen fixture — a run config.yml overlay (AC 3). Bookkeeping keys mirror a
+# real Manifesto-written file and must stay inert (only requested keys resolve).
+created: 2026-08-11T00:00:00Z
+mode: auto
+specs: 329
+dispatch-retry-ceiling: 7

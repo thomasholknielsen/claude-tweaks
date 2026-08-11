@@ -1,0 +1,6 @@
+# Frozen fixture — malformed model-profiles block (unknown 4-space field, the
+# fragment reader throws): resolves to the invalid: true envelope.
+model-profiles:
+  capable:
+    model: opus
+    temperature: hot
