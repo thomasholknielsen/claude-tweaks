@@ -3,3 +3,5 @@ execution.always: subagent
 auto-mode: default-on
 work-links: native
 autonomy: unattended
+grant-origination-enabled: true
+fleet-daily-grant-cap: 3
