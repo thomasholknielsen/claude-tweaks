@@ -1,7 +1,6 @@
 {
-  "runId": "2026-08-09T152032-dispatch-standalone",
-  "sessionId": "f8b11909-c69c-56cb-bbbd-f887a2f0d787",
-  "claimedAt": "2026-08-09T15:22:50.259Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "released": true,
+  "runId": "tidy-standalone-2026-08-11",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-11T19:50:15.139Z"
 }
