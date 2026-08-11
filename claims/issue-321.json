@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-11T180029-dispatch-standalone",
-  "reason": "manual-test-reset: releasing to re-exercise the Auto-merge gate fix (dispatch fix just merged to main)",
-  "releasedAt": "2026-08-11T19:24:05.858Z"
+  "runId": "2026-08-11T192605-dispatch-standalone",
+  "sessionId": "4821a4ab-0058-5dfd-a58f-b1fe8ca5082a",
+  "claimedAt": "2026-08-11T19:26:23.141Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
