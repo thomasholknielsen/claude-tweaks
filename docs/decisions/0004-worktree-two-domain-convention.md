@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-07-09
-- **Context:** `/claude-tweaks:challenge` debiasing brief `docs/plans/2026-07-08-worktree-directory-convention-brief.md`; design `docs/superpowers/specs/2026-07-08-worktree-directory-convention-design.md`
+- **Context:** `/claude-tweaks:challenge` debiasing brief `docs/plans/2026-07-08-worktree-directory-convention-brief.md`
 
 ## Context
 
