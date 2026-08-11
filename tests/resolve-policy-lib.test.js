@@ -147,9 +147,9 @@ test('boolean coercion: worktree.always: true resolves to native boolean true', 
 });
 
 test('a key with no schema default, absent everywhere, resolves to value: null, source: "default"', () => {
-  const result = resolvePolicyKeys(['integration-branch', 'execution.always'], { policyRaw: '' });
+  const result = resolvePolicyKeys(['integration-branch', 'review-effort-floor'], { policyRaw: '' });
   assert.deepStrictEqual(result['integration-branch'], { value: null, source: 'default' });
-  assert.deepStrictEqual(result['execution.always'], { value: null, source: 'default' });
+  assert.deepStrictEqual(result['review-effort-floor'], { value: null, source: 'default' });
 });
 
 test('model-profiles resolves to its documented absent shape — the CLI overwrites this entry via delegation', () => {
@@ -162,4 +162,78 @@ test('model-profiles resolves to its documented absent shape — the CLI overwri
 test('requesting an alias\'s old name resolves the replacement key, never unknown-key', () => {
   const result = resolvePolicyKeys(['unattended-tier'], { policyRaw: 'autonomy: trusted\n' });
   assert.deepStrictEqual(result['unattended-tier'], { value: 'trusted', source: 'policy' });
+});
+
+// --- #331 key collapse: execution.always -> execution-strategy (AC 1) ---
+
+test('AC 1: execution.always: subagent migrates to execution-strategy subagent-only with renamed-from', () => {
+  const result = resolvePolicyKeys(['execution-strategy'], {
+    policyRaw: 'execution.always: subagent\n',
+  });
+  assert.deepStrictEqual(result['execution-strategy'], {
+    value: 'subagent-only',
+    source: 'policy',
+    'renamed-from': 'execution.always',
+  });
+});
+
+test('AC 1: execution.always: batched migrates to execution-strategy batched-only with renamed-from', () => {
+  const result = resolvePolicyKeys(['execution-strategy'], {
+    policyRaw: 'execution.always: batched\n',
+  });
+  assert.deepStrictEqual(result['execution-strategy'], {
+    value: 'batched-only',
+    source: 'policy',
+    'renamed-from': 'execution.always',
+  });
+});
+
+test('AC 1: malformed execution.always null-migrates to the schema default, source default, renamed-from — never a minted -only value', () => {
+  const result = resolvePolicyKeys(['execution-strategy'], {
+    policyRaw: 'execution.always: yes\n',
+  });
+  assert.deepStrictEqual(result['execution-strategy'], {
+    value: 'subagent',
+    source: 'default',
+    'renamed-from': 'execution.always',
+  });
+});
+
+test('AC 1: merge-check: false resolves branch-divergence-check to native false with renamed-from', () => {
+  const result = resolvePolicyKeys(['branch-divergence-check'], {
+    policyRaw: 'merge-check: false\n',
+  });
+  assert.deepStrictEqual(result['branch-divergence-check'], {
+    value: false,
+    source: 'policy',
+    'renamed-from': 'merge-check',
+  });
+});
+
+test('execution-strategy set directly to a -only lock value resolves it — the widened enum accepts locks', () => {
+  const result = resolvePolicyKeys(['execution-strategy'], {
+    policyRaw: 'execution-strategy: batched-only\n',
+  });
+  assert.deepStrictEqual(result['execution-strategy'], { value: 'batched-only', source: 'policy' });
+});
+
+// --- #331 retirements: replacedBy: null ---
+
+test('requesting a RETIRED key\'s own name yields unknown-key — there is no replacement to resolve', () => {
+  const result = resolvePolicyKeys(
+    ['review-diff-heuristic-thresholds', 'promise-register-min-leaves', 'section-confirmation'],
+    { policyRaw: 'section-confirmation: per-section\n' },
+  );
+  for (const retired of ['review-diff-heuristic-thresholds', 'promise-register-min-leaves', 'section-confirmation']) {
+    assert.deepStrictEqual(result[retired], { error: 'unknown-key' }, `${retired} is retired with no replacement — it must error, not crash or resolve`);
+  }
+});
+
+test('a retired key\'s line is inert: deleted from the source\'s flat view, no renamed-from anywhere, siblings unaffected', () => {
+  const result = resolvePolicyKeys(['autonomy', 'branch-divergence-check'], {
+    policyRaw: 'section-confirmation: per-section\npromise-register-min-leaves: 9\nautonomy: trusted\n',
+    runConfigRaw: 'review-diff-heuristic-thresholds: whatever\n',
+  });
+  assert.deepStrictEqual(result.autonomy, { value: 'trusted', source: 'policy' });
+  assert.deepStrictEqual(result['branch-divergence-check'], { value: true, source: 'default' }, 'a retired line contributes no value and no renamed-from tag to any canonical key');
 });
