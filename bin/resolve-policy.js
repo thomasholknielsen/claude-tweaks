@@ -85,18 +85,16 @@ function main(argv) {
   // blocks). Overwrite the flat resolver's placeholder entry via the
   // dedicated fragment reader.
   if (keys.includes('model-profiles')) {
-    let entry;
     try {
       const parsed = parsePolicyModelConfig(policyRaw);
-      entry = Object.prototype.hasOwnProperty.call(parsed, 'model-profiles')
+      result['model-profiles'] = Object.prototype.hasOwnProperty.call(parsed, 'model-profiles')
         ? { value: parsed['model-profiles'], source: 'policy' }
         : { value: null, source: 'default' };
     } catch {
       // Malformed block: same present-but-rejected carve-out as flat keys.
       // The key has no schema default — null is the documented absent shape.
-      entry = { value: null, source: 'default', invalid: true };
+      result['model-profiles'] = { value: null, source: 'default', invalid: true };
     }
-    result['model-profiles'] = entry;
   }
 
   process.stdout.write(`${JSON.stringify(result)}\n`);

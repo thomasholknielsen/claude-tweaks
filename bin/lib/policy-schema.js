@@ -250,27 +250,24 @@ function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
       result[requested] = { error: 'unknown-key' };
       continue;
     }
+    // No schema default is itself null, so `?? null` only fires on absent.
+    const defaultValue = schemaEntry.default ?? null;
     let resolved = null;
     for (const source of sources) {
       if (!hasOwn(source.values, canonical)) continue;
       const raw = source.values[canonical];
-      const envelope = {};
       if (isValidValue(schemaEntry, raw)) {
-        envelope.value = resolveValue(canonical, raw);
-        envelope.source = source.name;
+        resolved = { value: resolveValue(canonical, raw), source: source.name };
       } else {
         // A typo must never activate a different configured value: resolve to
         // the schema default here, never the next source's value.
-        envelope.value = schemaEntry.default !== undefined ? schemaEntry.default : null;
-        envelope.source = 'default';
-        envelope.invalid = true;
+        resolved = { value: defaultValue, source: 'default', invalid: true };
       }
-      if (hasOwn(source.renamedFrom, canonical)) envelope['renamed-from'] = source.renamedFrom[canonical];
-      resolved = envelope;
+      if (hasOwn(source.renamedFrom, canonical)) resolved['renamed-from'] = source.renamedFrom[canonical];
       break;
     }
     if (!resolved) {
-      resolved = { value: schemaEntry.default !== undefined ? schemaEntry.default : null, source: 'default' };
+      resolved = { value: defaultValue, source: 'default' };
       const tagged = sources.find((source) => hasOwn(source.emptyRenames, canonical));
       if (tagged) resolved['renamed-from'] = tagged.emptyRenames[canonical];
     }
