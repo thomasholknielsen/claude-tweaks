@@ -112,15 +112,14 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 1. Parse `$ARGUMENTS` — extract record reference(s) (`#N` / `#A,#B`) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, `no-deepen`, `no-creative`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
    1. Explicit mode keyword in `$ARGUMENTS` — `interactive` / `hybrid` / `confirm` / `auto`. (`confirm` means "auto mode, but gate the Manifesto"; see Step 3.)
-   2. `.claude-tweaks/policy.yml` `auto-mode:` setting — `default-off` → `interactive`; `default-on` → `auto`.
-   3. **Intrinsic default → `auto`.** Flow's purpose is hands-off automation, so it runs auto unless a param or `auto-mode: default-off` lowers it.
+   2. `auto-mode` policy — `AUTO_MODE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values auto-mode)`: `default-off` → `interactive`; `default-on` → `auto`; empty (unset) → fall through.
+   3. **Intrinsic default → `auto`.** Flow is hands-off by purpose — auto unless a param or `auto-mode: default-off` lowers it.
 2. Determine record mode (`#N` / `#A,#B`, or a bare id under `work-backend: local-files`) or topic-resolution mode (name) — per Input resolution above. A path argument is held until Step 2.7 (pre-flight) where it's checked against the design-doc rejection rule.
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
-   2. `.claude-tweaks/policy.yml` `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
-   3. Fallback: `worktree`
+   2. Otherwise `GIT_STRATEGY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values git-strategy)` — the policy setting, else the resolver's schema default `worktree` (see `/claude-tweaks:build` default resolution)
 
-   Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy. Pass `subagent` as an explicit argument in the `/claude-tweaks:build` invocation (Step 4) rather than relying on `/build`'s own default-resolution chain — this keeps flow's execution-strategy guarantee independent of whatever `.claude-tweaks/policy.yml` might otherwise resolve to for a standalone `/build` call.
+   Do NOT prompt for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — never prompted. Pass `subagent` as an explicit argument in the `/claude-tweaks:build` invocation (Step 4) rather than relying on `/build`'s own default-resolution chain — keeping flow's execution-strategy guarantee independent of `/build`'s own policy resolution.
 4. Validate step list is in lifecycle order and apply the auto-inserts and override rules from `steps-and-gates.md` ("Step Arguments" section): auto-insert `test` before `review`, treat literal `re-verify` as a no-op, and drop `polish` when `no-polish` is set.
 5. Resolve and shape-gate every target record now, via `materialize.md`'s Resolution + Materialization hard gate in this skill's directory — this subsumes the design-doc rejection (2.7); an unshaped record stops the run here with a pointer to `/claude-tweaks:specify #{n}`, before Step 2's other checks or the Config Manifesto run.
 6. If a path was given in the argument: it is rejected as a design doc (Step 2.7 enforces). If a topic name was given: resolve to a record; if only a design doc exists for that topic, stop and present the routing message.

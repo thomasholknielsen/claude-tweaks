@@ -173,7 +173,7 @@ Survey depth resolves through the standard chain in `skills/_shared/auto-mode-ca
 
 1. **CLI arg** — an explicit `--mode=` on this invocation always wins.
 2. **Pipeline config** — the run directory's `config.yml`, when one resolves.
-3. **Project policy** — `.claude-tweaks/policy.yml`.
+3. **Project policy** — `.claude-tweaks/policy.yml`. Execute 2-3 as ONE resolver call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" research-mode` (drop `--run` when no run directory resolves); a null `value` in the envelope means neither source set `research-mode` — fall through.
 4. **Skill default** — `standard`.
 
 Verify mode introduces **no new mid-flow stop**. The Mode Picker's interactive prompt is skipped

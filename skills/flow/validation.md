@@ -10,7 +10,7 @@ Run substeps 2.5, 2.6, and 2.7 in order. Any hard fail or rejection stops the pi
 
 ## 2.5 — Merge check
 
-Read the `merge-check` setting from `.claude-tweaks/policy.yml` (default: `true`). When enabled and worktree strategy resolves to `worktree`, run `_shared/worktree-setup.md`'s `## Pre-flight divergence check` — the canonical resolution + fetch + `ahead`-count procedure, consolidated out of what were two byte-identical copies here and in `skills/build/worktree-setup.md` (`[IL-32]`). That section's `AskUserQuestion` and auto-mode handling apply as written there; this step's own log line reads:
+Resolve the `merge-check` setting — `MERGE_CHECK=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-check)`. When enabled and worktree strategy resolves to `worktree`, run `_shared/worktree-setup.md`'s `## Pre-flight divergence check` — the canonical resolution + fetch + `ahead`-count procedure, consolidated out of what were two byte-identical copies here and in `skills/build/worktree-setup.md` (`[IL-32]`). That section's `AskUserQuestion` and auto-mode handling apply as written there; this step's own log line reads:
 
 ```
 AUTO {time} — Step 2.5: pre-flight merge-check — {UPSTREAM} is {N} ahead. Continued and added ops ledger entry. Reversibility: low (divergence persists).

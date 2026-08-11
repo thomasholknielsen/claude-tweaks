@@ -15,7 +15,7 @@ The survey produces the **Creative Opportunities** block rendered before Next Ac
 
 ## When to run
 
-Run the survey before rendering the Pipeline Summary, after the resolve gate completes (nothing-left-behind), and only when `no-creative` was not set (nor `creative-survey: off` in `.claude-tweaks/policy.yml`) — when skipped, omit decline detection, the wrapper call, and the block entirely. Decline detection runs **before** the survey call so the wrapper can suppress repeatedly-declined recommendations.
+Run the survey before rendering the Pipeline Summary, after the resolve gate completes (nothing-left-behind), and only when `no-creative` was not set and `creative-survey` does not resolve to `off` — `CREATIVE_SURVEY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values creative-survey)` — when skipped, omit decline detection, the wrapper call, and the block entirely. Decline detection runs **before** the survey call so the wrapper can suppress repeatedly-declined recommendations.
 
 ## Survey procedure
 
@@ -60,7 +60,7 @@ The output is a recommendation, identical in spirit to Creative Opportunities: "
 
 Depth analysis reads call sites, so don't run it on diffs where it can't find anything. Skip the survey entirely (omit the block, no `/deepen` invocation) when **any** of:
 
-- `no-deepen` was passed, or `depth-survey: off` in `.claude-tweaks/policy.yml`.
+- `no-deepen` was passed, or `depth-survey` resolves to `off` — `DEPTH_SURVEY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values depth-survey)`.
 - The pipeline diff added/changed **no source modules** (e.g., config-only, docs-only, or pure test changes). Use `git diff --name-only` against the run's base — if no non-test source files with module structure changed, skip.
 - The diff is trivial (single-file, no new exports/modules introduced).
 

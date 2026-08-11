@@ -30,12 +30,8 @@ When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Executio
 
 0. **Policy lever lock** (checked first): `.claude-tweaks/policy.yml`'s `execution.always: <value>` and/or `worktree.always: true` fix their respective axis outright — a locked axis is never asked about, and an explicit CLI argument that contradicts it (`batched` under `execution.always`, `current-branch` under `worktree.always`) is rejected rather than silently honored. **What "rejected" means procedurally:** substitute the locked value for the contradicting argument (never hard-stop with an error, and never invent an `AskUserQuestion` prompt — the axis is locked, not a decision) and surface a single one-line inline notice before proceeding: `"{axis} is locked to {value} by .claude-tweaks/policy.yml — ignoring the {argument} argument."` This applies uniformly in both interactive and `auto` mode; it is not itself an auto-decision-log entry (no judgment was exercised — policy is definitional), just a visible heads-up so the user isn't left wondering why their argument had no effect. The remaining precedence order below applies only to axes not locked by policy.
 1. Explicit arguments (`/claude-tweaks:build 42 batched current-branch`) — always win
-2. `.claude-tweaks/policy.yml` settings — project-level defaults:
-   ```
-   execution-strategy: subagent
-   git-strategy: worktree
-   ```
-3. Fallback — `subagent` + `worktree`
+2. Project policy — resolve both unlocked axes with ONE resolver call: `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" execution-strategy git-strategy`, applying each envelope's `value` (its `source` field says whether `.claude-tweaks/policy.yml` set it or the schema default applied)
+3. Fallback — the resolver's schema defaults, `subagent` + `worktree`, apply through the same call when policy is silent (no separate read)
 4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes deviations per the auto-mode contract: Beneficial→AUTO (log spec edit commit), Update the spec→STAGED, Fix now→KEPT-PROMPT. Decisions that warrant human judgment are staged to the Wrap-Up Review Console rather than stopping the pipeline mid-flow — see `_shared/auto-mode-contract.md` for the silences inventory and the HARD-GATE exemption list.
 
 ## Input
