@@ -97,8 +97,8 @@ model: claude-sonnet-5
 allowed_tools: [Bash, Read, Edit, Write, Grep, Glob, Task]
 mcp_connections: []
 default_schedule:
-  cron_expression: "0 4 * * 1-5"
-  description: "weekday off-peak anchor, UTC — confirm against your local timezone at creation time"
+  cron_expression: "11 */2 * * 1-5"
+  description: "every 2 hours on weekdays, UTC — confirm against your local timezone at creation time. Tightened from a once-daily anchor (was \"0 4 * * 1-5\") for 12x lower queue-drain latency while keeping the same daily-brake role"
 notes: >
   Headless queue consumer: each firing selects exactly one file-overlap group from the
   authorized queue (open + auto:build, no bot:*, unclaimed), claims every member of that
