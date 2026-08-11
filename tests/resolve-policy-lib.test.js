@@ -20,6 +20,13 @@ test('returns a plain object keyed by requested name, never an array', () => {
   assert.deepStrictEqual(Object.keys(result), ['autonomy']);
 });
 
+test('health-open-cap is schema-registered — default 10, configured value wins (#330 gap fix)', () => {
+  const unset = resolvePolicyKeys(['health-open-cap'], { policyRaw: null });
+  assert.deepStrictEqual(unset['health-open-cap'], { value: 10, source: 'default' });
+  const set = resolvePolicyKeys(['health-open-cap'], { policyRaw: 'health-open-cap: 25\n' });
+  assert.deepStrictEqual(set['health-open-cap'], { value: 25, source: 'policy' });
+});
+
 test('policy-source value resolves with source: "policy"', () => {
   const result = resolvePolicyKeys(['tidy-aggressiveness'], {
     policyRaw: 'tidy-aggressiveness: aggressive\n',

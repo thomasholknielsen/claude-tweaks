@@ -32,7 +32,7 @@ console.log(countOpenSingletons(raw, '{PREFIX}:digest'));
 " # -> OPEN_COUNT
 ```
 
-Read `health-open-cap` from `.claude-tweaks/policy.yml` the same way the dispatch retry ceiling is read (grep + sed; default `10` when absent or non-numeric — see `_shared/policy-schema.md`).
+Resolve the cap via the canonical read path (`_shared/policy-schema.md`): `CAP=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values health-open-cap)` — the resolver applies the schema default and rejects non-numeric values itself.
 
 For each survivor whose dedup decision (Step 8) is `'file'` (never `'reopen'` — a regression always bypasses the cap, per #235's Gotchas): call `decideFilingMode({ action: 'file', openCount: OPEN_COUNT, cap: CAP })`. `'normal'` files the issue exactly as before, **then increments `OPEN_COUNT` by 1** (a running counter — once the cap is crossed mid-run, every remaining new finding this run also digests). `'digest'`:
 

@@ -26,8 +26,11 @@ test('POLICY_KEYS entries are unique', () => {
   // merged list at conflict resolution, never summed from either side (IL-99).
   // 42 -> 44, #274 (experiment-cleanup vertical): experiment-flag-patterns,
   // experiment-flag-exclude — the repo's flag idiom + kill-switch exclusion.
-  assert.strictEqual(POLICY_KEYS.length, 44);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 44);
+  // 44 -> 45, #330 (prose migration): health-open-cap — documented in
+  // _shared/policy-schema.md since #235 but never registered; the resolver
+  // migration surfaced the gap (unknown-key for a documented lever).
+  assert.strictEqual(POLICY_KEYS.length, 45);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 45);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

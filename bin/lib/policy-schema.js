@@ -30,6 +30,10 @@ const POLICY_KEYS = [
   { key: 'review-diff-heuristic-thresholds', type: 'opaque' },
   { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30 },
   { key: 'harness-health.always-loaded-budget', type: 'integer', default: 150 },
+  // Per-origin open-singleton cap for the four health sweeps' digest filing
+  // (_shared/health-filing-digest.md). Documented in _shared/policy-schema.md
+  // since #235 but never registered here until #330's migration hit the gap.
+  { key: 'health-open-cap', type: 'integer', default: 10 },
   { key: 'scope-creep', type: 'enum', values: ['add-to-plan', 'stop-and-ask', 'drop'], default: 'add-to-plan' },
   { key: 'overlap', type: 'enum', values: ['companion', 'extend', 'skip', 'replace'], default: 'companion' },
   { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none' },
