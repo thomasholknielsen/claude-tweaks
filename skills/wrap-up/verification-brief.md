@@ -100,8 +100,8 @@ leaf, and the parent brief must not imply otherwise.
 
 **So the brief carries the human instead.** Part 2 of **Compose the parent brief** below — the
 end-to-end walkthrough, rendered inline inside `### Confirmed` — is the only walk instruction a
-parent brief carries (it omits both `### See it yourself` and `### Verify it yourself (manual)`,
-so `/claude-tweaks:demo` Option 2 is not offered for one). For a family whose assembled leaves
+parent brief carries (it omits the `### Observation plan` section — part 2's inline end-to-end
+walkthrough still carries the human). For a family whose assembled leaves
 touch UI, that walkthrough must therefore name the pages or journeys to open and what to look
 for, not just the skill invocation — it is standing in for the safety net, not summarizing it.
 
@@ -254,9 +254,8 @@ branches; **`{poster}`** in the template's own footer — substitute the **skill
 running *this* composition (see the Routing table above), never hardcode
 `` `/claude-tweaks:wrap-up` ``: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Phase 4's
 execution step or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate,
-`` `/claude-tweaks:tidy` `` for the backstop entry. Omit **See it yourself** and
-**Verify it yourself (manual)** — part 2's walkthrough
-already names the entry point inline within Confirmed. A parent brief carries the `### Branch`
+`` `/claude-tweaks:tidy` `` for the backstop entry. Omit the **Observation plan** section — part 2's
+walkthrough already names the entry point inline within Confirmed. A parent brief carries the `### Branch`
 section on the same condition Step 4 states — the durability record belongs to the run in hand,
 not to the family, so it is present exactly when that run produced one.
 
@@ -347,48 +346,34 @@ LABELS_JSON = [
 Only `demo:pending` is bootstrapped here — `/wrap-up` never applies the other two acceptance
 labels (see `_shared/work-record.md`'s permission matrix).
 
-## Step 2: Determine testability
+## Step 2: Author the observation plan
 
 Resolve `{base}` (used here and in Step 3 below) by `summary-template.md`'s `{base}` rule.
 
-Classify the changed-file list for this run (`git diff --name-only {base}...HEAD`, or the
-materialized header's file list) through the shared classifier — the same one
-`bin/lib/issues/acceptance.js` exports for `/claude-tweaks:tidy`'s acceptance-gap scan on either
-driver (`_shared/github-pr-scan.md`'s scope under `github-issues`, `tidy/step-1-records.md`'s
-Shape 8 under `local-files`), so they never drift apart:
+Pick the plan's `Surface` kind by judgment from what this run actually did — not from a path
+classifier — per `skills/_shared/observation-plan.md`'s schema, grammar, and per-kind semantics
+(cited there, stated once; not restated here). That file's precedence rule governs when the
+changed-file list includes UI, route, or rendered-content code: `app-route`/`rendered-page` take
+precedence there, and choosing `cli`/`flow`/`diff` anyway needs a one-line justification written
+into the plan's own text.
 
-```bash
-node -e "
-  const { verificationSurface } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const paths = process.argv.slice(1);
-  console.log(verificationSurface(paths));
-" $(git diff --name-only {base}...HEAD)
-```
+Author the plan's Entry point, Prepare, and Inspect fields per that schema. For a run with no
+UI/route surface, the old non-interactive guidance still applies, folded into the matching kind:
 
-`interactive` — this record is testable; continue to Step 2.5.
+- A changed skill or harness file — pick `flow`; the Inspect pointer names the specific behavior
+  to exercise (a step number, a branch, a template section), not "read the skill."
+- Changed `bin/` code — pick `cli`; the Entry point is the command to run, and the Inspect
+  pointer is its expected output (e.g. the module's own test file and its pass output, or a
+  one-line `node -e` exercising the changed function).
+- A changed doc or config file — pick `diff`; the Inspect pointer names the specific claim or
+  setting to check against current behavior.
 
-`non-interactive` — this record has **no interactive verification surface**, but it is not a
-dead end: compose **manual verification steps** now, concrete enough for a human to run or read
-by hand and observe the result —
+`app-route`/`rendered-page` plans — continue to Step 2.5. `cli`/`flow`/`diff` plans — skip Step
+2.5 and go straight to Step 3.
 
-- A changed skill or harness file — name the skill and the specific behavior to exercise (a step
-  number, a branch, a template section), not "read the skill."
-- Changed `bin/` code — the command to run and its expected output (e.g. the module's own test
-  file and its pass output, or a one-line `node -e` exercising the changed function).
-- A changed doc or config file — the file to open and the specific claim or setting to check
-  against current behavior.
+## Step 2.5: Visual-Review Safety-Net Gate (app-route/rendered-page plans only)
 
-(Read the changed-path list itself to tell which of these applies per file — do not re-derive
-which categories `verificationSurface` treats as non-interactive; that classification already
-ran above.)
-
-These steps carry forward into Step 4's `### Verify it yourself (manual)` section. Skip Step 2.5
-(its own header already scopes it to testable records) and go straight to Step 3's non-testable
-branch.
-
-## Step 2.5: Visual-Review Safety-Net Gate (testable records only)
-
-Skip this step for non-testable records (Step 2) — there is nothing to walk.
+Skip this step when the plan's kind is `cli`, `flow`, or `diff` (Step 2) — there is nothing to walk.
 
 Read this run's `/claude-tweaks:review` summary — the `### Visual Review` section's `**Status:**`
 field (`review-summary-template.md`). Branch on its value:
@@ -397,7 +382,7 @@ field (`review-summary-template.md`). Branch on its value:
 |---|---|---|
 | `Completed (code + visual)` or `Completed (code + visual, QA-enriched)` | A full browser walk already ran; any bug it found was already fixed and reverified through `/review`'s Step 3 Routing before `/review` could PASS | Proceed to Step 3 — no further action |
 | `Recommended — journeys affected` or `Recommended — UI changed (no journeys)` | Only recommendation mode ran — no browser walk happened | Trigger the gate below |
-| `Skipped — no UI changes` | `/review` read the diff and found no UI. Step 2 disagrees, but only by default — no path positively matched a UI surface, and `verificationSurface` carries no backend-code category (see its own comment for why), so a backend-only change lands here routinely | Treat as `Recommended` — trigger the gate below and let `/visual-review`'s own detection re-confirm. It costs a walk that finds nothing; the reverse error skips acceptance on a real UI change |
+| `Skipped — no UI changes` | `/review` read the diff and found no UI, but Step 2's plan kind can still be `app-route`/`rendered-page` — the builder picks the kind from judgment, not from `/review`'s own signal, so a backend-only change can still land here | Treat as `Recommended` — trigger the gate below and let `/visual-review`'s own detection re-confirm. It costs a walk that finds nothing; the reverse error skips acceptance on a real UI change |
 | `Skipped — browser tools not configured` or `Completed (code only — no browser)` | Nothing was walked, nothing can be — the latter is full-mode `/review` completing with a code-only fallback when no browser backend was available at invocation, same practical outcome as the former | See the browser-unavailable fallback below |
 | No `/review` summary available for this run (standalone `/wrap-up`, no recent `/review` run) | No signal exists | Treat as `Recommended` — trigger the gate below |
 
@@ -427,8 +412,8 @@ testable-with-browser-unavailable sourcing applies for this record's Confirmed s
 Every record's brief converges on the same self-contained shape — no branch between "pointer to
 another skill" and "generic fallback."
 
-**Testable, visual-review available** (Step 2.5 resolved clean with an actual walk — not the
-browser-unavailable fallback):
+**`app-route`/`rendered-page` plans whose Step 2.5 walk completed** (resolved clean with an
+actual walk — not the browser-unavailable fallback):
 
 1. Read the visual-review report (from Step 2.5's trigger, or `/review`'s existing Step 6 report
    when no trigger was needed) for its headline: `clean`, or `found and fixed: {N} issues` (name
@@ -439,8 +424,9 @@ browser-unavailable fallback):
 3. Resolve the entry point — `APP_URL` + the journey/page path (reuse `dev-url-detection.md`, do
    not re-derive URL discovery).
 
-**Non-testable, or testable-with-browser-unavailable** (Step 2 found no interactive surface, or
-Step 2.5's browser-unavailable fallback applied):
+**`cli`/`flow`/`diff` plans, or `app-route`/`rendered-page` plans under the browser-unavailable
+fallback** (Step 2 picked a plan kind that skips Step 2.5, or Step 2.5's browser-unavailable
+fallback applied):
 
 1. Pull the spec-compliance verdict and key quality notes from `/review`'s own summary
    (`### Spec Compliance` and `### Code Review Findings` sections).
@@ -512,15 +498,14 @@ Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 
 {diff, embedded in full or bounded to key hunks per Step 3}
 
-### See it yourself (optional)
-{APP_URL}/{path} — {journey name, when applicable}
-{omit this section entirely for non-testable records and the browser-unavailable fallback}
+### Observation plan
+- Surface: {rendered-page | app-route | cli | flow | diff}
+- Entry point: {from Step 2}
+- Prepare: {command sub-bullets, or none}
+- Inspect: {pointer sub-bullets — flow pointers may carry an indented Regenerate: line}
 
-### Verify it yourself (manual)
-{non-testable records only — the manual verification steps composed in Step 2: one concrete
-command, file path, or observable behavior per changed area}
-{omit this section entirely for testable records, with or without visual review — mutually
-exclusive with "See it yourself" above, never both}
+{this section's content follows `skills/_shared/observation-plan.md`'s schema and grammar; it is
+always present on a leaf brief — a parent brief omits it (Family-Gate Procedure)}
 
 ### Branch
 {dispatch-originated runs only, sourced from {run-dir}/pending-review-durability.md above:
