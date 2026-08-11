@@ -10,5 +10,8 @@
   },
   "doc:decisions/0003-worktree-always-init-rollout": {
     "lastAuditedMs": 1786342227614
+  },
+  "doc:decisions/0004-worktree-two-domain-convention": {
+    "lastAuditedMs": 1786444868204
   }
 }
