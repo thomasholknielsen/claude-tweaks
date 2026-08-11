@@ -294,3 +294,4 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't scope Final Verification to the spec's test file — run the full suite `[IL-120]`
 - Don't attach extra properties to an array before `JSON.stringify`-ing it — they're silently dropped with no error; return an object with the array as a named field `[IL-121]`
 - Don't check only `typeof`/`null` for shape — verify the fields read `[IL-123]`
+- Don't spec an eval-scenario deliverable without checking it against `evals/README.md`'s Safety model and sibling scenarios' own recorded walls — a capability the sandbox structurally denies moves that coverage to the unit layer, not to more scenarios `[IL-124]`

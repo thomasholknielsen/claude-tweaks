@@ -10,7 +10,7 @@ files:
 
 **Persona:** Developer maintaining the claude-tweaks plugin who wants a dedicated pass over dead code across the whole repository, not whatever directory the generalist sweep's rotation cursor happens to land on today.
 **Goal:** Run a `focus=dead-code` code-health sweep and get genuine dead-code findings filed as deduplicated GitHub issues.
-**Entry point:** Typing `/claude-tweaks:code-health focus=dead-code` in a session (or a scheduled Routine firing with the same argument, once one exists — no shipped routine sets `focus` yet).
+**Entry point:** Typing `/claude-tweaks:code-health focus=dead-code` in a session, or a scheduled Routine firing with the same argument — `/claude-tweaks:routine fleet on` provisions four focus-scoped routines (dead-code, test-hygiene, abstraction-police, experiment-cleanup) exactly this way (`skills/routine/fleet.md`'s composition table).
 **Success state:** Either the sweep reports "no candidates this firing" honestly (with scanned/skipped counts, so a silent skip is distinguishable from a genuinely clean repo), or genuine dead-code findings reach the judge and get filed.
 
 ## Steps
@@ -24,7 +24,7 @@ files:
 
 ### 2. Candidate generation runs
 - **URL:** N/A
-- **Action:** The skill runs `candidatesDeadCode` deterministically against the whole repo (`git ls-files`-based, gitignore-respecting) — no LLM involved yet. **Check:** look for the `scannedFiles: N` / `skippedFiles: M` line in the terminal output before the next step starts.
+- **Action:** The skill resolves the generator from `focus-generators.js`'s shared registry (where `candidatesDeadCode` registers itself under `dead-code`) and runs it deterministically against the whole repo (`git ls-files`-based, gitignore-respecting) — no LLM involved yet. **Check:** look for the `scannedFiles: N` / `skippedFiles: M` line in the terminal output before the next step starts.
 - **Should feel:** Fast and mechanical — this step is plain code, not judgment.
 - **Should understand:** The generator is conservative by design: it prefers missing a dead export/orphan file over flagging a live one as dead. That means real dead code can be missed, but a live file should never be wrongly reported.
 - **Red flags:** Zero candidates should read as a clean no-op, never an error — but only when the `scannedFiles`/`skippedFiles` line shows non-zero counts. A `scannedFiles: 0` result signals something is broken (non-git root, `git` unavailable), not a clean repo.
