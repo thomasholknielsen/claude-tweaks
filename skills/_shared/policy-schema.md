@@ -4,6 +4,27 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 
 `.claude-tweaks/policy.yml` is the canonical **and only** home for every lever below — no key in this table is read from CLAUDE.md. `worktree.always` is additionally enforced mechanically by `bin/lib/hooks/pre-tool-use.js`, which reads `policy.yml` directly. A recognized key still sitting in a project's CLAUDE.md no longer applies to anything; `auditPolicy()` reports it under `migratableKeys` and `/claude-tweaks:init --update`'s Config Home Drift check offers to move it.
 
+## Canonical read path
+
+`bin/resolve-policy.js` is THE canonical way skill prose reads any policy or run-config value:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" [--run "$PIPELINE_RUN_DIR"] <key> [<key>…]
+```
+
+The `${CLAUDE_PLUGIN_ROOT}` spelling is a model-resolved placeholder, not a live env var — the substitution contract is `docs/skill-authoring.md`'s "Plugin-root references (`CLAUDE_PLUGIN_ROOT`)" section; follow it, it is not restated here.
+
+Output is a single JSON object keyed by requested key. Each key resolves to the envelope `{value, source}` with `source ∈ run-config | policy | default`; precedence is run `config.yml` (when `--run` is given) → `policy.yml` → schema default. Integers and booleans come back as native JSON types. Optional envelope fields:
+
+- `"renamed-from"` — the value arrived via a `RENAMED_KEYS` alias (deprecated key name in the source file)
+- `"invalid": true` — a present-but-rejected value degraded to the schema default; distinct from known-but-unset, which is `source: "default"` with no flag
+- `{"error": "unknown-key"}` — the requested key is not in the schema (no value/source)
+
+Two carve-outs:
+
+- The PreToolUse hook's `worktree.always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
+- `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent.
+
 ## `resolveValue` — canonical coercion contract
 
 `bin/lib/policy-schema.js` also exports `resolveValue(key, rawValue)`: look up `key` in
