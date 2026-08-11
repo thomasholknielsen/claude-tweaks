@@ -109,7 +109,7 @@ Surface at the Wrap-Up Review Console. Do not run Steps 4-5 in auto mode — int
 
 ## Step 4: Design the Interface (Stage 2 of 2 — interactive only)
 
-For each candidate the user picked, hold a focused interface conversation — do not jump to code. Per the `Brainstorm / section-confirmation: adaptive` convention, if the user accepts two consecutive candidates' designs without modification, batch the rest into a single approval.
+For each candidate the user picked, hold a focused interface conversation — do not jump to code. Per the adaptive section-batching convention (docs/skill-authoring.md), if the user accepts two consecutive candidates' designs without modification, batch the rest into a single approval.
 
 1. **Propose the deepened (or collapsed) interface** — the smallest surface that hides the most behavior. Show the before/after signature, not the implementation.
 2. **Classify dependencies** for testability (pure computation / local stand-in / network boundary → port + adapter) per `_shared/criteria-architecture-depth.md`. State how the deepened module will be tested.

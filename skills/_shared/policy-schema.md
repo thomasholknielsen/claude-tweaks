@@ -108,7 +108,6 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `review-effort-floor` | `policy.yml` | `/claude-tweaks:review` | unset (no floor) | Project-level floor (`low`/`medium`/`high`/`xhigh`/`max`) that raises (never lowers) the resolved review-effort tier |
-| `review-diff-heuristic-thresholds` | `policy.yml` | `/claude-tweaks:review` | `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` | File/line thresholds for the diff-size review-effort heuristic. **Presence-only validated** — its value is a nested object, but `policy.yml` only supports flat `key: value` lines and no flat-line encoding for this shape has ever been specified; `auditPolicy()` checks the key name only, not the value |
 
 ## Documentation
 
@@ -160,18 +159,16 @@ Registered by #219; the resolver that actually reads these four (`model-stance`/
 | `frontier-run-cap` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | `3` | Per-pipeline-run ceiling on Frontier (`fable`) dispatches; `0` disables Frontier entirely for the run |
 | `model-ceiling` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (no ceiling) | A profile name (`fast`/`standard`/`capable`/`frontier`) above which a resolved profile is clamped down to the ceiling's row; does not clamp an explicit CLI override — the ceiling defends against skill defaults, not against a human's typed choice |
 | `model-profiles` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (table defaults apply) | Per-profile `{model, effort}` override rows, keyed by profile name, as a nested block (not a flat `key: value` line — see `bin/lib/model-profiles/policy-fragment.js`'s reader for the shape). **Shallow schema validation**: `auditPolicy()` checks only that each row's key names a real profile; a row's own field shape is validated deeply by the resolver instead |
-| `research-mode` | `policy.yml` | `/claude-tweaks:research` | unset (falls through to `standard`) | `quick`/`standard`/`deep`/`ultradeep` — project-level default research depth tier, read when `/flow`'s pipeline config sets no `research-mode` and no `--mode=` flag or prompt answer is given. Vocabulary lifted from `/claude-tweaks:research`'s own `## Input` section (that file is authoritative, not this row — IL-24) |
+| `research-mode` | `policy.yml` | `/claude-tweaks:research` | unset (falls through to `standard`) | `quick`/`standard`/`deep`/`ultradeep` — project-level default research depth tier, read when no `--mode=` flag or prompt answer is given. Vocabulary lifted from `/claude-tweaks:research`'s own `## Input` section (that file is authoritative, not this row — IL-24) |
 
 ## Additional levers
 
-These levers resolve from `.claude-tweaks/policy.yml`, like every other lever in this file. `/claude-tweaks:init`'s CLAUDE.md template generates none of them — omitting a lever means its default. `backlog-fetch-limit` and `promise-register-min-leaves` also appear in `_shared/work-record-config.md`'s table — if the two disagree, that file wins for those two keys, per the same rule the "Dispatch & merge" section states.
+These levers resolve from `.claude-tweaks/policy.yml`, like every other lever in this file. `/claude-tweaks:init`'s CLAUDE.md template generates none of them — omitting a lever means its default. `backlog-fetch-limit` also appears in `_shared/work-record-config.md`'s table — if the two disagree, that file wins for that key, per the same rule the "Dispatch & merge" section states.
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `depth-survey` | `policy.yml` | `/claude-tweaks:flow` | unset (enabled) | `off` disables the end-of-run Depth Opportunities survey project-wide (mirrors the `no-deepen` per-run flag) |
 | `creative-survey` | `policy.yml` | `/claude-tweaks:flow` | unset (enabled) | `off` disables the end-of-run Creative Opportunities survey project-wide (mirrors the `no-creative` per-run flag) |
 | `backlog-fetch-limit` | `policy.yml` | `/claude-tweaks:help`, `/claude-tweaks:tidy`, `/claude-tweaks:backlog` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer — `gh` auto-paginates internally; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |
-| `promise-register-min-leaves` | `policy.yml` | `/claude-tweaks:specify` | `4` | Minimum leaf count in one `/specify` decomposition before a `## Cross-Spec Promises` section is seeded on the parent record |
 | `scope-keywords-required` | `policy.yml` | `/claude-tweaks:build` | `false` | When `true`, `/build`'s plan-audit Check B refuses to start if any matched files aren't in the plan AND the plan/design has no `Scope keywords:` field — otherwise (default `false`) this is informational only, a warning |
-| `section-confirmation` | `policy.yml` | `/superpowers:brainstorming`, `/claude-tweaks:deepen` | `adaptive` | Whether a skill's multi-section approval gate batches after 2 clean approvals (`adaptive`), always asks per-section, or always batches once |
 | `branch-divergence-check` | `policy.yml` | `/claude-tweaks:build`, `/claude-tweaks:flow` | `true` | Pre-flight branch-divergence check — whether `/build`'s and `/flow`'s pre-flight step compares the current branch against its upstream and offers rebase-vs-continue; `false` skips this check. `merge-check` is a deprecated alias (identity `migrate`) — its collision with `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode was resolved by this rename in #331 |

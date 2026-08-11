@@ -243,8 +243,9 @@ A parent brief consists of:
    runnable unit is a skill invocation, not a deploy — name the invocation and the observable
    outcome.
 
-Where no register exists (below `promise-register-min-leaves`, default `4`, or
-`work-backend: local-files`), part 2 alone is the brief.
+Where no register exists (fewer than 4 leaves — the threshold that was the
+`promise-register-min-leaves` policy lever until its retirement in #331; removal trail:
+`_shared/policy-deprecations.md` — or `work-backend: local-files`), part 2 alone is the brief.
 
 Render the same `## Verification Brief` template Step 4 below renders, with: **The ask** — the
 parent's own design summary (problem, chosen approach — `_shared/work-record.md`'s
