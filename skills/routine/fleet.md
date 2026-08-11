@@ -34,8 +34,14 @@ Two buckets, named explicitly (never restated elsewhere as a bare list, per this
 
 One structured message, the bookend "begin stop" for this action (`_shared/auto-mode-contract.md`'s bookend pattern — this is a single-instance bookend for one `fleet on` invocation, not a multi-step pipeline). Collects every human-owned lever `fleet on` needs, **renders each one back before writing anything** (IL-114 — a render instruction does not bind itself; this is the explicit pre-write check that closes it):
 
-1. Read current values: `autonomy` (`.claude-tweaks/policy.yml`, default `supervised`), `grant-origination-enabled` (default `false`), `automerge-max-lines`/`automerge-max-files` (defaults `40`/`2`), `merge-sensitive-paths` (default `[]`), `fleet-daily-grant-cap` (default unset/uncapped) — all five already schema-registered in `bin/lib/policy-schema.js` (the first two by this leaf's own prerequisite work in `_shared/autonomy-ceiling.md`; `automerge-max-lines`/`automerge-max-files`/`merge-sensitive-paths` predate this leaf; `fleet-daily-grant-cap` landed with #269 — this leaf reads it, never re-registers it).
-2. Render every value as a table — key, current value, source (policy.yml / default) — **before** any `AskUserQuestion` call, so the render-then-write ordering IL-114 requires is structural, not a documentation promise:
+1. Read current values — `autonomy`, `grant-origination-enabled`, `automerge-max-lines`/`automerge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap` — in one canonical resolver call, whose per-key `{value, source}` JSON envelope is exactly what step 2's table renders:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" autonomy grant-origination-enabled automerge-max-lines automerge-max-files merge-sensitive-paths fleet-daily-grant-cap
+   ```
+
+   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this leaf's own prerequisite work in `_shared/autonomy-ceiling.md`; `automerge-max-lines`/`automerge-max-files`/`merge-sensitive-paths` predate this leaf; `fleet-daily-grant-cap` landed with #269 — this leaf reads it, never re-registers it).
+2. Render every value as a table — key, current value, source (policy.yml / default; each key's envelope `source` field supplies this column directly, `policy` rendering as `policy.yml`) — **before** any `AskUserQuestion` call, so the render-then-write ordering IL-114 requires is structural, not a documentation promise:
 
    ```
    ### Fleet Config (Manifesto)

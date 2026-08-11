@@ -126,12 +126,12 @@ With a parent resolved (`$PARENT_NUM`), enumerate the family's leaves from the *
 side, never from a leaf-side scan — a leaf-side lookup works under one `work-links` mode and
 silently returns nothing under the other.
 
-Resolve `work-links` before picking a branch below (`native` or `body-text`, default
-`body-text` — `_shared/work-record-config.md`), the same read `wrap-up/unblocked-records.md`
-already performs:
+Resolve `work-links` before picking a branch below (`native` or `body-text` —
+`_shared/work-record-config.md`; the resolver applies that table's default when the key is
+unset), the same read `wrap-up/unblocked-records.md` already performs:
 
 ```bash
-grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 ```
 
 ```bash

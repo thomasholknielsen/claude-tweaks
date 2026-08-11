@@ -224,20 +224,23 @@ process.stdin.on('end', () => {
 Read this project's own configured `merge-sensitive-paths`/`automerge-max-lines`/
 `automerge-max-files` directly — this skill reads its own config, the same way
 `skills/dispatch/SKILL.md`'s existing Configuration section reads `dispatch-retry-ceiling` and
-friends directly rather than expecting a caller to pre-fetch and pass them. This grep is
+friends directly rather than expecting a caller to pre-fetch and pass them. This read is
 independent of the `$MERGE_BASE`/diff-derivation chain above (see the parallel-execution note) and
 can be issued as a concurrent tool call:
 
 ```bash
-grep -E "^merge-sensitive-paths:|^automerge-max-lines:|^automerge-max-files:" .claude-tweaks/policy.yml 2>/dev/null
-MERGE_SENSITIVE_PATHS_CSV=$(grep -E "^merge-sensitive-paths:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*#.*$//')
+CONFIG_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-sensitive-paths automerge-max-lines automerge-max-files)
+MERGE_SENSITIVE_PATHS_CSV=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths
+AUTOMERGE_MAX_LINES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '2p')         # line 2: automerge-max-lines
+AUTOMERGE_MAX_FILES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '3p')         # line 3: automerge-max-files
 ```
 
 `merge-sensitive-paths` is a single line, comma-separated glob list (e.g.
 `merge-sensitive-paths: bin/hooks.js,skills/_shared/*.md,.claude-tweaks/policy.yml`) — split on `,`
-and trim whitespace; absent entirely defaults to `[]` (see `_shared/work-record.md`'s Config keys
-table). `automerge-max-lines`/`automerge-max-files` default to `40`/`2` when absent, matching
-`skills/dispatch/SKILL.md`'s existing Configuration table.
+and trim whitespace; an empty resolution means the key is unset and the list is `[]` (see
+`_shared/work-record.md`'s Config keys
+table). `automerge-max-lines`/`automerge-max-files` come back already defaulted by the resolver,
+so both are always concrete numbers.
 
 Then compute the blast-radius summary:
 
@@ -251,7 +254,7 @@ node -e "
 " "$MERGE_SENSITIVE_PATHS_CSV" > /tmp/assess-merge-blast-radius-${N}.json
 ```
 
-(`$MERGE_SENSITIVE_PATHS_CSV` is the comma-separated value parsed from the grep above, e.g.
+(`$MERGE_SENSITIVE_PATHS_CSV` is the comma-separated value captured from the resolver call above, e.g.
 `"bin/hooks.js,skills/_shared/*.md"` — passed as a positional arg, not an env var expected from a
 caller, since this skill reads its own config rather than depending on one.)
 

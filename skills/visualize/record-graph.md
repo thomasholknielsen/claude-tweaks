@@ -103,8 +103,15 @@ fetch procedure exactly as written, with one addition: append `body` to
 same faceted-record JSON `/help`, `/tidy`, and `/backlog` already consume — no new
 fetch logic, this type is one more consumer of that shared procedure.
 
-Also read `work-links` from the project's `.claude-tweaks/policy.yml` (`_shared/work-record.md`'s Config
-keys table); a missing key resolves to `body-text`, matching that table's own default.
+Also resolve `work-links` via the canonical read path (`_shared/work-record.md`'s Config
+keys table; `_shared/policy-schema.md`):
+
+```bash
+WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
+```
+
+The resolver applies that table's default when the key is missing, so the captured value is
+always concrete.
 
 **Do not rely on a shell variable to carry this value into Step B.** If Step A and
 Step B run as genuinely separate shell invocations, an `export` in one has nothing to

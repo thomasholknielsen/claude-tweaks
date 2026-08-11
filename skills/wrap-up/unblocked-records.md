@@ -2,14 +2,14 @@
 
 The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
 
-**`work-backend: github-issues`:** branches on `work-links` (same grep convention `/claude-tweaks:dispatch` Step 2 uses):
+**`work-backend: github-issues`:** branches on `work-links` (same resolver read `/claude-tweaks:dispatch` Step 2 uses):
 
 ```bash
-WORK_LINKS=$(grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//')
+WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 gh issue list --state open --json number,title,body --limit 200 > /tmp/wrapup-open-records.json
 ```
 
-`work-links: body-text` (default) — dependents are found via literal `Blocked by #N` body-text lines:
+`work-links: body-text` — dependents are found via literal `Blocked by #N` body-text lines:
 
 ```bash
 node -e "
