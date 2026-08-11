@@ -1,7 +1,5 @@
 {
+  "released": true,
   "runId": "2026-08-11T064646-dispatch-standalone",
-  "sessionId": "b1eb386e-d366-4119-81e5-6b62f1608913",
-  "claimedAt": "2026-08-11T04:48:12.691Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "releasedAt": "2026-08-11T05:25:10.253Z"
 }
