@@ -249,7 +249,7 @@ Where no register exists (below `promise-register-min-leaves`, default `4`, or
 Render the same `## Verification Brief` template Step 4 below renders, with: **The ask** — the
 parent's own design summary (problem, chosen approach — `_shared/work-record.md`'s
 Decomposition rules); **What shipped** — one-paragraph summary of what was delivered across the
-assembled leaves; **Confirmed** — parts 1 and 2 above, in place of Step 4's testable/non-testable
+assembled leaves; **Confirmed** — parts 1 and 2 above, in place of Step 4's kind-keyed Confirmed
 branches; **`{poster}`** in the template's own footer — substitute the **skill** actually
 running *this* composition (see the Routing table above), never hardcode
 `` `/claude-tweaks:wrap-up` ``: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Phase 4's
@@ -404,8 +404,9 @@ suggestions) are not blocking; they carry into Step 3's digest as context, not a
 itself hits this status when it runs `/visual-review`): not a bug-found case — there is nothing to
 fix, only nothing to verify. Proceed to Step 3 without blocking, using the same auto-mode
 stage/skip semantics `/visual-review` already applies elsewhere (`_shared/auto-mode-contract.md`).
-Record that visual verification wasn't available in this environment — Step 3's
-testable-with-browser-unavailable sourcing applies for this record's Confirmed section instead.
+Record that visual verification wasn't available in this environment — Step 3's branch for
+`app-route`/`rendered-page` plans under the browser-unavailable fallback applies for this
+record's Confirmed section instead.
 
 ## Step 3: Source the Confirmed-section content
 
@@ -436,7 +437,7 @@ fallback applied):
 
 ## Step 4: Compose and post the brief
 
-**Screenshot commit** (testable records with screenshots from Step 3): commit the 1-3 selected
+**Screenshot commit** (`app-route`/`rendered-page` plans whose Step 2.5 walk completed, with screenshots from Step 3): commit the 1-3 selected
 screenshots to `docs/demo-evidence/{record}/{NN}-{description}.png` on this run's current branch
 — `{record}` is the issue number (`github-issues`) or record id (`local-files`); `{NN}` is a
 zero-padded sequence starting at `01`; `{description}` is a short kebab-case label matching the
@@ -483,17 +484,17 @@ checklist; a human returning days later needs to remember *why*, not just *what 
 {one-paragraph summary from the record body + diff}
 
 ### Confirmed
-{testable, visual-review available:}
+{app-route/rendered-page, walk completed:}
 Visual review walked {journey/page name} — {clean | "found and fixed: {N} issues — {one line each}"}.
 
 {screenshot embeds from above, 1-3}
 
-{testable, browser unavailable:}
+{app-route/rendered-page, browser unavailable:}
 _Visual verification wasn't available in this environment._
 
-{diff/rationale, same shape as non-testable below}
+{diff/rationale, same shape as cli/flow/diff below}
 
-{non-testable:}
+{cli/flow/diff:}
 Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 
 {diff, embedded in full or bounded to key hunks per Step 3}
