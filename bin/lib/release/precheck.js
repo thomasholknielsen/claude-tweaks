@@ -43,7 +43,27 @@ function collectClaims(deps) {
       }
     }
   }
-  return { originMain, localMain, worktreeBranches, planClaims };
+  // The tsv's own tip participates in the base: a version can be documented
+  // (a wip-never-shipped tombstone line) without the manifest ever reaching it,
+  // and deriving the candidate from the manifest alone then lands exactly on
+  // the burned number — compose's duplicate-heading guard aborts, and no
+  // renumber suggestion ever fires because the tombstone is not a "claim".
+  // Observed live releasing after 6.75.0's reverted premature bump. A missing
+  // tsv (a repo predating it) contributes nothing rather than aborting.
+  let tsvTip = null;
+  try {
+    const tsv = deps.git(['show', 'main:docs/shipped-versions.tsv']);
+    for (const line of tsv.split('\n')) {
+      const v = line.split('\t')[0];
+      if (/^\d+\.\d+\.\d+$/.test(v) && (!tsvTip || compareVersions(v, tsvTip) > 0)) tsvTip = v;
+    }
+  } catch (err) {
+    if (!/does not exist|exists on disk, but not in|invalid object name/i.test(String(err.message))) {
+      throw new Error(`pre-check could not read docs/shipped-versions.tsv: ${err.message}`);
+    }
+  }
+
+  return { originMain, localMain, worktreeBranches, planClaims, tsvTip };
 }
 
 function checkCollisions(candidate, claims) {
@@ -70,7 +90,8 @@ function checkCollisions(candidate, claims) {
 function precheck(deps, part) {
   deps.git(['fetch', 'origin', 'main']);
   const claims = collectClaims(deps);
-  const base = compareVersions(claims.localMain, claims.originMain) > 0 ? claims.localMain : claims.originMain;
+  let base = compareVersions(claims.localMain, claims.originMain) > 0 ? claims.localMain : claims.originMain;
+  if (claims.tsvTip && compareVersions(claims.tsvTip, base) > 0) base = claims.tsvTip;
   const candidate = nextVersion(base, part);
   return { candidate, claims, result: checkCollisions(candidate, claims) };
 }

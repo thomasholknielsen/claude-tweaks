@@ -28,6 +28,10 @@ function baseDeps(overrides = {}) {
       ['show main:.claude-plugin/plugin.json', () => manifest(overrides.local || '6.70.1')],
       ['worktree list --porcelain', () => overrides.worktrees || 'worktree /repo\nbranch refs/heads/main\n'],
       ['show wt-feature:.claude-plugin/plugin.json', () => manifest(overrides.wtVersion || '6.70.1')],
+      ['show main:docs/shipped-versions.tsv', () => {
+        if (overrides.tsv === undefined) throw new Error("fatal: path 'docs/shipped-versions.tsv' does not exist in 'main'");
+        return overrides.tsv;
+      }],
     ]),
     listPlanFiles: () => overrides.plans || [],
     readFile: (p) => (overrides.planText || {})[p] || '',
@@ -50,6 +54,25 @@ test('a bump already on origin/main raises the base instead of colliding', () =>
 test('an executed bump on unpushed local main raises the base [IL-98]', () => {
   const { candidate, result } = precheck(baseDeps({ local: '6.71.0' }), 'minor');
   assert.strictEqual(candidate, '6.72.0');
+  assert.strictEqual(result.ok, true);
+});
+
+test('a burned tsv tombstone above the manifest raises the base past it', () => {
+  // A wip-never-shipped tsv line at manifest+1 (a reverted premature bump) is
+  // documented in CHANGELOG/tsv but never reached the manifest — deriving the
+  // candidate from the manifest alone lands exactly on the burned number and
+  // compose's duplicate-heading guard wedges every future release. Observed
+  // live after 6.75.0's revert.
+  const { candidate, result } = precheck(baseDeps({
+    tsv: '6.70.1\t2026-08-09\trelease\n6.71.0\t2026-08-09\twip-never-shipped\n',
+  }), 'minor');
+  assert.strictEqual(candidate, '6.72.0');
+  assert.strictEqual(result.ok, true);
+});
+
+test('a missing shipped-versions.tsv contributes nothing to the base', () => {
+  const { candidate, result } = precheck(baseDeps(), 'minor');
+  assert.strictEqual(candidate, '6.71.0');
   assert.strictEqual(result.ok, true);
 });
 
@@ -105,6 +128,9 @@ test('a branch with no manifest is skipped silently — not a claim', () => {
     ['worktree list --porcelain', () => SIBLING_WORKTREES],
     ['show wt-feature:.claude-plugin/plugin.json', () => {
       throw new Error("fatal: path '.claude-plugin/plugin.json' does not exist in 'wt-feature'");
+    }],
+    ['show main:docs/shipped-versions.tsv', () => {
+      throw new Error("fatal: path 'docs/shipped-versions.tsv' does not exist in 'main'");
     }],
   ]);
   const { result } = precheck(deps, 'minor');
