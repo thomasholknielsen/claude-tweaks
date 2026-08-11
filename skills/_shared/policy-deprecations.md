@@ -6,7 +6,7 @@ All five share one predicate form: **(a)** `grep -n "{key}" .claude-tweaks/polic
 
 ## `execution.always` (merged into `execution-strategy`)
 
-Now: migrates at read — the resolver maps `subagent` → `subagent-only` and `batched` → `batched-only` (full lock semantics preserved, `renamed-from` attribution); any other value null-migrates, falling through to `execution-strategy`'s schema default (`subagent`, unlocked), never minting a malformed `-only` value. `auditPolicy` reports the stray line under `renamedKeys` with the suggested replacement.
+Now: migrates at read — the resolver maps `subagent` → `subagent-only` and `batched` → `batched-only` (full lock semantics preserved, `renamed-from` attribution); any other value null-migrates, falling through to `execution-strategy`'s schema default (`subagent`, unlocked), never minting a malformed `-only` value. `auditPolicy` reports the stray line under `renamedKeys` with the suggested replacement. A file setting **both** keys follows the resolver's uniform alias rule: the `execution-strategy` line wins and the old lock key contributes nothing — a plain-value line therefore leaves the axis unlocked; the audit report and `/claude-tweaks:init --update`'s drift check are what surface that conflict for the user to resolve.
 
 Removal condition: the shared predicate above, with `{key}` = `execution.always`.
 
