@@ -2,6 +2,8 @@
 
 Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the Auto-merge gate (an `auto:merge`-granted group reaching `/wrap-up`'s Review Console) — both are conditional branches that don't run on the common clean-pending-review path, so they're kept out of `SKILL.md`'s always-loaded body.
 
+**The Auto-merge gate splits across two threads; Settle does not.** Settle (below) runs entirely inside whichever Task call hits the failure, as it always has. The Auto-merge gate's authorization check, content judgment, and acceptance labeling also run inside the second Task call — but its actual merge execution cannot: a Task-tool subagent is cwd-pinned to the worktree it inherited at launch and cannot reach the main checkout (`dispatch/SKILL.md` Step 5's sequential-execution note: "A Task-tool subagent is always launched cwd-pinned to the dispatching session's own worktree"). That final step runs in the *dispatching session's own thread* instead, per **Dispatching-session merge execution** at the end of this file.
+
 **MCP path, file-wide.** Every label read/edit and comment operation in this file that isn't called out individually below (e.g. the `gh issue view --json labels` / `gh issue edit --remove-label` pair in Settle step 3, and the failure-comment post in step 5) uses the standard CRUD mapping from `_shared/github-write-transport.md`: `issue_write` (update mode) for label edits, `add_issue_comment` for comments, `issue_read` for reads. The one call site with special MCP-path handling — the retry-ceiling comment fetch (step 4 below) — already has its own dedicated note.
 
 ## Step 6: Settle — on pipeline failure
@@ -86,24 +88,38 @@ Order is load-bearing: the merge below carries one `Fixes #{issue}` line per rec
 
 `auto:merge` governs merge timing only and has no bearing on whether a record gets `demo:pending` — `_shared/work-record.md` states that an `auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and this gate is the only place on the group path that can honor it.
 
-Then merge directly, bypassing the interactive `/superpowers:finishing-a-development-branch` handoff entirely (there is no human present to answer its merge/PR/discard prompt during a headless firing). Before merging, clear this run's worktree assignment the same way `flow/worktree-merge.md`'s reconciliation does:
+**Stop here — this Task call never touches the main checkout.** A Task-tool subagent launched by dispatch is cwd-pinned to the worktree it inherited at launch and cannot reach a sibling directory (see the note at the top of this file). The merge into the integration branch cannot run inside this call, even though both layers just passed. Do not run `git merge`, do not run `ExitWorktree`/`git worktree remove`, and do not run wrap-up's own Item 4 (worktree removal), Item 7 (issue claim release), or Item 8 (run-dir archival) — all three depend on a merge that has not happened yet. Items 1, 2, 3, 5, and 6 are unaffected (not merge-dependent) and may still run normally as part of this call's own wrap-up execution.
+
+Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call template) and return. **Dispatching-session merge execution**, below, is what actually merges — it runs in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread, immediately after this call's report is read. There is no human wait on this path (unlike the general `pending-review` case `_shared/pending-review-durability.md` protects), so there is no branch-durability gap to cover either.
+
+**Any layer fails:** proceed exactly as the `auto:build`-only path would — present the normal Review Console, wait for a human.
+
+## Dispatching-session merge execution (`OUTCOME: ready-to-merge` only)
+
+Runs in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread — never inside a Task call. This is the one part of the Auto-merge gate that needs main-checkout access, which only a top-level session has, never a Task-tool subagent.
+
+Nothing is threaded back from the second Task call beyond its `OUTCOME: ready-to-merge` line itself (per `_shared/subagent-output-contract.md`'s no-echo rule — a resolution trigger, not a summarized finding). The dispatching session already holds everything else it needs:
+
+- **`{group-worktree}` and `{branch}`** — this session created and entered both for this group in Step 5; it is still inside it (or can `cd` back — the path was captured then). Neither is derived from the Task call's report.
+- **`{run-dir}`** — the same value `two-call-gate.md` section 1 already derived from the first call's `MANIFEST:` report and handed to the second call in section 3.
+- **the group's issue numbers and titles** — already in `/tmp/dispatch-groups.json` from Step 2's queue pull. Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pending-review-durability.md`'s Step 4 already uses for its PR title.
+
+Clear this run's worktree assignment before merging, the same way `flow/worktree-merge.md`'s reconciliation does:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "{run-dir}"
 ```
 
-so the merge itself, landing in the main checkout, isn't denied as a wrong-checkout commit (E1). That only satisfies E1, though — if the project also has `worktree.always: true` set, the separate, run-independent `checkWorktreeRequired` policy gate in `bin/lib/hooks/pre-tool-use.js` still applies, and it denies any `git push` issued from the main checkout regardless of `close-run` (that gate keys off whether the command's target is a linked worktree, not run state — `close-run` never touches it). `git merge` itself is never flagged by that gate (only `commit`/`push` targets are), so the merge below is safe to run from the main checkout either way. The push after it is not — it must run from inside this group's own linked worktree instead, as a **separate** Bash call: chaining merge-then-push into one compound command still gets the whole invocation denied before either half runs, since the gate inspects the full command string up front (see CLAUDE.md's Don'ts list on this exact shape). Capture the worktree path before leaving it — this agent's own `pwd` from Step 5 is already inside it:
+so the merge itself, landing in the main checkout, isn't denied as a wrong-checkout commit (E1). That only satisfies E1, though — if the project also has `worktree.always: true` set, the separate, run-independent `checkWorktreeRequired` policy gate in `bin/lib/hooks/pre-tool-use.js` still applies, and it denies any `git push` issued from the main checkout regardless of `close-run` (that gate keys off whether the command's target is a linked worktree, not run state — `close-run` never touches it). `git merge` itself is never flagged by that gate (only `commit`/`push` targets are), so the merge below is safe to run from the main checkout either way. The push after it is not — it must run from inside this group's own linked worktree instead, as a **separate** Bash call: chaining merge-then-push into one compound command still gets the whole invocation denied before either half runs, since the gate inspects the full command string up front (see CLAUDE.md's Don'ts list on this exact shape).
 
-**Shell state does not survive between these calls** — each Bash invocation gets a fresh shell, so a variable assigned in one is empty in the next. Read the three values you need first, still inside the worktree, and substitute them **literally** into the calls below; do not carry them in shell variables. (Same rule and same reason as `wrap-up/review-console.md`'s fast-lane merge.)
+**Shell state does not survive between these calls** — each Bash invocation gets a fresh shell, so a variable assigned in one is empty in the next. Read `{integration-branch}` first and substitute it, and every other placeholder, **literally** into the calls below; do not carry them in shell variables. (Same rule and same reason as `wrap-up/review-console.md`'s fast-lane merge.)
 
 ```bash
-git rev-parse --show-toplevel                       # -> {group-worktree}
-git branch --show-current                           # -> {branch}
 grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//'
 git remote show origin | sed -n '/HEAD branch/s/.*: //p'   # only when the line above came back empty
 ```
 
-The last two commands together resolve `{integration-branch}`: take the `grep`'s output when it is non-empty, otherwise the `git remote show origin` fallback — local repository metadata that works regardless of transport, and this skill's rank-6 behavior per `skills/_shared/integration-branch.md`. See that file for the full precedence, including the explicit-argument and CLAUDE.md ranks this two-command shorthand collapses. It also deliberately skips that ladder's git-inference rank, which would consider the branch the main checkout currently has checked out — the one value this procedure must never trust, since a concurrent session switching it underfoot is exactly what the guard below exists to catch.
+The two commands together resolve `{integration-branch}`: take the `grep`'s output when it is non-empty, otherwise the `git remote show origin` fallback — local repository metadata that works regardless of transport, and this skill's rank-6 behavior per `skills/_shared/integration-branch.md`. See that file for the full precedence. It also deliberately skips that ladder's git-inference rank, which would consider the branch the main checkout currently has checked out — the one value this procedure must never trust, since a concurrent session switching it underfoot is exactly what the guard below exists to catch.
 
 **First call — merge, from the main checkout.** `{integration-branch}` and `{branch}` are the values just read:
 
@@ -119,20 +135,22 @@ Fixes #{issue}
 Fixes #{second-issue}"
 ```
 
-The guard stays, retargeted. Its job is catching a concurrent session switching the shared checkout out from under this merge — unchanged and still necessary. What changes is that on a repo whose integration branch isn't the GitHub default, it no longer aborts every single time on a mismatch that was never real.
+The guard's job is catching a concurrent session switching the shared checkout out from under this merge.
 
-**Second call — push, from inside the worktree** — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run`. Both checkouts share the same underlying `.git`, so pushing the just-merged integration branch from the worktree publishes exactly what the main checkout just merged. Both placeholders are the literal values read above, and the branch must be the same one the first call merged into — pushing a different one strands the merge locally:
+**Second call — push, from inside the worktree** — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run`. Both checkouts share the same underlying `.git`, so pushing the just-merged integration branch from the worktree publishes exactly what the main checkout just merged:
 
 ```bash
 git -C "{group-worktree}" push origin {integration-branch}
 ```
 
-One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path. **If the merge conflicts:** conflict resolution requires judgment a headless run can't supply — abort the merge (`git merge --abort`) and fall back to the normal `auto:build`-only path (present the Review Console, wait for a human), logging why the auto-merge path was abandoned.
+One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path.
 
-Log to `decisions.md`:
+**On success**, this call still owes the cleanup the second Task call deliberately skipped (worktree removal, claim release, run-dir archival — Items 4, 7, 8, all merge-dependent). Run them directly, citing the same canonical procedures Settle already cites for claim release rather than re-inventing them: remove the worktree per `wrap-up/cleanup-procedures.md` Section C (`ExitWorktree`, or `git worktree remove` once unlocked), release the claim per that file's Section E, and archive the run directory per its Section B. This is required, not optional — `dispatch/SKILL.md` Step 5 only enters the next group's worktree once this one "has been torn down," so skipping this stalls every later group in the same firing.
+
+Log to `{run-dir}/decisions.md`:
 `AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
-Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
+Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced and reported) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
 
-**That claim covers what wrap-up *found*, not everything its Phase 4 execution step *does*.** It was accurate when written and stayed accurate while going incomplete: acceptance labeling is an action, not a finding, so no completeness claim here covered it and it was silently dropped on every group auto-merge until the labeling step above was added. When adding anything else that execution step performs, check it against this gate explicitly — a claim that is true about one category is not evidence about another.
+**That claim covers what wrap-up *found*, not everything its Phase 4 execution step *does*.** Acceptance labeling is an action the second Task call already performed, before ever reporting `ready-to-merge` — not something this section repeats.
 
-**Any layer fails:** proceed exactly as the `auto:build`-only path would — present the normal Review Console, wait for a human.
+**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. Fall back to `_shared/pending-review-durability.md`'s Step 1-4 push-and-draft-PR procedure, run directly from this same dispatching-session thread (it only needs worktree access, which this session already has, still `cd`'d into `{group-worktree}`) — that file's own caller table lists this exact call site as its one exception to the "ordinary auto-merge short-circuit never lands here" rule. Skip that procedure's acceptance-labeling caveat — labeling already ran, before this group ever reported `ready-to-merge`. Leave the worktree and run dir parked exactly as an ordinary un-pushed `pending-review` outcome does today (`dispatch/SKILL.md`'s Reporting section) — no Item 4/7/8 cleanup on this branch; a human resuming the parked run handles it normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it, and the branch/PR give a resuming human everything they need regardless. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.
