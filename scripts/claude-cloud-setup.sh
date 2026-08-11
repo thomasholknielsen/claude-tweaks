@@ -38,6 +38,9 @@ claude plugin marketplace update claude-tweaks-marketplace \
 claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
 claude plugin marketplace update claude-plugins-official \
   || echo "[claude-cloud-setup] WARNING: catalog refresh failed for claude-plugins-official — version checks below are measured against whatever catalog this sandbox already had."
+claude plugin marketplace add pbakaus/impeccable 2>/dev/null || true
+claude plugin marketplace update impeccable \
+  || echo "[claude-cloud-setup] WARNING: catalog refresh failed for impeccable — version checks below are measured against whatever catalog this sandbox already had."
 
 # Plugins declared in .claude/settings.json#enabledPlugins. `claude plugin install` is NOT
 # idempotent (errors if the plugin is already present), so try update first and fall back to
@@ -45,7 +48,7 @@ claude plugin marketplace update claude-plugins-official \
 # Deliberately not silencing update's stderr here: if update fails for a real reason (network,
 # corrupt marketplace cache) rather than "not installed yet," the install fallback's own
 # "already installed" error would otherwise be the only, misleading diagnostic surfaced.
-PLUGIN_SPECS="claude-tweaks@claude-tweaks-marketplace superpowers@claude-plugins-official"
+PLUGIN_SPECS="claude-tweaks@claude-tweaks-marketplace superpowers@claude-plugins-official code-simplifier@claude-plugins-official impeccable@impeccable"
 for spec in $PLUGIN_SPECS; do
   claude plugin update "$spec" --scope project || claude plugin install "$spec" --scope project
 done

@@ -1,8 +1,8 @@
-routine_id: "trig_01SwsWhCBf886fABoknyE6mo"
+routine_id: "trig_0189C9brhufRxTwAzyf8QptT"
 template: docs-health
 template_version: 7
 model: "claude-sonnet-5"
-created_at: "2026-08-09T12:05:00Z"
+created_at: "2026-08-11T07:28:05Z"
 schedule: "0 6 * * *"
-console_url: "https://claude.ai/code/routines/trig_01SwsWhCBf886fABoknyE6mo"
+console_url: "https://claude.ai/code/routines/trig_0189C9brhufRxTwAzyf8QptT"
 branch: "main"
