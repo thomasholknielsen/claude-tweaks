@@ -95,6 +95,15 @@ const RENAMED_KEYS = [
     replacedBy: 'autonomy',
     migrate: (value) => (value === 'on' ? 'unattended' : null),
   },
+  // Renamed in #295 (the value is a sequential batch count, never a concurrency
+  // slot count). Unlike unattended-tier, the old key ALSO still sits in
+  // POLICY_KEYS — it runs its own removal course; removal condition in
+  // skills/dispatch/deprecated-aliases.md.
+  {
+    key: 'dispatch-pick-max-concurrent',
+    replacedBy: 'dispatch-batch-size',
+    migrate: (value) => value,
+  },
 ];
 const RENAMED_KEY_NAMES = new Set(RENAMED_KEYS.map((entry) => entry.key));
 
@@ -178,6 +187,96 @@ function resolveValue(key, rawValue) {
   if (entry.type === 'integer') return parseInt(strValue, 10);
   if (entry.type === 'boolean') return strValue === 'true';
   return rawValue;
+}
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+// Multi-key resolver behind bin/resolve-policy.js (#329). Pure — callers hand
+// in raw file contents as strings; no fs, no process state. Returns a plain
+// object keyed by each requested key name (never an array — IL-121), each
+// entry one of:
+//   { value, source }                      source: "run-config" | "policy" | "default"
+//   { value, source, "renamed-from": k }   value arrived via a RENAMED_KEYS migration
+//   { value: default, source: "default", invalid: true }   present-but-invalid at
+//                                          the winning source (never cascades)
+//   { error: "unknown-key" }               key in neither POLICY_KEYS nor RENAMED_KEYS
+// Precedence per key: run-config (only when runConfigRaw is a string) ->
+// policy -> schema default. Alias normalization happens per source, BEFORE
+// precedence: old key alone -> migrate() contributes under the new name with
+// a renamed-from tag (a null migration contributes nothing, but still tags
+// renamed-from when the final resolution falls to the default); old + new in
+// one source -> the new key wins with no tag (the stray old key is
+// auditPolicy's business).
+function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
+  const sources = [
+    { name: 'run-config', raw: typeof runConfigRaw === 'string' ? runConfigRaw : null },
+    { name: 'policy', raw: typeof policyRaw === 'string' ? policyRaw : null },
+  ].map(({ name, raw }) => {
+    const entries = parseFlatLines(raw);
+    const values = { ...entries }; // canonical-name -> raw string value
+    const renamedFrom = {}; // canonical-name -> old name, when the value arrived via migrate
+    const emptyRenames = {}; // canonical-name -> old name, when migrate returned null (no value)
+    for (const alias of RENAMED_KEYS) {
+      if (!hasOwn(entries, alias.key)) continue;
+      delete values[alias.key]; // an old name never resolves as a flat key of its own
+      if (hasOwn(entries, alias.replacedBy)) continue; // new key wins, no renamed-from
+      const migrated = alias.migrate(entries[alias.key]);
+      if (migrated === null) {
+        emptyRenames[alias.replacedBy] = alias.key;
+        continue;
+      }
+      values[alias.replacedBy] = String(migrated);
+      renamedFrom[alias.replacedBy] = alias.key;
+    }
+    return { name, values, renamedFrom, emptyRenames };
+  });
+
+  const result = {};
+  for (const requested of requestedKeys) {
+    // model-profiles is the one block-style key — invisible to this flat
+    // resolver by design. Emit its documented absent shape; the CLI overwrites
+    // this entry via its parsePolicyModelConfig delegation before printing.
+    if (requested === 'model-profiles') {
+      result[requested] = { value: null, source: 'default' };
+      continue;
+    }
+    // A request by an alias's old name resolves the replacement key.
+    const aliasEntry = RENAMED_KEYS.find((alias) => alias.key === requested);
+    const canonical = aliasEntry ? aliasEntry.replacedBy : requested;
+    const schemaEntry = SCHEMA_BY_KEY.get(canonical);
+    if (!schemaEntry) {
+      result[requested] = { error: 'unknown-key' };
+      continue;
+    }
+    let resolved = null;
+    for (const source of sources) {
+      if (!hasOwn(source.values, canonical)) continue;
+      const raw = source.values[canonical];
+      const envelope = {};
+      if (isValidValue(schemaEntry, raw)) {
+        envelope.value = resolveValue(canonical, raw);
+        envelope.source = source.name;
+      } else {
+        // A typo must never activate a different configured value: resolve to
+        // the schema default here, never the next source's value.
+        envelope.value = schemaEntry.default !== undefined ? schemaEntry.default : null;
+        envelope.source = 'default';
+        envelope.invalid = true;
+      }
+      if (hasOwn(source.renamedFrom, canonical)) envelope['renamed-from'] = source.renamedFrom[canonical];
+      resolved = envelope;
+      break;
+    }
+    if (!resolved) {
+      resolved = { value: schemaEntry.default !== undefined ? schemaEntry.default : null, source: 'default' };
+      const tagged = sources.find((source) => hasOwn(source.emptyRenames, canonical));
+      if (tagged) resolved['renamed-from'] = tagged.emptyRenames[canonical];
+    }
+    result[requested] = resolved;
+  }
+  return result;
 }
 
 // Shallow extractor for a nested `{topKey}:` block's first-level indented key
@@ -268,4 +367,4 @@ function auditPolicy(repoRoot) {
   return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys };
 }
 
-module.exports = { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue };
+module.exports = { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys };

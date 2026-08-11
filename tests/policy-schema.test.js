@@ -212,10 +212,16 @@ test('unattended-tier: off (the schema default, distinct from absent) -> suggest
   ]);
 });
 
-test('RENAMED_KEYS names unattended-tier, replaced by autonomy', () => {
-  assert.strictEqual(RENAMED_KEYS.length, 1);
-  assert.strictEqual(RENAMED_KEYS[0].key, 'unattended-tier');
-  assert.strictEqual(RENAMED_KEYS[0].replacedBy, 'autonomy');
+test('RENAMED_KEYS names unattended-tier -> autonomy and dispatch-pick-max-concurrent -> dispatch-batch-size', () => {
+  // 1 -> 2, #329: dispatch-pick-max-concurrent gained an alias entry so the
+  // resolver migrates it under dispatch-batch-size (it also STAYS in
+  // POLICY_KEYS — it runs its own removal course, see
+  // skills/dispatch/deprecated-aliases.md).
+  assert.strictEqual(RENAMED_KEYS.length, 2);
+  const byKey = new Map(RENAMED_KEYS.map((entry) => [entry.key, entry]));
+  assert.strictEqual(byKey.get('unattended-tier').replacedBy, 'autonomy');
+  assert.strictEqual(byKey.get('dispatch-pick-max-concurrent').replacedBy, 'dispatch-batch-size');
+  assert.strictEqual(byKey.get('dispatch-pick-max-concurrent').migrate('5'), '5', 'the alias migrates by identity — the value meaning did not change shape, only the name did');
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {
