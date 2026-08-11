@@ -334,9 +334,9 @@ Expected: `# fail 0`, same or greater pass count than the pre-change baseline (2
 
 Run: `git fetch origin main`
 Run: `git log --oneline origin/main -5`
-Run: `grep -c "6.75.0" docs/shipped-versions.tsv`
+Run: `grep -c "6.76.0" docs/shipped-versions.tsv`
 
-Expected: `origin/main`'s tip still matches (or is a fast-forward-mergeable descendant of) this branch's already-merged base; `6.75.0` does not appear in `docs/shipped-versions.tsv`. If `origin/main` has moved further and shipped a version, merge it first and recompute the next free minor version before proceeding — do not assume `6.75.0` is still free.
+Expected: `origin/main`'s tip still matches (or is a fast-forward-mergeable descendant of) this branch's already-merged base; `6.76.0` does not appear in `docs/shipped-versions.tsv`. If `origin/main` has moved further and shipped a version, merge it first and recompute the next free minor version before proceeding — do not assume `6.76.0` is still free.
 
 - [ ] **Step 2: Write the failing check**
 
@@ -345,18 +345,18 @@ Expected: `"version": "6.74.0",`
 
 - [ ] **Step 3: Bump the version**
 
-Edit `.claude-plugin/plugin.json`, changing `"version": "6.74.0",` to `"version": "6.75.0",` (or the freshly-computed free version from Step 1 if `6.75.0` is no longer free).
+Edit `.claude-plugin/plugin.json`, changing `"version": "6.74.0",` to `"version": "6.76.0",` (or the freshly-computed free version from Step 1 if `6.76.0` is no longer free).
 
 - [ ] **Step 4: Run the check again to verify it passes**
 
 Run: `grep '"version"' .claude-plugin/plugin.json`
-Expected: `"version": "6.75.0",` (or the corrected value)
+Expected: `"version": "6.76.0",` (or the corrected value)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add .claude-plugin/plugin.json
-git commit -m "Bump to 6.75.0 for the causal-depth contract"
+git commit -m "Bump to 6.76.0 for the causal-depth contract"
 ```
 
 ---
