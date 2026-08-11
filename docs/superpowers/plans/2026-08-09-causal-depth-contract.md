@@ -330,33 +330,33 @@ Expected: `# fail 0`, same or greater pass count than the pre-change baseline (2
 **Interfaces:**
 - Consumes: nothing from prior tasks structurally — this is deliberately the last, independent step so a late-landing upstream release doesn't collide with a version number reserved too early.
 
-- [ ] **Step 1: Fresh collision check**
+- [ ] **Step 1: Compute the next free minor version (never assume one reserved earlier)**
 
 Run: `git fetch origin main`
 Run: `git log --oneline origin/main -5`
-Run: `grep -c "6.76.0" docs/shipped-versions.tsv`
+Run: `tail -3 docs/shipped-versions.tsv`
 
-Expected: `origin/main`'s tip still matches (or is a fast-forward-mergeable descendant of) this branch's already-merged base; `6.76.0` does not appear in `docs/shipped-versions.tsv`. If `origin/main` has moved further and shipped a version, merge it first and recompute the next free minor version before proceeding — do not assume `6.76.0` is still free.
+Expected: `origin/main`'s tip still matches (or is a fast-forward-mergeable descendant of) this branch's already-merged base. Compute NEXT_MINOR = the tsv's highest shipped version plus one minor. This plan deliberately claims no literal version number — versions are taken at ship time, not reserved (see the version-collision judgment notes in `docs/releasing.md`), so a release landing before this task can never collide with it.
 
 - [ ] **Step 2: Write the failing check**
 
 Run: `grep '"version"' .claude-plugin/plugin.json`
-Expected: `"version": "6.74.0",`
+Expected: the current shipped version, whatever it now is.
 
 - [ ] **Step 3: Bump the version**
 
-Edit `.claude-plugin/plugin.json`, changing `"version": "6.74.0",` to `"version": "6.76.0",` (or the freshly-computed free version from Step 1 if `6.76.0` is no longer free).
+Edit `.claude-plugin/plugin.json`, changing the current `"version"` value to NEXT_MINOR from Step 1.
 
 - [ ] **Step 4: Run the check again to verify it passes**
 
 Run: `grep '"version"' .claude-plugin/plugin.json`
-Expected: `"version": "6.76.0",` (or the corrected value)
+Expected: NEXT_MINOR.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add .claude-plugin/plugin.json
-git commit -m "Bump to 6.76.0 for the causal-depth contract"
+git commit -m "Bump to <NEXT_MINOR> for the causal-depth contract"
 ```
 
 ---
