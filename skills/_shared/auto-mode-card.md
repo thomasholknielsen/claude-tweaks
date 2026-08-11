@@ -15,10 +15,12 @@ The minimal facts a **child** skill needs to implement its own auto branch corre
 
 Highest wins:
 
-1. **Explicit CLI arg** for this invocation
+1. **Explicit CLI arg** for this invocation — checked by the skill itself
 2. **Pipeline config** — `config.yml` in the run directory (Config Manifesto answers)
 3. **Project policy** — `.claude-tweaks/policy.yml`
 4. **Skill default** — the skill's own fallback
+
+Levels 2–4 execute via ONE call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" <key>` — whose envelope's `source` field reports which level decided (full mechanism: the contract's Decision precedence section).
 
 ## What `auto` does NOT silence (never-silenced list)
 

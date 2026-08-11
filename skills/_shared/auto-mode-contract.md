@@ -47,12 +47,20 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 
 ## Decision precedence
 
-When multiple sources can dictate a choice, highest wins:
+When multiple sources can dictate a choice, highest wins. Conceptually, four levels:
 
 1. **Explicit CLI arg** — `/flow 42 auto no-polish` always wins for that invocation
 2. **Pipeline config** — answers from the Config Manifesto (`config.yml` in the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`)
 3. **Project policy** — defaults in `.claude-tweaks/policy.yml` (e.g., `scope-creep: add-to-plan`)
 4. **Skill default** — the skill's fallback behavior when nothing above is set
+
+Only level 1 is checked in prose — the skill inspects its own invocation arguments. Levels 2–4 are executed mechanically by ONE resolver call:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" <key>
+```
+
+The resolver walks run `config.yml` → `policy.yml` → schema default in one step; the `source` field in its JSON envelope (`run-config | policy | default`) reports which level decided. (`${CLAUDE_PLUGIN_ROOT}` is a model-resolved placeholder — substitution contract in `docs/skill-authoring.md`'s "Plugin-root references (`CLAUDE_PLUGIN_ROOT`)" section.) Manifesto-lever read sites cite this section and call the resolver; they do not re-execute the chain in prose.
 
 When in doubt: ask once at the Config Manifesto, then never again for the rest of the pipeline.
 
@@ -208,7 +216,7 @@ If the skill genuinely needs information not in the Config Manifesto, it logs `N
 The canonical per-stop behavior table is the "What `auto` silences" / "What `auto` does NOT silence" pair above. Each pipeline-participating skill MUST:
 
 1. Cite this file **at the point where the skill implements an auto branch** — in the step body that makes the decision, not in a list of files the skill relates to. A citation the running model reads on its way into the branch is the one that binds; a citation parked in a table it never consults is not.
-2. When implementing an auto branch, follow the "Skill integration pattern" below (read pipeline config → project policy → skill default → log entry).
+2. When implementing an auto branch, follow the "Skill integration pattern" below (check CLI arg → one resolver call → log entry).
 3. Resist the urge to redeclare semantics inline. If a skill needs a per-stop quick reference, link to the relevant row in the silences table rather than duplicating it.
 
 Per-skill `## Auto-mode behavior` tables in SKILL.md are deprecated as of v4.7.0 — the silences table is the single source of truth. Drift between two copies (skill-local and contract-canonical) was the failure mode they were meant to prevent and instead enabled.
@@ -235,12 +243,11 @@ When a skill has a historical mid-flow stop, rewrite it like this:
 **Interactive mode:** call `AskUserQuestion` with the options below and wait.
 
 **Auto mode:**
-1. Read pipeline config from `{run-dir}/config.yml` (resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`) for `{policy-key}` → if set, apply.
-2. Else read project policy from `.claude-tweaks/policy.yml` → if set, apply.
-3. Else apply skill default: `{skill-default-value}`.
-4. Log to auto-decision log (append under `## /{skill}` heading in `{run-dir}/decisions.md`):
+1. If an explicit CLI arg covers `{policy-key}`, apply it (precedence level 1 — the only level checked in prose).
+2. Else resolve `{policy-key}` with ONE resolver call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" {policy-key}` (resolve the run dir via the `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`) — which executes run config → project policy → skill default mechanically; apply the envelope's `value`, and use its `source` as `{policy-source}` below.
+3. Log to auto-decision log (append under `## /{skill}` heading in `{run-dir}/decisions.md`):
    `- AUTO {HH:MM:SS} — {step name}: applied {value}. Reason: {policy-source}. Reversibility: {high|med|low}.`
-5. If reversibility != high OR confidence != high OR severity > low → stage instead:
+4. If reversibility != high OR confidence != high OR severity > low → stage instead:
    `- STAGED {HH:MM:SS} — {step name}: {what was found}. Stage path: staged/{slug}.{ext}.`
    Surface at the Wrap-Up Review Console.
 ```
