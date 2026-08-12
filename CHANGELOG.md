@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.77.0 — Policy read-path unification: resolve-policy CLI as the canonical read path, prose-grep migration to it, and key collapse (execution merge, branch-divergence-check rename, three retirements)
+
+Policy read-path unification: resolve-policy CLI as the canonical read path, prose-grep migration to it, and key collapse (execution merge, branch-divergence-check rename, three retirements).
+
 ## v6.76.1 — Add Hard gate to tidy Step 6 interactive report; fix REPO_SLUG derivation claim and code-simplifier plugin-status docs; restore dispatch routine's tightened 2-hour cadence as the template default — closes gaps found by the pre-release whole-branch review
 
 Add Hard gate to tidy Step 6 interactive report; fix REPO_SLUG derivation claim and code-simplifier plugin-status docs; restore dispatch routine's tightened 2-hour cadence as the template default — closes gaps found by the pre-release whole-branch review.
