@@ -23,7 +23,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 - `/claude-tweaks:stories` is exploring a site or validating generated stories against the live DOM
 - `/claude-tweaks:visual-review` is walking pages or journeys for UI quality findings
 - `/claude-tweaks:review` is running its visual or QA modes
-- `/claude-tweaks:demo` opens an on-demand live look at a record's resolved entry point ("See it yourself")
+- `/claude-tweaks:demo`'s Show step opens an on-demand live look at a record's resolved entry point (Validate runs the same headless check first, before Show hands the browser to the human)
 - A consumer skill needs to dispatch parallel agents that each drive a browser
 - Ad-hoc browser ops — navigate, screenshot, scrape, fill a form, check a deployment
 
