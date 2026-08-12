@@ -10,7 +10,7 @@ Shared procedure for auto-detecting a running development server. Checks persist
 - `/claude-tweaks:test` runs QA story validation and needs a dev server
 - `/claude-tweaks:flow` triggers automatic story generation after detecting UI changes
 - `/claude-tweaks:visual-review` needs a dev URL for page, journey, or discover modes (also called transitively from `/review` full mode)
-- `/claude-tweaks:demo`'s Prepare/Validate steps need a verified dev URL before Show opens a live look or presents manual steps (the legacy pre-flight naming survives only in `skills/demo/legacy-brief-compatibility.md`, for briefs posted before the Observation plan schema shipped)
+- `/claude-tweaks:demo`'s Prepare/Validate steps need a verified dev URL, but only for `app-route`/`rendered-page` Observation plans — Prepare's fallback resolves the entry point via this procedure, and Validate then probes it before Show; `cli`/`flow`/`diff` plans skip this procedure entirely (the legacy pre-flight naming survives only in `skills/demo/legacy-brief-compatibility.md`, for briefs posted before the Observation plan schema shipped)
 
 ## Procedure
 

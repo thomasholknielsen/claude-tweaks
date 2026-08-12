@@ -15,7 +15,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
                                         ↑
    Used by: /claude-tweaks:stories, /claude-tweaks:visual-review,
             /claude-tweaks:review (visual + qa modes), /claude-tweaks:demo
-            (on-demand live look), qa-agent, ad-hoc tasks
+            (Validate — headless entry-point check), qa-agent, ad-hoc tasks
 ```
 
 ## When to Use
