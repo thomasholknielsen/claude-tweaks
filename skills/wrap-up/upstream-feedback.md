@@ -25,11 +25,14 @@ later is a body nobody approved.
 
 Filing happens on approval, at `review-console.md`'s **On approval step 9** — that is what invokes
 `/claude-tweaks:feedback --pre-confirmed` for each checked `U#` row. The console's own *Upstream
-feedback section* does not file: it only renders the `U#` table and issues
-`_shared/upstream-feedback-batch.md`'s chunked `multiSelect` `AskUserQuestion` call(s) — never a
-per-item call. Both run in every mode. Phase 4's execution step files nothing either — it only
-confirms the filing landed; see `execution-and-verification.md`.
+feedback section* does not file: at `supervised`/`trusted` it renders the `U#` table and issues
+`_shared/upstream-feedback-batch.md`'s chunked `multiSelect` `AskUserQuestion` call(s) (folded into
+the batch "Approve all", never a per-item call); at `unattended` it auto-resolves with zero
+`AskUserQuestion` calls under `consoleAutoResolve` instead. Phase 4's execution step files nothing
+either — it only confirms the filing landed; see `execution-and-verification.md`.
 
-Filing is never auto-resolved regardless of mode: `_shared/auto-mode-card.md` lists upstream
-feedback among what `auto` does not silence, on the grounds that it publishes privately-derived
-content to a public repository. It is **not** exempt under any `autonomy` tier.
+Filing follows `_shared/auto-mode-card.md` / `_shared/auto-mode-contract.md`'s tiered stance for
+upstream feedback: at `supervised`/`trusted`, covered by the Review Console's batch "Approve all".
+At `unattended`, it auto-resolves with zero `AskUserQuestion` calls under `consoleAutoResolve`.
+The scrub gate (Step 2 above) still runs in every mode regardless of tier — only the filing
+approval itself follows the tiered stance.
