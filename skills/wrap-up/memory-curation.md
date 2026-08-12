@@ -28,7 +28,7 @@ At `supervised`/`trusted`, this row (`M#`) is covered by the Review Console's ba
 At `unattended`, it auto-resolves with zero `AskUserQuestion` calls under `consoleAutoResolve`.
 Per-item chunking (inspect each proposed file before approving) survives only inside the Override drill.
 
-**This is a per-item gate, not folded into any other approval.** Reflect's insights batch table
+**A different table's approval never satisfies this gate.** Reflect's insights batch table
 (`reflect/full-mode.md`) resolving an insight to D4 — even under "Apply all" — approves *routing*
 it here, not writing it. The Skill Updates batch, the cleanup+configuration batch, and any other
 `AskUserQuestion` in this run are likewise not this gate. The memory file is written only after this row's own batch decision (or auto-resolution) for this

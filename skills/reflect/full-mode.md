@@ -69,12 +69,15 @@ naming explicitly:
 
 - **D4 (memory)** — the insight is about the user, or is an environment fact
   with no owning artifact. Written per the contract's memory write procedure,
-  staged for approval, never auto-applied. **Approving this insights batch
-  (even "Apply all") only approves routing the insight to D4 — it is not
-  approval to write the memory file.** The write always waits for its own
-  separate, per-item approval (`wrap-up/memory-curation.md` stages it;
-  `wrap-up/review-console.md`'s Memory updates section takes the `M#` decision)
-  — never perform the write as part of applying this batch's result.
+  staged for approval and applied only via its own gate. **Approving this
+  insights batch (even "Apply all") only approves routing the insight to D4 —
+  it is not approval to write the memory file.** The write always waits for
+  its own separate gate (`wrap-up/memory-curation.md` stages it;
+  `wrap-up/review-console.md`'s Memory updates section takes the `M#`
+  decision — the Review Console's batch "Approve all" at
+  `supervised`/`trusted`, or auto-resolution under `consoleAutoResolve` at
+  `unattended`) — never perform the write as part of applying this batch's
+  result.
 - **D5 (upstream)** — the insight is about a claude-tweaks skill or contract and
   would hold in any project using the plugin. Routed to
   `/claude-tweaks:feedback`.

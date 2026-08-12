@@ -95,7 +95,7 @@ Mode-specific lens procedures live in sub-files (a given invocation only uses on
 
 When a pipeline run directory exists, route findings by category without prompting:
 
-**Classify first.** Route every insight through `skills/_shared/learning-routing.md` before applying any row below. A D4 (memory) or D5 (upstream) outcome is staged for approval and never auto-applied, regardless of what the rows below would otherwise do.
+**Classify first.** Route every insight through `skills/_shared/learning-routing.md` before applying any row below. A D4 (memory) or D5 (upstream) outcome is staged for approval and applied only via its own gate — the Review Console's batch "Approve all" at `supervised`/`trusted`, or auto-resolution under `consoleAutoResolve` at `unattended` — regardless of what the rows below would otherwise do.
 
 | Finding type | Default routing | Log entry |
 |---|---|---|
