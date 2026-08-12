@@ -159,12 +159,12 @@ function clearsFloor(blockerReason) {
   return moreThan ? count >= 10 : count > 10;
 }
 
-// The three bookkeeping capabilities the retired unattended-tier lever used to
-// gate as one on/off boolean, now unlocked by the merged autonomy ceiling:
-// ledger Phase 2 narrowing and queue-write auto-file at 'trusted'+, ops-ack
-// auto-acknowledge held back to 'unattended' (the one behavior that skips
-// acknowledging a post-merge infrastructure follow-up, not just a reversible
-// bookkeeping item). An unrecognized ceiling falls through to 'supervised' --
+// The bookkeeping capabilities the retired unattended-tier lever used to gate
+// as one on/off boolean, now unlocked individually by the merged autonomy
+// ceiling: ledger Phase 2 narrowing and queue-write auto-file at 'trusted'+;
+// ops-ack auto-acknowledge, console auto-resolve, and ledger route-remainder
+// held back to 'unattended' (see skills/_shared/autonomy-ceiling.md for what
+// each one does). An unrecognized ceiling falls through to 'supervised' --
 // same handling as permittedGrants, so a typo denies everything rather than
 // granting it.
 function bookkeepingPermissions(ceiling) {
@@ -173,6 +173,8 @@ function bookkeepingPermissions(ceiling) {
     ledgerNarrowing: atLeast(tier, 'trusted'),
     queueWriteAutoFile: atLeast(tier, 'trusted'),
     opsAckAutoAcknowledge: atLeast(tier, 'unattended'),
+    consoleAutoResolve: atLeast(tier, 'unattended'),
+    ledgerRouteRemainder: atLeast(tier, 'unattended'),
   };
 }
 
