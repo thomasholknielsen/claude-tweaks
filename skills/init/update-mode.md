@@ -218,11 +218,12 @@ Each flagged `renamedKeys` entry counts toward the same Phase 1u.6 Total drift c
 `unattended-tier` key must not take the early-exit fast path.
 
 Present a batch table (Key | Current value | Suggested replacement | Current `{replacedBy}` value
-or "not set"):
+or "not set"; for a retirement, the last cell is `—`):
 
 | Key | Current value | Suggested replacement | Current `autonomy` value |
 |---|---|---|---|
 | `unattended-tier` | `on` | `autonomy: unattended` | not set |
+| `{retired key}` | `{its value}` | retired — delete the line, no replacement | — |
 
 When `currentReplacementValue` is already set to something (the project has both the retired key
 and an explicit `autonomy` value), show both values and let the user pick which wins rather than
@@ -231,13 +232,20 @@ principle `migratableKeys`' `alsoInPolicy: true` differing-values handling above
 When `suggestedValue` is `null` (the retired key's value never unlocked anything the replacement's
 own default doesn't already match — `unattended-tier: off` is the shipped example), the offer is
 simply "remove this stray key," with no replacement value to set.
+When `replacedBy` itself is `null`, the key is retired outright (deliberate retirement, not a
+typo — #331's three retirements are the shipped examples; removal trail:
+`_shared/policy-deprecations.md`): render its Suggested-replacement cell as
+"retired — delete the line, no replacement" and its last cell as `—`. This is warn-tier and
+informational only — it never blocks, and declining the offer leaves the stray line untouched
+(the key simply continues to have no effect).
 
 Call `AskUserQuestion`:
 
 - `question`: `"{N} retired policy key(s) found in policy.yml. Migrate them?"`, `header`:
   `"Renamed keys"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Remove the
-  retired key(s) and set the suggested replacement value(s), exactly as shown in the table above"`
+  retired key(s) and, where a replacement key exists, set the suggested replacement value(s),
+  exactly as shown in the table above"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-key what happens
   to each of the {N} entries — e.g. keep the existing replacement value instead of the suggestion"`
 - Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave policy.yml as-is — the retired
@@ -251,6 +259,8 @@ Under `--defaults`, or any invocation with no interactive human, present the dif
 apply nothing. Remove the retired key's line from `.claude-tweaks/policy.yml`; when a suggested
 value applies and no differing existing value blocked it, write (or replace in place, never
 append — the same reasoning as the "Key already present" case above) `{replacedBy}: {suggestedValue}`.
+A `replacedBy: null` retirement never writes a replacement — accepting deletes the stray line,
+declining leaves it exactly as it was.
 
 On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
 `Operational` row.

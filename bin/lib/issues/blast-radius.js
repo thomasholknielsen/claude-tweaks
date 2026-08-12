@@ -1,13 +1,13 @@
 'use strict';
 
-// Pure: the mechanical half of assess-agent-autonomy's merge-check mode. Classifies a diff's
-// files (test vs. implementation, sensitive vs. not) and reduces that to the summary merge-check
-// weighs as one input alongside review findings and diff content — never a pass/fail gate on its
+// Pure: the mechanical half of assess-agent-autonomy's merge-check verdict mode. Classifies a
+// diff's files (test vs. implementation, sensitive vs. not) and reduces that to the summary the
+// merge-check verdict weighs as one input alongside review findings and diff content — never a pass/fail gate on its
 // own. See docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md.
 
 // Recognizes multiple ecosystems' test-path conventions, since
 // classifyDiffFiles/blastRadiusSummary judge diffs from arbitrary downstream
-// projects assess-agent-autonomy's merge-check reviews, not just this
+// projects assess-agent-autonomy's merge-check verdict reviews, not just this
 // plugin's own JS 'tests/*.test.js' shape:
 //   - a 'test' or 'tests' path segment (this plugin's own convention, and
 //     Maven/Gradle Java's canonical singular 'src/test/java/...')

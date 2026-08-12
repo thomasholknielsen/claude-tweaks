@@ -126,12 +126,12 @@ With a parent resolved (`$PARENT_NUM`), enumerate the family's leaves from the *
 side, never from a leaf-side scan — a leaf-side lookup works under one `work-links` mode and
 silently returns nothing under the other.
 
-Resolve `work-links` before picking a branch below (`native` or `body-text`, default
-`body-text` — `_shared/work-record-config.md`), the same read `wrap-up/unblocked-records.md`
-already performs:
+Resolve `work-links` before picking a branch below (`native` or `body-text` —
+`_shared/work-record-config.md`; the resolver applies that table's default when the key is
+unset), the same read `wrap-up/unblocked-records.md` already performs:
 
 ```bash
-grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 ```
 
 ```bash
@@ -243,8 +243,9 @@ A parent brief consists of:
    runnable unit is a skill invocation, not a deploy — name the invocation and the observable
    outcome.
 
-Where no register exists (below `promise-register-min-leaves`, default `4`, or
-`work-backend: local-files`), part 2 alone is the brief.
+Where no register exists (fewer than 4 leaves — the threshold that was the
+`promise-register-min-leaves` policy lever until its retirement in #331; removal trail:
+`_shared/policy-deprecations.md` — or `work-backend: local-files`), part 2 alone is the brief.
 
 Render the same `## Verification Brief` template Step 4 below renders, with: **The ask** — the
 parent's own design summary (problem, chosen approach — `_shared/work-record.md`'s

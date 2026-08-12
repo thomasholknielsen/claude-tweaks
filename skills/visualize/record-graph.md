@@ -103,8 +103,15 @@ fetch procedure exactly as written, with one addition: append `body` to
 same faceted-record JSON `/help`, `/tidy`, and `/backlog` already consume — no new
 fetch logic, this type is one more consumer of that shared procedure.
 
-Also read `work-links` from the project's `.claude-tweaks/policy.yml` (`_shared/work-record.md`'s Config
-keys table); a missing key resolves to `body-text`, matching that table's own default.
+Also resolve `work-links` via the canonical read path (`_shared/work-record.md`'s Config
+keys table; `_shared/policy-schema.md`):
+
+```bash
+WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
+```
+
+The resolver applies that table's default when the key is missing, so the captured value is
+always concrete.
 
 **Do not rely on a shell variable to carry this value into Step B.** If Step A and
 Step B run as genuinely separate shell invocations, an `export` in one has nothing to
@@ -183,7 +190,7 @@ convention exactly, so Step 6 needs no new registry logic here either.
   correctly). The legend and the "Generated {timestamp}" line still render; the
   empty columns communicate "no open work records" on their own.
 - **Truncated fetch** — `--fetch-limit` is always passed from
-  `backlog-fetch-limit` (or its default 1000); when the fetched count equals it,
+  `backlog-fetch-limit` (resolver-applied default when unset); when the fetched count equals it,
   `bin/record-graph.js` renders the on-diagram truncation note itself — no separate
   handling needed here beyond passing the flag through.
 - **`work-backend: local-files`** — NOT currently supported; Step A's backend gate

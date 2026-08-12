@@ -99,7 +99,7 @@ if [ "$QUEUE_RAW_COUNT" -ge 500 ]; then
   echo "Warning: the auto:build queue pull returned exactly the --limit cap (500) — this repo may have more open auto:build records than fetched. gh issue list returns newest-first, so any records beyond the cap are the OLDEST same-priority ones, exactly what next's own oldest-first tie-break (Step 3) exists to surface first. Consider raising the cap, or filing this as a signal to re-triage the queue down." >&2
 fi
 gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-numbers.json
-WORK_LINKS=$(grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//')
+WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/dispatch-queue-raw.json');
@@ -310,15 +310,15 @@ A headless (Routine-fired) firing's report has nobody live to read it — the du
 
 ## Configuration
 
-These rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from `.claude-tweaks/policy.yml`:
+These rows mirror `_shared/work-record-config.md`'s canonical key table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" <key> [<key>…]` (`_shared/policy-schema.md`):
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline on changed lines — a weighted input to `merge-check`'s judgment, not a hard cutoff. |
+| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-batch-size` | `3` | Maximum groups (bundles or singleton records) one firing processes sequentially, in the order Step 3's selection establishes; remaining groups stay claimed for a later firing. |
-| `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — reading it from `.claude-tweaks/policy.yml` emits one warn-tier notice per invocation and applies its value to `dispatch-batch-size`. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
+| `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — the resolver applies its value and tags the envelope `"renamed-from"`; when present, surface one warn-tier notice per invocation (the resolver never writes stderr). Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 
 **Per-firing CLI overrides:** `--batch-size <n>` (or its deprecated `--concurrent <n>` alias, Input table above) overrides `dispatch-batch-size` for this invocation only, and `--priority <band>` filters the `next` form's candidate pool before ranking — neither writes back to `.claude-tweaks/policy.yml`. CLI arg beats project policy, per `_shared/auto-mode-card.md`'s precedence order (CLI arg > pipeline config > project policy > skill default).
 

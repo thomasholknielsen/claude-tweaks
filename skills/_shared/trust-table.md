@@ -31,10 +31,11 @@ input, the set of record numbers that are decomposed leaves. The record set is a
 `work-links: native`, one `sub_issues` call per parent). Both are fetched below before anything
 is rendered.
 
-Before running anything below, read `backlog-fetch-limit` from the project's
-`.claude-tweaks/policy.yml` (per `_shared/work-record.md`'s Config keys table, the same value
-`_shared/record-queue-fetch.md` resolves) and substitute it for `{resolved-limit}` in **every**
-block below that references it; use `1000` when the key is absent. Substitute the literal number
+Before running anything below, resolve `backlog-fetch-limit` with
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit` (per
+`_shared/work-record.md`'s Config keys table, the same value `_shared/record-queue-fetch.md`
+resolves; the resolver applies the schema default when the key is absent) and substitute it for
+`{resolved-limit}` in **every** block below that references it. Substitute the literal number
 independently in each block — do **not** rely on a `${BACKLOG_FETCH_LIMIT:-1000}` expansion
 reading an `export` from an earlier step, and do not factor the `LIMIT="{resolved-limit}"` line
 out into a block of its own either. Shell environment does not survive between Bash calls and
@@ -67,15 +68,16 @@ set is bounded to the last 30 days; that reasoning covers only that one call, no
 
 **Read `work-links` before choosing between the two branches below** — they are mutually
 exclusive, and nothing in the fetched data reveals which one applies. It lives in the project's
-`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table; a missing key means
-`body-text`, the documented default), so read it directly rather than assuming the first-listed
+`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table), so resolve it
+directly rather than assuming the first-listed
 branch:
 
 ```bash
-grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links
 ```
 
-An empty result means `body-text`. Taking the `body-text` branch on a `work-links: native` repo
+The printed value names the branch to take — the resolver applies the documented default
+(`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
 construction, so `parseFamilyLeaves` returns `[]` for every parent,
 `/tmp/trust-table-family-leaves.json` is empty, and every decomposed leaf re-enters `cell.total`
@@ -167,9 +169,10 @@ node -e "
 " -- "{resolved-window}"
 ```
 
-Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
-for `{resolved-window}` above — an empty substitution is fine, `trustRows` and the policy-schema
-resolver it calls both treat an absent/empty value as "use the default (14)". It reaches the script
+Resolve `trust-revert-window-days` with
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values trust-revert-window-days` and
+substitute its literal value for `{resolved-window}` above — the resolver applies the schema
+default, so the substitution is never empty (`trustRows` tolerates one anyway). It reaches the script
 as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a quote
 character would otherwise break out of the string literal, the same reason
 `code-health/focus-mode.md`'s F1 block passes its own values that way.
@@ -203,7 +206,7 @@ acceptance-verdict discipline yet it is the largest number on the table.
 
 **Operational is a second, independent evidence source** — a closed record with no `demo:*`
 disposition still counts as known-good when it was merged and stayed unreverted for at least
-`trust-revert-window-days` (default 14 days, `bin/lib/issues/trust.js`). It folds into `Coverage`
+`trust-revert-window-days` (applied by `bin/lib/issues/trust.js`; default in `_shared/policy-schema.md`). It folds into `Coverage`
 the same way `Approved`/`Changes Requested` do (it sums into `dispositioned`). A record with
 a `demo:*` verdict is never double-counted here — demo-descent evidence is tried first, and the
 operational path only runs when it found nothing.

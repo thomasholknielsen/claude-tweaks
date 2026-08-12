@@ -1,6 +1,6 @@
 # Health Filing Digest Mode — Canonical Drain-Rate Cap Shape (#235)
 
-`code-health`, `harness-health`, `journey-health`, and `docs-health` each throttle new-issue filing against a per-origin open-singleton cap (`health-open-cap` in `.claude-tweaks/policy.yml`, default `10` — see `_shared/policy-schema.md`). Below the cap, filing is unchanged from before #235. At or above it, a brand-new finding that would otherwise file its own issue is appended to a single per-origin digest issue instead. This file is the one place the *shape* of the mechanism is defined — same convention as `_shared/health-filing-mechanics.md` — so a correctness fix made to one skill's copy can be checked against the same canonical shape in the other three; each consumer still writes the actual bash/node calls inline in its own FILE step (matching how the rest of that step is written), substituting its own `{BINARY}` (`bin/*.js`), `{PREFIX}` (`.claude-tweaks/{PREFIX}` cache/label prefix), and digest label `{PREFIX}:digest`.
+`code-health`, `harness-health`, `journey-health`, and `docs-health` each throttle new-issue filing against a per-origin open-singleton cap (the `health-open-cap` lever — see `_shared/policy-schema.md`). Below the cap, filing is unchanged from before #235. At or above it, a brand-new finding that would otherwise file its own issue is appended to a single per-origin digest issue instead. This file is the one place the *shape* of the mechanism is defined — same convention as `_shared/health-filing-mechanics.md` — so a correctness fix made to one skill's copy can be checked against the same canonical shape in the other three; each consumer still writes the actual bash/node calls inline in its own FILE step (matching how the rest of that step is written), substituting its own `{BINARY}` (`bin/*.js`), `{PREFIX}` (`.claude-tweaks/{PREFIX}` cache/label prefix), and digest label `{PREFIX}:digest`.
 
 All logic lives in `bin/lib/health-core/digest.js` — pure, no I/O, no gh calls. This file only prescribes *when* each consumer's FILE step calls it.
 
@@ -32,7 +32,7 @@ console.log(countOpenSingletons(raw, '{PREFIX}:digest'));
 " # -> OPEN_COUNT
 ```
 
-Read `health-open-cap` from `.claude-tweaks/policy.yml` the same way the dispatch retry ceiling is read (grep + sed; default `10` when absent or non-numeric — see `_shared/policy-schema.md`).
+Resolve the cap via the canonical read path (`_shared/policy-schema.md`): `CAP=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values health-open-cap)` — the resolver applies the schema default and rejects non-numeric values itself.
 
 For each survivor whose dedup decision (Step 8) is `'file'` (never `'reopen'` — a regression always bypasses the cap, per #235's Gotchas): call `decideFilingMode({ action: 'file', openCount: OPEN_COUNT, cap: CAP })`. `'normal'` files the issue exactly as before, **then increments `OPEN_COUNT` by 1** (a running counter — once the cap is crossed mid-run, every remaining new finding this run also digests). `'digest'`:
 

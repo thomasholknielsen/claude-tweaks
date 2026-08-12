@@ -26,8 +26,17 @@ test('POLICY_KEYS entries are unique', () => {
   // merged list at conflict resolution, never summed from either side (IL-99).
   // 42 -> 44, #274 (experiment-cleanup vertical): experiment-flag-patterns,
   // experiment-flag-exclude — the repo's flag idiom + kill-switch exclusion.
-  assert.strictEqual(POLICY_KEYS.length, 44);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 44);
+  // 44 -> 45, #330 (prose migration): health-open-cap — documented in
+  // _shared/policy-schema.md since #235 but never registered; the resolver
+  // migration surfaced the gap (unknown-key for a documented lever).
+  // 45 -> 41, #331 (key collapse): execution.always merged into
+  // execution-strategy's widened enum, merge-check renamed to
+  // branch-divergence-check, and review-diff-heuristic-thresholds /
+  // promise-register-min-leaves / section-confirmation retired outright —
+  // five rows out, one (branch-divergence-check) in; RENAMED_KEYS carries
+  // all five migrations.
+  assert.strictEqual(POLICY_KEYS.length, 41);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 41);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -85,7 +94,7 @@ test('execution-strategy and git-strategy are recognized policy keys', () => {
   const exec = byKey.get('execution-strategy');
   assert.ok(exec, 'execution-strategy missing from POLICY_KEYS');
   assert.strictEqual(exec.type, 'enum');
-  assert.deepStrictEqual(exec.values, ['subagent', 'batched']);
+  assert.deepStrictEqual(exec.values, ['subagent', 'batched', 'subagent-only', 'batched-only']);
   assert.strictEqual(exec.default, 'subagent');
 
   const git = byKey.get('git-strategy');
@@ -113,10 +122,30 @@ test('autonomy is a recognized enum key defaulting to supervised; an invalid val
   assert.deepStrictEqual(result.unrecognizedKeys, [], 'a recognized key with a bad value must never also appear as unrecognized');
 });
 
-test('execution.always locks the axis and execution-strategy sets the default — they are distinct keys', () => {
+test('execution-strategy is the ONE execution key — plain values are overridable defaults, -only values are locks', () => {
+  // #331 merged execution.always into execution-strategy: the '-only' enum
+  // values carry the old lock semantics; RENAMED_KEYS migrates stray lines.
   const keys = POLICY_KEYS.map((k) => k.key);
-  assert.ok(keys.includes('execution.always'), 'execution.always must survive as the lock');
-  assert.ok(keys.includes('execution-strategy'), 'execution-strategy must exist as the default');
+  assert.ok(!keys.includes('execution.always'), 'execution.always was merged into execution-strategy; RENAMED_KEYS carries the migration, not POLICY_KEYS');
+  const exec = POLICY_KEYS.find((k) => k.key === 'execution-strategy');
+  assert.deepStrictEqual(exec.values, ['subagent', 'batched', 'subagent-only', 'batched-only']);
+  assert.strictEqual(exec.default, 'subagent', 'the schema default stays the unlocked plain value');
+});
+
+test('branch-divergence-check replaces merge-check — boolean, default-parity true', () => {
+  const keys = POLICY_KEYS.map((k) => k.key);
+  assert.ok(!keys.includes('merge-check'), 'merge-check was renamed in #331; the old name lives only in RENAMED_KEYS');
+  const renamed = POLICY_KEYS.find((k) => k.key === 'branch-divergence-check');
+  assert.ok(renamed, 'branch-divergence-check missing from POLICY_KEYS');
+  assert.strictEqual(renamed.type, 'boolean');
+  assert.strictEqual(renamed.default, true, 'default-parity with the removed merge-check row');
+});
+
+test('the three #331-retired keys are gone from POLICY_KEYS', () => {
+  const keys = new Set(POLICY_KEYS.map((k) => k.key));
+  for (const retired of ['review-diff-heuristic-thresholds', 'promise-register-min-leaves', 'section-confirmation']) {
+    assert.ok(!keys.has(retired), `${retired} was retired outright in #331; RENAMED_KEYS carries the retirement, not POLICY_KEYS`);
+  }
 });
 
 test('a recognized key in CLAUDE.md is flagged for migration, not validated', () => {
@@ -212,10 +241,36 @@ test('unattended-tier: off (the schema default, distinct from absent) -> suggest
   ]);
 });
 
-test('RENAMED_KEYS names unattended-tier, replaced by autonomy', () => {
-  assert.strictEqual(RENAMED_KEYS.length, 1);
-  assert.strictEqual(RENAMED_KEYS[0].key, 'unattended-tier');
-  assert.strictEqual(RENAMED_KEYS[0].replacedBy, 'autonomy');
+test('RENAMED_KEYS names every alias and retirement, each with its migration', () => {
+  // 1 -> 2, #329: dispatch-pick-max-concurrent gained an alias entry so the
+  // resolver migrates it under dispatch-batch-size (it also STAYS in
+  // POLICY_KEYS — it runs its own removal course, see
+  // skills/dispatch/deprecated-aliases.md).
+  // 2 -> 7, #331 (key collapse): execution.always -> execution-strategy
+  // (lock-preserving migrate), merge-check -> branch-divergence-check
+  // (identity migrate), plus three retirements with replacedBy: null.
+  assert.strictEqual(RENAMED_KEYS.length, 7);
+  const byKey = new Map(RENAMED_KEYS.map((entry) => [entry.key, entry]));
+  assert.strictEqual(byKey.get('unattended-tier').replacedBy, 'autonomy');
+  assert.strictEqual(byKey.get('dispatch-pick-max-concurrent').replacedBy, 'dispatch-batch-size');
+  assert.strictEqual(byKey.get('dispatch-pick-max-concurrent').migrate('5'), '5', 'the alias migrates by identity — the value meaning did not change shape, only the name did');
+
+  const exec = byKey.get('execution.always');
+  assert.strictEqual(exec.replacedBy, 'execution-strategy');
+  assert.strictEqual(exec.migrate('subagent'), 'subagent-only', 'a valid lock value migrates to its -only lock form');
+  assert.strictEqual(exec.migrate('batched'), 'batched-only', 'a valid lock value migrates to its -only lock form');
+  assert.strictEqual(exec.migrate('yes'), null, 'a malformed value null-migrates to the schema default — never a minted -only value');
+
+  const divergence = byKey.get('merge-check');
+  assert.strictEqual(divergence.replacedBy, 'branch-divergence-check');
+  assert.strictEqual(divergence.migrate('false'), 'false', 'boolean semantics unchanged — identity migrate');
+
+  for (const retired of ['review-diff-heuristic-thresholds', 'promise-register-min-leaves', 'section-confirmation']) {
+    const entry = byKey.get(retired);
+    assert.ok(entry, `${retired} missing from RENAMED_KEYS`);
+    assert.strictEqual(entry.replacedBy, null, 'retired outright — no replacement key');
+    assert.strictEqual(entry.migrate('anything'), null, 'nothing carries forward from a retirement');
+  }
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {
@@ -250,11 +305,24 @@ test('recognized boolean key with a non-boolean value -> flagged', () => {
   assert.strictEqual(result.invalidValues[0].key, 'worktree.always');
 });
 
-test('review-diff-heuristic-thresholds is presence-only validated, never flagged', () => {
+test('AC 2: all three #331-retired keys audit under renamedKeys with replacedBy: null, never unrecognizedKeys', () => {
+  // Was the presence-only pin for review-diff-heuristic-thresholds (opaque
+  // type); #331 retired the key, so the pin becomes a retirement-audit pin.
   const repo = tmpRepo();
-  writePolicy(repo, 'review-diff-heuristic-thresholds: anything at all, not even valid YAML\n');
+  writePolicy(repo, [
+    'review-diff-heuristic-thresholds: anything at all, not even valid YAML',
+    'promise-register-min-leaves: 4',
+    'section-confirmation: per-section',
+    '',
+  ].join('\n'));
   const result = auditPolicy(repo);
-  assert.deepStrictEqual(result.invalidValues, []);
+  assert.deepStrictEqual(result.unrecognizedKeys, [], 'a deliberate retirement must never read as a typo');
+  assert.deepStrictEqual(result.invalidValues, [], 'a retired key has no schema row left to validate against');
+  assert.deepStrictEqual(result.renamedKeys, [
+    { key: 'review-diff-heuristic-thresholds', value: 'anything at all, not even valid YAML', replacedBy: null, suggestedValue: null, currentReplacementValue: null },
+    { key: 'promise-register-min-leaves', value: '4', replacedBy: null, suggestedValue: null, currentReplacementValue: null },
+    { key: 'section-confirmation', value: 'per-section', replacedBy: null, suggestedValue: null, currentReplacementValue: null },
+  ]);
 });
 
 test('unrecognized key -> flagged, does not also appear in invalidValues', () => {

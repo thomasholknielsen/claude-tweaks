@@ -1,5 +1,5 @@
 worktree.always: true
-execution.always: subagent
+execution-strategy: subagent-only
 auto-mode: default-on
 work-links: native
 autonomy: unattended

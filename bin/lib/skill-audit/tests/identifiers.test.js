@@ -8,8 +8,8 @@ const { extractIdentifiers, countOccurrences, findLostOccurrences } = require('.
 
 test('extractIdentifiers: collects backticked spans', () => {
   // Sorted lexicographically, so uppercase precedes lowercase.
-  const out = extractIdentifiers('Set `PIPELINE_RUN_DIR` before calling `merge-check`.');
-  assert.deepStrictEqual(out, ['PIPELINE_RUN_DIR', 'merge-check']);
+  const out = extractIdentifiers('Set `PIPELINE_RUN_DIR` before calling `close-run`.');
+  assert.deepStrictEqual(out, ['PIPELINE_RUN_DIR', 'close-run']);
 });
 
 test('extractIdentifiers: drops skill references and paths', () => {

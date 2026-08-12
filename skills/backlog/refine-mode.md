@@ -136,8 +136,16 @@ Fetch the records per `_shared/trust-table.md`'s Fetch section (including its
 family-parent branches to run — and its truncation warning), then look up each worklist record's
 class.
 
-Read `autonomy` from `.claude-tweaks/policy.yml` and **substitute its literal value** for
-`{resolved-ceiling}` below — `supervised` when the key is absent. Do **not** `export` it in an
+Resolve `autonomy` and `trust-revert-window-days` in one canonical read (the resolver applies
+each key's schema default when it is absent):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy trust-revert-window-days
+# line 1: autonomy -> {resolved-ceiling}; line 2: trust-revert-window-days -> {resolved-window}
+```
+
+**Substitute the literal values** for `{resolved-ceiling}` and `{resolved-window}` below. Do
+**not** `export` them in an
 earlier Bash call and read `process.env` here: shell environment does not survive between Bash
 calls and never reaches a subagent, so that expansion always resolves empty and this block would
 report `supervised` on a repo configured for `trusted`. It is the same hazard, and the same fix,
@@ -145,9 +153,7 @@ as the `backlog-fetch-limit` substitution in the Fetch section this step already
 failure is quiet and in the safe direction, which is exactly why it needs stating: nothing errors,
 the console simply renders a false claim about live policy.
 
-Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` and substitute its literal value
-for `{resolved-window}` below the same way — an empty substitution is fine, the default (14)
-applies. This block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section
+This block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section
 above — it must never shell its own separate `git log` call, or its verdicts could silently
 disagree with the trust table this same run just rendered from the identical underlying evidence.
 `{resolved-window}` reaches the script as a `process.argv` arg after `--`, never spliced into the

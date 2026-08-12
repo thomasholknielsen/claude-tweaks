@@ -19,19 +19,19 @@ Runs when the plan or design doc declares `Scope keywords:`. When the plan or de
 grep -rln -E "playwright-cli|claude_in_chrome|PLAYWRIGHT_MCP" skills/ agents/ hooks/ README.md .claude-plugin/ CLAUDE.md docs/ 2>/dev/null
 ```
 
-Read the `scope-keywords-required` setting from `.claude-tweaks/policy.yml`:
-- `scope-keywords-required: false` (default) — Check B is informational; surface missing-from-plan files as a warning, proceed.
+Resolve the `scope-keywords-required` setting — `SCOPE_KEYWORDS_REQUIRED=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values scope-keywords-required)`:
+- `scope-keywords-required: false` — Check B is informational; surface missing-from-plan files as a warning, proceed.
 - `scope-keywords-required: true` — Check B is gating; if any matched files aren't in the plan AND the plan/design has no `Scope keywords:` field, refuse to start. Tells the user: "This project requires scope keywords. Add `Scope keywords: <pattern1, pattern2>` to the plan or design doc and re-run."
 
 ## On Check B finding files outside the plan
 
 ### Auto mode (resolved mode is `auto`, including a standalone `/claude-tweaks:build {N} auto` invocation with no `/flow` parent)
 
-Resolve `scope-creep` via the standard precedence in `_shared/auto-mode-contract.md`: `config.yml` in the active run dir when one resolves with a Manifesto-computed policy (spawned by `/flow`, or record-mode's own standalone run dir per `_shared/pipeline-run-dir.md`'s materialization exception), else the project's `scope-creep:` setting in `.claude-tweaks/policy.yml` (see `_shared/policy-schema.md`), else the skill default `add-to-plan`. Log the decision to whatever run dir resolves, per `_shared/pipeline-run-dir.md`'s resolution order — an explicit `auto` CLI arg always applies this branch, never the Interactive-mode prompt below, regardless of whether a Manifesto-computed `config.yml` exists. Apply:
+Resolve `scope-creep` with ONE resolver call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" scope-creep` (resolve the run dir per `_shared/pipeline-run-dir.md` — spawned by `/flow`, or record-mode's own standalone run dir per its materialization exception) — which executes the standard precedence in `_shared/auto-mode-contract.md` (run `config.yml` → project `.claude-tweaks/policy.yml` → schema default) mechanically; apply the envelope's `value`. Log the decision to whatever run dir resolves, per `_shared/pipeline-run-dir.md`'s resolution order — an explicit `auto` CLI arg always applies this branch, never the Interactive-mode prompt below, regardless of whether a Manifesto-computed `config.yml` exists. Apply:
 
 | Policy | Action | Log entry |
 |---|---|---|
-| `add-to-plan` (default) | Auto-add matched files to the plan as new tasks. Commit the plan update. | `AUTO {time} — Step 1.5: scope-creep — added {N} files to plan ({list}). Reversibility: high (commit {hash}).` |
+| `add-to-plan` | Auto-add matched files to the plan as new tasks. Commit the plan update. | `AUTO {time} — Step 1.5: scope-creep — added {N} files to plan ({list}). Reversibility: high (commit {hash}).` |
 | `stop-and-ask` | Stop. Present the list inline. (Falls through to interactive prompt below.) | `KEPT-PROMPT {time} — Step 1.5: scope-creep matched {N} files, policy is stop-and-ask. Surfaced inline.` |
 | `drop` | Note the matched files in `decisions.md` as `STAGED` for Review Console; proceed without adding to plan. | `STAGED {time} — Step 1.5: scope-creep matched {N} files, policy is drop. Files: {list}. Surface at Review Console.` |
 

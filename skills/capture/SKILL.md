@@ -56,13 +56,14 @@ already applied — see `_shared/autonomy-ceiling.md`. At `supervised`, the defa
 any repo that has not opted in, this never fires and the paragraph above holds unchanged.
 
 Resolve it as a **single decision, before filing**, and only under `work-backend: github-issues`
-(the trust table reads `demo:*` labels, which do not exist on the `local-files` driver). Read
-`autonomy` from `.claude-tweaks/policy.yml` and substitute its literal value for
-`{resolved-ceiling}` — `supervised` when the key is absent. When it resolves to `supervised`, skip
+(the trust table reads `demo:*` labels, which do not exist on the `local-files` driver). Resolve
+both policy values in ONE call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy trust-revert-window-days`
+(one value per line, in request order) — and substitute the first line's literal value for
+`{resolved-ceiling}`. When it resolves to `supervised`, skip
 this block entirely rather than fetching anything.
 
-Read `trust-revert-window-days` from `.claude-tweaks/policy.yml` the same way, substituting for
-`{resolved-window}` below — empty means the default (14) applies. If the `gh` call, the `git log`
+Substitute the second line's literal value (the resolved `trust-revert-window-days`) for
+`{resolved-window}` below. If the `gh` call, the `git log`
 call, or the node block fails for any reason, file without `ready`: this path fails toward the
 default, never toward the grant (unchanged from before this leaf). `{resolved-window}` reaches the
 script as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a

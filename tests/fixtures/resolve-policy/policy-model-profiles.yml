@@ -1,0 +1,5 @@
+# Frozen fixture — nested model-profiles block (AC 9 present case).
+model-profiles:
+  capable:
+    model: opus
+    effort: high

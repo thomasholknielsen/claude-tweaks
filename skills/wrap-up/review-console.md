@@ -89,7 +89,7 @@ second call; do not carry them in shell variables.
 ```bash
 git -C "$RUN_DIR" rev-parse --show-toplevel      # -> {worktree-path}
 git -C "$RUN_DIR" branch --show-current          # -> {branch}
-grep -E "^integration-branch:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*integration-branch:[[:space:]]*//; s/[[:space:]]*#.*$//'
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch
 gh api "repos/{owner}/{repo}" -q .default_branch # only when the line above came back empty
 ```
 
@@ -99,7 +99,7 @@ this project integrates work into, which is not always the GitHub default (see
 and explicit-argument ranks this two-command shorthand collapses — and its git-inference
 rank, deliberately skipped here, which would consider whatever branch the main checkout
 currently has checked out; a concurrent session switching that is precisely what the guard
-below catches). Take the `grep`'s
+below catches). Take the resolver's
 output when it is non-empty; otherwise fall back to `gh api`. Substituting the wrong one
 here merges into a branch nobody develops on (#132).
 

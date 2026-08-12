@@ -280,7 +280,8 @@ When `/specify` decomposes a design into multiple records:
 
 ## Cross-Spec Promise Tracking
 
-A decomposition of `>= promise-register-min-leaves` leaves (Config keys, below) gets a
+A decomposition of >= 4 leaves (the threshold was the `promise-register-min-leaves` policy
+lever until its retirement in #331; removal trail: `_shared/policy-deprecations.md`) gets a
 `## Cross-Spec Promises` section on the **parent** record's body, seeded by `/specify` and
 maintained by `/claude-tweaks:review`'s Step 1.6 on every parent-linked leaf's own review — not
 gated on the leaves being built together in one multi-spec `/flow` batch, since the dominant
@@ -347,7 +348,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 |---|---|
 | `/code-health`, `/harness-health`, `/journey-health`, `/docs-health` | File born-`ready` records with origin + scoring + fingerprint |
 | `/capture` | Files raw backlog records (`by:capture`, Type only) |
-| `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves; seeds `## Cross-Spec Promises` on the parent for decompositions at or above `promise-register-min-leaves` |
+| `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves; seeds `## Cross-Spec Promises` on the parent for decompositions of 4 or more leaves |
 | `/backlog` | `refine` mode is the human gate — grants `auto:build`/`auto:merge` over the `ready` queue, and suggests `priority:*`/`**Related:**` (human-confirmed). `overview` mode is read-only — distribution views plus a "what to build next" recommendation. `grant` mode is the one headless machine-grant path — see Grant semantics above and `backlog/grant-mode.md`. |
 | `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report); also files `by:dispatch`-labeled backlog records when its own headless `next` firing hits a Preflight failure with nobody present to see it (`skills/dispatch/SKILL.md`'s Preflight, "Headless self-report") |
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |

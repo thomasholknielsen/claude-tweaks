@@ -4,6 +4,29 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 
 `.claude-tweaks/policy.yml` is the canonical **and only** home for every lever below — no key in this table is read from CLAUDE.md. `worktree.always` is additionally enforced mechanically by `bin/lib/hooks/pre-tool-use.js`, which reads `policy.yml` directly. A recognized key still sitting in a project's CLAUDE.md no longer applies to anything; `auditPolicy()` reports it under `migratableKeys` and `/claude-tweaks:init --update`'s Config Home Drift check offers to move it.
 
+## Canonical read path
+
+`bin/resolve-policy.js` is THE canonical way skill prose reads any policy or run-config value:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" [--values] [--run "$PIPELINE_RUN_DIR"] <key> [<key>…]
+```
+
+For shell-variable capture, `--values` prints one plain value per line in request order instead of the JSON envelope — coerced values render natively (`true`, `14`); an unset no-default key and an unknown key each print an empty line (the same empty string the retired grep pipeline produced); `model-profiles` has no scalar form and is an invocation error under `--values`. List-typed keys (e.g. `merge-sensitive-paths`) resolve to the raw comma-separated string in both modes when configured — callers split on `,`; only the unset default is a JSON `[]`, which `--values` renders as an empty line (same empty-means-none reading as the retired grep).
+
+The `${CLAUDE_PLUGIN_ROOT}` spelling is a model-resolved placeholder, not a live env var — the substitution contract is `docs/skill-authoring.md`'s "Plugin-root references (`CLAUDE_PLUGIN_ROOT`)" section; follow it, it is not restated here.
+
+Output is a single JSON object keyed by requested key. Each key resolves to the envelope `{value, source}` with `source ∈ run-config | policy | default`; precedence is run `config.yml` (when `--run` is given) → `policy.yml` → schema default. Integers and booleans come back as native JSON types. Optional envelope fields:
+
+- `"renamed-from"` — the value arrived via a `RENAMED_KEYS` alias (deprecated key name in the source file)
+- `"invalid": true` — a present-but-rejected value degraded to the schema default; distinct from known-but-unset, which is `source: "default"` with no flag
+- `{"error": "unknown-key"}` — the requested key is not in the schema (no value/source)
+
+Two carve-outs:
+
+- The PreToolUse hook's `worktree.always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
+- `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
+
 ## `resolveValue` — canonical coercion contract
 
 `bin/lib/policy-schema.js` also exports `resolveValue(key, rawValue)`: look up `key` in
@@ -22,8 +45,7 @@ parsing.
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `worktree.always` | `policy.yml` only — no CLAUDE.md path exists | `/claude-tweaks:init`, `/claude-tweaks:build`, `_shared/git-discipline.md`; mechanically enforced by `bin/lib/hooks/pre-tool-use.js` | `false` (unenforced) | Whether covered operations must occur inside a linked git worktree — see the coverage block below for exactly which |
-| `execution.always` | `policy.yml` | `/claude-tweaks:build`, `_shared/git-discipline.md` | unset (both `subagent`/`batched` selectable) | Locks /claude-tweaks:build's execution axis to the set value, when set — the other value is not offered and is substituted with an inline notice if passed explicitly (see build/SKILL.md's Execution axis paragraph). Distinct from execution-strategy, which sets an overridable default rather than a lock |
-| `execution-strategy` | `policy.yml` | `/claude-tweaks:build` | `subagent` | Default value of `/claude-tweaks:build`'s execution axis when no argument is passed. Distinct from `execution.always`: this sets a default an explicit argument still overrides, while `execution.always` locks the axis and rejects the other value |
+| `execution-strategy` | `policy.yml` | `/claude-tweaks:build`, `_shared/git-discipline.md` | `subagent` | `/claude-tweaks:build`'s execution axis, one key with two value classes: `subagent`/`batched` set the default when no argument is passed (an explicit argument still overrides); `subagent-only`/`batched-only` lock the axis — the other value is not offered and a contradicting explicit argument is substituted with an inline notice (see build/SKILL.md's Execution axis paragraph). `execution.always` is a deprecated alias: `migrate` maps `subagent` → `subagent-only` and `batched` → `batched-only`; a malformed value null-migrates to the schema default (`subagent`, unlocked); when both keys are set, the `execution-strategy` line wins (uniform alias rule — the audit/init drift check surfaces the conflict) |
 | `git-strategy` | `policy.yml` | `/claude-tweaks:build`, `/claude-tweaks:flow` | `worktree` | Default value of the Git axis when no argument is passed — matches /claude-tweaks:build's own documented default and /claude-tweaks:flow's intrinsic one. Set current-branch to opt a project out of worktree isolation by default; an explicit argument still wins, and worktree.always overrides both |
 
 ### `worktree.always` coverage — canonical
@@ -76,9 +98,9 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `dispatch-retry-ceiling` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Consecutive autonomous build failures before `bot:blocked` + `auto:*` removal |
 | `dispatch-batch-size` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Max groups one `/dispatch` firing processes **sequentially**, one after another (never concurrently — see #155); remaining picks stay claimed for a later firing |
 | `dispatch-pick-max-concurrent` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Deprecated alias for `dispatch-batch-size` — still resolves, emits one warn-tier notice per invocation. Removal condition: `skills/dispatch/deprecated-aliases.md` |
-| `automerge-max-lines` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to `merge-check`, not a hard cutoff |
+| `automerge-max-lines` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff |
 | `automerge-max-files` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
-| `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in `merge-check`, and feeding `/review`'s diff-heuristic risk proxy |
+| `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in the `merge-check` verdict, and feeding `/review`'s diff-heuristic risk proxy |
 | `work-links` | `policy.yml` | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
 
 ## Review
@@ -86,7 +108,6 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `review-effort-floor` | `policy.yml` | `/claude-tweaks:review` | unset (no floor) | Project-level floor (`low`/`medium`/`high`/`xhigh`/`max`) that raises (never lowers) the resolved review-effort tier |
-| `review-diff-heuristic-thresholds` | `policy.yml` | `/claude-tweaks:review` | `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` | File/line thresholds for the diff-size review-effort heuristic. **Presence-only validated** — its value is a nested object, but `policy.yml` only supports flat `key: value` lines and no flat-line encoding for this shape has ever been specified; `auditPolicy()` checks the key name only, not the value |
 
 ## Documentation
 
@@ -105,7 +126,7 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
-| `health-open-cap` | `policy.yml` | `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:docs-health`, `/claude-tweaks:journey-health` — via `bin/lib/health-core/digest.js` | `10` | Per-origin open-singleton-finding cap. At or above this count, a brand-new finding that would otherwise file its own issue is appended to that origin's digest issue instead (see each skill's FILE step). A regressed-reopen always bypasses the cap. `0` or unset disables the throttle — unconditional filing, matching pre-#235 behavior |
+| `health-open-cap` | `policy.yml` | `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:docs-health`, `/claude-tweaks:journey-health` — via `bin/lib/health-core/digest.js` | `10` | Per-origin open-singleton-finding cap. At or above this count, a brand-new finding that would otherwise file its own issue is appended to that origin's digest issue instead (see each skill's FILE step). A regressed-reopen always bypasses the cap. `0` disables the throttle (unconditional filing, matching pre-#235 behavior); unset applies the default — 10 |
 
 ## Code-health focus verticals
 
@@ -138,18 +159,16 @@ Registered by #219; the resolver that actually reads these four (`model-stance`/
 | `frontier-run-cap` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | `3` | Per-pipeline-run ceiling on Frontier (`fable`) dispatches; `0` disables Frontier entirely for the run |
 | `model-ceiling` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (no ceiling) | A profile name (`fast`/`standard`/`capable`/`frontier`) above which a resolved profile is clamped down to the ceiling's row; does not clamp an explicit CLI override — the ceiling defends against skill defaults, not against a human's typed choice |
 | `model-profiles` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (table defaults apply) | Per-profile `{model, effort}` override rows, keyed by profile name, as a nested block (not a flat `key: value` line — see `bin/lib/model-profiles/policy-fragment.js`'s reader for the shape). **Shallow schema validation**: `auditPolicy()` checks only that each row's key names a real profile; a row's own field shape is validated deeply by the resolver instead |
-| `research-mode` | `policy.yml` | `/claude-tweaks:research` | unset (falls through to `standard`) | `quick`/`standard`/`deep`/`ultradeep` — project-level default research depth tier, read when `/flow`'s pipeline config sets no `research-mode` and no `--mode=` flag or prompt answer is given. Vocabulary lifted from `/claude-tweaks:research`'s own `## Input` section (that file is authoritative, not this row — IL-24) |
+| `research-mode` | `policy.yml` | `/claude-tweaks:research` | unset (falls through to `standard`) | `quick`/`standard`/`deep`/`ultradeep` — project-level default research depth tier, read when no `--mode=` flag or prompt answer is given. Vocabulary lifted from `/claude-tweaks:research`'s own `## Input` section (that file is authoritative, not this row — IL-24) |
 
 ## Additional levers
 
-These levers resolve from `.claude-tweaks/policy.yml`, like every other lever in this file. `/claude-tweaks:init`'s CLAUDE.md template generates none of them — omitting a lever means its default. `backlog-fetch-limit` and `promise-register-min-leaves` also appear in `_shared/work-record-config.md`'s table — if the two disagree, that file wins for those two keys, per the same rule the "Dispatch & merge" section states.
+These levers resolve from `.claude-tweaks/policy.yml`, like every other lever in this file. `/claude-tweaks:init`'s CLAUDE.md template generates none of them — omitting a lever means its default. `backlog-fetch-limit` also appears in `_shared/work-record-config.md`'s table — if the two disagree, that file wins for that key, per the same rule the "Dispatch & merge" section states.
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `depth-survey` | `policy.yml` | `/claude-tweaks:flow` | unset (enabled) | `off` disables the end-of-run Depth Opportunities survey project-wide (mirrors the `no-deepen` per-run flag) |
 | `creative-survey` | `policy.yml` | `/claude-tweaks:flow` | unset (enabled) | `off` disables the end-of-run Creative Opportunities survey project-wide (mirrors the `no-creative` per-run flag) |
 | `backlog-fetch-limit` | `policy.yml` | `/claude-tweaks:help`, `/claude-tweaks:tidy`, `/claude-tweaks:backlog` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer — `gh` auto-paginates internally; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |
-| `promise-register-min-leaves` | `policy.yml` | `/claude-tweaks:specify` | `4` | Minimum leaf count in one `/specify` decomposition before a `## Cross-Spec Promises` section is seeded on the parent record |
 | `scope-keywords-required` | `policy.yml` | `/claude-tweaks:build` | `false` | When `true`, `/build`'s plan-audit Check B refuses to start if any matched files aren't in the plan AND the plan/design has no `Scope keywords:` field — otherwise (default `false`) this is informational only, a warning |
-| `section-confirmation` | `policy.yml` | `/superpowers:brainstorming`, `/claude-tweaks:deepen` | `adaptive` | Whether a skill's multi-section approval gate batches after 2 clean approvals (`adaptive`), always asks per-section, or always batches once |
-| `merge-check` | `policy.yml` | `/claude-tweaks:build`, `/claude-tweaks:flow` | `true` | Pre-flight branch-divergence check — whether `/build`'s and `/flow`'s pre-flight step compares the current branch against its upstream and offers rebase-vs-continue; `false` skips this check. (Distinct from `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode referenced elsewhere in this doc — same term, unrelated concept.) |
+| `branch-divergence-check` | `policy.yml` | `/claude-tweaks:build`, `/claude-tweaks:flow` | `true` | Pre-flight branch-divergence check — whether `/build`'s and `/flow`'s pre-flight step compares the current branch against its upstream and offers rebase-vs-continue; `false` skips this check. `merge-check` is a deprecated alias (identity `migrate`) — its collision with `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode was resolved by this rename in #331 |

@@ -10,8 +10,11 @@ const PROFILE_NAMES = Object.keys(PROFILES);
 
 const POLICY_KEYS = [
   { key: 'worktree.always', type: 'boolean', default: false },
-  { key: 'execution.always', type: 'enum', values: ['subagent', 'batched'] },
-  { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched'], default: 'subagent' },
+  // One key, two value classes since #331: plain 'subagent'/'batched' are
+  // overridable defaults; the '-only' forms carry the full lock semantics the
+  // retired execution.always key used to hold (a lock beats an explicit CLI
+  // argument). RENAMED_KEYS migrates stray execution.always lines.
+  { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched', 'subagent-only', 'batched-only'], default: 'subagent' },
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree' },
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
   { key: 'integration-branch', type: 'string' },
@@ -27,9 +30,12 @@ const POLICY_KEYS = [
   { key: 'merge-sensitive-paths', type: 'list', default: [] },
   { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text' },
   { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'] },
-  { key: 'review-diff-heuristic-thresholds', type: 'opaque' },
   { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30 },
   { key: 'harness-health.always-loaded-budget', type: 'integer', default: 150 },
+  // Per-origin open-singleton cap for the four health sweeps' digest filing
+  // (_shared/health-filing-digest.md). Documented in _shared/policy-schema.md
+  // since #235 but never registered here until #330's migration hit the gap.
+  { key: 'health-open-cap', type: 'integer', default: 10 },
   { key: 'scope-creep', type: 'enum', values: ['add-to-plan', 'stop-and-ask', 'drop'], default: 'add-to-plan' },
   { key: 'overlap', type: 'enum', values: ['companion', 'extend', 'skip', 'replace'], default: 'companion' },
   { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none' },
@@ -41,10 +47,11 @@ const POLICY_KEYS = [
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000 },
   { key: 'depth-survey', type: 'enum', values: ['off'] },
   { key: 'creative-survey', type: 'enum', values: ['off'] },
-  { key: 'promise-register-min-leaves', type: 'integer', default: 4 },
   { key: 'scope-keywords-required', type: 'boolean', default: false },
-  { key: 'section-confirmation', type: 'enum', values: ['adaptive', 'per-section', 'batch'], default: 'adaptive' },
-  { key: 'merge-check', type: 'boolean', default: true },
+  // Renamed from merge-check in #331 (default-parity: that key also defaulted
+  // true) — the old name collided with assess-agent-autonomy's merge-check
+  // verdict mode, a different concept that keeps its name.
+  { key: 'branch-divergence-check', type: 'boolean', default: true },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised' },
   { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14 },
   // The reserved second opt-in named by skills/_shared/autonomy-ceiling.md —
@@ -89,12 +96,54 @@ const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
 // value needs setting" (unattended-tier's own 'off' never unlocked anything
 // autonomy's own 'supervised' default doesn't already match, so there is
 // nothing to carry forward).
+// `replacedBy: null` means the key is retired outright — no replacement key
+// exists. auditPolicy reports such keys as deliberate retirements (delete the
+// stray line); the resolver treats the old key's line as contributing nothing
+// and a request for the retired name as unknown-key.
 const RENAMED_KEYS = [
   {
     key: 'unattended-tier',
     replacedBy: 'autonomy',
     migrate: (value) => (value === 'on' ? 'unattended' : null),
   },
+  // Renamed in #295 (the value is a sequential batch count, never a concurrency
+  // slot count). Unlike unattended-tier, the old key ALSO still sits in
+  // POLICY_KEYS — it runs its own removal course; removal condition in
+  // skills/dispatch/deprecated-aliases.md.
+  {
+    key: 'dispatch-pick-max-concurrent',
+    replacedBy: 'dispatch-batch-size',
+    migrate: (value) => value,
+  },
+  // Merged into execution-strategy in #331: the lock key's two valid values
+  // map to the '-only' lock forms; anything malformed null-migrates so the
+  // resolver falls through to execution-strategy's schema default ('subagent',
+  // unlocked) rather than minting a malformed '-only' value. Removal
+  // condition in skills/_shared/policy-deprecations.md.
+  {
+    key: 'execution.always',
+    replacedBy: 'execution-strategy',
+    migrate: (value) => (value === 'subagent' ? 'subagent-only' : value === 'batched' ? 'batched-only' : null),
+  },
+  // Renamed in #331 (boolean semantics unchanged — identity migrate); the old
+  // name collided with assess-agent-autonomy's merge-check verdict mode.
+  // Removal condition in skills/_shared/policy-deprecations.md.
+  {
+    key: 'merge-check',
+    replacedBy: 'branch-divergence-check',
+    migrate: (value) => value,
+  },
+  // Retired outright in #331 (replacedBy: null — delete the stray line, no
+  // replacement key). The thresholds became stated constants in
+  // skills/review/review-effort-derivation.md. Removal condition in
+  // skills/_shared/policy-deprecations.md.
+  { key: 'review-diff-heuristic-thresholds', replacedBy: null, migrate: () => null },
+  // Retired outright in #331 — the value 4 is hardcoded at its read sites.
+  // Removal condition in skills/_shared/policy-deprecations.md.
+  { key: 'promise-register-min-leaves', replacedBy: null, migrate: () => null },
+  // Retired outright in #331 — adaptive batching is deepen's sole behavior.
+  // Removal condition in skills/_shared/policy-deprecations.md.
+  { key: 'section-confirmation', replacedBy: null, migrate: () => null },
 ];
 const RENAMED_KEY_NAMES = new Set(RENAMED_KEYS.map((entry) => entry.key));
 
@@ -180,6 +229,103 @@ function resolveValue(key, rawValue) {
   return rawValue;
 }
 
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+// Multi-key resolver behind bin/resolve-policy.js (#329). Pure — callers hand
+// in raw file contents as strings; no fs, no process state. Returns a plain
+// object keyed by each requested key name (never an array — IL-121), each
+// entry one of:
+//   { value, source }                      source: "run-config" | "policy" | "default"
+//   { value, source, "renamed-from": k }   value arrived via a RENAMED_KEYS migration
+//   { value: default, source: "default", invalid: true }   present-but-invalid at
+//                                          the winning source (never cascades)
+//   { error: "unknown-key" }               key in neither POLICY_KEYS nor RENAMED_KEYS
+// Precedence per key: run-config (only when runConfigRaw is a string) ->
+// policy -> schema default. Alias normalization happens per source, BEFORE
+// precedence: old key alone -> migrate() contributes under the new name with
+// a renamed-from tag (a null migration contributes nothing, but still tags
+// renamed-from when the final resolution falls to the default); old + new in
+// one source -> the new key wins with no tag (the stray old key is
+// auditPolicy's business).
+function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
+  const sources = [
+    { name: 'run-config', raw: typeof runConfigRaw === 'string' ? runConfigRaw : null },
+    { name: 'policy', raw: typeof policyRaw === 'string' ? policyRaw : null },
+  ].map(({ name, raw }) => {
+    const entries = parseFlatLines(raw);
+    const values = { ...entries }; // canonical-name -> raw string value
+    const renamedFrom = {}; // canonical-name -> old name, when the value arrived via migrate
+    const emptyRenames = {}; // canonical-name -> old name, when migrate returned null (no value)
+    for (const alias of RENAMED_KEYS) {
+      if (!hasOwn(entries, alias.key)) continue;
+      delete values[alias.key]; // an old name never resolves as a flat key of its own
+      // A retired key (replacedBy: null) contributes nothing — there is no
+      // canonical key to migrate under or tag renamed-from; the stray line is
+      // auditPolicy's business, and every other requested key stays unaffected.
+      if (alias.replacedBy === null) continue;
+      if (hasOwn(entries, alias.replacedBy)) continue; // new key wins, no renamed-from
+      const migrated = alias.migrate(entries[alias.key]);
+      if (migrated === null) {
+        emptyRenames[alias.replacedBy] = alias.key;
+        continue;
+      }
+      values[alias.replacedBy] = String(migrated);
+      renamedFrom[alias.replacedBy] = alias.key;
+    }
+    return { name, values, renamedFrom, emptyRenames };
+  });
+
+  const result = {};
+  for (const requested of requestedKeys) {
+    // model-profiles is the one block-style key — invisible to this flat
+    // resolver by design. Emit its documented absent shape; the CLI overwrites
+    // this entry via its parsePolicyModelConfig delegation before printing.
+    if (requested === 'model-profiles') {
+      result[requested] = { value: null, source: 'default' };
+      continue;
+    }
+    // A request by an alias's old name resolves the replacement key. A
+    // RETIRED name (replacedBy: null) has no replacement to resolve — it is
+    // an unknown key, not a silent fall-through to some other entry.
+    const aliasEntry = RENAMED_KEYS.find((alias) => alias.key === requested);
+    if (aliasEntry && aliasEntry.replacedBy === null) {
+      result[requested] = { error: 'unknown-key' };
+      continue;
+    }
+    const canonical = aliasEntry ? aliasEntry.replacedBy : requested;
+    const schemaEntry = SCHEMA_BY_KEY.get(canonical);
+    if (!schemaEntry) {
+      result[requested] = { error: 'unknown-key' };
+      continue;
+    }
+    // No schema default is itself null, so `?? null` only fires on absent.
+    const defaultValue = schemaEntry.default ?? null;
+    let resolved = null;
+    for (const source of sources) {
+      if (!hasOwn(source.values, canonical)) continue;
+      const raw = source.values[canonical];
+      if (isValidValue(schemaEntry, raw)) {
+        resolved = { value: resolveValue(canonical, raw), source: source.name };
+      } else {
+        // A typo must never activate a different configured value: resolve to
+        // the schema default here, never the next source's value.
+        resolved = { value: defaultValue, source: 'default', invalid: true };
+      }
+      if (hasOwn(source.renamedFrom, canonical)) resolved['renamed-from'] = source.renamedFrom[canonical];
+      break;
+    }
+    if (!resolved) {
+      resolved = { value: defaultValue, source: 'default' };
+      const tagged = sources.find((source) => hasOwn(source.emptyRenames, canonical));
+      if (tagged) resolved['renamed-from'] = tagged.emptyRenames[canonical];
+    }
+    result[requested] = resolved;
+  }
+  return result;
+}
+
 // Shallow extractor for a nested `{topKey}:` block's first-level indented key
 // names — parseFlatLines only sees flat `key: value` lines, so a block-style
 // value (today, only model-profiles) is otherwise invisible to auditPolicy.
@@ -232,7 +378,9 @@ function auditPolicy(repoRoot) {
         value,
         replacedBy: entry.replacedBy,
         suggestedValue: entry.migrate(value),
-        currentReplacementValue: Object.prototype.hasOwnProperty.call(policyEntries, entry.replacedBy)
+        // A retirement (replacedBy: null) has no replacement key to look up.
+        currentReplacementValue: entry.replacedBy !== null
+          && Object.prototype.hasOwnProperty.call(policyEntries, entry.replacedBy)
           ? policyEntries[entry.replacedBy]
           : null,
       });
@@ -268,4 +416,4 @@ function auditPolicy(repoRoot) {
   return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys };
 }
 
-module.exports = { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue };
+module.exports = { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys };

@@ -19,13 +19,12 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `work-types` | `native` \| `labels` | How Type is expressed (native Issue Types vs `type:*` labels) |
 | `work-links` | `native` \| `body-text` | How parent/dependency links are expressed (sub-issue + blocked-by APIs vs `Blocked by #N` body lines) |
 | `dispatch-retry-ceiling` | `3` | Failed autonomous attempts before `auto:*` removal + `bot:blocked` |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline: implementation diff lines `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode weighs, not a hard cutoff |
+| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline: implementation diff lines `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode weighs, not a hard cutoff |
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline: implementation files touched, same weighted-not-cutoff treatment |
 | `dispatch-batch-size` | `3` | Max groups one `/dispatch` firing processes **sequentially**, one after another (never concurrently — see #155); remaining picks stay claimed for a later firing. Deprecated alias `dispatch-pick-max-concurrent` still resolves, with one warn-tier notice per invocation |
-| `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
+| `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
 | `backlog-fetch-limit` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer (`/help`, `/tidy`, `/backlog`) — `gh` auto-paginates internally regardless of size; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |
 | `record-staleness-weeks` | `4` | Staleness threshold (in weeks) `_shared/record-queue-fetch.md`'s Threshold resolution section reads for `/help`'s backlog-stale sub-count and `/tidy`'s Shape 1/Shape 2 backlog/parked staleness classification — converted to ms and passed to `bin/lib/issues/record-buckets.js`'s `classifyStaleness` |
-| `promise-register-min-leaves` | `4` | Minimum leaf count in one `/specify` decomposition before a `## Cross-Spec Promises` section is seeded on the parent record |
 
 **Where these live.** Every key above that `_shared/policy-schema.md` also indexes resolves from
 `.claude-tweaks/policy.yml`, the single home for project config. Three do not: `work-backend`,

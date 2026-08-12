@@ -21,21 +21,23 @@ per-record — every candidate would fail it identically, so check it once, befo
 single `gh` call on candidate enumeration:
 
 ```bash
-CEILING=$(grep -E "^autonomy:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*autonomy:[[:space:]]*//; s/[[:space:]]*#.*$//')
-OPT_IN=$(grep -E "^grant-origination-enabled:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*grant-origination-enabled:[[:space:]]*//; s/[[:space:]]*#.*$//')
+POLICY_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled)
+CEILING=$(printf '%s\n' "$POLICY_VALUES" | sed -n '1p')   # line 1: autonomy
+OPT_IN=$(printf '%s\n' "$POLICY_VALUES" | sed -n '2p')    # line 2: grant-origination-enabled
 ```
 
 Substitute the literal values — do not `export` in an earlier Bash call and read `process.env`
 later (shell state doesn't survive between calls or reach a subagent; same hazard
-`refine-mode.md`'s Trust Signal section already documents for this exact pattern). If
+`refine-mode.md`'s Trust Signal section already documents for this exact pattern). The resolver
+applies the schema defaults, so both values are always concrete. If
 `CEILING` is not literally `unattended`, or `OPT_IN` is not literally `true`: **report "nothing
-to do — ceiling is `{CEILING:-supervised}`, grant-origination-enabled is
-`{OPT_IN:-unset}`" and stop the whole mode here.** Log one line to this run's `decisions.md`
+to do — ceiling is `{CEILING}`, grant-origination-enabled is
+`{OPT_IN}`" and stop the whole mode here.** Log one line to this run's `decisions.md`
 (standalone-auto run dir per `_shared/pipeline-run-dir.md`, resolved the same way every other
 standalone-auto skill on the allowlist resolves it):
 
 ```
-AUTO {time} — Backlog grant: ceiling gate not satisfied (ceiling={CEILING:-supervised}, opt-in={OPT_IN:-unset}) — nothing to do this firing.
+AUTO {time} — Backlog grant: ceiling gate not satisfied (ceiling={CEILING}, opt-in={OPT_IN}) — nothing to do this firing.
 ```
 
 This is not an error and not a HARD-GATE — it's the expected steady state for any project that
@@ -136,11 +138,14 @@ criteria).
 **Phase C — re-run the full chain with `grantCheck` populated:**
 
 ```bash
+FLOOR_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-sensitive-paths fleet-daily-grant-cap)
+MERGE_SENSITIVE_PATHS=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths (raw comma string; empty = none)
+FLEET_DAILY_GRANT_CAP=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '2p')   # line 2: fleet-daily-grant-cap (empty = unset/uncapped)
 node -e "
   const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
   // ... same record/policy/trustVerdicts as Phase A, plus:
   const keyFiles = /* parsed from the record body's '### Key Files' list, one path per bullet */;
-  const sensitivePaths = /* .claude-tweaks/policy.yml merge-sensitive-paths, split on ',' */;
+  const sensitivePaths = /* MERGE_SENSITIVE_PATHS from the resolver call above, split on ',' */;
   const result = evaluateGrantGate({
     record: { number, labels, body, facets, keyFiles },
     policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap, grantsIssuedToday },
@@ -150,10 +155,11 @@ node -e "
 "
 ```
 
-`dailyGrantCap` reads `fleet-daily-grant-cap` from `.claude-tweaks/policy.yml`
+`dailyGrantCap` is `FLEET_DAILY_GRANT_CAP` from the resolver call above
 (`policy-schema.md`); `grantsIssuedToday` is a running in-memory counter for this firing, seeded
 before Phase C begins by counting today's (UTC) `<!-- grant-mode-audit: date=... -->` markers
-already posted — see Step 4's Cap tracking. Absence of the `fleet-daily-grant-cap` key leaves
+already posted — see Step 4's Cap tracking. An empty `FLEET_DAILY_GRANT_CAP` (key unset — it has
+no schema default) leaves
 `dailyGrantCap` undefined, which `evaluateGrantGate` treats as uncapped (optional-when-absent,
 this record's own AC 4).
 
@@ -269,7 +275,8 @@ gh search issues --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 
 Increment the in-memory counter by one immediately after each grant is applied in Step 4 (not
 just at the end) so a cap reached mid-run stops the remaining candidates in the same firing, not
-only on the next one. When `fleet-daily-grant-cap` is absent from `.claude-tweaks/policy.yml`,
+only on the next one. When `fleet-daily-grant-cap` resolves empty (key unset — Phase C's own
+resolver read above),
 skip this whole section — `evaluateGrantGate` treats an absent cap as uncapped and this search
 never runs (avoids an unnecessary `gh search` call on the common, uncapped-by-default path).
 

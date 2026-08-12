@@ -174,15 +174,16 @@ open-only fetch would miss it.
 
 **Read `work-links` before choosing between the two branches below** — they are mutually
 exclusive, and nothing in the fetched data reveals which one applies. It lives in the project's
-`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table; a missing key means
-`body-text`, the documented default), so read it directly rather than assuming the first-listed
+`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table), so resolve it
+directly rather than assuming the first-listed
 branch:
 
 ```bash
-grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links
 ```
 
-An empty result means `body-text`. Taking the `body-text` branch on a `work-links: native` repo
+The printed value names the branch to take — the resolver applies the documented default
+(`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
 construction, so `parseFamilyLeaves` returns `[]` for every parent,
 `/tmp/tidy-acceptance-gap-leaves.json` is empty, and every decomposed leaf re-enters this scope
@@ -192,9 +193,11 @@ exact flood `hasParent` exists to stop, with no error anywhere to say so.
 ### Fetch limit
 
 Both branches below bound the `family:parent` fetch with `{resolved-limit}` rather than a
-hardcoded cap. Read `backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml`
-(`_shared/work-record-config.md`'s key table) and substitute the literal number into **every**
-block below that names it; use `1000` when the key is absent. Substitute it independently per
+hardcoded cap. Resolve `backlog-fetch-limit` with
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit`
+(`_shared/work-record-config.md`'s key table; the resolver applies the schema default when the
+key is absent) and substitute the literal number into **every**
+block below that names it. Substitute it independently per
 block and never carry it across blocks in a shell variable — shell environment does not survive
 between Bash calls and never reaches a subagent, so a cross-block `export` silently resolves
 empty (the same discipline `_shared/trust-table.md` states for its own identical fetches).
@@ -319,10 +322,12 @@ plus every issue's current state, fetched once.
 
 ### Fetch limit
 
-**Both fetches are bounded by `{resolved-limit}`, never a hardcoded cap.** Read
-`backlog-fetch-limit` from the project's `.claude-tweaks/policy.yml`
-(`_shared/work-record-config.md`'s key table) and substitute the literal number into **every**
-block below that names it; use `1000` when the key is absent. Substitute it independently per
+**Both fetches are bounded by `{resolved-limit}`, never a hardcoded cap.** Resolve
+`backlog-fetch-limit` with
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit`
+(`_shared/work-record-config.md`'s key table; the resolver applies the schema default when the
+key is absent) and substitute the literal number into **every**
+block below that names it. Substitute it independently per
 block and never carry it across blocks in a shell variable — shell environment does not survive
 between Bash calls and never reaches a subagent, so a cross-block `export` silently resolves
 empty (the same discipline `_shared/trust-table.md` states for its own identical fetches). The
@@ -361,15 +366,16 @@ nothing is indistinguishable from a repo with no un-gated families.
 
 **Read `work-links` before choosing between the two branches below** — they are mutually
 exclusive, and nothing in the fetched data reveals which one applies. It lives in the project's
-`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table; a missing key means
-`body-text`, the documented default), so read it directly rather than assuming the first-listed
+`.claude-tweaks/policy.yml` (per `_shared/work-record-config.md`'s key table), so resolve it
+directly rather than assuming the first-listed
 branch:
 
 ```bash
-grep -E "^work-links:" .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//; s/[[:space:]]*#.*$//'
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links
 ```
 
-An empty result means `body-text`. Taking the `body-text` branch on a `work-links: native` repo
+The printed value names the branch to take — the resolver applies the documented default
+(`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
 construction, so `parseFamilyLeaves` returns `[]` for every parent, every family reads
 `incomplete` (`familyGateState` never reports `due` for a family with no discoverable leaves),
