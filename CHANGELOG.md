@@ -39,6 +39,18 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.79.0 — Parent-issue vocabulary rename: `family:parent` → `parent-issue`, permanent read-side fallback for un-migrated adopters
+
+The decomposition-acceptance vocabulary this plugin coined as "family" is renamed to "parent-issue" throughout the code contract, the skills prose, and this repo's own living docs. The GitHub label `family:parent` becomes `parent-issue`; the `local-files` facet `familyParent` becomes `isParentIssue` (frontmatter `family-parent:` becomes `is-parent-issue:`); `acceptance.js`'s `familyGateState` becomes `parentGateState`; `record.js`'s `parseFamilyLeaves` becomes `parseSubIssues`. Every scan-scope token and report-row prefix that carried `[family-gate]` now carries `[parent-gate]`, and `wrap-up/verification-brief.md`'s "Family-Gate Procedure" is now the "Parent-Gate Procedure" everywhere it's cited.
+
+**Adopters migrate their own repo's label with one command:**
+
+```
+gh label edit "family:parent" --name "parent-issue"
+```
+
+Un-migrated repos are not broken by skipping this — every driver-side reader treats a `family:parent`-labeled issue exactly as it treats a `parent-issue`-labeled one, permanently. Unlike a normal compatibility path this one carries no removal condition short of a major version that drops pre-rename repo support outright (`[IL-85]`: a compatibility path with no stated removal condition is never collected, so this one states it up front rather than accumulating silently). `/claude-tweaks:tidy` now surfaces the retired label as its own finding shape — `[legacy] {title} — carries retired label {label} — recommend: gh label edit "family:parent" --name "parent-issue"` — so an adopter who never reads this entry still gets nudged toward running the command.
+
 ## v6.78.0 — Builder-authored observation plans in Verification Briefs and a show-first /demo: canonical schema with a pre-schema compatibility path, Prepare → Validate → Show → single verdict, repo-wide retired-prose sweep
 
 Builder-authored observation plans in Verification Briefs and a show-first /demo: canonical schema with a pre-schema compatibility path, Prepare → Validate → Show → single verdict, repo-wide retired-prose sweep. Verification Briefs gain a builder-authored `### Observation plan` section against the canonical schema in `skills/_shared/observation-plan.md`, added expand-contract with a compatibility path for briefs written before the schema existed. `/demo` is rewritten show-first — Prepare, Validate, Show, then one verdict — replacing the old ask-first flow. Also sweeps the repo for retired ask-first demo prose and aligns the skill-graph and plugin-structure docs.

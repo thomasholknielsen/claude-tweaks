@@ -1,14 +1,14 @@
 # Specify — Record Creation and Linking (Steps 3-4)
 
-Loaded by `/claude-tweaks:specify` Step 3 onward, decomposition mode only — shaping mode never reaches this step (it runs `shaping-mode.md` in this skill's directory and exits straight to `SKILL.md`'s `## Next Actions`). Covers creating the parent and leaf records (Step 3) and wiring their relationships plus absorbing the last of the design doc's context (Step 4), before Step 7 deletes the design doc.
+Loaded by `/claude-tweaks:specify` Step 3 onward, decomposition mode only — shaping mode never reaches this step (it runs `shaping-mode.md` in this skill's directory and exits straight to `SKILL.md`'s `## Next Actions`). Covers creating the parent issue and its sub-issue records (Step 3) and wiring their relationships plus absorbing the last of the design doc's context (Step 4), before Step 7 deletes the design doc.
 
 ## Step 3: Create the records
 
-Records are created **parent-first**: the parent's number has to exist before any leaf can link to it. Every body is composed fully in memory before any write call — compose-then-write-once, the same discipline Shaping mode uses.
+Records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Every body is composed fully in memory before any write call — compose-then-write-once, the same discipline Shaping mode uses.
 
 ### Idempotency (resume path)
 
-Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each leaf. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a leaf slugified to `parent` would collide with it in the map below.
+Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each sub-issue. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a sub-issue slugified to `parent` would collide with it in the map below.
 
 Before creating anything, build a fingerprint→number map of every existing marker, once:
 
@@ -39,7 +39,7 @@ node -e "
 "
 ```
 
-Then, immediately before **each individual create** — parent included, and not just once against the batch list above — re-check that record's fingerprint against the map. A match means the record already exists (a prior partial run, or a concurrent one): skip the create and use the mapped number instead — the parent's number for the leaves to link to, a leaf's number for Step 4's linking pass. On every successful create, add the new record's fingerprint and number to the in-memory map before moving on — this catches a same-run collision (two units that happen to slugify to the same name) exactly the way it catches a prior-run resume, since the map stays live for the whole loop rather than being a snapshot trusted for its duration.
+Then, immediately before **each individual create** — parent included, and not just once against the batch list above — re-check that record's fingerprint against the map. A match means the record already exists (a prior partial run, or a concurrent one): skip the create and use the mapped number instead — the parent's number for the sub-issues to link to, a sub-issue's number for Step 4's linking pass. On every successful create, add the new record's fingerprint and number to the in-memory map before moving on — this catches a same-run collision (two units that happen to slugify to the same name) exactly the way it catches a prior-run resume, since the map stays live for the whole loop rather than being a snapshot trusted for its duration.
 
 ### Parent record
 
@@ -57,27 +57,36 @@ node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-parent-
 
 `recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready`. Two
 labels can still land on it, both applied directly via `gh issue create --label` rather than
-through the payload: `type:feature` — only under `work-types: labels` — and `family:parent`,
-unconditionally, regardless of `work-types`. `family:parent` is what makes a parent enumerable
+through the payload: `type:feature` — only under `work-types: labels` — and `parent-issue`,
+unconditionally, regardless of `work-types`. `parent-issue` is what makes a parent enumerable
 at all: the `{design-doc-slug}:parent` fingerprint is a body marker reachable only through `gh
 issue list --search`, which this step's "Resuming after a partial run" note (below) says to
-never fall back to — without a label, a `/claude-tweaks:tidy` sweep has no way to find a family
-whose gate was never applied
-(`_shared/github-pr-scan.md`'s `family-gate` scope). Bootstrap both before the create (per
-`_shared/label-bootstrap.md`): `family:parent` always, `type:feature` only under `work-types:
-labels` — `LABELS_JSON = [["family:parent", "Structure: decomposition parent — carries the
-family's acceptance gate"], ["type:feature", "Type: new capability or enhancement"]]` (the
-`type:feature` pair from `record.js`'s `TYPE_LABELS`). The `{design-doc-slug}:parent`
-fingerprint rides in the body as the standard marker — every machine-filed record carries one
-(`_shared/work-record.md`), and it's what the Idempotency map above keys the parent's resume on.
+never fall back to — without a label, a `/claude-tweaks:tidy` sweep has no way to find a parent
+issue whose gate was never applied
+(`_shared/github-pr-scan.md`'s `parent-gate` scope). Bootstrap both before the create (per
+`_shared/label-bootstrap.md`): `parent-issue` always, `type:feature` only under `work-types:
+labels`. The `parent-issue` row below is copied verbatim from `_shared/label-bootstrap.md`'s
+canonical `LABELS_JSON` and must stay byte-identical to it; the `type:feature` row comes from
+`record.js`'s `TYPE_LABELS`:
+
+```js
+[
+  ["parent-issue",      "Structure: parent issue — carries the acceptance gate for its sub-issues"],
+  ["type:feature",      "Type: new capability or enhancement"]
+]
+```
+
+The `{design-doc-slug}:parent` fingerprint rides in the body as the standard marker — every
+machine-filed record carries one (`_shared/work-record.md`), and it's what the Idempotency map
+above keys the parent's resume on.
 
 **`work-backend: github-issues`** — the Type expression branch (`_shared/work-record-config.md`, the config-key table's canonical home; read `work-types` once, never re-probe mid-flow):
 
 ```bash
 # work-types: native
-PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --type feature --label family:parent)
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --type feature --label parent-issue)
 # work-types: labels
-PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --label type:feature --label family:parent)
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --label type:feature --label parent-issue)
 
 PARENT_NUM=$(basename "$PARENT_URL")
 ```
@@ -93,41 +102,41 @@ PARENT_ID=$(node -e "const fs=require('fs');
     : [];
   const slug=deriveSlug(process.argv[1], existingSlugs);
   const body=fs.readFileSync('/tmp/specify-parent-body.md', 'utf8');
-  const record=createRecord(dir, { slug, title: process.argv[1], body, facets: { type: 'feature', familyParent: true } });
+  const record=createRecord(dir, { slug, title: process.argv[1], body, facets: { type: 'feature', isParentIssue: true } });
   console.log(record.id)" "$PARENT_TITLE")
 ```
 
-`familyParent: true` is the local-files parity for the `family:parent` label above — the same
+`isParentIssue: true` is the local-files parity for the `parent-issue` label above — the same
 queryable-parent problem, solved the same way, on the backend where there is no label at all.
-`bin/lib/issues/local-store.js` serializes it as a `family-parent: true` frontmatter line and
-parses it back into `facets.familyParent`; no leaf ever carries it (a leaf's own `createRecord`
-call below never sets this key, so it stays at its `false` default). `/claude-tweaks:demo`'s
-Approve step (`demo/SKILL.md`) reads it to decide whether to close the parent record once its
-family is accepted.
+`bin/lib/issues/local-store.js` serializes it as an `is-parent-issue: true` frontmatter line and
+parses it back into `facets.isParentIssue`; no sub-issue ever carries it (a sub-issue's own
+`createRecord` call below never sets this key, so it stays at its `false` default).
+`/claude-tweaks:demo`'s Approve step (`demo/SKILL.md`) reads it to decide whether to close the
+parent record once its sub-issues are accepted.
 
-`$PARENT_NUM` / `$PARENT_ID` is now captured — every leaf below links back to it.
+`$PARENT_NUM` / `$PARENT_ID` is now captured — every sub-issue below links back to it.
 
-**If parent creation fails** (`gh` unreachable, transient API error): fall back to `local-store.js` for the parent — same `unsynced: true` fallback as the leaf-level one below — and run the rest of this decomposition on the local driver too, so leaves have a real parent to link to instead of a GitHub record that doesn't exist. `/tidy`'s Sync finding reconciles the whole family later.
+**If parent creation fails** (`gh` unreachable, transient API error): fall back to `local-store.js` for the parent — same `unsynced: true` fallback as the sub-issue-level one below — and run the rest of this decomposition on the local driver too, so sub-issues have a real parent to link to instead of a GitHub record that doesn't exist. `/tidy`'s Sync finding reconciles the parent and its sub-issues later.
 
-**Resuming after a partial run:** nothing parent-specific — the Idempotency map above already covers it. A `{design-doc-slug}:parent` marker match means a prior run created this parent; reuse the mapped number and skip the create, exactly as with any leaf. Never fall back to a title search — `gh issue list --search` rides the search index this step deliberately avoids.
+**Resuming after a partial run:** nothing parent-specific — the Idempotency map above already covers it. A `{design-doc-slug}:parent` marker match means a prior run created this parent; reuse the mapped number and skip the create, exactly as with any sub-issue. Never fall back to a title search — `gh issue list --search` rides the search index this step deliberately avoids.
 
-### Leaves
+### Sub-issues
 
-**Only leaves get `ready`** — and only leaves carry `risk:*`/`size:*` scoring; the parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
+**Only sub-issues get `ready`** — and only sub-issues carry `risk:*`/`size:*` scoring; the parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
 
-**Tasks never become records.** A leaf's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the leaf's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
+**Tasks never become records.** A sub-issue's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the sub-issue's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
 
-**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents (`shaping-mode.md` in this skill's directory), just run once per leaf instead of once per shaped record. When Step 2.5b-ii's variant exploration ran and the user accepted a scaffold direction for this leaf's surface, also prefix `Visual-reference: {scaffold path}` (`design-pre-steps.md` Step 2.5b-ii item 5) — omit the line entirely when Step 2.5b-ii was skipped, declined, or not offered (the canonical field reference lives in `spec-template.md`). Under `work-backend: github-issues` + `work-links: body-text`, also prefix `Parent: #$PARENT_NUM` — already known at this point (Parent record, above, runs first) and the only combination where nothing else records a leaf's own parent (`spec-template.md`).
+**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents (`shaping-mode.md` in this skill's directory), just run once per sub-issue instead of once per shaped record. When Step 2.5b-ii's variant exploration ran and the user accepted a scaffold direction for this sub-issue's surface, also prefix `Visual-reference: {scaffold path}` (`design-pre-steps.md` Step 2.5b-ii item 5) — omit the line entirely when Step 2.5b-ii was skipped, declined, or not offered (the canonical field reference lives in `spec-template.md`). Under `work-backend: github-issues` + `work-links: body-text`, also prefix `Parent: #$PARENT_NUM` — already known at this point (Parent record, above, runs first) and the only combination where nothing else records a sub-issue's own parent (`spec-template.md`).
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
-**Scoring** — judge each leaf's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per leaf; the tiers become `$LEAF_RISK`/`$LEAF_SIZE` below.
+**Scoring** — judge each sub-issue's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per sub-issue; the tiers become `$SUB_ISSUE_RISK`/`$SUB_ISSUE_SIZE` below.
 
-**Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this leaf's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/size-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$LEAF_CEREMONY` below.
+**Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this sub-issue's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/size-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$SUB_ISSUE_CEREMONY` below.
 
-**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this leaf's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `framing:baked` on the leaf and fold the RATIONALE's named assumptions into that leaf's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Leaves have no `## Original request` block, so the composed body is the whole input here.
+**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `framing:baked` on the sub-issue and fold the RATIONALE's named assumptions into that sub-issue's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Sub-issues have no `## Original request` block, so the composed body is the whole input here.
 
-**Slug derivation** — `$UNIT_SLUG` is `deriveSlug(title, existingSlugs)` (`bin/lib/issues/local-store.js`) — the same deterministic algorithm `/claude-tweaks:capture` and `/claude-tweaks:demo` use for their own record creation, not a hand-derived slugification. Seed `existingSlugs` with the literal string `'parent'` (a leaf slug must never collide with the parent's reserved fingerprint suffix — see above) plus, under `work-backend: local-files`, the current `specs/` directory listing (same scan `/claude-tweaks:capture`'s local-files branch uses — since each leaf's `createRecord` call below writes its file before the next leaf runs, this rescan also naturally dedupes against slugs already assigned earlier in this same decomposition loop):
+**Slug derivation** — `$UNIT_SLUG` is `deriveSlug(title, existingSlugs)` (`bin/lib/issues/local-store.js`) — the same deterministic algorithm `/claude-tweaks:capture` and `/claude-tweaks:demo` use for their own record creation, not a hand-derived slugification. Seed `existingSlugs` with the literal string `'parent'` (a sub-issue slug must never collide with the parent's reserved fingerprint suffix — see above) plus, under `work-backend: local-files`, the current `specs/` directory listing (same scan `/claude-tweaks:capture`'s local-files branch uses — since each sub-issue's `createRecord` call below writes its file before the next one runs, this rescan also naturally dedupes against slugs already assigned earlier in this same decomposition loop):
 
 ```bash
 UNIT_SLUG=$(node -e "const fs=require('fs');
@@ -136,12 +145,12 @@ UNIT_SLUG=$(node -e "const fs=require('fs');
   const onDisk=fs.existsSync(dir)
     ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
     : [];
-  console.log(deriveSlug(process.argv[1], ['parent', ...onDisk]))" "$LEAF_TITLE")
+  console.log(deriveSlug(process.argv[1], ['parent', ...onDisk]))" "$SUB_ISSUE_TITLE")
 ```
 
 Reuse this same `$UNIT_SLUG` value below for both the fingerprint and, under `work-backend: local-files`, the record's own slug — do not re-derive it separately at write time.
 
-**Fingerprint** — `{design-doc-slug}:{unit-slug}` (`$UNIT_SLUG` from Slug derivation, above), the leaf half of the deterministic scheme the Idempotency section above defines.
+**Fingerprint** — `{design-doc-slug}:{unit-slug}` (`$UNIT_SLUG` from Slug derivation, above), the sub-issue half of the deterministic scheme the Idempotency section above defines.
 
 ```bash
 node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
@@ -150,13 +159,13 @@ node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/
     risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], ready: true,
     fingerprint: process.argv[7]
   });
-  require('fs').writeFileSync('/tmp/specify-leaf-payload.json', JSON.stringify(p))" \
-  "$LEAF_TITLE" "$LEAF_BODY" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_SIZE" "$LEAF_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
+  require('fs').writeFileSync('/tmp/specify-sub-issue-payload.json', JSON.stringify(p))" \
+  "$SUB_ISSUE_TITLE" "$SUB_ISSUE_BODY" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
 
-node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-leaf-payload.json','utf8')).body)" > /tmp/specify-leaf-body.md
+node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-sub-issue-payload.json','utf8')).body)" > /tmp/specify-sub-issue-body.md
 ```
 
-`recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-leaf-body.md` above already carries it, so both drivers below write the same fingerprinted text.
+`recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-sub-issue-body.md` above already carries it, so both drivers below write the same fingerprinted text.
 
 Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` pair in use, plus `framing:baked` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
@@ -164,45 +173,45 @@ Bootstrap the labels this run is about to apply before the first create (per `_s
 
 ```bash
 # work-types: native
-LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
-  --type "$LEAF_TYPE" \
-  --label "risk:$LEAF_RISK" --label "size:$LEAF_SIZE" --label "ceremony:$LEAF_CEREMONY" --label ready)
+SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file /tmp/specify-sub-issue-body.md \
+  --type "$SUB_ISSUE_TYPE" \
+  --label "risk:$SUB_ISSUE_RISK" --label "size:$SUB_ISSUE_SIZE" --label "ceremony:$SUB_ISSUE_CEREMONY" --label ready)
 
 # work-types: labels
-LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
-  --label "risk:$LEAF_RISK" --label "size:$LEAF_SIZE" --label "ceremony:$LEAF_CEREMONY" --label ready \
-  --label "type:$LEAF_TYPE")
+SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file /tmp/specify-sub-issue-body.md \
+  --label "risk:$SUB_ISSUE_RISK" --label "size:$SUB_ISSUE_SIZE" --label "ceremony:$SUB_ISSUE_CEREMONY" --label ready \
+  --label "type:$SUB_ISSUE_TYPE")
 
-LEAF_NUM=$(basename "$LEAF_URL")
+SUB_ISSUE_NUM=$(basename "$SUB_ISSUE_URL")
 ```
 
-When this leaf's Framing verdict (above) was `solution-baked`, add `--label "framing:baked"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most leaves are `open`.
+When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label "framing:baked"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most sub-issues are `open`.
 
-**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-leaf-body.md` already carries the fingerprint marker, so the local write preserves it:
+**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-sub-issue-body.md` already carries the fingerprint marker, so the local write preserves it:
 
 ```bash
-LEAF_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-  const body = require('fs').readFileSync('/tmp/specify-leaf-body.md', 'utf8');
+SUB_ISSUE_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const body = require('fs').readFileSync('/tmp/specify-sub-issue-body.md', 'utf8');
   const record = createRecord('specs', {
     slug: process.argv[1],
     title: process.argv[2],
     body,
     facets: { type: process.argv[3], risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], stage: 'ready' }
   });
-  console.log(record.id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_SIZE" "$LEAF_CEREMONY")
+  console.log(record.id)" "$UNIT_SLUG" "$SUB_ISSUE_TITLE" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY")
 ```
 
-Add a `facets.framing: true` key to the object above only when this leaf's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.framing` is genuinely absent on the common `open` case.
+Add a `facets.framing: true` key to the object above only when this sub-issue's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.framing` is genuinely absent on the common `open` case.
 
-Capture `$LEAF_NUM` / `$LEAF_ID` for every leaf (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
+Capture `$SUB_ISSUE_NUM` / `$SUB_ISSUE_ID` for every sub-issue (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
 
-**Write-path resilience.** A `gh` create failure for one leaf (the parent already exists on GitHub) falls back to `local-store.js` for that leaf only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed leaf. `/tidy`'s Sync finding reconciles the local leaf onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
+**Write-path resilience.** A `gh` create failure for one sub-issue (the parent already exists on GitHub) falls back to `local-store.js` for that sub-issue only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed sub-issue. `/tidy`'s Sync finding reconciles the local sub-issue onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
 
-**Body size ceiling.** A leaf body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized leaf.
+**Body size ceiling.** A sub-issue body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized sub-issue.
 
 ### Rules
 
-- **Absorb decisions from the design doc** — each leaf must be self-contained. The design doc will be deleted (Step 7), so all rationale, decisions, and technical context relevant to that leaf lives in its own body.
+- **Absorb decisions from the design doc** — each sub-issue must be self-contained. The design doc will be deleted (Step 7), so all rationale, decisions, and technical context relevant to that sub-issue lives in its own body.
 - **Be specific about files** — "update the API" is too vague. Name the exact file and what to add.
 - **Include testable acceptance criteria** — not "works correctly" but specific assertions an agent can verify.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
@@ -212,7 +221,7 @@ Capture `$LEAF_NUM` / `$LEAF_ID` for every leaf (created or resumed via the Idem
 
 ## Step 4: Link and order
 
-Every parent and leaf number now exists. This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it.
+Every parent and sub-issue number now exists. This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it.
 
 ### Linking
 
@@ -220,26 +229,26 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 
 **`work-backend: github-issues`, `work-links: native`:**
 
-- Parent ↔ leaf — a sub-issue link, once per leaf:
+- Parent ↔ sub-issue — a sub-issue link, once per sub-issue:
 
   ```bash
-  gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$LEAF_NUM
+  gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$SUB_ISSUE_NUM
   ```
 
-- Leaf ↔ leaf, and leaf ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's header comment). Call it once per dependency edge, dependent leaf pointing at blocking record.
+- Sub-issue ↔ sub-issue, and sub-issue ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's header comment). Call it once per dependency edge, dependent sub-issue pointing at blocking record.
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
 **`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):
 
-- Parent ↔ leaf — append one task-list line per leaf to the parent's body, `- [ ] #{leafNum}`, then a single `gh issue edit $PARENT_NUM --body-file` with the recomposed body (design summary + Decision Rationale below + the task list).
-- Leaf ↔ leaf / leaf ↔ pre-existing record — add one `Blocked by #N` line to the dependent leaf's body per dependency (line-anchored, matching `record.js`'s `DEP_RE`: the literal text `Blocked by #` followed by the number, at the start of a line), then a single `gh issue edit $LEAF_NUM --body-file` with the recomposed body. When the dependency is between two leaves of this same decomposition (not a pre-existing companion record) and this decomposition produced 4 or more leaves (the Cross-Spec Promises threshold — see item 3 below), write the extended form instead — `Blocked by #N: {one-line assumption}` — stating what the dependent leaf actually needs from #N (`record.js`'s `parseDependencyAssumptions` reads the trailing text; bare lines and pre-existing-record links are unaffected).
+- Parent ↔ sub-issue — append one task-list line per sub-issue to the parent's body, `- [ ] #{subIssueNum}`, then a single `gh issue edit $PARENT_NUM --body-file` with the recomposed body (design summary + Decision Rationale below + the task list).
+- Sub-issue ↔ sub-issue / sub-issue ↔ pre-existing record — add one `Blocked by #N` line to the dependent sub-issue's body per dependency (line-anchored, matching `record.js`'s `DEP_RE`: the literal text `Blocked by #` followed by the number, at the start of a line), then a single `gh issue edit $SUB_ISSUE_NUM --body-file` with the recomposed body. When the dependency is between two sub-issues of this same decomposition (not a pre-existing companion record) and this decomposition produced 4 or more sub-issues (the Cross-Spec Promises threshold — see item 3 below), write the extended form instead — `Blocked by #N: {one-line assumption}` — stating what the dependent sub-issue actually needs from #N (`record.js`'s `parseDependencyAssumptions` reads the trailing text; bare lines and pre-existing-record links are unaffected).
 - Readers parse this back out with `record.js`'s `parseDependencies(body)` — it returns every `Blocked by #N` target as a deduped, ordered array; a mid-line mention doesn't count, only a line-starting one does.
 
 **`work-backend: local-files`** (no native/body-text choice — frontmatter is the only mechanism):
 
-- Parent ↔ leaf — `facets.parent = $PARENT_ID` on each leaf.
-- Leaf ↔ leaf / leaf ↔ pre-existing record — `facets.blockedBy = [N1, N2, ...]` on the dependent leaf.
-- Both are `writeRecord` calls — compose-then-write-once, recompose the full facets/body and write once per leaf that needs a link. No task-list or `Blocked by #N` text needed; `parent`/`blocked-by` frontmatter is already queryable via `queryRecords`.
+- Parent ↔ sub-issue — `facets.parent = $PARENT_ID` on each sub-issue.
+- Sub-issue ↔ sub-issue / sub-issue ↔ pre-existing record — `facets.blockedBy = [N1, N2, ...]` on the dependent sub-issue.
+- Both are `writeRecord` calls — compose-then-write-once, recompose the full facets/body and write once per sub-issue that needs a link. No task-list or `Blocked by #N` text needed; `parent`/`blocked-by` frontmatter is already queryable via `queryRecords`.
 
 There's no ordering step separate from linking — the dependency graph these links encode **is** the order. The old tier tables are gone; nothing replaces them. `priority:*` labels are optional, dispatch-ordering-only, and human-applied only — per the permission matrix in `_shared/work-record.md`, no skill in this pipeline, including `/specify`, ever adds one *autonomously*. The sole exception is `/claude-tweaks:backlog`'s `refine` mode, which may write `priority:*` — always gated on an explicit human batch-confirm, never silently.
 
@@ -248,17 +257,17 @@ There's no ordering step separate from linking — the dependency graph these li
 Before Step 7 deletes the design doc, absorb the last of its context into the records that survive:
 
 1. **Decision Rationale** — from the design doc, extract the "why" behind major decisions (approach choices, technology selections, rejected alternatives). Add as a `## Decision Rationale` section in the **parent** body — recompose the parent's full body (design summary + this new section + the task list, under `body-text`) and write once.
-2. **Assumptions** — from the design doc's own stated assumptions, surfaced blind spots, and hard constraints, extract what's relevant to each leaf. Fold them into that leaf's **existing `## Gotchas` section** as additional bullets — there's no separate `## Assumptions` section anymore. Recompose the affected leaf's body and write once.
-3. **Cross-Spec Promises** (only when this decomposition produced 4 or more leaves — the threshold was the `promise-register-min-leaves` policy lever until its retirement in #331; removal trail: `_shared/policy-deprecations.md`) — add a `## Cross-Spec Promises` section to the **parent** body, recomposed alongside Decision Rationale and the task list. This seeding step is `work-links: body-text`-specific — only that mode's Linking pass (above) writes `Blocked by #N: {assumption}` lines to seed rows from; `work-links: native` leaves have zero such lines at decomposition time (native's Linking pass writes no body text at all — see Linking, above), so a native-mode decomposition's section still gets created here, just empty at first — `/claude-tweaks:review`'s Step 1.6 can populate it later regardless of `work-links` mode, since its writes are plain `gh issue edit`/`gh issue comment` calls with no native-vs-body-text restriction. The one genuine, permanent exclusion is `work-backend: local-files`: there's no GitHub issue to hold a section, a row, or a comment on at all, so a decomposition under that backend never gets a `## Cross-Spec Promises` section, regardless of leaf count. Seed one row per `Blocked by #{blocker}: {assumption}` line the Linking pass above just wrote between two leaves of this decomposition — `{blocker}` is the same number from that line (the record being depended on); `{owner}` is the dependent leaf whose body carries the line (pre-existing-record links don't get a row — the register tracks promises within this family, not every dependency):
+2. **Assumptions** — from the design doc's own stated assumptions, surfaced blind spots, and hard constraints, extract what's relevant to each sub-issue. Fold them into that sub-issue's **existing `## Gotchas` section** as additional bullets — there's no separate `## Assumptions` section anymore. Recompose the affected sub-issue's body and write once.
+3. **Cross-Spec Promises** (only when this decomposition produced 4 or more sub-issues — the threshold was the `promise-register-min-leaves` policy lever until its retirement in #331; removal trail: `_shared/policy-deprecations.md`) — add a `## Cross-Spec Promises` section to the **parent** body, recomposed alongside Decision Rationale and the task list. This seeding step is `work-links: body-text`-specific — only that mode's Linking pass (above) writes `Blocked by #N: {assumption}` lines to seed rows from; `work-links: native` sub-issues have zero such lines at decomposition time (native's Linking pass writes no body text at all — see Linking, above), so a native-mode decomposition's section still gets created here, just empty at first — `/claude-tweaks:review`'s Step 1.6 can populate it later regardless of `work-links` mode, since its writes are plain `gh issue edit`/`gh issue comment` calls with no native-vs-body-text restriction. The one genuine, permanent exclusion is `work-backend: local-files`: there's no GitHub issue to hold a section, a row, or a comment on at all, so a decomposition under that backend never gets a `## Cross-Spec Promises` section, regardless of sub-issue count. Seed one row per `Blocked by #{blocker}: {assumption}` line the Linking pass above just wrote between two sub-issues of this decomposition — `{blocker}` is the same number from that line (the record being depended on); `{owner}` is the dependent sub-issue whose body carries the line (pre-existing-record links don't get a row — the register tracks promises between this parent issue's own sub-issues, not every dependency):
 
    ```
-   | # | Promise | Owner (#leaf) | Status |
+   | # | Promise | Owner (#sub-issue) | Status |
    |---|---------|-----------------|--------|
-   | F1 | leaf #{owner} assumes leaf #{blocker}: {assumption} | #{owner} | open |
+   | F1 | sub-issue #{owner} assumes sub-issue #{blocker}: {assumption} | #{owner} | open |
    ```
 
-   When no leaf-to-leaf assumption lines exist (the threshold is still met — this decomposition simply had no forward dependencies among its leaves), still create the section with just the header row — `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) looks for this section by name on every parent-linked record it reviews, and an absent section means "nothing to track at all (below threshold)" while a present-but-empty one means "tracked, nothing found yet." Post one comment on the parent noting the seed: `gh issue comment $PARENT_NUM --body "Cross-Spec Promises seeded: {count} forward reference(s) at decomposition time."` (skip the comment, but still create the empty section, when count is 0).
+   When no sub-issue-to-sub-issue assumption lines exist (the threshold is still met — this decomposition simply had no forward dependencies among its sub-issues), still create the section with just the header row — `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) looks for this section by name on every parent-linked record it reviews, and an absent section means "nothing to track at all (below threshold)" while a present-but-empty one means "tracked, nothing found yet." Post one comment on the parent noting the seed: `gh issue comment $PARENT_NUM --body "Cross-Spec Promises seeded: {count} forward reference(s) at decomposition time."` (skip the comment, but still create the empty section, when count is 0).
 
-Step 3's Rules already asked for design-doc absorption while each leaf was being drafted; this is the systematic completeness pass — the last chance to catch a leaf that missed something, before the design doc becomes unrecoverable.
+Step 3's Rules already asked for design-doc absorption while each sub-issue was being drafted; this is the systematic completeness pass — the last chance to catch a sub-issue that missed something, before the design doc becomes unrecoverable.
 
-This is what keeps the records self-contained: reading the parent, or any leaf, later explains *why* the approach was chosen without needing the deleted design doc.
+This is what keeps the records self-contained: reading the parent, or any sub-issue, later explains *why* the approach was chosen without needing the deleted design doc.

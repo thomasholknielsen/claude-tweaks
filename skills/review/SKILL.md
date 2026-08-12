@@ -162,7 +162,7 @@ decomposition time (`spec-template.md`). No parent resolvable (a record human-fi
      $PARENT_NUM --body-file`, and post a comment: `gh issue comment $PARENT_NUM --body "F{n}
      satisfied by #{this-record}: {one-line why}."`
    - Not yet satisfied → leave the row `open`, post a comment explaining what's still missing.
-     Never edit another leaf's body from here — only the parent's promises section and comments.
+     Never edit another sub-issue's body from here — only the parent's promises section and comments.
 2. **Check whether this record's own work reveals a new forward assumption on another sibling**
    not yet tracked (the same kind of gap the spec 13-23 build's whole-branch review caught
    mid-flight, not anticipated at decomposition time). If so: add a row to the parent's table, post
@@ -170,7 +170,7 @@ decomposition time (`spec-template.md`). No parent resolvable (a record human-fi
    corresponding `Blocked by #N: {assumption}` line to this record's own body (a normal body edit,
    same as any other review-driven change to the record under review).
 
-Both writes are additive to the parent's body/comments only — never touch a sibling leaf's body
+Both writes are additive to the parent's body/comments only — never touch a sibling sub-issue's body
 from this step, and never block the review's own PASS/BLOCKED verdict on anything found here — the
 register is deliberately not a hard gate anywhere.
 

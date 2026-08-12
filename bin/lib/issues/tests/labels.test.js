@@ -47,6 +47,14 @@ test('framing:baked is exported as a LABELS constant', () => {
   assert.strictEqual(LABELS.FRAMING_BAKED, 'framing:baked');
 });
 
+test('parent-issue is exported as a LABELS constant matching the canonical bootstrap row', () => {
+  assert.strictEqual(LABELS.PARENT_ISSUE, 'parent-issue');
+  assert.ok(
+    canonicalLabelsFromBootstrapDoc().some(([name]) => name === LABELS.PARENT_ISSUE),
+    'parent-issue must carry a canonical LABELS_JSON row so `gh label create` bootstraps it',
+  );
+});
+
 // Reads skills/_shared/label-bootstrap.md's own "Canonical LABELS_JSON" fence live, so this
 // test can never silently drift from the descriptions every real `gh label create` bootstrap
 // flow actually uses (see the [reuse] finding this replaces — 7 of these rows used to be

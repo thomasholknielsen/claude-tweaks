@@ -1,6 +1,6 @@
 # Frontend Detection — Sniff Rules + Body-Metadata Spec
 
-Reference for the wrapper's 3-layer detection logic — Layers 1-3, the layers that can actually decide. (Layer 0, the context-signals enrichment layer, sits above them in resolution order but decides nothing; see the precedence summary below and `impeccable-plugin.md`.) Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which `/specify` writes on every new leaf record today; pre-v4.5 specs predate the field, so an absent value is normal and falls through to Layer 3.
+Reference for the wrapper's 3-layer detection logic — Layers 1-3, the layers that can actually decide. (Layer 0, the context-signals enrichment layer, sits above them in resolution order but decides nothing; see the precedence summary below and `impeccable-plugin.md`.) Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which `/specify` writes on every new sub-issue record today; pre-v4.5 specs predate the field, so an absent value is normal and falls through to Layer 3.
 
 ## Layer 3 — File-extension sniff (fallback)
 
@@ -66,7 +66,7 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 
 ## Layer 2 — Body-metadata lines (read by wrapper via the materialized header — spec 20; written by `/specify`)
 
-Every leaf record may declare two design-related body-metadata lines: `Surface:` and `Design-intent:`. `/specify` writes both on every new leaf record. The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch — both lifted into the materialized header at build time (spec 20's contract).
+Every sub-issue record may declare two design-related body-metadata lines: `Surface:` and `Design-intent:`. `/specify` writes both on every new sub-issue record. The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch — both lifted into the materialized header at build time (spec 20's contract).
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the body-metadata block description near the top of the fenced template). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 

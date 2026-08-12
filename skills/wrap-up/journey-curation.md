@@ -24,7 +24,7 @@ Route surviving findings by severity, mirroring the shape `_shared/journey-self-
 
 Ask: did this work introduce a new persona-facing flow (for any persona: end users, admins, developers, internal tooling users) with **zero journey coverage anywhere** in the project — not merely a flow that doesn't map to J1's touched-journey scope, but something no existing journey documents at all? This is a deliberately high bar, identical in spirit to D2's "zero existing doc coverage anywhere." Examples that clear it: a new slash command with a real end-to-end flow, a new persona-facing capability with no journey even adjacent to it. Examples that don't: a change to an existing flow's implementation with no new persona-facing behavior, a bug fix, an internal refactor.
 
-This check runs independent of what `/claude-tweaks:journeys` Step 1 already concluded during build — it is a wrap-up-time safety net for drift introduced after build's own journey check ran, or for a project where the "journeys build-time recalibration" leaf's 3-signal checklist (record #57) hasn't caught the gap for some other reason.
+This check runs independent of what `/claude-tweaks:journeys` Step 1 already concluded during build — it is a wrap-up-time safety net for drift introduced after build's own journey check ran, or for a project where the "journeys build-time recalibration" sub-issue's 3-signal checklist (record #57) hasn't caught the gap for some other reason.
 
 On a hit:
 

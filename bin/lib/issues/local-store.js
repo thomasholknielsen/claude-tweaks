@@ -5,9 +5,9 @@
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
 // risk, size, ceremony, framing, priority, stage, grants{build,merge}, bot{inProgress,
-// blocked}, acceptance — plus type, parent, familyParent, blockedBy, unsynced, closed,
-// closedAt); the github driver's callers get type/parent/blockedBy from the issue JSON
-// itself, not from labels. No network calls.
+// blocked}, acceptance, isParentIssue — plus type, parent, blockedBy, unsynced, closed,
+// closedAt, which are local-files-only); the github driver's callers get
+// type/parent/blockedBy from the issue JSON itself, not from labels. No network calls.
 'use strict';
 
 const fs = require('fs');
@@ -30,23 +30,24 @@ const GRANT_KEYS = ['build', 'merge'];
 // `bot` is always this value: the local driver carries no bot state.
 // Shared-key defaults come from facet-shape.js's sharedFacetDefaults() —
 // record.js's parseRecordFacets builds on the same shape. The keys below the
-// spread (type/parent/familyParent/blockedBy/unsynced/closed/closedAt) are
-// local-files-only and have no analog in the GitHub label-derived shape; add a
-// new shared facet key to facet-shape.js, not independently here.
+// spread (type/parent/blockedBy/unsynced/closed/closedAt) are local-files-only
+// and have no analog in the GitHub label-derived shape; add a new shared facet
+// key to facet-shape.js, not independently here.
 //
-// familyParent is the local-files parity for the GitHub `family:parent` label
-// (`specify/record-creation.md`'s Parent record section): true only on a
-// decomposition parent, never on a leaf. It is what makes a local-files parent
-// queryable at all — the alternative, the `{design-doc-slug}:parent` body
-// fingerprint, is reachable only by reading every record body, which this
-// driver's callers deliberately avoid (see record-creation.md's Idempotency
-// section for why the same reasoning applies on the GitHub side).
+// isParentIssue is a shared facet (facet-shape.js); the is-parent-issue:
+// frontmatter line is its local-files encoding, parallel to the GitHub
+// driver's parent-issue label (specify/record-creation.md's Parent record
+// section): true only on a decomposition parent, never on a sub-issue. It is
+// what makes a local-files parent queryable at all — the alternative, the
+// `{design-doc-slug}:parent` body fingerprint, is reachable only by reading
+// every record body, which this driver's callers deliberately avoid (see
+// record-creation.md's Idempotency section for why the same reasoning
+// applies on the GitHub side).
 function defaultFacets() {
   return {
     type: null,
     ...sharedFacetDefaults(),
     parent: null,
-    familyParent: false,
     blockedBy: [],
     unsynced: false,
     closed: false,
@@ -89,14 +90,18 @@ function parseBracketList(raw) {
 // fmLines -> facets. Unrecognized lines are silently skipped (permissive
 // line-regex parser, matching bin/lib/policy.js's style).
 //
-// The size facet is the one key not resolved by the plain last-matching-line-wins
-// rule every other key here uses: a `size:` line always beats a pre-rename
-// `effort:` line whichever order the two appear in, so the effort value is only
-// held aside during the pass and applied afterward, and never when a `size:` line
-// was found. Same deferred-apply shape as record.js's parseRecordFacets.
+// Two keys are not resolved by the plain last-matching-line-wins rule every
+// other key here uses — `size` (a `size:` line always beats a pre-rename
+// `effort:` line) and `isParentIssue` (an explicit `is-parent-issue:` line
+// always beats the pre-rename legacy line), whichever order the two
+// lines of each pair appear in; each value is held aside during the pass and
+// applied afterward, and never when the new-form line was found. Same
+// deferred-apply shape as record.js's parseRecordFacets.
 function parseFrontmatterLines(fmLines) {
   const facets = defaultFacets();
   let effortFallback = null;
+  let sawNewParentLine = false;
+  let legacyParentFallback = null;
 
   for (const rawLine of fmLines) {
     const line = rawLine.trim();
@@ -122,7 +127,10 @@ function parseFrontmatterLines(fmLines) {
       continue;
     }
     if ((m = /^parent:\s*(\d+)$/.exec(line))) { facets.parent = Number(m[1]); continue; }
-    if ((m = /^family-parent:\s*(true|false)$/.exec(line))) { facets.familyParent = m[1] === 'true'; continue; }
+    if ((m = /^is-parent-issue:\s*(true|false)$/.exec(line))) { facets.isParentIssue = m[1] === 'true'; sawNewParentLine = true; continue; }
+    // Read-side family-parent: fallback — PERMANENT cross-project support (pre-rename local records keep family-parent: lines); removable only at a major version that drops pre-rename repo support. [IL-85]
+    // Precedence is held-aside, not OR: an explicit is-parent-issue: line (either value) must win over any legacy line, so the legacy value applies after the pass and only when no new line was seen.
+    if ((m = /^family-parent:\s*(true|false)$/.exec(line))) { legacyParentFallback = m[1] === 'true'; continue; }
     if ((m = /^blocked-by:\s*\[(.*)\]$/.exec(line))) {
       facets.blockedBy = parseBracketList(m[1]).map(Number);
       continue;
@@ -132,6 +140,7 @@ function parseFrontmatterLines(fmLines) {
   }
 
   if (facets.size === null) facets.size = effortFallback;
+  if (!sawNewParentLine && legacyParentFallback !== null) facets.isParentIssue = legacyParentFallback;
 
   return facets;
 }
@@ -170,14 +179,16 @@ function readRecord(filePath) {
 
 // facets -> frontmatter lines, omitting every key at its default/absent value:
 // no 'stage: backlog', no empty 'grants: []', no 'unsynced: false', no 'parent'
-// when null, no 'family-parent' when false, no 'blocked-by' when empty. `bot` is
+// when null, no 'is-parent-issue' when false, no 'blocked-by' when empty. `bot` is
 // never written — it isn't a file-backed facet for the local driver. Array
 // syntax is exactly '[a, b]'.
 //
 // The emit side is size-only: no code path here writes an 'effort:' line, so a
 // legacy record migrates its key the first time anything rewrites it. The read
 // side's effort: fallback (parseFrontmatterLines above) is deliberately
-// one-directional.
+// one-directional. Same for the parent marker: emit is only ever
+// 'is-parent-issue:' — a pre-rename legacy line is migrated on the first
+// rewrite, never preserved alongside.
 function serializeFrontmatter(facets) {
   const lines = [];
   if (facets.type) lines.push(`type: ${facets.type}`);
@@ -196,7 +207,7 @@ function serializeFrontmatter(facets) {
   if (grantNames.length > 0) lines.push(`grants: [${grantNames.join(', ')}]`);
 
   if (facets.parent !== null && facets.parent !== undefined) lines.push(`parent: ${facets.parent}`);
-  if (facets.familyParent) lines.push('family-parent: true');
+  if (facets.isParentIssue) lines.push('is-parent-issue: true');
 
   const blockedBy = facets.blockedBy || [];
   if (blockedBy.length > 0) lines.push(`blocked-by: [${blockedBy.join(', ')}]`);
@@ -373,7 +384,7 @@ function createRecord(dir = DEFAULT_DIR, { slug, title, body, facets } = {}) {
 
 // title, existingSlugs? -> slug. The single implementation of the slug rule
 // for callers creating a brand-new local-files record (/capture, /demo's
-// changes-requested follow-up, and /specify's parent/leaf decomposition
+// changes-requested follow-up, and /specify's parent/sub-issue decomposition
 // creation all call this rather than deriving slugs inline): lowercase,
 // collapse runs of non-alphanumeric characters to a single '-', trim
 // leading/trailing '-', truncate to 60 chars, then dedupe against

@@ -85,7 +85,7 @@ If situational filtering leaves only one option (a bare run that surfaced nothin
 - Option 1 — `label`: `"Dispatch what was just granted (Recommended)"`, `description`: `"/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to} — skips re-selection, claims and builds them directly"` — omit entirely if nothing was granted this run
 - Option 2 — `label`: `"Run grant again"`, `description`: `"/claude-tweaks:backlog grant — sweep anything still eligible since this run's --budget cap or new ready records"`
 
-No "set up a routine" option yet — `skills/backlog/routine-template.yml` doesn't exist (the companion leaf blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous option here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
+No "set up a routine" option yet — `skills/backlog/routine-template.yml` doesn't exist (the companion sub-issue blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous option here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
 
 ## Component-Skill Contract
 

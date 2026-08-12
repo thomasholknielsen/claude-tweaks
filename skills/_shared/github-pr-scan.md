@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines `_shared/forge-detection.md`'s Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`family-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section and this file's Output Contract, plus `_shared/forge-detection.md`'s Detection Ladder, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`). A scope section is inlined **whole**, its `work-links` resolution and fetch-limit sub-sections included: the `acceptance-gap` and `family-gate` scopes each carry a `work-links: body-text` / `work-links: native` branch pair, and an agent that cannot resolve `work-links` cannot choose between them — taking the first-listed `body-text` branch on a `native` repo returns zero leaves from every parent and makes both scopes silently wrong (see each scope's own resolution sub-section for the failure it produces).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope; Stage 4.8, which inlines `_shared/forge-detection.md`'s Detection Ladder alone — its fetch and render come from `_shared/trust-table.md`, so it consumes no scope section below) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope; Step 4.8, **`acceptance-gap`** scope; Step 4.8, **`parent-gate`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section and this file's Output Contract, plus `_shared/forge-detection.md`'s Detection Ladder, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`). A scope section is inlined **whole**, its `work-links` resolution and fetch-limit sub-sections included: the `acceptance-gap` and `parent-gate` scopes each carry a `work-links: body-text` / `work-links: native` branch pair, and an agent that cannot resolve `work-links` cannot choose between them — taking the first-listed `body-text` branch on a `native` repo returns zero sub-issues from every parent and makes both scopes silently wrong (see each scope's own resolution sub-section for the failure it produces).
 
 Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — `gh`'s implicit default is 30, which silently truncates instead of erroring. A result count landing exactly at the stated limit means the scan may be incomplete; treat that as a signal to narrow the query (a tighter label/state filter) or re-run with a higher `--limit`, not as a final count.
 
@@ -149,7 +149,7 @@ disappear from the backlog with no disposition on record. Classification is enti
 label taxonomy; see that module or `_shared/work-record.md` for what the labels mean.
 
 **This scope finds `work-backend: github-issues` records only**, for the same reason the
-`family-gate` scope below does: it reads GitHub labels, and the Detection Ladder above skips this
+`parent-gate` scope below does: it reads GitHub labels, and the Detection Ladder above skips this
 whole file whenever `gh` is unreachable — it checks remote/install/auth, never `work-backend`. The
 `local-files` twin of this sweep is `tidy/step-1-records.md`'s Shape 8, reading the record store
 through `queryRecords` and translating `facets.closed`/`facets.acceptance`/`facets.parent` into
@@ -170,11 +170,11 @@ gh issue list --state closed --limit 200 \
 
 A closed record whose acceptance lives on a `/claude-tweaks:specify` decomposition parent must
 not count as a gap — `needsBackstop`'s `hasParent` field exists precisely to suppress it. Resolving
-which closed records are leaves reuses the same parent-side enumeration the `family-gate` scope
-below already documents in full — never the leaf side, which works under one `work-links` mode and
-silently returns nothing under the other. This step only needs leaf *existence*, not
-per-leaf state, so it skips that scope's state-map plumbing; and it fetches `--state all` rather
-than `family-gate`'s `--state open`, because a leaf whose family was already gated and approved —
+which closed records are sub-issues reuses the same parent-side enumeration the `parent-gate` scope
+below already documents in full — never the sub-issue side, which works under one `work-links` mode
+and silently returns nothing under the other. This step only needs sub-issue *existence*, not
+per-sub-issue state, so it skips that scope's state-map plumbing; and it fetches `--state all` rather
+than `parent-gate`'s `--state open`, because a sub-issue whose parent was already gated and approved —
 which closes the parent (`demo/SKILL.md`'s Approve step) — must still be suppressed here, and an
 open-only fetch would miss it.
 
@@ -193,14 +193,14 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links
 The printed value names the branch to take — the resolver applies the documented default
 (`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
-construction, so `parseFamilyLeaves` returns `[]` for every parent,
-`/tmp/tidy-acceptance-gap-leaves.json` is empty, and every decomposed leaf re-enters this scope
-as a false `[acceptance-gap]` row — the
+construction, so `parseSubIssues` returns `[]` for every parent,
+`/tmp/tidy-acceptance-gap-sub-issues.json` is empty, and every decomposed sub-issue re-enters this
+scope as a false `[acceptance-gap]` row — the
 exact flood `hasParent` exists to stop, with no error anywhere to say so.
 
 ### Fetch limit
 
-Both branches below bound the `family:parent` fetch with `{resolved-limit}` rather than a
+Both branches below bound their parent fetches with `{resolved-limit}` rather than a
 hardcoded cap. Resolve `backlog-fetch-limit` with
 `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit`
 (`_shared/work-record-config.md`'s key table; the resolver applies the schema default when the
@@ -211,10 +211,10 @@ between Bash calls and never reaches a subagent, so a cross-block `export` silen
 empty (the same discipline `_shared/trust-table.md` states for its own identical fetches).
 
 This scope's own closed-record fetch above keeps its hardcoded `--limit 200`: its record set is
-bounded to the last 30 days, so 200 is in practice never reached. The `family:parent` fetches are
+bounded to the last 30 days, so 200 is in practice never reached. The parent fetches are
 not — they are `--state all` over the repo's entire history, and `gh issue list` returns
-newest-first, so a fixed cap drops the **oldest** families first. Those are precisely the families
-whose leaves have already closed, so truncation silently re-floods this scope with exactly the
+newest-first, so a fixed cap drops the **oldest** parents first. Those are precisely the parents
+whose sub-issues have already closed, so truncation silently re-floods this scope with exactly the
 rows the filter exists to remove.
 
 **`work-links: body-text`** — every parent's task list comes back in the same fetch:
@@ -222,58 +222,76 @@ rows the filter exists to remove.
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
+gh issue list --label parent-issue --state all --json number,body --limit "$LIMIT" \
+  > /tmp/tidy-parents-for-gap-new.json
+# Legacy-label fetch — PERMANENT cross-project support for adopter repos that haven't migrated;
+# removable only at a major version dropping pre-rename repo support. [IL-85]
 gh issue list --label family:parent --state all --json number,body --limit "$LIMIT" \
-  > /tmp/tidy-family-parents-for-gap.json
+  > /tmp/tidy-parents-for-gap-legacy.json
 
 node -e "
-  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
-  const parents = require('/tmp/tidy-family-parents-for-gap.json');
-  if (parents.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped, so their leaves re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
+  const LIMIT = Number(process.env.FETCH_LIMIT);
+  const fetched = ['/tmp/tidy-parents-for-gap-new.json', '/tmp/tidy-parents-for-gap-legacy.json'].map(require);
+  // Number-keyed dedup across the two label fetches — identical rows, either fetch may win.
+  const parents = [...new Map(fetched.flat().map((p) => [p.number, p])).values()];
+  if (fetched.some((f) => f.length === LIMIT)) {
+    console.error('WARNING: a parent fetch returned exactly ' + LIMIT + ' records (the configured backlog-fetch-limit) — older parents were dropped, so their sub-issues re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
   }
-  const leafNumbers = parents.flatMap((p) => parseFamilyLeaves(p.body));
-  fs.writeFileSync('/tmp/tidy-acceptance-gap-leaves.json', JSON.stringify(leafNumbers));
+  const subIssueNumbers = parents.flatMap((p) => parseSubIssues(p.body));
+  fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
 
-**`work-links: native`** — one `sub_issues` call per parent, same endpoint as `family-gate`'s
+**`work-links: native`** — one `sub_issues` call per parent, same endpoint as `parent-gate`'s
 native branch:
 
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
+gh issue list --label parent-issue --state all --json number --limit "$LIMIT" \
+  > /tmp/tidy-parents-for-gap-new.json
+# Legacy-label fetch — PERMANENT cross-project support for adopter repos that haven't migrated;
+# removable only at a major version dropping pre-rename repo support. [IL-85]
 gh issue list --label family:parent --state all --json number --limit "$LIMIT" \
-  > /tmp/tidy-family-parents-for-gap.json
+  > /tmp/tidy-parents-for-gap-legacy.json
 
-: > /tmp/tidy-acceptance-gap-leaf-numbers.jsonl
-node -e "require('/tmp/tidy-family-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-leaf-numbers.jsonl
+node -e "
+  const fs = require('fs');
+  const fetched = ['/tmp/tidy-parents-for-gap-new.json', '/tmp/tidy-parents-for-gap-legacy.json'].map(require);
+  // Number-keyed dedup across the two label fetches — identical rows, either fetch may win.
+  const parents = [...new Map(fetched.flat().map((p) => [p.number, p])).values()];
+  if (fetched.some((f) => f.length === Number(process.env.FETCH_LIMIT))) {
+    console.error('WARNING: a parent fetch returned exactly ' + process.env.FETCH_LIMIT + ' records (the configured backlog-fetch-limit) — older parents were dropped, so their sub-issues re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
+  }
+  fs.writeFileSync('/tmp/tidy-parents-for-gap.json', JSON.stringify(parents));
+"
+
+: > /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
+node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
 done
 
 node -e "
   const fs = require('fs');
-  const parents = require('/tmp/tidy-family-parents-for-gap.json');
-  if (parents.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped, so their leaves re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
-  }
-  const leafNumbers = fs.readFileSync('/tmp/tidy-acceptance-gap-leaf-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
-  fs.writeFileSync('/tmp/tidy-acceptance-gap-leaves.json', JSON.stringify(leafNumbers));
+  const subIssueNumbers = fs.readFileSync('/tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
 
-With `/tmp/tidy-acceptance-gap-leaves.json` written by whichever branch applies, filter the
-closed-record set — note the filename: this scope's leaf list and the `family-gate` scope's
-`/tmp/tidy-families.json` are different artifacts written by different procedures in the same
+With `/tmp/tidy-acceptance-gap-sub-issues.json` written by whichever branch applies, filter the
+closed-record set — note the filename: this scope's sub-issue list and the `parent-gate` scope's
+`/tmp/tidy-parent-gates.json` are different artifacts written by different procedures in the same
 agent prompt, so they never share a path:
 
 ```bash
 node -e "
   const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
   const records = require('/tmp/tidy-closed-records.json');
-  const familyLeaves = new Set(require('/tmp/tidy-acceptance-gap-leaves.json'));
+  const subIssues = new Set(require('/tmp/tidy-acceptance-gap-sub-issues.json'));
   const gaps = records
-    .map(r => ({ ...r, labels: r.labels.map(l => l.name), hasParent: familyLeaves.has(r.number) }))
+    .map(r => ({ ...r, labels: r.labels.map(l => l.name), hasParent: subIssues.has(r.number) }))
     .filter(r => needsBackstop({ state: 'CLOSED', labels: r.labels, hasParent: r.hasParent }));
   gaps.forEach(r => console.log('[acceptance-gap] #' + r.number + ': ' + r.title + ' — closed with no acceptance disposition — recommend /claude-tweaks:demo #' + r.number));
 "
@@ -296,22 +314,22 @@ above `info` would permanently evict every actionable `repo-wide` finding beneat
 also where its behavioural sibling already sits — "Open PR awaiting review", the other
 no-mutation, always-surfaced row (`tidy/step-6-auto.md`).
 
-## Scope: `family-gate` (consumed by /tidy Step 4.8)
+## Scope: `parent-gate` (consumed by /tidy Step 4.8)
 
-Finds decomposition families whose every leaf has closed but whose parent carries no
-acceptance disposition yet — the population `/claude-tweaks:wrap-up`'s own family-gate
-procedure (`wrap-up/verification-brief.md`) applies eagerly when it closes a family's last leaf.
-A leaf closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches
-that eager path at all, so its family's gate never fires on its own; this scope is the backstop
+Finds decomposition parents whose every sub-issue has closed but which carry no
+acceptance disposition yet — the population `/claude-tweaks:wrap-up`'s own parent-gate
+procedure (`wrap-up/verification-brief.md`) applies eagerly when it closes a parent's last sub-issue.
+A sub-issue closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches
+that eager path at all, so its parent's gate never fires on its own; this scope is the backstop
 sweep that catches it later.
 
-Classification is entirely `familyGateState`'s
-(`bin/lib/issues/acceptance.js`) — this scope does not reimplement the gate logic, and leaf
+Classification is entirely `parentGateState`'s
+(`bin/lib/issues/acceptance.js`) — this scope does not reimplement the gate logic, and sub-issue
 enumeration reuses the same parent-side resolution `wrap-up/verification-brief.md`'s
-family-gate procedure already documents rather than inventing a second one.
+parent-gate procedure already documents rather than inventing a second one.
 
-**This scope finds `work-backend: github-issues` families only** — because it queries the
-`family:parent` label, which exists on that driver alone. Nothing switches it off elsewhere: the
+**This scope finds `work-backend: github-issues` parents only** — because it queries the
+`parent-issue` label, which exists on that driver alone. Nothing switches it off elsewhere: the
 Detection Ladder above checks a reachable GitHub remote, an installed `gh`, and an authenticated
 one — never `work-backend` — so a `local-files` project that has a GitHub remote (the normal
 case, and why `repo-wide`'s PR scan runs there at all) passes the Ladder, runs this scope, and
@@ -321,16 +339,16 @@ What the Ladder does decide is the genuinely `gh`-absent case — no remote, `gh
 not authenticated — where it skips this entire file, this scope included. That is what makes a
 `gh`-gated file the wrong home for a sweep needing no `gh` at all, so the `local-files` twin of
 this sweep lives in `tidy/step-1-records.md` (Shape 7), reading the record store through
-`queryRecords`. It emits the identical `[family-gate]` row and feeds the identical
-`Open family gate` action, so no consumer distinguishes the two.
+`queryRecords`. It emits the identical `[parent-gate]` row and feeds the identical
+`Open parent gate` action, so no consumer distinguishes the two.
 
-Record set: open records carrying `family:parent` (`/claude-tweaks:specify` labels every
+Record set: open records carrying `parent-issue` (`/claude-tweaks:specify` labels every
 decomposition parent this way — see `specify/record-creation.md`'s Parent record section),
 plus every issue's current state, fetched once.
 
 ### Fetch limit
 
-**Both fetches are bounded by `{resolved-limit}`, never a hardcoded cap.** Resolve
+**Every fetch below is bounded by `{resolved-limit}`, never a hardcoded cap.** Resolve
 `backlog-fetch-limit` with
 `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit`
 (`_shared/work-record-config.md`'s key table; the resolver applies the schema default when the
@@ -340,27 +358,36 @@ block and never carry it across blocks in a shell variable — shell environment
 between Bash calls and never reaches a subagent, so a cross-block `export` silently resolves
 empty (the same discipline `_shared/trust-table.md` states for its own identical fetches). The
 state map in particular is `--state all` over the repo's entire lifetime with no recency bound,
-which is why it cannot carry a fixed cap: past that cap every truncated leaf defaults to `OPEN`,
-so every family containing one reads `incomplete` and this backstop stops firing — permanently,
-and with nothing on the output to say it did.
+which is why it cannot carry a fixed cap: past that cap every truncated sub-issue defaults to
+`OPEN`, so every parent containing one reads `incomplete` and this backstop stops firing —
+permanently, and with nothing on the output to say it did.
 
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
+gh issue list --label parent-issue --state open --json number,title,body,labels --limit "$LIMIT" \
+  > /tmp/tidy-parent-issues-new.json
+# Legacy-label fetch — PERMANENT cross-project support for adopter repos that haven't migrated;
+# removable only at a major version dropping pre-rename repo support. [IL-85]
 gh issue list --label family:parent --state open --json number,title,body,labels --limit "$LIMIT" \
-  > /tmp/tidy-family-parents.json
+  > /tmp/tidy-parent-issues-legacy.json
 
 gh issue list --state all --json number,state --limit "$LIMIT" \
   > /tmp/tidy-all-issue-states.json
 
 node -e "
-  const parents = require('/tmp/tidy-family-parents.json');
+  const fs = require('fs');
+  const LIMIT = Number(process.env.FETCH_LIMIT);
+  const fetched = ['/tmp/tidy-parent-issues-new.json', '/tmp/tidy-parent-issues-legacy.json'].map(require);
+  // Number-keyed dedup across the two label fetches — identical rows, either fetch may win.
+  const parents = [...new Map(fetched.flat().map((p) => [p.number, p])).values()];
+  fs.writeFileSync('/tmp/tidy-parent-issues.json', JSON.stringify(parents));
   const states = require('/tmp/tidy-all-issue-states.json');
-  if (parents.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped and are invisible to this scope entirely. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
+  if (fetched.some((f) => f.length === LIMIT)) {
+    console.error('WARNING: a parent fetch returned exactly ' + LIMIT + ' records (the configured backlog-fetch-limit) — older parents were dropped and are invisible to this scope entirely. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
   }
-  if (states.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + states.length + ' issue states (the configured backlog-fetch-limit) — every leaf beyond this cap defaults to OPEN, so any family containing one reads incomplete and this backstop silently never fires for it. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
+  if (states.length === LIMIT) {
+    console.error('WARNING: fetched exactly ' + states.length + ' issue states (the configured backlog-fetch-limit) — every sub-issue beyond this cap defaults to OPEN, so any parent containing one reads incomplete and this backstop silently never fires for it. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
   }
 "
 ```
@@ -368,7 +395,7 @@ node -e "
 **Report every warning emitted above verbatim beside this scope's rows, and never suppress
 either of them.** Both truncations fail in the *quiet* direction — fewer rows, not wrong ones —
 which is exactly the direction a backstop must never fail in silently, since a scope that emits
-nothing is indistinguishable from a repo with no un-gated families.
+nothing is indistinguishable from a repo with no un-gated parents.
 
 ### `work-links` resolution
 
@@ -385,94 +412,94 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links
 The printed value names the branch to take — the resolver applies the documented default
 (`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
-construction, so `parseFamilyLeaves` returns `[]` for every parent, every family reads
-`incomplete` (`familyGateState` never reports `due` for a family with no discoverable leaves),
+construction, so `parseSubIssues` returns `[]` for every parent, every parent reads
+`incomplete` (`parentGateState` never reports `due` for a parent with no discoverable sub-issues),
 and this backstop emits nothing at all — on a repo where it is the only thing that gates a
-family whose last leaf closed outside `/claude-tweaks:wrap-up`.
+parent whose last sub-issue closed outside `/claude-tweaks:wrap-up`.
 
-### Leaf enumeration
+### Sub-issue enumeration
 
-For each parent, enumerate its leaves from the **parent** side — never the leaf side, which
+For each parent, enumerate its sub-issues from the **parent** side — never the sub-issue side, which
 works under one `work-links` mode and silently returns nothing under the other.
-Leaf **state** is read from the state map just fetched above in both branches below, never from
-a leaf's own `state` field wherever one happens to already be present in a response — GitHub's
+Sub-issue **state** is read from the state map just fetched above in both branches below, never from
+a sub-issue's own `state` field wherever one happens to already be present in a response — GitHub's
 REST responses (the `sub_issues` endpoint included) report lowercase `open`/`closed`, while
-`familyGateState` and the state map both use the `gh issue list --json state` uppercase
-`OPEN`/`CLOSED` form; reading from one source only avoids a silent casing mismatch. A leaf
+`parentGateState` and the state map both use the `gh issue list --json state` uppercase
+`OPEN`/`CLOSED` form; reading from one source only avoids a silent casing mismatch. A sub-issue
 number absent from the state map (the fetch above truncated before reaching it — the warning
 above fires when that is possible) defaults to `OPEN`, the fail-safe direction — an unresolved
-leaf must never let a family read as `due` (mirrors `familyGateState`'s own "never reports `due`
-for a family with no discoverable leaves" rule).
+sub-issue must never let a parent read as `due` (mirrors `parentGateState`'s own "never reports
+`due` for a parent with no discoverable sub-issues" rule).
 
 **`work-links: body-text`** — every parent's task list is already in hand from the first fetch
 above; no further `gh` calls:
 
 ```bash
 node -e "
-  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
-  const parents = require('/tmp/tidy-family-parents.json');
+  const parents = require('/tmp/tidy-parent-issues.json');
   const stateOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, i.state]));
-  const families = parents.map(p => ({
+  const gates = parents.map(p => ({
     number: p.number,
     title: p.title,
     parentLabels: p.labels.map(l => l.name),
-    leaves: parseFamilyLeaves(p.body).map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
+    leaves: parseSubIssues(p.body).map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
   }));
-  fs.writeFileSync('/tmp/tidy-families.json', JSON.stringify(families));
+  fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
 "
 ```
 
-**`work-links: native`** — the parent body carries no task list, so leaf numbers come from the
+**`work-links: native`** — the parent body carries no task list, so sub-issue numbers come from the
 sub-issues API instead, one call per parent (exactly `wrap-up/verification-brief.md`'s own
 native command, `gh api repos/{owner}/{repo}/issues/{n}/sub_issues --jq '.[].number'`, run once
 per parent in the fetched set — each result appended as one JSON line rather than assembled by
 hand, so no shell-side JSON construction is needed):
 
 ```bash
-: > /tmp/tidy-family-leaves.jsonl
-node -e "require('/tmp/tidy-family-parents.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, leafNumbers: [.[].number]}" \
-    >> /tmp/tidy-family-leaves.jsonl
+: > /tmp/tidy-sub-issues.jsonl
+node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, subIssueNumbers: [.[].number]}" \
+    >> /tmp/tidy-sub-issues.jsonl
 done
 
 node -e "
   const fs = require('fs');
-  const parents = require('/tmp/tidy-family-parents.json');
+  const parents = require('/tmp/tidy-parent-issues.json');
   const stateOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, i.state]));
   const byNumber = new Map(parents.map(p => [p.number, p]));
-  const leafRows = fs.readFileSync('/tmp/tidy-family-leaves.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
-  const families = leafRows.map(({ number, leafNumbers }) => {
+  const subRows = fs.readFileSync('/tmp/tidy-sub-issues.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+  const gates = subRows.map(({ number, subIssueNumbers }) => {
     const p = byNumber.get(number);
     return {
       number,
       title: p.title,
       parentLabels: p.labels.map(l => l.name),
-      leaves: leafNumbers.map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
+      leaves: subIssueNumbers.map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
     };
   });
-  fs.writeFileSync('/tmp/tidy-families.json', JSON.stringify(families));
+  fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
 "
 ```
 
-With `/tmp/tidy-families.json` assembled by whichever branch above applies, filter to families
+With `/tmp/tidy-parent-gates.json` assembled by whichever branch above applies, filter to parents
 whose gate is due:
 
 ```bash
 node -e "
-  const { familyGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const families = require('/tmp/tidy-families.json'); // [{number, title, leaves, parentLabels}]
-  families
-    .filter(f => familyGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
-    .forEach(f => console.log('[family-gate] #' + f.number + ': ' + f.title + ' — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #' + f.number));
+  const { parentGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const gates = require('/tmp/tidy-parent-gates.json'); // [{number, title, leaves, parentLabels}]
+  gates
+    .filter(f => parentGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
+    .forEach(f => console.log('[parent-gate] #' + f.number + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo #' + f.number));
 "
 ```
 
-Un-gated families recommend the `Open family gate` action (`tidy/SKILL.md`'s Action Vocabulary,
-executed for this scope's rows via `tidy/actions-github-issues.md`'s `## Open family gate`) — never applied without
+Un-gated parents recommend the `Open parent gate` action (`tidy/SKILL.md`'s Action Vocabulary,
+executed for this scope's rows via `tidy/actions-github-issues.md`'s `## Open parent gate`) — never applied without
 going through `/tidy`'s own Step 6 batch approval first, at **every** aggressiveness tier in auto
-mode (`step-6-auto.md`'s Open family gate row is `Stage`/`Stage`/`Stage`), the same as
-`acceptance-gap` — though for a related but distinct reason. `Open family gate` posts a comment
+mode (`step-6-auto.md`'s Open parent gate row is `Stage`/`Stage`/`Stage`), the same as
+`acceptance-gap` — though for a related but distinct reason. `Open parent gate` posts a comment
 and adds a label: an outward-facing GitHub API write. `_shared/auto-mode-contract.md`'s
 reversibility floor requires `high` — "undoable via file edit or `git revert`" — before anything
 may auto-resolve, and its never-reversible list separately forbids "network calls beyond reads
@@ -481,12 +508,12 @@ this write, however mechanical or precondition-only it is; `/claude-tweaks:wrap-
 identical write with zero staging is not a counter-example, since that write is an unconditional
 step of a pipeline a human already launched against one named record and sits in no tier table at
 all, unlike this action. Separately, and independent of the write-level reasoning above, this
-scope and the `Open family gate` action it feeds never write `demo:approved` or
+scope and the `Open parent gate` action it feeds never write `demo:approved` or
 `demo:changes-requested` under any circumstance — that disposition stays exclusively
 `/claude-tweaks:demo`'s job, staged and human-only, which is why the recommendation always still
 ends with "then `/claude-tweaks:demo #{n}`" even once the gate is open.
 
-Emit `[family-gate]` rows per the Output Contract, at severity `info` — the same severity
+Emit `[parent-gate]` rows per the Output Contract, at severity `info` — the same severity
 `acceptance-gap` uses and for the same reason: `/claude-tweaks:tidy` runs this scope in the same
 agent as `repo-wide` and `acceptance-gap` under one 15-row, highest-severity-first cap
 (`tidy/scan-procedures.md` Step 4.8), and this can be a standing backlog on a repo with several
@@ -494,13 +521,13 @@ open decompositions, not a one-off defect count.
 
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records), one un-dispositioned-closed-record prefix (`acceptance-gap` scope only), and one un-gated-family prefix (`family-gate` scope only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records), one un-dispositioned-closed-record prefix (`acceptance-gap` scope only), and one un-gated-parent prefix (`parent-gate` scope only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 - `[gh-issue]` — code-health/harness-health/journey-health/docs-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 - `[queue]` — grant-queue metrics (item 8 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
 - `[acceptance-gap]` — closed records with no acceptance disposition (`acceptance-gap` scope above): `[acceptance-gap] #{n}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo #{n}`
-- `[family-gate]` — decomposition families with every leaf closed and no acceptance disposition on the parent (`family-gate` scope above): `[family-gate] #{n}: {title} — family complete, no acceptance disposition — Open family gate, then /claude-tweaks:demo #{n}`
+- `[parent-gate]` — decomposition parents with every sub-issue closed and no acceptance disposition on the parent (`parent-gate` scope above): `[parent-gate] #{n}: {title} — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo #{n}`
 
 Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/step-1-records.md`).
 
@@ -517,5 +544,5 @@ Severity mapping (Template A Severity column):
 | Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:backlog refine` | low |
 | Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
 | Closed record with no acceptance disposition (`acceptance-gap` scope) | info |
-| Decomposition family complete with no acceptance disposition (`family-gate` scope) | info |
+| Decomposition parent complete with no acceptance disposition (`parent-gate` scope) | info |
 | Fresh draft PR / no PR / scan skipped | info |

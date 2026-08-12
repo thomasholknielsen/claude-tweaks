@@ -133,7 +133,7 @@ continue."
 Resolve the `autonomy` ceiling and this run's trust table once, before rendering Step 4's table.
 Fetch the records per `_shared/trust-table.md`'s Fetch section (including its
 `backlog-fetch-limit` resolution, its `work-links` resolution — which decides which of the two
-family-parent branches to run — and its truncation warning), then look up each worklist record's
+parent-issue branches to run — and its truncation warning), then look up each worklist record's
 class.
 
 Resolve `autonomy` and `trust-revert-window-days` in one canonical read (the resolver applies

@@ -41,15 +41,15 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 Phase 4's execution step, which is where acceptance labeling normally happens, so this branch must
 perform it itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
 execution would. This short-circuit closes exactly one record, so pass that record's own number as
-`$CLOSING_LEAVES` — the one-element closing-leaf set that file's **Self-inclusion rule** reads
-(`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
+`$CLOSING_SUB_ISSUES` — the one-element closing sub-issue set that file's **Self-inclusion rule**
+reads (`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
 file owns the routing: a record with a resolvable parent goes to its
-Family-Gate Procedure (the family's parent gets the one gate; this leaf gets none), and
+Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), and
 everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the Step 2.5
 safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
-independently of that routing: an `auto:merge`'d leaf is exactly the population
-`_shared/github-pr-scan.md`'s `family-gate` backstop scope exists to catch, so gating it here
-would defeat the family gate.
+independently of that routing: an `auto:merge`'d sub-issue is exactly the population
+`_shared/github-pr-scan.md`'s `parent-gate` backstop scope exists to catch, so gating it here
+would defeat the parent acceptance gate.
 
 Order is load-bearing: the merge below carries the `Fixes #{issue}` closing keyword, so once it
 lands the record is closed and this branch has moved on. Labeling before the merge is what keeps

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
-  buildNativeDependencyQuery, hasOpenNativeBlocker, parseFamilyLeaves,
+  buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -210,7 +210,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null,
+    acceptance: null, isParentIssue: false,
   });
 });
 
@@ -236,7 +236,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null,
+    acceptance: null, isParentIssue: false,
   });
 });
 
@@ -505,19 +505,33 @@ test('specShapedBody throws on a missing or empty section', () => {
   assert.throws(() => specShapedBody({ header: 'h', currentState: [], deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
 });
 
-test('parseFamilyLeaves reads a parent task list', () => {
+test('parseSubIssues reads a parent task list', () => {
   const body = 'Design summary\n\n- [ ] #46\n- [x] #47\n- [ ] #48\n';
-  assert.deepEqual(parseFamilyLeaves(body), [46, 47, 48]);
+  assert.deepEqual(parseSubIssues(body), [46, 47, 48]);
 });
 
-test('parseFamilyLeaves ignores mid-line mentions and dedupes', () => {
-  // Mirrors parseDependencies: only a line-anchored entry declares a leaf.
+test('parseSubIssues ignores mid-line mentions and dedupes', () => {
+  // Mirrors parseDependencies: only a line-anchored entry declares a sub-issue.
   const body = 'see - [ ] #99 inline\n- [ ] #46\n- [ ] #46\n';
-  assert.deepEqual(parseFamilyLeaves(body), [46]);
+  assert.deepEqual(parseSubIssues(body), [46]);
 });
 
-test('parseFamilyLeaves returns empty for absent or non-string bodies', () => {
-  assert.deepEqual(parseFamilyLeaves(''), []);
-  assert.deepEqual(parseFamilyLeaves(undefined), []);
-  assert.deepEqual(parseFamilyLeaves('no task list here'), []);
+test('parseSubIssues returns empty for absent or non-string bodies', () => {
+  assert.deepEqual(parseSubIssues(''), []);
+  assert.deepEqual(parseSubIssues(undefined), []);
+  assert.deepEqual(parseSubIssues('no task list here'), []);
+});
+
+test('parseRecordFacets sets isParentIssue from the parent-issue label', () => {
+  assert.strictEqual(parseRecordFacets([{ name: 'parent-issue' }]).isParentIssue, true);
+});
+
+test('parseRecordFacets sets isParentIssue from the legacy family:parent label', () => {
+  // Contract, not implementation echo: legacy labels on adopter repos must keep working ([IL-85]).
+  assert.strictEqual(parseRecordFacets([{ name: 'family:parent' }]).isParentIssue, true);
+});
+
+test('parseRecordFacets defaults isParentIssue to false', () => {
+  assert.strictEqual(parseRecordFacets([]).isParentIssue, false);
+  assert.strictEqual(parseRecordFacets([{ name: 'ready' }]).isParentIssue, false);
 });

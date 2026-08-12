@@ -26,12 +26,12 @@ files:
 - **URL:** *(no command — demo drives)*
 - **Action:** Nothing. Demo runs Prepare commands (`none` → skipped), silently validates URL surfaces with agent-browser when available (session closed afterward), then Shows: opens the deep link in your browser (`open`/`xdg-open`), runs the `cli` command, walks `flow` Inspect pointers in order (regenerating missing artifacts, stating-and-continuing on failures), or renders the `diff`.
 - **Should feel:** Show-first — the work appears in front of you before any question is asked.
-- **Should understand:** A Prepare or Validate failure is *evidence for Request changes*, not a debugging detour — demo never fixes the application. A Family-Gate parent brief (no plan section, walkthrough inline in `### Confirmed`) and a no-path-list session-recall entry legitimately skip straight to the verdict.
+- **Should understand:** A Prepare or Validate failure is *evidence for Request changes*, not a debugging detour — demo never fixes the application. A Parent-Gate parent brief (no plan section, walkthrough inline in `### Confirmed`) and a no-path-list session-recall entry legitimately skip straight to the verdict.
 - **Red flags:** Demo asking which way you'd like to verify before showing anything; a browser validation session left open; a stale `flow` pointer blocking the walk instead of being stated and passed over.
 
 ### 3. Give the verdict — one question
 - **URL:** *(AskUserQuestion rendered by demo)*
 - **Action:** Pick Approve, Request changes (a one-line reason files a linked follow-up record), or Skip for now.
 - **Should feel:** One decision, fully informed — the only question the walkthrough asks.
-- **Should understand:** Approve swaps `demo:pending` → `demo:approved` (and closes a family parent); Request changes ends this record's walkthrough — a later re-demo is a fresh invocation with fresh preparation.
+- **Should understand:** Approve swaps `demo:pending` → `demo:approved` (and closes a decomposition parent); Request changes ends this record's walkthrough — a later re-demo is a fresh invocation with fresh preparation.
 - **Red flags:** More than one question per record on the happy path; a verdict written for a session-recall entry (nothing is persisted for those except a Request-changes follow-up).

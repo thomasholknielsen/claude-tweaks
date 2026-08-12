@@ -28,7 +28,7 @@ For `--lens`, resolve the target the same way `/claude-tweaks:capture` does (see
 
 ## Mode: framing-check
 
-**Called from:** `/claude-tweaks:specify`'s two record-creation paths — `shaping-mode.md`'s single-record path and `record-creation.md`'s per-leaf loop — immediately alongside the existing `ceremony-check` invocation. Every record, every run, no pre-filtering.
+**Called from:** `/claude-tweaks:specify`'s two record-creation paths — `shaping-mode.md`'s single-record path and `record-creation.md`'s per-sub-issue loop — immediately alongside the existing `ceremony-check` invocation. Every record, every run, no pre-filtering.
 
 Invoked inline via the `Skill` tool, not as a Task-agent dispatch. The caller already holds the body; a subagent would only pay to re-derive it.
 

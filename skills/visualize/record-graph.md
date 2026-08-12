@@ -70,7 +70,7 @@ legend) but carries a visible on-diagram note that edges are unavailable — res
 native sub-issue/blocked-by relations needs a second query, beyond this type's
 one-`gh issue list`-pull scope. A dependency on a number outside the open record set
 (an already-closed blocker) is dropped rather than drawn to a node that isn't on the
-diagram. Parent/leaf decomposition hierarchy is a different relationship and is not
+diagram. Parent/sub-issue decomposition hierarchy is a different relationship and is not
 drawn at all.
 
 ## Step A: Fetch the open record queue

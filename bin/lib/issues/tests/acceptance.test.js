@@ -6,7 +6,7 @@ const {
   dispositionState,
   verificationSurface,
   needsBackstop,
-  familyGateState,
+  parentGateState,
 } = require('../acceptance.js');
 
 test('dispositionState reads each acceptance label', () => {
@@ -88,36 +88,36 @@ test('needsBackstop is unchanged when hasParent is absent or not literally true'
 const CLOSED = (n) => ({ number: n, state: 'CLOSED' });
 const OPEN = (n) => ({ number: n, state: 'OPEN' });
 
-test('familyGateState is incomplete while any leaf is open', () => {
-  assert.equal(familyGateState({ leaves: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
+test('parentGateState is incomplete while any sub-issue is open', () => {
+  assert.equal(parentGateState({ leaves: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
 });
 
-test('familyGateState is due when every leaf is closed and the parent is unlabelled', () => {
-  assert.equal(familyGateState({ leaves: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
+test('parentGateState is due when every sub-issue is closed and the parent is unlabelled', () => {
+  assert.equal(parentGateState({ leaves: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
 });
 
-test('familyGateState is gated once the parent carries demo:pending', () => {
-  assert.equal(familyGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
+test('parentGateState is gated once the parent carries demo:pending', () => {
+  assert.equal(parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
 });
 
-test('familyGateState is resolved once a verdict is recorded', () => {
-  assert.equal(familyGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
+test('parentGateState is resolved once a verdict is recorded', () => {
+  assert.equal(parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
   assert.equal(
-    familyGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
+    parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
     'resolved',
   );
 });
 
-test('familyGateState reports gated even if a leaf reopens after gating', () => {
-  // The label is the authoritative record of what was applied; a reopened leaf
+test('parentGateState reports gated even if a sub-issue reopens after gating', () => {
+  // The label is the authoritative record of what was applied; a reopened sub-issue
   // must not cause the sweep to re-gate an already-gated parent.
-  assert.equal(familyGateState({ leaves: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
+  assert.equal(parentGateState({ leaves: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
 });
 
-test('familyGateState never reports due for a family with no discoverable leaves', () => {
-  // A parent whose leaves cannot be resolved is a resolution failure, not a
-  // complete family — gating it would demand a verdict on work nobody built.
-  assert.equal(familyGateState({ leaves: [], parentLabels: [] }), 'incomplete');
-  assert.equal(familyGateState({}), 'incomplete');
-  assert.equal(familyGateState(), 'incomplete');
+test('parentGateState never reports due for a parent with no discoverable sub-issues', () => {
+  // A parent whose sub-issues cannot be resolved is a resolution failure, not a
+  // complete parent — gating it would demand a verdict on work nobody built.
+  assert.equal(parentGateState({ leaves: [], parentLabels: [] }), 'incomplete');
+  assert.equal(parentGateState({}), 'incomplete');
+  assert.equal(parentGateState(), 'incomplete');
 });

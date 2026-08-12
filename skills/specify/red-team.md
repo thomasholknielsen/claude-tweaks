@@ -1,12 +1,12 @@
 # Step 5: Multi-Persona Red-Team — Dispatch Prompt
 
-Loaded by `/specify` Step 5 at dispatch time. The Template A block below is inlined verbatim into each agent's prompt (per the Subagent Contract — agents only see what's in their prompt; references to sibling files don't reach them). Dispatched once per leaf record — never for the parent, which is never built directly.
+Loaded by `/specify` Step 5 at dispatch time. The Template A block below is inlined verbatim into each agent's prompt (per the Subagent Contract — agents only see what's in their prompt; references to sibling files don't reach them). Dispatched once per sub-issue record — never for the parent, which is never built directly.
 
 ## Parallel dispatch
 
-**Persona selection by tier** (`ceremony:*` label, stamped on the leaf in Step 3 — see
+**Persona selection by tier** (`ceremony:*` label, stamped on the sub-issue in Step 3 — see
 `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`): `ceremony:fast-lane` →
-dispatch **Skeptical Reviewer only**; `ceremony:standard` (or a leaf with no `ceremony:*` label at
+dispatch **Skeptical Reviewer only**; `ceremony:standard` (or a sub-issue with no `ceremony:*` label at
 all — treat as `standard`, the conservative default) → dispatch all **three** personas below,
 unchanged from before.
 
@@ -20,7 +20,7 @@ unchanged from before.
 > **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
 >
 > ```
-> Task scope: Read the leaf record below as {Implementer | Maintainer | Skeptical Reviewer}, then answer the lens question. Fetch it first — `work-backend: github-issues`: run `gh issue view {leafNum} --json body -q .body`; `work-backend: local-files`: Read `{recordPath}` directly. Exactly one applies per dispatch — never pass both a record number and a file path to the same agent.
+> Task scope: Read the sub-issue record below as {Implementer | Maintainer | Skeptical Reviewer}, then answer the lens question. Fetch it first — `work-backend: github-issues`: run `gh issue view {subIssueNum} --json body -q .body`; `work-backend: local-files`: Read `{recordPath}` directly. Exactly one applies per dispatch — never pass both a record number and a file path to the same agent.
 > Lens question: {persona's lens question — verbatim from the table below}
 > Constraint: Surface only ambiguities, gaps, and unstated assumptions. Not stylistic feedback. Not approval/rejection. Focus on the 3-5 most load-bearing items, not exhaustive enumeration. Read-only — do not modify the record.
 >
@@ -57,11 +57,11 @@ After all dispatched personas return, write findings back into the record body:
 
 1. **Precise-location findings** (persona named a specific sentence, quoted text, or line range) → insert `<!-- ambiguity: {persona} — {finding text}{; suggested: {resolution}} -->` immediately after the flagged sentence. On the same line if short; on the next line if long.
 2. **General findings** (no precise location) → accumulate into an `## Open Questions` table appended to the record, with columns `Persona | Finding | Suggested Resolution`. When this batch is empty, omit the section entirely — do not emit an empty header.
-3. **Compose-then-write-once** — fold every finding for a given leaf into one recomposed body, then write it with a single `gh issue edit {leafNum} --body-file` (github-issues) or `writeRecord` call (local-files) — the same discipline every other write in this skill uses. Never make one API call per finding.
+3. **Compose-then-write-once** — fold every finding for a given sub-issue into one recomposed body, then write it with a single `gh issue edit {subIssueNum} --body-file` (github-issues) or `writeRecord` call (local-files) — the same discipline every other write in this skill uses. Never make one API call per finding.
 4. **Decision-log entry per finding:**
    ```
    STAGED {HH:MM:SS} — Red-team: persona "{persona}" flagged {ambiguity|gap|unstated assumption} at {location}. Written to record as {<!-- ambiguity: --> marker | ## Open Questions row}.
    ```
    Write each entry **after** the record body is updated — if the write-back fails, the decision-log should not lie about what happened.
 
-Red-team runs on every generated leaf record regardless of `Surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here. Persona count varies by tier (see above); the write-back procedure itself is identical regardless of how many personas ran.
+Red-team runs on every generated sub-issue record regardless of `Surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here. Persona count varies by tier (see above); the write-back procedure itself is identical regardless of how many personas ran.

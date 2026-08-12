@@ -57,15 +57,15 @@ function verificationSurface(changedPaths) {
 
 function needsBackstop(record) {
   if (!record || record.state !== 'CLOSED') return false;
-  // A decomposed leaf's acceptance lives on its family's parent, not on itself.
+  // A decomposed sub-issue's acceptance lives on its parent issue, not on itself.
   if (record.hasParent === true) return false;
   return dispositionState(record.labels) === 'none';
 }
 
-// A decomposition family's acceptance state. Reads the parent's own label first:
+// A parent issue's acceptance state across its sub-issues. Reads the parent's own label first:
 // the label is the authoritative record of what has already been applied, so a
-// leaf reopening after the gate went on never re-opens the gating decision.
-function familyGateState({ leaves, parentLabels } = {}) {
+// sub-issue reopening after the gate went on never re-opens the gating decision.
+function parentGateState({ leaves, parentLabels } = {}) {
   const disposition = dispositionState(parentLabels);
   if (disposition === 'approved' || disposition === 'changes-requested') return 'resolved';
   if (disposition === 'pending') return 'gated';
@@ -75,4 +75,4 @@ function familyGateState({ leaves, parentLabels } = {}) {
   return all.every((leaf) => leaf && leaf.state === 'CLOSED') ? 'due' : 'incomplete';
 }
 
-module.exports = { dispositionState, verificationSurface, needsBackstop, familyGateState };
+module.exports = { dispositionState, verificationSurface, needsBackstop, parentGateState };

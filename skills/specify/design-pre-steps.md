@@ -34,7 +34,7 @@ On `{skipped}` (Impeccable not installed, design integration disabled): note the
 - Option 1 — `label`: `"Yes — run shape (Recommended)"`, `description`: `"Run /impeccable:impeccable shape and append output to the design doc."`
 - Option 2 — `label`: `"Skip"`, `description`: `"Proceed directly to decomposition."`
 
-On option 1: invoke `/claude-tweaks:design-wrapper shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed leaf records and downstream `/build` can reference.
+On option 1: invoke `/claude-tweaks:design-wrapper shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed sub-issue records and downstream `/build` can reference.
 
 On `{skipped}` (Impeccable not installed, design integration disabled): note the skip and proceed to Step 2.5c.
 
@@ -60,7 +60,7 @@ On option 1:
 2. **Serve it.** Follow `_shared/dev-url-detection.md`'s "Ephemeral server start" procedure to serve the scaffold's containing directory on a free port. Set `SCAFFOLD_URL = http://localhost:{free-port}/{scaffold-filename}`.
 3. **Hand off to live mode.** Invoke `/claude-tweaks:design-wrapper live <SCAFFOLD_URL>` via the Skill tool. The human explores variants, tunes parameters, and accepts a direction — or exits without accepting, which is treated as a skip: proceed to Step 2.5c with no `Visual-reference:` line.
 4. **Stop the ephemeral server** per `_shared/dev-url-detection.md`'s "Cleanup" — Standalone rule (no pipeline run dir exists yet at this point in `/specify`'s flow).
-5. **Record the reference.** If a variant was accepted, note the scaffold's path for Step 3 (decomposition mode's own compose-then-write-once step) to write as a new `Visual-reference: docs/plans/YYYY-MM-DD-{feature}-shape-scaffold.html` body-metadata line, alongside `Surface:` and `Design-intent:`, on every generated leaf record covering this surface. Step 2.5b-ii never runs in Shaping mode — Step 2.5b itself is decomposition-mode only, per this file's opening note — so there is no Shaping-mode counterpart to wire up here.
+5. **Record the reference.** If a variant was accepted, note the scaffold's path for Step 3 (decomposition mode's own compose-then-write-once step) to write as a new `Visual-reference: docs/plans/YYYY-MM-DD-{feature}-shape-scaffold.html` body-metadata line, alongside `Surface:` and `Design-intent:`, on every generated sub-issue record covering this surface. Step 2.5b-ii never runs in Shaping mode — Step 2.5b itself is decomposition-mode only, per this file's opening note — so there is no Shaping-mode counterpart to wire up here.
 
 ## Step 2.5c: Design-intent question (frontend only)
 
@@ -107,6 +107,6 @@ The user can select multiple options (e.g., Bold + Delightful). Map the answers:
 
 Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes them into the record's body-metadata block.
 
-**For multi-record decompositions:** ask the question once per design doc and apply the same intent across all generated leaf records. If the user wants different intents per leaf, they can edit individual records after Step 3 (`gh issue edit` / `writeRecord`).
+**For multi-record decompositions:** ask the question once per design doc and apply the same intent across all generated sub-issue records. If the user wants different intents per sub-issue, they can edit individual records after Step 3 (`gh issue edit` / `writeRecord`).
 
 For the canonical enumeration of `Design-intent:` values, read the body-metadata block description near the top of `spec-template.md` in this skill's directory.

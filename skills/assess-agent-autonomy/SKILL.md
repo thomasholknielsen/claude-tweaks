@@ -56,7 +56,7 @@ reuses data `materialize.md` already fetched; `merge-check` uses `#{n}` only as 
 suffix for its own git-diff/config-derived gather — it never fetches the record itself.
 
 `#{n}` is omitted only from `ceremony-check`'s primary call in `/specify`'s Step 3
-decomposition-mode per-leaf loop — the leaf has no issue number yet at that point in the
+decomposition-mode per-sub-issue loop — the sub-issue has no issue number yet at that point in the
 procedure (it's assigned only after the record is created, later in the same step), so that call
 site invokes this skill as bare `ceremony-check` with no trailing `#{n}` at all. Every other mode,
 and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass `#{n}`.
@@ -388,9 +388,9 @@ retry-ceiling bookkeeping, which runs unconditionally regardless of this mode's 
 ## Mode: ceremony-check
 
 **Called from:** `/claude-tweaks:specify`'s Step 3 (Create the Records) — both Shaping mode's
-single-record path and decomposition mode's per-leaf loop (never the parent, which carries no
+single-record path and decomposition mode's per-sub-issue loop (never the parent, which carries no
 `risk:*`/`size:*` scoring either) — immediately alongside the existing `risk:*`/`size:*` label
-stamping. Every leaf/single record, every `/specify` run, no pre-filtering to "borderline" records.
+stamping. Every sub-issue/single record, every `/specify` run, no pre-filtering to "borderline" records.
 
 `/claude-tweaks:flow`'s materialize.md (`skills/flow/materialize.md`) calls this mode only as a
 **fallback**, for a record that reaches `/flow` carrying no `ceremony:*` label at all — a legacy

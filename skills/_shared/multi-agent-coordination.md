@@ -25,7 +25,7 @@ A coordination caller writes one Task() prompt per agent (each containing the re
 |---|---|---|---|---|
 | Reproduction | 2 | 1 | 1 | No — N=2 always |
 | Debate | 2 | 1 | 1 | No — exactly one critique round |
-| Multi-persona red-team | 1 or 3 | 1 | 1 | Persona count only (by the leaf's `ceremony:*` tier) |
+| Multi-persona red-team | 1 or 3 | 1 | 1 | Persona count only (by the sub-issue's `ceremony:*` tier) |
 
 No mode composition. You cannot reproduce a debate. Modes are leaf operations.
 
@@ -159,7 +159,7 @@ Surface ambiguity and under-specification in a spec doc by reading it through on
 
 ### Shape
 
-- 1 or 3 agents, parallel, 1 turn each — count set by the leaf's `ceremony:*` label: `fast-lane` dispatches Skeptical Reviewer only, `standard` (or a missing label) dispatches all three.
+- 1 or 3 agents, parallel, 1 turn each — count set by the sub-issue's `ceremony:*` label: `fast-lane` dispatches Skeptical Reviewer only, `standard` (or a missing label) dispatches all three.
 - The persona roster itself is fixed — extending, swapping, or adding personas is not parameterizable; only which subset of the fixed three run is.
 
 ### Personas (inline in caller's Task() prompts, verbatim)

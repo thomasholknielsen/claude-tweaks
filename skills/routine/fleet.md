@@ -1,6 +1,6 @@
 # Routine — Fleet Mode (`fleet on`)
 
-Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `fleet status` and `fleet off` are a companion leaf's job (Non-Goals) — this file covers `on` only, and `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb).
+Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `fleet status` and `fleet off` are a companion sub-issue's job (Non-Goals) — this file covers `on` only, and `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb).
 
 This mode is a loop over the existing CREATE/UPDATE procedure (`create-and-update.md` in this skill's directory), parameterized by the composition table below — never a reimplementation of `RemoteTrigger` handling. Read `create-and-update.md` and `schedule-resolution.md` first; this file states only what fleet mode does differently (per-entry naming, fleet-resolved cron instead of the interactive picker, the reconcile marker rule, and the Manifesto/conditional-provisioning wrapper around the loop).
 
@@ -28,7 +28,7 @@ Two buckets, named explicitly (never restated elsewhere as a bare list, per this
 
 **Naming deviates from `create-and-update.md`'s standard `{REPO_SLUG}-{routine_name}` derivation for rows 1-4 only** — code-health's `routine_name` (`code-health-daily`) is fixed across all five code-health instances (rows 1-5), so reusing it verbatim would collide four times over. Rows 1-4 use `{REPO_SLUG}-code-health-{focus}` instead (dropping the `-daily` suffix, since a focus-scoped routine isn't the daily generalist). Row 5 (the generalist) keeps the standard derivation unchanged — `{REPO_SLUG}-code-health-daily` is exactly what a standalone `/claude-tweaks:routine create code-health` would also produce, so a project that already ran that command before ever running `fleet on` gets that routine *adopted into* the fleet on first reconcile (Idempotent reconcile, below), not duplicated. Rows 6-11 use the standard derivation unchanged, one instance per template.
 
-**Composition, not exhaustiveness.** A repo missing a template (e.g. a fork of this plugin that dropped `journey-health/`) gets a **partial fleet**: provision every row whose template exists, skip the rest, and name each skipped row plus the skill it belongs to in the summary — never a refusal, never silence (per this leaf's own Deliverables).
+**Composition, not exhaustiveness.** A repo missing a template (e.g. a fork of this plugin that dropped `journey-health/`) gets a **partial fleet**: provision every row whose template exists, skip the rest, and name each skipped row plus the skill it belongs to in the summary — never a refusal, never silence (per this sub-issue's own Deliverables).
 
 ## Step 1 — Manifesto
 
@@ -40,7 +40,7 @@ One structured message, the bookend "begin stop" for this action (`_shared/auto-
    node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" autonomy grant-origination-enabled automerge-max-lines automerge-max-files merge-sensitive-paths fleet-daily-grant-cap
    ```
 
-   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this leaf's own prerequisite work in `_shared/autonomy-ceiling.md`; `automerge-max-lines`/`automerge-max-files`/`merge-sensitive-paths` predate this leaf; `fleet-daily-grant-cap` landed with #269 — this leaf reads it, never re-registers it).
+   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this sub-issue's own prerequisite work in `_shared/autonomy-ceiling.md`; `automerge-max-lines`/`automerge-max-files`/`merge-sensitive-paths` predate this sub-issue; `fleet-daily-grant-cap` landed with #269 — this sub-issue reads it, never re-registers it).
 2. Render every value as a table — key, current value, source (policy.yml / default; each key's envelope `source` field supplies this column directly, `policy` rendering as `policy.yml`) — **before** any `AskUserQuestion` call, so the render-then-write ordering IL-114 requires is structural, not a documentation promise:
 
    ```
@@ -61,7 +61,7 @@ One structured message, the bookend "begin stop" for this action (`_shared/auto-
 
    Selecting **Change a lever** re-asks each of the five as its own follow-up (autonomy/grant-origination-enabled as enum/boolean pickers; automerge-max-lines/automerge-max-files as integers; merge-sensitive-paths as a free-text comma list; fleet-daily-grant-cap as an optional positive integer), writes every changed value to `.claude-tweaks/policy.yml` in the shape `bin/lib/policy-schema.js` expects, re-renders the table with the new values, then proceeds as if Option 1 had been chosen. Selecting **Cancel** stops here — nothing is provisioned, nothing is written.
 
-4. **Every value this step writes echoes in the fleet summary at the end** (Step 5) — no silent config write, per this leaf's own Deliverables.
+4. **Every value this step writes echoes in the fleet summary at the end** (Step 5) — no silent config write, per this sub-issue's own Deliverables.
 
 ## Step 2 — Cloud-parity honesty check
 
@@ -73,12 +73,12 @@ Fleet routines are scheduled Routines — the exact case CLAUDE.md's Cloud Parit
    - Option 1 — `label`: `"Proceed anyway"`, `description`: `"Provision the fleet; note the gap in the summary — run /claude-tweaks:init Step 14 to close it later"`
    - Option 2 — `label`: `"Stop and fix parity first"`, `description`: `"Don't provision anything — run /claude-tweaks:init to declare plugins and generate the setup script"`
 
-   This is neither an unconditional refusal nor a silent proceed — the explicit choice this leaf's Deliverables require. Record whichever was chosen in the summary (Step 5); "Proceed anyway" records the acknowledged gap verbatim.
+   This is neither an unconditional refusal nor a silent proceed — the explicit choice this sub-issue's Deliverables require. Record whichever was chosen in the summary (Step 5); "Proceed anyway" records the acknowledged gap verbatim.
 4. Both checks passing is a silent pass-through — no prompt, proceed to Step 3.
 
 ## Step 3 — Conditional grant-unit provisioning
 
-Row 9 (backlog grant) provisions **only when both** `autonomy: unattended` **and** `grant-origination-enabled: true` hold after Step 1 — "the unattended keys," exactly these two fields, no third, no paraphrase (per this leaf's own Deliverables wording).
+Row 9 (backlog grant) provisions **only when both** `autonomy: unattended` **and** `grant-origination-enabled: true` hold after Step 1 — "the unattended keys," exactly these two fields, no third, no paraphrase (per this sub-issue's own Deliverables wording).
 
 - **Both set** → row 9 provisions like every other row in Step 4's loop.
 - **Either unset** → skip row 9 entirely; the summary states plainly that the grant unit was withheld and names which policy change(s) would enable it (e.g. "grant unit withheld — set `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` to enable").

@@ -13,119 +13,121 @@ wrong by omission). Four call sites exist today:
 
 | Caller | Arrives holding |
 |---|---|
-| `/claude-tweaks:wrap-up` Phase 4 execution's Acceptance-labeling bullet (`wrap-up/execution-and-verification.md`) | one **leaf**, mid-close |
-| `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | one **leaf**, mid-close |
-| `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | one **leaf** per group member, mid-close — plus the group's whole closing-leaf set (see the Self-inclusion rule) |
-| `/claude-tweaks:tidy`'s `Open family gate` action (`tidy/actions-github-issues.md`, or `tidy/actions-local-files.md` on that driver) | a **parent** number (`$PARENT_NUM`) directly |
+| `/claude-tweaks:wrap-up` Phase 4 execution's Acceptance-labeling bullet (`wrap-up/execution-and-verification.md`) | one **sub-issue**, mid-close |
+| `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | one **sub-issue**, mid-close |
+| `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | one **sub-issue** per group member, mid-close — plus the group's whole closing sub-issue set (see the Self-inclusion rule) |
+| `/claude-tweaks:tidy`'s `Open parent gate` action (`tidy/actions-github-issues.md`, or `tidy/actions-local-files.md` on that driver) | a **parent** number (`$PARENT_NUM`) directly |
 
 **Whatever invoked this file: if the record in hand has a resolvable parent, run the
-Family-Gate Procedure below in place of — not alongside — Steps 1-4.** A decomposed leaf never
-carries its own `demo:pending`; the family's parent carries one gate for all of them. This
+Parent-Gate Procedure below in place of — not alongside — Steps 1-4.** A decomposed sub-issue
+never carries its own `demo:pending`; its parent carries one gate for all of them. This
 holds on every path equally, including the two that bypass Phase 4's execution step entirely: an `auto:merge`'d
-leaf is precisely the population `_shared/github-pr-scan.md`'s `family-gate` backstop scope
-exists to catch, so giving it its own gate here would both defeat the family gate and falsify
-that scope's stated reason for existing. `auto:merge` governs merge timing only — it does not
+sub-issue is precisely the population `_shared/github-pr-scan.md`'s `parent-gate` backstop scope
+exists to catch, so giving it its own gate here would both defeat the parent acceptance gate and
+falsify that scope's stated reason for existing. `auto:merge` governs merge timing only — it does not
 change the unit of acceptance.
 
 **Otherwise — no resolvable parent** (a record human-filed or `/capture`d directly, not
 produced by a `/specify` decomposition) — run Steps 1-4 as written, applying `demo:pending` to
 the record itself.
 
-A caller that already holds a **parent** number is inside the Family-Gate Procedure by
-construction — there is no leaf to resolve, so it starts at **Enumerate the family's leaves**.
+A caller that already holds a **parent** number is inside the Parent-Gate Procedure by
+construction — there is no sub-issue to resolve, so it starts at **Enumerate the parent's
+sub-issues**.
 
-## Family-Gate Procedure (parent-linked leaves)
+## Parent-Gate Procedure (parent-linked sub-issues)
 
 The Routing section above routes here — in place of, not alongside, Steps 1-4 below — whenever
 the record in hand has a resolvable parent.
 
 ### Two entry shapes
 
-Every step from **Enumerate the family's leaves** onward is shared, unchanged, by every caller
+Every step from **Enumerate the parent's sub-issues** onward is shared, unchanged, by every caller
 — only how the caller arrives at `$PARENT_NUM` differs, and there are exactly two shapes:
 
-- **Leaf-side entry** — the three mid-close callers in the Routing table above
+- **Sub-issue-side entry** — the three mid-close callers in the Routing table above
   (`/claude-tweaks:wrap-up`'s Phase 4 execution step, `/claude-tweaks:wrap-up`'s auto-merge short-circuit, and
   `/claude-tweaks:dispatch`'s group auto-merge gate, the last running this procedure once per
-  group member). Each arrives holding a **leaf** number, plus `$CLOSING_LEAVES` — the set of
-  leaf numbers its own run is closing, which the **Self-inclusion rule** below reads (one
-  element for both wrap-up entries; the whole group for the dispatch gate). Run every section
+  group member). Each arrives holding a **sub-issue** number, plus `$CLOSING_SUB_ISSUES` — the
+  set of sub-issue numbers its own run is closing, which the **Self-inclusion rule** below reads
+  (one element for both wrap-up entries; the whole group for the dispatch gate). Run every section
   below in order, starting with **Resolve the parent**.
-- **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open family gate` action**, on either
-  driver: `tidy/actions-github-issues.md` executing on a `[family-gate]` finding from
-  `_shared/github-pr-scan.md`'s `family-gate` scope, or `tidy/actions-local-files.md` executing
+- **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open parent gate` action**, on either
+  driver: `tidy/actions-github-issues.md` executing on a `[parent-gate]` finding from
+  `_shared/github-pr-scan.md`'s `parent-gate` scope, or `tidy/actions-local-files.md` executing
   on one from `tidy/step-1-records.md`'s Shape 7. Both arrive already holding the
-  **parent** number directly (`$PARENT_NUM` — a `family:parent`-labeled issue number, or a
-  `family-parent: true` record's id), read straight from their own scan. Skip **Resolve the
-  parent** and **Self-inclusion rule** below entirely — there is no leaf mid-close in this entry,
-  so nothing needs resolving or self-inclusion special-casing. Start at **Enumerate the family's
-  leaves**, but re-read every leaf's state and the parent's own disposition fresh rather than
-  reusing the scan's snapshot, and re-run **Evaluate the gate** before composing anything — time
-  has passed since the scan ran (`/tidy`'s Step 6 approval is never instantaneous with its scan),
-  and another process (a concurrent `/wrap-up` gating the same family, or a leaf reopening) may
-  already have changed the outcome. Every per-driver branch below applies to this entry exactly
-  as it does to a leaf-side one — take the `local-files` branches when that is the driver.
+  **parent** number directly (`$PARENT_NUM` — a `parent-issue`-labeled issue number, or an
+  `is-parent-issue: true` record's id), read straight from their own scan. Skip **Resolve the
+  parent** and **Self-inclusion rule** below entirely — there is no sub-issue mid-close in this
+  entry, so nothing needs resolving or self-inclusion special-casing. Start at **Enumerate the
+  parent's sub-issues**, but re-read every sub-issue's state and the parent's own disposition
+  fresh rather than reusing the scan's snapshot, and re-run **Evaluate the gate** before composing
+  anything — time has passed since the scan ran (`/tidy`'s Step 6 approval is never instantaneous
+  with its scan), and another process (a concurrent `/wrap-up` gating the same parent, or a
+  sub-issue reopening) may already have changed the outcome. Every per-driver branch below applies
+  to this entry exactly as it does to a sub-issue-side one — take the `local-files` branches when
+  that is the driver.
 
 **Fail open on every `gh` call in this section.** If `gh` is unavailable, unauthenticated, the
-repo has no GitHub remote, or any family-gate `gh` call below fails: a **leaf-side** entry
-skips the family-gate procedure entirely and falls back to today's behavior (apply `demo:pending`
+repo has no GitHub remote, or any parent-gate `gh` call below fails: a **sub-issue-side** entry
+skips the Parent-Gate Procedure entirely and falls back to today's behavior (apply `demo:pending`
 to this record itself via Steps 1-4 below) — never blocking the wrap-up, the auto-merge
 short-circuit, or the dispatched group's merge gate. The **parent-side** entry skips this one
-family for this run, leaving its `[family-gate]` finding surfaced and unmutated — never failing
-the whole `/tidy` run over one family's `gh` call. This paragraph is moot under
+parent for this run, leaving its `[parent-gate]` finding surfaced and unmutated — never failing
+the whole `/tidy` run over one parent's `gh` call. This paragraph is moot under
 `work-backend: local-files`, whose branches below make no `gh` call at all; a filesystem error
 there is a real failure to report, not a fail-open case.
 
 ### What this path deliberately does not run
 
 This procedure replaces Steps 1-4, and **Step 2.5's visual-review safety-net gate sits inside
-that range, so it does not run for a family.** That is an explicit exclusion, not an oversight,
+that range, so it does not run for a parent.** That is an explicit exclusion, not an oversight,
 and it is stated here rather than left to be inferred from the range:
 
-- The gate's input does not exist at family scope. Step 2.5 branches on *this run's* `/review`
-  summary and classifies *this run's* changed-file list. A family's leaves close days or weeks
+- The gate's input does not exist at parent scope. Step 2.5 branches on *this run's* `/review`
+  summary and classifies *this run's* changed-file list. A parent's sub-issues close days or weeks
   apart (the design's own Risks section calls that the dominant workflow), so there is no single
-  run whose diff is the family's diff and no single `/review` summary covering it.
-- The parent-side entry has neither. `/tidy`'s backstop can fire long after the last leaf
+  run whose diff is the parent's diff and no single `/review` summary covering it.
+- The parent-side entry has neither. `/tidy`'s backstop can fire long after the last sub-issue
   merged, from a checkout with no branch, no dev server, and no `/review` summary for anything
   — and it is a staged batch action, so triggering a browser walk from it would be an
   unapproved side effect of approving a label write.
 
-**What still covers the UI:** every leaf runs `/claude-tweaks:review` before it reaches any
-caller of this file, and `/review` Step 6 invokes `/claude-tweaks:visual-review` for the leaf's
-own UI changes in `full` mode. What a family loses is the *safety net* — the wrap-up-time
-re-trigger for a leaf whose `/review` produced only a recommendation. A decomposed UI feature
-can therefore reach `demo:pending` on its parent with no browser walk having run for some
-leaf, and the parent brief must not imply otherwise.
+**What still covers the UI:** every sub-issue runs `/claude-tweaks:review` before it reaches any
+caller of this file, and `/review` Step 6 invokes `/claude-tweaks:visual-review` for the
+sub-issue's own UI changes in `full` mode. What a parent loses is the *safety net* — the
+wrap-up-time re-trigger for a sub-issue whose `/review` produced only a recommendation. A
+decomposed UI feature can therefore reach `demo:pending` on its parent with no browser walk
+having run for some sub-issue, and the parent brief must not imply otherwise.
 
 **So the brief carries the human instead.** Part 2 of **Compose the parent brief** below — the
 end-to-end walkthrough, rendered inline inside `### Confirmed` — is the only walk instruction a
 parent brief carries (it omits the `### Observation plan` section, so `/claude-tweaks:demo` runs no
 Prepare/Validate/Show for a parent — part 2's inline end-to-end walkthrough inside Confirmed is
-what carries the human). For a family whose assembled leaves
+what carries the human). For a parent whose assembled sub-issues
 touch UI, that walkthrough must therefore name the pages or journeys to open and what to look
 for, not just the skill invocation — it is standing in for the safety net, not summarizing it.
 
 ### Resolve the parent
 
-**Leaf-side entries only** — see "Two entry shapes" above. The parent-side entry already holds
-`$PARENT_NUM` and skips straight to "Enumerate the family's leaves" below.
+**Sub-issue-side entries only** — see "Two entry shapes" above. The parent-side entry already
+holds `$PARENT_NUM` and skips straight to "Enumerate the parent's sub-issues" below.
 
-Resolve the leaf's parent the same way `/claude-tweaks:review` Step 1.6 does
+Resolve the sub-issue's parent the same way `/claude-tweaks:review` Step 1.6 does
 (`skills/review/SKILL.md:147-154`): `work-backend: local-files` — `facets.parent`;
 `work-backend: github-issues` + `work-links: native` — the sub-issue relationship queried
-from this leaf's own side; `work-backend: github-issues` + `work-links: body-text` — the
-`Parent: #N` line in this leaf's own body.
+from this sub-issue's own side; `work-backend: github-issues` + `work-links: body-text` — the
+`Parent: #N` line in this sub-issue's own body.
 
 **No parent resolvable** (a record human-filed or `/capture`d directly, not produced by a
 `/specify` decomposition) — skip this section entirely: fall through to Steps 1-4 below and
 apply `demo:pending` to this record itself, exactly as today.
 
-### Enumerate the family's leaves
+### Enumerate the parent's sub-issues
 
-With a parent resolved (`$PARENT_NUM`), enumerate the family's leaves from the **parent**
-side, never from a leaf-side scan — a leaf-side lookup works under one `work-links` mode and
-silently returns nothing under the other.
+With a parent resolved (`$PARENT_NUM`), enumerate the parent's sub-issues from the **parent**
+side, never from a sub-issue-side scan — a sub-issue-side lookup works under one `work-links`
+mode and silently returns nothing under the other.
 
 Resolve `work-links` before picking a branch below (`native` or `body-text` —
 `_shared/work-record-config.md`; the resolver applies that table's default when the key is
@@ -142,30 +144,30 @@ gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues" --jq '.[].number'
 # work-links: body-text — parse the parent's own task list
 gh issue view $PARENT_NUM --json body -q .body > /tmp/wrapup-parent-body.md
 node -e "
-  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
-  console.log(JSON.stringify(parseFamilyLeaves(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
+  console.log(JSON.stringify(parseSubIssues(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
 "
 ```
 
 `work-backend: local-files` — the parent body carries no task list (`specify/record-creation.md`'s
-local-files branch writes only `facets.parent` on each leaf, never a checklist on the parent), so
+local-files branch writes only `facets.parent` on each sub-issue, never a checklist on the parent), so
 query the reverse relationship instead — every record whose own `facets.parent` matches, open and
 closed alike (the same two-call merge `specify/record-creation.md:35` already uses):
 
 ```js
 const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-const leafRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
-const leaves = leafRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' }));
+const subIssueRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
+const leaves = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' }));
 ```
 
-For each leaf number resolved above (`work-backend: github-issues`), fetch its current state
+For each sub-issue number resolved above (`work-backend: github-issues`), fetch its current state
 (`gh issue view {n} --json state -q .state`) to build the `leaves` array
-`familyGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads.
+`parentGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads.
 
 Then fetch the **parent's** own current labels — the other argument that predicate takes, and
 the one nothing above has produced yet. Both entry shapes need this: the parent-side entry
-re-fetches them because its scan's snapshot is stale by approval time, and a leaf-side entry
+re-fetches them because its scan's snapshot is stale by approval time, and a sub-issue-side entry
 has never read them at all (**Resolve the parent** yields only a number):
 
 ```bash
@@ -177,44 +179,45 @@ gh issue view $PARENT_NUM --json labels -q '[.labels[].name]'
 
 ### Self-inclusion rule
 
-**Leaf-side entries only** — see "Two entry shapes" above. The parent-side entry never has a
-leaf mid-close, so every leaf's live state is read as-is, with no special-casing.
+**Sub-issue-side entries only** — see "Two entry shapes" above. The parent-side entry never has a
+sub-issue mid-close, so every sub-issue's live state is read as-is, with no special-casing.
 
-**Every leaf number in `$CLOSING_LEAVES` counts as `CLOSED`** when building the `leaves` array,
-regardless of what `gh` reports for it. `$CLOSING_LEAVES` is the set of leaves *this run* is
-closing, supplied by the caller. Every leaf-side caller evaluates the gate while its own leaves
-are still open — all three label **before** the close lands — so reading their live state makes
-a family's last leaves always evaluate `incomplete` and the gate never fires.
+**Every sub-issue number in `$CLOSING_SUB_ISSUES` counts as `CLOSED`** when building the `leaves`
+array, regardless of what `gh` reports for it. `$CLOSING_SUB_ISSUES` is the set of sub-issues
+*this run* is closing, supplied by the caller. Every sub-issue-side caller evaluates the gate
+while its own sub-issues are still open — all three label **before** the close lands — so reading
+their live state makes a parent's last sub-issues always evaluate `incomplete` and the gate never
+fires.
 
-The set overrides state; it never adds leaves. Only members of `$CLOSING_LEAVES` that the
-family enumeration above already returned are affected — a member belonging to a different
-family, or to no family at all, is simply irrelevant to this family's `leaves` array.
+The set overrides state; it never adds sub-issues. Only members of `$CLOSING_SUB_ISSUES` that
+the enumeration above already returned are affected — a member belonging to a different parent,
+or to no parent at all, is simply irrelevant to this parent's `leaves` array.
 
-**A leaf-side entry arriving without an explicit `$CLOSING_LEAVES` defaults to the one-element
-set `{the leaf in hand}` — never to the empty set.** That default is what keeps this rule a
-strict widening of the self-contained one it replaced rather than a replacement for it: a caller
-that names no set still gets exactly the old behavior. The empty set would instead make every
-leaf evaluate `incomplete` and label nothing, which is precisely the silent no-op this rule
-exists to prevent and the `[IL-65]` mode named below — so a future fifth caller that forgets to
-pass one degrades to correct-for-one-leaf, not to silence.
+**A sub-issue-side entry arriving without an explicit `$CLOSING_SUB_ISSUES` defaults to the
+one-element set `{the sub-issue in hand}` — never to the empty set.** That default is what keeps
+this rule a strict widening of the self-contained one it replaced rather than a replacement for
+it: a caller that names no set still gets exactly the old behavior. The empty set would instead
+make every sub-issue evaluate `incomplete` and label nothing, which is precisely the silent no-op
+this rule exists to prevent and the `[IL-65]` mode named below — so a future fifth caller that
+forgets to pass one degrades to correct-for-one-sub-issue, not to silence.
 
 **Sizing the set to the run, not to the invocation.** There is one path here, not two: the
-single-leaf case is the one-element set.
+single-sub-issue case is the one-element set.
 
-| Leaf-side caller | `$CLOSING_LEAVES` |
+| Sub-issue-side caller | `$CLOSING_SUB_ISSUES` |
 |---|---|
-| `/claude-tweaks:wrap-up` Phase 4 execution (`wrap-up/execution-and-verification.md`) | the one leaf this run is closing |
-| `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | the one leaf this run is closing |
+| `/claude-tweaks:wrap-up` Phase 4 execution (`wrap-up/execution-and-verification.md`) | the one sub-issue this run is closing |
+| `/claude-tweaks:wrap-up`'s auto-merge short-circuit (`wrap-up/review-console.md`) | the one sub-issue this run is closing |
 | `/claude-tweaks:dispatch`'s group auto-merge gate (`dispatch/settle-and-merge.md`) | **every** member of the group, on every one of its per-member invocations — that gate's single merge carries one `Fixes #{issue}` line per record, so the whole group closes together |
 
 The two wrap-up entries close exactly one record per run, so their set has exactly one member —
-the leaf in hand — and this rule reduces to "the leaf being closed counts as `CLOSED`". For the
-group gate the set's size is the difference between the eager gate firing and not existing at
-all: count only the leaf in hand and a group holding two or more leaves of one family evaluates
-`incomplete` on every one of them, labeling nothing — not the leaves, not the parent.
+the sub-issue in hand — and this rule reduces to "the sub-issue being closed counts as `CLOSED`".
+For the group gate the set's size is the difference between the eager gate firing and not existing
+at all: count only the sub-issue in hand and a group holding two or more sub-issues of one parent
+evaluates `incomplete` on every one of them, labeling nothing — not the sub-issues, not the parent.
 
-**The gate still fires once per family.** The group gate's later invocations for the same
-family re-fetch the parent's labels (**Enumerate the family's leaves** above does this
+**The gate still fires once per parent.** The group gate's later invocations for the same
+parent re-fetch the parent's labels (**Enumerate the parent's sub-issues** above does this
 per invocation), read `gated`, and no-op — one brief and one `demo:pending`, never a second.
 
 This is the `[IL-65]` failure mode: a same-function self-inconsistency that no test catches,
@@ -222,14 +225,14 @@ because the symptom is a silent no-op.
 
 ### Evaluate the gate
 
-Call `familyGateState({ leaves, parentLabels })`, where `parentLabels` is the parent's current
+Call `parentGateState({ leaves, parentLabels })`, where `parentLabels` is the parent's current
 labels (`work-backend: github-issues`) or, under `work-backend: local-files`, the one-element
 translation of its `facets.acceptance` (`parent.facets.acceptance ? ['demo:' + parent.facets.acceptance] : []`):
 
-- `incomplete` — a sibling leaf is still open. No-op; this leaf's own closing proceeds with no
-  acceptance labeling of any kind, neither its own nor the parent's.
+- `incomplete` — a sibling sub-issue is still open. No-op; this sub-issue's own closing proceeds
+  with no acceptance labeling of any kind, neither its own nor the parent's.
 - `gated` or `resolved` — the parent already carries a `demo:*` disposition. No-op.
-- `due` — every leaf is closed and the parent carries no disposition yet. Compose and apply the
+- `due` — every sub-issue is closed and the parent carries no disposition yet. Compose and apply the
   parent brief below.
 
 ### Compose the parent brief
@@ -240,18 +243,18 @@ A parent brief consists of:
    to confirm — e.g. `F1: #48 assumed #46 exposes getStatus() — confirm it does.` Rows still
    `open` are included and marked unverified; they **do not** block the gate from opening. The
    register is deliberately not a hard gate anywhere (`skills/review/SKILL.md:173-175`).
-2. One walkthrough of the feature's primary path across the assembled leaves. For this repo the
+2. One walkthrough of the feature's primary path across the assembled sub-issues. For this repo the
    runnable unit is a skill invocation, not a deploy — name the invocation and the observable
    outcome.
 
-Where no register exists (fewer than 4 leaves — the threshold that was the
+Where no register exists (fewer than 4 sub-issues — the threshold that was the
 `promise-register-min-leaves` policy lever until its retirement in #331; removal trail:
 `_shared/policy-deprecations.md` — or `work-backend: local-files`), part 2 alone is the brief.
 
 Render the same `## Verification Brief` template Step 4 below renders, with: **The ask** — the
 parent's own design summary (problem, chosen approach — `_shared/work-record.md`'s
 Decomposition rules); **What shipped** — one-paragraph summary of what was delivered across the
-assembled leaves; **Confirmed** — parts 1 and 2 above, in place of Step 4's kind-keyed Confirmed
+assembled sub-issues; **Confirmed** — parts 1 and 2 above, in place of Step 4's kind-keyed Confirmed
 branches; **`{poster}`** in the template's own footer — substitute the **skill** actually
 running *this* composition (see the Routing table above), never hardcode
 `` `/claude-tweaks:wrap-up` ``: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Phase 4's
@@ -259,7 +262,7 @@ execution step or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` ``
 `` `/claude-tweaks:tidy` `` for the backstop entry. Omit the **Observation plan** section — part 2's
 walkthrough already names the entry point inline within Confirmed. A parent brief carries the `### Branch`
 section on the same condition Step 4 states — the durability record belongs to the run in hand,
-not to the family, so it is present exactly when that run produced one.
+not to the parent, so it is present exactly when that run produced one.
 
 ### Apply the gate
 
@@ -272,16 +275,16 @@ LABELS_JSON = [
 ]
 ```
 
-The same pair Step 1 below bootstraps for the default (non-family-gate) path — this procedure
+The same pair Step 1 below bootstraps for the default (non-parent-gate) path — this procedure
 runs **in place of, not alongside** Step 1 (see the top of this section), so on a repo where
 every `demo:pending` application has ever gone through this procedure, the label may not exist
-yet at all. Both entry shapes need this — a leaf-side caller skips Step 1 exactly the same way
-the parent-side one does.
+yet at all. Both entry shapes need this — a sub-issue-side caller skips Step 1 exactly the same
+way the parent-side one does.
 
 **Then check whether a brief is already posted, before posting one** — and, when re-entering for
-a family that may already be partially applied, before even composing it above. A gate whose
-comment landed but whose label add failed still reads `due`, so `/tidy`'s `Open family gate`
-action re-enters this section for that family on every future run. Fetch the parent's comments
+a parent that may already be partially applied, before even composing it above. A gate whose
+comment landed but whose label add failed still reads `due`, so `/tidy`'s `Open parent gate`
+action re-enters this section for that parent on every future run. Fetch the parent's comments
 (`gh issue view $PARENT_NUM --json comments`, the same lookup `/claude-tweaks:demo`'s Step 1
 already does) and test whether **any** of them contains a `## Verification Brief` heading — every
 comment on the parent, not just the most recent one, which a human reply or a bot notification
@@ -319,12 +322,12 @@ state: the next entry finds the brief, skips the comment, and adds the label alo
 
 `work-backend: local-files` — append the brief to the parent record's own body and set
 `facets.acceptance = 'pending'` on the parent, the same write Step 4 below performs for a
-non-decomposed record, applied to the parent's file instead of this leaf's. `parentBriefTemplate`
+non-decomposed record, applied to the parent's file instead of this sub-issue's. `parentBriefTemplate`
 below is the same rendered template from **Compose the parent brief**, above — no separate write
 to a temp file is needed for this backend, since the write below embeds it directly.
 `parentPath` is the `.path` field of the parent's own record — a combined open+closed
 `queryRecords('specs', {})` / `queryRecords('specs', { closed: true })` listing (the parent
-itself carries no `facets.parent`, so this is a fresh query, not the leaf listing above),
+itself carries no `facets.parent`, so this is a fresh query, not the sub-issue listing above),
 filtered to the entry whose `.id === PARENT_ID`:
 
 ```js
@@ -508,7 +511,7 @@ Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 - Inspect: {pointer sub-bullets — flow pointers may carry an indented Regenerate: line}
 
 {this section's content follows `skills/_shared/observation-plan.md`'s schema and grammar; it is
-always present on a leaf brief — a parent brief omits it (Family-Gate Procedure)}
+always present on a sub-issue brief — a parent brief omits it (Parent-Gate Procedure)}
 
 ### Branch
 {dispatch-originated runs only, sourced from {run-dir}/pending-review-durability.md above:
@@ -522,13 +525,13 @@ _Posted by {poster}. Resolve with `/claude-tweaks:demo`._
 ```
 
 `{poster}` is the **skill** that invoked this file, on this default (Step 1-4) path exactly as on
-the Family-Gate Procedure's — never hardcode `` `/claude-tweaks:wrap-up` ``. Per the Routing
+the Parent-Gate Procedure's — never hardcode `` `/claude-tweaks:wrap-up` ``. Per the Routing
 table at the top of this file: `` `/claude-tweaks:wrap-up` `` for either wrap-up entry (Phase 4's
 execution step or the auto-merge short-circuit), `` `/claude-tweaks:dispatch` `` for the group auto-merge gate, and
-— on the Family-Gate Procedure's parent-side entry only — `` `/claude-tweaks:tidy` ``. The string
+— on the Parent-Gate Procedure's parent-side entry only — `` `/claude-tweaks:tidy` ``. The string
 is outward-facing (posted as a GitHub comment, or embedded in a local record body), so a
 `/tidy`-posted parent brief claiming `/wrap-up` posted it would be wrong on exactly the population
-the backstop exists for: families that never reached `/wrap-up`. The same applies to a
+the backstop exists for: parents that never reached `/wrap-up`. The same applies to a
 `/dispatch`-posted brief: that path never reached `/wrap-up`'s Phase 4 execution step either.
 
 `work-backend: github-issues` — write the rendered template to

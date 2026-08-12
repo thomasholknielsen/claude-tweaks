@@ -25,6 +25,7 @@ const LABELS = {
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
+  PARENT_ISSUE: 'parent-issue',
 };
 
 // F8 from the program promise register — type:* label descriptions home
@@ -46,8 +47,8 @@ const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-finge
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
 
 // Parent task-list entries (work-links: body-text), written by /specify as
-// '- [ ] #{leafNum}' and checked off over time — both box states count.
-const FAMILY_LEAF_RE = /^- \[[ xX]\] #(\d+)\b/gm;
+// '- [ ] #{subIssueNum}' and checked off over time — both box states count.
+const SUB_ISSUE_RE = /^- \[[ xX]\] #(\d+)\b/gm;
 
 // Line-anchored 'Blocked by #N: {text}' assumption declarations (multiline) —
 // a separate, additive sibling to DEP_RE/parseDependencies below, never a
@@ -253,6 +254,15 @@ function parseRecordFacets(labels) {
       facets.framing = true;
       continue;
     }
+    if (name === LABELS.PARENT_ISSUE) {
+      facets.isParentIssue = true;
+      continue;
+    }
+    // Read-side family:parent fallback — PERMANENT cross-project support (other repos' records keep family:parent labels); removable only at a major version that drops pre-rename repo support. [IL-85]
+    if (name === 'family:parent') {
+      facets.isParentIssue = true;
+      continue;
+    }
 
     // Read-side effort:* fallback — PERMANENT cross-project support (other repos' records keep effort:* labels); removable only at a major version that drops pre-rename repo support. [IL-85]
     // Last such label wins among repeats, matching the VALUE_FACETS pass just below and the pre-rename effort parse this replaces.
@@ -302,12 +312,12 @@ function parseDependencies(body) {
   return parseIssueNumbers(body, DEP_RE);
 }
 
-// parent body -> deduped array of leaf issue numbers from its task list, in order
+// parent body -> deduped array of sub-issue numbers from its task list, in order
 // of first appearance. Mid-line occurrences don't count, exactly as with DEP_RE.
 // Under work-links: native the parent body carries no task list at all — that
 // caller reads sub_issues from the API and never calls this.
-function parseFamilyLeaves(body) {
-  return parseIssueNumbers(body, FAMILY_LEAF_RE);
+function parseSubIssues(body) {
+  return parseIssueNumbers(body, SUB_ISSUE_RE);
 }
 
 // candidate issue numbers -> one batched, aliased GraphQL query requesting each
@@ -388,5 +398,5 @@ module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
-  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseFamilyLeaves,
+  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
 };

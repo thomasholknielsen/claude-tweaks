@@ -69,9 +69,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
                             deleted too — a record-mode build's materialized file
                             stays on the branch as committed audit trail instead;
                             applies demo:pending + posts a Verification Brief on
-                            the record — or, for a leaf of a /specify
-                            decomposition, on the family's parent once the last
-                            leaf closes; record mode only)
+                            the record — or, for a sub-issue of a /specify
+                            decomposition, on the parent once the last
+                            sub-issue closes; record mode only)
      │
   ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per invocation: a specific #N, or this session's own unrecorded work via session-recall) ┈┈
 ```
@@ -89,7 +89,7 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
 ```
 
 - **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, captures skip there too, once the `producer:capture` class has earned a `clean` trust verdict — see `skills/_shared/autonomy-ceiling.md`.
-- **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready leaves.
+- **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready sub-issues.
 - **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one. The `autonomy` ceiling defines one machine-origination exception at its `unattended` tier, gated behind a second, explicit opt-in (`grant-origination-enabled` in `policy.yml`, off by default): `/claude-tweaks:backlog grant`, the headless machine-grant mode, is the one path that reads both keys and acts on them, itself narrowed by a per-record gate chain (clean trust verdict, agent-filed origin, content-aware review, no floor trip).
 - **building** — an agent holds the claim. `/claude-tweaks:dispatch` claims an authorized record's whole file-overlap group and hands it to `/claude-tweaks:flow`.
 - **closed** — completed via your own merge (close-via-merge — the pipeline never runs `gh issue close`), or not-planned (wontfix, duplicate, absorbed into another record).
