@@ -13,5 +13,8 @@
   },
   "doc:decisions/0004-worktree-two-domain-convention": {
     "lastAuditedMs": 1786444868204
+  },
+  "doc:decisions/0005-health-state-durable-storage-branch": {
+    "lastAuditedMs": 1786515606990
   }
 }
