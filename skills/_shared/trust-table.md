@@ -7,7 +7,7 @@ reuses the Fetch section for its advisory Trust column). Subagents cannot read t
 `/help`'s dispatcher inlines this file's Fetch and Render sections into Stage 4.8's agent prompt,
 the same pattern already used for `_shared/github-pr-scan.md`. The Fetch section goes in
 **whole**, its `backlog-fetch-limit` and `work-links` resolution sub-sections included: the
-family-parent fetch has two mutually exclusive branches, and an agent that cannot resolve
+parent-issue fetch has two mutually exclusive branches, and an agent that cannot resolve
 `work-links` cannot choose between them.
 
 **Read-only, and read-only for a reason.** This procedure reports what evidence exists and
@@ -26,8 +26,8 @@ GitHub Issue labels this table reads directly; there is no local-record equivale
 
 `trustRows` reads one record set — closed records form the cells, and open records are still
 scanned for follow-up `Origin:` references naming a closed record's number — and one derived
-input, the set of record numbers that are decomposed leaves. The record set is a single
-`gh issue list --state all` call; the leaf set costs a second one (plus, under
+input, the set of record numbers that are decomposed sub-issues. The record set is a single
+`gh issue list --state all` call; the sub-issue set costs a second one (plus, under
 `work-links: native`, one `sub_issues` call per parent). Both are fetched below before anything
 is rendered.
 
@@ -44,25 +44,25 @@ variable set in a prior fenced block — silently resolves empty or falls back t
 the project configures a higher limit. Every fenced block below that uses `$LIMIT` or
 `process.env.FETCH_LIMIT` sets both at its own top for exactly this reason.
 
-A decomposed leaf must not form a cell of its own — its family's parent already carries the one
-graded verdict, and counting the leaf too would let `total >= MIN_SAMPLES` be satisfied by records
-nobody judged (`trust.js`'s `hasParent !== true` filter). Resolving which closed records are leaves
-reuses the same parent-side enumeration `_shared/github-pr-scan.md`'s `acceptance-gap` scope
-already documents in full — never the leaf side, which works under one `work-links` mode and
-silently returns nothing under the other — and fetches parents `--state all` for the
-same reason that scope does: an approved family's parent is closed, so an open-only fetch would
-miss exactly the parents this filter needs to see.
+A decomposed sub-issue must not form a cell of its own — its parent issue already carries the one
+graded verdict, and counting the sub-issue too would let `total >= MIN_SAMPLES` be satisfied by
+records nobody judged (`trust.js`'s `hasParent !== true` filter). Resolving which closed records
+are sub-issues reuses the same parent-side enumeration `_shared/github-pr-scan.md`'s
+`acceptance-gap` scope already documents in full — never the sub-issue side, which works under one
+`work-links` mode and silently returns nothing under the other — and fetches parents `--state all`
+for the same reason that scope does: an approved parent issue is closed, so an open-only fetch
+would miss exactly the parents this filter needs to see.
 
 This table grades the **entire** historical closed-record set with no recency bound at all — and
-so does the `--state all` family-parent fetch that feeds it. A fixed `--limit 200` here would let
-`gh issue list`'s newest-first ordering silently drop the **oldest** `family:parent` issues first —
-and older families are exactly the ones most likely to already sit inside a `total >= 8` cell, so
+so does the `--state all` parent-issue fetch that feeds it. A fixed `--limit 200` here would let
+`gh issue list`'s newest-first ordering silently drop the **oldest** `parent-issue` records first —
+and older parents are exactly the ones most likely to already sit inside a `total >= 8` cell, so
 truncation would reopen the exact defect this filter exists to close, with no warning. The
-family-parent fetches below therefore use the same `{resolved-limit}` and the same
+parent-issue fetches below therefore use the same `{resolved-limit}` and the same
 truncation-warning discipline as the main record fetch further down, not a separate hardcoded cap.
 (`acceptance-gap`'s own *closed-record* fetch keeps a hardcoded `--limit 200` because its record
 set is bounded to the last 30 days; that reasoning covers only that one call, not its
-`--state all` family-parent fetch, which is bounded the same way this one is.)
+`--state all` parent-issue fetch, which is bounded the same way this one is.)
 
 ### `work-links` resolution
 
@@ -79,8 +79,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links
 The printed value names the branch to take — the resolver applies the documented default
 (`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
-construction, so `parseFamilyLeaves` returns `[]` for every parent,
-`/tmp/trust-table-family-leaves.json` is empty, and every decomposed leaf re-enters `cell.total`
+construction, so `parseSubIssues` returns `[]` for every parent,
+`/tmp/trust-table-sub-issues.json` is empty, and every decomposed sub-issue re-enters `cell.total`
 as ungraded evidence — reinstating exactly the manufactured-`clean` path this filter exists to
 close, in the one direction this table must never fail in.
 
@@ -89,17 +89,17 @@ close, in the one direction this table must never fail in.
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
-gh issue list --label family:parent --state all --json number,body --limit "$LIMIT" \
-  > /tmp/trust-table-family-parents.json
+gh issue list --label parent-issue --state all --json number,body --limit "$LIMIT" \
+  > /tmp/trust-table-parent-issues.json
 node -e "
-  const { parseFamilyLeaves } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
-  const parents = require('/tmp/trust-table-family-parents.json');
+  const parents = require('/tmp/trust-table-parent-issues.json');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped, so their leaves may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
+    console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
-  const leafNumbers = parents.flatMap((p) => parseFamilyLeaves(p.body));
-  fs.writeFileSync('/tmp/trust-table-family-leaves.json', JSON.stringify(leafNumbers));
+  const subIssueNumbers = parents.flatMap((p) => parseSubIssues(p.body));
+  fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
 
@@ -109,26 +109,26 @@ query the sub-issues API instead, one call per parent:
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
-gh issue list --label family:parent --state all --json number --limit "$LIMIT" \
-  > /tmp/trust-table-family-parents.json
+gh issue list --label parent-issue --state all --json number --limit "$LIMIT" \
+  > /tmp/trust-table-parent-issues.json
 
-: > /tmp/trust-table-family-leaf-numbers.jsonl
-node -e "require('/tmp/trust-table-family-parents.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-family-leaf-numbers.jsonl
+: > /tmp/trust-table-sub-issue-numbers.jsonl
+node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl
 done
 
 node -e "
   const fs = require('fs');
-  const parents = require('/tmp/trust-table-family-parents.json');
+  const parents = require('/tmp/trust-table-parent-issues.json');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + parents.length + ' family:parent records (the configured backlog-fetch-limit) — older families were dropped, so their leaves may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
+    console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
-  const leafNumbers = fs.readFileSync('/tmp/trust-table-family-leaf-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
-  fs.writeFileSync('/tmp/trust-table-family-leaves.json', JSON.stringify(leafNumbers));
+  const subIssueNumbers = fs.readFileSync('/tmp/trust-table-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
 
-With `/tmp/trust-table-family-leaves.json` written by whichever branch applies, fetch the record
+With `/tmp/trust-table-sub-issues.json` written by whichever branch applies, fetch the record
 set itself — this block resolves its own `$LIMIT`/`FETCH_LIMIT` too, for the same reason:
 
 Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
@@ -158,11 +158,11 @@ node -e "
   const fs = require('fs');
   const { trustRows, parseGitLog } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
   const issues = require('/tmp/trust-table-records.json');
-  const familyLeaves = new Set(require('/tmp/trust-table-family-leaves.json'));
+  const subIssues = new Set(require('/tmp/trust-table-sub-issues.json'));
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' records (the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
-  const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: familyLeaves.has(i.number) }));
+  const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: subIssues.has(i.number) }));
   const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
   const policy = { 'trust-revert-window-days': process.argv[1] };
   console.log(JSON.stringify(trustRows(records, gitLog, Date.now(), policy)));
@@ -185,8 +185,8 @@ any of them.** `gh issue list` returns newest-first, so the cap drops the **olde
 the dropped window is not a random sample of a cell's evidence. Where a class improved over time
 its rejections sit precisely in that window, so truncation can strip a `changes-requested` while
 keeping every approval — leaving a cell looking cleaner than it is, the one direction this table
-must never fail in. The same reasoning applies to the family-parent fetches: a dropped `oldest`
-parent silently un-suppresses its leaves back into `total`, the same failure direction.
+must never fail in. The same reasoning applies to the parent-issue fetches: a dropped `oldest`
+parent silently un-suppresses its sub-issues back into `total`, the same failure direction.
 
 ## Render
 
