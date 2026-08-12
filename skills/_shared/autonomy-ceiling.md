@@ -97,9 +97,9 @@ The narrow, opt-in, logged, fully reversible bookkeeping behaviors in the table 
 | `queueWriteAutoFile` | `trusted`+ | `wrap-up/review-console.md` creates a proposed record (from the above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead of waiting for a live per-item approval at the Review Console. |
 | `opsAckAutoAcknowledge` | `unattended` only | `wrap-up/nothing-left-behind.md`, wrap-up's Phase 3 ledger gate — auto-acknowledges every ops item instead of presenting the acknowledgment drill. Held to the higher tier deliberately: this is the one bookkeeping capability that skips acknowledging a post-merge infrastructure follow-up, not just a reversible ledger/queue item. |
 | `consoleAutoResolve` | `unattended` only | The Review Console resolves every section (batch table, `M#`, `Q#`, `U#`) per its own defaults with zero `AskUserQuestion` calls, rendering as an informational report instead of a prompt. |
-| `ledgerRouteRemainder` | `unattended` only | Extends `ledgerNarrowing` -- a ledger item whose blocker reason misses the four-category floor also auto-routes to `Route to a record -> Keep (backlog)` (never `Fix anyway`/`Accept`/`Drop`). |
+| `ledgerRouteRemainder` | `unattended` only | Extends `ledgerNarrowing` — a ledger item whose blocker reason misses the four-category floor also auto-routes to `Route to a record -> Keep (backlog)` (never `Fix anyway`/`Accept`/`Drop`). |
 
-None of the three touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
+None of the bookkeeping capabilities touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
 conditions, or merge-conflict resolution — those stay fully human-gated at every tier.
 
 ### Floor rule (ledger narrowing)
@@ -261,7 +261,7 @@ decision — silent automation without an audit trail is the one thing `auto` ne
 
 One consolidated `PushNotification` per run, sent at the same point the existing auto-merge fast
 lane sends its FYI (see `wrap-up/review-console.md`'s auto-merge short-circuit) — not one
-notification per item. Summarize every action the three bookkeeping capabilities resolved in the
+notification per item. Summarize every action the bookkeeping capabilities resolved in the
 run.
 
 ## Error handling (bookkeeping capabilities)
