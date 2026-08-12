@@ -22,9 +22,10 @@ const { filterResultsByScope } = require('./lib/residue/scope-filter');
 function parseArgs(argv) {
   // 'repo' is the default deliberately: it is what this CLI has always done
   // (--scope was parsed but never read), so defaulting to it keeps every
-  // existing caller and documented behavior valid. It also means a red-suite
-  // finding (always `scope: 'observed'`) is never hidden by default — the
-  // whole reason this feature exists.
+  // existing caller and documented behavior valid. A red-suite finding is
+  // now always `scope: 'blast-radius'` and so is never hidden under either
+  // scope; 'repo' still matters for other `observed` findings (a sibling
+  // worktree, another lane's PR) that blast-radius would otherwise drop.
   const out = { base: null, scope: 'repo', integrationBranch: 'origin/main', json: false, noSuite: false };
   for (let i = 0; i < argv.length; i++) {
     const next = argv[i + 1];

@@ -16,7 +16,7 @@ const BLAST = makeFinding({
   kind: 'branch', scope: 'blast-radius', subject: 'origin/worktree-old', remedy: 'auto', evidence: 'merged, not deleted',
 });
 const OBSERVED = makeFinding({
-  kind: 'suite', scope: 'observed', subject: 'test suite exit 1', remedy: 'record', evidence: 'not ok 3 - some test',
+  kind: 'worktree', scope: 'observed', subject: 'sibling worktree', remedy: 'record', evidence: 'on a branch this work did not produce',
 });
 const UNRUN = { ran: false, reason: 'gh unavailable or not authenticated', findings: [] };
 
@@ -24,14 +24,14 @@ test('--scope blast-radius drops an observed finding and keeps a blast-radius on
   const filtered = filterResultsByScope([{ ran: true, reason: null, findings: [BLAST, OBSERVED] }], 'blast-radius');
   const out = renderOutstanding({ results: filtered });
   assert.match(out, /origin\/worktree-old/);
-  assert.doesNotMatch(out, /test suite exit 1/);
+  assert.doesNotMatch(out, /sibling worktree/);
 });
 
 test('--scope repo keeps both a blast-radius and an observed finding', () => {
   const filtered = filterResultsByScope([{ ran: true, reason: null, findings: [BLAST, OBSERVED] }], 'repo');
   const out = renderOutstanding({ results: filtered });
   assert.match(out, /origin\/worktree-old/);
-  assert.match(out, /test suite exit 1/);
+  assert.match(out, /sibling worktree/);
 });
 
 test("an unrun probe's unknown line survives --scope blast-radius", () => {
@@ -50,5 +50,5 @@ test('a value other than "blast-radius" (including an unrecognized one) behaves 
   const filtered = filterResultsByScope([{ ran: true, reason: null, findings: [BLAST, OBSERVED] }], 'nonsense');
   const out = renderOutstanding({ results: filtered });
   assert.match(out, /origin\/worktree-old/);
-  assert.match(out, /test suite exit 1/);
+  assert.match(out, /sibling worktree/);
 });

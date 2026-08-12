@@ -1,8 +1,9 @@
 // bin/lib/residue/probes/suite.js — the project's own test suite at close time.
 //
-// This is the `observed` class: a suite red for reasons unrelated to this
-// work still belongs in the report, because the session hit it. A suite that
-// could not be run, or timed out, reports `ran: false` — never green.
+// This is the `blast-radius` class: a suite red at close time is this run's
+// own concern regardless of why it's red — the session hit it, so it belongs
+// in the report under every scope, not just `repo`. A suite that could not be
+// run, or timed out, reports `ran: false` — never green.
 'use strict';
 
 const { makeFinding } = require('../finding');
@@ -22,7 +23,7 @@ function probeSuite({ scope, run } = {}) {
     reason: null,
     findings: [makeFinding({
       kind: 'suite',
-      scope: 'observed',
+      scope: 'blast-radius',
       subject: `test suite exit ${result.code}`,
       remedy: 'record',
       evidence: failing.length ? failing.join('; ') : `test command exited ${result.code}`,

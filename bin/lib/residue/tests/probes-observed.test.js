@@ -5,11 +5,11 @@ const { probeRelease } = require('../probes/release');
 
 const SCOPE = { ran: true, reason: null, base: 'a1b2c3d', headBranch: 'worktree-feat', branches: [], worktrees: [] };
 
-test('a failing suite is reported as observed residue', () => {
+test('a failing suite is reported as blast-radius residue', () => {
   const { findings, ran } = probeSuite({ scope: SCOPE, run: () => ({ code: 1, stdout: '# fail 1\nnot ok 3 - heading unique' }) });
   assert.strictEqual(ran, true);
   assert.strictEqual(findings[0].kind, 'suite');
-  assert.strictEqual(findings[0].scope, 'observed', 'a red suite counts whether or not this work caused it');
+  assert.strictEqual(findings[0].scope, 'blast-radius', 'a red suite at close time is this run\'s own concern regardless of who caused it');
 });
 
 test('a passing suite produces no findings', () => {
