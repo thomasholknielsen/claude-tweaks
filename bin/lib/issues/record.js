@@ -25,6 +25,7 @@ const LABELS = {
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
+  PARENT_ISSUE: 'parent-issue',
 };
 
 // F8 from the program promise register — type:* label descriptions home
@@ -251,6 +252,15 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.FRAMING_BAKED) {
       facets.framing = true;
+      continue;
+    }
+    if (name === LABELS.PARENT_ISSUE) {
+      facets.isParentIssue = true;
+      continue;
+    }
+    // Read-side family:parent fallback — PERMANENT cross-project support (other repos' records keep family:parent labels); removable only at a major version that drops pre-rename repo support. [IL-85]
+    if (name === 'family:parent') {
+      facets.isParentIssue = true;
       continue;
     }
 

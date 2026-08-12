@@ -210,7 +210,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null,
+    acceptance: null, isParentIssue: false,
   });
 });
 
@@ -236,7 +236,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null,
+    acceptance: null, isParentIssue: false,
   });
 });
 
@@ -520,4 +520,18 @@ test('parseFamilyLeaves returns empty for absent or non-string bodies', () => {
   assert.deepEqual(parseFamilyLeaves(''), []);
   assert.deepEqual(parseFamilyLeaves(undefined), []);
   assert.deepEqual(parseFamilyLeaves('no task list here'), []);
+});
+
+test('parseRecordFacets sets isParentIssue from the parent-issue label', () => {
+  assert.strictEqual(parseRecordFacets([{ name: 'parent-issue' }]).isParentIssue, true);
+});
+
+test('parseRecordFacets sets isParentIssue from the legacy family:parent label', () => {
+  // Contract, not implementation echo: legacy labels on adopter repos must keep working ([IL-85]).
+  assert.strictEqual(parseRecordFacets([{ name: 'family:parent' }]).isParentIssue, true);
+});
+
+test('parseRecordFacets defaults isParentIssue to false', () => {
+  assert.strictEqual(parseRecordFacets([]).isParentIssue, false);
+  assert.strictEqual(parseRecordFacets([{ name: 'ready' }]).isParentIssue, false);
 });

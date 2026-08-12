@@ -3,10 +3,13 @@
 // drivers: record.js's parseRecordFacets (GitHub, derived from labels) and
 // local-store.js's defaultFacets (local-files, derived from frontmatter). Each
 // driver adds its own extra keys on top of sharedFacetDefaults() — parent/
-// familyParent/blockedBy/type/unsynced/closed/closedAt are local-files-only and
+// blockedBy/type/unsynced/closed/closedAt are local-files-only and
 // have no analog in the label-derived shape, so they stay declared in
 // local-store.js. Add a new shared facet key here, not independently in either
 // driver.
+// isParentIssue is shared: the GitHub driver derives it from the parent-issue
+// label (legacy family:parent), the local driver from the is-parent-issue:
+// frontmatter line (legacy family-parent:).
 'use strict';
 
 // Returns a fresh object every call — grants/bot are nested objects, and two
@@ -23,6 +26,7 @@ function sharedFacetDefaults() {
     grants: { build: false, merge: false },
     bot: { inProgress: false, blocked: false },
     acceptance: null,
+    isParentIssue: false,
   };
 }
 
