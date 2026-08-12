@@ -46,4 +46,4 @@ files:
 ## Origin
 - Created during build of #294 (batch upstream-feedback filing into one multiSelect decision, collapse /feedback's double-ask)
 - Steps 1-3 built in this session
-- Related specs: #290 (sibling — batches Q#/M# the same way, U# carved out to this leaf)
+- Related specs: #290 (sibling — batches Q#/M# the same way, U# carved out to this sub-issue)
