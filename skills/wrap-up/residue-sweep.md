@@ -9,8 +9,18 @@ a standalone run, where no other producer ever creates one.
 ## Running the sweep
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {ref} --scope repo
+node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {ref} --scope blast-radius
 ```
+
+**`--scope blast-radius`, not `--scope repo`.** This preamble runs at the close of one run's own work — a
+finding belongs on this run's ledger only if it is this run's own blast radius (a branch this run's worktree
+left behind, a PR from this run's own head branch, a missing release-triple entry). `--scope repo` renders
+every finding untouched, including another session's live worktree and another lane's open PR; forcing this
+run's ledger to drill on those is exactly the noise `bin/lib/residue/scope-filter.js` exists to filter out.
+`/tidy` (`skills/tidy/scan-procedures.md`) is the genuinely repo-wide caller — it deliberately keeps
+`--scope repo` because its own job is to sweep every worktree and merged branch across the whole repo, not
+just one run's. `--scope repo` stays the CLI's own default (`bin/residue.js`'s `parseArgs`) for that reason
+and for back-compat; this preamble is the one caller that must override it.
 
 **`--integration-branch` must always be passed explicitly — never rely on the CLI's own default.**
 `bin/residue.js` defaults `--integration-branch` to the literal string `origin/main`, which is
