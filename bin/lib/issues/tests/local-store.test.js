@@ -24,7 +24,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const facets = {
     type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', framing: true, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: 12, familyParent: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
+    parent: 12, isParentIssue: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
 
   writeRecord(filePath, { title: 'Bar', body: 'Current State…', facets });
@@ -46,7 +46,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
     facets: {
       type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-      parent: null, familyParent: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
+      parent: null, isParentIssue: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
   });
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -54,7 +54,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.ok(!/^grants:/m.test(raw), 'must not write empty grants: []');
   assert.ok(!/^unsynced:/m.test(raw), 'must not write unsynced: false');
   assert.ok(!/^parent:/m.test(raw), 'must not write parent when null');
-  assert.ok(!/^family-parent:/m.test(raw), 'must not write family-parent: false');
+  assert.ok(!/^is-parent-issue:/m.test(raw), 'must not write is-parent-issue: false');
   assert.ok(!/^blocked-by:/m.test(raw), 'must not write blocked-by when empty');
   assert.ok(!/^origin:/m.test(raw), 'must not write origin when null');
   assert.ok(!/^closed:/m.test(raw), 'must not write closed: false');
@@ -69,7 +69,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.strictEqual(record.facets.unsynced, false);
   assert.strictEqual(record.facets.closed, false);
   assert.strictEqual(record.facets.closedAt, null);
-  assert.strictEqual(record.facets.familyParent, false);
+  assert.strictEqual(record.facets.isParentIssue, false);
   assert.strictEqual(record.facets.framing, false);
 });
 
@@ -126,9 +126,9 @@ test('size: wins over a pre-rename effort: line whichever order the two lines ap
   assert.strictEqual(readRecord(effortFirst).facets.size, 'low', 'size: after effort: must still win');
 });
 
-// --- familyParent (decomposition parent marker) ---
+// --- isParentIssue (parent-issue marker) ---
 
-test('writeRecord then readRecord round-trips familyParent: true as a family-parent: true frontmatter line', (t) => {
+test('writeRecord then readRecord round-trips isParentIssue: true as an is-parent-issue: true frontmatter line', (t) => {
   const dir = tmp(t);
   const filePath = path.join(dir, '1-parent.md');
   writeRecord(filePath, {
@@ -137,47 +137,66 @@ test('writeRecord then readRecord round-trips familyParent: true as a family-par
     facets: {
       type: 'feature', origin: null, risk: null, size: null, ceremony: null, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-      parent: null, familyParent: true, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
+      parent: null, isParentIssue: true, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
   });
 
   const raw = fs.readFileSync(filePath, 'utf8');
-  assert.ok(/^family-parent: true$/m.test(raw), 'must write family-parent: true when the facet is true');
+  assert.ok(/^is-parent-issue: true$/m.test(raw), 'must write is-parent-issue: true when the facet is true');
 
   const record = readRecord(filePath);
-  assert.strictEqual(record.facets.familyParent, true);
+  assert.strictEqual(record.facets.isParentIssue, true);
 });
 
-test('a pre-existing record file with frontmatter but no family-parent line reads back familyParent: false (backward compatibility)', (t) => {
+test('a pre-existing record file with frontmatter but no is-parent-issue line reads back isParentIssue: false (backward compatibility)', (t) => {
   const dir = tmp(t);
   const filePath = path.join(dir, '2-old.md');
   // Hand-written, not via writeRecord: simulates a record created before this
-  // facet existed — some frontmatter present, but no family-parent line at all.
+  // facet existed — some frontmatter present, but no is-parent-issue line at all.
   fs.writeFileSync(filePath, '---\ntype: feature\n---\n\n# Old Parent\n\nbody\n');
 
   const record = readRecord(filePath);
   assert.strictEqual(record.facets.type, 'feature');
-  assert.strictEqual(record.facets.familyParent, false, 'an absent family-parent line must default to false, not throw or come back undefined');
+  assert.strictEqual(record.facets.isParentIssue, false, 'an absent is-parent-issue line must default to false, not throw or come back undefined');
 });
 
-test('createRecord with familyParent: true is findable via queryRecords, and ordinary records are not', (t) => {
+test('createRecord with isParentIssue: true is findable via queryRecords, and ordinary records are not', (t) => {
   const dir = tmp(t);
   const parent = createRecord(dir, {
     slug: 'the-parent', title: 'The Parent', body: 'Design summary',
-    facets: baseFacets({ type: 'feature', familyParent: true }),
+    facets: baseFacets({ type: 'feature', isParentIssue: true }),
   });
   createRecord(dir, {
     slug: 'a-leaf', title: 'A Leaf', body: 'leaf body',
     facets: baseFacets({ type: 'feature', parent: parent.id, stage: 'ready' }),
   });
 
-  const parents = queryRecords(dir, { familyParent: true });
+  const parents = queryRecords(dir, { isParentIssue: true });
   assert.strictEqual(parents.length, 1);
   assert.strictEqual(parents[0].id, parent.id);
 
   closeRecord(parent.path);
-  assert.strictEqual(queryRecords(dir, { familyParent: true }).length, 0, 'closed parents drop out of the default open-only query');
-  assert.strictEqual(queryRecords(dir, { familyParent: true, closed: true }).length, 1, 'still findable when explicitly querying closed records');
+  assert.strictEqual(queryRecords(dir, { isParentIssue: true }).length, 0, 'closed parents drop out of the default open-only query');
+  assert.strictEqual(queryRecords(dir, { isParentIssue: true, closed: true }).length, 1, 'still findable when explicitly querying closed records');
+});
+
+test('a legacy record with family-parent: true frontmatter reads back isParentIssue: true', (t) => {
+  const dir = tmp(t);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '9-legacy-parent.md'),
+    '---\ntype: feature\nfamily-parent: true\n---\n\n# Legacy parent\n\nBody.\n', 'utf8');
+  const record = readRecord(path.join(dir, '9-legacy-parent.md'));
+  assert.strictEqual(record.facets.isParentIssue, true);
+});
+
+test('an explicit is-parent-issue: false beats a stray legacy family-parent: true (held-aside precedence)', (t) => {
+  const dir = tmp(t);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '10-both-lines.md'),
+    '---\ntype: feature\nis-parent-issue: false\nfamily-parent: true\n---\n\n# Both lines\n\nBody.\n', 'utf8');
+  const record = readRecord(path.join(dir, '10-both-lines.md'));
+  assert.strictEqual(record.facets.isParentIssue, false,
+    'new-beats-legacy: a naive OR would wrongly resolve true');
 });
 
 // --- allocateId (AC 5) ---
@@ -213,7 +232,7 @@ function baseFacets(overrides) {
   return Object.assign({
     type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null,
     stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: null, familyParent: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
+    parent: null, isParentIssue: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
   }, overrides);
 }
 
@@ -331,7 +350,7 @@ test('readRecord on a file with no frontmatter: type null, stage backlog, body i
   assert.strictEqual(record.facets.acceptance, null);
   assert.strictEqual(record.facets.closed, false);
   assert.strictEqual(record.facets.closedAt, null);
-  assert.strictEqual(record.facets.familyParent, false);
+  assert.strictEqual(record.facets.isParentIssue, false);
 });
 
 // --- closure (record #13) ---
