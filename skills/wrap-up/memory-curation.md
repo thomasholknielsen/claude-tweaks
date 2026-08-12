@@ -31,11 +31,11 @@ Per-item chunking (inspect each proposed file before approving) survives only in
 **A different table's approval never satisfies this gate.** Reflect's insights batch table
 (`reflect/full-mode.md`) resolving an insight to D4 — even under "Apply all" — approves *routing*
 it here, not writing it. The Skill Updates batch, the cleanup+configuration batch, and any other
-`AskUserQuestion` in this run are likewise not this gate. The memory file is written only after this row's own batch decision (or auto-resolution) for this
-run — at `supervised`/`trusted`, the console's "Approve all" (or its own dedicated `M#` `AskUserQuestion`
-at Override); at `unattended`, `consoleAutoResolve`'s auto-resolution. Writing a memory file
-before that batch decision (or auto-resolution) for this run, or in response to a different
-table's approval, is the exact contract violation this section exists to prevent.
+`AskUserQuestion` in this run are likewise not this gate. The memory file is written only after this row's own batch decision (or auto-resolution) —
+at `supervised`/`trusted`, the console's "Approve all" (or its own dedicated `M#` `AskUserQuestion`
+at Override); at `unattended`, `consoleAutoResolve`. Writing a memory file before that batch
+decision (or auto-resolution), or in response to a different table's approval, is the exact
+contract violation this section exists to prevent.
 
 ## Step 2: No memory directory available
 
