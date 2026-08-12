@@ -15,7 +15,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
                                         ↑
    Used by: /claude-tweaks:stories, /claude-tweaks:visual-review,
             /claude-tweaks:review (visual + qa modes), /claude-tweaks:demo
-            (on-demand live look), qa-agent, ad-hoc tasks
+            (Validate — headless entry-point check), qa-agent, ad-hoc tasks
 ```
 
 ## When to Use
@@ -23,7 +23,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 - `/claude-tweaks:stories` is exploring a site or validating generated stories against the live DOM
 - `/claude-tweaks:visual-review` is walking pages or journeys for UI quality findings
 - `/claude-tweaks:review` is running its visual or QA modes
-- `/claude-tweaks:demo` opens an on-demand live look at a record's resolved entry point ("See it yourself")
+- `/claude-tweaks:demo`'s Validate step opens and closes a headless session at a record's resolved entry point to confirm it renders (Show then hands the browser to the human directly via `open`/`xdg-open` — no agent-browser session held)
 - A consumer skill needs to dispatch parallel agents that each drive a browser
 - Ad-hoc browser ops — navigate, screenshot, scrape, fill a form, check a deployment
 

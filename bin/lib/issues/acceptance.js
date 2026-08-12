@@ -11,7 +11,7 @@ const ACCEPTANCE_BY_LABEL = [
 ];
 
 // Paths with no interactive verification surface. This module is the source of that
-// classification — skills/wrap-up/verification-brief.md Step 2, skills/demo/SKILL.md Step 1,
+// classification — skills/demo/SKILL.md Step 1's closing-commit reconstruction fallback,
 // and the acceptance-gap sweep on both work-record drivers (_shared/github-pr-scan.md's scope
 // under github-issues, skills/tidy/step-1-records.md's Shape 8 under local-files) all call in
 // rather than restate it.
