@@ -8,8 +8,9 @@
 // local-store.js. Add a new shared facet key here, not independently in either
 // driver.
 // isParentIssue is shared: the GitHub driver derives it from the parent-issue
-// label (legacy family:parent), the local driver from the is-parent-issue:
-// frontmatter line (legacy family-parent:).
+// label, the local driver from the is-parent-issue: frontmatter line — each
+// with a permanent pre-rename legacy fallback (the [IL-85] branches in
+// record.js and local-store.js).
 'use strict';
 
 // Returns a fresh object every call — grants/bot are nested objects, and two

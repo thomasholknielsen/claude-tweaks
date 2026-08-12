@@ -183,7 +183,7 @@ function readRecord(filePath) {
 // legacy record migrates its key the first time anything rewrites it. The read
 // side's effort: fallback (parseFrontmatterLines above) is deliberately
 // one-directional. Same for the parent marker: emit is only ever
-// 'is-parent-issue:' — a legacy 'family-parent:' line is migrated on the first
+// 'is-parent-issue:' — a pre-rename legacy line is migrated on the first
 // rewrite, never preserved alongside.
 function serializeFrontmatter(facets) {
   const lines = [];
