@@ -93,7 +93,7 @@ function parseBracketList(raw) {
 // Two keys are not resolved by the plain last-matching-line-wins rule every
 // other key here uses — `size` (a `size:` line always beats a pre-rename
 // `effort:` line) and `isParentIssue` (an explicit `is-parent-issue:` line
-// always beats a pre-rename `family-parent:` line), whichever order the two
+// always beats the pre-rename legacy line), whichever order the two
 // lines of each pair appear in; each value is held aside during the pass and
 // applied afterward, and never when the new-form line was found. Same
 // deferred-apply shape as record.js's parseRecordFacets.
