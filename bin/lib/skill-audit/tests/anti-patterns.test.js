@@ -388,5 +388,21 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   `^-\|`/`^+\|` pairing `extractAntiPatternRows` treats as a same-slot
   //   edit) and one row was net-added: 369 + 1 = 370. The only file with a
   //   nonzero delta is backlog/SKILL.md.
-  assert.strictEqual(total, 370);
+  //
+  //   370 -> 373, demo's show-first walkthrough rewrite around the observation
+  //   plan (refs #324). One row in demo/SKILL.md reworded in place — "Handing
+  //   over 'Give me the steps' instructions without running the pre-flight
+  //   first" -> "Handing the human an entry point without Prepare/Validate
+  //   having run" (not an eviction: the replacement is present in the same
+  //   table, same slot) — plus three rows ADDED, all guarding the new
+  //   Prepare -> Validate -> Show -> Verdict show-first flow: "Asking for the
+  //   verdict before Prepare/Validate/Show have run", "Blocking the
+  //   walkthrough on a stale `flow` Inspect pointer instead of stating it and
+  //   continuing", and "Skipping Validate and handing the human an unverified
+  //   URL". Verified: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^-\|'` returns exactly the one reworded line, and the same
+  //   diff's `^\+\|` lines are that line's replacement plus these three new
+  //   rows — no other file in the corpus has a nonzero delta. Net +3. Measured
+  //   by running the parser against the working tree, not summed.
+  assert.strictEqual(total, 373);
 });

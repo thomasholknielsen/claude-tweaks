@@ -52,34 +52,30 @@ Recall this conversation's own history. For each distinct unit of implementation
 verification work done in this session, check whether it already correlates to a `#N` mentioned
 anywhere in this conversation. Work with no correlating `#N` is a session-recall candidate —
 compose its Verification Brief content now, directly from recall, into the same shape
-`verification-brief.md` renders (`### The ask` / `### What shipped` / `### Confirmed` / `### See
-it yourself` or `### Verify it yourself (manual)`):
+`verification-brief.md` renders (`### The ask` / `### What shipped` / `### Confirmed` / `###
+Observation plan`):
 
 - **The ask** — what was actually requested in this conversation, for this unit of work.
 - **What shipped** — what was actually implemented, from recall.
 - **Confirmed** — whatever was actually verified this session (a live browser walk, test runs,
   manual checks), described plainly, including what wasn't checked — not a checklist pretending
   completeness.
-- **See it yourself, or Verify it yourself (manual)** — mutually exclusive, at most one, never
-  both. First recall which paths this unit of work actually touched this session — unlike the
+- **Observation plan** — compose the `### Observation plan` section directly from recall, per
+  `../_shared/observation-plan.md`'s schema, grammar, and per-kind semantics — picking the
+  Surface kind by builder judgment from what this session actually did, never from a classifier.
+  First recall which paths this unit of work actually touched this session — unlike the
   record-backed path there is no `{base}...HEAD` range to diff here (session-recall work rarely
   sits on a dedicated branch, and may be interleaved with unrelated commits in the same session),
   so this path list comes from the session's own memory of what it edited or created, not a git
   command.
 
   **If that recall yields no path list** — nothing was touched, or recall can't confidently name
-  what was — omit both sections entirely and skip the classification below. Do not call the
-  classifier on an empty or invented list: it answers `non-interactive` for an empty one, which
-  would render an empty **Verify it yourself (manual)** section instead of no section at all.
-  This is the same omission rule that already applied to "See it yourself" alone.
-
-  **With a path list in hand**, run it through the same classifier `verification-brief.md` Step 2
-  uses — `verificationSurface` (`bin/lib/issues/acceptance.js`) — rather than re-deriving which
-  categories count as non-interactive. `interactive` — render **See it yourself**, an entry
-  point, only if one was actually exercised/known this session. `non-interactive` — render
-  **Verify it yourself (manual)** instead, composed the same way `verification-brief.md` Step 2
-  does for a non-testable record: concrete commands, file paths, or behavior actually run or
-  checked this session, not a generic checklist.
+  what was, or nothing about it resolves a confident Surface/Entry point — omit the Observation
+  plan section entirely and compose the brief without it, straight to Step 2's verdict. Do not
+  compose a plan from an empty or invented path list: an unconfident guess reads as authored
+  evidence, which is worse than no section at all. This is the same omission rule that already
+  applied under the pre-schema brief format (what was then called "See it yourself"), restated
+  here for the Observation plan schema.
 
 This path has no fetch step — there is no comment or record body to read from. A fresh `/claude-tweaks:demo`
 session with no memory of any unrecorded work naturally finds nothing here; that's expected, not
@@ -178,9 +174,14 @@ same shape as the no-arguments path, sourced like this:
   the test files in its path list. Assert nothing past that boundary. The standing `### Confirmed`
   rule binds harder here, not less: describe what was actually verified, including what wasn't
   checked, never a checklist pretending completeness.
-- **See it yourself / Verify it yourself (manual)** — run the commit's changed-path list through
-  `verificationSurface` (`bin/lib/issues/acceptance.js`) and render whichever section it selects,
-  exactly as the no-arguments path does. That list is a real `git` result here, so the
+- **Observation plan** — run the commit's changed-path list through `verificationSurface`
+  (`bin/lib/issues/acceptance.js`) as the floor classification, then compose the `### Observation
+  plan` section per `../_shared/observation-plan.md`'s schema from what it returns: `interactive`
+  → compose a best-effort `app-route` plan, resolving the entry point via
+  `skills/_shared/dev-url-detection.md`. `non-interactive` → compose the manual steps exactly as
+  before — concrete commands, file paths, or behavior the commit's own message or path list
+  evidences — presented as a `cli` plan when those steps name a runnable command, else a `diff`
+  plan (Entry point: `{sha}^..{sha}`). That changed-path list is a real `git` result here, so the
   "recall can't produce a path list" omission case does not arise.
 
 Go to Step 2 with it.
@@ -200,14 +201,22 @@ reconstructs the same way.
 
 ## Step 2: Per-item walkthrough
 
-Render this record's full Verification Brief (The ask / What shipped / Confirmed / See it
-yourself — or Verify it yourself (manual) for a non-testable record — evidence the human can
-judge, not a checklist to complete). Label-backed entries were
+Render this record's full Verification Brief (The ask / What shipped / Confirmed / Observation
+plan — evidence the human can judge, not a checklist to complete). Label-backed entries were
 fetched per `verification-brief.md`'s digest template in Step 1's `#N` lookup; closing-commit
-reconstructions and session-recall entries were composed directly, in Step 1's `#N` and
-no-arguments paths respectively — all three render identically here, and a reconstruction says so
-in its own `### Confirmed` section rather than being flagged separately at this point. Then render
-the design-contract section below when one resolves, and ask for the verdict.
+reconstructions and session-recall entries composed their own Observation plan directly, in Step
+1's `#N` and no-arguments paths respectively — all three render identically here, and a
+reconstruction says so in its own `### Confirmed` section rather than being flagged separately at
+this point. Then render the design-contract section below when one resolves, execute the plan
+show-first, and ask for the verdict. A brief with no `### Observation plan` section splits on
+what it carries instead: one carrying a retired `### See it yourself` or `### Verify it yourself
+(manual)` heading — a label-backed brief posted before this schema shipped — walks the
+Compatibility branch below. One carrying neither the section nor a retired heading — a Family-Gate
+parent brief, whose walkthrough lives inline in `### Confirmed` per
+`wrap-up/verification-brief.md`'s Family-Gate Procedure, or a session-recall entry whose recall
+yielded no confident path list (Step 1's omission rule) — skips Prepare/Validate/Show entirely and
+goes straight to the Verdict question below: the human judges from the brief's own `### Confirmed`
+content.
 
 ### The design contract this was built against
 
@@ -252,87 +261,85 @@ This section never becomes a reason to block, and it is never audited here. Whet
 actually honors the contract is `impeccable-finish-reviewer`'s job upstream — this skill puts the
 promise in front of a human and asks them.
 
+### Show-first walkthrough
+
+Applies whenever this record's brief carries a `### Observation plan` section — every **leaf**
+brief composed or posted after this schema shipped. Two populations legitimately carry no such
+section at all even now: a Family-Gate parent brief (walkthrough lives inline in `### Confirmed`
+instead) and a session-recall entry whose recall yielded no confident path list (Step 1's omission
+rule) — both skip this whole subsection and go straight to the Verdict question below, per the
+routing above. Only a brief carrying a retired `### See it yourself` / `### Verify it yourself
+(manual)` heading (posted before this schema shipped) walks the Compatibility branch below
+instead.
+
+**Prepare** — run the plan's Prepare commands, one at a time (`Prepare: none` → skip entirely). If
+a Prepare command exits non-zero, or — for a `rendered-page`/`app-route` entry point — the entry
+point does not respond afterward (connection refused or HTTP 404), fall back to
+`skills/_shared/dev-url-detection.md` to resolve a working dev server rather than trusting the
+plan's own Entry point verbatim.
+
+**Validate** — URL surfaces (`rendered-page`/`app-route`) only; `cli`/`flow`/`diff` plans skip
+straight to Show. Run whenever browser tools are available (agent-browser is headless-capable, so
+this never needs a visible window): open a quick `agent-browser` session at the plan's exact deep
+link, confirm it actually renders (not just an HTTP 200), attempt Auth Vault login when
+credentials resolve (the same source `/claude-tweaks:stories` uses; no configured credentials →
+skip the login check, reachability/render alone is still worth confirming), then close the
+session. Browser tools unavailable → skip Validate without blocking, and note that visual
+verification wasn't available in this environment.
+
+**Show** — by Surface kind:
+
+- `rendered-page`/`app-route` — `open {entry point}` on macOS, `xdg-open {entry point}` on Linux.
+  When neither command exists or the call exits non-zero, degrade to presenting the validated URL
+  plus self-contained steps: **self-contained** — every command block includes its own `cd` to
+  the right checkout/worktree, never an inherited working directory; **copy-paste-clean** — no
+  inline commentary inside a block meant to be pasted as-is, explanation goes in prose
+  before/after it; **proactively explain surprising-but-correct state** Prepare/Validate itself
+  observed while rendering (e.g. an empty dashboard on first load) — inline, before the human has
+  to ask.
+- `cli` — run the plan's Entry point command and show its output directly.
+- `flow` — walk the Inspect pointers in order, opening each named artifact. When an artifact is
+  gone, run its `Regenerate:` line; a `Regenerate:` that itself exits non-zero is treated exactly
+  like a missing artifact — state it and continue, never block the walkthrough on it.
+- `diff` — render the diff named by Entry point: full under ~200 lines, else the stat summary plus
+  the 2-3 hunks most central to the record's Acceptance Criteria.
+
+**Failure posture:** a Prepare or Validate failure is evidence for Request changes, never a
+debugging detour to chase mid-conversation — capture what broke (screenshot, console error,
+command output) and fold it directly into this record's brief as grounds for the verdict.
+`/claude-tweaks:demo` never debugs or fixes the underlying application code itself — that stays
+out of scope the same way code-quality judgment already does (`/claude-tweaks:review`'s job).
+
+**Caching:** Prepare/Validate runs once per record per `/claude-tweaks:demo` invocation. What's
+cached is the resolved entry-point URL/port/credentials and the validation outcome — never a live
+browser session handle, since Validate's own session closes before Show runs. A Request-changes
+verdict ends that record's walkthrough; any later re-demo of the same record is a new invocation
+with fresh Prepare/Validate.
+
 ### Verdict
 
 Call `AskUserQuestion` with `question`: `"Does {title} do what you asked
 for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
-- Option 2 — the label names the section it actually walks: `"See it yourself"` when the brief's `### See it yourself` entry point resolved and browser tools are available, `"Verify it yourself"` when the brief carries `### Verify it yourself (manual)`. Offer it under either condition, never both labels at once; `description`: `"Check this before deciding"`
-- Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
-- Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a closing-commit reconstruction (never carried `demo:pending` — there is nothing to leave): `label`: `"Skip for now"`, `description`: `"Nothing is written — it still carries no acceptance disposition, so /claude-tweaks:tidy's acceptance-gap scan will surface it again"` (true on both drivers — the disposition is a `demo:*` label under `github-issues` and an `acceptance:` facet under `local-files`, and each driver has its own sweep for it). For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
+- Option 2 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
+- Option 3 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a closing-commit reconstruction (never carried `demo:pending` — there is nothing to leave): `label`: `"Skip for now"`, `description`: `"Nothing is written — it still carries no acceptance disposition, so /claude-tweaks:tidy's acceptance-gap scan will surface it again"` (true on both drivers — the disposition is a `demo:*` label under `github-issues` and an `acceptance:` facet under `local-files`, and each driver has its own sweep for it). For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
-### Option 2 ("See it yourself" / "Verify it yourself"): pre-flight, then live or manual
+### Compatibility: briefs with no Observation plan
 
-**Non-interactive record** (the brief carries `### Verify it yourself (manual)` instead of
-`### See it yourself` — `verificationSurface` classified the changed paths as having no
-interactive surface, per whichever path composed this brief: `verification-brief.md`'s Step 2 for
-a label-backed record, Step 1's own classification for a session-recall or closing-commit entry):
-skip the browser pre-flight below entirely — there is no dev server or page to reach. Walk the
-brief's manual steps with the user directly, one at a time — the command, file path, or behavior
-to check, and what to expect. After the human finishes, re-render this record's
-`AskUserQuestion` with only Approve / Request changes / Skip for now (the manual walk already
-happened — don't offer "Verify it yourself" twice for the same record).
-
-**Interactive record:** picking this option never hands over untested instructions. First, run a
-pre-flight check:
-
-1. Resolve a working dev server via `dev-url-detection.md`'s existing procedure — already
-   project-agnostic (port probing, `CLAUDE.md`/`package.json` command detection, worktree
-   awareness) and already auto-starts an ephemeral server on a free port when nothing is running.
-2. Open a quick `agent-browser` session at the resolved entry point (following
-   `/claude-tweaks:browse`'s conventions directly — the same relationship
-   `/claude-tweaks:visual-review` already has with `/claude-tweaks:browse`) and confirm the target
-   page actually renders, not just an HTTP 200. If the page requires auth and credentials are
-   already resolvable (the Auth Vault, the same source `/claude-tweaks:stories` uses), attempt
-   login too. No configured credentials → skip the login check; reachability/render alone is
-   still worth confirming.
-3. Close the session.
-
-Runs once per record per `/claude-tweaks:demo` session and is reused for the rest of that record's walkthrough.
-
-**Pre-flight succeeds:** ask one short follow-up — `question`: `"Open a live session and show
-you, or give you the steps to check it yourself?"`, `header`: `"How to check"`, `multiSelect`:
-`false`:
-
-- Option 1 — `label`: `"Show me live"`, `description`: `"Open a live browser session now"`
-- Option 2 — `label`: `"Give me the steps"`, `description`: `"I'll run it myself"`
-
-**"Show me live" (sub-choice):** open a fresh `agent-browser` session at the already-verified
-entry point (or reuse the pre-flight's own session if still open). After the human finishes
-looking, close the session (leaked sessions consume resources — same discipline
-`/claude-tweaks:browse`'s own Anti-Patterns table requires), then re-render this record's
-`AskUserQuestion` with only Approve / Request changes / Skip for now (the live look already
-happened — don't offer "See it yourself" twice for the same record).
-
-**"Give me the steps" (sub-choice):** compose manual instructions from the pre-flight's own
-verified URL/port/credentials — never a guessed default — following this checklist:
-
-- **Self-contained** — every command block includes its own `cd` to the right checkout/worktree;
-  never assume an inherited working directory.
-- **Copy-paste-clean** — no inline commentary inside a block meant to be pasted as-is;
-  explanation goes in prose before/after the block, never inside it.
-- **Proactively explain surprising-but-correct state** the pre-flight itself observed while
-  rendering (e.g. an empty dashboard on first load) — inline, before the human has to ask.
-
-After presenting the steps, re-render this record's `AskUserQuestion` with only Approve / Request
-changes / Skip for now, same as the live sub-choice above.
-
-**Pre-flight fails:** this is evidence, not a side quest to chase mid-conversation. Capture what
-broke (screenshot, console error) and fold it directly into this record's brief as grounds for
-**Request changes** — skip the live-vs-manual follow-up question entirely, a broken environment
-is broken either way. `/claude-tweaks:demo` never debugs or fixes the underlying application code itself — that
-stays out of scope the same way code-quality judgment already does (`/claude-tweaks:review`'s job).
-
-**Browser tools unavailable:** same fallback `verification-brief.md` already documents — skip
-without blocking, note visual verification wasn't available in this environment, proceed with
-Approve / Request changes / Skip for now only (no "See it yourself" option at all in this case).
+A label-backed brief posted before this schema shipped carries the retired `### See it yourself`
+/ `### Verify it yourself (manual)` headings instead of `### Observation plan`. Those two heading
+names are quoted **deliberately**, for backward compatibility with briefs already posted — not as
+a reintroduction of the sections themselves. Such a brief walks that flow — its own Verdict
+question (Approve / See-or-Verify / Request changes / Skip), the interactive pre-flight, and the
+live-or-manual sub-choice — in place of the Show-first walkthrough above; read
+`legacy-brief-compatibility.md` in this skill's directory for the full procedure.
 
 ### Scope-fork checkpoint
 
 If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
-existing behavior — a new feature, a change beyond what pre-flight needed to make the environment
-checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
+existing behavior — a new feature, a change beyond what Prepare/Validate needed to make the
+environment checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
 `AskUserQuestion` with `question`: `"That's new scope beyond what's being demoed here. Want me to
 capture it as a backlog item now and come back to your sign-off decision, or build it now as its
 own thing outside /claude-tweaks:demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
@@ -351,7 +358,7 @@ same session.
 
 This record's verdict — not yet Approved/Request-changes/Skipped — must never be silently
 dropped because the conversation moves on, whether from a declined `AskUserQuestion`, a
-pre-flight failure that grows its own back-and-forth, a scope-fork detour above, or any other
+Prepare/Validate failure that grows its own back-and-forth, a scope-fork detour above, or any other
 detour. Once any such detour concludes, before shifting to a new unrelated topic, restate that
 this record's decision is still outstanding and offer to resume. Never end a `/claude-tweaks:demo` run with a
 record left mid-decision and unmentioned.
@@ -427,14 +434,17 @@ always renders.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Handing over "Give me the steps" instructions without running the pre-flight first | The human becomes the integration test, hitting port collisions and broken auth one round-trip at a time |
+| Handing the human an entry point without Prepare/Validate having run | The human becomes the integration test, hitting port collisions and broken auth one round-trip at a time |
+| Asking for the verdict before Prepare/Validate/Show have run | Show-first means the human judges evidence already surfaced, not a promise to go look later |
+| Blocking the walkthrough on a stale `flow` Inspect pointer instead of stating it and continuing | A missing artifact is evidence for the verdict, not a reason to stall the record — run its `Regenerate:` line or say so and move on |
+| Skipping Validate and handing the human an unverified URL | Validate is silent and headless — skipping it for convenience hands over exactly the broken-link risk it exists to catch |
 | Re-deriving "how do I test this" from the diff when a brief already exists | `/wrap-up` wrote it at build time with full context — Step 1's closing-commit reconstruction is the fallback for records that never got a brief, not a substitute for reading one |
 | Writing a reconstruction's `### Confirmed` as though someone watched the work | A closing commit evidences what shipped, not that anyone checked it — name the reconstruction and stop at what the commit itself shows |
 | Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
 | Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
-| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief pairs the diff/rationale with concrete manual verification steps, not just "review the diff" |
-| Debugging or fixing an application bug a pre-flight check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
-| Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it as `/browse` requires, right after the human looks, before re-rendering the verdict |
+| Treating a record with no interactive surface as not needing sign-off | A `cli`/`flow`/`diff` plan still gets a real human look — it pairs the diff/rationale with concrete pointers, not just "review the diff" |
+| Debugging or fixing an application bug a Prepare/Validate check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
+| Leaving a live browser session open after Validate or Show finishes | Leaked sessions consume resources — Validate's own session must close before Show runs; Show's `open`/`xdg-open` hands the browser off to the human, it never holds a session open itself |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
 | Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |
 | Summarizing, re-wording, or reordering the direction contract's five blocks | The blocks are the pre-build promise the human is checking the result against; a paraphrase is one more reading of the result, which is exactly the circularity this section exists to break |

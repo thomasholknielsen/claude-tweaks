@@ -162,7 +162,8 @@ skip the PR, record it per Step 5 as `pr: skipped — no forge transport`, and c
 
 Compose the body first. It is this run's **Verification Brief**, rendered from
 `wrap-up/verification-brief.md`'s Step 4 template using that file's Step 3
-**"Non-testable, or testable-with-browser-unavailable"** sourcing branch — the
+**`cli`/`flow`/`diff` plans, or `app-route`/`rendered-page` plans under the browser-unavailable
+fallback** sourcing branch — the
 `/claude-tweaks:review` spec-compliance verdict and key quality notes, plus
 `git diff --stat {base}...HEAD`. Composition only: do **not** run that file's Step 2.5
 visual-review safety-net gate, do not post any comment, and do not apply `demo:pending`. Those

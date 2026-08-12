@@ -45,8 +45,8 @@ execution would. This short-circuit closes exactly one record, so pass that reco
 (`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
 file owns the routing: a record with a resolvable parent goes to its
 Family-Gate Procedure (the family's parent gets the one gate; this leaf gets none), and
-everything else goes through its Steps 1-4 — bootstrap, testability, the Step 2.5 safety-net
-gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
+everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the Step 2.5
+safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
 independently of that routing: an `auto:merge`'d leaf is exactly the population
 `_shared/github-pr-scan.md`'s `family-gate` backstop scope exists to catch, so gating it here
 would defeat the family gate.
