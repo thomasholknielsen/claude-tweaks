@@ -5,8 +5,8 @@
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
 // risk, size, ceremony, framing, priority, stage, grants{build,merge}, bot{inProgress,
-// blocked}, acceptance — plus type, parent, blockedBy, unsynced, closed, closedAt
-// (isParentIssue is shared via facet-shape.js)); the github driver's callers get
+// blocked}, acceptance, isParentIssue — plus type, parent, blockedBy, unsynced, closed,
+// closedAt, which are local-files-only); the github driver's callers get
 // type/parent/blockedBy from the issue JSON itself, not from labels. No network calls.
 'use strict';
 
@@ -34,13 +34,15 @@ const GRANT_KEYS = ['build', 'merge'];
 // and have no analog in the GitHub label-derived shape; add a new shared facet
 // key to facet-shape.js, not independently here.
 //
-// isParentIssue is the local-files parity for the GitHub 'parent-issue' label
-// (specify/record-creation.md's Parent record section): true only on a
-// decomposition parent, never on a sub-issue. It is what makes a local-files
-// parent queryable at all — the alternative, the `{design-doc-slug}:parent`
-// body fingerprint, is reachable only by reading every record body, which this
-// driver's callers deliberately avoid (see record-creation.md's Idempotency
-// section for why the same reasoning applies on the GitHub side).
+// isParentIssue is a shared facet (facet-shape.js); the is-parent-issue:
+// frontmatter line is its local-files encoding, parallel to the GitHub
+// driver's parent-issue label (specify/record-creation.md's Parent record
+// section): true only on a decomposition parent, never on a sub-issue. It is
+// what makes a local-files parent queryable at all — the alternative, the
+// `{design-doc-slug}:parent` body fingerprint, is reachable only by reading
+// every record body, which this driver's callers deliberately avoid (see
+// record-creation.md's Idempotency section for why the same reasoning
+// applies on the GitHub side).
 function defaultFacets() {
   return {
     type: null,
@@ -88,11 +90,13 @@ function parseBracketList(raw) {
 // fmLines -> facets. Unrecognized lines are silently skipped (permissive
 // line-regex parser, matching bin/lib/policy.js's style).
 //
-// The size facet is the one key not resolved by the plain last-matching-line-wins
-// rule every other key here uses: a `size:` line always beats a pre-rename
-// `effort:` line whichever order the two appear in, so the effort value is only
-// held aside during the pass and applied afterward, and never when a `size:` line
-// was found. Same deferred-apply shape as record.js's parseRecordFacets.
+// Two keys are not resolved by the plain last-matching-line-wins rule every
+// other key here uses — `size` (a `size:` line always beats a pre-rename
+// `effort:` line) and `isParentIssue` (an explicit `is-parent-issue:` line
+// always beats a pre-rename `family-parent:` line), whichever order the two
+// lines of each pair appear in; each value is held aside during the pass and
+// applied afterward, and never when the new-form line was found. Same
+// deferred-apply shape as record.js's parseRecordFacets.
 function parseFrontmatterLines(fmLines) {
   const facets = defaultFacets();
   let effortFallback = null;
@@ -380,7 +384,7 @@ function createRecord(dir = DEFAULT_DIR, { slug, title, body, facets } = {}) {
 
 // title, existingSlugs? -> slug. The single implementation of the slug rule
 // for callers creating a brand-new local-files record (/capture, /demo's
-// changes-requested follow-up, and /specify's parent/leaf decomposition
+// changes-requested follow-up, and /specify's parent/sub-issue decomposition
 // creation all call this rather than deriving slugs inline): lowercase,
 // collapse runs of non-alphanumeric characters to a single '-', trim
 // leading/trailing '-', truncate to 60 chars, then dedupe against

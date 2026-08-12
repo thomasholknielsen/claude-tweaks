@@ -2,7 +2,7 @@
 // Pure: partition claimed issues into groups whose target files overlap, and
 // extract the file(s) an issue concerns straight from its body — used at
 // dispatch time. Health-sweep records are read from their origin-specific
-// header lines; every other record (a /specify-produced leaf, a /capture
+// header lines; every other record (a /specify-produced sub-issue, a /capture
 // record) is read from the `### Key Files` subsection its body already carries.
 'use strict';
 
@@ -158,7 +158,7 @@ function extractKeyFiles(issue) {
   }
 
   // Fallthrough — every record that is not one of the four health sweeps: a
-  // /claude-tweaks:specify-produced leaf, a /claude-tweaks:capture record, a
+  // /claude-tweaks:specify-produced sub-issue, a /claude-tweaks:capture record, a
   // hand-filed one. These carry no by:* origin header to key off, but a shaped
   // body already lists its targets under `### Key Files`.
   //

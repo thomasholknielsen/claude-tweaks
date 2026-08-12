@@ -199,6 +199,34 @@ test('an explicit is-parent-issue: false beats a stray legacy family-parent: tru
     'new-beats-legacy: a naive OR would wrongly resolve true');
 });
 
+// The precedence rule is order-independent, exactly like size/effort above:
+// held-aside application means the legacy line's position relative to the new
+// line never matters, only whether a new-form line was seen at all.
+test('is-parent-issue: still wins over a stray legacy family-parent: true when family-parent: appears first', (t) => {
+  const dir = tmp(t);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '11-legacy-first.md'),
+    '---\ntype: feature\nfamily-parent: true\nis-parent-issue: false\n---\n\n# Legacy first\n\nBody.\n', 'utf8');
+  const record = readRecord(path.join(dir, '11-legacy-first.md'));
+  assert.strictEqual(record.facets.isParentIssue, false,
+    'family-parent: before is-parent-issue: must still lose to the explicit new-form line');
+});
+
+test('rewriting a legacy family-parent: record migrates the key: is-parent-issue: true out, family-parent: gone', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '12-legacy.md');
+  // Hand-written, not via writeRecord: a record created before the rename.
+  fs.writeFileSync(filePath, '---\ntype: feature\nfamily-parent: true\n---\n\n# Legacy\n\nbody\n');
+
+  const record = readRecord(filePath);
+  assert.strictEqual(record.facets.isParentIssue, true, 'the pre-rename family-parent: line must resolve the isParentIssue facet');
+
+  writeRecord(filePath, { title: record.title, body: record.body, facets: record.facets });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(/^is-parent-issue: true$/m.test(raw), 'must migrate to an is-parent-issue: true line');
+  assert.ok(!/^family-parent:/m.test(raw), 'must not carry forward the pre-rename family-parent: line');
+});
+
 // --- allocateId (AC 5) ---
 
 test('allocateId returns max numeric prefix + 1', (t) => {
