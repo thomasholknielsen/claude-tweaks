@@ -182,19 +182,19 @@ test('createRecord with isParentIssue: true is findable via queryRecords, and or
 
 test('a legacy record with family-parent: true frontmatter reads back isParentIssue: true', (t) => {
   const dir = tmp(t);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, '9-legacy-parent.md'),
-    '---\ntype: feature\nfamily-parent: true\n---\n\n# Legacy parent\n\nBody.\n', 'utf8');
-  const record = readRecord(path.join(dir, '9-legacy-parent.md'));
+  const filePath = path.join(dir, '9-legacy-parent.md');
+  fs.writeFileSync(filePath, '---\ntype: feature\nfamily-parent: true\n---\n\n# Legacy parent\n\nBody.\n');
+
+  const record = readRecord(filePath);
   assert.strictEqual(record.facets.isParentIssue, true);
 });
 
 test('an explicit is-parent-issue: false beats a stray legacy family-parent: true (held-aside precedence)', (t) => {
   const dir = tmp(t);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, '10-both-lines.md'),
-    '---\ntype: feature\nis-parent-issue: false\nfamily-parent: true\n---\n\n# Both lines\n\nBody.\n', 'utf8');
-  const record = readRecord(path.join(dir, '10-both-lines.md'));
+  const filePath = path.join(dir, '10-both-lines.md');
+  fs.writeFileSync(filePath, '---\ntype: feature\nis-parent-issue: false\nfamily-parent: true\n---\n\n# Both lines\n\nBody.\n');
+
+  const record = readRecord(filePath);
   assert.strictEqual(record.facets.isParentIssue, false,
     'new-beats-legacy: a naive OR would wrongly resolve true');
 });
@@ -204,10 +204,10 @@ test('an explicit is-parent-issue: false beats a stray legacy family-parent: tru
 // line never matters, only whether a new-form line was seen at all.
 test('is-parent-issue: still wins over a stray legacy family-parent: true when family-parent: appears first', (t) => {
   const dir = tmp(t);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, '11-legacy-first.md'),
-    '---\ntype: feature\nfamily-parent: true\nis-parent-issue: false\n---\n\n# Legacy first\n\nBody.\n', 'utf8');
-  const record = readRecord(path.join(dir, '11-legacy-first.md'));
+  const filePath = path.join(dir, '11-legacy-first.md');
+  fs.writeFileSync(filePath, '---\ntype: feature\nfamily-parent: true\nis-parent-issue: false\n---\n\n# Legacy first\n\nBody.\n');
+
+  const record = readRecord(filePath);
   assert.strictEqual(record.facets.isParentIssue, false,
     'family-parent: before is-parent-issue: must still lose to the explicit new-form line');
 });

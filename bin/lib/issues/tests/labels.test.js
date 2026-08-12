@@ -48,8 +48,11 @@ test('framing:baked is exported as a LABELS constant', () => {
 });
 
 test('parent-issue is exported as a LABELS constant matching the canonical bootstrap row', () => {
-  const [name] = canonicalLabelsFromBootstrapDoc().find(([n]) => n === 'parent-issue');
-  assert.strictEqual(name, LABELS.PARENT_ISSUE);
+  assert.strictEqual(LABELS.PARENT_ISSUE, 'parent-issue');
+  assert.ok(
+    canonicalLabelsFromBootstrapDoc().some(([name]) => name === LABELS.PARENT_ISSUE),
+    'parent-issue must carry a canonical LABELS_JSON row so `gh label create` bootstraps it',
+  );
 });
 
 // Reads skills/_shared/label-bootstrap.md's own "Canonical LABELS_JSON" fence live, so this
