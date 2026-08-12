@@ -26,11 +26,11 @@ Levels 2–4 execute via ONE call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-p
 
 Regardless of `auto` state, these always require explicit user input — see the full contract for the "why mandatory" rationale on each:
 
-- Ledger resolve gate Phase 2 (every open item, per-item) — except the narrow `autonomy` ceiling's `ledgerNarrowing` carve-out (`trusted`+)
-- Work-record creation (new backlog records) — except born-ready health-skill filing and `queueWriteAutoFile`-gated queue writes (`trusted`+)
+- Ledger resolve gate Phase 2 (every open item, per-item) — except the narrow `autonomy` ceiling's `ledgerNarrowing` (`trusted`+) and `ledgerRouteRemainder` (`unattended`) carve-outs
+- Work-record creation (new backlog records, `Q#`) — folded into the Review Console's "Approve all" at `supervised`/`trusted`, auto-resolved under `consoleAutoResolve` at `unattended` — see the contract's tiered stance
 - Ops-acknowledgment, when ops items exist — except `opsAckAutoAcknowledge` (`unattended` only)
-- Memory file writes (`/wrap-up`'s Memory curation row) — never exempt
-- Upstream feedback filing (`/claude-tweaks:feedback`) — never exempt
+- Memory file writes (`/wrap-up`'s Memory curation row, `M#`) — folded into the Review Console's "Approve all" at `supervised`/`trusted`, auto-resolved under `consoleAutoResolve` at `unattended` — see the contract's tiered stance
+- Upstream feedback filing (`/claude-tweaks:feedback`, `U#`) — folded into the Review Console's "Approve all" at `supervised`/`trusted`, auto-resolved under `consoleAutoResolve` at `unattended` — see the contract's tiered stance
 - Marking records `parked`
 - `/init` Phase 4/8/9 and its scope-selection gate
 - HARD-GATE / BLOCKED / STOP conditions (spec compliance, test gate, design-doc rejection, plan validation, plan-audit hard-fails)
