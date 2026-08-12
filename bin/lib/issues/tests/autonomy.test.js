@@ -350,6 +350,8 @@ test('reverting bookkeepingPermissions\' tier thresholds fails the trusted-tier 
       ledgerNarrowing: atLeastLocal(tier, 'trusted'),
       queueWriteAutoFile: atLeastLocal(tier, 'unattended'),
       opsAckAutoAcknowledge: atLeastLocal(tier, 'unattended'),
+      consoleAutoResolve: atLeastLocal(tier, 'unattended'),
+      ledgerRouteRemainder: atLeastLocal(tier, 'unattended'),
     };
   };
   assert.notDeepEqual(wronglyGated('trusted'), bookkeepingPermissions('trusted'));
