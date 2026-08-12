@@ -104,7 +104,15 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
-3. **Auto-merged this week** — `[fast-lane]`-tagged (wrap-up's single-record Auto-merge short-circuit, `wrap-up/review-console.md`) or `[auto-merge]`-tagged (dispatch's group-scoped bundle gate, `dispatch/SKILL.md`) — both headless autonomous merges, distinguished by scope, not by which is current — commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
+3. **Auto-merged this week** — `[fast-lane]`-tagged or `[auto-merge]`-tagged commits on the *default*
+   branch (never the current worktree's own branch — see the note on `worktree.always` below), last
+   7 days. Both skip the interactive finish-branch prompt because `merge-check` already cleared it —
+   that is what this metric counts, not headlessness: `[auto-merge]` is always dispatch-originated
+   (singleton or bundle, both via `dispatch/settle-and-merge.md`'s Dispatching-session merge
+   execution — genuinely headless); `[fast-lane]` (`wrap-up/review-console.md`'s Auto-merge
+   short-circuit) is reachable only by an interactive, human-run single-record `/flow` — its own
+   `CLAIM_RUN_ID` branch redirects a dispatch-originated singleton to `[auto-merge]` instead, so a
+   `[fast-lane]` commit is never headless.
 
    ```bash
    SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")

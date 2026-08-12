@@ -62,10 +62,22 @@ gets `demo:pending`; `_shared/work-record.md` states that an `auto:merge`'d reco
 on its now-closed issue, enabling retrospective sign-off, and this branch is the only place that
 can honor it.
 
-Then skip the blocking wait and merge directly — bypass the
-interactive `/superpowers:finishing-a-development-branch` handoff entirely,
-since no human is present to answer its merge/PR/discard prompt during a
-headless `dispatch` run. Before merging, clear this run's worktree
+**`CLAIM_RUN_ID` branch — check this before merging anything.** `CLAIM_RUN_ID` is set only by
+`dispatch/task-prompt.md`'s two Task-call templates; an interactive, human-run `/flow` never sets
+it. When it **is** set, this call is running inside one of dispatch's own Task() calls — cwd-pinned
+to the worktree it inherited at launch, with no path to the main checkout
+(`dispatch/SKILL.md` Step 5's sequential-execution note). Do not run the merge procedure below.
+Stop here instead: report `OUTCOME: ready-to-merge` exactly as `task-prompt.md`'s second-call
+template directs — `dispatch/settle-and-merge.md`'s Dispatching-session merge execution section is
+what actually merges, in dispatch's own thread. This is the same split that section documents for
+a dispatched bundle; a dispatched singleton takes it too, through this branch. Everything from here
+through "Release-reason mapping" below applies only when `CLAIM_RUN_ID` is **unset** — a genuine
+top-level, human-run session, with the same ordinary main-checkout access it has for anything else
+it does.
+
+Skip the blocking wait and merge directly — bypass the
+interactive `/superpowers:finishing-a-development-branch` handoff entirely, since a verdict already
+exists and there is no useful human-in-the-loop step to route through. Before merging, clear this run's worktree
 assignment the same way `flow/worktree-merge.md`'s reconciliation does
 (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so
 the merge itself, landing in the main checkout, isn't denied as a
@@ -167,13 +179,14 @@ sha. Grant removal (Section E step 6) follows the same `merged:` outcome — `au
 `auto:build`-only record would — no different from any other pipeline run.
 
 This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — an `auto:merge`-granted
-record that ends up inside a human-run multi-spec batch (rather than dispatched
-single-record by `/claude-tweaks:dispatch`, which is the only path this
-design's auto-merge treatment targets) still gets the normal, fully-blocking
-consolidated Review Console, same as any other spec in the batch. No
-equivalent auto-merge gate exists for the multi-spec console today
-(`skills/dispatch/SKILL.md`'s own "Auto-merge gate" is the group-scoped
-analogue for a dispatched bundle, not a multispec-console feature).
+record that ends up inside a human-run multi-spec batch still gets the normal, fully-blocking
+consolidated Review Console, same as any other spec in the batch. No `CLAIM_RUN_ID` branch or
+equivalent auto-merge gate exists for the multi-spec console today — it is exclusively a
+human-run-batch surface, never a dispatch one (`dispatch/SKILL.md` Step 5 dispatches groups one at
+a time; there is no dispatch path that produces a multi-spec batch for this console to defer).
+`skills/dispatch/SKILL.md`'s own "Auto-merge gate" is the mechanism a dispatched group — singleton
+or bundle — actually uses, via the `CLAIM_RUN_ID` branch above; this file's own direct-merge
+procedure is reachable only by an interactive, human-run single-record `/flow`.
 
 ## Multi-spec defer protocol
 
@@ -222,174 +235,7 @@ That file owns the whole procedure and the reasons behind it, including why it n
 
 ## Present the console
 
-```markdown
-### Wrap-Up Review Console
-
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The sections that follow them — Queue writes, Memory updates, Upstream feedback — require approval outside that batch choice: one `AskUserQuestion` call per item for Queue writes/Memory updates, one or more chunked `multiSelect` calls for Upstream feedback (`_shared/upstream-feedback-batch.md`; see Hard requirements below for why).
-
-#### Auto-applied (already in commits — override = revert)
-
-| # | Skill | What | Where | Status |
-|---|---|---|---|---|
-| 1 | /review | Applied 3 severity:low formatting fixes | commit `def5678` | Applied |
-| 2 | /test | Auto-fixed 4 lint failures | commit `ghi9012` | Applied |
-| 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
-| 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
-
-A `SCANNED` entry (the scan-summary log line the engine writes for any curation row — Skills, Docs, Journeys, CLAUDE.md & rules, and the rest — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the registry row it ran for (no commit ref, since nothing was applied) — there is nothing to revert for these rows. The `What` cell paraphrases the `SCANNED` line into reader language (what ran, what it found) rather than quoting it — the raw line, with its internal fragments (`gap detection:`, the routing codes, and the rest of section 5's exempt vocabulary), stays in `decisions.md`, never in this table.
-
-#### Pending review (staged — apply, skip, or modify per item)
-
-| # | Skill | What | Detail | Patch |
-|---|---|---|---|---|
-| 5 | /review | 2 severity:medium findings | Unhandled rejection in src/api.ts:180; missing null check in src/auth/session.ts:42 | `staged/review-2.patch`, `staged/review-3.patch` |
-| 7 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `staged/wrap-up-skill-restructure.md` |
-
-#### Low-confidence findings (not reproduced)
-
-Render this section only when `decisions.md` contains STAGED entries with the unconfirmed-finding rationale (single-source per-lens findings, or findings downgraded by cross-lens debate). Omit the section entirely when empty.
-
-| # | Path:Line | Finding | Severity | Lens |
-|---|---|---|---|---|
-| 8 | src/auth.ts:42 | Possible null check missing | medium | error-handling |
-| 9 | src/api.ts:180 | Race condition on token refresh | high | security |
-
-> These findings were surfaced by exactly one reviewer agent (or downgraded by a debate that converged negative). The signal is real but unreplicated; the user decides whether to apply, ignore, or escalate.
-
-#### Contested findings (debate inconclusive)
-
-Render this section only when `decisions.md` contains STAGED entries from cross-lens debate with mixed/partial verdicts. Omit the section entirely when empty.
-
-| # | Path:Line | Lens A verdict | Lens B verdict |
-|---|---|---|---|
-| 10 | src/auth.ts:42 | agree (security) | partial (architecture) |
-
-> Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `staged/review-contested-{N}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
-
-Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence).
-
-The engine's real output shape is plainer than the per-section shapes below: `renderConsoleSections` emits a bare `#### {title}` heading per section plus one uniform `| # | Target | Change | Disposition |` table (integer `#`, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same four columns for all five sections, no six-column Reference repairs shape and no `17a`/`17b` sub-lettering. The richer per-section shapes below (`| # | Skill | Section | Change |`, the six-column Reference repairs table, etc.) are the **prose-fallback template**, used when the engine did not run. On an engine run, insert `render`'s output verbatim into this response — do not hand-expand it into these shapes.
-
-#### Skill updates (from the Skills curation row)
-
-| # | Skill | Section | Change |
-|---|---|---|---|
-| 11 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
-| 12 | NEW | session-management | Create new skill for session lifecycle patterns |
-
-#### Documentation updates (from the Docs curation row)
-
-| # | Type | Target | Change |
-|---|---|---|---|
-| 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
-
-#### Journey updates (from the Journeys curation row)
-
-| # | Type | Target | Change |
-|---|---|---|---|
-| 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
-
-#### Configuration updates (from the CLAUDE.md & rules and Decision records curation rows)
-
-| # | Type | Target | Change |
-|---|---|---|---|
-| 15 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
-
-An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below. Render it as:
-
-```
-#16  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
-
-     plugin form  : 0017-slack-transport.md
-     found (16)   : ADR-016-slack-integration-strategy.md
-     project skill: .claude/skills/architecture-decision/SKILL.md
-
-     1  Conform forward   — new files use the plugin's form   -> doc-convention.adr: plugin
-     2  Migrate           — rename all 16, fix REGISTRY rows and inbound links
-     3  Keep project form — resolve from this repo             -> doc-convention.adr: project
-```
-
-Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
-
-#### Reference repairs (from the Broken references curation row)
-
-Render this section whenever the broken-reference sweep found a surviving reference, in either of
-two states. **Applied** rows are reported, not re-approved — they already happened, in their own
-`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
-**Staged** rows are ordinary approval rows like any other in this console.
-
-| # | State | Target | Repair | Broken by | Why |
-|---|-------|--------|--------|-----------|-----|
-| 17a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
-| 17b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
-
-The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
-run that tripped a cap reads differently from a run that found nothing — under the prose fallback
-directly, and on an engine run via the finding's `summary` field (`reference-sweep.md`'s staging
-guidance), which is what `engine-render.js`'s uniform Change column renders. **A sweep that found
-surviving references but applied none must still render this section** — an empty Auto-applied
-list plus a populated staged list is the signal that the ceiling is holding, and collapsing it to
-silence hides exactly that.
-
-#### Cleanup actions (executed at Phase 4's execution step after approval)
-
-Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filtered by Condition (e.g., omit the worktree row when no worktree strategy was used). Each row gets a globally-unique # in the shared batch-section sequence (see Numbering rules above). Example:
-
-| # | Type | Action | Details |
-|---|---|---|---|
-| 18 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
-| ... | cleanup | ... | ... |
-
-#### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
-
-Render this section only when leftover routing or another step (e.g. `/reflect`'s
-tangential-idea routing) has proposed a new work record **and it wasn't already auto-filed by the
-Ledger narrowing auto-file step above**. Each remaining row gets its own prompt — bulk
-approval is forbidden per `_shared/auto-mode-card.md`'s work-record-creation row. The exact
-write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto
-the unified record system — its own destination) lives in the producing skill's own staged
-file; this table only needs enough to render the prompt.
-
-**Where the `Q#` rows come from.** Every file in `{run-dir}/staged/` carrying a
-`Title:`/`Type:`/`Labels:` header is a queue write — `ledger-record-*.md`
-(`ledger/resolve-gate.md` Phase 3's `Defer` / `Keep` / `Acknowledge` dispositions, including the
-ones `nothing-left-behind.md`'s Ops acknowledgment stages), `leftover-*.md`, and any other
-producer's staged proposal. Identify them by that header, not by filename, so a new producer is
-picked up without editing this file.
-
-| Q# | Destination | What | Source |
-|---|---|---|---|
-| Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Phase 3 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
-| Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
-
-#### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
-
-Render this section only when the Memory curation row staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.
-
-| M# | Name | Type | Fact | Index line | Patch |
-|---|---|---|---|---|---|
-| M1 | dispatch-prompt-conventions | feedback | Restate convention-governed actions in the dispatch prompt | `- [Dispatch prompt conventions](dispatch-prompt-conventions.md) — restate the convention` | `staged/wrap-up-memory-1.md` |
-
-> A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project.
-
-#### Upstream feedback — REQUIRES APPROVAL, BATCHED (not covered by "Approve all")
-
-Render this section only when the Upstream feedback curation row staged one or more upstream
-defect/gap reports (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise. Approval runs
-through `_shared/upstream-feedback-batch.md`'s shared batch contract — one or more `multiSelect`
-`AskUserQuestion` calls, chunked per that file's own rule (unchecked by default; checking is the
-explicit approval) — instead of one call per item; see below for where this fires relative to the
-terminal decision.
-
-| U# | Kind | Component | Summary | Patch |
-|---|---|---|---|---|
-| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
-
-> Filing publishes privately-derived content to a public repository. The body shown is already
-> scrubbed; a checked item files it via `/claude-tweaks:feedback --pre-confirmed`.
-
-Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
-```
+Read `console-template.md` in this skill's directory and render that exact shape — every section's column layout, the engine-vs-prose-fallback distinction (engine output is plainer: one uniform four-column table per section, not the richer per-section shapes shown there), and the `[adr-convention]` row's three-way prompt. The worked example rows there are fictional; substitute this run's own `decisions.md`/`staged/` content.
 
 **Hard gate (restated):** the tables must be literal rendered markdown in THIS response, above this tool call — see the top-of-file gate.
 

@@ -589,17 +589,19 @@ test('/review summary assembly: confirmed flow to summary; unconfirmed + contest
   assert.strictEqual(totalOut, totalIn, 'no silent drops — every finding ends up in exactly one bucket');
 
   // Verify the wrap-up Review Console template documents the two new subsections.
+  // The template itself lives in console-template.md — review-console.md's "Present
+  // the console" section points readers there rather than inlining it (40 KB ceiling).
   const REVIEW_CONSOLE = fs.readFileSync(
-    path.join(__dirname, '..', 'skills', 'wrap-up', 'review-console.md'),
+    path.join(__dirname, '..', 'skills', 'wrap-up', 'console-template.md'),
     'utf8',
   );
   assert.ok(
     REVIEW_CONSOLE.includes('Low-confidence findings (not reproduced)'),
-    'review-console.md must document the Low-confidence subsection',
+    'console-template.md must document the Low-confidence subsection',
   );
   assert.ok(
     REVIEW_CONSOLE.includes('Contested findings (debate inconclusive)'),
-    'review-console.md must document the Contested subsection',
+    'console-template.md must document the Contested subsection',
   );
 });
 

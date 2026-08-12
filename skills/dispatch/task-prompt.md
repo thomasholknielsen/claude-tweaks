@@ -109,9 +109,12 @@ unanswered human gate wearing a review surface.
 
 Report `ready-to-merge` when the group's Auto-merge gate passed both layers and you already applied
 acceptance labeling for every member -- never `merged`. You do not merge yourself: a Task-tool
-subagent cannot reach the main checkout (see `settle-and-merge.md`'s header note). Stop right after
-labeling per that file's Auto-merge gate section -- do not run worktree removal, claim release, or
-run-dir archival on this path; the dispatching session completes all three after it merges, per
+subagent cannot reach the main checkout. This applies whichever file's Auto-merge procedure you
+actually reach -- `dispatch/settle-and-merge.md`'s Auto-merge gate for a bundle, or
+`wrap-up/review-console.md`'s Auto-merge short-circuit for a singleton (its own `CLAIM_RUN_ID`
+branch says the same thing). Stop right after labeling -- do not run worktree removal, claim
+release, or run-dir archival on this path; the dispatching session completes all three after it
+merges, per
 `settle-and-merge.md`'s Dispatching-session merge execution section.
 
 [Use: Standard model -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
