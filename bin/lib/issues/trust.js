@@ -296,8 +296,8 @@ function trustRows(records, gitLog, now, policy) {
   const all = Array.isArray(records) ? records : [];
   const clock = Number.isFinite(now) ? now : Date.now();
   const windowDays = resolveRevertWindowDays(policy);
-  // A decomposed leaf is not independently graded work — its family's parent
-  // carries the one verdict. Counting leaves here would let `total >= 8` be
+  // A decomposed sub-issue is not independently graded work — its parent issue
+  // carries the one verdict. Counting sub-issues here would let `total >= 8` be
   // satisfied by records nobody judged.
   const closed = all.filter((r) => r && r.state === 'CLOSED' && r.hasParent !== true);
 
