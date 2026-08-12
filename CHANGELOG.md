@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.78.0 — Builder-authored observation plans in Verification Briefs and a show-first /demo: canonical schema with a pre-schema compatibility path, Prepare → Validate → Show → single verdict, repo-wide retired-prose sweep
+
+Builder-authored observation plans in Verification Briefs and a show-first /demo: canonical schema with a pre-schema compatibility path, Prepare → Validate → Show → single verdict, repo-wide retired-prose sweep. Verification Briefs gain a builder-authored `### Observation plan` section against the canonical schema in `skills/_shared/observation-plan.md`, added expand-contract with a compatibility path for briefs written before the schema existed. `/demo` is rewritten show-first — Prepare, Validate, Show, then one verdict — replacing the old ask-first flow. Also sweeps the repo for retired ask-first demo prose and aligns the skill-graph and plugin-structure docs.
+
 ## v6.77.0 — Policy read-path unification: resolve-policy CLI as the canonical read path, prose-grep migration to it, and key collapse (execution merge, branch-divergence-check rename, three retirements)
 
 Policy read-path unification: resolve-policy CLI as the canonical read path, prose-grep migration to it, and key collapse (execution merge, branch-divergence-check rename, three retirements).
