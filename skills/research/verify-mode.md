@@ -24,7 +24,7 @@ It is human-invoked. Nothing invokes it automatically.
 
 ### Not reachable from `/claude-tweaks:flow`
 
-`/flow` consumes ready leaf records, which are post-design by construction. Grounding a design
+`/flow` consumes ready sub-issue records, which are post-design by construction. Grounding a design
 there is structurally too late to change it, so `verify` is deliberately **not reachable** from
 `/flow` and is not an allowed flow step. Run it before `/superpowers:brainstorming`, not after
 `/claude-tweaks:specify`.

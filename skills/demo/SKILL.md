@@ -100,18 +100,18 @@ comment **containing** `## Verification Brief`. Fetch every comment (`gh issue v
 comments`) and take the last one carrying that heading — test the heading, never assume the
 position. A `.comments[-1]` shortcut holds only when the brief happens to be the most recent
 comment, which nothing about the record predicts: any later reply or bot notification displaces
-it, and a decomposition parent whose gate was completed by the Family-Gate Procedure's
+it, and a decomposition parent whose gate was completed by the Parent-Gate Procedure's
 already-posted-brief branch (`wrap-up/verification-brief.md`'s **Apply the gate**) received its
 label with no comment posted at all, leaving its brief arbitrarily far from last. Go straight to
 Step 2 with it.
 
-This `#N` may itself be a decomposition parent gated by the Family-Gate Procedure
+This `#N` may itself be a decomposition parent gated by the Parent-Gate Procedure
 (`wrap-up/verification-brief.md`) rather than a single build, in which case its Verification
-Brief covers the whole family's primary path rather than one diff, but resolves and renders
+Brief covers the whole parent issue's primary path rather than one diff, but resolves and renders
 through this same branch exactly like any other label-backed entry. Two things can have applied
-that gate: `/claude-tweaks:wrap-up`'s own eager path (closing the family's last leaf), or `/claude-tweaks:tidy`'s
-`Open family gate` action backstopping a family that missed it (surfaced by
-`_shared/github-pr-scan.md`'s `family-gate` scope under `work-backend: github-issues`, or by
+that gate: `/claude-tweaks:wrap-up`'s own eager path (closing the parent's last sub-issue), or `/claude-tweaks:tidy`'s
+`Open parent gate` action backstopping a parent issue that missed it (surfaced by
+`_shared/github-pr-scan.md`'s `parent-gate` scope under `work-backend: github-issues`, or by
 `tidy/step-1-records.md`'s Shape 7 under `local-files`) — all of them write the identical
 `demo:pending` + brief, so this branch never needs to know or care which one ran.
 
@@ -211,9 +211,9 @@ this point. Then render the design-contract section below when one resolves, exe
 show-first, and ask for the verdict. A brief with no `### Observation plan` section splits on
 what it carries instead: one carrying a retired `### See it yourself` or `### Verify it yourself
 (manual)` heading — a label-backed brief posted before this schema shipped — walks the
-Compatibility branch below. One carrying neither the section nor a retired heading — a Family-Gate
+Compatibility branch below. One carrying neither the section nor a retired heading — a Parent-Gate
 parent brief, whose walkthrough lives inline in `### Confirmed` per
-`wrap-up/verification-brief.md`'s Family-Gate Procedure, or a session-recall entry whose recall
+`wrap-up/verification-brief.md`'s Parent-Gate Procedure, or a session-recall entry whose recall
 yielded no confident path list (Step 1's omission rule) — skips Prepare/Validate/Show entirely and
 goes straight to the Verdict question below: the human judges from the brief's own `### Confirmed`
 content.
@@ -263,9 +263,9 @@ promise in front of a human and asks them.
 
 ### Show-first walkthrough
 
-Applies whenever this record's brief carries a `### Observation plan` section — every **leaf**
+Applies whenever this record's brief carries a `### Observation plan` section — every **sub-issue**
 brief composed or posted after this schema shipped. Two populations legitimately carry no such
-section at all even now: a Family-Gate parent brief (walkthrough lives inline in `### Confirmed`
+section at all even now: a Parent-Gate parent brief (walkthrough lives inline in `### Confirmed`
 instead) and a session-recall entry whose recall yielded no confident path list (Step 1's omission
 rule) — both skip this whole subsection and go straight to the Verdict question below, per the
 routing above. Only a brief carrying a retired `### See it yourself` / `### Verify it yourself
@@ -369,9 +369,9 @@ record left mid-decision and unmentioned.
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
 the first swap this run.
 
-- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `family:parent` in its labels (`work-backend: github-issues`) or `facets.familyParent === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the family was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the parent issue was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
 - **Request changes** — prompt for a short reason inline, then:
-  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`. For a decomposition parent — `family:parent` in its labels (`work-backend: github-issues`) or `facets.familyParent === true` (`work-backend: local-files`), the same two-driver test the Approve branch above uses — nothing further follows this: the parent stays open, since a changes-requested verdict means the family's work is not done.
+  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`), the same two-driver test the Approve branch above uses — nothing further follows this: the parent stays open, since a changes-requested verdict means the parent issue's work is not done.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
      spec-shaped), Type `bug` by default (override to `feature`/`task` when the reason clearly
      describes new scope, not a defect), no `by:*` label — instead a body line

@@ -65,7 +65,7 @@ this block entirely rather than fetching anything.
 Substitute the second line's literal value (the resolved `trust-revert-window-days`) for
 `{resolved-window}` below. If the `gh` call, the `git log`
 call, or the node block fails for any reason, file without `ready`: this path fails toward the
-default, never toward the grant (unchanged from before this leaf). `{resolved-window}` reaches the
+default, never toward the grant (unchanged from before this sub-issue). `{resolved-window}` reaches the
 script as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a
 quote character would otherwise break out of the string literal, the same reason
 `code-health/focus-mode.md`'s F1 block passes its own values that way.

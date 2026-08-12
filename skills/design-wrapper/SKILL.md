@@ -118,7 +118,7 @@ When the mode received a spec number or path, read the record's `Surface:` body-
 | `backend`, `infra` | Return `{skipped: "non-frontend spec (surface declared)"}` |
 | *(missing)* | Continue to track resolution |
 
-`/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new leaf record. Pre-v4.5 specs lack the field; absent values are normal and are handled by track resolution and Layer 3 below.
+`/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new sub-issue record. Pre-v4.5 specs lack the field; absent values are normal and are handled by track resolution and Layer 3 below.
 
 **Track resolution — web or native (between Layers 2 and 3; runs for every mode):**
 

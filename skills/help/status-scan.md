@@ -184,9 +184,9 @@ skipped — {reason}` and stop.
 Scan per `_shared/trust-table.md`. The dispatcher inlines that file's Fetch and Render sections
 into this agent's prompt — subagents cannot read sibling files. **The Fetch section's
 `work-links` resolution sub-section is part of what gets inlined**, not an optional preamble: the
-family-parent fetch has a `body-text` and a `native` branch, and an agent that cannot resolve
+parent-issue fetch has a `body-text` and a `native` branch, and an agent that cannot resolve
 `work-links` cannot choose between them (picking the first-listed one on a `native` repo silently
-returns zero leaves and re-inflates every cell's `total`). Agent output format (status line
+returns zero sub-issues and re-inflates every cell's `total`). Agent output format (status line
 first, per the Execution model's Contract above, then exactly one of):
 
 ```markdown

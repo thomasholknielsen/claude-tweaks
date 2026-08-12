@@ -170,6 +170,7 @@ Type, stage/scoring labels, and parent/dependency links are **record facets** �
 |-------|------------------|----------------|
 | Type | Native GitHub Issue Type (`work-types: native`) or a `type:*` label (`work-types: labels`) | `type:` frontmatter line |
 | Stage + scoring | `ready`, `risk:*`, `size:*` labels | `stage:`, `risk:`, `size:` frontmatter lines |
+| Parent marker (`isParentIssue`) — decomposition parent; carries the acceptance gate for its sub-issues | `parent-issue` label (a retired name is still read on the read side only — see `_shared/work-record.md`'s Label taxonomy) | `is-parent-issue: true` frontmatter line |
 | Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry (`- [ ] #{subIssueNum}`) + the sub-issue's own `Parent: #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
 | Dependency links | Blocked-by dependency API (`work-links: native`) or `Blocked by #N` body lines (`work-links: body-text`) | `blocked-by: [...]` frontmatter line |
 

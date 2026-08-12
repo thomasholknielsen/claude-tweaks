@@ -45,7 +45,7 @@ REFUTE it. Scale the fan-out to the tier (table above). This is generic per-clai
 voting, gated by research depth tier — not the plugin's canonical "multi-persona red-team"
 primitive (`_shared/multi-agent-coordination.md` Mode 3), which is a fixed Implementer /
 Maintainer / Skeptical Reviewer persona roster scoped to surfacing spec ambiguity for
-`/claude-tweaks:specify` and gated by a leaf's `ceremony:*` label. Don't conflate the two.
+`/claude-tweaks:specify` and gated by a sub-issue's `ceremony:*` label. Don't conflate the two.
 
 > **Parallel execution:** Dispatch claim verification as parallel Task agents — each runs
 > independently and returns a verdict. Assemble results after all agents complete.

@@ -75,7 +75,7 @@ apply uniformly to every count trust.js keeps, negative evidence included, witho
 but until one ships, do not read a class's current `clean` verdict as proof it has never had a
 negative outcome; read it only as "no negative outcome inside its current all-time evidence sample."
 The marker's *absence* on a record means "no correctness/ambiguous failure since this shipped,"
-never "no failures ever" — records built before this leaf landed carry no marker regardless of
+never "no failures ever" — records built before this sub-issue landed carry no marker regardless of
 their actual build history.
 
 ## What it authorizes
