@@ -11,7 +11,7 @@ files:
 **Persona:** claude-tweaks user (or a maintainer of a project using the plugin) returning days after a build shipped, who owes the record a human verdict and does not want to re-derive "how do I test this" from the diff.
 **Goal:** Reach an Approve / Request changes / Skip decision on one record after being *shown* the work — the observation plan executed in front of them — rather than being asked to choose how to verify it first.
 **Entry point:** A terminal in a session with the plugin loaded, holding a record number from `/claude-tweaks:help`'s outstanding list (Stage 4.7) or a `demo:pending` notification.
-**Success state:** The record carries `demo:approved` (or `demo:changes-requested` plus a linked follow-up record), and the human never had to answer a "how do you want to check this?" question.
+**Success state:** The record carries `demo:approved` (or `demo:changes-requested` plus a linked follow-up record), and the human never had to answer a how-do-you-want-to-check-this question.
 
 ## Steps
 
@@ -20,7 +20,7 @@ files:
 - **Action:** Invoke against a record whose wrap-up posted a Verification Brief.
 - **Should feel:** Zero re-derivation — the brief `/claude-tweaks:wrap-up` wrote at build time renders immediately, `### The ask` through `### Observation plan`.
 - **Should understand:** The `### Observation plan` section is builder-authored at wrap-up time (kinds: `rendered-page | app-route | cli | flow | diff` — schema in `skills/_shared/observation-plan.md`); demo executes it mechanically rather than classifying paths itself.
-- **Red flags:** A backlog sweep (demo resolves exactly one item); a "See it yourself?" option in the verdict question (that flow is retired — only briefs posted before the schema shipped walk it, via `legacy-brief-compatibility.md`).
+- **Red flags:** A backlog sweep (demo resolves exactly one item); a "See it yourself"/"Verify it yourself" option in the verdict question (that flow is retired — only briefs posted before the schema shipped walk it, via `legacy-brief-compatibility.md`).
 
 ### 2. Watch the plan execute — Prepare → Validate → Show
 - **URL:** *(no command — demo drives)*

@@ -8,6 +8,12 @@ not as a reintroduction of the sections themselves. Such a brief walks the flow 
 the Show-first walkthrough (`SKILL.md`'s own `### Show-first walkthrough` / `### Verdict`
 sections).
 
+Remove this file (and `SKILL.md`'s routing branch to it) when no open record still carries a
+pre-schema brief — observable as `/claude-tweaks:tidy`'s acceptance-gap sweep and
+`/claude-tweaks:help`'s outstanding-sign-off list (Stage 4.7) surfacing zero `demo:pending`
+records whose brief predates the `### Observation plan` schema (shipped with the #323 family,
+v6.78.0).
+
 Call `AskUserQuestion` with `question`: `"Does {title} do what you asked
 for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
