@@ -178,7 +178,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 
 ## What `auto` does NOT silence
 
-`auto` is not a global skip-everything flag. The following are policy gates, not UX preferences, and require explicit user input regardless of `auto` state:
+`auto` is not a global skip-everything flag. The following are policy gates, not UX preferences, and require explicit user input regardless of `auto` state — except where a row below states its own `autonomy`-ceiling carve-out:
 
 | Item | Why mandatory |
 |---|---|

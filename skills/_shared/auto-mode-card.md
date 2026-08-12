@@ -24,7 +24,7 @@ Levels 2–4 execute via ONE call — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-p
 
 ## What `auto` does NOT silence (never-silenced list)
 
-Regardless of `auto` state, these always require explicit user input — see the full contract for the "why mandatory" rationale on each:
+Regardless of `auto` state, these always require explicit user input — except where a bullet below states its own carve-out — see the full contract for the "why mandatory" rationale on each:
 
 - Ledger resolve gate Phase 2 (every open item, per-item) — except the narrow `autonomy` ceiling's `ledgerNarrowing` (`trusted`+) and `ledgerRouteRemainder` (`unattended`) carve-outs
 - Work-record creation (new backlog records, `Q#`) — folded into the Review Console's "Approve all" at `supervised`/`trusted`, auto-resolved under `consoleAutoResolve` at `unattended` — see the contract's tiered stance
