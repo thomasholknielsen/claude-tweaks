@@ -74,7 +74,8 @@ Observation plan`):
   plan section entirely and compose the brief without it, straight to Step 2's verdict. Do not
   compose a plan from an empty or invented path list: an unconfident guess reads as authored
   evidence, which is worse than no section at all. This is the same omission rule that already
-  applied to the pre-schema "See it yourself" section, restated for the new schema.
+  applied under the pre-schema brief format (what was then called "See it yourself"), restated
+  here for the Observation plan schema.
 
 This path has no fetch step — there is no comment or record body to read from. A fresh `/claude-tweaks:demo`
 session with no memory of any unrecorded work naturally finds nothing here; that's expected, not
@@ -207,8 +208,15 @@ reconstructions and session-recall entries composed their own Observation plan d
 1's `#N` and no-arguments paths respectively — all three render identically here, and a
 reconstruction says so in its own `### Confirmed` section rather than being flagged separately at
 this point. Then render the design-contract section below when one resolves, execute the plan
-show-first, and ask for the verdict — or, for a brief with no `### Observation plan` section at
-all (posted before this schema shipped), walk the Compatibility branch below instead.
+show-first, and ask for the verdict. A brief with no `### Observation plan` section splits on
+what it carries instead: one carrying a retired `### See it yourself` or `### Verify it yourself
+(manual)` heading — a label-backed brief posted before this schema shipped — walks the
+Compatibility branch below. One carrying neither the section nor a retired heading — a Family-Gate
+parent brief, whose walkthrough lives inline in `### Confirmed` per
+`wrap-up/verification-brief.md`'s Family-Gate Procedure, or a session-recall entry whose recall
+yielded no confident path list (Step 1's omission rule) — skips Prepare/Validate/Show entirely and
+goes straight to the Verdict question below: the human judges from the brief's own `### Confirmed`
+content.
 
 ### The design contract this was built against
 
@@ -255,9 +263,14 @@ promise in front of a human and asks them.
 
 ### Show-first walkthrough
 
-Applies whenever this record's brief carries a `### Observation plan` section — every brief
-composed or posted after this schema shipped. A brief with no such section (posted before it
-shipped) skips this whole subsection and walks the Compatibility branch below instead.
+Applies whenever this record's brief carries a `### Observation plan` section — every **leaf**
+brief composed or posted after this schema shipped. Two populations legitimately carry no such
+section at all even now: a Family-Gate parent brief (walkthrough lives inline in `### Confirmed`
+instead) and a session-recall entry whose recall yielded no confident path list (Step 1's omission
+rule) — both skip this whole subsection and go straight to the Verdict question below, per the
+routing above. Only a brief carrying a retired `### See it yourself` / `### Verify it yourself
+(manual)` heading (posted before this schema shipped) walks the Compatibility branch below
+instead.
 
 **Prepare** — run the plan's Prepare commands, one at a time (`Prepare: none` → skip entirely). If
 a Prepare command exits non-zero, or — for a `rendered-page`/`app-route` entry point — the entry
@@ -325,8 +338,8 @@ live-or-manual sub-choice — in place of the Show-first walkthrough above; read
 ### Scope-fork checkpoint
 
 If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
-existing behavior — a new feature, a change beyond what pre-flight needed to make the environment
-checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
+existing behavior — a new feature, a change beyond what Prepare/Validate needed to make the
+environment checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
 `AskUserQuestion` with `question`: `"That's new scope beyond what's being demoed here. Want me to
 capture it as a backlog item now and come back to your sign-off decision, or build it now as its
 own thing outside /claude-tweaks:demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
@@ -345,7 +358,7 @@ same session.
 
 This record's verdict — not yet Approved/Request-changes/Skipped — must never be silently
 dropped because the conversation moves on, whether from a declined `AskUserQuestion`, a
-pre-flight failure that grows its own back-and-forth, a scope-fork detour above, or any other
+Prepare/Validate failure that grows its own back-and-forth, a scope-fork detour above, or any other
 detour. Once any such detour concludes, before shifting to a new unrelated topic, restate that
 this record's decision is still outstanding and offer to resume. Never end a `/claude-tweaks:demo` run with a
 record left mid-decision and unmentioned.
@@ -429,9 +442,9 @@ always renders.
 | Writing a reconstruction's `### Confirmed` as though someone watched the work | A closing commit evidences what shipped, not that anyone checked it — name the reconstruction and stop at what the commit itself shows |
 | Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
 | Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
-| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief pairs the diff/rationale with concrete manual verification steps, not just "review the diff" |
-| Debugging or fixing an application bug a pre-flight check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
-| Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it as `/browse` requires, right after the human looks, before re-rendering the verdict |
+| Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a real human look — a `cli`/`flow`/`diff` plan pairs the diff/rationale with concrete pointers, not just "review the diff" |
+| Debugging or fixing an application bug a Prepare/Validate check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
+| Leaving a live browser session open after Validate or Show finishes | Leaked sessions consume resources — Validate's own session must close before Show runs; Show's `open`/`xdg-open` hands the browser off to the human, it never holds a session open itself |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
 | Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |
 | Summarizing, re-wording, or reordering the direction contract's five blocks | The blocks are the pre-build promise the human is checking the result against; a paraphrase is one more reading of the result, which is exactly the circularity this section exists to break |

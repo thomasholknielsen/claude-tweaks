@@ -14,7 +14,7 @@ for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
 - Option 2 — the label names the section it actually walks: `"See it yourself"` when the brief's `### See it yourself` entry point resolved and browser tools are available, `"Verify it yourself"` when the brief carries `### Verify it yourself (manual)`. Offer it under either condition, never both labels at once; `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
-- Option 4 — `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"` (this branch only ever reaches label-backed entries — a closing-commit reconstruction or session-recall entry always composes the new schema, per `SKILL.md` Step 1's rewrite, so it never lacks an Observation plan section).
+- Option 4 — `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"` (this branch only ever reaches label-backed entries — a closing-commit reconstruction always composes an Observation plan, per `SKILL.md` Step 1's rewrite, and a session-recall entry composes one too whenever recall yields a path list; only when recall yields no path list does session-recall omit the section, and in that case Step 2's routing takes the brief straight to the Verdict question rather than through this branch).
 
 **Non-interactive record** (the brief carries `### Verify it yourself (manual)` instead of
 `### See it yourself` — the classifier that composed this brief judged the changed paths as

@@ -100,8 +100,9 @@ leaf, and the parent brief must not imply otherwise.
 
 **So the brief carries the human instead.** Part 2 of **Compose the parent brief** below — the
 end-to-end walkthrough, rendered inline inside `### Confirmed` — is the only walk instruction a
-parent brief carries (it omits the `### Observation plan` section — part 2's inline end-to-end
-walkthrough still carries the human). For a family whose assembled leaves
+parent brief carries (it omits the `### Observation plan` section, so `/claude-tweaks:demo` runs no
+Prepare/Validate/Show for a parent — part 2's inline end-to-end walkthrough inside Confirmed is
+what carries the human). For a family whose assembled leaves
 touch UI, that walkthrough must therefore name the pages or journeys to open and what to look
 for, not just the skill invocation — it is standing in for the safety net, not summarizing it.
 
