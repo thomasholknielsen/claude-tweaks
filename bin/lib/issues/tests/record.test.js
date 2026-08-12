@@ -511,7 +511,7 @@ test('parseSubIssues reads a parent task list', () => {
 });
 
 test('parseSubIssues ignores mid-line mentions and dedupes', () => {
-  // Mirrors parseDependencies: only a line-anchored entry declares a leaf.
+  // Mirrors parseDependencies: only a line-anchored entry declares a sub-issue.
   const body = 'see - [ ] #99 inline\n- [ ] #46\n- [ ] #46\n';
   assert.deepEqual(parseSubIssues(body), [46]);
 });
