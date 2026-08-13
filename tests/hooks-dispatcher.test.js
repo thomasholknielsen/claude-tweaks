@@ -302,6 +302,16 @@ test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit
   assert.ok(matchers.includes('NotebookEdit'), 'expected a NotebookEdit matcher');
 });
 
+test('hooks.json registers a PostToolUse matcher for Skill (unfiltered, literal tool-name match)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const skillEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Skill');
+  assert.ok(skillEntry, 'expected a PostToolUse Skill matcher entry');
+  assert.strictEqual(skillEntry.hooks.length, 1);
+  assert.strictEqual(skillEntry.hooks[0].type, 'command');
+  assert.ok(!('if' in skillEntry.hooks[0]), 'Skill matcher must be a literal tool-name match, not pattern-filtered');
+  assert.match(skillEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
+});
+
 test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_FLAGS entry git-command.js's gitTargets() resolves (finding regression)", () => {
   // git-command.js's gitTargets() is written and unit-tested to correctly
   // resolve a commit/push target through `-c`, `--exec-path`, and
