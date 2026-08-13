@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, WRITE_SHAPES, splitSegments, tokenize } = require('./git-command');
+const { gitTargets, fileWriteTargets, WRITE_SHAPES, forEachCommandSegment } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -51,10 +51,10 @@ const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
   gitActions: Object.freeze(['commit', 'push']),
   bashWriteShapes: WRITE_SHAPES,
-  // Task 5 gives these their own prose-binding block, mirroring tools/
-  // gitActions/bashWriteShapes above — deliberately not added to that
-  // binding here so hooks-gate-coverage.test.js's "lists exactly the tools"
-  // assertions stay pinned to the pre-existing three fields only.
+  // These have their own prose-binding block — skills/_shared/policy-schema.md's
+  // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
+  // the two) — deliberately separate from the worktree.always block above,
+  // so widening either gate never requires touching the other's prose.
   teardownTools: Object.freeze(['ExitWorktree']),
   teardownGitCommands: Object.freeze(['worktree remove']),
 });
@@ -120,40 +120,56 @@ function safeReal(p) {
 // also confirmed fires INSIDE the worktree being exited — PreToolUse runs
 // before the tool's effect takes place, so this is always the worktree in
 // teardown, never a post-exit directory. Resolved to its containing toplevel.
+// Gated on `action === 'remove'` only — `action: 'keep'` (or anything else)
+// is non-destructive (the worktree stays on disk; only cwd is restored), so
+// it must never even become a candidate target, let alone get denied with a
+// deny reason that would be factually false for it (whole-branch review
+// CRITICAL 2, spec #373).
 //
-// Bash: ONLY the narrow `git worktree remove [--force] <path>` shape, parsed
-// per shell segment via git-command.js's own splitSegments/tokenize — this
-// deliberately does not extend the compound-command surface #174 tracks. Any
-// other flags, multiple positionals, or parse doubt skip that segment; never
-// fabricate a target — ambiguity resolves to allow.
+// Bash: ONLY the narrow `git worktree remove [--force|-f|--] <path>` shape,
+// parsed per shell segment via git-command.js's own forEachCommandSegment —
+// which also tracks `cd` across segments, so `cd <dir> && git worktree
+// remove <relative>` resolves against the post-cd cwd instead of being
+// missed entirely (whole-branch review IMPORTANT 4). This deliberately does
+// not extend the compound-command surface #174 tracks. Any other flags,
+// multiple positionals, or parse doubt skip that segment; never fabricate a
+// target — ambiguity resolves to allow.
 function teardownTargets(ctx) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
   if (GATE_COVERAGE.teardownTools.includes(toolName)) {
+    if (!toolInput || toolInput.action !== 'remove') return [];
     const top = toplevel(ctx.cwd || process.cwd());
     return top ? [top] : [];
   }
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
-  for (const seg of splitSegments(toolInput.command)) {
-    const toks = tokenize(seg);
+  forEachCommandSegment(toolInput.command, ctx.cwd || process.cwd(), (toks, effCwd) => {
     let i = 0;
-    if (toks[i] !== 'git') continue;
+    if (toks[i] !== 'git') return;
     i += 1;
-    let effCwd = ctx.cwd || process.cwd();
+    let dir = effCwd; // string, or null meaning UNKNOWN (e.g. after an unresolvable `cd`)
     // Only `-C <dir>` before the subcommand is honored — matching gitTargets'
-    // own narrow -C handling above, not the full global-flag surface.
-    if (toks[i] === '-C' && typeof toks[i + 1] === 'string') { effCwd = path.resolve(effCwd, toks[i + 1]); i += 2; }
+    // own narrow -C handling above, not the full global-flag surface. An
+    // absolute -C argument is provable even against an unknown cwd; a
+    // relative one is not.
+    if (toks[i] === '-C' && typeof toks[i + 1] === 'string') {
+      const raw = toks[i + 1];
+      dir = path.isAbsolute(raw) ? path.resolve(raw) : (dir === null ? null : path.resolve(dir, raw));
+      i += 2;
+    }
+    if (dir === null) return; // cwd unknown and no provable -C -> no target
     // Derived from GATE_COVERAGE.teardownGitCommands rather than a hardcoded
     // comparison, so the constant stays load-bearing (see tools/gitActions
     // above) instead of a parallel hand-kept list nothing reads (#hooks-gate-coverage).
-    if (typeof toks[i] !== 'string' || typeof toks[i + 1] !== 'string') continue;
+    if (typeof toks[i] !== 'string' || typeof toks[i + 1] !== 'string') return;
     const sub = `${toks[i]} ${toks[i + 1]}`;
-    if (!GATE_COVERAGE.teardownGitCommands.includes(sub)) continue;
-    const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f');
-    if (rest.length !== 1 || rest[0].startsWith('-')) continue; // unconfident -> allow
-    out.push(path.resolve(effCwd, rest[0]));
-  }
+    if (!GATE_COVERAGE.teardownGitCommands.includes(sub)) return;
+    // `--`, like `--force`/`-f`, is a flag/terminator, never the path itself.
+    const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f' && t !== '--');
+    if (rest.length !== 1 || rest[0].startsWith('-')) return; // unconfident -> allow
+    out.push(path.resolve(dir, rest[0]));
+  });
   return out;
 }
 
@@ -162,8 +178,28 @@ function teardownTargets(ctx) {
 // still assigned to a non-terminal pipeline run. Mirrors E1's own
 // deny/foreign-session/allow shape below, at the teardown boundary instead of
 // the commit boundary.
-function checkTeardownGate(ctx) {
-  for (const target of teardownTargets(ctx)) {
+//
+// `teardownWarnings` (out-parameter, mirrors `indeterminateTargets` on
+// checkWorktreeRequired below): a foreign-owned hit is collected here and the
+// loop CONTINUES rather than returning — an early return on the warn path
+// used to short-circuit runInner entirely, so a compound `git worktree
+// remove <foreign-wt> && git commit -m x` skipped the worktree.always check
+// on the trailing commit (whole-branch review IMPORTANT 3). Only a genuine
+// deny still returns early — a deny is the one outcome where evaluating
+// anything further is pointless (the call is blocked).
+function checkTeardownGate(ctx, teardownWarnings = []) {
+  const targets = teardownTargets(ctx);
+  if (!targets.length) return {};
+  // A run whose recorded `worktree` IS the main checkout (a bad record, or a
+  // current-branch-strategy run) must never deny an ExitWorktree/`worktree
+  // remove` call issued AT the main checkout — there is no worktree to
+  // orphan there, and the deny message's "remove the worktree" framing would
+  // be nonsensical (whole-branch review MINOR 6). Computed only when there is
+  // at least one target, since it costs an fs walk on every hook call
+  // otherwise.
+  const mainRoot = safeReal(wtDetect.mainCheckoutRoot(ctx.cwd || process.cwd()));
+  for (const target of targets) {
+    if (mainRoot && safeReal(target) === mainRoot) continue;
     let exists = false;
     try { fs.statSync(target); exists = true; } catch { /* gone */ }
     // Recorded-or-target path already gone from disk -> allow (fail-open).
@@ -178,17 +214,15 @@ function checkTeardownGate(ctx) {
     const caller = ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id ? ctx.input.session_id : null;
     if (owner && caller && owner !== caller) {
       // Provably foreign-owned: allow + warn, event to the TARGET run's dir
-      // (the wd-foreign-session precedent — enforcement-target, not ownedRun).
+      // (the wd-foreign-session precedent — enforcement-target, not
+      // ownedRun). Collected, not returned — see the function header.
       ctxLib.appendEvent(hit.runDir, 'wd-foreign-teardown', { path: target });
-      return {
-        exit: 0,
-        json: {
-          systemMessage:
-            `claude-tweaks: worktree ${target} is assigned to run ${path.basename(hit.runDir)}, recorded by a different session — ` +
-            `allowing this teardown, but if that pipeline is still live its state will be orphaned. ` +
-            `Prefer closing the run first: node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}"`,
-        },
-      };
+      teardownWarnings.push(
+        `claude-tweaks: worktree ${target} is assigned to run ${path.basename(hit.runDir)}, recorded by a different session — ` +
+        `allowing this teardown, but if that pipeline is still live its state will be orphaned. ` +
+        `Prefer closing the run first: node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}"`,
+      );
+      continue;
     }
     // Same session, unowned run, or identity missing on either side -> deny.
     return {
@@ -348,8 +382,8 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   return {};
 }
 
-function runInner(ctx, indeterminateTargets) {
-  const teardown = checkTeardownGate(ctx);
+function runInner(ctx, indeterminateTargets, teardownWarnings) {
+  const teardown = checkTeardownGate(ctx, teardownWarnings);
   if (teardown.json) return teardown;
 
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
@@ -435,32 +469,39 @@ function runInner(ctx, indeterminateTargets) {
   return {};
 }
 
-// Attaching the worktree-gate's indeterminate warning is done HERE, once, on
-// whatever runInner returned — not at runInner's own return sites. runInner has
-// a dozen of them and grows more over time; enumerating them to add the message
-// is the exact shape `[IL-14]` records (an enumeration silently misses a path,
-// and no test notices because the omission is invisible). This wrapper states
-// the unconditional rule instead: every outcome, deny or allow, carries the
-// warning if one was collected.
+// Attaching the worktree-gate's indeterminate warning (and, since the
+// IMPORTANT-3 fix below, any collected teardown foreign-owner warnings) is
+// done HERE, once, on whatever runInner returned — not at runInner's own
+// return sites. runInner has a dozen of them and grows more over time;
+// enumerating them to add a message is the exact shape `[IL-14]` records (an
+// enumeration silently misses a path, and no test notices because the
+// omission is invisible). This wrapper states the unconditional rule instead:
+// every outcome, deny or allow, carries every collected note.
 function run(ctx) {
   const indeterminateTargets = [];
-  const out = runInner(ctx, indeterminateTargets) || {};
-  if (!indeterminateTargets.length) return out;
+  const teardownWarnings = [];
+  const out = runInner(ctx, indeterminateTargets, teardownWarnings) || {};
 
-  // Deliberately says the check could not RUN, not that a policy was skipped.
-  // Reaching here means findPolicyFile found a policy.yml somewhere up the
-  // ancestor chain, which is not the same as worktree.always being on for this
-  // repo — that check needs a repoRoot we never obtained. Claiming "the gate was
-  // not applied" would assert a policy applied that may not exist.
-  const note =
-    `claude-tweaks: could not determine the git repo status of `
-    + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
-    + `The worktree.always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
-    + `${indeterminateTargets.length > 1 ? 'they were' : 'it was'} allowed rather than denied, per the never-break-a-session rule. `
-    + `If this project requires an isolated worktree, verify manually.`;
+  const notes = [...teardownWarnings];
+  if (indeterminateTargets.length) {
+    // Deliberately says the check could not RUN, not that a policy was
+    // skipped. Reaching here means findPolicyFile found a policy.yml
+    // somewhere up the ancestor chain, which is not the same as
+    // worktree.always being on for this repo — that check needs a repoRoot
+    // we never obtained. Claiming "the gate was not applied" would assert a
+    // policy applied that may not exist.
+    notes.push(
+      `claude-tweaks: could not determine the git repo status of `
+      + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
+      + `The worktree.always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
+      + `${indeterminateTargets.length > 1 ? 'they were' : 'it was'} allowed rather than denied, per the never-break-a-session rule. `
+      + `If this project requires an isolated worktree, verify manually.`,
+    );
+  }
+  if (!notes.length) return out;
 
   const json = { ...(out.json || {}) };
-  json.systemMessage = json.systemMessage ? `${json.systemMessage} ${note}` : note;
+  json.systemMessage = json.systemMessage ? [json.systemMessage, ...notes].join(' ') : notes.join(' ');
   // exit stays 0 on every path, deny included — the deny signal is the stdout
   // JSON's permissionDecision, never the exit code (see this file's header).
   return { ...out, exit: 0, json };

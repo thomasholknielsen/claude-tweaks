@@ -79,7 +79,13 @@ test('every GATE_COVERAGE field is load-bearing, not a parallel hand-kept list',
   // green, and no longer about the gate's behaviour at all. That is precisely
   // the failure mode [IL-78] describes: a check that would pass on any input.
   const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
-  for (const field of ['tools', 'gitActions']) {
+  // Iterate every GATE_COVERAGE key rather than a hardcoded ['tools',
+  // 'gitActions'] list — a field this loop doesn't visit is exactly the
+  // "constant nothing reads" gap the loop exists to catch (whole-branch
+  // review MINOR 8). bashWriteShapes is the one deliberate exception: it is
+  // load-bearing in git-command.js instead, checked separately below.
+  for (const field of Object.keys(GATE_COVERAGE)) {
+    if (field === 'bashWriteShapes') continue;
     assert.ok(src.includes(`GATE_COVERAGE.${field}`),
       `pre-tool-use.js must branch on GATE_COVERAGE.${field}, not a duplicated literal`);
   }

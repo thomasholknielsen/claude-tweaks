@@ -57,7 +57,7 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
 2. Verify the Review Console ran and applied/dismissed all staged items.
-3. **Mark the run terminal** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
+3. **Mark the run terminal, if not already closed by Section C's step 3.6** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). Idempotent: re-running it on an already-clean run (the worktree-strategy case, where Section C's step 3.6 closed it first) is a harmless no-op. E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
 4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
 5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
    already in the main checkout — run directories are anchored there at creation
@@ -128,7 +128,7 @@ If the build used worktree git strategy, clean up the worktree directory:
    - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
    - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
      - **Merged, PR created, or discarded** → proceed to step 4.
-     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 3.5-5 below entirely for this spec (do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
+     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 3.5, 3.6, 4, and 5 below entirely for this spec (do NOT close the run, do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
    — the carrier is the final wrap-up commit message instead: include the same
    `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
@@ -182,6 +182,14 @@ If the build used worktree git strategy, clean up the worktree directory:
    `.claude-tweaks/pipelines/`. Delete unconditionally after **2026-11-07** regardless — three
    months is longer than any worktree in this repo's history has stayed live, and a
    pre-anchoring run still sitting in a worktree by then is abandoned state, not live state.
+3.6. **Close the pipeline run — the sanctioned exit the teardown gate checks for.** If a pipeline
+   run directory resolves for this work (see `_shared/pipeline-run-dir.md`'s resolution order),
+   run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` now, from inside the
+   worktree, **before step 4 removes it.** This clears the run's recorded worktree assignment,
+   which is exactly what `bin/lib/hooks/pre-tool-use.js`'s teardown gate (`checkTeardownGate`)
+   checks before allowing an `ExitWorktree`/`git worktree remove` call — skipping this step is the
+   pattern the gate exists to deny (`[IL-116]`), and its own deny message points back here as the
+   fix. Skip silently if no run directory resolves (a pre-v4.6 pipeline that never created one).
 4. Remove the worktree. Use **`ExitWorktree`** (`action: "remove"`) for the worktree this
    session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
    fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock

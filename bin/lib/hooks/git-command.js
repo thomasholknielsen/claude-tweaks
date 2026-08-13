@@ -441,4 +441,4 @@ function fileWriteTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, WRITE_SHAPES };
+module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, forEachCommandSegment, WRITE_SHAPES };

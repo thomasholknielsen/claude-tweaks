@@ -47,6 +47,14 @@ function addWorktree(root) {
   return fs.realpathSync(wt);
 }
 
+// Same shape as tests/hooks-pre-tool-use.test.js's own withPolicy — used by
+// the IMPORTANT-3 compound-command test below, which needs a repo that has
+// OPTED IN to worktree.always so checkWorktreeRequired has something to deny.
+function withPolicy(repo, content) {
+  fs.mkdirSync(path.join(repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude-tweaks', 'policy.yml'), content);
+}
+
 // A main-checkout repo root with .claude-tweaks/pipelines inside it.
 // findRunByWorktreePath's underlying iterRunDirsWithState anchors via the
 // main checkout resolution (bin/lib/hooks/worktree-detect.js), so the fixture
@@ -137,7 +145,7 @@ test('AC1: ExitWorktree on a worktree assigned to an active run is denied', () =
   const wt = addWorktree(root);
   const runDir = makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
   const payload = JSON.stringify({
-    tool_name: 'ExitWorktree', tool_input: { action: 'keep' }, cwd: wt, session_id: 'caller-1',
+    tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: wt, session_id: 'caller-1',
   });
   const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
   assert.strictEqual(r.code, 0);
@@ -158,11 +166,25 @@ test('AC2: after close-run, the identical ExitWorktree payload is allowed', () =
   assert.strictEqual(closed.code, 0);
   assert.strictEqual(readRunState(runDir).status, 'clean');
   const payload = JSON.stringify({
-    tool_name: 'ExitWorktree', tool_input: { action: 'keep' }, cwd: wt, session_id: 'caller-1',
+    tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: wt, session_id: 'caller-1',
   });
   const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
   assert.strictEqual(r.code, 0);
   assert.strictEqual(r.stdout.trim(), '', 'a clean run must not be enforced');
+});
+
+// CRITICAL 2 (whole-branch review): action:'keep' is non-destructive (the
+// worktree stays on disk; only cwd is restored) and must never be denied.
+test('CRITICAL 2: ExitWorktree action:\'keep\' on a worktree assigned to an active same-session run is allowed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt, sessionId: 'caller-1' }));
+  const payload = JSON.stringify({
+    tool_name: 'ExitWorktree', tool_input: { action: 'keep' }, cwd: wt, session_id: 'caller-1',
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(r.stdout.trim(), '', 'action:\'keep\' must never be gated, let alone denied');
 });
 
 // AC3: the narrow `git worktree remove [--force] <path>` Bash shape.
@@ -222,6 +244,37 @@ test('AC3: `git worktree prune` is allowed', () => {
   assert.strictEqual(r.stdout.trim(), '');
 });
 
+// MINOR 5 (whole-branch review): `--` is an option terminator, same class as
+// --force/-f, not the path itself.
+test('MINOR 5: Bash `git worktree remove -- <abs-path>` on an active run\'s worktree is denied', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove -- ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+// IMPORTANT 4 (whole-branch review): teardownTargets must track `cd` across
+// shell segments (via git-command.js's forEachCommandSegment), not just
+// inspect each segment against the ORIGINAL cwd — otherwise `cd <dir> && git
+// worktree remove <relative>` resolves against the wrong directory and is
+// missed entirely.
+test('IMPORTANT 4: Bash `cd <dir> && git worktree remove <relative-path>` is denied via cd-tracking', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const parent = path.dirname(wt);
+  const payload = JSON.stringify({
+    tool_name: 'Bash', tool_input: { command: `cd ${parent} && git worktree remove ${path.basename(wt)}` }, cwd: root,
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny',
+    'the cd-relative target must resolve to the assigned worktree and be denied');
+});
+
 // AC4: fail-open cases.
 test('AC4: an unresolvable teardown target (no positional path) is allowed', () => {
   const root = fixtureRoot();
@@ -256,6 +309,18 @@ test('AC4: a recorded worktree path already deleted from disk is allowed', () =>
   assert.strictEqual(r.stdout.trim(), '');
 });
 
+// MINOR 6 (whole-branch review): a run recording the MAIN CHECKOUT itself as
+// its `worktree` (a bad record, or a current-branch-strategy run) must not
+// deny an ExitWorktree call issued AT the main checkout — there is no
+// worktree to orphan there.
+test('MINOR 6: a run recording the main checkout as its worktree does not deny an ExitWorktree call at the main checkout', () => {
+  const root = fixtureRoot();
+  makeRun(root, JSON.stringify({ status: 'active', worktree: root }));
+  const payload = JSON.stringify({ tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: root, session_id: 'caller-1' });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  assert.strictEqual(r.stdout.trim(), '');
+});
+
 // AC5: ownership.
 test('AC5: a foreign-owned run warns instead of denying, and logs wd-foreign-teardown', () => {
   const root = fixtureRoot();
@@ -266,7 +331,7 @@ test('AC5: a foreign-owned run warns instead of denying, and logs wd-foreign-tea
   assert.match(recorded.stdout, /worktree recorded/);
   const runDir = findRunByWorktreePath(root, wt).runDir;
   const payload = JSON.stringify({
-    tool_name: 'ExitWorktree', tool_input: { action: 'keep' }, cwd: wt, session_id: 'bystander-2',
+    tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: wt, session_id: 'bystander-2',
   });
   const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
   assert.strictEqual(r.code, 0);
@@ -283,10 +348,56 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
   const root = fixtureRoot();
   const wt = addWorktree(root);
   makeRun(root, JSON.stringify({ status: 'active', worktree: wt })); // no sessionId recorded
-  const payload = JSON.stringify({ tool_name: 'ExitWorktree', tool_input: { action: 'keep' }, cwd: wt });
+  const payload = JSON.stringify({ tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: wt });
   const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
   const out = JSON.parse(r.stdout);
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+// IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
+// short-circuit runInner — previously, `git worktree remove <foreign-wt> &&
+// git commit -m x` returned on the warn and never reached the trailing
+// commit, silently bypassing worktree.always for it (measured).
+test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktree.always, with the foreign-teardown warning attached', () => {
+  const root = fixtureRoot();
+  withPolicy(root, 'worktree.always: true\n');
+  const foreignWt = addWorktree(root);
+  makeRun(root); // empty run dir for record-worktree to claim
+  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  assert.strictEqual(recorded.code, 0);
+  const payload = JSON.stringify({
+    tool_name: 'Bash',
+    tool_input: { command: `git worktree remove ${foreignWt} && git commit -m x` },
+    cwd: root,
+    session_id: 'bystander-2',
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  assert.strictEqual(r.code, 0);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny',
+    'the trailing `git commit` in the main checkout must still be denied by worktree.always');
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /worktree\.always/);
+  assert.ok(out.systemMessage && out.systemMessage.includes('recorded by a different session'),
+    'the foreign-teardown warning must still be attached, proving the teardown gate did not silently swallow it');
+});
+
+// The other half: a LONE foreign-owned teardown (no compound command, no
+// worktree.always policy) still allows + warns — the warn behavior itself is
+// unchanged, only the short-circuit is fixed.
+test('IMPORTANT 3: a lone foreign-owned `git worktree remove` (no compound command) still allows and warns', () => {
+  const root = fixtureRoot();
+  const foreignWt = addWorktree(root);
+  makeRun(root);
+  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  assert.strictEqual(recorded.code, 0);
+  const payload = JSON.stringify({
+    tool_name: 'Bash', tool_input: { command: `git worktree remove ${foreignWt}` }, cwd: root, session_id: 'bystander-2',
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  assert.strictEqual(r.code, 0);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput, undefined, 'a lone foreign teardown must not deny');
+  assert.ok(out.systemMessage && out.systemMessage.includes('recorded by a different session'));
 });
 
 // Garbage stdin: the dispatcher-wide invariant, re-asserted for the
