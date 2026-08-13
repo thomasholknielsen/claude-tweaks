@@ -105,6 +105,23 @@ function safeReal(p) {
   try { return fs.realpathSync(p); } catch { return null; }
 }
 
+// Shared shape for every PreToolUse deny below (checkTeardownGate,
+// checkWorktreeRequired, runInner's E1) — same hookEventName/
+// permissionDecision wrapper each time, differing only in the reason text.
+// exit stays 0 on a deny; see this file's header comment for why.
+function denyResult(reason) {
+  return {
+    exit: 0,
+    json: {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: reason,
+      },
+    },
+  };
+}
+
 // Resolves the worktree path(s) a teardown call targets, or [] when none can
 // be determined confidently — teardownTargets never fabricates a target;
 // checkTeardownGate below treats an empty result as allow.
@@ -225,20 +242,12 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
       continue;
     }
     // Same session, unowned run, or identity missing on either side -> deny.
-    return {
-      exit: 0,
-      json: {
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          permissionDecision: 'deny',
-          permissionDecisionReason:
-            `claude-tweaks teardown gate: worktree ${target} is still assigned to non-terminal pipeline run ` +
-            `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
-            `Section C) and destroys the run's gitignored state. Finish via /claude-tweaks:wrap-up, or close the bookkeeping first: ` +
-            `node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}", then retry.`,
-        },
-      },
-    };
+    return denyResult(
+      `claude-tweaks teardown gate: worktree ${target} is still assigned to non-terminal pipeline run ` +
+      `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
+      `Section C) and destroys the run's gitignored state. Finish via /claude-tweaks:wrap-up, or close the bookkeeping first: ` +
+      `node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}", then retry.`,
+    );
   }
   return {};
 }
@@ -357,27 +366,19 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     const ownedRun = ctx.ownedRun || {};
     ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath }, ownedRun.attribution);
 
-    return {
-      exit: 0,
-      json: {
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          permissionDecision: 'deny',
-          permissionDecisionReason:
-            // Derived from GATE_COVERAGE rather than spelled out, so widening
-            // the gate can never leave this message describing the old reach
-            // — the failure this whole binding exists to prevent (#70, #138).
-            `claude-tweaks: this project requires an isolated worktree for ` +
-            `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
-            `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
-            `see _shared/policy-schema.md's worktree.always coverage block) ` +
-            `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
-            `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
-            `then follow \`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
-            `then retry this edit inside the new worktree.`,
-        },
-      },
-    };
+    return denyResult(
+      // Derived from GATE_COVERAGE rather than spelled out, so widening
+      // the gate can never leave this message describing the old reach
+      // — the failure this whole binding exists to prevent (#70, #138).
+      `claude-tweaks: this project requires an isolated worktree for ` +
+      `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
+      `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
+      `see _shared/policy-schema.md's worktree.always coverage block) ` +
+      `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
+      `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
+      `then follow \`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
+      `then retry this edit inside the new worktree.`,
+    );
   }
   return {};
 }
@@ -451,20 +452,12 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
     ctxLib.appendEvent(ctx.runDir, 'wd-deny', { expected: assigned, actual, session: caller || undefined, command: command.slice(0, 200) });
     const others = [...otherWorktrees.keys()];
     const othersNote = others.length ? ` Other active runs' worktrees: ${others.join(', ')}.` : '';
-    return {
-      exit: 0,
-      json: {
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          permissionDecision: 'deny',
-          permissionDecisionReason:
-            `claude-tweaks working-directory discipline: this run's assigned worktree is ${assigned} but the commit targets ${actual}.` +
-            othersNote +
-            ` Re-run inside the worktree (cd "${assigned}") or use git -C "${assigned}". ` +
-            `If this checkout is intentionally correct (e.g. finishing the branch), clear the assignment first: node "${pluginRoot()}/bin/hooks.js" close-run`,
-        },
-      },
-    };
+    return denyResult(
+      `claude-tweaks working-directory discipline: this run's assigned worktree is ${assigned} but the commit targets ${actual}.` +
+      othersNote +
+      ` Re-run inside the worktree (cd "${assigned}") or use git -C "${assigned}". ` +
+      `If this checkout is intentionally correct (e.g. finishing the branch), clear the assignment first: node "${pluginRoot()}/bin/hooks.js" close-run`,
+    );
   }
   return {};
 }
