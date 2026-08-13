@@ -1,7 +1,7 @@
 # Skill bloat reduction — Approach A: evict author-facing meta from the runtime payload
 
 **Date:** 2026-08-04
-**Status:** Approved design, not yet planned
+**Status:** Specified — see companion `2026-08-04-relationship-triage-verdicts.md` for the executed classification pass
 **Baseline commit:** `fe393e30` — every measurement below was taken against this tree
 **Scope:** Approach A only. Approach B is [#119](https://github.com/thomasholknielsen/claude-tweaks/issues/119), Approach C is [#120](https://github.com/thomasholknielsen/claude-tweaks/issues/120).
 
