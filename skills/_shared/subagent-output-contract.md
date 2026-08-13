@@ -105,6 +105,20 @@ This table is pinned to `bin/lib/model-profiles/profiles.js` by test — change 
 
 **Frontier is singleton-only.** Profiles govern *dispatches*; inline steps ride the session model by design. Frontier is never valid in a parallel fan-out — one agent whose judgment is the bottleneck, at an enumerated slot only. Preconditions (all enforced by the resolver): interactive context, stance at `default` or above, and the per-run cap (`frontier-run-cap`, default 3, tallied in the run dir's `frontier-tally.log`; standalone skill invocations get 1 per invocation, enforced by the calling skill). Any miss degrades to Capable with the reason in the resolution's `source`. Best-effort rule: a harness usage-limit warning observed in-session degrades Frontier to Capable for the remainder of the run — best-effort, no mechanism claimed.
 
+**The enumerated slots.** Two categories, each a deliberate, singleton-shaped dispatch site — degradation to Capable via the preconditions above is always the fallback, never a separate code path:
+
+| Category | Slot | Shape |
+|---|---|---|
+| Verdict gate (#220) | `/review`'s gap-sweep (`step3-debate-and-refutation.md` Step 3.6) | Single agent, no reproduction pair — deliberately fresh-eyes. |
+| Verdict gate (#220) | `/review`'s cross-lens debate agent (`step3-debate-and-refutation.md` Step 3.5, `multi-agent-coordination.md` Mode 2) | The one contract-enumerated exception to strict single-agent shape: a fixed 2-agent, 1-round pair per contradiction — bounded by the contradiction count, not a variable-N fan-out over a candidate set, which is what the no-fan-out rule actually guards against. |
+| Verdict gate (#220) | `/specify`'s red-team synthesis/write-back (`specify/red-team.md`) | Single agent, dispatched only when interactive and the resolver returns `frontier`; otherwise runs main-thread exactly as today — never a Capable dispatch of this step. |
+| Self-improvement (#221) | `/wrap-up`'s Phase 2 curation-engine row-judgment, when fewer than 3 rows are open (`wrap-up/curation-engine.md` section 4) | Single agent judging every open row in one pass. The existing 3+-row branch is a genuine parallel fan-out and stays Capable unconditionally. |
+| Self-improvement (#221) | `/reflect`'s lens procedure, standalone invocations only (`reflect/SKILL.md` Step 2) | Single agent running every lens. Component-invoked runs (a `/review`- or `/wrap-up`-owned run dir, or an explicit `--source`) never dispatch this — main-thread only. |
+| Self-improvement (#221) | `/feedback`'s scrub judgment (`feedback/SKILL.md` Step 6) | Single agent per invocation — the standalone-invocation cap (no `--run-dir` in the common case). |
+| Self-improvement (#221) | `/init`'s CLAUDE.md generation/patch synthesis (`init/claude-md-template.md`) | Single agent; `--unattended` in headless (scheduled Routine) contexts. |
+
+**`/challenge` is excluded from the verdict-gate category.** Its `framing-check` mode is inline-only by that skill's own Component-Skill Contract — dispatching it as a Task agent is a named anti-pattern there. Profiles govern dispatches only; an inline step rides the session model by design and has no profile to carry, so `framing-check` is never a candidate for this enumeration regardless of how singleton-shaped its judgment is.
+
 **Session-inherit protection.** No fresh-agent dispatch omits `model` — inheriting the session model is only ever an explicit, stated choice (`[Use: inherit — {reason}]`), never a silent default; this is what makes running a session on Fable or Opus safe. Fork dispatches are exempt (the Agent tool ignores a fork's `model` override structurally; fork usage is already restricted — see the incident-log rule on forks). Every agent definition under `agents/` must declare `model:` in its frontmatter.
 
 ## Template A — Review-style (returns findings)

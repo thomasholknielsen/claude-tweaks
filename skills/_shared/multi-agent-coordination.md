@@ -63,7 +63,7 @@ No outcome is "ask the user inline." Unconfirmed findings stage; the caller's Re
 ```
 {Same Template-A prompt sent to BOTH agents — identical scope, identical paths, identical output format.}
 
-[Use: {Standard | Capable} model — reproduction agent. Independent run; do not assume any prior context.]
+[Use: Standard model — reproduction agent. Independent run; do not assume any prior context.]
 ```
 
 ### Decision-log entry format
@@ -130,7 +130,10 @@ Contested region: {path}:{line}
 Finding A (lens: {lensA}): {finding text}
 Finding B (lens: {lensB}): {finding text}
 
-[Use: Capable model — debate agent. Independent run; do not see the other judge's reasoning.]
+[Use: Frontier — debate agent. Independent run; do not see the other judge's reasoning.
+Degrades per the resolver's preconditions (contract § Model Selection). One of this
+plugin's contract-enumerated verdict-gate slots — the fixed 2-agent shape is exempted
+from the general singleton-only rule; see `_shared/subagent-output-contract.md`.]
 ```
 
 ### Decision-log entry format
