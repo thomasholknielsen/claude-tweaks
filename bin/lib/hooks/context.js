@@ -121,6 +121,24 @@ function resolveRunDir(cwd, env, sessionId) {
   return resolveRun(cwd, env, sessionId).dir;
 }
 
+// Reverse lookup: which non-terminal run holds this worktree path as its
+// recorded assignment? Canonicalizes both sides via realpath where the paths
+// exist (recorded assignments are already absolute; the caller resolves a
+// relative teardown target against the Bash call's cwd BEFORE calling this).
+// First match wins (newest-first, same ordering as resolveRun's scan).
+function findRunByWorktreePath(cwd, targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath) return null;
+  let target = targetPath;
+  try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
+  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+    if (!state || typeof state.worktree !== 'string' || !state.worktree) continue;
+    let recorded = state.worktree;
+    try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
+    if (recorded === target || state.worktree === targetPath) return { runDir: dir, state };
+  }
+  return null;
+}
+
 // True synchronous sleep (no CPU-spinning) for writeRunState's lock retry
 // below — Node has no sync sleep primitive without a native/external dep,
 // but blocking on a zero-length SharedArrayBuffer via Atomics.wait achieves
@@ -233,5 +251,5 @@ function appendEvent(runDir, type, data, attribution) {
 
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent,
+  readRunState, writeRunState, appendEvent, findRunByWorktreePath,
 };
