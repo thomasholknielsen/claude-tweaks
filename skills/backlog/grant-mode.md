@@ -21,10 +21,14 @@ per-record — every candidate would fail it identically, so check it once, befo
 single `gh` call on candidate enumeration:
 
 ```bash
-POLICY_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled)
+POLICY_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled risk-floor size-floor)
 CEILING=$(printf '%s\n' "$POLICY_VALUES" | sed -n '1p')   # line 1: autonomy
 OPT_IN=$(printf '%s\n' "$POLICY_VALUES" | sed -n '2p')    # line 2: grant-origination-enabled
+RISK_FLOOR=$(printf '%s\n' "$POLICY_VALUES" | sed -n '3p')   # line 3: risk-floor
+SIZE_FLOOR=$(printf '%s\n' "$POLICY_VALUES" | sed -n '4p')   # line 4: size-floor
 ```
+
+`RISK_FLOOR`/`SIZE_FLOOR` are whole-run values, resolved once here — like `CEILING`/`OPT_IN`, they feed both Phase A's and Phase C's `policy` object below (gate 5's oversight floor is not per-record configuration).
 
 Substitute the literal values — do not `export` in an earlier Bash call and read `process.env`
 later (shell state doesn't survive between calls or reach a subagent; same hazard
@@ -99,7 +103,7 @@ pure module cannot make itself):
 node -e "
   const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
   const candidates = require('/tmp/backlog-grant-candidates.json');
-  const policy = { ceiling: '$CEILING', grantOriginationEnabled: $([ \"$OPT_IN\" = 'true' ] && echo true || echo false) };
+  const policy = { ceiling: '$CEILING', grantOriginationEnabled: $([ \"$OPT_IN\" = 'true' ] && echo true || echo false), riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR' };
   // trustVerdicts: built the same way refine-mode.md's Trust Signal section builds its 'rows'
   // Map — trustRows() + resolveProvenance()/riskBand() over the fetched + git-log evidence, per
   // _shared/trust-table.md's Fetch section. Omitted here for brevity; reuse that section's script
@@ -148,7 +152,7 @@ node -e "
   const sensitivePaths = /* MERGE_SENSITIVE_PATHS from the resolver call above, split on ',' */;
   const result = evaluateGrantGate({
     record: { number, labels, body, facets, keyFiles },
-    policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap, grantsIssuedToday },
+    policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap, grantsIssuedToday, riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR' },
     trustVerdicts,
     grantCheck: { clear, rationale },
   });
