@@ -1,7 +1,8 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + skill-invocation ledger (log tier, see ./skill-invocation.js).
 'use strict';
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
+const skillInvocation = require('./skill-invocation');
 // These three call sites are informational (commit breadcrumbs, plugin-version
 // detection), not policy decisions — every failure kind resolves to "skip this
 // check" identically, so they read `.stdout` and ignore `.failure`. The
@@ -413,6 +414,8 @@ function checkWorktreeStaleness(ctx) {
 }
 
 function run(ctx) {
+  if (ctx.input.tool_name === 'Skill') return skillInvocation.run(ctx);
+
   const command = ctx.input.tool_name === 'Bash' ? (ctx.input.tool_input && ctx.input.tool_input.command) : null;
   const hasCommand = typeof command === 'string' && !!command;
   // Computed once and shared below — the breadcrumb loop and the
