@@ -92,7 +92,7 @@ Unlike conversation context, the ledger survives context window compression — 
 
 ## Pipeline Run Directory (v4.6+, auto/hybrid mode)
 
-In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`:
+In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` — `$RUN_ROOT` the main checkout root, never wherever the invocation happens to run from (`_shared/pipeline-run-dir.md`'s Anchoring section):
 
 | File | Written by | Read by |
 |---|---|---|

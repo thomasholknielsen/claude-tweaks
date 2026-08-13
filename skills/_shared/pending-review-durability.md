@@ -93,7 +93,7 @@ It also opens no auto-merge path: this is an ordinary, human-reviewed, human-mer
 having no merge path) as related — different skill, different provenance, and these PRs are
 deliberately meant to stay human-merged.
 
-## Step 1: Read the three values, from inside the worktree
+## Step 1: Read the values, from inside the worktree
 
 **Shell state does not survive between Bash calls** — each invocation gets a fresh shell, so a
 variable assigned in one is empty in the next. Read these first and substitute them **literally**
@@ -106,6 +106,16 @@ git branch --show-current                           # -> {branch}
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch
 git remote show origin | sed -n '/HEAD branch/s/.*: //p'   # only when the line above came back empty
 ```
+
+Two more values feed the resume command in Step 4's `### Branch` template below — both already
+resolved elsewhere in this run, never re-derived:
+
+- **`{RUN_ID}`** is `$CLAIM_RUN_ID`, already set and non-empty per the Scope guard's condition 1
+  above (the only way this procedure runs at all).
+- **`{target}`** is the same record list `{n}` in Step 4 already resolves — a single-record run's
+  `#{n}` from the materialized header's `record:` field, or a bundle's comma-joined `#{id}` list
+  from the parent `manifest.yml`'s `specs[].id` enumeration (Step 4's own bundle note). Reuse that
+  resolution; don't re-enumerate it separately for the resume command.
 
 The last two together resolve `{integration-branch}` — take the resolver's output when non-empty,
 otherwise the `git remote show origin` fallback. That is this family's rank-3-then-rank-6 behavior
@@ -176,6 +186,16 @@ review surface, not a sign-off. Append this section to the composed body:
 `{branch}` — pushed to origin and opened as a draft against `{integration-branch}` by
 `/claude-tweaks:dispatch` so this work outlives the session that built it. Acceptance is still
 resolved on the record with `/claude-tweaks:demo`, never here.
+
+To finish this branch (merge / keep-as-is / discard) and release its claim + grant labels as one
+step, resume this run's own Review Console rather than merging by hand — from inside the worktree
+this run is still assigned to (`{worktree-path}`):
+
+`PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "{target}" wrap-up`
+
+This re-adopts the same run directory and re-renders the console live; its own teardown invokes
+`/superpowers:finishing-a-development-branch` and the claim/label cleanup together. A manual
+`gh pr merge` skips both.
 ```
 
 Write it to `/tmp/pending-review-pr-body-{n}.md`, then:
@@ -233,13 +253,18 @@ drift between and still would not reach those specs' briefs, for the ordering re
 `Title:`/`Type:`/`Labels:` header as a queue write (`Q#`) needing its own per-item approval; a
 status note is neither a proposal nor a work record.
 
-The file is exactly these three lines, with no heading:
+The file is exactly these four lines, with no heading:
 
 ```
 push: ok | failed — {reason}
 pr: {url} | existing {url} | failed — {reason} | skipped — {reason}
 branch: {branch} -> {integration-branch}
+resume: PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "{target}" wrap-up
 ```
+
+The `resume:` line is the literal command that re-adopts this run and re-renders its Review
+Console — see `dispatch/SKILL.md`'s Reporting section. It's written here, not just in the PR body,
+so a human or agent inspecting the run directory directly (no GitHub round trip) still finds it.
 
 ### Who reads it — and it is a different reader on each path
 
@@ -266,7 +291,7 @@ carry the outcome on this path instead:
   that console's claim release uses), before rendering the console:
 
   ```bash
-  gh issue comment {m} --body "Branch durability: {the push:/pr:/branch: lines above, verbatim}"
+  gh issue comment {m} --body "Branch durability: {the push:/pr:/branch:/resume: lines above, verbatim}"
   ```
 
   This is what keeps a failure on this path out of a log nobody opens. It fires only on a failure

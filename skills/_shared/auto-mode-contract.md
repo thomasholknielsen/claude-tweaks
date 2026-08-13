@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance — `flow/manifesto.md`'s canonical lever numbering) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance — `flow/manifesto.md`'s canonical lever numbering) and saves them to `config.yml` inside the run directory at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` (`$RUN_ROOT` per `_shared/pipeline-run-dir.md`'s Anchoring section — the run directory is never relative to the current directory).
 - **Begin stop is opt-in under `auto`.** `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** (display levers + sources, then proceed) — so the everyday auto pipeline has effectively **one** user-facing stop: the end-of-run Review Console. Pass `confirm` (or use `hybrid`) to turn the begin stop into a real approval gate. The "at most two stops" promise is a ceiling, not a floor.
 - **One message, not many.** When the begin stop *is* a gate (`confirm` / `hybrid`), it is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
@@ -50,7 +50,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 When multiple sources can dictate a choice, highest wins. Conceptually, four levels:
 
 1. **Explicit CLI arg** — `/flow 42 auto no-polish` always wins for that invocation
-2. **Pipeline config** — answers from the Config Manifesto (`config.yml` in the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`)
+2. **Pipeline config** — answers from the Config Manifesto (`config.yml` in the run directory at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`)
 3. **Project policy** — defaults in `.claude-tweaks/policy.yml` (e.g., `scope-creep: add-to-plan`)
 4. **Skill default** — the skill's fallback behavior when nothing above is set
 
@@ -69,7 +69,7 @@ When in doubt: ask once at the Config Manifesto, then never again for the rest o
 Each `/flow` **run** gets a unique, per-run directory at (one per run, not per invocation — an invocation handed an existing `PIPELINE_RUN_DIR` adopts that run instead of creating a second, per `flow/steps-and-gates.md`'s **Adopting an inherited run directory**):
 
 ```
-.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/
+$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/
 ├── config.yml         ← Pipeline Config Manifesto answers
 ├── decisions.md       ← Auto-decision log (see auto-decision-log.md)
 └── staged/            ← Patches and proposals awaiting Review Console
@@ -78,12 +78,20 @@ Each `/flow` **run** gets a unique, per-run directory at (one per run, not per i
     └── ...
 ```
 
+`$RUN_ROOT` is the main checkout root, resolved per `_shared/pipeline-run-dir.md`'s Anchoring
+section (`git rev-parse --git-common-dir`, then its parent) — **never the current directory**.
+This matters whenever the creating invocation runs from inside a linked worktree (e.g.
+`/claude-tweaks:dispatch` Step 5 enters a group's worktree before dispatching `/flow`): a
+relative path there would create the run directory inside that worktree, which a later worktree
+removal could then destroy with no git history to recover from. See `flow/manifesto.md`'s Path
+conventions for the operative creation-time instruction.
+
 Where `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesystems) and `spec-slug` is the spec number(s) or topic slug — e.g.:
 
 ```
-.claude-tweaks/pipelines/2026-05-15T143207-spec-42/
-.claude-tweaks/pipelines/2026-05-15T143207-spec-42-45-48/
-.claude-tweaks/pipelines/2026-05-15T143207-meal-planning/
+$RUN_ROOT/.claude-tweaks/pipelines/2026-05-15T143207-spec-42/
+$RUN_ROOT/.claude-tweaks/pipelines/2026-05-15T143207-spec-42-45-48/
+$RUN_ROOT/.claude-tweaks/pipelines/2026-05-15T143207-meal-planning/
 ```
 
 **Why unique:** multiple parallel agents (different worktrees, different terminals, even just same-second invocations on the same checkout) never collide. Each run's artifacts live together and clean up atomically.
