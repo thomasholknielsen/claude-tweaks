@@ -1,0 +1,33 @@
+---
+files:
+  - bin/lib/hooks/skill-invocation.js
+  - bin/lib/hooks/run-integrity.js
+  - bin/lib/hooks/pre-tool-use.js
+  - bin/lib/hooks/session-start.js
+  - bin/hooks.js
+---
+
+# Run-Integrity Lifecycle: Detect, Remediate, and Gate Bypassed Pipeline Closures
+
+**Persona:** claude-tweaks maintainer or Claude session working a repo where a prior pipeline run shipped its work without ever closing its bookkeeping (the #364 shape: PR merged, `run-state.json` stuck `active`), or about to tear down a worktree a live run still owns.
+**Goal:** The runtime itself surfaces shipped-but-unclosed runs at session start, names the remediation, and refuses a teardown that would destroy an open run's state — no manual `.claude-tweaks/pipelines/` spelunking.
+**Entry point:** Starting any session in the repo (detection), or attempting `ExitWorktree` / `git worktree remove` (gate), or running `close-run` (warn).
+**Success state:** A shipped-unclosed run is flagged with both remediations at SessionStart; a teardown of an assigned worktree is denied until `close-run` clears the assignment; a wrap-up-less close still succeeds but records `close-without-wrapup`.
+
+## Steps
+
+### 1. Work happens — the ledger writes itself
+- **Action:** Run any pipeline (`/claude-tweaks:flow`, `/claude-tweaks:build`): every model-initiated Skill-tool call is appended to the owned run's `events.jsonl` as `{"skill": ..., "ts": ..., "type": "skill_invoked"}` by the PostToolUse hook.
+- **Expect:** No visible output — log tier. Boundary (measured): user-typed slash commands and failed calls leave no event; subagent Skill calls do land, so a flow-driven wrap-up always registers.
+
+### 2. A bypassed closure is flagged — next SessionStart
+- **Action:** Start a session in a repo whose newest non-terminal run's branch has actually merged (ancestry or squash/rebase patch-equivalence) while its ledger holds skill activity but no wrap-up event.
+- **Expect:** The unfinished-runs block's line for that run reads "work appears shipped … no wrap-up recorded" and names both remediations: `/claude-tweaks:wrap-up`, or bookkeeping-only `node ".../bin/hooks.js" close-run --run "<dir>"`. A genuinely in-progress run's line is unchanged; every indeterminate answer (deleted branch, no worktree, pre-ledger run) stays quiet — fail-open by design.
+
+### 3. Teardown while the run is open — denied with the path out
+- **Action:** Attempt `ExitWorktree` (`action: "remove"`) or `git worktree remove <path>` targeting a worktree recorded by an `active`/`interrupted` run.
+- **Expect:** Deny naming the run dir and `cleanup-procedures.md` Section C. Non-destructive exits (`action: "keep"`), unassigned worktrees, and unparseable commands pass. A worktree owned by a *different* session's run allows with a warning and a `wd-foreign-teardown` event instead.
+
+### 4. Close, then tear down — the sanctioned exit
+- **Action:** Run `node ".../bin/hooks.js" close-run --run "<dir>"` (wrap-up's Section C step 3.6 does this for you), then retry the teardown.
+- **Expect:** The removal now passes. If the run's ledger never recorded a wrap-up invocation, close-run still closes but prints an informational warning (expected for hand-typed wrap-ups) and appends `close-without-wrapup` as the run's final event — the audit trail of how the run ended.
