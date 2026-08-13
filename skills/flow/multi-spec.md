@@ -91,8 +91,15 @@ If `auto` mode is set and conflicts are detected, the Manifesto still renders (a
 
 Multi-record runs use a parent run directory with per-spec subdirectories so the consolidated end-of-run Review Console can read every record's outputs. `{N}` in the subdirectory pattern `spec-{N}/` is the record id (`materialize.md`'s Multi-record layout).
 
+The parent directory is created under `$RUN_ROOT`, not the current directory — same anchoring
+requirement as the single-spec case (`manifesto.md`'s Path conventions, `_shared/pipeline-run-dir.md`'s
+Anchoring section). A bundle dispatched by `/claude-tweaks:dispatch` runs this creation step from
+inside that group's worktree, so skipping anchoring here would trap the whole run (parent dir, every
+`spec-{N}/` subdirectory, and their `decisions.md`/`staged/`) inside a worktree a later cleanup could
+destroy.
+
 ```
-.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
+$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── config.yml          ← Manifesto answers (one for the whole run)
 ├── manifest.yml        ← Multi-record metadata (record/spec IDs, order, statuses)
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)

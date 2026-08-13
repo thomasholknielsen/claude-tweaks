@@ -66,6 +66,32 @@ not get an `AskUserQuestion` drill. Items whose blocker reason returns `false` (
 outside the four categories) fall through to the unchanged per-item drill below — the floor check
 fails closed, exactly as if the capability were locked for that one item.
 
+**`ledgerRouteRemainder` (`unattended` only) — the items the floor check above leaves behind.**
+`ledgerNarrowing` (checked above) is `trusted`+; `ledgerRouteRemainder` is a stricter,
+`unattended`-only capability that widens the *same* routing one step further — see
+`_shared/autonomy-ceiling.md`. It is a separate mechanism from `queueWriteAutoFile` (which files
+the *record itself* once staged, not whether an item gets routed here at all) — do not treat one
+as an earlier unlock of the other. When `bookkeepingPermissions(ceiling).ledgerRouteRemainder ===
+true`, after the narrowing check above, run the same `clearsFloor(blockerReason)` test again
+against every item still `open` — items the narrowing step already routed are gone from this set
+by construction, so this never double-routes one. For every item where it returns `true`:
+auto-select `Route to a record → Keep (backlog)` — the same restricted disposition
+`ledgerNarrowing` uses and no other (`Fix anyway`, `Accept`, `Drop`, and `Defer → parked` are never
+auto-chosen at any tier — this capability only widens *routing*, per the family's Non-Goals), stage
+the record proposal exactly as Phase 3's `Keep` branch does, update status to `deferred` (note
+`→ backlog`), and log — one field set beyond `ledgerNarrowing`'s line, since the report (below, and
+`wrap-up/summary-template.md`'s "Routed to backlog" section) needs the new record's own ref and a
+short description to render a row from:
+
+```
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog as {ref} (blocker: {category}) — "{one-line description}". Reversibility: high.
+```
+
+At `supervised`/`trusted` (this capability locked), and for any item whose blocker reason still
+returns `false` even under this wider check, nothing changes here — the item falls through to the
+unchanged per-item drill below exactly as today. "Nothing stays unresolved" is true at `unattended`
+only; the fail-closed-to-asking rule stays correct wherever a human can actually answer.
+
 After Phase 1 (and, when the capability is unlocked, after the narrowing above), only items that qualify for
 neither — Phase 1's fix-now criteria nor the narrowing's floor check — remain `open`. Present the
 full table once, upfront — it is not re-rendered per item as the drill below proceeds:

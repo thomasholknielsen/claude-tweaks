@@ -19,6 +19,8 @@ const WRAP_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
 const MULTI_CONSOLE = read('skills', 'flow', 'multispec-review-console.md');
 const BRIEF = read('skills', 'wrap-up', 'verification-brief.md');
 const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
+const DISPATCH_SKILL = read('skills', 'dispatch', 'SKILL.md');
+const DURABILITY_CONSOLE = read('skills', 'flow', 'pending-review-durability-console.md');
 
 test('the scope guard gates on CLAIM_RUN_ID as the headless signal', () => {
   assert.match(
@@ -235,5 +237,69 @@ test('the procedure records the post-resume PR staleness as a residual, not a si
     DURABILITY,
     /Residual:\s+the\s+PR\s+can\s+go\s+stale/,
     'the wrap-up commit and the closing-keyword carrier commit both land after the console is answered and neither is pushed to this branch, so the draft PR shows the pre-console state',
+  );
+});
+
+// --- resume-command gap ------------------------------------------------------
+// A pending-review run parked nobody could resume without hand-reconstructing the mechanism
+// from scattered files: /demo doesn't merge (by design), and nothing stated the literal
+// PIPELINE_RUN_DIR/CLAIM_RUN_ID/target command that re-adopts the run and re-renders its
+// console. These pin that the resume command is now stated literally everywhere a human
+// might land: the outcome record, the PR body, the Verification Brief, the multi-spec
+// console, and dispatch's own Reporting section.
+
+test('the outcome record carries a literal resume: line', () => {
+  assert.match(
+    DURABILITY,
+    /^resume: PIPELINE_RUN_DIR="\{run-dir\}" CLAIM_RUN_ID="\{RUN_ID\}" \/claude-tweaks:flow "\{target\}" wrap-up$/m,
+    'a human or agent inspecting the run directory directly (no GitHub round trip) must find the exact command that re-adopts this run, not just the push/pr/branch facts',
+  );
+});
+
+test('the PR body template includes the resume command, not just the /demo pointer', () => {
+  assert.match(
+    DURABILITY,
+    /PIPELINE_RUN_DIR="\{run-dir\}" CLAIM_RUN_ID="\{RUN_ID\}" \/claude-tweaks:flow "\{target\}" wrap-up/,
+    "the PR body previously named /demo (acceptance only, never merges) as the only next step, which is exactly the trap that led to hand-reconstructing Section E's claim/label cleanup instead of resuming the console",
+  );
+});
+
+test('the bundle failure-path comment carries the resume line too', () => {
+  assert.match(
+    DURABILITY,
+    /push:\/pr:\/branch:\/resume:\s+lines/,
+    'the per-record failure comment quotes the outcome record verbatim; if it still names only three lines it silently drops the resume command on exactly the path most likely to need it',
+  );
+});
+
+test('the brief renders the resume command in its own Branch section', () => {
+  assert.match(
+    BRIEF,
+    /resume line from pending-review-durability\.md/,
+    'the single-record path posts this brief as the issue comment a human actually reads — the resume command has to reach that comment, not only the PR body',
+  );
+});
+
+test('the multi-spec console surfaces four lines, not three, including resume', () => {
+  assert.match(
+    DURABILITY_CONSOLE,
+    /four lines.*resume:/,
+    'the consolidated console is itself a place a human answers "kept as-is" and re-parks the run; it needs the resume line surfaced too, not just push/pr/branch',
+  );
+});
+
+test("dispatch's Reporting section states the literal resume command, not just \"resumes that session\"", () => {
+  assert.match(
+    DISPATCH_SKILL,
+    /PIPELINE_RUN_DIR="\{run-dir\}" CLAIM_RUN_ID="\{RUN_ID\}" \/claude-tweaks:flow "\{target\}" wrap-up/,
+    '"resumes that session" is not literal — the Task-tool subagent that hit the console has already exited by the time anyone reads the report, so the report has to state the actual re-adoption command',
+  );
+});
+
+test("dispatch's Reporting section warns against hand-chaining /demo + finishing-a-development-branch", () => {
+  assert.match(
+    DISPATCH_SKILL,
+    /never hand-chain `\/claude-tweaks:demo`/,
+    "/demo's own Anti-Patterns table already says it never merges; dispatch's report has to say what to do instead, not just what not to do, or an agent re-derives the same manual claim-release/label workaround",
   );
 });

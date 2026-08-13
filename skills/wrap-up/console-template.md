@@ -5,7 +5,7 @@ Referenced by `skills/wrap-up/review-console.md`'s "Present the console" section
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice. The sections that follow them — Queue writes, Memory updates, Upstream feedback — require approval outside that batch choice: one `AskUserQuestion` call per item for Queue writes/Memory updates, one or more chunked `multiSelect` calls for Upstream feedback (`_shared/upstream-feedback-batch.md`; see Hard requirements below for why).
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts. Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console.md`'s Hard requirements for why).
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -120,7 +120,7 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 | 18 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
 
-#### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+#### Queue writes (Approve all applies the default; Override drills each item)
 
 Render this section only when leftover routing or another step (e.g. `/reflect`'s
 tangential-idea routing) has proposed a new work record **and it wasn't already auto-filed by the
@@ -142,7 +142,7 @@ picked up without editing this file.
 | Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Phase 3 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
 | Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
-#### Memory updates — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
+#### Memory updates (Approve all applies the default; Override drills each item)
 
 Render this section only when the Memory curation row staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.
 
@@ -152,10 +152,13 @@ Render this section only when the Memory curation row staged a memory-file propo
 
 > A memory file is cross-project and always-loaded — a wrong one degrades every future session in every project.
 
-#### Upstream feedback — REQUIRES APPROVAL, BATCHED (not covered by "Approve all")
+#### Upstream feedback (Approve all declines by default; Override files per item)
 
 Render this section only when the Upstream feedback curation row staged one or more upstream
-defect/gap reports (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise. Approval runs
+defect/gap reports (`staged/wrap-up-upstream-*.md`); omit it entirely otherwise. Approve all
+resolves every row here to declined, same as `Q#`/`M#` resolve to their own default — nothing
+files without an explicit act (the `unattended`-only `consoleAutoResolve` path is the one
+exception; see `review-console.md`). Filing an item requires choosing Override, which runs
 through `_shared/upstream-feedback-batch.md`'s shared batch contract — one or more `multiSelect`
 `AskUserQuestion` calls, chunked per that file's own rule (unchecked by default; checking is the
 explicit approval) — instead of one call per item; see below for where this fires relative to the

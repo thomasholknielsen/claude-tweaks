@@ -1,10 +1,11 @@
 # Batched Item Drill — Chunking Contract
 
 A small, generic contract for reducing N per-item `AskUserQuestion` calls to `ceil(N/4)` calls,
-used by `ledger/resolve-gate.md`, `wrap-up/review-console.md` (`Q#`/`M#` sections), and
-`wrap-up/nothing-left-behind.md`'s ops-acknowledgment step. Deliberately generic: it defines the
-chunking/encoding/override mechanism only — no caller-specific outcome names, defaults, or
-disposition vocabulary live here.
+used by `ledger/resolve-gate.md`, `wrap-up/review-console.md` (the Override drill for its `Q#`/`M#`
+sections — Approve all resolves those sections to their own default directly, with no call into
+this contract at all; see that file's Hard requirements), and `wrap-up/nothing-left-behind.md`'s
+ops-acknowledgment step. Deliberately generic: it defines the chunking/encoding/override
+mechanism only — no caller-specific outcome names, defaults, or disposition vocabulary live here.
 
 Distinct from `skills/_shared/upstream-feedback-batch.md` (if present) — that contract, when it
 exists, carries upstream-feedback-specific rules (dedup-match rendering, decline-comment posting)
