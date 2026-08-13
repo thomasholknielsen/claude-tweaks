@@ -302,6 +302,23 @@ test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit
   assert.ok(matchers.includes('NotebookEdit'), 'expected a NotebookEdit matcher');
 });
 
+test('hooks.json registers a PreToolUse matcher for ExitWorktree (unfiltered, literal tool-name match)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const entry = config.hooks.PreToolUse.find((e) => e.matcher === 'ExitWorktree');
+  assert.ok(entry, 'expected a PreToolUse ExitWorktree matcher entry');
+  assert.strictEqual(entry.hooks.length, 1);
+  assert.strictEqual(entry.hooks[0].type, 'command');
+  assert.ok(!('if' in entry.hooks[0]), 'ExitWorktree matcher must be a literal tool-name match, not pattern-filtered');
+  assert.match(entry.hooks[0].command, /bin\/hooks\.js" pre-tool-use$/);
+});
+
+test("hooks.json's PreToolUse Bash `if` patterns include Bash(git worktree *)", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = config.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+  const ifs = bashEntry.hooks.map((h) => h.if);
+  assert.ok(ifs.includes('Bash(git worktree *)'), 'expected PreToolUse\'s Bash matcher to include an "if": "Bash(git worktree *)" entry');
+});
+
 test('hooks.json registers a PostToolUse matcher for Skill (unfiltered, literal tool-name match)', () => {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
   const skillEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Skill');

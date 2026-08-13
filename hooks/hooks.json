@@ -39,7 +39,8 @@
           { "type": "command", "if": "Bash(install *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(ln *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(truncate *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
-          { "type": "command", "if": "Bash(dd *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
+          { "type": "command", "if": "Bash(dd *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git worktree *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
         ]
       },
       {
@@ -56,6 +57,12 @@
       },
       {
         "matcher": "NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
+        ]
+      },
+      {
+        "matcher": "ExitWorktree",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
         ]
