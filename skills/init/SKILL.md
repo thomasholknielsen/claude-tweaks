@@ -276,13 +276,11 @@ For the full scoring rubric (with examples), the skill-category mapping referenc
 
 ## Phase 5: Generate / Update CLAUDE.md
 
-> **`[Use: Frontier]` singleton (record #221).** The synthesis step below — composing (Initial Mode) or patching (Update Mode) CLAUDE.md from Phase 2's reconnaissance — is dispatched as **one** Task agent, never run inline and never fanned out: the main thread assembles the artifact bundle (Phase 2's reconnaissance findings, Phase 2f's pain-point list, and — Update Mode only — the existing CLAUDE.md's current text) and dispatches a singleton with that bundle. Output template: Initial Mode returns the full composed CLAUDE.md body (per `claude-md-template.md`'s section structure); Update Mode returns one or more patches, each a `{section, before-excerpt, after-text, rationale}` block — the main thread applies each patch via Edit and commits, exactly as it already does for every other generated/patched file in this skill. Resolve the model via `node bin/resolve-profile.js frontier --unattended` in every headless context (a scheduled Routine's `/init` run); a plain interactive run omits `--unattended` and lets the resolver's own interactive-context precondition apply. No init-specific interactivity check is added — the resolver's existing gate is the single mechanism, here as everywhere else. Degrades to Capable per the resolver's own preconditions (cap exhausted, stance below `default`), logged in its `source`; this step never re-enumerates those preconditions. The dispatch structure — bundle assembly, singleton call, main-thread apply — never branches on which model the resolver returns; only the model differs. CLAUDE.md is a self-improvement surface in the same sense as `/wrap-up`'s curation — its output compounds across every future session in the project, which is what justifies Frontier's premium here.
-
 CLAUDE.md describes **how to work in this codebase** — the patterns to follow, the commands to run, the conventions to respect, and the mistakes to avoid. Every entry should help someone working in the codebase right now. Things that don't exist yet belong in the backlog, not here.
 
 **Initial Mode** generates CLAUDE.md from scratch with sections for Stack, Structure, Commands, Conventions, Philosophy, Testing, Environment, Git, and Don'ts. **Update Mode** produces targeted patches, not rewrites. The Philosophy section adapts to detected project maturity. The Don'ts section is the highest-ROI output — mine it from convention conflicts and observed anti-patterns (not from missing infrastructure).
 
-For the complete CLAUDE.md template, patch format, Philosophy generation guide, Don'ts mining guide, and principles, read `claude-md-template.md` in this skill's directory.
+For the complete CLAUDE.md template, patch format, Philosophy generation guide, Don'ts mining guide, principles, and the Frontier dispatch, read `claude-md-template.md` in this skill's directory.
 
 ### Pain Point Routing
 
