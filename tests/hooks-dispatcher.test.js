@@ -244,7 +244,8 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   runHook(['record-worktree', '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const own = runHook(['close-run'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   assert.strictEqual(own.code, 0);
-  assert.strictEqual(own.stdout, '');
+  assert.match(own.stdout, /no recorded wrap-up/,
+    'the fixture has no wrap-up event, so close-run\'s new warn-tier check (#373) fires');
 });
 
 test('close-run WITH an explicit --run still closes a run recorded by another session — the refusal only applies to the implicit fallback', () => {

@@ -103,6 +103,29 @@ function main(argv) {
       if (foreignOwner) {
         process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
       }
+      // Warn-tier check (#373): closing a run whose ledger never recorded a wrap-up
+      // invocation. Warn, never block — dispatch's close-before-merge is sanctioned,
+      // and a human-typed /claude-tweaks:wrap-up leaves no event at all (measured,
+      // #371 finding (e)), so absence is not proof the procedure was skipped.
+      let wrapupSeen = false;
+      try {
+        const rawEvents = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
+        for (const line of rawEvents.split('\n')) {
+          if (!line.trim()) continue;
+          try {
+            const ev = JSON.parse(line);
+            if (ev && ev.type === 'skill_invoked' && ev.skill === 'claude-tweaks:wrap-up') { wrapupSeen = true; break; }
+          } catch { /* skip garbage line */ }
+        }
+      } catch { /* no events.jsonl — treated the same as no wrap-up event */ }
+      if (!wrapupSeen) {
+        ctxLib.appendEvent(runDir, 'close-without-wrapup', {});
+        process.stdout.write(
+          `claude-tweaks: closing run ${path.basename(runDir)} with no recorded wrap-up invocation — ` +
+          'expected if wrap-up was run manually (typed slash commands leave no ledger event); ' +
+          'otherwise consider /claude-tweaks:wrap-up before closing. Event recorded: close-without-wrapup.\n',
+        );
+      }
       const result = ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
       if (!result) {
         process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);

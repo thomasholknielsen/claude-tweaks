@@ -307,3 +307,46 @@ test('GATE_COVERAGE.teardownGitCommands is branch-read by the Bash teardown pars
   assert.ok(src.includes('GATE_COVERAGE.teardownGitCommands'),
     'pre-tool-use.js must branch on GATE_COVERAGE.teardownGitCommands, not a hardcoded comparison');
 });
+
+// --- Task 4: AC6 — close-run warns when the ledger has no wrap-up invocation
+
+test('AC6: close-run with events.jsonl lacking a wrap-up event warns and appends close-without-wrapup as the last event', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const runDir = makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  fs.writeFileSync(path.join(runDir, 'events.jsonl'), JSON.stringify({ type: 'other', ts: '2026-08-01T09:00:00Z' }) + '\n');
+  const closed = runHook(['close-run', '--run', runDir], { cwd: root });
+  assert.strictEqual(closed.code, 0);
+  assert.strictEqual(readRunState(runDir).status, 'clean');
+  assert.match(closed.stdout, /no recorded wrap-up/);
+  const events = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  const last = JSON.parse(events[events.length - 1]);
+  assert.strictEqual(last.type, 'close-without-wrapup');
+});
+
+test('AC6: close-run with a recorded wrap-up skill_invoked event does not warn and does not append an event', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const runDir = makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const wrapupEvent = JSON.stringify({ skill: 'claude-tweaks:wrap-up', ts: '2026-08-01T09:00:00Z', type: 'skill_invoked' });
+  fs.writeFileSync(path.join(runDir, 'events.jsonl'), wrapupEvent + '\n');
+  const closed = runHook(['close-run', '--run', runDir], { cwd: root });
+  assert.strictEqual(closed.code, 0);
+  assert.strictEqual(readRunState(runDir).status, 'clean');
+  assert.doesNotMatch(closed.stdout, /no recorded wrap-up/);
+  const events = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  assert.strictEqual(events.length, 1, 'no new event should be appended when wrap-up was already recorded');
+});
+
+test('AC6: close-run with no events.jsonl at all still warns and creates the file with the single close-without-wrapup event', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const runDir = makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  assert.strictEqual(fs.existsSync(path.join(runDir, 'events.jsonl')), false, 'sanity check: no events.jsonl fixture');
+  const closed = runHook(['close-run', '--run', runDir], { cwd: root });
+  assert.strictEqual(closed.code, 0);
+  assert.match(closed.stdout, /no recorded wrap-up/);
+  const events = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(JSON.parse(events[0]).type, 'close-without-wrapup');
+});
