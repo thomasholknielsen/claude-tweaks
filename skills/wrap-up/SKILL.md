@@ -162,7 +162,7 @@ This table is the human-readable half of `bin/lib/wrap-up/registry.js`; `tests/w
 
 **Ordering is load-bearing** — see `curation-engine.md`'s invocation sequence for the rule and why.
 
-**CLAUDE.md & rules never auto-applies.** Its disposition is `stage-only` — every finding on that row stages for the Review Console regardless of confidence or reversibility, per the standing CLAUDE.md exception in `_shared/harness-health-analysis.md`. Decision records, Memory, and Upstream feedback are `stage` for the same reason at lower force: they propose, they never write.
+**CLAUDE.md & rules never auto-applies.** Its disposition is `stage-only` — every finding on that row stages for the Review Console regardless of confidence or reversibility, per the standing CLAUDE.md exception in `_shared/harness-health-analysis.md`. Decision records are `stage` for the same reason at lower force: they propose, the actual ADR write happens only at Phase 4 execution once approved (`adr-curation.md`: routed through the Review Console, never written silently, at any tier). Memory and Upstream feedback are also `stage`, but follow `_shared/auto-mode-contract.md`'s tiered stance rather than a flat never-write rule: the write is covered by the Review Console's batch "Approve all" at `supervised`/`trusted`, and auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended` — see `memory-curation.md` and `upstream-feedback.md` in this skill's directory.
 
 ### Run the engine
 

@@ -6,10 +6,10 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/grant-mode.md` (the machine-originated grant path —
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
-(Step 6.5's negative-evidence persist point — see Revocation below), and — for the three
-bookkeeping capabilities this file also documents — `ledger/resolve-gate.md` (Phase 2 narrowing),
-`wrap-up/review-console.md` (queue-write auto-file), and `wrap-up/nothing-left-behind.md` (ops-ack
-auto-acknowledge).
+(Step 6.5's negative-evidence persist point — see Revocation below), and — for the
+bookkeeping capabilities this file also documents — `ledger/resolve-gate.md` (Phase 2 narrowing,
+route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve), and
+`wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge).
 
 **Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
 is about the born-`ready` tier only — it is not a statement about everything the ceiling
@@ -84,11 +84,11 @@ their actual build history.
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
 | `trusted` | Three things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). |
-| `unattended` | Everything `trusted` allows, plus a third bookkeeping capability (`opsAckAutoAcknowledge`) and machine-originated `auto:build`. **The `auto:build` half is shut behind its own opt-in** — see below. |
+| `unattended` | Everything `trusted` allows, plus the `unattended`-only rows of the Bookkeeping capabilities table below (`opsAckAutoAcknowledge`, `consoleAutoResolve`, `ledgerRouteRemainder`) and machine-originated `auto:build`. **The `auto:build` half is shut behind its own opt-in** — see below. |
 
 ## Bookkeeping capabilities
 
-Three narrow, opt-in, logged, fully reversible bookkeeping behaviors, resolved by
+The narrow, opt-in, logged, fully reversible bookkeeping behaviors in the table below, resolved by
 `bin/lib/issues/autonomy.js`'s `bookkeepingPermissions(ceiling)`:
 
 | Capability | Unlocked at | What it does |
@@ -96,8 +96,10 @@ Three narrow, opt-in, logged, fully reversible bookkeeping behaviors, resolved b
 | `ledgerNarrowing` | `trusted`+ | `ledger/resolve-gate.md` Phase 2 skips the per-item drill for an item whose Phase 1 blocker reason clears the floor (below), auto-selecting `Route to a record -> Keep (backlog)` only. Never `Fix anyway`, `Accept`, `Drop`, or `Defer -> parked` from this drill specifically. |
 | `queueWriteAutoFile` | `trusted`+ | `wrap-up/review-console.md` creates a proposed record (from the above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead of waiting for a live per-item approval at the Review Console. |
 | `opsAckAutoAcknowledge` | `unattended` only | `wrap-up/nothing-left-behind.md`, wrap-up's Phase 3 ledger gate — auto-acknowledges every ops item instead of presenting the acknowledgment drill. Held to the higher tier deliberately: this is the one bookkeeping capability that skips acknowledging a post-merge infrastructure follow-up, not just a reversible ledger/queue item. |
+| `consoleAutoResolve` | `unattended` only | The Review Console resolves every section (batch table, `M#`, `Q#`, `U#`) per its own defaults with zero `AskUserQuestion` calls, rendering as an informational report instead of a prompt. |
+| `ledgerRouteRemainder` | `unattended` only | Extends `ledgerNarrowing` — a ledger item whose blocker reason misses the four-category floor also auto-routes to `Route to a record -> Keep (backlog)` (never `Fix anyway`/`Accept`/`Drop`). |
 
-None of the three touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
+None of the bookkeeping capabilities touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
 conditions, or merge-conflict resolution — those stay fully human-gated at every tier.
 
 ### Floor rule (ledger narrowing)
@@ -123,6 +125,18 @@ trigger to invent) from the ledger drill. Leftover routing is different: it foll
 disposition (`backlog` or `parked`) its own existing `leftover-default` auto-mode policy already
 decided — this capability only changes whether *creating* that record needs a click, never which
 disposition auto-mode policy already picked.
+
+### Review-severity-floor ceiling-conditional default
+
+At the `unattended` ceiling, `review-severity-floor`'s skill default is `medium` instead of the
+project-wide `low` (see `_shared/policy-schema.md`'s lever row). An explicit CLI arg, run config, or
+project-policy value still wins under the standard precedence chain (`_shared/auto-mode-contract.md`)
+— the ceiling only moves the *default*, it never overrides a stated choice.
+
+This paragraph documents an intended future behavior, not a code change landed by this sub-issue: no
+file this sub-issue touches reads the ceiling to compute this default. The actual read/default site
+is `skills/review/step3-routing.md` (not `skills/review/SKILL.md`, which never mentions this lever) —
+wiring the ceiling into that resolution is a later sub-issue's scope.
 
 ## Ceiling, not level
 
@@ -247,7 +261,7 @@ decision — silent automation without an audit trail is the one thing `auto` ne
 
 One consolidated `PushNotification` per run, sent at the same point the existing auto-merge fast
 lane sends its FYI (see `wrap-up/review-console.md`'s auto-merge short-circuit) — not one
-notification per item. Summarize every action the three bookkeeping capabilities resolved in the
+notification per item. Summarize every action the bookkeeping capabilities resolved in the
 run.
 
 ## Error handling (bookkeeping capabilities)

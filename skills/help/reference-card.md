@@ -163,9 +163,9 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 
 **Project policy defaults** (set in `.claude-tweaks/policy.yml`, not CLAUDE.md) pre-fill the Manifesto so the user can hit "Approve all" with zero overrides on a properly-configured project.
 
-**Doctrine preserved (still per-item user input, even in auto):**
-- Ledger resolve gate Phase 2 (open items)
-- Work-record creation (new backlog or parked records)
+**Doctrine preserved (see `_shared/auto-mode-contract.md` for exact handling):**
+- Ledger resolve gate Phase 2 (open items) — still per-item user input, even in auto
+- Work-record creation (new backlog or parked records) — tiered: folded into the Review Console's batch "Approve all" at `supervised`/`trusted`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended`
 - `/init` Phase 4 / 9 governance gates (per `init/SKILL.md`'s own auto-mode text: Phase 4 skill-manifest selection and Phase 9 final confirmation are never silenceable; all other phases run without pausing)
 - All HARD-GATE / BLOCKED / STOP conditions
 

@@ -21,19 +21,21 @@ exactly what would be written. A proposal missing the index line is incomplete: 
 no index entry is never loaded, so staging one without the other stages something that would not
 work.
 
-Memory writes are never auto-resolved regardless of mode. `_shared/auto-mode-card.md` lists
-them among what `auto` does not silence — a memory file is cross-project and always-loaded, so a
-wrong one silently degrades every future session in every project the user works in, the largest
-blast radius of any routing destination. It is **not** exempt under any `autonomy` tier.
+Memory writes follow the tiered stance in `_shared/auto-mode-card.md` / `_shared/auto-mode-contract.md` — a
+memory file is cross-project and always-loaded, so a wrong one silently degrades every future
+session in every project the user works in, the largest blast radius of any routing destination.
+At `supervised`/`trusted`, this row (`M#`) is covered by the Review Console's batch "Approve all".
+At `unattended`, it auto-resolves with zero `AskUserQuestion` calls under `consoleAutoResolve`.
+Per-item chunking (inspect each proposed file before approving) survives only inside the Override drill.
 
-**This is a per-item gate, not folded into any other approval.** Reflect's insights batch table
+**A different table's approval never satisfies this gate.** Reflect's insights batch table
 (`reflect/full-mode.md`) resolving an insight to D4 — even under "Apply all" — approves *routing*
 it here, not writing it. The Skill Updates batch, the cleanup+configuration batch, and any other
-`AskUserQuestion` in this run are likewise not this gate. The memory file is written only after its
-own dedicated `M#` `AskUserQuestion` (at the Review Console) resolves to Apply or
-Edit. Writing a memory file in the same turn as a different table's approval, with no intervening
-`M#` prompt naming that specific file, is the exact contract violation this section exists to
-prevent.
+`AskUserQuestion` in this run are likewise not this gate. The memory file is written only after this row's own batch decision (or auto-resolution) —
+at `supervised`/`trusted`, the console's "Approve all" (or its own dedicated `M#` `AskUserQuestion`
+at Override); at `unattended`, `consoleAutoResolve`. Writing a memory file before that batch
+decision (or auto-resolution), or in response to a different table's approval, is the exact
+contract violation this section exists to prevent.
 
 ## Step 2: No memory directory available
 

@@ -135,9 +135,11 @@ Link related memories with [[their-name]].>
 The line must stay within **150 characters** — the budget
 `_shared/harness-health-memory-checks.md` already enforces when auditing.
 
-**Never auto.** A memory write is cross-project and always-loaded; a wrong one
-silently degrades every future session in every project. Stage it and surface it
-for explicit approval. See `_shared/auto-mode-card.md`.
+**Staged, never applied outside its own approval.** A memory write is
+cross-project and always-loaded; a wrong one silently degrades every future
+session in every project. At `supervised`/`trusted`, it's covered by the
+Review Console's batch "Approve all". At `unattended`, it auto-resolves under
+`consoleAutoResolve`. See `_shared/auto-mode-card.md`.
 
 ## Subject check (health sweeps)
 
