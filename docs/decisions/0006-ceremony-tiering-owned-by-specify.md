@@ -6,6 +6,8 @@
 
 **Note (2026-08-08):** the `effort:*` facet referenced below was renamed to `size:*` in spec #217 — this document's body is left as originally written to preserve the historical record.
 
+**Note (2026-08-13):** `/review-backlog`, named below as the consumer of the ceremony tier, was retired and merged into `/claude-tweaks:backlog` in v6.18.0 (2026-07-26) — the equivalent is now `/backlog`'s risk-value-lens `Tier` column, not a `Suggested tier` column. This document's body is left as originally written to preserve the historical record.
+
 ## Context
 
 The `ceremony-profile: fast-lane | standard` mechanism (2026-07-15) let small/clean records skip proportionate ceremony, but only in `/flow`'s materialize step and only for Build/Wrap-up — the underlying `ceremony-check` computation lived in `/flow` at build time, ran once per build, and the header field was omitted whenever the verdict was `standard` (mirroring `risk:*`/`effort:*`'s omit-when-unscored convention). A user encountering this friction via `/review-backlog` asked for "a full sweep of the process in terms of how minor changes are handled" — not a narrow extension of the existing mechanism. That meant `/specify`'s own Step 5 red-team breadth and `/review`'s fixed-cost steps also needed to scale with tier, which build-time computation in `/flow` couldn't reach without redoing the judgment per consumer.
