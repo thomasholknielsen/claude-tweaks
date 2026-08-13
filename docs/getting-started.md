@@ -93,7 +93,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
-**`/claude-tweaks:research`** — Deep web research with citation-audited reports. Four runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; falls back to a lean inline method otherwise. Reports land under `.claude-tweaks/research/`.
+**`/claude-tweaks:research`** — Deep web research with citation-audited reports. Four runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; falls back to a lean inline method otherwise. Reports land under `.claude-tweaks/research/`. Its `verify [brief-path|#N]` mode is the exception to "no fixed lifecycle position" — it grounds a design's assumptions against this repo, its dependencies, and the web, run before `/superpowers:brainstorming` (human-invoked, not reachable from `/flow`).
 
 **`/claude-tweaks:ledger`** — Query and resolve the open items ledger (`docs/plans/*-ledger.md`) that tracks findings across all pipeline phases. The ledger is a file on disk — it survives context window compression so findings from one phase aren't lost before a later phase can act on them.
 

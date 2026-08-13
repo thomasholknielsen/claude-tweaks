@@ -75,7 +75,7 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 8. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:backlog refine` to review and grant `auto:build`
 9. **Authorized records** (Stage 1) — recommend `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct) for the highest-priority one with met prerequisites
 10. **Backlog review** — if the backlog is stale or has 10+ records, suggest `/claude-tweaks:tidy` before new brainstorming
-11. **Brainstorming** — if the pipeline is empty, suggest `/superpowers:brainstorming` from a backlog record. Offer `/claude-tweaks:research` alongside when the record names an external library, protocol, vendor, or standard — prior art is cheapest to gather before the design exists, and this branch is the only point where `/help` already knows the pipeline is empty
+11. **Brainstorming** — if the pipeline is empty, suggest `/superpowers:brainstorming` from a backlog record. Offer `/claude-tweaks:research verify` alongside when the record's own approach rests on assumptions worth grounding first (an external library, protocol, vendor, or standard) — `verify` mode's own documented lifecycle position is exactly here, before brainstorming, and this branch is the only point where `/help` already knows the pipeline is empty
 12. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking

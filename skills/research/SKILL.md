@@ -14,11 +14,15 @@ otherwise it runs a lean inline method (`reference/methodology.md`). Either path
 report under `.claude-tweaks/research/`.
 
 ```
-                             [ /claude-tweaks:research ] ← utility (no fixed lifecycle position)
+   [ /claude-tweaks:research verify ] → /superpowers:brainstorming → /claude-tweaks:specify
+                    ↑
+   Human-invoked, before a design is written — see `verify-mode.md`'s Lifecycle position.
+
+                             [ /claude-tweaks:research <topic> ] ← utility (no fixed lifecycle position)
                                         ↑
-   Referenced by (advisory cross-reference, recorded in `docs/skill-graph.md` —
-   none of these invoke /research from a numbered Workflow step; a human or the
-   caller's own judgment decides to run it): /claude-tweaks:capture,
+   Referenced by (advisory cross-reference, recorded in `docs/skill-graph.md` — bare-topic
+   /research is never invoked from a numbered Workflow step of any of these; a human
+   or the caller's own judgment decides to run it): /claude-tweaks:capture,
    /claude-tweaks:specify, ad-hoc research tasks
 ```
 
