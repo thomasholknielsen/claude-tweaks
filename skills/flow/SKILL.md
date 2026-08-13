@@ -313,7 +313,7 @@ Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as pa
 | Using `batched` execution in flow | Batched pauses for human review, contradicting flow's hands-off design — use `/claude-tweaks:build batched` |
 | Ignoring open ledger items at pipeline end | The nothing-left-behind gate requires every item explicitly resolved |
 | Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate's Phase 2 is on `_shared/auto-mode-contract.md`'s "does NOT silence" list — every item needs explicit per-item user input |
-| Creating a work record from inside flow without explicit per-item user approval | Both `backlog` and `parked` are valid, so each record needs the user's choice on that specific item — pipeline phases never file autonomously |
+| Creating a work record bypassing the Review Console's gate | Follows `_shared/auto-mode-contract.md`'s tiered stance (Approve-all / `consoleAutoResolve`) — pipeline phases never file directly outside it |
 | Skipping test in the pipeline | Review depends on `TEST_PASSED` — skipping it reviews potentially broken code |
 | Retrying polish after re-verify failure within the same flow run | The one-cycle cap prevents oscillation — surface the failure and require a fresh `/flow {spec} polish` to retry |
 | Treating polish skip as a flow failure | Skips are normal (non-frontend spec, no Impeccable, `no-polish` flag, no audit findings + no refinement-set changes); the pipeline continues to wrap-up |
