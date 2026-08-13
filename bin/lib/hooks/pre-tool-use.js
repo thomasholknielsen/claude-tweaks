@@ -144,7 +144,12 @@ function teardownTargets(ctx) {
     // Only `-C <dir>` before the subcommand is honored — matching gitTargets'
     // own narrow -C handling above, not the full global-flag surface.
     if (toks[i] === '-C' && typeof toks[i + 1] === 'string') { effCwd = path.resolve(effCwd, toks[i + 1]); i += 2; }
-    if (toks[i] !== 'worktree' || toks[i + 1] !== 'remove') continue;
+    // Derived from GATE_COVERAGE.teardownGitCommands rather than a hardcoded
+    // comparison, so the constant stays load-bearing (see tools/gitActions
+    // above) instead of a parallel hand-kept list nothing reads (#hooks-gate-coverage).
+    if (typeof toks[i] !== 'string' || typeof toks[i + 1] !== 'string') continue;
+    const sub = `${toks[i]} ${toks[i + 1]}`;
+    if (!GATE_COVERAGE.teardownGitCommands.includes(sub)) continue;
     const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f');
     if (rest.length !== 1 || rest[0].startsWith('-')) continue; // unconfident -> allow
     out.push(path.resolve(effCwd, rest[0]));
