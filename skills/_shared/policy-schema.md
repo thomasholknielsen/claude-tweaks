@@ -77,6 +77,17 @@ Do not write a procedure that depends on either gap: they are unpatched holes, n
 
 **Consequence for procedures.** A `git push` from the main checkout is denied even after `close-run` clears the E1 worktree assignment (that clears wrong-checkout enforcement, not this policy). A merge followed by a push must therefore be **two separate Bash calls** — the merge from the main checkout, the push from inside a linked worktree. Chaining them into one command gets the whole invocation denied before either half runs, since the gate inspects the full command string up front.
 
+### Teardown gate coverage — canonical
+
+**This block is the single statement of what the teardown gate intercepts** (`bin/lib/hooks/pre-tool-use.js`'s `GATE_COVERAGE.teardownTools`/`teardownGitCommands` are its machine counterpart; `tests/hooks-gate-coverage.test.js` pins the two). The gate denies teardown of a worktree recorded as a **non-terminal** (`active`/`interrupted`) pipeline run's assignment — `close-run` is the sanctioned exit, and clearing the assignment lifts the gate. It is run-*targeted* rather than run-independent: it fires only when a recorded assignment matches the teardown target, and every ambiguity (unresolvable target, no match, recorded path gone, corrupt run-state, unconfidently-parsed command) resolves to allow. Foreign-owned runs get a warn instead of a deny, with a `wd-foreign-teardown` event on the target run. The companion warn tier lives in `close-run` itself: closing a run with no recorded wrap-up invocation appends `close-without-wrapup` and prints a warning — never a block, because dispatch's close-before-merge is sanctioned and human-typed wrap-ups leave no ledger event (measured, spec #371 finding (e)).
+
+<!-- teardown-gate-coverage:begin -->
+- Tools: `ExitWorktree`
+- Git commands: `worktree remove`
+<!-- teardown-gate-coverage:end -->
+
+`git worktree` subcommands other than `remove` (`list`, `add`, `prune`, `lock`, …) pass untouched. `git push`/merge are deliberately not gated (dispatch's auto-merge path), and SessionEnd is not hooked (it cannot deny) — that window belongs to the SessionStart run-integrity scan.
+
 ## Project facts
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |

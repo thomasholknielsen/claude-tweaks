@@ -23,6 +23,8 @@ const { WRITE_SHAPES, fileWriteTargets } = require('../bin/lib/hooks/git-command
 const SCHEMA = path.join(__dirname, '..', 'skills', '_shared', 'policy-schema.md');
 const BEGIN = '<!-- gate-coverage:begin -->';
 const END = '<!-- gate-coverage:end -->';
+const TEARDOWN_BEGIN = '<!-- teardown-gate-coverage:begin -->';
+const TEARDOWN_END = '<!-- teardown-gate-coverage:end -->';
 
 function coverageBlock() {
   const text = fs.readFileSync(SCHEMA, 'utf8');
@@ -31,6 +33,15 @@ function coverageBlock() {
   assert.ok(start !== -1 && end !== -1 && end > start,
     `policy-schema.md must contain a ${BEGIN} ... ${END} block — it is the canonical statement of gate coverage`);
   return text.slice(start + BEGIN.length, end);
+}
+
+function teardownCoverageBlock() {
+  const text = fs.readFileSync(SCHEMA, 'utf8');
+  const start = text.indexOf(TEARDOWN_BEGIN);
+  const end = text.indexOf(TEARDOWN_END);
+  assert.ok(start !== -1 && end !== -1 && end > start,
+    `policy-schema.md must contain a ${TEARDOWN_BEGIN} ... ${TEARDOWN_END} block — it is the canonical statement of teardown gate coverage`);
+  return text.slice(start + TEARDOWN_BEGIN.length, end);
 }
 
 // Backtick-quoted tokens on a line beginning with the given label.
@@ -109,6 +120,22 @@ test('every WRITE_SHAPES entry has a matching hooks.json if-matcher (#70)', () =
     assert.ok(matched.has(shape),
       `WRITE_SHAPES includes '${shape}' but hooks/hooks.json has no Bash(${shape} *) predicate — the hook never spawns, so the parser branch is dead code`);
   }
+});
+
+test('policy-schema.md\'s teardown coverage block lists exactly the tools the teardown gate checks', () => {
+  assert.deepStrictEqual(tokensFor(teardownCoverageBlock(), 'Tools'), [...GATE_COVERAGE.teardownTools],
+    'GATE_COVERAGE.teardownTools and the canonical prose have diverged — update the teardown coverage block in skills/_shared/policy-schema.md');
+});
+
+test('policy-schema.md\'s teardown coverage block lists exactly the git commands the teardown gate checks', () => {
+  assert.deepStrictEqual(tokensFor(teardownCoverageBlock(), 'Git commands'), [...GATE_COVERAGE.teardownGitCommands],
+    'GATE_COVERAGE.teardownGitCommands and the canonical prose have diverged — update the teardown coverage block in skills/_shared/policy-schema.md');
+});
+
+test('pre-tool-use.js branches on GATE_COVERAGE.teardownTools, not a duplicated literal', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
+  assert.ok(src.includes('GATE_COVERAGE.teardownTools'),
+    'pre-tool-use.js must branch on GATE_COVERAGE.teardownTools, not a hardcoded comparison');
 });
 
 test('an unlisted Bash write shape is genuinely not detected', () => {
