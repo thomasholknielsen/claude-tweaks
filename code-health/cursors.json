@@ -22,5 +22,9 @@
   ".github": {
     "lastSweptMs": 1786504225782,
     "lastHash": "220fb8f094ba0df32aff238b258b62a4ac4a58bd"
+  },
+  ".vscode": {
+    "lastSweptMs": 1786590613125,
+    "lastHash": "a0400cc4218ee18d29411d8d9ac79844db445353"
   }
 }
