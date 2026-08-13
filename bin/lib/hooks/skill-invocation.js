@@ -29,6 +29,14 @@
 //       extra agent_id/agent_type fields. Per the spec's Non-Goals, this
 //       module does not filter or special-case those — they are logged like
 //       any other skill_invoked event.
+//   (e) a user-typed slash command (e.g. "/claude-tweaks:version") runs by
+//       direct content expansion with NO Skill tool call at all — the
+//       PostToolUse Skill matcher captures nothing (verified with a
+//       matcher-less control capture showing only Read/ToolSearch tool use).
+//       Measured headless (`claude -p`) only; interactive CLI uses the same
+//       slash-expansion path but was not measured non-interactively. This
+//       ledger therefore records MODEL-INITIATED Skill tool calls only — a
+//       human typing a slash command leaves no event.
 'use strict';
 const ctxLib = require('./context');
 
@@ -41,7 +49,9 @@ function extractSkillName(toolInput) {
 // Defensive guard only — see the header comment's (c). Not known to ever
 // fire on the current harness (a failed call never reaches PostToolUse at
 // all), kept in case a future harness change starts delivering a failure
-// signal on this path instead of dropping the event entirely.
+// signal on this path instead of dropping the event entirely. Removal
+// condition: delete this guard if a future recapture still shows no
+// PostToolUse event for failed calls.
 function isFailedCall(toolResponse) {
   if (!toolResponse || typeof toolResponse !== 'object') return false;
   return toolResponse.success === false || toolResponse.is_error === true;

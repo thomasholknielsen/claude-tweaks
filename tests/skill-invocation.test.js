@@ -11,8 +11,11 @@ const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
 
 function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
   try {
+    // PIPELINE_RUN_DIR defaults to '' (unset) so an ambient value in the
+    // invoking shell can't redirect fixture writes into a real run's
+    // events.jsonl — resolveRun checks this env var before the cwd scan.
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -138,6 +141,22 @@ test('real captured payload from Task 0 appends against an owned run', () => {
   // Scenario (a) raw JSON line from task0-findings.md, pasted verbatim, with
   // cwd/session_id overridden to point at the fixture project.
   const raw = JSON.parse('{"session_id":"35041dba-0268-4aa8-ad14-f2adde5770be","transcript_path":"/Users/thomasholknielsen/.claude-accounts/memenu/projects/-private-tmp-skill-capture-371/35041dba-0268-4aa8-ad14-f2adde5770be.jsonl","cwd":"/private/tmp/skill-capture-371","prompt_id":"c7a57d91-ee92-42f0-bde3-e221a478aec5","permission_mode":"bypassPermissions","effort":{"level":"high"},"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"claude-tweaks:version"},"tool_response":{"success":true,"commandName":"claude-tweaks:version"},"tool_use_id":"toolu_01VrDhrpt9vX3Fhi2Bs1RhdH","duration_ms":7}');
+  const { dir, run } = projectWithRun({ sessionId: 'owner' });
+  raw.cwd = dir;
+  raw.session_id = 'owner';
+  const r = runHook(['post-tool-use'], { input: JSON.stringify(raw), cwd: dir });
+  assert.strictEqual(r.code, 0);
+  const events = readEvents(run);
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'skill_invoked');
+  assert.strictEqual(events[0].skill, 'claude-tweaks:version');
+});
+
+test('subagent-attributed payload (agent_id/agent_type) is logged like any other — no filtering', () => {
+  // Scenario (d) raw JSON line from task0-findings.md, pasted verbatim, with
+  // cwd/session_id overridden to point at the fixture project. Carries
+  // agent_id/agent_type — the spec's Non-Goals say these are NOT filtered.
+  const raw = JSON.parse('{"session_id":"906fa528-8660-4526-b111-ef0b9bd03aba","transcript_path":"/Users/thomasholknielsen/.claude-accounts/memenu/projects/-private-tmp-skill-capture-371/906fa528-8660-4526-b111-ef0b9bd03aba.jsonl","cwd":"/private/tmp/skill-capture-371","prompt_id":"3a93798f-4aab-4c26-8738-32f2e672166e","permission_mode":"bypassPermissions","agent_id":"aecdf2eb0cc2a129b","agent_type":"general-purpose","effort":{"level":"high"},"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"claude-tweaks:version"},"tool_response":{"success":true,"commandName":"claude-tweaks:version"},"tool_use_id":"toolu_014QfZJzHJejH5BhpsDKuT8R","duration_ms":10}');
   const { dir, run } = projectWithRun({ sessionId: 'owner' });
   raw.cwd = dir;
   raw.session_id = 'owner';
