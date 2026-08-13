@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-07-13
-- **Context:** GitHub issues #7, #8 — see `docs/superpowers/specs/2026-07-12-health-state-durable-storage-design.md` for the full design
+- **Context:** GitHub issues #7, #8 (the design doc originally cited here no longer exists in the repository)
 
 ## Context
 
