@@ -36,7 +36,18 @@ When `.claude-tweaks/policy.yml` sets `execution-strategy: subagent-only` (or `b
 
 ## Input
 
-`$ARGUMENTS` = record reference (`#N`), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), `auto`, and/or the standalone tokens `tier=<fast|standard|capable>` (Common Step 2 model-tier override) and `ops=confirm` (Step 2.5 auto-executable-command confirmation). All optional tokens are matched by keyword, not position — any order works (e.g. `/claude-tweaks:build #42 auto current-branch` and `/claude-tweaks:build #42 current-branch auto` are equivalent).
+`$ARGUMENTS` = record reference (`#N`), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), `auto`, and/or the standalone tokens `tier=<fast|standard|capable|frontier>` (Common Step 2 model-tier override) and `ops=confirm` (Step 2.5 auto-executable-command confirmation). All optional tokens are matched by keyword, not position — any order works (e.g. `/claude-tweaks:build #42 auto current-branch` and `/claude-tweaks:build #42 current-branch auto` are equivalent).
+
+### Model tier override (`tier=`)
+
+| Token | Effect |
+|---|---|
+| `tier=fast` / `tier=standard` / `tier=capable` | Overrides the `size:`-derived per-task implementer tier for this run only (see Common Step 2). |
+| `tier=frontier` | The human-typed hardest-build opt-in — reachable **only** via this literal typed token, never auto-selected. Full guard statement (canonical): `skills/build/SKILL.md` Common Step 2 — cited here, not restated. |
+
+**Two distinct bounds, not one.** `tier=frontier` requires the `subagent` execution strategy (SKILL.md's strategy-precondition step) — this is a *sequential-dispatch* requirement satisfying the Subagent Contract's no-parallel-fan-out rule for Frontier, and it bounds nothing about spend by itself. The actual **cost bound** is the separate `frontier-run-cap` policy key (`.claude-tweaks/policy.yml`, default `3` — `_shared/subagent-output-contract.md`'s Model Selection section), enforced per dispatch by `bin/resolve-profile.js`.
+
+**Mid-run degradation is normal, not an error.** A build can outlive its cap: with `frontier-run-cap: 3` and 6 tasks in the plan, tasks 1-3 dispatch at Frontier and tasks 4-6 resolve to Capable — each degradation is logged `AUTO` in the run's `decisions.md` via the resolver's `source`, and the build continues without stopping.
 
 ### Resolve the input
 

@@ -32,8 +32,34 @@ for (const skill of ['capture', 'challenge', 'specify', 'browse']) {
   });
 }
 
-// Task 9 will add this — expected to fail until then
 test('/help reference card lists /research', () => {
   const body = readSubfile('help', 'reference-card.md');
   assert.match(body, /research/, '/help reference-card.md must mention /research');
+});
+
+// record #179 — sweep cross-references for /research's new (verify-mode) lifecycle position.
+
+test('research/SKILL.md no longer claims no skill invokes it from a numbered Workflow step', () => {
+  const body = readSkill('research');
+  assert.doesNotMatch(
+    body,
+    /none of these invoke/i,
+    'research/SKILL.md must not restate the stale "none of these invoke" claim — verify mode is now positioned before /superpowers:brainstorming',
+  );
+});
+
+test('docs/skill-graph.md records the /research verify <-> /superpowers:brainstorming edge', () => {
+  const graph = readGraph();
+  assert.match(
+    graph,
+    /research verify.*brainstorming/is,
+    'docs/skill-graph.md must record verify mode\'s position before /superpowers:brainstorming',
+  );
+});
+
+test('skills/specify/ actually mentions /research (the specify<->research edge is wired, not aspirational)', () => {
+  const specifyDir = path.join(REPO_ROOT, 'skills', 'specify');
+  const files = fs.readdirSync(specifyDir).filter((f) => f.endsWith('.md'));
+  const hit = files.some((f) => /research/i.test(fs.readFileSync(path.join(specifyDir, f), 'utf8')));
+  assert.ok(hit, 'at least one file under skills/specify/ must mention /research — docs/skill-graph.md\'s specify<->research edge must be real, not aspirational');
 });

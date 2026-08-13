@@ -280,7 +280,7 @@ CLAUDE.md describes **how to work in this codebase** — the patterns to follow,
 
 **Initial Mode** generates CLAUDE.md from scratch with sections for Stack, Structure, Commands, Conventions, Philosophy, Testing, Environment, Git, and Don'ts. **Update Mode** produces targeted patches, not rewrites. The Philosophy section adapts to detected project maturity. The Don'ts section is the highest-ROI output — mine it from convention conflicts and observed anti-patterns (not from missing infrastructure).
 
-For the complete CLAUDE.md template, patch format, Philosophy generation guide, Don'ts mining guide, and principles, read `claude-md-template.md` in this skill's directory.
+For the complete CLAUDE.md template, patch format, Philosophy generation guide, Don'ts mining guide, principles, and the Frontier dispatch, read `claude-md-template.md` in this skill's directory.
 
 ### Pain Point Routing
 

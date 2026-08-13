@@ -60,7 +60,7 @@ Parent: {#N — decomposition-mode sub-issues under work-links: body-text only; 
 
 ## Technical Approach
 
-{Key architectural decisions absorbed from the design doc, specific to this work unit.}
+{Key architectural decisions absorbed from the design doc, specific to this work unit. When a `/claude-tweaks:research` report already exists for this topic — prior-art lookup, dependency behavior, or an existing convention elsewhere in the codebase — cite its finding directly here (or in Gotchas below) rather than re-deriving it; `docs/skill-graph.md`'s `## specify` section names this as the advisory research↔specify edge.}
 
 ### Data / API Surface
 

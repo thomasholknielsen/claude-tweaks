@@ -53,7 +53,9 @@ unchanged from before.
 
 ## Write-back procedure
 
-After all dispatched personas return, write findings back into the record body:
+**Synthesis path (record #220).** When this run is interactive and `node bin/resolve-profile.js frontier --run-dir "$PIPELINE_RUN_DIR"` (`_shared/subagent-output-contract.md`'s Model Selection dispatch procedure) returns `frontier`, dispatch the write-back below as **one** `[Use: Frontier]` singleton Task agent — the main thread hands it every persona's raw findings plus the current record body, and the agent returns the fully recomposed body (the same shape steps 1-3 below produce by hand). Any other resolution (non-interactive, stance below `default`, cap exhausted, or a plain non-interactive run with no run directory) means the resolver returns `capable` or degrades — **in that case the write-back stays exactly as documented below, run in the main thread, with no dispatch of any kind.** There is no Capable dispatch of this step; the degraded state is today's existing main-thread behavior, unchanged.
+
+After all dispatched personas return (and, when the synthesis path above did not trigger, in the main thread itself), write findings back into the record body:
 
 1. **Precise-location findings** (persona named a specific sentence, quoted text, or line range) → insert `<!-- ambiguity: {persona} — {finding text}{; suggested: {resolution}} -->` immediately after the flagged sentence. On the same line if short; on the next line if long.
 2. **General findings** (no precise location) → accumulate into an `## Open Questions` table appended to the record, with columns `Persona | Finding | Suggested Resolution`. When this batch is empty, omit the section entirely — do not emit an empty header.

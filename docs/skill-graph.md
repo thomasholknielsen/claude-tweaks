@@ -53,7 +53,7 @@ depends on them.
 |---|---|
 | `/help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
 | `/init` | Detects `agent-browser` availability during setup and records the requirement `/browse` depends on. |
-| `/research` | Both utility skills, no fixed lifecycle position. `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
+| `/research` | Both utility skills. `/browse` is interactive browser automation, no fixed lifecycle position; `/research`'s bare-topic mode is autonomous multi-source web research, also no fixed lifecycle position — its `verify` mode is the exception, positioned before `/superpowers:brainstorming` (see the `## research` section). |
 | `/test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in `/test` reports. |
 
 ## build
@@ -186,6 +186,7 @@ depends on them.
 | `/journey-health` | Same subject check — routes to `/feedback`. |
 | `/docs-health` | Same subject check — routes to `/feedback`. |
 | `_shared/learning-routing.md` | This skill is the contract's D5 writer — Steps 2-3 read the classifier directly to confirm a learning is D5 and to re-run it from rule 4 on self-reference collapse. |
+| `bin/resolve-profile.js` | Step 6's scrub judgment dispatches as one `[Use: Frontier]` singleton Task agent per invocation (the standalone-invocation cap — no `--run-dir`, since this skill is typically invoked with no pipeline run directory) — record #221. |
 
 ## flow
 
@@ -238,6 +239,7 @@ depends on them.
 | `/visual-review` | `/init` Phase 0 configures the browser backends visual review depends on and detects `agent-browser` availability during setup; Phase 8 delegates to `/visual-review discover` for brownfield journey bootstrapping. |
 | `/wrap-up` | `/wrap-up` captures learnings after features, keeping `/init`-generated skills alive and accurate. Its Skills curation row references `skill-template.md` from `/init`'s directory for Update Mode format and quality gates; its Docs curation row maintains the doc registry `/init` creates in Phase 8.5. |
 | `bin/lib/init/claude-md-conformance.js` | Phase 1u.5 (Contract Drift) calls this module's `checkConformance` to compare an existing project CLAUDE.md against `claude-md-template.md`, read live so a template change needs no edit in the skill. It returns `missing` / `drifted` / `conformant` over the plugin-authored sections only — a project's own Stack, Commands, and Don'ts are never reported. `## Philosophy` is present/absent-only and carries a `generate: 'maturity-classification'` marker instead of an expected body, since its template body is a placeholder and its generated content varies by maturity classification. Replaced the four hand-maintained contract-version marker greps. |
+| `bin/resolve-profile.js` | Phase 5's CLAUDE.md generation/patch synthesis dispatches as one `[Use: Frontier]` singleton Task agent, with `--unattended` in any headless (scheduled Routine) context — record #221. |
 
 ## journey-health
 
@@ -279,12 +281,14 @@ depends on them.
 | `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
 | `skills/_shared/causal-depth.md` | `full-mode.md`'s Near-misses lens walks this why-chain on every near-miss finding before Step 3 routing. `light-mode.md` deliberately does not inherit this — it only reuses full-mode's lens table row definitions, not the separate Chain Walk subsection added after the table; light mode intentionally trims ceremony for `fast-lane` wrap-ups. |
 | `_shared/learning-routing.md` | Routes every insight/finding through this contract's classifier instead of reflect's own destination table; hindsight mode additionally tags a D4/D5 ledger entry `[route: D4]`/`[route: D5]` for `/wrap-up`'s Skills curation row to pick up and hand on. |
+| `bin/resolve-profile.js` | Step 2's lens procedure dispatches as one `[Use: Frontier]` singleton Task agent when this run is standalone (component-invoked ⇒ no dispatch, per the Component-Skill Contract) — record #221. |
 
 ## research
 
 | Target | Relationship |
 |---|---|
-| `/help` | Utility skill — `/help` lists it in the utility skills table. `/research` has no fixed lifecycle position; `/help` may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
+| `/help` | Utility skill — `/help` lists it in the utility skills table. Bare-topic `/research <topic>` has no fixed lifecycle position; `/help` may surface it as an option when a backlog record or pending spec would benefit from prior-art research. `verify` mode is different — see the `/superpowers:brainstorming` row below. |
+| `/superpowers:brainstorming` | `/research verify [brief-path\|#N]` runs **before** `/superpowers:brainstorming`, grounding a design's assumptions against this repo, its dependencies, and the web before anything rests on them (`verify-mode.md`'s Lifecycle position: `[research verify] → brainstorming → specify`). Human-invoked, not reachable from `/flow` — `verify-mode.md`'s own "Not reachable from `/claude-tweaks:flow`" note. |
 | `_shared/subagent-output-contract.md` | `reference/methodology.md` Step 4 dispatches parallel claim-verification Task agents under this shared contract (status line, Template C, model tier) when running the inline fallback — a real dependency this skill relies on but doesn't author. |
 
 ## review
@@ -333,7 +337,7 @@ depends on them.
 | `/challenge` | Invokes `framing-check` inline (not a Task dispatch), once per record — Shaping mode's single record, decomposition mode's per sub-issue — immediately alongside the `ceremony-check` call, before the record's stage label is stamped. A `solution-baked` verdict stamps `framing:baked` and writes the surfaced assumptions into the record's own `## Gotchas`. Reciprocal of `/challenge`'s own `/specify` row, which carries the fuller mode/label contract. |
 | `/design-wrapper` | `/specify` invokes `/design-wrapper shape <topic>` (Step 2.5b) as a pre-decomposition step on frontend design docs, to enrich the doc with UX/UI planning. `/specify` asks the design-intent question and writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-sub-issue procedure, or Shaping mode's Metadata block for a single record) — never frontmatter, never labels; the wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish`'s intent-driven dispatch for `Design-intent:`, active in v4.5.0). When the shape brief is confirmed, `/specify` may also invoke `live` mode (Step 2.5b-ii) against a throwaway scaffold and write an accepted direction's path as a `Visual-reference:` body-metadata line. `Design-seed:` is the exception in that block — `spec-template.md` declares it so it is a recognized field, but `/specify` never writes a value, because the seed comes from a direction contract that does not exist until the build has run; the wrapper's `review` mode writes it post-build (see this file's `demo` section). The full pre-step procedure lives in `specify/design-pre-steps.md`. |
 | `/help` | Shows which sub-issue records from `/specify` are `ready` for `/build` — also uses Key Files for implicit dependency detection. |
-| `/research` | Prior-art lookup before authoring a record — `/research` reports can be cited directly in a sub-issue's `Technical Approach` or `Gotchas` section. |
+| `/research` | Two edges. **Advisory (bare-topic):** prior-art lookup before authoring a record — `spec-template.md`'s Technical Approach section prompts citing an existing `/research` report's finding directly in Technical Approach or Gotchas, rather than re-deriving it (wired — `grep -rn "research" skills/specify/` resolves here). **Positional (`verify` mode):** `/research verify` runs *before* `/superpowers:brainstorming`, not after `/specify` — grounding the design `/specify` will later decompose, not the record `/specify` shapes. See the `## research` section's `/superpowers:brainstorming` row for the full position. |
 | `/review` | Reads the `risk:*`/`size:*` labels this skill stamps (Shaping mode's "Stamp scoring and stage labels" step; decomposition mode's Step 3) to auto-derive its own `review-effort` tier (Step 2.5) — a read of the same labels via the same low-level helpers `assess-agent-autonomy`'s other modes already consume, not a skill-to-skill call. |
 | `/tidy` | Reviews backlog-stage records for staleness; its Promote action recommends `/specify #{n}` to shape a record into `ready`. Step 8's old backlog-entry deletion is retired — a captured record has no separate file to delete (Shaping mode edits it in place). |
 | `/superpowers:executing-plans` | Executes sub-issue records AFTER `/specify` — uses the plan from `/superpowers:writing-plans`, via `/build`'s batched execution strategy. |
@@ -421,6 +425,7 @@ depends on them.
 | `_shared/autonomy-ceiling.md` | Supplies the ceiling the Broken references curation row resolves. This is the ceiling's second authorized behavior and the only one that is **not** trust-gated — an unfiled repair has no provenance class, so `permittedGrants`'s floor cannot apply and the budget's own caps are the gate instead. |
 | `_shared/existing-convention-detection.md` | The Decision records curation row (`adr-curation.md`) resolves an ADR's path through this contract before proposing it, so a repo with its own decision-record convention gets one Review Console choice instead of a second grammar in `docs/decisions/`. The answer records in `doc-convention.adr`; Phase 4's execution step writes the resolved path, or executes an approved migration. Sole consumer today — the contract's genre table marks every other genre Phase 2 with no consumer. |
 | `_shared/scratch-worktree.md` | `residue-sweep.md`'s `remedy: auto` branch provisions a scratch worktree only when a fix needs a write the `worktree.always` gate would otherwise deny from the main checkout — one commit per remedy, returned and torn down per that procedure. |
+| `bin/resolve-profile.js` | Phase 2's curation-engine row-judgment dispatches as one `[Use: Frontier]` singleton Task agent when fewer than 3 rows are open (below the existing 3+-row Capable fan-out threshold, which stays untouched — Frontier is structurally forbidden in a parallel fan-out) — record #221, `curation-engine.md` section 4. |
 
 ## Provenance
 
