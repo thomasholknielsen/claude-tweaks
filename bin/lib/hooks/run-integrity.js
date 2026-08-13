@@ -61,18 +61,19 @@ function readValidatedRunState(runDir) {
 // appears in the porcelain list — git marks the stanza `prunable`, but
 // parseWorktreeList doesn't surface that marker — so liveness is confirmed
 // independently: a real linked worktree always has its own `.git` file.
+function realpathOrSelf(p) {
+  try { return fs.realpathSync(p); } catch { return p; } // keep recorded form
+}
+
 function deriveBranch(root, worktreePath) {
   if (!worktreePath) return null;
   const list = runGit(['worktree', 'list', '--porcelain'], root);
   if (list.failure || list.stdout === null) return null;
-  let target = worktreePath;
-  try { target = fs.realpathSync(worktreePath); } catch { /* keep recorded form */ }
-  let realRoot = root;
-  try { realRoot = fs.realpathSync(root); } catch { /* keep recorded form */ }
+  const target = realpathOrSelf(worktreePath);
+  const realRoot = realpathOrSelf(root);
   for (const entry of parseWorktreeList(list.stdout)) {
     if (entry.bare) continue;
-    let entryReal = entry.path;
-    try { entryReal = fs.realpathSync(entry.path); } catch { /* keep recorded form */ }
+    const entryReal = realpathOrSelf(entry.path);
     if (entryReal === realRoot) continue; // never the main checkout
     if (entry.path !== worktreePath && entryReal !== target) continue;
     if (!fs.existsSync(path.join(entry.path, '.git'))) return null; // dangling — prunable, not live
