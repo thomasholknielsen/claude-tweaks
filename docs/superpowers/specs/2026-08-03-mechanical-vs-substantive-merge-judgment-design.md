@@ -2,7 +2,7 @@
 
 **Record:** #78
 **Date:** 2026-08-03
-**Status:** design approved, plan pending
+**Status:** Resolved — `skills/assess-agent-autonomy/SKILL.md`'s grant-check Step 2 no longer carries the described self-contradiction (verified 2026-08-13: the qualified "substantially"-edited wording and the Anti-Patterns row now agree). No `/specify` needed.
 
 ## Problem
 
