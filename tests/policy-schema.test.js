@@ -35,8 +35,11 @@ test('POLICY_KEYS entries are unique', () => {
   // promise-register-min-leaves / section-confirmation retired outright —
   // five rows out, one (branch-divergence-check) in; RENAMED_KEYS carries
   // all five migrations.
-  assert.strictEqual(POLICY_KEYS.length, 41);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 41);
+  // 41 -> 43, #366 (oversight-floor predicate): risk-floor, size-floor — the
+  // shared floors grant-gate.js's gate 5 and /claude-tweaks:demo's binary gate
+  // both read via exceedsOversightFloor.
+  assert.strictEqual(POLICY_KEYS.length, 43);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 43);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

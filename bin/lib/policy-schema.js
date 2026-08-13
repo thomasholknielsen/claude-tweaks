@@ -58,6 +58,13 @@ const POLICY_KEYS = [
   // read by permittedGrants as grantOriginationEnabled. false by default: the
   // 'unattended' ceiling alone never authorizes a machine-originated grant.
   { key: 'grant-origination-enabled', type: 'boolean', default: false },
+  // Shared floors read by bin/lib/issues/oversight-floor.js's exceedsOversightFloor
+  // — the point past which a machine-originated grant (grant-gate.js gate 5) or a
+  // /claude-tweaks:demo binary-gate check is denied and a human review is
+  // required. 'always' is the reserved unconditional-deny opt-out value. Not
+  // prefixed 'demo-' or 'grant-': more than one consumer reads the same pair. #366.
+  { key: 'risk-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high' },
+  { key: 'size-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high' },
   // Positive integer counting machine grants issued today (audit-comment
   // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).

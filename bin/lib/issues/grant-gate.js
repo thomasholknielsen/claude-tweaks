@@ -23,6 +23,7 @@ const { resolveProvenance } = require('./provenance.js');
 const { riskBand } = require('./trust.js');
 const { permittedGrants } = require('./autonomy.js');
 const { isSensitivePath } = require('./blast-radius.js');
+const { exceedsOversightFloor } = require('./oversight-floor.js');
 
 function deny(failedKey, reason, snapshot) {
   return { grant: false, autoMerge: false, failedKey, reason, snapshot: snapshot || {} };
@@ -34,7 +35,9 @@ function deny(failedKey, reason, snapshot) {
 // policy: { ceiling, grantOriginationEnabled, dailyGrantCap? (positive integer;
 //   absent/undefined = uncapped, per '#269's Deliverables "optional-when-absent"
 //   contract), grantsIssuedToday? (count; ignored when dailyGrantCap is absent),
-//   sensitivePaths? (string[] globs — merge-sensitive-paths, [] default) }
+//   sensitivePaths? (string[] globs — merge-sensitive-paths, [] default),
+//   riskFloor?, sizeFloor? (resolved risk-floor/size-floor policy values, passed
+//   straight through to exceedsOversightFloor — undefined defaults to 'high') }
 // trustVerdicts: Map<classKey, row> — classKey is 'kind:source|band', row is one
 //   of trustRows()'s rows (bin/lib/issues/trust.js). Absent class = no cell yet,
 //   graded 'insufficient-evidence' the same way a missing row reads everywhere
@@ -96,16 +99,17 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   }
 
   // Gate 5: floors, fixed sub-order — merge-sensitive-paths (against the
-  // record's own Key Files list; grant time has no diff), risk:high, then the
-  // fleet daily grant cap.
+  // record's own Key Files list; grant time has no diff), the shared
+  // risk/size oversight floor, then the fleet daily grant cap.
   const keyFiles = Array.isArray(rec.keyFiles) ? rec.keyFiles : [];
   const sensitivePaths = Array.isArray(pol.sensitivePaths) ? pol.sensitivePaths : [];
   const sensitiveHit = keyFiles.find((f) => isSensitivePath(f, sensitivePaths));
   if (sensitiveHit) {
     return deny('merge-sensitive-paths', `Key Files entry "${sensitiveHit}" matches a configured merge-sensitive-paths glob`, { classKey, verdict });
   }
-  if (facets.risk === 'high') {
-    return deny('risk-high', 'record is risk:high — a human review is required', { classKey, verdict });
+  const floorResult = exceedsOversightFloor(facets, { riskFloor: pol.riskFloor, sizeFloor: pol.sizeFloor });
+  if (floorResult.exceeds) {
+    return deny('oversight-floor', `record exceeds the oversight floor (reason: ${floorResult.reason}) — a human review is required`, { classKey, verdict });
   }
   const hasCap = typeof pol.dailyGrantCap === 'number' && pol.dailyGrantCap > 0;
   if (hasCap) {
