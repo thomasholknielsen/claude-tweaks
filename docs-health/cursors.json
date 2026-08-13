@@ -16,5 +16,8 @@
   },
   "doc:decisions/0005-health-state-durable-storage-branch": {
     "lastAuditedMs": 1786515606990
+  },
+  "doc:decisions/0006-ceremony-tiering-owned-by-specify": {
+    "lastAuditedMs": 1786602046761
   }
 }
