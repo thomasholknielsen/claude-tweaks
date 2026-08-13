@@ -163,7 +163,7 @@ test('AC2 key 6: merge-sensitive-paths match on the record\'s Key Files refuses'
   assert.equal(result.failedKey, 'merge-sensitive-paths');
 });
 
-test('AC2 key 7: risk:high refuses', () => {
+test('AC2 key 7 / #366 AC11: risk:high refuses via the oversight floor', () => {
   const result = evaluateGrantGate({
     record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:high', 'size:low'] }),
     policy: basePolicy(),
@@ -171,7 +171,29 @@ test('AC2 key 7: risk:high refuses', () => {
     grantCheck: clearGrantCheck,
   });
   assert.equal(result.grant, false);
-  assert.equal(result.failedKey, 'risk-high');
+  assert.equal(result.failedKey, 'oversight-floor');
+});
+
+test('#366 AC12: risk:medium + size:high now refuses too (old check never read size)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:medium', 'size:high'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'oversight-floor');
+});
+
+test('#366: riskFloor/sizeFloor default to \'high\' when policy omits them (medium tier still grants)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:medium', 'size:medium'] }),
+    policy: basePolicy(), // no riskFloor/sizeFloor keys at all
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.failedKey, null);
 });
 
 test('AC2 key 8: fleet daily grant cap spent refuses', () => {
