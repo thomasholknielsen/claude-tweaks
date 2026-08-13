@@ -186,6 +186,7 @@ depends on them.
 | `/journey-health` | Same subject check — routes to `/feedback`. |
 | `/docs-health` | Same subject check — routes to `/feedback`. |
 | `_shared/learning-routing.md` | This skill is the contract's D5 writer — Steps 2-3 read the classifier directly to confirm a learning is D5 and to re-run it from rule 4 on self-reference collapse. |
+| `bin/resolve-profile.js` | Step 6's scrub judgment dispatches as one `[Use: Frontier]` singleton Task agent per invocation (the standalone-invocation cap — no `--run-dir`, since this skill is typically invoked with no pipeline run directory) — record #221. |
 
 ## flow
 
@@ -238,6 +239,7 @@ depends on them.
 | `/visual-review` | `/init` Phase 0 configures the browser backends visual review depends on and detects `agent-browser` availability during setup; Phase 8 delegates to `/visual-review discover` for brownfield journey bootstrapping. |
 | `/wrap-up` | `/wrap-up` captures learnings after features, keeping `/init`-generated skills alive and accurate. Its Skills curation row references `skill-template.md` from `/init`'s directory for Update Mode format and quality gates; its Docs curation row maintains the doc registry `/init` creates in Phase 8.5. |
 | `bin/lib/init/claude-md-conformance.js` | Phase 1u.5 (Contract Drift) calls this module's `checkConformance` to compare an existing project CLAUDE.md against `claude-md-template.md`, read live so a template change needs no edit in the skill. It returns `missing` / `drifted` / `conformant` over the plugin-authored sections only — a project's own Stack, Commands, and Don'ts are never reported. `## Philosophy` is present/absent-only and carries a `generate: 'maturity-classification'` marker instead of an expected body, since its template body is a placeholder and its generated content varies by maturity classification. Replaced the four hand-maintained contract-version marker greps. |
+| `bin/resolve-profile.js` | Phase 5's CLAUDE.md generation/patch synthesis dispatches as one `[Use: Frontier]` singleton Task agent, with `--unattended` in any headless (scheduled Routine) context — record #221. |
 
 ## journey-health
 
@@ -279,6 +281,7 @@ depends on them.
 | `/help` | `/help` references `/reflect` in the workflow diagram and reference card. |
 | `skills/_shared/causal-depth.md` | `full-mode.md`'s Near-misses lens walks this why-chain on every near-miss finding before Step 3 routing. `light-mode.md` deliberately does not inherit this — it only reuses full-mode's lens table row definitions, not the separate Chain Walk subsection added after the table; light mode intentionally trims ceremony for `fast-lane` wrap-ups. |
 | `_shared/learning-routing.md` | Routes every insight/finding through this contract's classifier instead of reflect's own destination table; hindsight mode additionally tags a D4/D5 ledger entry `[route: D4]`/`[route: D5]` for `/wrap-up`'s Skills curation row to pick up and hand on. |
+| `bin/resolve-profile.js` | Step 2's lens procedure dispatches as one `[Use: Frontier]` singleton Task agent when this run is standalone (component-invoked ⇒ no dispatch, per the Component-Skill Contract) — record #221. |
 
 ## research
 
@@ -421,6 +424,7 @@ depends on them.
 | `_shared/autonomy-ceiling.md` | Supplies the ceiling the Broken references curation row resolves. This is the ceiling's second authorized behavior and the only one that is **not** trust-gated — an unfiled repair has no provenance class, so `permittedGrants`'s floor cannot apply and the budget's own caps are the gate instead. |
 | `_shared/existing-convention-detection.md` | The Decision records curation row (`adr-curation.md`) resolves an ADR's path through this contract before proposing it, so a repo with its own decision-record convention gets one Review Console choice instead of a second grammar in `docs/decisions/`. The answer records in `doc-convention.adr`; Phase 4's execution step writes the resolved path, or executes an approved migration. Sole consumer today — the contract's genre table marks every other genre Phase 2 with no consumer. |
 | `_shared/scratch-worktree.md` | `residue-sweep.md`'s `remedy: auto` branch provisions a scratch worktree only when a fix needs a write the `worktree.always` gate would otherwise deny from the main checkout — one commit per remedy, returned and torn down per that procedure. |
+| `bin/resolve-profile.js` | Phase 2's curation-engine row-judgment dispatches as one `[Use: Frontier]` singleton Task agent when fewer than 3 rows are open (below the existing 3+-row Capable fan-out threshold, which stays untouched — Frontier is structurally forbidden in a parallel fan-out) — record #221, `curation-engine.md` section 4. |
 
 ## Provenance
 

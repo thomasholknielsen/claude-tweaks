@@ -185,6 +185,17 @@ Keep only what a maintainer needs to reproduce or understand the report.
 This gate is unconditional. It runs on every invocation, including `--dry-run`
 and including invocations that began inside a pipeline.
 
+**`[Use: Frontier]` singleton (record #221).** The scrub judgment is dispatched — never run inline
+— as **one** Task agent per invocation: the main thread hands it the drafted body from Step 5 and
+this step's removal criteria verbatim, and the agent returns the scrubbed body plus a one-line note
+of what it removed (or "nothing to remove"). Resolve the model via `node bin/resolve-profile.js
+frontier --unattended` (no `--run-dir` — `/feedback` is typically invoked standalone with no run
+directory; this matches the contract's standalone-invocation cap of one dispatch per invocation,
+enforced here by this skill rather than by a run-dir tally). Degrades to Capable per the resolver's
+own preconditions, logged in its `source` — never re-enumerated here. Filing (Step 8) and
+confirmation (Step 7) stay in the main thread and human-gated regardless of which model scrubbed
+the draft; the dispatch structure is identical either way.
+
 **If the learning cannot survive the scrub, stop.** When the report is only
 intelligible with content that must be removed — the reproduction depends on
 private code, or the symptom cannot be stated without naming private
