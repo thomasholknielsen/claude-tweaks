@@ -70,7 +70,7 @@ Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in th
 
 ## Auto mode (severity-based routing)
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `review-severity-floor` from `config.yml` (default `low`).
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `review-severity-floor` from `config.yml` (default `low`). When no explicit value was set (no CLI arg, no Manifesto override, no project policy), the default is ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise — see `_shared/autonomy-ceiling.md` for the rationale; this is a skill-default shift, not a new capability, so an explicit value at any level still wins.
 
 Per the `/review` Step 3 Routing row in `_shared/auto-mode-contract.md`, severity routes to: low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT (rare; security/correctness hard-fails the bookend). Append every entry to `decisions.md` under the `## /review` heading.
 

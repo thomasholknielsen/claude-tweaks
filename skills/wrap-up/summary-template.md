@@ -128,6 +128,24 @@ never as a percentage.
 > merging. Each is a real, trackable record (`ledger/resolve-gate.md`'s
 > `Acknowledge` disposition) — not just a note in this transcript.
 
+#### Routed to backlog
+
+Render in every mode whenever `ledgerRouteRemainder` (`unattended` only)
+auto-routed at least one item — parsed from `resolve-gate.md`'s Phase 2
+`AUTO … auto-routed to backlog as {ref} (blocker: {category}) — "{description}"`
+log lines, one row per line:
+
+| Record | Description | Blocker |
+|---|---|---|
+| #{ref} | {one-line description} | {category} |
+
+Omit this section entirely when nothing was routed this way — this is
+`ledgerRouteRemainder`'s own report row, distinct from `ledgerNarrowing`'s
+routed items (which the Phase 3 Ledger gate row above already accounts for
+under its normal disposition reporting) and from Queue writes at the Review
+Console (a different mechanism, staged proposals awaiting per-item approval,
+not yet-created records).
+
 ### Phase 4 — Close
 
 Review Console — {approved all {n} items | overrode {n} of {n} | nothing to
