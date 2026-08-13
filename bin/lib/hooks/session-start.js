@@ -26,6 +26,10 @@ function run(ctx) {
       if (stale.length >= MAX_REPORTED) break;
     }
     if (stale.length) {
+      // Hoisted once and reused below — this expression was previously
+      // computed twice (once per stale entry inside the .map, once here),
+      // and each copy could only drift from the other.
+      const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
       // This stale-runs block running BEFORE the reaper block is load-bearing
       // ordering: the reaper removes merged worktrees, which breaks branch
       // derivation for the integrity check.
@@ -39,13 +43,12 @@ function run(ctx) {
             return (
               `${base} — work appears shipped (branch ${verdict.evidence.branch} ${how} into the integration branch, ` +
               'no wrap-up recorded): close out with /claude-tweaks:wrap-up, or bookkeeping-only: ' +
-              `node "${process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}'}/bin/hooks.js" close-run --run ${dir}`
+              `node "${pluginRoot}/bin/hooks.js" close-run --run "${dir}"`
             );
           }
         } catch { /* integrity check is advisory — never break the scan */ }
         return base;
       });
-      const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
       parts.push(
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
           lines.join('\n') +

@@ -41,19 +41,44 @@ function readValidatedRunState(runDir) {
   return state;
 }
 
-// Branch from the recorded worktree PATH (run-state.json stores no branch).
-// Prefer asking the worktree directly; fall back to matching the porcelain
-// list on path. Detached HEAD, missing path, or any git failure -> null.
+// Branch from the recorded worktree PATH (run-state.json stores no branch),
+// derived EXCLUSIVELY from `git worktree list --porcelain` matched by path.
+// Never probe the recorded path directly with `git branch --show-current`:
+// git searches UPWARD from a given directory to find the enclosing repo, so a
+// stale or wrong recorded path (a plain dir inside the repo, the main
+// checkout root recorded by mistake, a dangling worktree whose own `.git`
+// pointer is gone) resolves to the MAIN CHECKOUT's current branch instead of
+// failing — and that branch is normally the integration branch itself,
+// manufacturing a false shipped-unclosed. The porcelain list has no such
+// upward search: a path not literally registered in it is simply absent.
+//
+// The main-checkout entry and bare entries are excluded from matching (the
+// same exclusion worktree-reap.js's reapWorktrees applies via `real === root`
+// / `wt.bare`) so a recorded path that IS the main checkout root can never
+// resolve to that checkout's own current branch either.
+//
+// A registered-but-dangling worktree (its linked `.git` file deleted) still
+// appears in the porcelain list — git marks the stanza `prunable`, but
+// parseWorktreeList doesn't surface that marker — so liveness is confirmed
+// independently: a real linked worktree always has its own `.git` file.
 function deriveBranch(root, worktreePath) {
   if (!worktreePath) return null;
-  const direct = runGit(['branch', '--show-current'], worktreePath);
-  if (!direct.failure && direct.stdout) return direct.stdout;
   const list = runGit(['worktree', 'list', '--porcelain'], root);
   if (list.failure || list.stdout === null) return null;
   let target = worktreePath;
   try { target = fs.realpathSync(worktreePath); } catch { /* keep recorded form */ }
-  const entry = parseWorktreeList(list.stdout).find((e) => e.path === worktreePath || e.path === target);
-  return entry && entry.branch ? entry.branch : null;
+  let realRoot = root;
+  try { realRoot = fs.realpathSync(root); } catch { /* keep recorded form */ }
+  for (const entry of parseWorktreeList(list.stdout)) {
+    if (entry.bare) continue;
+    let entryReal = entry.path;
+    try { entryReal = fs.realpathSync(entry.path); } catch { /* keep recorded form */ }
+    if (entryReal === realRoot) continue; // never the main checkout
+    if (entry.path !== worktreePath && entryReal !== target) continue;
+    if (!fs.existsSync(path.join(entry.path, '.git'))) return null; // dangling — prunable, not live
+    return entry.branch || null;
+  }
+  return null;
 }
 
 // 'ancestor' | 'cherry' | false (definitively unmerged) | null (indeterminate).
@@ -61,12 +86,21 @@ function deriveBranch(root, worktreePath) {
 // not an ancestor (classified 'git-error' by runGit — the one failure kind that
 // is a real answer). Indeterminate kinds (timeout/spawn/no-git) -> null.
 function mergedEvidence(root, branch, integration) {
+  // Belt-and-braces: deriveBranch should never hand back the integration
+  // branch itself for a real worktree, but a worktree standing ON the
+  // integration branch trivially satisfies `merge-base --is-ancestor X X`
+  // without ever having shipped anything — never treat that as evidence.
+  if (branch === integration) return null;
   const anc = runGit(['merge-base', '--is-ancestor', branch, integration], root);
   if (!anc.failure) return 'ancestor';
   if (anc.failure !== 'git-error') return null;
   const cherry = runGit(['cherry', integration, branch], root);
   if (cherry.failure || cherry.stdout === null) return null;
   const lines = cherry.stdout.split('\n').filter(Boolean);
+  // Defensive: an empty cherry list should already have been caught above —
+  // if the two refs share no divergent commits, --is-ancestor would already
+  // have answered 'ancestor' (or errored indeterminate) before cherry ever
+  // runs. Kept as a fail-open floor in case that invariant is ever wrong.
   if (lines.length === 0) return false; // no commits to compare — never evidence
   return lines.every((l) => l.startsWith('-')) ? 'cherry' : false;
 }

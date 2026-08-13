@@ -7,9 +7,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { checkRunIntegrity } = require('../bin/lib/hooks/run-integrity');
+const { fixtureGit } = require('./helpers/git-fixtures');
 
 function sh(cwd, ...args) {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return fixtureGit(['-C', cwd, ...args]).toString();
 }
 
 // A main-checkout repo with an integration branch (named "trunk" — never "main",
@@ -17,7 +18,7 @@ function sh(cwd, ...args) {
 // feature branch with one commit, and one active run dir recording that worktree.
 function fixtureRepo() {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ri-')));
-  execFileSync('git', ['init', '-q', '-b', 'trunk', root]);
+  fixtureGit(['init', '-q', '-b', 'trunk', root]);
   sh(root, 'config', 'user.email', 't@example.com');
   sh(root, 'config', 'user.name', 'T');
   fs.writeFileSync(path.join(root, 'a.txt'), 'base\n');
@@ -90,6 +91,38 @@ test('AC3b: worktree + branch deleted, no other signal -> in-progress (deletion 
   assert.strictEqual(r.evidence.branch, null);
 });
 
+test('branch derivation a: recorded path is a plain dir inside the repo (never a worktree) -> in-progress, branch null', () => {
+  // Regression for the fail-open hole where a direct `git branch --show-current`
+  // probe against a non-worktree path let git search UPWARD and resolve the
+  // MAIN CHECKOUT's own current branch instead of failing.
+  const { root, runDir } = fixtureRepo();
+  const plainDir = path.join(root, 'not-a-worktree');
+  fs.mkdirSync(plainDir);
+  writeRunState(runDir, { status: 'active', worktree: plainDir });
+  writeEvents(runDir, [EV_BUILD]);
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.branch, null);
+});
+
+test('branch derivation b: recorded path is the main checkout root -> in-progress, branch null', () => {
+  const { root, runDir } = fixtureRepo();
+  writeRunState(runDir, { status: 'active', worktree: root });
+  writeEvents(runDir, [EV_BUILD]);
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.branch, null);
+});
+
+test('branch derivation c: worktree dir whose own .git file was deleted (dangling, still registered/prunable) -> in-progress, branch null', () => {
+  const { root, wt, runDir } = fixtureRepo();
+  fs.unlinkSync(path.join(wt, '.git'));
+  writeEvents(runDir, [EV_BUILD]);
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.branch, null);
+});
+
 test('AC4a: merged but wrap-up event present -> in-progress', () => {
   const { root, runDir } = fixtureRepo();
   sh(root, 'merge', '-q', '--no-edit', 'feat-branch');
@@ -148,6 +181,19 @@ test('interrupted status is in the non-terminal set (verdict can fire on it)', (
   assert.strictEqual(checkRunIntegrity(runDir).state, 'shipped-unclosed');
 });
 
+test('clean status is a VALID run-state shape but NOT in the non-terminal set -> in-progress even with a merged branch and active ledger', () => {
+  // Pins the two-part gate (valid shape AND non-terminal status) as distinct
+  // checks: 'clean' passes readValidatedRunState's RUN_STATE_STATUSES check,
+  // so only the separate NON_TERMINAL check stops this from misreading a
+  // properly closed run as shipped-unclosed. Deleting that check would still
+  // pass every other test in this file.
+  const { root, wt, runDir } = fixtureRepo();
+  sh(root, 'merge', '-q', '--no-edit', 'feat-branch');
+  writeRunState(runDir, { status: 'clean', worktree: wt });
+  writeEvents(runDir, [EV_BUILD]);
+  assert.strictEqual(checkRunIntegrity(runDir).state, 'in-progress');
+});
+
 const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
 function runSessionStart(cwd) {
   try {
@@ -170,7 +216,7 @@ test('SessionStart: shipped-unclosed run line names both remediations (AC1 messa
   const ctxOut = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
   assert.match(ctxOut, /appears shipped/);
   assert.match(ctxOut, /\/claude-tweaks:wrap-up/);
-  assert.match(ctxOut, /close-run --run/);
+  assert.match(ctxOut, /close-run --run "/);
 });
 
 test('SessionStart: genuinely in-progress run line is byte-identical to the pre-change format (AC6 half)', () => {
