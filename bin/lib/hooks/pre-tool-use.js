@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, WRITE_SHAPES } = require('./git-command');
+const { gitTargets, fileWriteTargets, WRITE_SHAPES, splitSegments, tokenize } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -51,6 +51,12 @@ const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
   gitActions: Object.freeze(['commit', 'push']),
   bashWriteShapes: WRITE_SHAPES,
+  // Task 5 gives these their own prose-binding block, mirroring tools/
+  // gitActions/bashWriteShapes above — deliberately not added to that
+  // binding here so hooks-gate-coverage.test.js's "lists exactly the tools"
+  // assertions stay pinned to the pre-existing three fields only.
+  teardownTools: Object.freeze(['ExitWorktree']),
+  teardownGitCommands: Object.freeze(['worktree remove']),
 });
 
 // The gate's one path-prefix exemption. `.claude-tweaks/pipelines/` holds
@@ -97,6 +103,105 @@ function toplevel(dir) {
 
 function safeReal(p) {
   try { return fs.realpathSync(p); } catch { return null; }
+}
+
+// Resolves the worktree path(s) a teardown call targets, or [] when none can
+// be determined confidently — teardownTargets never fabricates a target;
+// checkTeardownGate below treats an empty result as allow.
+//
+// ExitWorktree: Task 0 (spec #373) captured the real PreToolUse payload and
+// cross-checked it against ToolSearch's own loaded schema for the tool —
+// `tool_input` is exactly `{action, discard_changes}`, structurally with NO
+// path field at all (not just absent from the one sampled call). A
+// design sketch for this gate carried an explicit-path branch as a
+// hedge against that being unmeasured; per the pinned findings it is
+// dead code for the real payload, so it is dropped here rather than kept
+// unreachable. The only usable signal is the hook's own `cwd`, which Task 0
+// also confirmed fires INSIDE the worktree being exited — PreToolUse runs
+// before the tool's effect takes place, so this is always the worktree in
+// teardown, never a post-exit directory. Resolved to its containing toplevel.
+//
+// Bash: ONLY the narrow `git worktree remove [--force] <path>` shape, parsed
+// per shell segment via git-command.js's own splitSegments/tokenize — this
+// deliberately does not extend the compound-command surface #174 tracks. Any
+// other flags, multiple positionals, or parse doubt skip that segment; never
+// fabricate a target — ambiguity resolves to allow.
+function teardownTargets(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const toolInput = ctx.input && ctx.input.tool_input;
+  if (GATE_COVERAGE.teardownTools.includes(toolName)) {
+    const top = toplevel(ctx.cwd || process.cwd());
+    return top ? [top] : [];
+  }
+  if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
+  const out = [];
+  for (const seg of splitSegments(toolInput.command)) {
+    const toks = tokenize(seg);
+    let i = 0;
+    if (toks[i] !== 'git') continue;
+    i += 1;
+    let effCwd = ctx.cwd || process.cwd();
+    // Only `-C <dir>` before the subcommand is honored — matching gitTargets'
+    // own narrow -C handling above, not the full global-flag surface.
+    if (toks[i] === '-C' && typeof toks[i + 1] === 'string') { effCwd = path.resolve(effCwd, toks[i + 1]); i += 2; }
+    if (toks[i] !== 'worktree' || toks[i + 1] !== 'remove') continue;
+    const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f');
+    if (rest.length !== 1 || rest[0].startsWith('-')) continue; // unconfident -> allow
+    out.push(path.resolve(effCwd, rest[0]));
+  }
+  return out;
+}
+
+// The teardown gate itself: denies (or, for a provably foreign-owned run,
+// warns) an ExitWorktree/`git worktree remove` call that targets a worktree
+// still assigned to a non-terminal pipeline run. Mirrors E1's own
+// deny/foreign-session/allow shape below, at the teardown boundary instead of
+// the commit boundary.
+function checkTeardownGate(ctx) {
+  for (const target of teardownTargets(ctx)) {
+    let exists = false;
+    try { fs.statSync(target); exists = true; } catch { /* gone */ }
+    // Recorded-or-target path already gone from disk -> allow (fail-open).
+    // Target and recorded assignment are the same path once matched, so
+    // statting the target side covers both.
+    if (!exists) continue;
+    const hit = ctxLib.findRunByWorktreePath(ctx.cwd, target);
+    if (!hit || !hit.state) continue;
+    const status = hit.state.status;
+    if (status !== 'active' && status !== 'interrupted') continue;
+    const owner = typeof hit.state.sessionId === 'string' && hit.state.sessionId ? hit.state.sessionId : null;
+    const caller = ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id ? ctx.input.session_id : null;
+    if (owner && caller && owner !== caller) {
+      // Provably foreign-owned: allow + warn, event to the TARGET run's dir
+      // (the wd-foreign-session precedent — enforcement-target, not ownedRun).
+      ctxLib.appendEvent(hit.runDir, 'wd-foreign-teardown', { path: target });
+      return {
+        exit: 0,
+        json: {
+          systemMessage:
+            `claude-tweaks: worktree ${target} is assigned to run ${path.basename(hit.runDir)}, recorded by a different session — ` +
+            `allowing this teardown, but if that pipeline is still live its state will be orphaned. ` +
+            `Prefer closing the run first: node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}"`,
+        },
+      };
+    }
+    // Same session, unowned run, or identity missing on either side -> deny.
+    return {
+      exit: 0,
+      json: {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            `claude-tweaks teardown gate: worktree ${target} is still assigned to non-terminal pipeline run ` +
+            `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
+            `Section C) and destroys the run's gitignored state. Finish via /claude-tweaks:wrap-up, or close the bookkeeping first: ` +
+            `node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}", then retry.`,
+        },
+      },
+    };
+  }
+  return {};
 }
 
 // worktree-required policy gate: unlike E1 below, this needs no pipeline run
@@ -239,6 +344,9 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
 }
 
 function runInner(ctx, indeterminateTargets) {
+  const teardown = checkTeardownGate(ctx);
+  if (teardown.json) return teardown;
+
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
   // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
