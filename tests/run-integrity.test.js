@@ -147,3 +147,39 @@ test('interrupted status is in the non-terminal set (verdict can fire on it)', (
   writeEvents(runDir, [EV_BUILD]);
   assert.strictEqual(checkRunIntegrity(runDir).state, 'shipped-unclosed');
 });
+
+const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+function runSessionStart(cwd) {
+  try {
+    const stdout = execFileSync('node', [HOOKS, 'session-start'], {
+      input: JSON.stringify({ cwd }), cwd, encoding: 'utf8',
+      env: { ...process.env, PIPELINE_RUN_DIR: '' },
+    });
+    return { code: 0, stdout };
+  } catch (e) {
+    return { code: e.status, stdout: e.stdout || '' };
+  }
+}
+
+test('SessionStart: shipped-unclosed run line names both remediations (AC1 message half)', () => {
+  const { root, runDir } = fixtureRepo();
+  sh(root, 'merge', '-q', '--no-edit', 'feat-branch');
+  writeEvents(runDir, [EV_BUILD]);
+  const r = runSessionStart(root);
+  assert.strictEqual(r.code, 0);
+  const ctxOut = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+  assert.match(ctxOut, /appears shipped/);
+  assert.match(ctxOut, /\/claude-tweaks:wrap-up/);
+  assert.match(ctxOut, /close-run --run/);
+});
+
+test('SessionStart: genuinely in-progress run line is byte-identical to the pre-change format (AC6 half)', () => {
+  const { runDir, root } = fixtureRepo(); // unmerged branch -> in-progress
+  writeEvents(runDir, [EV_BUILD]);
+  const r = runSessionStart(root);
+  assert.strictEqual(r.code, 0);
+  const ctxOut = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+  const base = path.basename(runDir);
+  assert.ok(ctxOut.includes(`- ${base} (status: active)`), `expected the unchanged line, got: ${ctxOut}`);
+  assert.ok(!ctxOut.includes('appears shipped'), 'in-progress run must not carry the new text');
+});

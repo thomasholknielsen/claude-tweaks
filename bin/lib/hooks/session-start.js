@@ -8,6 +8,7 @@ const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
 const reaper = require('./worktree-reap');
+const runIntegrity = require('./run-integrity');
 
 const MAX_REPORTED = 3;
 
@@ -25,7 +26,25 @@ function run(ctx) {
       if (stale.length >= MAX_REPORTED) break;
     }
     if (stale.length) {
-      const lines = stale.map(({ dir, state }) => `- ${path.basename(dir)} (status: ${(state && state.status) || 'unknown'})`);
+      // This stale-runs block running BEFORE the reaper block is load-bearing
+      // ordering: the reaper removes merged worktrees, which breaks branch
+      // derivation for the integrity check.
+      const lines = stale.map(({ dir, state }) => {
+        const base = `- ${path.basename(dir)} (status: ${(state && state.status) || 'unknown'})`;
+        try {
+          const verdict = runIntegrity.checkRunIntegrity(dir);
+          if (verdict.state === 'shipped-unclosed') {
+            // Evidence names what was checked so the reader can judge the claim.
+            const how = verdict.evidence.merged === 'cherry' ? 'squash/rebase-equivalent' : 'merged';
+            return (
+              `${base} — work appears shipped (branch ${verdict.evidence.branch} ${how} into the integration branch, ` +
+              'no wrap-up recorded): close out with /claude-tweaks:wrap-up, or bookkeeping-only: ' +
+              `node "${process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}'}/bin/hooks.js" close-run --run ${dir}`
+            );
+          }
+        } catch { /* integrity check is advisory — never break the scan */ }
+        return base;
+      });
       const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
       parts.push(
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
