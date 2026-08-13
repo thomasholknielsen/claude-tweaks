@@ -67,7 +67,7 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
    `PIPELINE_RUN_DIR was set to {path}, which does not exist — created a fresh run directory instead.`
 
-3. **Unset** → existing behavior, unchanged: create `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`, write `config.yml`, initialize `decisions.md`, export it.
+3. **Unset** → existing behavior, unchanged: create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` (`$RUN_ROOT` per `_shared/pipeline-run-dir.md`'s Anchoring section — never the current directory, since this creation can run from inside a worktree; see `manifesto.md`'s Path conventions), write `config.yml`, initialize `decisions.md`, export it.
 
 `/claude-tweaks:dispatch` Step 5's second Task call per group is the only caller that sets the variable today — `dispatch/two-call-gate.md` sections 1 and 3 derive `{run-dir}` from the first call's `MANIFEST:` path and substitute it into that call's command line (inline, not an exported shell variable: a dispatched agent inherits no environment). A multi-spec run adopts the directory it is handed as the parent and still sub-namespaces `spec-{N}/` beneath it (`multi-spec.md`), exporting the per-spec subdirectory downstream exactly as a self-created parent would.
 
