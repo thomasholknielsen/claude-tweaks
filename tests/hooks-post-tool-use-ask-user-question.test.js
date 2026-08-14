@@ -6,14 +6,14 @@
 // labels, plus ONE raw `response` string for the whole event.
 //
 // `tool_response` for this tool is NOT the SDK's structured
-// `AskUserQuestionOutput` object (`{questions, answers}}`) — real captured
-// transcripts (`.superpowers/sdd/2026-08-15-452-friction-reflect-lens/
-// real-ask-user-question-payloads.md`) show it is always a plain
-// natural-language string with a varying prefix/suffix, and the embedded
-// question text can contain unescaped nested double quotes, making it unsafe
-// to regex-parse into a structured per-question answer map. So there is no
-// per-question `answer` field — only the whole-event `response` string,
-// extracted via this file's existing `extractToolResponseText` helper.
+// `AskUserQuestionOutput` object (`{questions, answers}`) — real captured
+// transcripts (see evals/NOTES.md's "AskUserQuestion input/output shapes"
+// section's Correction) show it is always a plain natural-language string
+// with a varying prefix/suffix, and the embedded question text can contain
+// unescaped nested double quotes, making it unsafe to regex-parse into a
+// structured per-question answer map. So there is no per-question `answer`
+// field — only the whole-event `response` string, extracted via this file's
+// existing `extractToolResponseText` helper.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -39,9 +39,9 @@ function askCtx({ toolInput, toolResponse, ownedRun } = {}) {
 }
 
 test('logs questions (header, question, option labels) and the raw response text — real captured payload (Example 1)', () => {
-  // Real tool_input/tool_response pair, captured verbatim from this
-  // session's own transcript — see real-ask-user-question-payloads.md
-  // Example 1 (single question, plain recommended-option answer).
+  // Real tool_input/tool_response pair, captured verbatim from a live
+  // session transcript — see evals/NOTES.md's AskUserQuestion Correction
+  // (single question, plain recommended-option answer).
   const runDir = makeRunDir();
   const toolInput = {
     questions: [
