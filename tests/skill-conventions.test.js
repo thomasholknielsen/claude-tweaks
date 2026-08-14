@@ -100,4 +100,19 @@ test('the skills outside LINEAR_DIAGRAM_SKILLS keep their diagrams', () => {
   }
 });
 
+test('no skill carries a Relationship section any more', () => {
+  // Relocated from bin/lib/skill-audit/tests/relationship-rows.test.js when
+  // relationship-rows.js was deleted as consumerless (#392) -- that file's own
+  // corpus-wide guard used the module's extractRelationshipRows parser, which no
+  // longer exists. This is a plain heading scan instead: Phase 2b removed the
+  // `## Relationship to Other Skills` convention outright (see docs/skill-graph.md),
+  // and this is the guard that stops it creeping back one skill at a time.
+  for (const name of skillNames()) {
+    assert.ok(
+      !/^##\s+Relationship to Other Skills/m.test(read(name)),
+      `${name}/SKILL.md has a Relationship section again — put the edge in docs/skill-graph.md`,
+    );
+  }
+});
+
 module.exports = { CANONICAL_DIRECTIVE, skillNames, read, SKILLS_DIR, LINEAR_DIAGRAM_SKILLS };
