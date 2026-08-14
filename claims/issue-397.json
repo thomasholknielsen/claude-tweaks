@@ -1,6 +1,6 @@
 {
   "released": true,
   "runId": "2026-08-14T213409-dispatch-standalone",
-  "reason": "blocked: ADR-0001 gate — see issue #397 comment",
-  "releasedAt": "2026-08-14T21:47:15.848Z"
+  "reason": "abandoned: spec 397",
+  "releasedAt": "2026-08-14T21:58:35.142Z"
 }
