@@ -80,8 +80,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/demo` | This session's own unrecorded work, or a specific `#N` record | A human verdict (approve / request changes); a follow-up backlog record on changes-requested | — |
 | `/ledger` | `docs/plans/YYYY-MM-DD-{feature}-ledger.md` | Ledger entries (create/append/resolve operations) | The ledger file itself, once every item is resolved |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
-| `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state) — read-only status scan | — | — |
-| `/version` | `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` | — | — |
+| `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state), `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (installed version) — read-only status scan | — | — |
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
 
 ## Open Items Ledger

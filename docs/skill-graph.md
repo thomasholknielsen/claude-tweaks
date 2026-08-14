@@ -230,7 +230,6 @@ depends on them.
 | Target | Relationship |
 |---|---|
 | `/ledger` | Utility skill — `/help` lists it in the utility skills table. Does not scan ledger files or surface open items on the dashboard; the resolve gate (`/ledger resolve`, run by `/wrap-up`'s Phase 3 ledger gate or `/flow` Step 5) is what actually catches unresolved items. |
-| `/version` | `/version` prints the installed plugin version; `/help` surfaces version-aware command syntax and points at `/version` for the canonical answer. |
 | `bin/lib/issues/trust.js` | Stage 4.8 dispatches a Task agent that renders `trustRows`' table via `skills/_shared/trust-table.md`'s Fetch/Render sections, inlined into the agent prompt since subagents cannot read that file directly. Display-only — Stage 7's Maintenance Signals derivation explicitly excludes it by name, and it feeds no recommendation. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to `/help` (e.g. if a future status scan ever auto-resolves recommendations). |
 | `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). `/help` has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
@@ -389,12 +388,6 @@ depends on them.
 | `/dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s periodic sweep rather than a console dispatch renders itself. |
 | `/help` | `/help` suggests `/tidy` when maintenance signals are detected; both read the same work-record queue via `parseRecordFacets`. |
 | `_shared/scratch-worktree.md` | Provisions a write-legal checkout for Step 7's record mutations and the tidy-up commit under `worktree.always: true`, and for `writeRecord` calls under `work-backend: local-files` — returned and torn down per that procedure rather than left open. |
-
-## version
-
-| Target | Relationship |
-|---|---|
-| `/init` | `/init` may print the version during bootstrap; `/version` is its standalone equivalent. |
 
 ## visual-review
 

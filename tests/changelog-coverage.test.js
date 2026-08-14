@@ -91,7 +91,7 @@ test('no CHANGELOG entry names a version that never shipped', () => {
   }
   // An orphan means a version-number collision between concurrent sessions was
   // resolved in the manifest but not in the changelog: the entry kept the number
-  // the branch held, and the number a user's `/claude-tweaks:version` reports is
+  // the branch held, and the number a user's `/claude-tweaks:help` reports is
   // a different one. The entry should be renumbered to the version that carried
   // the work. The manifest's own in-flight version is excluded — on a feature
   // branch it legitimately has an entry before it reaches the release branch.

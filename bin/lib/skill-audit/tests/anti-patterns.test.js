@@ -415,5 +415,18 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   diff's `^\+\|` Anti-Patterns lines are exactly these two rows — no
   //   other file in the corpus has a nonzero delta. Net +2. Measured by
   //   running the parser against the working tree, not summed.
-  assert.strictEqual(total, 375);
+  //
+  //   375 -> 371, retiring skills/version/ (refs #398). The version lookup
+  //   folded directly into /help (Stage 0 of status-scan.md); the standalone
+  //   skill and its whole four-row Anti-Patterns table were deleted, not
+  //   edited, so this is a pure eviction with no replacement rows anywhere.
+  //   Verified: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' | grep -E
+  //   '^-\|'` returns exactly version/SKILL.md's four rows ("Hardcoding the
+  //   version in skill content", "Adding decision prompts or finding gates",
+  //   "Bumping the version inside this skill", "Padding the output with
+  //   announcements like \"Here's the version!\""), and the same diff has no
+  //   `^\+\|` Anti-Patterns lines at all — no other file in the corpus has a
+  //   nonzero delta. Net -4. Measured by running the parser against the
+  //   working tree, not summed.
+  assert.strictEqual(total, 371);
 });
