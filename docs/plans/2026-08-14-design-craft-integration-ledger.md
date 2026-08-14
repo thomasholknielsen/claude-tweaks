@@ -2,3 +2,5 @@
 
 | # | Phase | Item | Status | Resolution |
 |---|-------|------|--------|------------|
+| 1 | review | Skill-graph consumer rows for `_shared/design-craft.md` assert wiring in present tense ahead of #384/#385 landing (spec 383 reviewer finding) | accepted | Same-branch multi-spec run: #384/#385 land on this branch before the single end-of-run merge, and the siblings' Non-Goals forbid restating edges — the rows were #383's deliverable by decomposition design; #386's explore edge already carries a pending marker |
+| 2 | review | `visual-html-output.md` described the v3-era sibling `DESIGN.json` sidecar; pinned upstream 4.0.2 uses `.impeccable/design.json` (pre-existing drift, surfaced by spec 383 review) | fixed | Updated to the 4.x root path with pre-4.x sibling fallback — `4af52240` |
