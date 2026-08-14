@@ -180,6 +180,7 @@ Run Synthesize clean-room cards through Lock-in — every intervening identity-s
 
 - **Builder input:** staging card + `DESIGN.md` (read-only) + `<surface-topic>`'s content requirements, in place of the skin builder's card-plus-shared-markup input.
 - **Builder output:** one markup file, in place of one skin stylesheet.
+- **Scaffolding:** no single shared markup — each builder writes its own document. What carries over from One markup, N skins is the `docs/plans/YYYY-MM-DD-{feature}-explore/` directory convention and the invented-placeholder-content disclosure, not the shared-scaffold constraint (this scope inverts it — see Variant builders above).
 - **Switcher unit:** whole markup documents cycled — swap the displayed document (e.g. an iframe `src`) — never stylesheets layered over one shared markup.
 - **Lock-in:** return `visual_reference`; no `/impeccable:impeccable document --seed` invocation.
 
@@ -220,11 +221,13 @@ This scope varies composition and interaction framing only, never backend behavi
   "result": "ok",
   "scope": "layout",
   "chosen_world": "<staging/challenger display name>",
-  "visual_reference": "<path>" | "declined"
+  "visual_reference": "<path>"
 }
 ```
 
 `chosen_world` is deliberately scope-invariant naming — the same field name carries the identity scope's winning-world display name and the layout scope's winning-variant display name, so callers branch on `scope`, never on which fields are present.
+
+A layout `ok` exists only on a pick, so `visual_reference` always carries the winning markup's path — declining is not an `ok` variant: exit-without-pick returns a **skip** (identical to the identity scope's decline path, per Lock-in above), never an `ok` with a sentinel value.
 
 **skip shapes:**
 
