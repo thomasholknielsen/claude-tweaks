@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.80.0 — Skill-invocation ledger, run-integrity detection, and teardown gate (#364/#371-373); oversight-floor predicate generalizing risk/size gates (#365-368); Frontier tier bundle (#179/#220/#221/#223); #350/#351 console fold into ledger route-remainder; #348/#349 autonomy-console + headless wrap-up; #342 residue-sweep blast-radius default — plus a pre-release whole-branch-review fix closing a teardown-gate global-flag bypass
+
+Skill-invocation ledger, run-integrity detection, and teardown gate (#364/#371-373); oversight-floor predicate generalizing risk/size gates (#365-368); Frontier tier bundle (#179/#220/#221/#223); #350/#351 console fold into ledger route-remainder; #348/#349 autonomy-console + headless wrap-up; #342 residue-sweep blast-radius default — plus a pre-release whole-branch-review fix closing a teardown-gate global-flag bypass.
+
 ## v6.79.0 — Parent-issue vocabulary rename: `family:parent` → `parent-issue`, permanent read-side fallback for un-migrated adopters
 
 The decomposition-acceptance vocabulary this plugin coined as "family" is renamed to "parent-issue" throughout the code contract, the skills prose, and this repo's own living docs. The GitHub label `family:parent` becomes `parent-issue`; the `local-files` facet `familyParent` becomes `isParentIssue` (frontmatter `family-parent:` becomes `is-parent-issue:`); `acceptance.js`'s `familyGateState` becomes `parentGateState`; `record.js`'s `parseFamilyLeaves` becomes `parseSubIssues`. Every scan-scope token and report-row prefix that carried `[family-gate]` now carries `[parent-gate]`, and `wrap-up/verification-brief.md`'s "Family-Gate Procedure" is now the "Parent-Gate Procedure" everywhere it's cited.
