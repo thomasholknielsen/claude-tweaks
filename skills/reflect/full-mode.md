@@ -4,9 +4,9 @@ Knowledge-capture procedures for full mode (invoked by `/claude-tweaks:wrap-up` 
 
 Full mode is a superset of hindsight — see `hindsight-mode.md` for the shared baseline (the Approach lens below covers the same five evaluations).
 
-## Step 2: Run Lenses — Full Mode (4 lenses + tradeoff review)
+## Step 2: Run Lenses — Full Mode (5 lenses + tradeoff review)
 
-Runs all four reflection lenses plus a tradeoff review.
+Runs all five reflection lenses plus a tradeoff review.
 
 | Lens | Question | Surfaces |
 |------|----------|----------|
@@ -14,10 +14,47 @@ Runs all four reflection lenses plus a tradeoff review.
 | **2. Approach** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering. Same evaluations as hindsight mode (Approach, Structure, Consolidation, Convention, Skills) — see `hindsight-mode.md`. | Skill updates, conventions, spec adjustments |
 | **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
 | **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives; route via _shared/learning-routing.md |
+| **5. Friction** | "Did the pipeline itself get in the way?" — Was every hook denial and AskUserQuestion stop this run actually necessary? | Upstream feedback (D5) via `_shared/learning-routing.md` |
 
 ### Near-misses Chain Walk
 
 Before routing (Step 3), walk each Near-misses finding through `_shared/causal-depth.md`'s why-chain: the near-miss is the input, the chain asks "why was this possible?" up to 3 times, and the resulting `CAUSAL: terminal | systemic` verdict travels with the finding into Step 3's routing — a `systemic` verdict is itself insight-worthy alongside the near-miss it came from, not a separate item.
+
+### Friction Lens
+
+Unlike the other four lenses, Friction evaluates the pipeline's own behavior toward the operator
+during this run, not the code that got built.
+
+**Input:** the run's `events.jsonl` (no run dir / no file → this lens reports nothing), filtered
+to: `wd-deny`, `gate-denial`, `wd-push-mismatch`, `wd-ambiguous`, `wd-foreign-teardown`,
+`contract-violation` (all logged by `bin/lib/hooks/pre-tool-use.js`), and `ask-user-question`
+(logged by `bin/lib/hooks/post-tool-use.js`).
+
+**Membership rule:** an event qualifies only when it describes friction experienced by the run's
+own operator — a denied action, a forced stop. `wd-foreign-session` is excluded on this basis: it
+is logged when a *different* session than this run's owner attempts a wrong-checkout action, so
+it describes that other session's friction, not this run's.
+
+**Per-event avoidability.** For each qualifying event, judge whether it was necessary or whether
+it indicates a claude-tweaks defect (a gate that shouldn't have fired) or gap (a decision the
+plugin should have had a default for):
+
+- *Avoidable* — a `gate-denial` firing on an action the gate's own stated policy condition
+  doesn't actually match (a false positive); an `ask-user-question` whose header and options were
+  fully answerable from CLAUDE.md content already in context.
+- *Not avoidable* — a `wd-deny` firing exactly as `worktree.always` documents it should (a
+  provable wrong-checkout commit); an `ask-user-question` posing a genuine judgment call with no
+  stated project preference either way.
+
+**Aggregate volume.** Independent of any single event's verdict, judge whether this run's total
+stop count looks disproportionate to its own scope — weighed against the record's own `Estimated
+tasks`/Deliverables count as a rough proportionality anchor (a 2-task record with 8 stops reads
+differently than an 8-task record with 8 stops), never against a hardcoded number.
+
+A finding from either judgment is an ordinary reflect insight from here on — route it through
+Step 3's `_shared/learning-routing.md` classifier exactly like every other lens's finding. A
+false-positive denial resolves to defect (rule 1); a recurring missing default resolves to gap
+(rule 7). No new routing table.
 
 ### Seed from Review Learnings (pipeline context)
 

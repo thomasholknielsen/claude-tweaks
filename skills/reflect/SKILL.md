@@ -32,8 +32,8 @@ Step back from implementation and evaluate what was built through structured len
 | Mode | Lenses | Invoked by | Best for |
 |------|--------|------------|----------|
 | **hindsight** | Approach, Structure, Consolidation, Convention, Skills | `/claude-tweaks:review` Step 4 | Pre-ship "should we change something?" gate |
-| **full** | All four lenses (Surprises, Approach, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Phase 1 | Post-review knowledge capture |
-| **light** | Near-misses, Fresh start (no tradeoff review) | `/claude-tweaks:wrap-up` Phase 1, when `ceremony-profile: fast-lane`; or direct invocation with the `light` keyword | Cheap post-review capture for a fast-lane record, or a quick standalone pass after a small fix |
+| **full** | All five lenses (Surprises, Approach, Near-misses, Fresh start, Friction) + Tradeoff review | `/claude-tweaks:wrap-up` Phase 1 | Post-review knowledge capture |
+| **light** | Near-misses, Fresh start, Friction (no tradeoff review) | `/claude-tweaks:wrap-up` Phase 1, when `ceremony-profile: fast-lane`; or direct invocation with the `light` keyword | Cheap post-review capture for a fast-lane record, or a quick standalone pass after a small fix |
 | *(default)* | **full** when standalone | Direct invocation | General-purpose reflection |
 
 ## Input
