@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-14T211545-dispatch-standalone",
-  "sessionId": "574c48fa-4d9e-4d3a-95b4-f847bed7b673",
-  "claimedAt": "2026-08-14T21:15:56.667Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: review-spec-compliance",
+  "releasedAt": "2026-08-14T21:45:40.809Z"
 }
