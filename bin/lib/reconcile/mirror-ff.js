@@ -28,7 +28,19 @@ function mirrorFastForward(repoRoot, integration) {
   if (classified.state === 'diverged') {
     return { state: 'diverged', action: 'none', warning: 'integration branch has diverged from origin — anomaly under pr-first' };
   }
-  // 'behind' — the only state this check ever acts on.
+  // 'behind' — the only state this check ever acts on. classifyMirror's
+  // rev-list comparison above is ref-to-ref (safe regardless of what's
+  // checked out), but a bare `git merge` targets whatever branch is
+  // currently checked out — a concurrent session could have switched the
+  // shared main checkout since the fetch above, and merging origin's
+  // integration branch onto the wrong checked-out branch would be silent
+  // corruption, not a loud failure, whenever that branch also happens to
+  // fast-forward cleanly.
+  const current = runGit(['branch', '--show-current'], repoRoot);
+  if (current.failure) return { state: 'behind', action: 'skipped', reason: current.failure };
+  if (current.stdout !== integration) {
+    return { state: 'behind', action: 'skipped', reason: `wrong-branch: checked out on '${current.stdout}', not '${integration}'` };
+  }
   const ff = runGit(['merge', '--ff-only', `origin/${integration}`], repoRoot);
   if (ff.failure) return { state: 'behind', action: 'failed', reason: ff.failure };
   return { state: 'behind', action: 'fast-forwarded' };

@@ -166,6 +166,27 @@ test('mirrorFastForward: idempotent — a second run after an ff produces zero f
   assert.strictEqual(git(['rev-parse', 'HEAD'], mainDir).trim(), afterFirst);
 });
 
+test('mirrorFastForward: a concurrent session on a different branch is never merged into — skipped, not silently ff-ed', () => {
+  const { seedDir, mainDir } = pairedFixture();
+  fs.writeFileSync(path.join(seedDir, 'b.txt'), 'two\n');
+  git(['add', 'b.txt'], seedDir);
+  git(['commit', '-q', '-m', 'second'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+
+  // classifyMirror's rev-list comparison is ref-to-ref and reports 'behind'
+  // regardless of what's checked out — the guard has to catch it downstream,
+  // at the write itself, not by changing the classification.
+  git(['checkout', '-q', '-b', 'someone-elses-work'], mainDir);
+  const before = git(['rev-parse', 'HEAD'], mainDir).trim();
+
+  const r = mirrorFastForward(mainDir, 'main');
+  assert.strictEqual(r.state, 'behind');
+  assert.strictEqual(r.action, 'skipped');
+  assert.match(r.reason, /wrong-branch/);
+  assert.strictEqual(git(['branch', '--show-current'], mainDir).trim(), 'someone-elses-work');
+  assert.strictEqual(git(['rev-parse', 'HEAD'], mainDir).trim(), before);
+});
+
 // --- decision tables: pure functions, zero I/O ---
 
 test('decideReap: merged PR -> reap', () => {
@@ -228,6 +249,76 @@ test('readConsoleState: unparseable content fails closed to unresolved, never si
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
   fs.writeFileSync(path.join(dir, 'console.json'), '{not json');
   assert.strictEqual(readConsoleState(dir), 'unresolved');
+});
+
+// --- archiveRunDir: real git fixture — the actual move/commit I/O, not just the pure decision table ---
+
+function runDirFixture() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-archive-')));
+  git(['init', '-q', '--initial-branch=main'], root);
+  git(['config', 'user.email', 'test@example.com'], root);
+  git(['config', 'user.name', 'Test'], root);
+  fs.writeFileSync(path.join(root, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], root);
+  git(['commit', '-q', '-m', 'seed'], root);
+
+  const runId = '2026-08-14T120000-spec-999';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(path.join(runDir, 'work'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'work', '999-spec.md'), '# 999\n');
+  git(['add', path.join('.claude-tweaks', 'pipelines', runId, 'work', '999-spec.md')], root);
+  git(['commit', '-q', '-m', 'materialize #999'], root);
+
+  fs.writeFileSync(path.join(runDir, 'config.yml'), 'x: 1\n');
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active', worktree: '/some/worktree' }));
+
+  return { root, runDir, runId };
+}
+
+test('archiveRunDir: the git mv of work/ is committed, not left staged (no uncommitted rename after archival)', () => {
+  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const archivedWorkRel = path.relative(root, path.join(archiveDir, 'work'));
+  const oldWorkRel = path.relative(root, path.join(runDir, 'work'));
+  assert.ok(fs.existsSync(path.join(archiveDir, 'work', '999-spec.md')));
+  assert.ok(!fs.existsSync(path.join(runDir, 'work')));
+  // config.yml/decisions.md/run-state.json are plain (never git-tracked, same
+  // as .gitignore's real-repo rule) — only the git-mv'd work/ path is checked
+  // for cleanliness here, since that's the actual write this test pins.
+  assert.strictEqual(git(['status', '--porcelain', '--', archivedWorkRel, oldWorkRel], root).trim(), '');
+  assert.strictEqual(git(['ls-files', '--', archivedWorkRel], root).trim(),
+    path.join(archivedWorkRel, '999-spec.md'));
+  assert.match(git(['log', '-1', '--format=%s'], root).trim(), /archive run/);
+});
+
+test('archiveRunDir: run-state.json moves to the archived location with status: clean, not left orphaned at the old path', () => {
+  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const archived = JSON.parse(fs.readFileSync(path.join(archiveDir, 'run-state.json'), 'utf8'));
+  assert.strictEqual(archived.status, 'clean');
+  assert.strictEqual(archived.worktree, null);
+  assert.ok(!fs.existsSync(path.join(runDir, 'run-state.json')));
+});
+
+test('archiveRunDir: the old run dir is removed once empty — a later iterRunDirsWithState pass never re-yields it', () => {
+  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { iterRunDirsWithState } = require('../bin/lib/hooks/context');
+  const { root, runDir } = runDirFixture();
+
+  archiveRunDir(root, runDir);
+  assert.ok(!fs.existsSync(runDir));
+  assert.deepStrictEqual([...iterRunDirsWithState(root)], []);
 });
 
 // --- isWorktreeLocked: reused verbatim from worktree-reap.js (not a copy) ---

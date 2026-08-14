@@ -62,9 +62,15 @@ function archiveRunDir(root, runDir) {
   if (fs.existsSync(workSrc)) {
     const mv = runGit(['mv', workSrc, path.join(archiveDir, 'work')], root);
     if (mv.failure) return { ok: false, reason: 'git-mv-failed' };
+    // The git mv above only stages the rename — this check runs headlessly
+    // (SessionStart, dispatch's queue pull) with no interactive session
+    // guaranteed to commit anything afterward, so an uncommitted rename
+    // would otherwise sit in the shared main checkout's index indefinitely.
+    const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
+    if (commit.failure) return { ok: false, reason: 'commit-failed' };
   }
 
-  for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'manifest.yml', 'console.json', 'staged']) {
+  for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'manifest.yml', 'console.json', 'run-state.json', 'staged']) {
     const src = path.join(runDir, name);
     if (!fs.existsSync(src)) continue;
     try {
@@ -74,8 +80,22 @@ function archiveRunDir(root, runDir) {
     }
   }
 
-  const result = writeRunState(runDir, { status: 'clean', worktree: null });
+  // run-state.json moved above, so finalize the terminal state at its new
+  // (archived) location, not the original runDir — writeRunState reads and
+  // preserves whatever state already moved there.
+  const result = writeRunState(archiveDir, { status: 'clean', worktree: null });
   if (!result) return { ok: false, reason: 'close-failed' };
+
+  // runDir is empty now (everything moved out) — remove it so a future
+  // iterRunDirsWithState pass doesn't re-yield a directory with no
+  // run-state.json to read (readRunState returns null there, which is NOT
+  // status: 'clean' and would otherwise resurface this run forever).
+  try {
+    fs.rmdirSync(runDir);
+  } catch {
+    /* best-effort — non-empty for an unexpected reason, or already gone */
+  }
+
   return { ok: true };
 }
 
@@ -110,4 +130,4 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
   return { archived, skipped };
 }
 
-module.exports = { archiveMerged, decideArchive, readConsoleState };
+module.exports = { archiveMerged, decideArchive, readConsoleState, archiveRunDir };
