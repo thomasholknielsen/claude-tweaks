@@ -31,6 +31,8 @@ When the resolved record/spec carries a `Visual-reference:` body-metadata line (
 
 See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
 
+The `loaded` set is enriched beyond Impeccable references: per `_shared/design-craft.md` (assembled by the wrapper's own principles step), it also carries craft principles — Emil Kowalski's skills, when installed — plus the `.impeccable/design.json` sidecar and the contract file itself. Forward all of it to implementers exactly like the pre-existing references — no separate handling; the same `context_size` summarize-vs-inline rule covers the larger set.
+
 ## Where the loaded references go
 
 - **Subagent execution strategy** — the loaded reference text is appended to the implementer subagent's system prompt for each task that touches a UI file (paths matched against the spec's Key Files entries with frontend extensions/path patterns).

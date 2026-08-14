@@ -4,7 +4,7 @@ Invoked via `/claude-tweaks:design-wrapper pre-build <spec>`. Returns `{mode, re
 
 ## When this runs
 
-Called by `/claude-tweaks:build` before implementation. Lazy-loads Impeccable reference files plus project design context (`PRODUCT.md` + `DESIGN.md`) into the build subagent's context. Does not modify code — read-only enrichment.
+Called by `/claude-tweaks:build` before implementation. Lazy-loads Impeccable reference files, project design context (`PRODUCT.md` + `DESIGN.md` + the `.impeccable/design.json` sidecar), and craft principles per `_shared/design-craft.md` into the build subagent's context. Does not modify code — read-only enrichment.
 
 ## Preconditions
 
@@ -22,14 +22,12 @@ When `<spec>` is a record reference, resolve via the run's materialized file (`{
 
 ### Step 3: Decide which Impeccable references to load
 
-> **Parallel execution:** Use parallel tool calls aggressively — Steps 3-4 together read a set of independent files (every Impeccable reference doc the selection rules below resolve to, plus `PRODUCT.md`/`DESIGN.md` or their fallback globs); none depends on another's content, so batch every Read once the file list is decided.
+> **Parallel execution:** Use parallel tool calls aggressively — Steps 3-5 together read a set of independent files (every Impeccable reference doc the selection rules below resolve to, plus `PRODUCT.md`/`DESIGN.md` or their fallback globs, the `.impeccable/design.json` sidecar, and the Emil skill files Step 5 resolves); none depends on another's content, so batch every Read once the file list is decided.
 
 Reference selection rules (inspect the spec body):
 
-- **Always load** when frontend: `typography.md`, `color-and-contrast.md`, `spatial-design.md`, `new-work.md`
-- **Add `motion-design.md`** when the spec mentions animations, transitions, micro-interactions, motion, or hover effects
+- **Always load** when frontend: `typography.md`, `color-and-contrast.md`, `spatial-design.md`, `motion-design.md`, `interaction-design.md`, `new-work.md`
 - **Add `responsive-design.md`** when the spec mentions breakpoints, mobile, tablet, responsive, or viewport
-- **Add `interaction-design.md`** when the spec mentions hover/focus states, keyboard navigation, or interactive controls
 - **Add `ux-writing.md`** when the spec mentions copy, microcopy, error messages, empty states, or labels
 
 The keyword rules above select *which reference files to load*. They are not a job-type classifier and must not grow into one: nothing here decides whether the record is a redesign, a new page, or an addition. `new-work.md` is in the always-load set precisely because its first step ("Decide what is already true") is where that determination belongs, and it is made downstream — during the build, against the real code and the record's own description — not guessed here from keywords. Carry the record's description into `description` (see Output to caller) so the implementer has the text that determination needs; do not summarize or label it.
@@ -42,6 +40,16 @@ Reference files live inside the Impeccable plugin's skill directory. The wrapper
 - **Fallback discovery:** If neither file is present at root, glob `docs/design/*.md` and `docs/PRODUCT.md`, `docs/DESIGN.md` as a defensive secondary location.
 
 Missing files are not errors — they mean `/impeccable:impeccable init` and `document` have not been run yet. Read each discovered file and include it in the loaded set.
+
+- **Sidecar:** additionally load `.impeccable/design.json` at the project root — Impeccable 4.x's sidecar (motion tokens, shadow/elevation tokens, breakpoints, component snippets). Root only, **no fallback glob** — upstream fixes its location. A missing sidecar is not an error. Exactly one permutation writes a `missed` note: `DESIGN.md` found but the sidecar absent — the only state where a sidecar is expected to exist, since upstream's `document` flow creates it alongside `DESIGN.md`. Every other found/absent combination stays silent, by design. The sidecar is forwarded exactly like any other loaded file and counted by `context_size`.
+
+### Step 5: Load craft principles (Emil skills + the contract itself)
+
+Resolve and load Emil Kowalski's skills per `_shared/design-craft.md` — that contract owns the lookup order, the relevance map (which skills load on which signal), the web-track gating, and the degradation posture; none of it is restated here. Pre-build-specific mechanics only:
+
+- Each resolved skill's `SKILL.md` path joins `loaded`.
+- Each relevance-map-selected skill that resolves at no lookup path joins `missed`. An absent Emil install is a `missed` note and a normal `result: "ok"` — never a skip object.
+- Append the contract file itself to `loaded` — the literal path `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-craft.md` — so the implementer receives the authority rule verbatim as part of the loaded set. It is a path string appended like every other entry (no schema change, no excerpting); the contract file is written to be safely includable whole.
 
 ## Output to caller
 
