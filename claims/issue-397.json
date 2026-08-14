@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-14T213409-dispatch-standalone",
-  "sessionId": "3c3ec9f2-cdfd-443e-bf48-6615bd00d899",
-  "claimedAt": "2026-08-14T21:35:41.132Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "blocked: ADR-0001 gate — see issue #397 comment",
+  "releasedAt": "2026-08-14T21:47:15.848Z"
 }
