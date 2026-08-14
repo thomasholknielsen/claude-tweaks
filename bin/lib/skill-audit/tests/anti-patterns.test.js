@@ -404,5 +404,16 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   diff's `^\+\|` lines are that line's replacement plus these three new
   //   rows — no other file in the corpus has a nonzero delta. Net +3. Measured
   //   by running the parser against the working tree, not summed.
-  assert.strictEqual(total, 373);
+  //
+  //   373 -> 375, design-wrapper explore mode (refs #377). Two rows ADDED to
+  //   design-wrapper/SKILL.md, both guarding the new explore mode: "Invoking
+  //   `explore` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context"
+  //   (interactive-only, same reasoning as `live`) and "The wrapper writing
+  //   `DESIGN.md` itself after an `explore` pick" (upstream `document --seed`
+  //   is the only writer). Verified: `git diff origin/main...HEAD --
+  //   'skills/*/SKILL.md' | grep -E '^-\|'` returns nothing, and the same
+  //   diff's `^\+\|` Anti-Patterns lines are exactly these two rows — no
+  //   other file in the corpus has a nonzero delta. Net +2. Measured by
+  //   running the parser against the working tree, not summed.
+  assert.strictEqual(total, 375);
 });

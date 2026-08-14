@@ -67,11 +67,7 @@ Full per-mode behavior and argument shape: see the Input table below.
 
 When `<target>` is omitted for `test` mode, the wrapper resolves changed files via `git diff --name-only`. When omitted for `review` mode or `polish` mode, the wrapper falls back to the same git-diff resolution. `survey` defaults to the same git-diff resolution when called without files. If that `git diff --name-only` resolution itself fails (non-git directory, git error, corrupted index, mid-rebase state), the wrapper treats it the same as any other unresolvable-target case: return `{skipped: "unable to resolve target files (git diff failed)"}` immediately, without attempting detection or dispatch. `<spec>` is required (not resolvable via git diff) for `reset-recommendations` — when omitted, return `{skipped: "reset-recommendations requires <spec> — no default target resolution"}` rather than guessing a most-recently-modified cache across all specs.
 
-**Layer 0 substitution in the fallback path.** When Layer 0 resolved and Layer 3 has ruled the change frontend, use its `scan.targets` in place of the raw `git diff --name-only` output as the source of candidate paths. **This one paragraph is the whole rule — it covers every mode with a fallback path (`test`, `review`, `polish`, `survey`) and there is no per-mode variant of it.** Three constraints, all load-bearing:
-
-1. **Fallback only.** It never overrides an explicit caller-supplied `<target>` list, and cannot: per `impeccable-plugin.md`'s "Arguments resolution", `scan.targets` is computed from the live working tree with no injection point, so substituting it into a scoped invocation would silently widen it.
-2. **After Layer 3, not instead of it.** Layer 3 still rules the change frontend first, and the per-file trigger-extension/path filter still applies to the substituted list afterward — `scan.targets` is a scannability predicate, not a frontend one, and passing it through unfiltered would put bare `.js`/`.ts` files into a design scan. What the substitution buys is a better *candidate* set: it drops paths that no longer exist, prefers a `<base>...HEAD` branch diff over working-tree-only changes, and still yields targets (`source-dir` / `html` / `root`) when the diff is empty.
-3. **Empty is not a resolution.** A resolved plugin whose `scan.targets` is `[]` takes the `git diff --name-only` fallback exactly as an unresolved one does — "did not resolve" and "resolved but returned nothing" reach the same place.
+**Layer 0 substitution in the fallback path.** When Layer 0 resolved and Layer 3 has ruled the change frontend, use its `scan.targets` in place of the raw `git diff --name-only` output as the source of candidate paths. One rule for every mode with a fallback path (`test`, `review`, `polish`, `survey`) — no per-mode variant. Its three load-bearing constraints — fallback only (never overriding an explicit caller-supplied `<target>` list), after Layer 3 and with the per-file trigger-extension/path filter still applied to the substituted list, and empty-`scan.targets`-takes-the-git-diff-fallback — are stated canonically in `impeccable-plugin.md`'s per-signal trust rules (`scan.targets` row); read that row before implementing this substitution.
 
 ## Universal preconditions
 
@@ -163,54 +159,11 @@ Layer 3's trigger table is web-only by construction — no native extension appe
 
 ### Step 2: Availability check
 
-For the dispatched mode, verify the dependency is available:
+For the dispatched mode, verify its dependency is available before dispatch. Impeccable's artifacts are checked independently and must not be conflated — three kinds: **LLM commands**, by skill resolution, unpinned (`review`, `shape`, `pre-build`, `polish`, `live` — an off-pin plugin still answers `/impeccable:impeccable critique`); **bundled scripts at an exact pin** via `resolveImpeccablePlugin` per `impeccable-plugin.md` (`doctor`, `explore`, and Layer 0 — Layer 0 degrades to no-signals, the modes skip); and **the CLI** (`test`), a third artifact on its own version line.
 
-| Mode | Required | Verify by |
-|------|----------|-----------|
-| `test` | Impeccable CLI **at the pinned version** | Run `npx impeccable --version` via Bash. Non-zero or no output → unavailable. Exit 0 → compare the version string against the pin recorded in `impeccable-cli.md`'s `<!-- upstream-pin: impeccable-cli@X.Y.Z -->` comment. Equal → available. Different → **unavailable**, with the skip reason naming both versions (see below). Do not discard the version string: every rule in `impeccable-cli.md` describes the pinned version's behaviour, so running the gate against a different one produces a verdict about a contract that was never verified. |
-| `review` | Impeccable plugin (LLM commands) | Check whether `/impeccable:impeccable` skill resolves. Look for `/impeccable:impeccable*` in the available skills list provided by the harness. If none resolve, treat as unavailable. |
-| `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. |
-| `pre-build` | Impeccable plugin (reference files) | Same as `review`. The reference files ship with the plugin; if the plugin resolves, the references are available. |
-| `polish` | Impeccable plugin (LLM commands) | Same as `review` — the refinement set and every suggestion-driven command all live in the plugin. |
-| `live` | Impeccable plugin (LLM commands + bundled live-mode scripts) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. The live-mode scripts ship with the plugin itself, so no separate check is needed. |
-| `doctor` | Impeccable plugin **at the pinned version** (bundled `doctor.mjs`) | Same resolution as Layer 0 below — `resolveImpeccablePlugin` per `impeccable-plugin.md`. **Unlike Layer 0, an unavailable result here *is* a mode-level skip**: `doctor` has no result to report without the script. Absent and off-pin are two distinct skip reasons; see `modes/doctor.md`'s skip table. |
-| `explore` | Impeccable plugin **at the pinned version** (bundled `concept-seed.mjs`) | Same resolution as Layer 0 / `doctor` — `resolveImpeccablePlugin` per `impeccable-plugin.md`. An unavailable result **is** a mode-level skip — the mode has nothing to deal without the script. |
-| **Layer 0** (all modes) | Impeccable plugin **at the pinned version**, resolved from the plugin cache | Follow `impeccable-plugin.md`'s resolution procedure: glob the cache, read each candidate's own `version`, select the one equal to the pin in its `<!-- upstream-pin: impeccable-plugin@X.Y.Z -->` comment. **Unlike every row above, an unavailable result here is not a mode-level skip** — see the note below the skip shapes. |
+Unavailable → a `{skipped, install_hint}` object, never a failure. A version mismatch is a **distinct condition** from "not installed" and its skip reason names both versions. Layer 0 never produces an availability skip of its own — its failures are enrichment outcomes (see `impeccable-plugin.md`'s degradation table).
 
-Impeccable's artifacts are checked independently and must not be conflated. The rows above fall into three kinds:
-
-- **LLM commands, by skill resolution, unpinned** (`review`, `shape`, `pre-build`, `polish`, `live`) — an off-pin plugin still answers `/impeccable:impeccable critique`.
-- **Bundled scripts, at an exact pin** (`doctor`, `explore`, and Layer 0) — `resolveImpeccablePlugin` per `impeccable-plugin.md`, because neither `context-signals.mjs` nor `doctor.mjs` nor `concept-seed.mjs` exists at every version that satisfies the skill-resolution check. These differ only in consequence: Layer 0 degrades to no-signals, `doctor` and `explore` skip the mode.
-- **The CLI** (`test`) — a third artifact entirely, on its own version line.
-
-On unavailable:
-
-```
-{
-  "skipped": "Impeccable {CLI|plugin} not installed",
-  "install_hint": "{install command + verify command}"
-}
-```
-
-On a CLI version mismatch, use this shape instead — it is a distinct condition from "not installed" and must not be reported as one:
-
-```
-{
-  "skipped": "Impeccable CLI {found} does not match the pinned {pinned}",
-  "install_hint": "npm install -g impeccable@{pinned}"
-}
-```
-
-Naming both versions is the point. A bare "unavailable" on a machine that plainly has the CLI installed reads as a bug in this wrapper; naming the mismatch tells the user what to do in one line. This skip is also the only pin enforcement a consumer of the published plugin ever gets — `tests/impeccable-cli-contract.test.js` runs for this repo's contributors only.
-
-**Layer 0 never produces either shape.** Its three failure conditions (absent, version mismatch, execution failure) are enrichment outcomes, not availability outcomes: the wrapper records the reason — which must distinguish all three, and must name *every* version found on a mismatch, per `impeccable-plugin.md`'s degradation table — then proceeds with Layers 1-3 and dispatches the mode normally. A mode is never skipped, and no invocation ever fails, because context signals were unavailable.
-
-Install hints (use the appropriate one for the mode):
-
-- **CLI:** `npm install -g impeccable@{pinned}` (verify with `npx impeccable --version`)
-- **Plugin:** `/plugin install impeccable@<marketplace>` (verify by checking `/impeccable:impeccable` skill resolves)
-
-**De-dupe:** Track availability-skip warnings via an in-memory marker for the session. If the same mode skips twice for the same reason in a session, surface only the first skip in the response and keep the rest silent. The marker is per-process (in-memory) — there is no on-disk state.
+Read `availability.md` in this skill's directory for the per-mode verification table, the exact skip shapes, install hints, and the session de-dupe rule — load it whenever an availability check actually needs running.
 
 ## Mode behaviors
 
@@ -287,12 +240,13 @@ See `_shared/design-wrapper-handling.md` for the canonical caller-side contract 
 
 Lazy-load these only when needed for the active mode:
 
-- `modes/{name}.md` — One file per mode named in the Input table (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`, `doctor`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format). `modes/doctor.md` additionally owns `doctor`'s finding schema — `skills/tidy/scan-procedures.md` references it rather than restating it.
+- `modes/{name}.md` — One file per mode named in the Input table (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`, `doctor`, `explore`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format). `modes/doctor.md` additionally owns `doctor`'s finding schema — `skills/tidy/scan-procedures.md` references it rather than restating it.
+- `availability.md` — The Step 2 availability check in full: per-mode verification table, the three artifact kinds, skip shapes, install hints, session de-dupe. Loaded whenever an availability check actually needs running.
 - `command-map.md` — Single source of truth for dispatch: the per-command categorization (phase-fixed / refinement set / suggestion-driven / intent-driven / manual-only / never) covering every Impeccable command the wrapper knows about, plus the survey "would help" criteria → command mapping. Its Full command map table is the count — do not restate one here.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `native-routing.md` — Everything downstream of a **native** track result: the platform → upstream-reference mapping, the dispatch rule, the reasoning behind the track table's two inferred rows (`null` + `mobile` → `adaptive`; `desktop` → web), and the four-row routing walkthrough. Loaded only when track resolution returns `ios` / `android` / `adaptive` — a web-track run never needs it.
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules. Pins the **CLI**.
-- `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (used by both Layer 0 and `doctor`, with a per-consumer script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
+- `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (one resolver for every consumer in its script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
 
 ## Next Actions
 
