@@ -61,23 +61,29 @@ stamped on.
 
 ## Deliverables
 
-- [ ] `skills/tidy/SKILL.md` Step 7.5: under `worktree.always: true` **and** `integration-model:
+- [x] `skills/tidy/SKILL.md` Step 7.5: under `worktree.always: true` **and** `integration-model:
   pr-first`, after applying the Step 7 commit inside the scratch worktree (scratch-worktree.md
   §1-4 unchanged), push the branch and open (or reuse/reopen, on a resumed run) a PR instead of
   merging back — reusing `_shared/pr-early-run-lifecycle.md`'s Step 1 (existing-PR check by head
-  branch) and Step 3 (compose body, `gh pr create --draft`) shape, stamping the PR body with
-  `<!-- tidy-housekeeping-pr -->` at creation. Tear the scratch worktree down via `ExitWorktree`
-  once the branch is safely on origin (its commit no longer needs merging back locally — the PR
-  carries it). Under `local-merge` (or `worktree.always` off, or no worktree at all), Step 7.5's
-  existing behavior is unchanged.
-- [ ] Update the housekeeping-marker paragraph in the same file to describe the new pr-first
+  branch) and Step 3 (compose body, `gh pr create`) shape, stamping the PR body with
+  `<!-- tidy-housekeeping-pr -->` at creation. **Build-time correction:** opens ready, not
+  `--draft` — the housekeeping PR's content-judgment layer (Step 6 approval, Step 7.5's own
+  verification checklist) already passed by creation time, unlike a build run's PR; confirmed
+  against `actions-github-issues.md`'s Arm ready PR, which never touches `pr-first-merge.md`'s
+  Step 2 (Mark the PR ready), and item 9's own filter, which skips any PR still in draft. Tear the
+  scratch worktree down via `ExitWorktree` once the branch is safely on origin. Falls back to the
+  unchanged local-merge merge-back if the push/create fails, so the commit is never stranded.
+  Under `local-merge` (or `worktree.always` off, or no worktree at all), Step 7.5's existing
+  behavior is unchanged.
+- [x] Update the housekeeping-marker paragraph in the same file to describe the new pr-first
   behavior instead of the stale "Step 7 above does not itself open a PR" statement.
-- [ ] Update `skills/_shared/integration-model.md`'s tidy consumer-table row to describe the actual
+- [x] Update `skills/_shared/integration-model.md`'s tidy consumer-table row to describe the actual
   routed behavior (PR-open vs. direct-commit) rather than only "the note applies under pr-first."
-- [ ] Cross-check `_shared/scratch-worktree.md`'s other two callers and record one outcome each
+- [x] Cross-check `_shared/scratch-worktree.md`'s other two callers and record one outcome each
   (fixed here / filed separately / shown unaffected) in `scratch-worktree.md` itself, near its
-  Callers list.
-- [ ] Live demonstration: produce a real pushed branch and an open PR whose body carries
+  Callers list. `flow/worktree-merge.md`: shown unaffected (already routes pr-first through
+  `pr-first-merge.md`). `wrap-up/residue-sweep.md`: equivalent gap found, filed separately as #435.
+- [x] Live demonstration: produce a real pushed branch and an open PR whose body carries
   `<!-- tidy-housekeeping-pr -->` against this project's own repo, and confirm `github-pr-scan.md`
   item 9's detection logic (the `HOUSEKEEPING_MARKER` regex + `[pr-unarmed]` classification) finds
   it. Evidence lands in the run's test-step output.
@@ -92,6 +98,38 @@ stamped on.
 - `local-merge` and non-worktree paths are untouched: the diff is scoped to the `pr-first` branch
   of Step 7.5 (diff stat shown).
 - The three-caller cross-check result is recorded with one stated outcome per caller.
+
+**Build-time verification (live run, real repo — not simulated):** this project's own live policy
+already resolves `integration-model: pr-first` and `worktree.always: true`
+(`node bin/resolve-policy.js --values integration-model worktree.always` → `pr-first` / `true`).
+Ran the new Step 7.5 pr-first mechanics directly against `thomasholknielsen/claude-tweaks`: pushed
+branch `demo/tidy-housekeeping-pr-424` (an empty commit standing in for a real Step 7 mutation),
+opened **PR #436** (https://github.com/thomasholknielsen/claude-tweaks/pull/436) ready (not draft)
+with `<!-- tidy-housekeeping-pr -->` as the body's first line. Then ran item 9's exact three
+embedded scripts (candidate filter, link-fetch, classify) verbatim from `github-pr-scan.md` against
+live `gh pr list` output: PR #436 was correctly filtered in as a marker-matched candidate and
+classified `[pr-unarmed] PR #436: ... — green but ungranted — needs auto:merge on every linked
+record (or housekeeping-auto-merge for a tidy PR) before it can arm` (this project's real
+`housekeeping-auto-merge` policy value is `false`); re-ran the classify step with
+`HOUSEKEEPING_GRANT=true` and got `... — green and granted, --auto never armed — arm per
+_shared/pr-first-merge.md`, confirming both branches of the Arm-ready-PR-eligible classification.
+`UNARMED_AGE` was overridden to `0` for the age-gate only (an unrelated, unchanged 24h policy
+default that a seconds-old demo PR would otherwise fail on) — the marker/classification logic under
+test ran unmodified. **Found and filed separately, not fixed here (out of this record's scope):**
+item 9's own green-check (`checks.every(c => conclusion === 'SUCCESS')`) treats a
+permanently-`SKIPPED`-by-design check (`track-issue-fixes.yml`'s `cleanup-fix-labels`, conditional
+on the default branch) as non-green on every open PR in this repo, unrelated pre-existing bug,
+filed as **#438**. Diff is scoped to `skills/tidy/SKILL.md` (Step 7.5 + housekeeping-marker
+paragraph), `skills/_shared/integration-model.md` (one table row), `skills/_shared/scratch-worktree.md`
+(cross-check note), and `tests/sweep-backstop.test.js` (regression coverage) — no
+`local-merge`/non-`worktree.always` prose touched (`git diff --stat` against the materialize
+commit confirms this file list).
+
+**PR #436 disposition:** left open, non-draft, real — intentionally, as the AC's own evidence
+artifact for the review step to inspect live. It carries no content change (empty commit) and its
+body states it is safe to close once inspected. This build+test run stops at the test gate per its
+own dispatch instructions; closing #436 is left to review/wrap-up/settle, noted here so it is never
+silently forgotten.
 
 ## Technical Approach
 
