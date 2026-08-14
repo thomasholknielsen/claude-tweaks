@@ -6,4 +6,4 @@
 | 2 | wrap-up | branch — origin/worktree-dispatch-370 — merged into origin/main, not deleted (residue sweep, remedy: auto) | fixed | Deleted via `git push origin --delete` |
 | 3 | wrap-up | branch — origin/worktree-dispatch-421 — merged into origin/main, not deleted (residue sweep, remedy: auto) | fixed | Deleted via `git push origin --delete` |
 | 4 | wrap-up | branch — origin/worktree-dispatch-422 — merged into origin/main, not deleted (residue sweep, remedy: auto) | fixed | Deleted via `git push origin --delete` |
-| 5 | wrap-up | pr — PR #441 — open, head worktree-dispatch-394 (this work's own PR; residue sweep, remedy: record) | open | — |
+| 5 | wrap-up | pr — PR #441 — open, head worktree-dispatch-394 (this work's own PR; residue sweep, remedy: record) | accepted | Not independent leftover work — this is this run's own PR, authorized by `auto:merge`, and resolves via this same run's Phase 4 Auto-merge short-circuit later in this wrap-up. The sweep ran mid-pipeline (before that step), so it necessarily observed the PR still open. |
