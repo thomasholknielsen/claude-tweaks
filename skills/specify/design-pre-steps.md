@@ -44,7 +44,45 @@ Runs only when Step 2.5b's shape pre-step actually produced a confirmed brief (o
 
 **Skip entirely for a native surface** — `Surface: mobile`, or any surface where the project's `PRODUCT.md` declares a `Platform` of `ios` / `android` / `adaptive`. Both halves of this step are web-only: the scaffold it writes is a static HTML file, and `live` refuses the native track outright (`design-wrapper/modes/live.md` Step 1.5). Proceed to Step 2.5c with no `Visual-reference:` line, exactly as option 2 does. This step is where the check belongs, because it is the only point in the chain that knows the surface before the scaffold gets written — `live` mode itself never receives a `Surface:` line to read.
 
-Offer once, as its own message:
+**Scope-resolved pre-check.** Before offering anything below, resolve the tournament scope once, on this side: read Layer 0's `hasDesign` signal per `skills/design-wrapper/impeccable-plugin.md`; when Layer 0 is degraded, fall back to a direct existence check for `DESIGN.md` at the project root. Every `/claude-tweaks:design-wrapper explore` invocation below passes `--scope` explicitly, so the mode's own auto-resolution never runs on this path — the two sides read the same fact and cannot disagree.
+
+### No `DESIGN.md` — identity branch
+
+Replaces the single-scaffold offer below entirely.
+
+**Call `AskUserQuestion`:**
+
+- `question`: `"No design identity is locked yet (no DESIGN.md). Want to explore competing visual identities for {primary surface} in the browser before decomposition?"`, `header`: `"Design identity"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — run the worlds tournament (Recommended)"`, `description`: `"/claude-tweaks:design-wrapper explore --scope identity --source specify — compare rendered identities, lock the pick into DESIGN.md"`
+- Option 2 — `label`: `"Skip"`, `description`: `"Proceed to decomposition; the current single-scaffold exploration is also skipped this run"`
+
+On option 1: invoke `/claude-tweaks:design-wrapper explore --scope identity --source specify` via the Skill tool.
+
+- On `{result: "ok", design_md: "seeded", visual_reference}`: note the returned `visual_reference` path for Step 3's `Visual-reference:` line via item 5's mechanism below, then proceed to Step 2.5c. `live` is intentionally **not** re-offered after the identity tournament: the pick seeds `DESIGN.md`, and element-level tuning of a specific surface belongs to a later run's layout branch (below), which offers `live` on its own tournament winner. A future editor must read this absence as a decision, not an omission.
+- On `{skipped: ...}` (Impeccable absent, off-pin, kill-switch, native, no-PRODUCT): fall through to the single-scaffold offer below — today's behavior. A skip never removes the existing path.
+
+On option 2, or no affirmative response: proceed to Step 2.5c with no further action — the single-scaffold offer below is also skipped this run.
+
+### `DESIGN.md` present — layout branch
+
+Offers the layout tournament ahead of the single-scaffold offer below.
+
+**Call `AskUserQuestion`:**
+
+- `question`: `"Want to compare rendered layout variants of {primary surface} (identity held fixed) before I build it for real?"`, `header`: `"Layout variants"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — run the layout tournament (Recommended)"`, `description`: `"/claude-tweaks:design-wrapper explore {surface-topic} --scope layout --source specify — pick a composition, then optionally tune it with live"`
+- Option 2 — `label`: `"Skip to single-scaffold live"`, `description`: `"Today's behavior: one scaffold + /claude-tweaks:design-wrapper live"`
+
+On option 1: invoke `/claude-tweaks:design-wrapper explore {surface-topic} --scope layout --source specify` via the Skill tool, with `{surface-topic}` composed from the brief (surface name + content requirements).
+
+- On `{result: "ok", visual_reference}`: offer `live` on the winner by reusing the single-scaffold offer's steps 2-4 below, with `SCAFFOLD_URL` pointed at the returned `visual_reference` path — step 1's scaffold generation is skipped, since the winning markup already exists. Then step 5 records that same path for Step 3.
+- On `{skipped: ...}` (Impeccable absent, off-pin, kill-switch, native, no-PRODUCT): fall through to the single-scaffold offer below — today's behavior.
+
+On option 2: proceed directly to the single-scaffold offer below — today's behavior.
+
+### Single-scaffold offer (fallback)
+
+Reached when the identity or layout branch above skips through, or when its own option 2 routes here directly. Offer once, as its own message:
 
 **Call `AskUserQuestion`:**
 
