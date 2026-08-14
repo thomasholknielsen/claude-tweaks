@@ -1,7 +1,6 @@
 {
-  "runId": "2026-08-14T110139-dispatch-standalone",
-  "sessionId": "e2386834-6f71-41b8-93d1-8056e99fcda4",
-  "claimedAt": "2026-08-14T11:02:20.536Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "released": true,
+  "runId": "manual-tidy-20260814T213040Z",
+  "reason": "swept: stale claim (orphaned by crashed batch dispatch run 2026-08-14T110139-dispatch-standalone; no worktree or run-state.json was ever created for this issue)",
+  "releasedAt": "2026-08-14T21:30:44.604Z"
 }
