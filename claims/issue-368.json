@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-14T102913-dispatch-standalone",
-  "reason": "blocked: prerequisite #204 open — github-pr-scan.md at 40774/40960 bytes, 186B headroom, cannot land #368 pre-filter prose until #204 splits the file",
-  "releasedAt": "2026-08-14T10:33:32.993Z"
+  "runId": "2026-08-14T163544-dispatch-standalone",
+  "sessionId": "f4177332-81a7-5fc5-b169-e8080cdcaabe",
+  "claimedAt": "2026-08-14T16:35:49.044Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
