@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, WRITE_SHAPES, forEachCommandSegment } = require('./git-command');
+const { gitTargets, fileWriteTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -162,19 +162,14 @@ function teardownTargets(ctx) {
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
   forEachCommandSegment(toolInput.command, ctx.cwd || process.cwd(), (toks, effCwd) => {
-    let i = 0;
-    if (toks[i] !== 'git') return;
-    i += 1;
-    let dir = effCwd; // string, or null meaning UNKNOWN (e.g. after an unresolvable `cd`)
-    // Only `-C <dir>` before the subcommand is honored — matching gitTargets'
-    // own narrow -C handling above, not the full global-flag surface. An
-    // absolute -C argument is provable even against an unknown cwd; a
-    // relative one is not.
-    if (toks[i] === '-C' && typeof toks[i + 1] === 'string') {
-      const raw = toks[i + 1];
-      dir = path.isAbsolute(raw) ? path.resolve(raw) : (dir === null ? null : path.resolve(dir, raw));
-      i += 2;
-    }
+    if (toks[0] !== 'git') return;
+    // Shares gitTargets' own global-flag skipper: any global flag ahead of
+    // the subcommand (-C, -c, --exec-path, --namespace, --git-dir,
+    // --work-tree, or an unrecognized `-...` flag) used to defeat this
+    // parser entirely when it only checked for a literal `-C`, silently
+    // allowing `git -c foo=bar worktree remove <path>` past the gate.
+    const { index: i, dir, unprovable } = skipGlobalFlags(toks, 1, effCwd);
+    if (unprovable) return;
     if (dir === null) return; // cwd unknown and no provable -C -> no target
     // Derived from GATE_COVERAGE.teardownGitCommands rather than a hardcoded
     // comparison, so the constant stays load-bearing (see tools/gitActions

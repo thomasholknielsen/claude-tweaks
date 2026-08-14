@@ -161,40 +161,54 @@ function forEachCommandSegment(command, cwd, handler) {
   }
 }
 
+// Consumes every leading global git flag (-C <dir>, -c <k>=<v>, --exec-path,
+// --namespace, --git-dir, --work-tree, and any other unrecognized `-...`
+// flag) starting at token index `i`, resolving -C against `dir` the same way
+// gitTargets always has. Returns the index of the first non-flag token (the
+// subcommand), the resolved dir (or null if UNKNOWN), and whether the
+// target became unprovable. Shared by gitTargets and teardownTargets so a
+// future global-flag fix lands once for both instead of drifting between two
+// hand-kept copies — teardownTargets used to check only a literal `-C`
+// immediately after `git`, so any other global flag (`-c ...`, `--no-pager`,
+// etc.) ahead of `worktree remove` defeated its parser entirely and silently
+// allowed tearing down a worktree still assigned to a non-terminal run.
+function skipGlobalFlags(t, i, dir) {
+  let unprovable = false;
+  while (i < t.length && t[i].startsWith('-')) {
+    const flag = t[i];
+    if (UNPROVABLE_FLAGS.some((u) => flag === u || flag.startsWith(u + '='))) { unprovable = true; i += flag.includes('=') ? 1 : 2; continue; }
+    // Use an explicit index-bound check (i + 1 < t.length), not a truthy
+    // check on t[i + 1] — a truthy check treats a genuinely-present but
+    // EMPTY value (`-C ""`, which real git treats as equivalent to
+    // omitting -C entirely) as "no value follows", mis-consuming only the
+    // flag token and leaving the leftover '' to be misread as the git
+    // subcommand two lines below.
+    if (flag === '-C' && i + 1 < t.length) {
+      const raw = t[i + 1];
+      if (isUnresolvable(raw)) {
+        unprovable = true;
+      } else if (path.isAbsolute(raw)) {
+        dir = path.resolve(raw);
+      } else if (dir === null) {
+        // Relative -C while cwd is UNKNOWN — cannot prove the target.
+        unprovable = true;
+      } else {
+        dir = path.resolve(dir, raw);
+      }
+      i += 2;
+      continue;
+    }
+    if (VALUE_FLAGS.has(flag) && i + 1 < t.length) { i += 2; continue; }
+    i += 1;
+  }
+  return { index: i, dir, unprovable };
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
     if (t[0] !== 'git') return;
-    let i = 1;
-    let dir = effCwd; // may be null (UNKNOWN)
-    let unprovable = false;
-    while (i < t.length && t[i].startsWith('-')) {
-      const flag = t[i];
-      if (UNPROVABLE_FLAGS.some((u) => flag === u || flag.startsWith(u + '='))) { unprovable = true; i += flag.includes('=') ? 1 : 2; continue; }
-      // Use an explicit index-bound check (i + 1 < t.length), not a truthy
-      // check on t[i + 1] — a truthy check treats a genuinely-present but
-      // EMPTY value (`-C ""`, which real git treats as equivalent to
-      // omitting -C entirely) as "no value follows", mis-consuming only the
-      // flag token and leaving the leftover '' to be misread as the git
-      // subcommand two lines below.
-      if (flag === '-C' && i + 1 < t.length) {
-        const raw = t[i + 1];
-        if (isUnresolvable(raw)) {
-          unprovable = true;
-        } else if (path.isAbsolute(raw)) {
-          dir = path.resolve(raw);
-        } else if (dir === null) {
-          // Relative -C while cwd is UNKNOWN — cannot prove the target.
-          unprovable = true;
-        } else {
-          dir = path.resolve(dir, raw);
-        }
-        i += 2;
-        continue;
-      }
-      if (VALUE_FLAGS.has(flag) && i + 1 < t.length) { i += 2; continue; }
-      i += 1;
-    }
+    const { index: i, dir, unprovable } = skipGlobalFlags(t, 1, effCwd);
     if (unprovable) return;
     if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];
@@ -441,4 +455,4 @@ function fileWriteTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, forEachCommandSegment, WRITE_SHAPES };
+module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, WRITE_SHAPES };
