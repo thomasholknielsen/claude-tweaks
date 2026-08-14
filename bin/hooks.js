@@ -82,6 +82,33 @@ function main(argv) {
     }
     return 0;
   }
+  if (cmd === 'record-pr') {
+    // Mirrors record-worktree's shape: --run <path> pins the target run dir
+    // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan
+    // when absent), positional args after it are the PR number and URL.
+    // run-state.json is written only through hooks.js verbs (CLAUDE.md's
+    // write-ownership rule) — this is the sanctioned verb for the pr-early
+    // run lifecycle's { number, url } field (#409).
+    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const numberArg = rest[0];
+    const urlArg = rest[1];
+    const number = Number(numberArg);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — PR not recorded\n`);
+    } else if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
+    } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
+      process.stdout.write(`claude-tweaks: usage: record-pr [--run <dir>] <number> <url> — PR not recorded\n`);
+    } else {
+      const result = ctxLib.writeRunState(runDir, { pr: { number, url: urlArg } });
+      if (result) {
+        process.stdout.write(`claude-tweaks: PR #${number} recorded for ${path.basename(runDir)}\n`);
+      } else {
+        process.stdout.write(`claude-tweaks: failed to record PR for ${path.basename(runDir)} — run-state.json could not be written\n`);
+      }
+    }
+    return 0;
+  }
   if (cmd === 'close-run') {
     const { runDir, invalidRunArg, explicit } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     if (invalidRunArg) {

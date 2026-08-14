@@ -32,6 +32,29 @@ These apply in ALL modes. They exist because multiple processes may commit to th
 | **Verify commits landed** | Always `git log --oneline -3` after committing. |
 | **Never `--no-verify` / `--no-gpg-sign`** | Skipping hooks or signing bypasses safety the user opted into. If a hook fails, fix the underlying issue. |
 
+## Phase-exit push (`integration-model: pr-first` only)
+
+Under `pr-first` (`_shared/integration-model.md`), every pipeline phase that commits — build,
+test, review, polish, wrap-up — ends by pushing the branch: `git -C "{worktree-path}" push
+origin {branch}`, its own Bash call, never chained onto anything else (same reason as every
+other push in this file — the `worktree.always` gate denies a compound command whole). This is
+what makes the run's draft PR (`_shared/pr-early-run-lifecycle.md`) show live progress instead
+of only the state as of run start, and what keeps the branch durable at every phase boundary
+rather than only at finish — see `pending-review-durability.md`'s own motivating incident for
+what "only pushed once, at the very end" costs when a session never reaches the end.
+
+Ship at every phase exit, not batched — measured at ≥50× headroom against the GitHub API budget
+(spike #405; `git push` itself costs zero REST/GraphQL calls, so per-phase cadence is free
+regardless of phase count).
+
+**Failure degrades per-attempt, never persists.** A failed phase-exit push (network, auth, a
+rejected non-fast-forward) logs a warning to the run's `decisions.md` and the phase continues —
+never a hard stop, never a flag written to `run-state.json` that would suppress the *next*
+phase's own push attempt. The next phase exit's push naturally catches up whatever the failed
+one didn't, so a single transient failure self-heals without any retry logic of its own.
+
+`local-merge` runs keep today's behavior: no phase-exit push, one push at finish.
+
 ## Catching a branch up with `main`
 
 A long-running branch has to be realigned with `main` before it merges (`[IL-20]`), and there are two ways to do it. They are not equivalent, and the difference outlives the branch:

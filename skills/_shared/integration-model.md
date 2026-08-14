@@ -45,6 +45,9 @@ Populated as each pr-first sub-issue lands; a consumer citing this file *and* ro
 | Consumer | Uses it for |
 |---|---|
 | `/claude-tweaks:init` (Step 20 — `bootstrap/step-20-integration-model.md`) | Offering the explicit policy value to GitHub-backed projects at setup time |
+| `/claude-tweaks:build` (`build/worktree-setup.md` Step 6, `_shared/pr-early-run-lifecycle.md`) | Routing run-start draft-PR creation — `pr-first` opens the PR, `local-merge` skips the step entirely |
+| `_shared/git-discipline.md` (Phase-exit push section) | Routing whether build/test/review/polish/wrap-up push at every phase exit (`pr-first`) or only once at finish (`local-merge`) |
+| `/claude-tweaks:build`, `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:flow` (`flow/steps-and-gates.md`'s polish-phase decision tree), `/claude-tweaks:wrap-up` (`wrap-up/execution-and-verification.md`) | Each phase's own phase-exit push + PR checklist update |
 
 ## Anti-Patterns
 

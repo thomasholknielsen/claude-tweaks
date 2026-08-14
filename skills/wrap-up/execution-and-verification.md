@@ -32,6 +32,18 @@ fall back to this run's own identified record (Phase 1 — a `#`-prefixed argume
 branch/commit reference) as the single issue resolved. A run with neither — conversation-based
 work — carries no closing keyword; there was never an issue to close.
 
+**`worktree` mode under `integration-model: pr-first` (`_shared/integration-model.md`): no `Fixes` line here.** The run's draft PR
+(`_shared/pr-early-run-lifecycle.md`) already carries one `Fixes #{n}` line per record, composed
+at PR-open time — adding a second, differently-scoped set here would duplicate (and risk
+disagreeing with) that authoritative list. This step's commit is an ordinary commit.
+
+**Phase exit (`worktree` mode, `integration-model: pr-first`):** push this commit and flip
+wrap-up's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and
+`_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. This is the last phase-exit
+push of the run; it does not mark the PR ready for merge or touch its draft state — that
+transition belongs to the merge-path sub-issue, not this one (Non-Goals). A no-op under
+`local-merge` or `current-branch` mode.
+
 ### Verify execution
 
 Before emitting the closure line, confirm every approved action actually ran:

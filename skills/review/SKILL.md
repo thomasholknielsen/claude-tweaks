@@ -404,6 +404,8 @@ At the end of the summary, include a `### Key Learnings` section with 1-3 insigh
 
 If no notable learnings emerged, state: "No key learnings — straightforward review."
 
+**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode.
+
 ## Important Notes
 
 - Spec compliance is the first gate — incomplete specs go back to `/claude-tweaks:build`, not through code review
