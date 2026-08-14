@@ -166,6 +166,22 @@ function main(argv) {
     }
     return 0;
   }
+  if (cmd === 'reconcile') {
+    // Thin wrapper over bin/lib/reconcile's one exported entry point —
+    // session-start.js calls reconcile() the same way, in-process (#408),
+    // so both surfaces are guaranteed to behave identically by construction
+    // rather than by a parity test re-deriving the same logic twice.
+    const args = argv.slice(3);
+    const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
+    let out;
+    try {
+      out = require('./lib/reconcile').reconcile(opts);
+    } catch {
+      out = { mirror: null, worktrees: null, claims: null, runs: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
+    }
+    process.stdout.write(JSON.stringify(out) + '\n');
+    return 0;
+  }
   if (!EVENTS.includes(cmd)) return 0;
   const mod = loadModule(cmd);
   if (!mod || typeof mod.run !== 'function') return 0;

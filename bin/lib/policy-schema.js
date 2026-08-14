@@ -388,6 +388,23 @@ function detectIntegrationModel(repoRoot) {
   return 'pr-first';
 }
 
+// Full integration-model resolution for a caller that just wants the answer
+// — explicit policy.yml value (ordinary validation, wins outright) else the
+// computed forge-detection default, in one call. The shared entry point for
+// both bin/resolve-policy.js's CLI and bin/lib/reconcile/index.js (#407),
+// which needs the identical resolution in-process rather than shelling out
+// to the CLI. Never returns null: falls through to detection whenever the
+// key isn't cleanly set (absent, or set-but-invalid — a typo'd value still
+// gets a usable default here, unlike the raw resolvePolicyKeys/CLI path,
+// which surfaces `invalid: true` for a caller that wants to report it).
+function resolveIntegrationModel(repoRoot) {
+  const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
+  const resolved = resolvePolicyKeys(['integration-model'], { policyRaw, runConfigRaw: null });
+  const entry = resolved['integration-model'];
+  if (entry && entry.source !== 'default') return entry.value;
+  return detectIntegrationModel(repoRoot);
+}
+
 function auditPolicy(repoRoot) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const claudeMdRaw = readFileSafe(path.join(repoRoot, 'CLAUDE.md'));
@@ -454,5 +471,5 @@ function auditPolicy(repoRoot) {
 
 module.exports = {
   POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
-  detectIntegrationModel,
+  detectIntegrationModel, resolveIntegrationModel,
 };
