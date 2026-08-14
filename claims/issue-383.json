@@ -1,7 +1,6 @@
 {
-  "runId": "2026-08-14T110139-dispatch-standalone",
-  "sessionId": "e2386834-6f71-41b8-93d1-8056e99fcda4",
-  "claimedAt": "2026-08-14T11:02:21.805Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "released": true,
+  "runId": "2026-08-14T173701-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-14T17:52:17.246Z"
 }
