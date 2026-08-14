@@ -16,7 +16,7 @@ Surprises and Approach are skipped — light mode exists specifically to trim ce
 
 ### Seed from Review Learnings (pipeline context)
 
-Same as full mode: check the `/claude-tweaks:review` summary's **Key Learnings** section and use it as a starting point for the two lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the two lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
+Same as full mode: check the `/claude-tweaks:review` summary's **Key Learnings** section and use it as a starting point for the three lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the three lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
 
 ### No Tradeoff Review
 

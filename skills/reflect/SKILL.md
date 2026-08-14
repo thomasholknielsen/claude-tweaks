@@ -23,7 +23,7 @@ Step back from implementation and evaluate what was built through structured len
 - After any implementation work — you want a second look before moving on
 - During `/claude-tweaks:review` Step 4 — invoked in **hindsight** mode
 - During `/claude-tweaks:wrap-up` Phase 1 — invoked in **full** mode, or **light** mode when the run's `ceremony-profile` is `fast-lane`
-- After a small fix, when a full four-lens pass is more ceremony than the change warrants — invoke standalone in **light** mode for a cheap two-lens pass
+- After a small fix, when a full five-lens pass is more ceremony than the change warrants — invoke standalone in **light** mode for a cheap three-lens pass
 - After a debugging session or refactor — capture what you learned
 - After conversation-based work that had no formal review
 
@@ -57,7 +57,7 @@ Step back from implementation and evaluate what was built through structured len
 /claude-tweaks:reflect src/api/ src/db/    → full mode, scope to those directories
 ```
 
-Standalone `light` mode runs the same two lenses as pipeline-invoked light mode (see `light-mode.md`), with no ceremony-profile to seed from or downgrade — there is no `config.yml` in a standalone invocation, so the escape-hatch/ceremony-downgrade behavior described in `light-mode.md` is simply a no-op here.
+Standalone `light` mode runs the same three lenses as pipeline-invoked light mode (see `light-mode.md`), with no ceremony-profile to seed from or downgrade — there is no `config.yml` in a standalone invocation, so the escape-hatch/ceremony-downgrade behavior described in `light-mode.md` is simply a no-op here.
 
 ### Pipeline context (invoked by parent skill):
 
@@ -84,8 +84,8 @@ When no ledger phase is provided (standalone), use `reflect` as the default phas
 Mode-specific lens procedures live in sub-files (a given invocation only uses one):
 
 - **Hindsight mode** → see `hindsight-mode.md` in this skill's directory (5 evaluations, action gate)
-- **Full mode** → see `full-mode.md` in this skill's directory (4 lenses + tradeoff review; superset of hindsight)
-- **Light mode** → see `light-mode.md` in this skill's directory (2 lenses, no tradeoff review; narrowed subset of full, for `ceremony-profile: fast-lane` wrap-ups or standalone with the `light` keyword)
+- **Full mode** → see `full-mode.md` in this skill's directory (5 lenses + tradeoff review; superset of hindsight)
+- **Light mode** → see `light-mode.md` in this skill's directory (3 lenses, no tradeoff review; narrowed subset of full, for `ceremony-profile: fast-lane` wrap-ups or standalone with the `light` keyword)
 
 **Standalone-only `[Use: Frontier]` singleton (record #221).** When this run is **standalone** (per the Component-Skill Contract's component-invoked ⇒ no dispatch / standalone ⇒ dispatch rule below), the main thread assembles one artifact bundle — Step 1's gathered context (changed files, git log, existing spec/review/ledger context) and the resolved mode's lens file (`hindsight-mode.md` / `full-mode.md` / `light-mode.md`) inlined in full — and dispatches **one** Task agent (never a loop, never a parallel fan-out) to run every lens in that single pass, resolved via `node bin/resolve-profile.js frontier --run-dir "$PIPELINE_RUN_DIR"` (`--unattended` in a headless context; degrades to Capable per the resolver's own preconditions, logged in its `source` — never re-enumerated here). Output template: the agent returns, per lens, the same finding shape Step 3 already routes (`{lens name, finding summary, category}` — a plain list, one entry per finding, empty list when a lens found nothing). The dispatch structure never branches on which model the resolver returns — only the model differs. When this run is **component-invoked**, skip this dispatch entirely and run the lens procedure inline in the main thread exactly as today (no Task agent, no resolver call) — this is what "component-invoked ⇒ no dispatch" means mechanically.
 

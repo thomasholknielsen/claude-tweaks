@@ -58,7 +58,7 @@ false-positive denial resolves to defect (rule 1); a recurring missing default r
 
 ### Seed from Review Learnings (pipeline context)
 
-When invoked by `/wrap-up`, check the `/claude-tweaks:review` summary for the **Key Learnings** section. Use these as starting points for the four lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the four lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
+When invoked by `/wrap-up`, check the `/claude-tweaks:review` summary for the **Key Learnings** section. Use these as starting points for the five lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the five lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
 
 ### Tradeoff Review
 
@@ -76,7 +76,7 @@ Auto-mode routing is shared across every mode — see the auto-routing table in 
 
 ### Interactive mode (batch user routing)
 
-Collect all insights from the four lenses and the tradeoff review into a single table:
+Collect all insights from the five lenses and the tradeoff review into a single table:
 
 ```
 ### Reflection Insights
