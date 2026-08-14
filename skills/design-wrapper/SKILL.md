@@ -30,6 +30,8 @@ Every mode in the Input table below is active, plus the `reset-recommendations` 
 - `/claude-tweaks:visual-review` invokes `survey` mode after browser review
 - `/claude-tweaks:flow` invokes `survey` mode in the pipeline summary
 - `/claude-tweaks:specify` invokes `live` mode against a throwaway shape-time scaffold before decomposition
+- `/claude-tweaks:specify` invokes `explore` from Step 2.5b-ii's scope-resolved pre-check — the identity tournament replaces the single-scaffold offer at genesis (no `DESIGN.md` yet), the layout tournament is offered ahead of `live` once one is locked
+- `/claude-tweaks:init` recommends `explore` at its design-integration step (Step 11) — recommendation only, never invoked directly by `/init`
 - `/claude-tweaks:visual-review` invokes `live` mode (standalone Boost gate only) against the already-running app
 - `/claude-tweaks:tidy` invokes `doctor` mode as one scan step, to surface drift in the project's own Impeccable artifacts
 - A user runs `/claude-tweaks:design-wrapper <mode> <target>` directly to invoke a single mode without going through the lifecycle skill
@@ -264,6 +266,8 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block |
 | `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface |
 | `live` ok (`session: "completed"`) | If a variant was accepted, `/claude-tweaks:test` — re-verify the change |
+| `explore` ok (scope `identity`, `design_md: "seeded"`) | `/claude-tweaks:specify` — direction locked; brainstorm/specify against it |
+| `explore` ok (scope `layout`, `visual_reference` set) | `/claude-tweaks:specify` — winner carried forward as a `Visual-reference:` line |
 | `doctor` advisory + `findings` non-empty | Run the Impeccable command each `route` finding's `fix` names (typically `/impeccable:impeccable init` or `document`); `auto` findings are applied by the user's own `doctor.mjs --fix`, never by this wrapper |
 | `doctor` advisory + `findings: []` | No follow-up — the project's Impeccable artifacts are current |
 | `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 11) |
@@ -276,6 +280,7 @@ The table above stays as-is — it's the assistant's own resolution logic for pi
 - Option 2 (after `test pass` or `review advisory`) — `label`: `"Code review (Recommended after test pass or review advisory)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
 - Option 3 (after `review advisory` with nothing to fix, or `polish` no-op) — `label`: `"Wrap up"`, `description`: `"/claude-tweaks:wrap-up {spec} — close out the spec"`
 - Option 4 (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`) — `label`: `"Configure design integration"`, `description`: `"/claude-tweaks:init — configure or re-enable design integration"`
+- Option 5 (after `explore` ok, either scope) — `label`: `"Specify (Recommended after explore)"`, `description`: `"/claude-tweaks:specify — brainstorm or decompose against the locked direction or winning layout"`
 
 ## Component-Skill Contract
 
