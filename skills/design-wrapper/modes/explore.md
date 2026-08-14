@@ -2,13 +2,13 @@
 
 Invoked via `/claude-tweaks:design-wrapper explore [<surface-topic>] [--scope identity|layout] [--source <parent-skill>]`. Returns `{mode: "explore", result: "ok", scope: "identity", ...}` or `{mode: "explore", skipped: "...", ...}` to caller.
 
-**Interactive-only — has no auto-mode branch**, like `live`. Every step below assumes a human is present to answer the Verdict question in a browser; there is no automated-pick path, and no caller may invoke this mode from `auto` or a `$PIPELINE_RUN_DIR`-set context.
+**Interactive-only — has no auto-mode branch**, like `live`. Every step below assumes a human is present in a browser to answer the Verdict question; no caller may invoke this mode from `auto` or a `$PIPELINE_RUN_DIR`-set context.
 
 **Mode contract:**
 
 | Argument | Meaning |
 |---|---|
-| `<surface-topic>` | Optional free text. Consumed only by the `layout` scope's own procedure (a future record — see `## Scope resolution` below); this scope ignores it entirely. |
+| `<surface-topic>` | Optional free text. Consumed only by the `layout` scope's own procedure; this scope ignores it entirely. |
 | `--scope identity\|layout` | Explicit scope. Wins over auto-resolution when present. |
 | `--source <parent-skill>` | Same signal every other mode uses — see `../SKILL.md`'s Component-Skill Contract. |
 
@@ -35,7 +35,7 @@ Division of labor, load-bearing: **upstream deals, this mode derives and renders
 
 The genesis worlds tournament renders CSS skins over an HTML scaffold in a browser; a native app has no page for that scaffold to become. This mirrors `live.md`'s Step 1.5 exactly, on the same upstream constraint (`reference/routing.md`: web-only).
 
-**Availability** is exact-pin `resolveImpeccablePlugin`, `doctor`-class — not the looser skill-resolution check `review`/`shape`/`polish`/`live` use. `concept-seed.mjs` is a bundled script, and it does not exist at every plugin version that satisfies skill resolution (`../impeccable-plugin.md`'s "The pin is not pedantry"). Resolve it exactly as `doctor` resolves `doctor.mjs` — never glob the plugin cache directly, and never treat a resolved `/impeccable:impeccable*` skill as proof the script is present.
+**Availability** is exact-pin `resolveImpeccablePlugin`, `doctor`-class — not the looser skill-resolution check `review`/`shape`/`polish`/`live` use. `concept-seed.mjs` is a bundled script that does not exist at every plugin version satisfying skill resolution (`../impeccable-plugin.md`'s "The pin is not pedantry"), so never glob the plugin cache directly, and never treat a resolved `/impeccable:impeccable*` skill as proof the script is present.
 
 ## Scope resolution
 
@@ -49,8 +49,6 @@ A short table, run before any procedure step below. Layer 0's `hasDesign` signal
 | `--scope identity`, `hasDesign` false, or `DESIGN.md` not coherent | → `identity` — continue below |
 | `--scope layout` | → `layout` (same stub skip as the auto-resolved row, until #378 lands) |
 
-An explicit `--scope` always wins over the `hasDesign` auto-resolution row above it.
-
 **Coherent** means the file declares an actual identity — at minimum a palette and a typography direction, the identity-bearing sections upstream's `document.md` writes. An empty or stub `DESIGN.md` is not coherent. **Ambiguity resolves toward coherent** — toward the locked-identity skip, never toward casually re-dealing an identity that might already be someone's real answer. This is the conservative mirror of the wrapper's own "ambiguity resolves to allow" posture, pointed the other way because re-dealing is the destructive-feeling action here.
 
 **`PRODUCT.md` missing** is checked before the above (there is no genesis tournament with no product to build a scaffold from). Offer once:
@@ -63,7 +61,7 @@ On decline (or any answer but option 1): `{ "mode": "explore", "skipped": "no PR
 
 ## Procedure — identity scope
 
-Seven steps, each under a **stable heading name** — a later record reuses these headings verbatim for the `layout` scope, never by step number.
+Each step below carries a **stable heading name** — a later record reuses these headings verbatim for the `layout` scope, never by step number.
 
 ### Deal and derive
 
@@ -121,7 +119,7 @@ The switcher is a single, fully self-contained `index.html`: no CDN, no external
 
 One `AskUserQuestion` call site, reused every round: **pick** / **reroll** / **steer** / the canon standing exit, listed last and never marked Recommended. Present the "1 / N — {direction}" set from Compare as the options; the standing exit is upstream's own — "it is the user's door, never yours."
 
-**Restate-vs-pointer boundary**, stated once here: the semantics this mode acts on are restated below, and each restatement is pinned by a `tools/upstream-drift/manifest.yml` assertion against upstream's own text — everything else about dealing (the candidate catalog, weighting internals, canon mechanics beyond these four) stays a pointer into `reference/new-work.md`, never re-derived here.
+**Restate-vs-pointer boundary**, stated once here: the semantics this mode acts on are restated below, and each restatement is pinned by a `tools/upstream-drift/manifest.yml` assertion against upstream's own text — everything else about dealing (the candidate catalog, weighting internals, canon mechanics beyond the bullets below) stays a pointer into `reference/new-work.md`, never re-derived here.
 
 - **Reroll** re-runs Deal and derive with `--reroll <n> --from <key>` — `<n>` is the reroll counter, `<key>` is the carried seed key. Exclusion of every already-shown direction is upstream's own behavior, driven by those two arguments; this mode does not filter the deal itself.
 - **Steer** is a reroll whose one-line steer text guides this mode's *next* fuse/weigh pass in Deal and derive — **there is no script flag for steer.** The reroll command is identical to a plain reroll; the steer text changes only how this mode interprets upstream's instruction block on the next pass.
