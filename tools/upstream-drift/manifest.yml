@@ -217,3 +217,32 @@ dependencies:
     # precedent). Falsifier, accepted as out-of-scope risk: a same-version
     # re-publish replacing bytes under an existing cache dir would go unseen.
     fixtures: []
+
+  # emilkowalski/skills — the manifest's first content-hash-pinned entry class
+  # (`versioning: none`): the upstream repo has no tags and no releases, so
+  # there is no version line to pin. The pin is the upstream default branch's
+  # HEAD commit at implementation time plus one sha256 per consumed file,
+  # compared against committed snapshots under
+  # tools/upstream-drift/fixtures/emilkowalski-skills/ (MIT-licensed).
+  # Nothing is installed by this repo (Emil's skills are live-loaded per
+  # skills/_shared/design-craft.md), so this entry deliberately declares no
+  # installed-probe — checks.js's checkContentPins() is its code path, not the
+  # probe machinery.
+  # Scope: only each consumed skill's SKILL.md is pinned; a future dispatch
+  # site consuming any other file from a skill directory must extend this
+  # entry's `consumed` list (and commit the matching fixture).
+  # The consumed list mirrors skills/_shared/design-craft.md's wired set.
+  - name: emilkowalski-skills
+    kind: skill-repo
+    pin: { commit: "78761e1b57f97dce65b983d640c70a68f39e8163", versioning: none }
+    upstream:
+      repo: "emilkowalski/skills"
+    consumed:
+      - path: "skills/emil-design-eng/SKILL.md"
+        sha256: "e71de849347050c2c573c1cf24d742d5a13459557ecffa6e562f08006f46b5b7"
+      - path: "skills/animate/SKILL.md"
+        sha256: "2a99870e61971553c0af3185a194c0e557f33aaa81e0422ca2fcec52195a4341"
+      - path: "skills/animation-vocabulary/SKILL.md"
+        sha256: "d718b48fe3c7898804d588f050a2e266d82c9f5ef51da256c8cb8b5951527757"
+      - path: "skills/apple-design/SKILL.md"
+        sha256: "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61"

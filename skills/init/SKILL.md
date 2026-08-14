@@ -164,6 +164,10 @@ Decide whether the unified work record — used by `/claude-tweaks:capture`, `/c
 
 Ask how much claude-tweaks pipelines should decide on their own — ledger bookkeeping, queue-write filing, ops-item acknowledgment — versus asking every time, and write `autonomy` to `.claude-tweaks/policy.yml` when the answer isn't the schema default (`supervised`). `Trusted` is the recommended answer: every capability it unlocks is floor-gated to four narrow, reversible blocker-reason categories and every auto-resolution is logged — see `_shared/autonomy-ceiling.md` for the full contract. Read `bootstrap/step-18-autonomy-level.md` for the full procedure.
 
+### Step 19: Emil Design-Engineering Skills (Optional)
+
+When frontend signals are detected (same detection as Step 11), offer `npx skills@latest add emilkowalski/skills` — the generic-principles half of the craft layer's design context for UI-writing dispatches (`skills/_shared/design-craft.md`). The install is optional and cleanly declinable: absence degrades gracefully per the contract, never a gate. Deliberately writes no CLAUDE.md flag — the contract resolves availability by presence at dispatch time, and the kill-switch is Step 11's existing `design-integration` flag. Idempotent: skips the offer when the skills already resolve. Read `bootstrap/step-19-emil-skills.md` for the full procedure.
+
 ---
 
 ### Finalizing the worktree.always Decision

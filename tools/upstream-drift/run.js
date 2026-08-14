@@ -42,7 +42,7 @@ const path = require('node:path');
 const { execSync } = require('node:child_process');
 
 const { loadManifest } = require('./manifest');
-const { checkVersion, checkAssertions, replayFixtures } = require('./checks');
+const { checkVersion, checkAssertions, replayFixtures, checkContentPins, isContentPinned } = require('./checks');
 const { createFingerprint } = require('../../bin/lib/health-core/fingerprint');
 const { createCache } = require('../../bin/lib/health-core/cache');
 const { decide } = require('../../bin/lib/health-core/dedup');
@@ -168,6 +168,27 @@ function resolveLatest(entry, options = {}) {
 // [IL-73]'s lesson from the shipped sweeps, applied before this tool ever
 // grows a durable side effect.
 function evaluate(entry, options = {}) {
+  // Content-pinned entries (`versioning: none` — tagless upstreams) take
+  // their own path: no installed artifact exists, so the three probe-based
+  // checks and latest-tag resolution are structurally inapplicable, not
+  // merely skipped. checkContentPins is the class's one deterministic
+  // signal, and `pinned` carries the commit SHA rather than a version.
+  if (isContentPinned(entry)) {
+    const doCheckContentPins = options.checkContentPins || checkContentPins;
+    const contentPins = doCheckContentPins(entry, options);
+    const evaluation = {
+      name: entry.name,
+      pinned: entry.pin.commit,
+      installed: [],
+      resolvedInstalled: null,
+      latest: null,
+      latestTag: null,
+      contentPins,
+    };
+    evaluation.due = isDue(evaluation);
+    return evaluation;
+  }
+
   const doCheckVersion = options.checkVersion || checkVersion;
   const doCheckAssertions = options.checkAssertions || checkAssertions;
   const doReplayFixtures = options.replayFixtures || replayFixtures;
@@ -209,6 +230,7 @@ function evaluate(entry, options = {}) {
 // its own. `resolvedInstalled` is required — "you could upgrade from nothing"
 // is noise, and checkVersion already reported the absence.
 function hasUpgrade(evaluation) {
+  if (evaluation.contentPins) return false; // no version line exists to upgrade along
   return Boolean(
     evaluation.latest
     && evaluation.resolvedInstalled
@@ -219,6 +241,7 @@ function hasUpgrade(evaluation) {
 // The trigger model, in one place. A dependency is due when a version moved
 // or a claim stopped holding — never on elapsed time.
 function isDue(evaluation) {
+  if (evaluation.contentPins) return evaluation.contentPins.status !== 'ok';
   if (evaluation.version.status !== 'ok') return true;
   if (evaluation.assertions.status === 'drift') return true;
   if (evaluation.fixtures.status === 'mismatch') return true;
@@ -253,6 +276,29 @@ function buildFindings(evaluation) {
   const findings = [];
   const dep = evaluation.name;
   const { pinned, resolvedInstalled, latest } = evaluation;
+
+  // --- content pins (`versioning: none` entries) -----------------------
+  // The class's whole finding surface: a committed fixture whose bytes no
+  // longer hash to the pinned digest. Nothing below applies — there is no
+  // installed version to breach and no tag line to upgrade along.
+  if (evaluation.contentPins) {
+    for (const result of evaluation.contentPins.results || []) {
+      if (result.status === 'ok') continue;
+      findings.push(makeFinding({
+        kind: 'content-pin-breach',
+        cls: 'drift',
+        severity: 'high',
+        dep,
+        subject: result.path,
+        from: result.observed ? `sha256:${result.observed.slice(0, 12)}` : '(missing fixture)',
+        to: `commit ${String(pinned).slice(0, 12)}`,
+        detail: `The committed fixture for ${result.path} no longer matches the sha256 this repo pins `
+          + `for commit ${pinned}. Either the pin was corrupted or the fixture was edited — neither is `
+          + `upstream movement, both need a human. ${result.detail}`,
+      }));
+    }
+    return findings;
+  }
 
   // --- version ---------------------------------------------------------
   if (evaluation.version.status === 'breach') {
@@ -356,6 +402,7 @@ function buildFindings(evaluation) {
 // ─── issue payloads ──────────────────────────────────────────────────────
 
 const TITLES = {
+  'content-pin-breach': (f) => `${f.dep}: committed fixture for ${f.subject} no longer matches its pinned hash`,
   'pin-breach': (f) => `${f.dep}: installed ${f.versions.from} does not match pinned ${f.versions.to}`,
   absent: (f) => `${f.dep}: pinned at ${f.versions.to} but not installed`,
   'assertion-drift': (f) => `${f.dep}: a claim in ${f.subject.split('::')[0]} no longer holds upstream`,
@@ -495,13 +542,15 @@ function cmdDue(args, io = {}) {
     installed: e.resolvedInstalled,
     pinned: e.pinned,
     latest: e.latest,
-    reasons: [
-      e.version.status === 'breach' && 'installed does not match pinned',
-      e.version.status === 'absent' && 'not installed',
-      e.assertions.status === 'drift' && 'an assertion no longer resolves',
-      e.fixtures.status === 'mismatch' && 'a fixture replay no longer matches',
-      hasUpgrade(e) && 'an upgrade is available',
-    ].filter(Boolean),
+    reasons: e.contentPins
+      ? [e.contentPins.status !== 'ok' && 'a pinned content hash no longer matches its committed fixture'].filter(Boolean)
+      : [
+        e.version.status === 'breach' && 'installed does not match pinned',
+        e.version.status === 'absent' && 'not installed',
+        e.assertions.status === 'drift' && 'an assertion no longer resolves',
+        e.fixtures.status === 'mismatch' && 'a fixture replay no longer matches',
+        hasUpgrade(e) && 'an upgrade is available',
+      ].filter(Boolean),
   }));
   write(JSON.stringify({ due: report.filter((r) => r.due).length, dependencies: report }, null, 2) + '\n');
   return report;
