@@ -147,6 +147,15 @@ When a spec calls for both deletion and a tombstone comment, do one of:
 
 Never write a bare "zero matches anywhere" AC alongside a tombstone requirement without picking one of these — it fails at review time every time.
 
+## Empirical Premise-Check Deliverables
+
+When a spec's technical approach rests on an assumption about how an external system, harness, or tool actually behaves — an undocumented payload shape, an unconfirmed API contract, an assumed invocation path — write a blocking first deliverable ("Task 0") that captures the real behavior before any other deliverable's fixtures are written. Word its scope as an enumeration, not a single check, and cover every path that reaches the feature, not just every shape the resulting payload can take:
+
+- **Who initiates it** — a person typing the trigger directly (a slash command, a manual action), the model invoking it as part of its own reasoning, a Task-dispatched subagent invoking it on the model's behalf, and a headless/non-interactive run (`claude -p`, a scheduled Routine) invoking it with no one watching. These are different code paths through the harness and can diverge in whether an event fires at all, not just in what it contains.
+- **Every shape the payload can take once it does fire** — qualified vs. bare identifiers, success vs. failure, nested vs. top-level invocation.
+
+Enumerating only the second list and skipping the first is the failure mode to design against: it reads as thorough (every input shape is covered) while silently leaving out an entire initiation path that never produces an event to shape-check in the first place — a gap no fixture built from the captured shapes can catch, because the missing case never got captured. Name each initiator path explicitly in the Task 0 deliverable's own text; do not let "covers all invocation shapes" stand in for it.
+
 ## Why Each Section Matters for `/superpowers:writing-plans`
 
 | Section | What `/superpowers:writing-plans` does with it |
