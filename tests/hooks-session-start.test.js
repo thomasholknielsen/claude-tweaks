@@ -107,6 +107,60 @@ test('worktree.always nudge is absent when policy is off', () => {
   else assert.deepStrictEqual(out, {});
 });
 
+function git(args, cwd) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8' });
+}
+
+// #408 AC1: a session starting in a checkout strictly behind origin gets its
+// integration branch fast-forwarded before additionalContext renders, with a
+// one-line reconcile summary when anything changed.
+test('SessionStart fast-forwards a behind-and-clean integration branch via reconcile(), and reports it in additionalContext (#408 AC1)', () => {
+  const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-origin-'));
+  git(['init', '-q', '--bare', '--initial-branch=main'], originDir);
+
+  // seedDir is the ONLY pusher of history-defining commits — mainDir only
+  // ever reads. Two independent pushers of sibling commits (both children
+  // of the same parent) would diverge on the shared bare origin; having a
+  // single writer avoids that entirely rather than working around it.
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-seed-'));
+  git(['clone', '-q', originDir, seedDir]);
+  git(['config', 'user.email', 'test@example.com'], seedDir);
+  git(['config', 'user.name', 'Test'], seedDir);
+  fs.writeFileSync(path.join(seedDir, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], seedDir);
+  git(['commit', '-q', '-m', 'seed'], seedDir);
+  // Committed as part of the seed commit, not added post-clone in mainDir —
+  // an untracked or separately-pushed policy.yml would either make the
+  // working tree read as dirty or force a second, diverging pusher (see
+  // above), both of which would mask the real fast-forward behavior this
+  // test is checking.
+  fs.mkdirSync(path.join(seedDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], seedDir);
+  git(['commit', '-q', '-m', 'policy'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+
+  const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-main-'));
+  git(['clone', '-q', originDir, mainDir]);
+  git(['config', 'user.email', 'test@example.com'], mainDir);
+  git(['config', 'user.name', 'Test'], mainDir);
+
+  // Origin moves ahead — mainDir is now strictly behind and clean.
+  fs.writeFileSync(path.join(seedDir, 'b.txt'), 'two\n');
+  git(['add', 'b.txt'], seedDir);
+  git(['commit', '-q', '-m', 'second'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+
+  const before = git(['rev-parse', 'HEAD'], mainDir).trim();
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
+  const after = git(['rev-parse', 'HEAD'], mainDir).trim();
+
+  assert.notStrictEqual(before, after, 'the integration branch must be fast-forwarded during SessionStart');
+  assert.strictEqual(after, git(['rev-parse', 'origin/main'], mainDir).trim());
+  assert.ok(out.json, 'a change occurred, so additionalContext must render');
+  assert.match(out.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i);
+});
+
 test('worktree.always nudge is absent when the session is already inside a linked worktree', () => {
   const project = gitProject();
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-m', 'init', '-q']);

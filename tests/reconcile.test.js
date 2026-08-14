@@ -251,16 +251,37 @@ test('isWorktreeLocked: a path not registered in git worktree list at all is not
 
 // --- reconcile() orchestrator: offline degradation and model gating ---
 
-test('reconcile: local-merge project skips every check with one clear reason, never throws (AC4-adjacent)', () => {
+test('reconcile: local-merge project falls back to the legacy ancestry reap, skips mirror/release/archive (AC4-adjacent)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-lm-'));
-  git(['init', '-q'], dir);
+  git(['init', '-q', '--initial-branch=main'], dir);
+  git(['config', 'user.email', 'test@example.com'], dir);
+  git(['config', 'user.name', 'Test'], dir);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], dir);
+  git(['commit', '-q', '-m', 'seed'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: local-merge\n');
+  // No remote at all (truly no-forge) — integration-branch: must be explicit
+  // in policy.yml for resolveIntegrationBranch to succeed, since there is no
+  // origin/HEAD to fall back to. The legacy ancestry reap still needs a
+  // resolved integration branch name regardless of forge reachability.
+  fs.writeFileSync(
+    path.join(dir, '.claude-tweaks', 'policy.yml'),
+    'integration-model: local-merge\nintegration-branch: main\n',
+  );
 
   const r = reconcile({ cwd: dir });
   assert.strictEqual(r.mirror, null);
-  assert.strictEqual(r.worktrees, null);
-  assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'local-merge-model' }]);
+  assert.deepStrictEqual(r.worktrees, []); // legacy reap ran, found zero worktrees to consider
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive', reason: 'local-merge-model' }]);
+});
+
+test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-lm-noib-'));
+  git(['init', '-q'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: local-merge\n');
+  const r = reconcile({ cwd: dir });
+  assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-remote' }]);
 });
 
 test('reconcile: no network / no remote resolves to no-remote, never crashes (AC4)', () => {
@@ -279,16 +300,36 @@ test('reconcile: outside any repo resolves to no-repo, never crashes', () => {
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
-test('reconcile: checks filter runs only the requested subset', () => {
+test('reconcile: checks filter excludes reap -> local-merge project runs nothing at all', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-checks-'));
-  git(['init', '-q'], dir);
+  git(['init', '-q', '--initial-branch=main'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: local-merge\n');
+  fs.writeFileSync(
+    path.join(dir, '.claude-tweaks', 'policy.yml'),
+    'integration-model: local-merge\nintegration-branch: main\n',
+  );
 
   const r = reconcile({ cwd: dir, checks: ['mirror'] });
-  // Still gated on local-merge before any per-check dispatch — proves the
-  // model gate runs before the checks filter is even consulted.
-  assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'local-merge-model' }]);
+  // 'mirror' was requested but has no local-merge equivalent — nothing runs.
+  assert.strictEqual(r.worktrees, null);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive', reason: 'local-merge-model' }]);
+});
+
+test('reconcile: reap dispatches strictly after release and archive in source order (load-bearing, not incidental — #408)', () => {
+  // release and archive both derive a run's branch from a live `git
+  // worktree list`; reap physically removes worktrees. Running reap first
+  // would starve release/archive of exactly the runs most likely to
+  // qualify (a just-reaped worktree's PR is, by construction, merged).
+  // Pinned structurally, the same way tests/hooks-gate-coverage.test.js
+  // pins prose to code — a real ordering regression here has no other test
+  // that would catch it without fabricating live PR/claim state.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const releaseIdx = src.indexOf("checks.includes('release')");
+  const archiveIdx = src.indexOf("checks.includes('archive')");
+  const reapIdx = src.lastIndexOf("checks.includes('reap')"); // the pr-first dispatch, not the local-merge fallback above it
+  assert.ok(releaseIdx > 0 && archiveIdx > 0 && reapIdx > 0);
+  assert.ok(releaseIdx < reapIdx, 'release must dispatch before reap');
+  assert.ok(archiveIdx < reapIdx, 'archive must dispatch before reap');
 });
 
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---

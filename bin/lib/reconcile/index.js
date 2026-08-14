@@ -9,22 +9,25 @@
 // per-check properties, not by a global lock.
 'use strict';
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
-const { resolveIntegrationBranch } = require('../hooks/worktree-reap');
+const { resolveIntegrationBranch, reapWorktrees: legacyReapWorktrees } = require('../hooks/worktree-reap');
 const { resolveIntegrationModel } = require('../policy-schema');
 const { mirrorFastForward } = require('./mirror-ff');
 const { reapMerged } = require('./reap-merged');
 const { releaseMerged } = require('./release-merged');
 const { archiveMerged } = require('./archive-merged');
 
+// Execution order (mirror, release, archive, reap) is significant — see the
+// ordering comment above the release/archive/reap dispatch below. This
+// array is the requested-subset default only; it is never iterated to
+// determine dispatch order.
 const ALL_CHECKS = ['mirror', 'reap', 'release', 'archive'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
 // -> { mirror, worktrees, claims, runs, skipped }
-// `local-merge` projects, and every no-forge project, skip every check with
-// reason 'local-merge-model' — this module is gh-CLI-only by design (a Node
-// subprocess cannot reach an agent session's MCP tools), so a gh-absent
-// environment reports 'gh-absent' per-check rather than attempting an MCP
-// fallback (see `_shared/integration-model.md`).
+// This module is gh-CLI-only by design (a Node subprocess cannot reach an
+// agent session's MCP tools), so a gh-absent environment reports that reason
+// per-check rather than attempting an MCP fallback (see
+// `_shared/integration-model.md`).
 function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
@@ -37,15 +40,33 @@ function reconcile(opts = {}) {
     return result;
   }
 
-  const model = resolveIntegrationModel(root);
-  if (model !== 'pr-first') {
-    result.skipped.push({ check: 'all', reason: 'local-merge-model' });
-    return result;
-  }
-
   const integration = resolveIntegrationBranch(root);
   if (!integration) {
     result.skipped.push({ check: 'all', reason: 'no-remote' });
+    return result;
+  }
+
+  const model = resolveIntegrationModel(root);
+  if (model !== 'pr-first') {
+    // local-merge / no-forge: only `reap` has a defined fallback here — the
+    // long-standing content-identical ancestry check worktree-reap.js has
+    // always run (#407's Non-Goals: no local-merge behavior change). mirror
+    // (nothing to fast-forward toward — there is no PR-lifecycle mirror
+    // under this model), release, and archive have no local-merge
+    // equivalent and stay skipped.
+    if (checks.includes('reap')) {
+      const legacy = legacyReapWorktrees({ cwd: root, integration, dryRun, now: opts.now });
+      result.worktrees = legacy.reaped.map((p) => ({ path: p, action: 'reaped' }))
+        .concat(legacy.skipped.map((s) => ({ path: s.path, action: 'skipped', reason: s.reason })));
+      // MAX_EXAMINED_PER_RUN candidates the legacy reaper never got to this
+      // pass — never drop this silently (CLAUDE.md: no silent caps). No
+      // per-worktree path to attach it to, so it lands as its own skipped
+      // entry with a count rather than one of the per-path ones above.
+      if (legacy.deferred) {
+        result.skipped.push({ check: 'reap', reason: 'deferred', count: legacy.deferred });
+      }
+    }
+    result.skipped.push({ check: 'mirror,release,archive', reason: 'local-merge-model' });
     return result;
   }
 
@@ -53,16 +74,17 @@ function reconcile(opts = {}) {
     result.mirror = mirrorFastForward(root, integration);
   }
 
-  if (checks.includes('reap')) {
-    const r = reapMerged({ cwd: root, dryRun });
-    if (r.failure) {
-      result.skipped.push({ check: 'reap', reason: r.failure });
-    } else {
-      result.worktrees = r.reaped.map((p) => ({ path: p, action: 'reaped' }))
-        .concat(r.skipped.map((s) => ({ path: s.path, action: 'skipped', reason: s.reason, prNumber: s.prNumber })));
-    }
-  }
-
+  // Ordering is load-bearing, not incidental: release and archive both
+  // derive a run's branch from a live `git worktree list` (matched by the
+  // worktree path run-state.json recorded). `reap` PHYSICALLY REMOVES
+  // worktrees — running it first would make every subsequent check's branch
+  // derivation fail for exactly the runs `reap` just finished with,
+  // silently starving `release`/`archive` of the runs most likely to
+  // qualify (a just-reaped worktree's PR is, by construction, merged — the
+  // same evidence `release`/`archive` are looking for). `reap` runs LAST
+  // among the four for this reason — the same class of hazard
+  // `bin/lib/hooks/session-start.js` already documents for its own
+  // stale-run-scan-before-reap ordering.
   if (checks.includes('release')) {
     // Release performs one write kind (a conditional-overwrite of the claim
     // blob) with no meaningful "preview" — unlike ff/reap/archive, there is
@@ -85,6 +107,16 @@ function reconcile(opts = {}) {
     const r = archiveMerged({ cwd: root, dryRun });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
       .concat(r.skipped.map((s) => ({ runDir: s.runDir, action: 'skipped', reason: s.reason })));
+  }
+
+  if (checks.includes('reap')) {
+    const r = reapMerged({ cwd: root, dryRun });
+    if (r.failure) {
+      result.skipped.push({ check: 'reap', reason: r.failure });
+    } else {
+      result.worktrees = r.reaped.map((p) => ({ path: p, action: 'reaped' }))
+        .concat(r.skipped.map((s) => ({ path: s.path, action: 'skipped', reason: s.reason, prNumber: s.prNumber })));
+    }
   }
 
   return result;
