@@ -78,6 +78,12 @@ test('findLostOccurrences: acceptance — deleting a whole Relationship table re
   // this test unrunnable the moment it proved its point. The fixture is that file
   // verbatim at the last commit before the deletion, so the experiment still runs on
   // exactly the bytes that produced the 24% and 100% figures on record.
+  //
+  // Verbatim means verbatim: the fixture's own body still cites
+  // docs/superpowers/specs/2026-07-15-cross-spec-promise-tracking-design.md, a design doc
+  // since deleted by 652a97c4. Left as-is on purpose — rewriting it would break "exactly
+  // the bytes" above. A repo-wide dangling-reference sweep should skip this fixture rather
+  // than flag it (refs #390).
   const file = path.join(__dirname, 'fixtures', 'review-SKILL-pre-2b.md');
   const before = fs.readFileSync(file, 'utf8');
   const lines = before.split('\n');

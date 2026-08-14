@@ -4,7 +4,7 @@ Loaded by `/claude-tweaks:dispatch` only when Preflight's Detection Ladder check
 absent. Every call site in `SKILL.md` runs its `gh` CLI form unchanged when `gh` is present, so a
 normal run never reads this file.
 
-Live as of Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, which verified the
+Live as of Task 10 of the dispatch MCP bridge plan (was `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` — deleted `d83f0720`), which verified the
 whole chain against a live cloud run and flipped Preflight's check 2 from a hard gate to a branch.
 CRUD mappings throughout are per `_shared/github-write-transport.md`. Settle and the Auto-merge gate
 have their own MCP notes in `settle-and-merge.md`; the self-report block's MCP mapping lives with
