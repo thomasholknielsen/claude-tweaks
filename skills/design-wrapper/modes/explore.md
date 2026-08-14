@@ -12,7 +12,7 @@ Invoked via `/claude-tweaks:design-wrapper explore [<surface-topic>] [--scope id
 | `--scope identity\|layout` | Explicit scope. Wins over auto-resolution when present. |
 | `--source <parent-skill>` | Same signal every other mode uses — see `../SKILL.md`'s Component-Skill Contract. |
 
-This file covers both scopes: the `identity` scope's genesis worlds tournament, run when a project has a `PRODUCT.md` but no coherent `DESIGN.md` yet (`## Procedure — identity scope` below), and the `layout` scope's established-world composition tournament, run once an identity is already locked in `DESIGN.md` — comparing rendered composition and interaction-framing variants of a new surface inside it (`## Procedure — layout scope` below).
+This file covers both scopes. The `identity` scope (`## Procedure — identity scope` below) runs the genesis worlds tournament when a project has a `PRODUCT.md` but no coherent `DESIGN.md` yet. The `layout` scope (`## Procedure — layout scope` below) runs the established-world composition tournament once an identity is locked in `DESIGN.md` — comparing rendered composition and interaction-framing variants of a new surface inside it.
 
 ## When this runs
 
@@ -145,7 +145,9 @@ Run once scope resolution above routes here: an established-world composition to
 
 ### Input contract
 
-`<surface-topic>` names the new surface: free text plus one to three sentences of content requirements — what the page must contain, who uses it, and the primary action. On standalone invocation with no `<surface-topic>` given, ask for it once via `AskUserQuestion` before dealing — `question`: `"What surface should this compose — name it and describe what it must contain, who uses it, and its primary action?"`, `header`: `"Surface to explore"` — then continue with the answer as `<surface-topic>`.
+`<surface-topic>` names the new surface: free text plus one to three sentences of content requirements — what the page must contain, who uses it, and the primary action. On standalone invocation with no `<surface-topic>` given, ask for it once before dealing, then continue with the answer as `<surface-topic>`.
+
+**Call `AskUserQuestion`:** `question`: `"What surface should this compose — name it and describe what it must contain, who uses it, and its primary action?"`, `header`: `"Surface to explore"`.
 
 ### Dealing
 
@@ -155,7 +157,7 @@ Resolve `concept-seed.mjs` the same way the identity scope's Deal and derive ste
 node "<root>/skills/impeccable/scripts/concept-seed.mjs" --scope surface --mode <mode> --from <key>
 ```
 
-`<mode>` selection follows the identity scope's Deal and derive rule verbatim — the same persuade/operate/read/experience mapping by the surface's job, the same omit-when-unclear fallback — applied to `<surface-topic>`'s job, not the project's.
+`<mode>` selection follows the identity scope's Deal and derive rule — the same persuade/operate/read/experience mapping, the same omit-when-unclear fallback — mapped from `<surface-topic>`'s job rather than the project's.
 
 `<key>` is the committed direction's seed key. It is **not recorded in `DESIGN.md`** — upstream's `document --seed` does not write it there. Its only durable homes, in resolution order:
 
@@ -170,7 +172,7 @@ Same synthesis responsibility as the identity scope's Synthesize clean-room card
 
 Each builder receives the synthesized staging card, `DESIGN.md` read-only, and `<surface-topic>`'s content requirements, and writes one markup file composing the surface differently.
 
-**Markups may not restyle** — no new palette, no new type voice, no new motif. Upstream `reference/visualize.md`'s frozen-identity list is the reference: "Keep DESIGN.md's palette, typography direction, material language, component character, imagery stance, and motion grammar fixed." Stated side by side with the identity scope's inverse constraint (One markup, N skins: skins may restyle, never restructure) so drift in one is visible against the other — there, the markup stays fixed and the skin varies; here, `DESIGN.md`'s identity stays fixed and the markup varies.
+**Markups may not restyle** — no new palette, no new type voice, no new motif. Upstream `reference/visualize.md`'s frozen-identity list is the reference: "Keep DESIGN.md's palette, typography direction, material language, component character, imagery stance, and motion grammar fixed." Stated side by side with the identity scope's inverse constraint (One markup, N skins: skins may restyle, never restructure) so drift in one is visible against the other.
 
 ### Machinery reuse
 
@@ -185,7 +187,7 @@ Reroll and steer semantics are unchanged from the identity scope's Verdict step.
 
 ### Lock-in
 
-`DESIGN.md` stays untouched by this scope — this scope never invokes `/impeccable:impeccable document --seed`. Keep the winning markup, delete every losing markup, and return the winner's path as `visual_reference` for the **caller** to persist as a `Visual-reference:` body-metadata line per `skills/specify/spec-template.md` — this mode only returns the path, it never writes the record.
+`DESIGN.md` stays untouched by this scope, which never invokes `/impeccable:impeccable document --seed`. Keep the winning markup, delete every losing markup, and return the winner's path as `visual_reference` for the **caller** to persist as a `Visual-reference:` body-metadata line per `skills/specify/spec-template.md` — this mode only returns the path, it never writes the record.
 
 **On exit-without-pick:** delete the whole explore directory and stop the server — identical to the identity scope's decline path.
 
