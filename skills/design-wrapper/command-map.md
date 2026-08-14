@@ -38,7 +38,7 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 | `overdrive` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `extract` | Manual-only | Not auto-dispatched by this wrapper — surfaced as a `survey` recommendation, and also by `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan (same Design Quality category recurring across 3+ specs) |
 | `init` | Never (in flow) | Runs once via `/init` Impeccable setup phase (formerly `teach`, now a deprecated alias); never auto from `/flow` |
-| `document` | Never (in flow) | Manual standalone only |
+| `document` | Never (in flow) | Manual standalone only; `explore` mode's identity-scope Lock-in invokes `document --seed` interactively, after an explicit pick, with the chosen direction in context — never from a pipeline, and this wrapper still writes nothing outside `docs/plans/` |
 | `live` | Never (in flow) | Manual standalone only |
 | `hooks` | Never (in flow) | Manual — one-time per-worktree consent toggle (`hooks on\|off\|status`); never auto-invoked. See `skills/build/worktree-setup.md` for the per-worktree consent note. |
 
@@ -150,4 +150,4 @@ Each observation maps to one creative command:
 - The **refinement set** is the polish phase's phase-fixed membership, named separately because its dispatches carry the job-statement suffix that keeps them scoped to refinement.
 - **Suggestion-driven** commands are too noisy to run unconditionally — they run only when an audit finding names them, and the finding names them itself rather than the wrapper re-deriving a command from the finding's text.
 - **Intent-driven** commands are creative direction — running them without explicit intent produces non-deterministic creative drift across runs.
-- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`document`, `live`, `hooks`).
+- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`document`, `live`, `hooks`). `document`'s one scripted caller — `explore` mode's Lock-in — is no exception: see its row above.

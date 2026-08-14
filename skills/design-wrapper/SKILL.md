@@ -1,7 +1,7 @@
 ---
 name: design-wrapper
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify, /tidy) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
-argument-hint: "<shape|pre-build|test|review|polish|survey|doctor|reset-recommendations|live> [target] [--screenshots <paths>] [--source <parent-skill>] [--description <text>] [--dry-run] [--limit <n>]"
+argument-hint: "<shape|pre-build|test|review|polish|survey|doctor|reset-recommendations|live|explore> [target] [<surface-topic>] [--screenshots <paths>] [--source <parent-skill>] [--description <text>] [--dry-run] [--limit <n>] [--scope <identity|layout>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -30,10 +30,13 @@ Every mode in the Input table below is active, plus the `reset-recommendations` 
 - `/claude-tweaks:visual-review` invokes `survey` mode after browser review
 - `/claude-tweaks:flow` invokes `survey` mode in the pipeline summary
 - `/claude-tweaks:specify` invokes `live` mode against a throwaway shape-time scaffold before decomposition
+- `/claude-tweaks:specify` invokes `explore` from Step 2.5b-ii's scope-resolved pre-check — identity tournament at genesis (no `DESIGN.md` yet), layout tournament once one is locked
+- `/claude-tweaks:init` recommends `explore` at its design-integration step (Step 11) — text only, never an invocation
 - `/claude-tweaks:visual-review` invokes `live` mode (standalone Boost gate only) against the already-running app
 - `/claude-tweaks:tidy` invokes `doctor` mode as one scan step, to surface drift in the project's own Impeccable artifacts
 - A user runs `/claude-tweaks:design-wrapper <mode> <target>` directly to invoke a single mode without going through the lifecycle skill
 - A user runs `/claude-tweaks:design-wrapper reset-recommendations <spec>` to clear declined-recommendation tracking for a spec
+- A user runs `/claude-tweaks:design-wrapper explore` directly at a project's genesis moment (`PRODUCT.md` exists, no `DESIGN.md` locked) to compare competing visual identities in the browser before locking one, or later for layout-variant comparison
 
 Full per-mode behavior and argument shape: see the Input table below.
 
@@ -52,6 +55,7 @@ Full per-mode behavior and argument shape: see the Input table below.
 | `doctor` | **None** — takes no target | Runs the pinned plugin's `doctor.mjs --json` (never `--fix`) and returns its findings about the project's own Impeccable artifacts (`PRODUCT.md`, `DESIGN.md` + sidecar, `.impeccable/config.json`, surface briefs, the design hook), normalized once and read-only. Audits project artifacts, not a diff, so there is nothing to scope it to. |
 | `reset-recommendations <spec>` | Spec number or path | Deletes the declined-recommendations cache for the spec; the next `survey` call surfaces all matching recommendations again |
 | `live <target>` | URL — an ephemeral scaffold server or an already-running app | Invokes `/impeccable:impeccable live` against the target. Interactive-only, no auto-mode branch — a human must be present in a browser |
+| `explore [<surface-topic>]` | Optional free text naming a new surface — consumed only by the layout scope; the identity scope ignores it | Genesis worlds tournament / established-world composition tournament — deals competing directions via upstream's `concept-seed.mjs`, renders them for browser comparison, locks the pick through upstream `document --seed` (identity scope; upstream writes DESIGN.md, never this wrapper); `--scope identity|layout` selects the scope explicitly, otherwise auto-resolved from Layer 0's `hasDesign`; interactive-only |
 
 **Flags** (apply across modes where noted; unrecognized flags for a given mode are ignored):
 
@@ -65,11 +69,7 @@ Full per-mode behavior and argument shape: see the Input table below.
 
 When `<target>` is omitted for `test` mode, the wrapper resolves changed files via `git diff --name-only`. When omitted for `review` mode or `polish` mode, the wrapper falls back to the same git-diff resolution. `survey` defaults to the same git-diff resolution when called without files. If that `git diff --name-only` resolution itself fails (non-git directory, git error, corrupted index, mid-rebase state), the wrapper treats it the same as any other unresolvable-target case: return `{skipped: "unable to resolve target files (git diff failed)"}` immediately, without attempting detection or dispatch. `<spec>` is required (not resolvable via git diff) for `reset-recommendations` — when omitted, return `{skipped: "reset-recommendations requires <spec> — no default target resolution"}` rather than guessing a most-recently-modified cache across all specs.
 
-**Layer 0 substitution in the fallback path.** When Layer 0 resolved and Layer 3 has ruled the change frontend, use its `scan.targets` in place of the raw `git diff --name-only` output as the source of candidate paths. **This one paragraph is the whole rule — it covers every mode with a fallback path (`test`, `review`, `polish`, `survey`) and there is no per-mode variant of it.** Three constraints, all load-bearing:
-
-1. **Fallback only.** It never overrides an explicit caller-supplied `<target>` list, and cannot: per `impeccable-plugin.md`'s "Arguments resolution", `scan.targets` is computed from the live working tree with no injection point, so substituting it into a scoped invocation would silently widen it.
-2. **After Layer 3, not instead of it.** Layer 3 still rules the change frontend first, and the per-file trigger-extension/path filter still applies to the substituted list afterward — `scan.targets` is a scannability predicate, not a frontend one, and passing it through unfiltered would put bare `.js`/`.ts` files into a design scan. What the substitution buys is a better *candidate* set: it drops paths that no longer exist, prefers a `<base>...HEAD` branch diff over working-tree-only changes, and still yields targets (`source-dir` / `html` / `root`) when the diff is empty.
-3. **Empty is not a resolution.** A resolved plugin whose `scan.targets` is `[]` takes the `git diff --name-only` fallback exactly as an unresolved one does — "did not resolve" and "resolved but returned nothing" reach the same place.
+**Layer 0 substitution in the fallback path.** When Layer 0 resolved and Layer 3 has ruled the change frontend, use its `scan.targets` in place of the raw `git diff --name-only` output as the source of candidate paths. One rule for every mode with a fallback path (`test`, `review`, `polish`, `survey`) — no per-mode variant. Its three load-bearing constraints — fallback only (never overriding an explicit caller-supplied `<target>` list), after Layer 3 and with the per-file trigger-extension/path filter still applied to the substituted list, and empty-`scan.targets`-takes-the-git-diff-fallback — are stated canonically in `impeccable-plugin.md`'s per-signal trust rules (`scan.targets` row); read that row before implementing this substitution.
 
 ## Universal preconditions
 
@@ -83,6 +83,7 @@ Run these before dispatching to any active mode. Which layers each mode actually
 - `polish` runs all three detection layers and the LLM availability check; on a successful precondition pass, it consumes audit findings written by `review` mode (see `modes/polish.md`).
 - `survey` runs Layer 1 (kill-switch) and Layer 3 (file-extension sniff). Layer 2 applies only when a `<spec>` is resolvable from the file list (caller may pass it explicitly). Survey does not require Impeccable's LLM commands or CLI — it is a heuristic analysis local to the wrapper that *recommends* Impeccable commands. The availability check is informational only (an unavailable Impeccable surfaces in the recommendations as "install Impeccable to apply").
 - `doctor` runs **Layer 1 only**, plus its own availability and project-context checks. Layers 2 and 3 are structurally inapplicable, not merely skipped: `doctor` receives no spec (so there is no `Surface:` line to read) and no file list (so there is nothing to sniff). Layer 3 in particular would be actively wrong here — `/tidy` typically runs on a clean tree, so a diff-based frontend sniff would skip `doctor` on exactly the runs it exists to serve. Its four own skip conditions are in `modes/doctor.md`. Track resolution still resolves a track for it, but **no `doctor` outcome depends on which one** — `doctor.mjs` audits `PRODUCT.md`, `DESIGN.md`, and the project's other Impeccable artifacts, none of which are web-only. Do not add a native skip here.
+- `explore` runs Layer 1 only, plus track resolution and exact-pin availability. Layers 2 and 3 are structurally inapplicable, `doctor`-style: no spec input means no `Surface:` line to read, and no file list means nothing to sniff — genesis runs on a clean tree. Scope auto-resolution reads Layer 0's `hasDesign` signal (fallback: a direct `DESIGN.md` existence check when Layer 0 degraded). The native track skips (web-only). See `modes/explore.md` for the full scope-resolution table.
 - `reset-recommendations` runs no preconditions — it is a cache-management utility, not a mode that invokes Impeccable.
 
 Track resolution (below) runs for **every** mode, whichever of Layers 1-3 that mode runs — it is not a layer and gates nothing. A mode that skips Layer 2 resolves its track with no `Surface:` value.
@@ -160,53 +161,11 @@ Layer 3's trigger table is web-only by construction — no native extension appe
 
 ### Step 2: Availability check
 
-For the dispatched mode, verify the dependency is available:
+For the dispatched mode, verify its dependency is available before dispatch. Impeccable's artifacts are checked independently and must not be conflated — three kinds: **LLM commands**, by skill resolution, unpinned (`review`, `shape`, `pre-build`, `polish`, `live` — an off-pin plugin still answers `/impeccable:impeccable critique`); **bundled scripts at an exact pin** via `resolveImpeccablePlugin` per `impeccable-plugin.md` (`doctor`, `explore`, and Layer 0 — Layer 0 degrades to no-signals, the modes skip); and **the CLI** (`test`), a third artifact on its own version line.
 
-| Mode | Required | Verify by |
-|------|----------|-----------|
-| `test` | Impeccable CLI **at the pinned version** | Run `npx impeccable --version` via Bash. Non-zero or no output → unavailable. Exit 0 → compare the version string against the pin recorded in `impeccable-cli.md`'s `<!-- upstream-pin: impeccable-cli@X.Y.Z -->` comment. Equal → available. Different → **unavailable**, with the skip reason naming both versions (see below). Do not discard the version string: every rule in `impeccable-cli.md` describes the pinned version's behaviour, so running the gate against a different one produces a verdict about a contract that was never verified. |
-| `review` | Impeccable plugin (LLM commands) | Check whether `/impeccable:impeccable` skill resolves. Look for `/impeccable:impeccable*` in the available skills list provided by the harness. If none resolve, treat as unavailable. |
-| `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. |
-| `pre-build` | Impeccable plugin (reference files) | Same as `review`. The reference files ship with the plugin; if the plugin resolves, the references are available. |
-| `polish` | Impeccable plugin (LLM commands) | Same as `review` — the refinement set and every suggestion-driven command all live in the plugin. |
-| `live` | Impeccable plugin (LLM commands + bundled live-mode scripts) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. The live-mode scripts ship with the plugin itself, so no separate check is needed. |
-| `doctor` | Impeccable plugin **at the pinned version** (bundled `doctor.mjs`) | Same resolution as Layer 0 below — `resolveImpeccablePlugin` per `impeccable-plugin.md`. **Unlike Layer 0, an unavailable result here *is* a mode-level skip**: `doctor` has no result to report without the script. Absent and off-pin are two distinct skip reasons; see `modes/doctor.md`'s skip table. |
-| **Layer 0** (all modes) | Impeccable plugin **at the pinned version**, resolved from the plugin cache | Follow `impeccable-plugin.md`'s resolution procedure: glob the cache, read each candidate's own `version`, select the one equal to the pin in its `<!-- upstream-pin: impeccable-plugin@X.Y.Z -->` comment. **Unlike every row above, an unavailable result here is not a mode-level skip** — see the note below the skip shapes. |
+Unavailable → a `{skipped, install_hint}` object, never a failure. A version mismatch is a **distinct condition** from "not installed" and its skip reason names both versions. Layer 0 never produces an availability skip of its own — its failures are enrichment outcomes (see `impeccable-plugin.md`'s degradation table).
 
-Impeccable's artifacts are checked independently and must not be conflated. The rows above fall into three kinds:
-
-- **LLM commands, by skill resolution, unpinned** (`review`, `shape`, `pre-build`, `polish`, `live`) — an off-pin plugin still answers `/impeccable:impeccable critique`.
-- **Bundled scripts, at an exact pin** (`doctor`, and Layer 0) — `resolveImpeccablePlugin` per `impeccable-plugin.md`, because neither `context-signals.mjs` nor `doctor.mjs` exists at every version that satisfies the skill-resolution check. These two differ only in consequence: Layer 0 degrades to no-signals, `doctor` skips the mode.
-- **The CLI** (`test`) — a third artifact entirely, on its own version line.
-
-On unavailable:
-
-```
-{
-  "skipped": "Impeccable {CLI|plugin} not installed",
-  "install_hint": "{install command + verify command}"
-}
-```
-
-On a CLI version mismatch, use this shape instead — it is a distinct condition from "not installed" and must not be reported as one:
-
-```
-{
-  "skipped": "Impeccable CLI {found} does not match the pinned {pinned}",
-  "install_hint": "npm install -g impeccable@{pinned}"
-}
-```
-
-Naming both versions is the point. A bare "unavailable" on a machine that plainly has the CLI installed reads as a bug in this wrapper; naming the mismatch tells the user what to do in one line. This skip is also the only pin enforcement a consumer of the published plugin ever gets — `tests/impeccable-cli-contract.test.js` runs for this repo's contributors only.
-
-**Layer 0 never produces either shape.** Its three failure conditions (absent, version mismatch, execution failure) are enrichment outcomes, not availability outcomes: the wrapper records the reason — which must distinguish all three, and must name *every* version found on a mismatch, per `impeccable-plugin.md`'s degradation table — then proceeds with Layers 1-3 and dispatches the mode normally. A mode is never skipped, and no invocation ever fails, because context signals were unavailable.
-
-Install hints (use the appropriate one for the mode):
-
-- **CLI:** `npm install -g impeccable@{pinned}` (verify with `npx impeccable --version`)
-- **Plugin:** `/plugin install impeccable@<marketplace>` (verify by checking `/impeccable:impeccable` skill resolves)
-
-**De-dupe:** Track availability-skip warnings via an in-memory marker for the session. If the same mode skips twice for the same reason in a session, surface only the first skip in the response and keep the rest silent. The marker is per-process (in-memory) — there is no on-disk state.
+Read `availability.md` in this skill's directory for the per-mode verification table, the exact skip shapes, install hints, and the session de-dupe rule — load it whenever an availability check actually needs running.
 
 ## Mode behaviors
 
@@ -283,12 +242,13 @@ See `_shared/design-wrapper-handling.md` for the canonical caller-side contract 
 
 Lazy-load these only when needed for the active mode:
 
-- `modes/{name}.md` — One file per mode named in the Input table (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`, `doctor`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format). `modes/doctor.md` additionally owns `doctor`'s finding schema — `skills/tidy/scan-procedures.md` references it rather than restating it.
+- `modes/{name}.md` — One file per mode named in the Input table (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`, `doctor`, `explore`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format). `modes/doctor.md` additionally owns `doctor`'s finding schema — `skills/tidy/scan-procedures.md` references it rather than restating it.
+- `availability.md` — The Step 2 availability check in full: per-mode verification table, the three artifact kinds, skip shapes, install hints, session de-dupe. Loaded whenever an availability check actually needs running.
 - `command-map.md` — Single source of truth for dispatch: the per-command categorization (phase-fixed / refinement set / suggestion-driven / intent-driven / manual-only / never) covering every Impeccable command the wrapper knows about, plus the survey "would help" criteria → command mapping. Its Full command map table is the count — do not restate one here.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `native-routing.md` — Everything downstream of a **native** track result: the platform → upstream-reference mapping, the dispatch rule, the reasoning behind the track table's two inferred rows (`null` + `mobile` → `adaptive`; `desktop` → web), and the four-row routing walkthrough. Loaded only when track resolution returns `ios` / `android` / `adaptive` — a web-track run never needs it.
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules. Pins the **CLI**.
-- `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (used by both Layer 0 and `doctor`, with a per-consumer script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
+- `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (one resolver for every consumer in its script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
 
 ## Next Actions
 
@@ -306,18 +266,21 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block |
 | `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface |
 | `live` ok (`session: "completed"`) | If a variant was accepted, `/claude-tweaks:test` — re-verify the change |
+| `explore` ok (scope `identity`, `design_md: "seeded"`) | `/claude-tweaks:specify` — direction locked; brainstorm/specify against it |
+| `explore` ok (scope `layout`, `visual_reference` set) | `/claude-tweaks:specify` — winner carried forward as a `Visual-reference:` line |
 | `doctor` advisory + `findings` non-empty | Run the Impeccable command each `route` finding's `fix` names (typically `/impeccable:impeccable init` or `document`); `auto` findings are applied by the user's own `doctor.mjs --fix`, never by this wrapper |
 | `doctor` advisory + `findings: []` | No follow-up — the project's Impeccable artifacts are current |
 | `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 11) |
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
 
-The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (1-4 options, matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 (after `polish ok + commands_invoked` or `test fail`) — `label`: `"Re-verify (Recommended after polish or test fail)"`, `description`: `"/claude-tweaks:test {spec} — re-verify"`
 - Option 2 (after `test pass` or `review advisory`) — `label`: `"Code review (Recommended after test pass or review advisory)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
 - Option 3 (after `review advisory` with nothing to fix, or `polish` no-op) — `label`: `"Wrap up"`, `description`: `"/claude-tweaks:wrap-up {spec} — close out the spec"`
 - Option 4 (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`) — `label`: `"Configure design integration"`, `description`: `"/claude-tweaks:init — configure or re-enable design integration"`
+- Option 5 (after `explore` ok, either scope) — `label`: `"Specify (Recommended after explore)"`, `description`: `"/claude-tweaks:specify — brainstorm or decompose against the locked direction or winning layout"`
 
 ## Component-Skill Contract
 
@@ -353,3 +316,5 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Treating the `surface:` field as required | `/specify` writes it on new records; Layer 3 sniff handles records predating that behavior. Demanding it breaks them all. |
 | Reading `pre-build` context as a hard gate | Lazy-loaded references are *enrichment* — skipping (no Impeccable, non-frontend) must not block the build. |
 | Invoking `live` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | `live` needs a human in a browser — no non-interactive path exists. Callers must restrict it to interactive, standalone invocation. |
+| Invoking `explore` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | Same reasoning as `live` — a human must be present in a browser to compare and pick; no non-interactive path exists. |
+| The wrapper writing `DESIGN.md` itself after an `explore` pick | Upstream `document --seed` is the only writer — the wrapper writes nothing outside `docs/plans/` (same discipline as `doctor`'s never-`--fix` rule). |
