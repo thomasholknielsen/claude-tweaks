@@ -74,6 +74,11 @@ commit landed, a check regressed, a thread reopened, the grant was revoked — t
 no-op: skip it, don't error, and don't report it as armed in the applied-report either, exactly as
 `## Open parent gate`'s own re-verification note above states for its finding.
 
+When judging `statusCheckRollup`, use the same non-blocking conclusion set
+`_shared/github-pr-scan.md` item 9 defines (`SUCCESS`, `SKIPPED`, `NEUTRAL` — a `SUCCESS`-only
+check treats a job whose own `if:` condition is false, e.g. a default-branch-only cleanup job,
+as a permanent regression); do not re-derive it.
+
 If every gate still holds, run `_shared/pr-first-merge.md`'s Step 3 (Attempt auto-merge) against
 this PR directly — that file already defines the full degrade chain (`--auto` arm → immediate
 merge on repos without auto-merge enabled → ready-and-comment on any other failure), so this
