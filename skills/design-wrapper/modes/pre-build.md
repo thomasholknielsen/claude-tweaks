@@ -49,7 +49,7 @@ Resolve and load Emil Kowalski's skills per `_shared/design-craft.md` — that c
 
 - Each resolved skill's `SKILL.md` path joins `loaded`.
 - Each relevance-map-selected skill that resolves at no lookup path joins `missed`. An absent Emil install is a `missed` note and a normal `result: "ok"` — never a skip object.
-- Append the contract file itself to `loaded` — the literal path `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-craft.md` — so the implementer receives the authority rule verbatim as part of the loaded set. It is a path string appended like every other entry (no schema change, no excerpting); the contract file is written to be safely includable whole.
+- Append the contract file itself to `loaded` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-craft.md`, resolved to the absolute installed plugin root before appending (the placeholder is model-resolved, never passed through unsubstituted — see docs/skill-authoring.md's Plugin-root references rule) — so the implementer receives the authority rule verbatim as part of the loaded set. It is a path string appended like every other entry (no schema change, no excerpting); the contract file is written to be safely includable whole.
 
 ## Output to caller
 

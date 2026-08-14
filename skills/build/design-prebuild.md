@@ -31,7 +31,7 @@ When the resolved record/spec carries a `Visual-reference:` body-metadata line (
 
 See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
 
-The `loaded` set is enriched beyond Impeccable references: per `_shared/design-craft.md` (assembled by the wrapper's own principles step), it also carries craft principles — Emil Kowalski's skills, when installed — plus the `.impeccable/design.json` sidecar and the contract file itself. Forward all of it to implementers exactly like the pre-existing references — no separate handling; the same `context_size` summarize-vs-inline rule covers the larger set.
+The `loaded` set is enriched beyond Impeccable references: per `_shared/design-craft.md`, it also carries craft principles assembled by the wrapper's principles step — Emil Kowalski's skills, when installed, plus the contract file itself — and the `.impeccable/design.json` sidecar from the wrapper's project-design-context step (the decisions layer). Forward all of it to implementers exactly like the pre-existing references — no separate handling; the same `context_size` summarize-vs-inline rule covers the larger set.
 
 ## Where the loaded references go
 
