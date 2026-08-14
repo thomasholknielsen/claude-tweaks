@@ -121,6 +121,9 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `automerge-max-files` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
 | `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in the `merge-check` verdict, and feeding `/review`'s diff-heuristic risk proxy |
 | `work-links` | `policy.yml` | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
+| `pr-unarmed-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a green, gate-passed, granted PR may sit with `--auto` unarmed before the sweep surfaces `[pr-unarmed]` |
+| `unsettled-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a live claim or stale `bot:in-progress` may sit with no PR progress before the sweep surfaces `[unsettled]` |
+| `housekeeping-auto-merge` | `policy.yml` | `/claude-tweaks:tidy` Step 7, `_shared/github-pr-scan.md`'s `repo-wide` scope | `false` | When set, the sweep may arm `--auto` on tidy's own green, marker-stamped Step-7 PRs — otherwise they stage like any other unarmed PR |
 
 ## Review
 

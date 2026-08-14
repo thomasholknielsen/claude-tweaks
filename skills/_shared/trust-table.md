@@ -47,7 +47,7 @@ the project configures a higher limit. Every fenced block below that uses `$LIMI
 A decomposed sub-issue must not form a cell of its own — its parent issue already carries the one
 graded verdict, and counting the sub-issue too would let `total >= MIN_SAMPLES` be satisfied by
 records nobody judged (`trust.js`'s `hasParent !== true` filter). Resolving which closed records
-are sub-issues reuses the same parent-side enumeration `_shared/github-pr-scan.md`'s
+are sub-issues reuses the same parent-side enumeration `_shared/github-pr-scan-acceptance.md`'s
 `acceptance-gap` scope already documents in full — never the sub-issue side, which works under one
 `work-links` mode and silently returns nothing under the other — and fetches parents `--state all`
 for the same reason that scope does: an approved parent issue is closed, so an open-only fetch

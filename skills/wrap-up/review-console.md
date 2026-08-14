@@ -48,7 +48,7 @@ Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), 
 everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the Step 2.5
 safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
 independently of that routing: an `auto:merge`'d sub-issue is exactly the population
-`_shared/github-pr-scan.md`'s `parent-gate` backstop scope exists to catch, so gating it here
+`_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch, so gating it here
 would defeat the parent acceptance gate.
 
 Order is load-bearing: the merge below carries the `Fixes #{issue}` closing keyword, so once it

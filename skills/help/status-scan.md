@@ -200,9 +200,10 @@ session's own recall-detected work, or one explicit `#N`), so this stage is the 
 surface for which records are outstanding. Skip silently (same fail-open detection ladder as
 Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines
-`_shared/forge-detection.md`'s Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into this
-agent's prompt — subagents cannot read sibling files.
+Scan per `_shared/github-pr-scan-acceptance.md`, **`acceptance-queue`** scope (extracted from
+`_shared/github-pr-scan.md` — #204). The dispatcher inlines `_shared/forge-detection.md`'s
+Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into
+this agent's prompt — subagents cannot read sibling files.
 
 ## Stage 4.8: Trust Table (GitHub)
 

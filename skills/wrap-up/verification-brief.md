@@ -22,7 +22,7 @@ wrong by omission). Four call sites exist today:
 Parent-Gate Procedure below in place of — not alongside — Steps 1-4.** A decomposed sub-issue
 never carries its own `demo:pending`; its parent carries one gate for all of them. This
 holds on every path equally, including the two that bypass Phase 4's execution step entirely: an `auto:merge`'d
-sub-issue is precisely the population `_shared/github-pr-scan.md`'s `parent-gate` backstop scope
+sub-issue is precisely the population `_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope
 exists to catch, so giving it its own gate here would both defeat the parent acceptance gate and
 falsify that scope's stated reason for existing. `auto:merge` governs merge timing only — it does not
 change the unit of acceptance.
@@ -54,7 +54,7 @@ Every step from **Enumerate the parent's sub-issues** onward is shared, unchange
   below in order, starting with **Resolve the parent**.
 - **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open parent gate` action**, on either
   driver: `tidy/actions-github-issues.md` executing on a `[parent-gate]` finding from
-  `_shared/github-pr-scan.md`'s `parent-gate` scope, or `tidy/actions-local-files.md` executing
+  `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope, or `tidy/actions-local-files.md` executing
   on one from `tidy/step-1-records.md`'s Shape 7. Both arrive already holding the
   **parent** number directly (`$PARENT_NUM` — a `parent-issue`-labeled issue number, or an
   `is-parent-issue: true` record's id), read straight from their own scan. Skip **Resolve the

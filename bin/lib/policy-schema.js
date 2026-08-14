@@ -35,6 +35,16 @@ const POLICY_KEYS = [
   { key: 'automerge-max-lines', type: 'integer', default: 40 },
   { key: 'automerge-max-files', type: 'integer', default: 2 },
   { key: 'merge-sensitive-paths', type: 'list', default: [] },
+  // Sweep-backstop thresholds (#414) — how long a green, gate-passed PR may sit
+  // with `--auto` unarmed, or a claimed/pushed run may sit with no PR progress,
+  // before the repo-wide scan surfaces it. See _shared/github-pr-scan.md's
+  // 'unarmed ready PR' and 'unsettled run' checks.
+  { key: 'pr-unarmed-age-hours', type: 'integer', default: 24 },
+  { key: 'unsettled-age-hours', type: 'integer', default: 24 },
+  // false by default: tidy's own Step 7 housekeeping PRs stage rather than arm
+  // --auto until a project opts in. See tidy/SKILL.md Step 7 and the
+  // <!-- tidy-housekeeping-pr --> body marker that identifies them.
+  { key: 'housekeeping-auto-merge', type: 'boolean', default: false },
   { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text' },
   { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30 },

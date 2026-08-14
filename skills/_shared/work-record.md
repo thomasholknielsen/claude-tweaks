@@ -89,7 +89,7 @@ are about to apply.
 | Acceptance (3) | `demo:pending`, `demo:approved`, `demo:changes-requested` | Acceptance |
 | Closure (1) | `wontfix` | re-filing suppression |
 | Upstream (1) | `upstream-candidate` | marks a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate |
-| Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan.md`); never carried by a sub-issue |
+| Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan-acceptance.md`); never carried by a sub-issue |
 | Framing (1) | `framing:baked` | Marks a record whose stated problem names a solution that was never traded off; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
 
@@ -204,7 +204,7 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   (`auto:merge`, a hand-close, a dispatch run that ended early), `/tidy` finds the un-gated
   parent and, once approved, applies the same disposition — reusing the identical Parent-Gate
   Procedure rather than a second copy of it. Only the sweep that surfaces it differs by driver:
-  `_shared/github-pr-scan.md`'s `parent-gate` scope under `github-issues`, and
+  `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope under `github-issues`, and
   `tidy/step-1-records.md`'s Shape 7 under `local-files` — the first queries the
   `parent-issue` label, which no local record carries, and its file is skipped entirely whenever
   `gh` is absent, so the local sweep cannot live there.
@@ -358,7 +358,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
-| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `parent-gate` surfaces complete-but-un-gated parent issues and carries the `Open parent gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan-acceptance.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `parent-gate` surfaces complete-but-un-gated parent issues and carries the `Open parent gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 | `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |
