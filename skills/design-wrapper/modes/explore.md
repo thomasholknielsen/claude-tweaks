@@ -8,11 +8,11 @@ Invoked via `/claude-tweaks:design-wrapper explore [<surface-topic>] [--scope id
 
 | Argument | Meaning |
 |---|---|
-| `<surface-topic>` | Optional free text. Consumed only by the `layout` scope's own procedure; this scope ignores it entirely. |
+| `<surface-topic>` | Optional free text. Consumed by the `layout` scope's own procedure below; the `identity` scope ignores it entirely. |
 | `--scope identity\|layout` | Explicit scope. Wins over auto-resolution when present. |
 | `--source <parent-skill>` | Same signal every other mode uses — see `../SKILL.md`'s Component-Skill Contract. |
 
-This file covers the **`identity` scope only**: the genesis worlds tournament, run when a project has a `PRODUCT.md` but no coherent `DESIGN.md` yet. The `layout` scope (comparing compositions inside an already-locked identity) is a separate record — until it lands, `--scope layout` and auto-resolved `layout` both return the stub skip in the scope-resolution table below.
+This file covers both scopes: the `identity` scope's genesis worlds tournament, run when a project has a `PRODUCT.md` but no coherent `DESIGN.md` yet (`## Procedure — identity scope` below), and the `layout` scope's established-world composition tournament, run once an identity is already locked in `DESIGN.md` — comparing rendered composition and interaction-framing variants of a new surface inside it (`## Procedure — layout scope` below).
 
 ## When this runs
 
@@ -44,10 +44,10 @@ A short table, run before any procedure step below. Layer 0's `hasDesign` signal
 | Input | Resolution |
 |---|---|
 | No explicit `--scope`, `hasDesign` false | → `identity` — continue below |
-| No explicit `--scope`, `hasDesign` true | → `layout`. Until that record lands: `{ "mode": "explore", "skipped": "layout scope not yet implemented — see #378" }` |
+| No explicit `--scope`, `hasDesign` true | → `layout` — continue in `## Procedure — layout scope` below |
 | `--scope identity`, `hasDesign` true, `DESIGN.md` **coherent** | `{ "mode": "explore", "skipped": "design identity already locked — route identity replacement through upstream new-work explicitly" }` |
 | `--scope identity`, `hasDesign` false, or `DESIGN.md` not coherent | → `identity` — continue below |
-| `--scope layout` | → `layout` (same stub skip as the auto-resolved row, until #378 lands) |
+| `--scope layout` | → `layout` — continue in `## Procedure — layout scope` below |
 
 **Coherent** means the file declares an actual identity — at minimum a palette and a typography direction, the identity-bearing sections upstream's `document.md` writes. An empty or stub `DESIGN.md` is not coherent. **Ambiguity resolves toward coherent** — toward the locked-identity skip, never toward casually re-dealing an identity that might already be someone's real answer. This is the conservative mirror of the wrapper's own "ambiguity resolves to allow" posture, pointed the other way because re-dealing is the destructive-feeling action here.
 
@@ -137,6 +137,62 @@ Keep the scaffold plus the winning skin — the survivor becomes `visual_referen
 
 **On exit-without-pick:** delete the whole explore directory, stop the ephemeral server, and return a skip — no partial artifact survives an abandoned round.
 
+---
+
+## Procedure — layout scope
+
+Run once scope resolution above routes here: an established-world composition tournament — one identity, N markups. Each variant composes the same new surface differently — what is on the page, how it is arranged, where the primary action sits — all dressed in `DESIGN.md`'s already-locked tokens. This inverts the identity scope's constant: the identity scope fixes the markup and varies the skin; this scope treats `DESIGN.md`'s tokens as fixed and varies the markup.
+
+### Input contract
+
+`<surface-topic>` names the new surface: free text plus one to three sentences of content requirements — what the page must contain, who uses it, and the primary action. On standalone invocation with no `<surface-topic>` given, ask for it once via `AskUserQuestion` before dealing — `question`: `"What surface should this compose — name it and describe what it must contain, who uses it, and its primary action?"`, `header`: `"Surface to explore"` — then continue with the answer as `<surface-topic>`.
+
+### Dealing
+
+Resolve `concept-seed.mjs` the same way the identity scope's Deal and derive step does, then run:
+
+```bash
+node "<root>/skills/impeccable/scripts/concept-seed.mjs" --scope surface --mode <mode> --from <key>
+```
+
+`<mode>` selection follows the identity scope's Deal and derive rule verbatim — the same persuade/operate/read/experience mapping by the surface's job, the same omit-when-unclear fallback — applied to `<surface-topic>`'s job, not the project's.
+
+`<key>` is the committed direction's seed key. It is **not recorded in `DESIGN.md`** — upstream's `document --seed` does not write it there. Its only durable homes, in resolution order:
+
+1. the caller's record `Design-seed:` body-metadata line — this repo's established carrier, written by this wrapper's own `review` mode per `skills/_shared/design-contract.md`;
+2. absent that, the direction contract's `FORM` block inside a built artifact's opening comment, parsed per `skills/_shared/design-contract.md`'s procedure over the candidate list the caller already resolved — this mode never discovers candidate files on its own.
+
+Zero candidates, no seed label found, or multiple candidates whose keys disagree → **deal without `--from`**, and say so in the offer text presented before dealing: challengers are dealt without the committed direction's seed. Degraded, never fatal.
+
+### Variant builders
+
+Same synthesis responsibility as the identity scope's Synthesize clean-room cards step: the deal's output is one shared instruction block, and this step turns it into one self-contained staging card per presented direction before any builder sees it.
+
+Each builder receives the synthesized staging card, `DESIGN.md` read-only, and `<surface-topic>`'s content requirements, and writes one markup file composing the surface differently.
+
+**Markups may not restyle** — no new palette, no new type voice, no new motif. Upstream `reference/visualize.md`'s frozen-identity list is the reference: "Keep DESIGN.md's palette, typography direction, material language, component character, imagery stance, and motion grammar fixed." Stated side by side with the identity scope's inverse constraint (One markup, N skins: skins may restyle, never restructure) so drift in one is visible against the other — there, the markup stays fixed and the skin varies; here, `DESIGN.md`'s identity stays fixed and the markup varies.
+
+### Machinery reuse
+
+Run Synthesize clean-room cards through Lock-in — every intervening identity-scope heading (One markup, N skins; Parallel skin builders; Compare; Verdict) reused by name — with these substitutions:
+
+- **Builder input:** staging card + `DESIGN.md` (read-only) + `<surface-topic>`'s content requirements, in place of the skin builder's card-plus-shared-markup input.
+- **Builder output:** one markup file, in place of one skin stylesheet.
+- **Switcher unit:** whole markup documents cycled — swap the displayed document (e.g. an iframe `src`) — never stylesheets layered over one shared markup.
+- **Lock-in:** return `visual_reference`; no `/impeccable:impeccable document --seed` invocation.
+
+Reroll and steer semantics are unchanged from the identity scope's Verdict step. The seed `key` is carried across rounds exactly as there.
+
+### Lock-in
+
+`DESIGN.md` stays untouched by this scope — this scope never invokes `/impeccable:impeccable document --seed`. Keep the winning markup, delete every losing markup, and return the winner's path as `visual_reference` for the **caller** to persist as a `Visual-reference:` body-metadata line per `skills/specify/spec-template.md` — this mode only returns the path, it never writes the record.
+
+**On exit-without-pick:** delete the whole explore directory and stop the server — identical to the identity scope's decline path.
+
+### Functionality limit
+
+This scope varies composition and interaction framing only, never backend behavior. Allowed: the same save action framed as a modal in one variant and an inline form in another — same behavior, different framing. Forbidden: one variant that autosaves while another requires an explicit save — different behavior. Behavior variation is spec territory, not scaffold territory.
+
 ## Output to caller
 
 **ok (identity scope):**
@@ -154,11 +210,24 @@ Keep the scaffold plus the winning skin — the survivor becomes `visual_referen
 
 `visual_reference` may be `null` (pick succeeded, artifact write failed — see Lock-in). `design_md` is `"seeded"` or `"declined"`, per Lock-in.
 
+**ok (layout scope):**
+
+```json
+{
+  "mode": "explore",
+  "result": "ok",
+  "scope": "layout",
+  "chosen_world": "<staging/challenger display name>",
+  "visual_reference": "<path>" | "declined"
+}
+```
+
+`chosen_world` is deliberately scope-invariant naming — the same field name carries the identity scope's winning-world display name and the layout scope's winning-variant display name, so callers branch on `scope`, never on which fields are present.
+
 **skip shapes:**
 
 - `{ "mode": "explore", "skipped": "design identity already locked — route identity replacement through upstream new-work explicitly" }`
 - `{ "mode": "explore", "skipped": "native surface — explore is web-only", "surface_track": "<ios|android|adaptive>" }`
-- `{ "mode": "explore", "skipped": "layout scope not yet implemented — see #378" }`
 - `{ "mode": "explore", "skipped": "no PRODUCT.md — run /impeccable:impeccable init first" }`
 - Plus the standard availability/kill-switch skips defined in `../SKILL.md` (`design integration disabled`, `Impeccable plugin not installed`, version-mismatch, etc.) — this mode does not redefine those, it dispatches into them exactly as every other mode does.
 
