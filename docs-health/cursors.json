@@ -19,5 +19,8 @@
   },
   "doc:decisions/0006-ceremony-tiering-owned-by-specify": {
     "lastAuditedMs": 1786602046761
+  },
+  "doc:decisions/0007-historical-design-doc-archive-is-periodically-pruned": {
+    "lastAuditedMs": 1786687476969
   }
 }
