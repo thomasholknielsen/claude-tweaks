@@ -1,0 +1,143 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+// #411: merge-path conversion — every pr-first merge site converges on
+// `_shared/pr-first-merge.md`. Prose-as-implementation, same convention as
+// the other pr-first sub-issues' test files — pin the key claims against the
+// actual file text.
+
+const ROOT = path.join(__dirname, '..');
+const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
+const MERGE = read('skills', '_shared', 'pr-first-merge.md');
+const SETTLE = read('skills', 'dispatch', 'settle-and-merge.md');
+const CONSOLE = read('skills', 'wrap-up', 'review-console.md');
+const WORKTREE_MERGE = read('skills', 'flow', 'worktree-merge.md');
+const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
+const TWO_CALL_GATE = read('skills', 'dispatch', 'two-call-gate.md');
+const DISPATCH_SKILL = read('skills', 'dispatch', 'SKILL.md');
+
+// AC7: acceptance labeling before the merge step — asserted structurally,
+// not only by prose, since a reordering here silently drops acceptance
+// sign-off (the exact defect wrap-up/review-console.md's own history notes).
+test('AC7: pr-first-merge.md places acceptance labeling (Step 1) before marking ready (Step 2) and merging (Step 3)', () => {
+  const step1 = MERGE.indexOf('## Step 1: Acceptance labeling');
+  const step2 = MERGE.indexOf('## Step 2: Mark the PR ready');
+  const step3 = MERGE.indexOf('## Step 3: Attempt auto-merge');
+  assert.ok(step1 > 0 && step2 > 0 && step3 > 0, 'all three steps must exist as located headings');
+  assert.ok(step1 < step2, 'acceptance labeling must precede marking the PR ready');
+  assert.ok(step2 < step3, 'marking ready must precede the merge attempt');
+});
+
+test('the precondition gate is the same one condition pr-run-comments.md already established', () => {
+  assert.match(MERGE, /run-state\.json.*carries a `pr` object.*AND\s*\n?\s*`integration-model` resolves `pr-first`/s);
+});
+
+test('the tag mapping preserves both pre-#411 tags for /help\'s metric', () => {
+  assert.match(MERGE, /`\{tag\}` is `auto-merge`.*or `fast-lane`/s);
+  assert.match(MERGE, /github-pr-scan\.md.*triage-queue.*item 3/s);
+});
+
+test('an unrecognized gh pr merge error always takes the conservative ready+comment branch, never a guessed one', () => {
+  assert.match(MERGE, /Never guess at an unfamiliar\s*\n?\s*error's meaning/);
+});
+
+test('the armed outcome never polls or waits, and defers cleanup to the reconciler', () => {
+  assert.match(MERGE, /\*\*Do not poll or wait\*\*/);
+  assert.match(MERGE, /reconciler.*completes cleanup later, on merged-PR evidence/s);
+});
+
+test('no git merge, commit, or push runs in the main checkout anywhere in this procedure', () => {
+  assert.match(
+    MERGE,
+    /No `git merge`, `git commit`, or\s*\n?\s*`git push` runs in the main checkout anywhere in this procedure/,
+  );
+});
+
+test('the conflict path allows exactly one update-from-base attempt, never autonomous resolution', () => {
+  assert.match(MERGE, /Exactly \*\*one\*\* update-from-base attempt/);
+  assert.match(MERGE, /stop, do not\s*\n?\s*attempt resolution/);
+});
+
+test('the outcome vocabulary table retires ready-to-merge and pr-opened with a stated reason', () => {
+  assert.match(MERGE, /Replaces `ready-to-merge`/);
+  assert.match(MERGE, /`pr-opened` \(retired/);
+});
+
+test('settle-and-merge.md routes the pr-first merge through the shared procedure inside the same Task call', () => {
+  assert.match(SETTLE, /run `_shared\/pr-first-merge\.md`'s procedure now, in this same Task call/);
+  assert.match(SETTLE, /there is no second thread, no\s*\n?\s*`OUTCOME: ready-to-merge` relay/);
+});
+
+test('settle-and-merge.md keeps a local-merge fallback section, explicitly scoped away from pr-first', () => {
+  assert.match(
+    SETTLE,
+    /`integration-model: pr-first` groups never reach this section — their merge already ran above/,
+  );
+});
+
+test('review-console.md fast-lane routes pr-first through the shared procedure and states the #299 fix', () => {
+  assert.match(CONSOLE, /run `_shared\/pr-first-merge\.md`'s\s*\n?\s*procedure now/);
+  assert.match(CONSOLE, /#299:/);
+  assert.match(
+    CONSOLE,
+    /a defect that simply cannot\s*\n?\s*recur once there is no checkout resolution step to get wrong/,
+  );
+});
+
+test("review-console.md's retained local-merge branch reads the worktree path from run-state.json, not $RUN_DIR directly", () => {
+  const parts = CONSOLE.split('**`integration-model: local-merge`:**');
+  const localMergeSection = parts[parts.length - 1];
+  assert.ok(localMergeSection, 'local-merge branch must exist');
+  assert.match(localMergeSection.slice(0, 4000), /require\('\$RUN_DIR\/run-state\.json'\)\.worktree/);
+  assert.doesNotMatch(
+    localMergeSection.slice(0, 2000),
+    /git -C "\$RUN_DIR" (rev-parse|branch)/,
+    '#299 regression: must never re-anchor git resolution on $RUN_DIR itself',
+  );
+});
+
+test('worktree-merge.md routes pr-first reconciliation through the shared procedure, retiring the scratch-worktree ceremony for that path only', () => {
+  assert.match(WORKTREE_MERGE, /reconcile by\s*\n?\s*readying and merging each one via `_shared\/pr-first-merge\.md`/);
+  assert.match(
+    WORKTREE_MERGE,
+    /the `pr-first` path\s*\n?\s*above never needs it, since its own conflict path surfaces inside the run's own real worktree/,
+  );
+});
+
+test('task-prompt.md reports the new four-value outcome vocabulary under pr-first, ready-to-merge only under local-merge', () => {
+  assert.match(TASK_PROMPT, /OUTCOME: \{merged \| armed \| pending-review \| failed \| blocked\}/);
+  assert.match(TASK_PROMPT, /There is no `ready-to-merge` value\s*\n?\s*under this model/);
+  assert.match(TASK_PROMPT, /report `ready-to-merge` when the group's Auto-merge gate/);
+});
+
+test('two-call-gate.md and dispatch/SKILL.md scope the ready-to-merge terminal path to local-merge only', () => {
+  assert.match(TWO_CALL_GATE, /`integration-model: local-merge` only: the second call succeeds and reports `OUTCOME: ready-to-merge`/);
+  assert.match(DISPATCH_SKILL, /A third terminal point exists under `integration-model: local-merge` only/);
+});
+
+// AC4 (grep-based per the issue's own acceptance criteria): every remaining
+// `ready-to-merge` reference in skills/ lives inside a local-merge-scoped
+// sentence or file, never presented as the default/only outcome.
+test('AC4: every remaining "ready-to-merge" mention across skills/ is local-merge-scoped', () => {
+  const offenders = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.md')) {
+        const text = fs.readFileSync(full, 'utf8');
+        if (!text.includes('ready-to-merge')) continue;
+        // Every file with a hit must also mention local-merge (or be the new
+        // canonical file itself, which only mentions it to say it's retired).
+        if (!/local-merge/.test(text) && !full.endsWith('pr-first-merge.md')) {
+          offenders.push(path.relative(ROOT, full));
+        }
+      }
+    }
+  }
+  walk(path.join(ROOT, 'skills'));
+  assert.deepStrictEqual(offenders, [], `files mentioning ready-to-merge without local-merge scoping: ${offenders.join(', ')}`);
+});

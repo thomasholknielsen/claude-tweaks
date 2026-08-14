@@ -147,10 +147,14 @@ test('the brief renders a Branch section from the durability record', () => {
 });
 
 test('the reporting template tells the agent a durability PR is still pending-review', () => {
+  // #411 retired `pr-opened` as a distinct OUTCOME value under pr-first (the PR already exists
+  // from run start, so there is no longer a "branch just reached its finish decision" transition
+  // separate from an ordinary pending-review outcome) — the agent picks its OUTCOME from this
+  // template and never reads dispatch/SKILL.md, so the retirement has to be stated right here.
   assert.match(
     TASK_PROMPT,
-    /not\s+`pr-opened`/,
-    'the agent picks its OUTCOME from this template and never reads dispatch/SKILL.md; with a draft PR now open on the pending-review path, nothing in its own prompt distinguishes the two values',
+    /`pending-review` also covers what `pr-opened` used to name separately/,
+    'a draft PR being open must never be read by the agent as evidence the outcome is anything other than pending-review',
   );
 });
 
