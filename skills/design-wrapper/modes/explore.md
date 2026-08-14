@@ -91,7 +91,7 @@ Build one disposable semantic HTML scaffold of the primary surface, sourced from
 
 One Task agent per presented direction, per `skills/_shared/subagent-output-contract.md`: **Standard** profile (fan-out — never Frontier), a status line as the first line of the reply, and clean-room input limited to the synthesized direction card plus the shared markup path (read-only). Builders never restructure markup to compensate for a direction that doesn't fit — see the previous step.
 
-Each dispatch prompt also carries the **principles layer**, assembled at composition time per `_shared/design-craft.md` and inlined verbatim — a reference inside the prompt reaches nothing — naming its sources as the contract's relevance map selects them (Emil Kowalski's skills when installed, plus Impeccable reference files) alongside the dealt world's card. This scope assembles principles only: no `DESIGN.md` and no sidecar read — at genesis there are no decisions to load, by definition. Selection, gating, and degradation all live in the contract; nothing is restated here.
+Each dispatch prompt also carries the **principles layer**, assembled at composition time per `_shared/design-craft.md` and inlined verbatim — a reference inside the prompt reaches nothing — naming its sources per the contract: Emil Kowalski's skills as its relevance map selects them (when installed), plus Impeccable reference files, alongside the dealt world's card. This scope assembles principles only: no `DESIGN.md` and no sidecar read — at genesis there are no decisions to load, by definition. Selection and gating live in the contract; an absent Emil install is noted once in the offer text presented before building (this interactive-only mode has no `missed` output field) and never gates the round.
 
 Templates A/B/C don't fit a file-producing builder, so the output format is defined explicitly here, inlined literally in every dispatch prompt:
 
@@ -174,7 +174,7 @@ Same synthesis responsibility as the identity scope's Synthesize clean-room card
 
 Each builder receives the synthesized staging card, `DESIGN.md` read-only, and `<surface-topic>`'s content requirements, and writes one markup file composing the surface differently.
 
-Each variant dispatch prompt additionally carries craft context assembled at composition time per `_shared/design-craft.md` and inlined verbatim: the **decisions** layer — that same `DESIGN.md` plus the `.impeccable/design.json` sidecar — and the **principles** layer. Selection, gating, and degradation all live in the contract; nothing is restated here.
+Each variant dispatch prompt additionally carries craft context assembled at composition time per `_shared/design-craft.md` and inlined verbatim: the **decisions** layer — that same `DESIGN.md` plus the `.impeccable/design.json` sidecar — and the **principles** layer. Selection and gating live in the contract; absent-Emil surfacing follows the identity scope's rule (a one-line note in the offer text before dealing, never a gate).
 
 **Markups may not restyle** — no new palette, no new type voice, no new motif. Upstream `reference/visualize.md`'s frozen-identity list is the reference: "Keep DESIGN.md's palette, typography direction, material language, component character, imagery stance, and motion grammar fixed." Stated side by side with the identity scope's inverse constraint (One markup, N skins: skins may restyle, never restructure) so drift in one is visible against the other.
 
