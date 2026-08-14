@@ -206,6 +206,7 @@ depends on them.
 | `_shared/upstream-feedback-batch.md` | `flow/multispec-review-console.md`'s Upstream feedback section calls into this shared batch contract instead of restating the chunking/rendering rules inline — the same contract `wrap-up/review-console.md` uses for a single-spec run. |
 | `_shared/pending-review-durability.md` | `multispec-review-console.md`'s consolidated console for a dispatched bundle gates this shared push-and-draft-PR procedure on `CLAIM_RUN_ID`, a worktree strategy, and the resolved step list containing `review`, running it before the console renders so a headless `pending-review` bundle's branch survives the container that built it. |
 | `_shared/design-craft.md` | `polish-execution.md`'s composition procedure assembles craft context per this contract at runtime and inlines the result into what the executing agent receives — the pipeline's only code-modifying wrapper dispatch. Motion-scoped Emil skills ride along when the materialized header's `Design-intent:` includes `delightful`. |
+| `_shared/console-on-pr.md` | `multispec-review-console.md`'s new Console-on-PR section renders the consolidated console as a bundle-PR checkbox comment under `integration-model: pr-first`, in place of the blocking `AskUserQuestion` gate. Shared with `/wrap-up` (`review-console.md`'s single-spec Console-on-PR section, same renderer) — owned here as the alphabetically-first of the two citing skills. |
 
 ## harness-health
 

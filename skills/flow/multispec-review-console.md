@@ -61,6 +61,12 @@ Same mechanism as `wrap-up/review-console.md`'s own Auto-resolution short-circui
 
 When granted: render every section below as an informational report (nothing dropped), resolve every item per its stated default with **zero** `AskUserQuestion` calls — batch sections and `Q#`/`M#` as if Approve all had been chosen; `U#` resolves to **filed**, the one exception to its usual declined default (same rule the single-spec short-circuit states). Execute via "On approval" below; log one `AUTO {time} — Review Console: auto-resolved {item}. Reversibility: {…}.` line per item to the originating spec's `decisions.md` (or the parent's, for a parent-level item) instead of a user answer, retain every `staged/` file as a revert artifact rather than consuming it, and send **one** consolidated `PushNotification` for the whole run — not per spec, not per item — at the same point the single-spec auto-merge short-circuit sends its own FYI. Then proceed straight to Cleanup actions execution (Shared teardown below) and archive the parent run dir — skip the console render and its `AskUserQuestion` entirely.
 
+## Console-on-PR (`integration-model: pr-first` only)
+
+Bundle analog of `wrap-up/review-console.md`'s Console-on-PR section (read there for rationale). Past the short-circuit above: `local-merge` (`_shared/integration-model.md`) → "Present the consolidated console" below.
+
+`pr-first` + `pr` on the parent `run-state.json` (one bundle PR — `_shared/pr-early-run-lifecycle.md`): read `_shared/console-on-pr.md`, compose the content below would (per-spec ids per its scheme), post to the PR, write `console.json` to the parent run dir, report `pending-review` + URL, end — no `AskUserQuestion`, never both. No `pr` yet: fall through below.
+
 ## Present the consolidated console
 
 ```markdown

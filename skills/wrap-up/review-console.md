@@ -288,6 +288,14 @@ Execute each resolution via the normal "On approval" procedure below. Two differ
 
 After resolving, proceed directly to the phase-trace report — skip "Present the console" and its `AskUserQuestion` call entirely.
 
+## Console-on-PR (`integration-model: pr-first` only)
+
+Reached only when the Auto-resolution short-circuit above did not already resolve and return. Resolve `integration-model` per `_shared/integration-model.md`; `local-merge` → skip to "Present the console" below, unchanged.
+
+`pr-first` with a `pr` object on `run-state.json` (`_shared/pr-run-comments.md`'s gate): read `_shared/console-on-pr.md` and follow it in full — same content as "Present the console" below, rendered as PR checkboxes and posted/updated there instead of a chat table, `console.json` written to the run dir. Report `pending-review` with the PR URL and end cleanly per that file's Headless conclusion — no `AskUserQuestion`, live or headless. Never also render "Present the console" on this path.
+
+`pr-first` with no `pr` object yet (fail-safe — should not normally happen): fall through to "Present the console" below.
+
 ## Present the console
 
 Read `console-template.md` in this skill's directory and render that exact shape — every section's column layout, the engine-vs-prose-fallback distinction (engine output is plainer: one uniform four-column table per section, not the richer per-section shapes shown there), and the `[adr-convention]` row's three-way prompt. The worked example rows there are fictional; substitute this run's own `decisions.md`/`staged/` content.
