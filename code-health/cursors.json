@@ -26,5 +26,9 @@
   ".vscode": {
     "lastSweptMs": 1786590613125,
     "lastHash": "a0400cc4218ee18d29411d8d9ac79844db445353"
+  },
+  "bin/lib": {
+    "lastSweptMs": 1786677295085,
+    "lastHash": "1bf301a65ba1b6884541a13b27497d823cf07436"
   }
 }
