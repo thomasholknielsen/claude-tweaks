@@ -7,7 +7,7 @@ The **plugin** and the **CLI** are two independent artifacts on two independent 
 
 Reference for **Layer 0**, the wrapper's enrichment layer. Layer 0 executes Impeccable's own `context-signals.mjs` and folds its output into the wrapper's decisions. It is cheap (no LLM call, no detector run, no file writes) and entirely optional.
 
-This file also hosts the **shared plugin-root resolver** (`## Resolution` below). Layer 0 is its first consumer but no longer its only one: `doctor` mode runs a different script out of the same plugin root. The resolver is named and specified once here precisely so a second consumer imports it rather than re-deriving it (`[IL-32]`). Everything outside `## Resolution` — the output shape, the trust rules, the Layer 0 framing — remains Layer-0-specific.
+This file also hosts the **shared plugin-root resolver** (`## Resolution` below). Layer 0 is its first consumer but no longer its only one: each other consumer in the table below runs a different script out of the same plugin root. The resolver is named and specified once here precisely so every additional consumer imports it rather than re-deriving it (`[IL-32]`). Everything outside `## Resolution` — the output shape, the trust rules, the Layer 0 framing — remains Layer-0-specific.
 
 ## Layer 0 — what it can and cannot decide
 
@@ -47,7 +47,7 @@ The wrapper resolves the pinned plugin from the Claude Code plugin cache. Every 
 
 ### `resolveImpeccablePlugin({searchRoot}) -> {root, version} | null`
 
-**One resolver, every consumer.** Both Layer 0 and `doctor` mode need the same answer — "where is the pinned Impeccable plugin?" — so the procedure below is specified once, under this name, and each consumer derives its own script path from the returned `root`. A second copy of these four steps is the duplication `[IL-32]` names; do not add one.
+**One resolver, every consumer.** Every consumer needs the same answer — "where is the pinned Impeccable plugin?" — so the procedure below is specified once, under this name, and each consumer derives its own script path from the returned `root`. A second copy of these four steps is the duplication `[IL-32]` names; do not add one.
 
 `searchRoot` defaults to `~/.claude/plugins/cache` (see "Injectable search root" below). The return is `{root, version}` on a hit and `null` on a miss, with the miss distinguished per the degradation table below — a bare `null` collapses "absent" into "off-pin" and reports a fixable install problem as an unfixable absence.
 
@@ -66,8 +66,9 @@ Derived from the returned `root`. The resolver itself resolves no script — it 
 |---|---|
 | Layer 0 (all modes) | `<root>/skills/impeccable/scripts/context-signals.mjs` |
 | `doctor` mode (`modes/doctor.md`) | `<root>/skills/impeccable/scripts/doctor.mjs` |
+| `explore` mode (`modes/explore.md`) | `<root>/skills/impeccable/scripts/concept-seed.mjs` |
 
-Both scripts ship inside the same plugin at the same pin, so one successful resolve serves both — a `doctor` invocation never re-globs the cache when Layer 0 already resolved in the same wrapper call.
+Every consumer's script ships inside the same plugin at the same pin, so one successful resolve serves them all — a `doctor` or `explore` invocation never re-globs the cache when Layer 0 already resolved in the same wrapper call.
 
 ### Never resolve via `${CLAUDE_PLUGIN_ROOT}`
 
@@ -79,7 +80,7 @@ The search root is a parameter with a default, not a constant. Without one, the 
 
 ### The pin is not pedantry
 
-`context-signals.mjs` **does not exist** at 3.0.6, the other version cached on the recording machine. Neither does `doctor.mjs` — verified against the same cache, so the pin is load-bearing for *both* consumers of this resolver, not just Layer 0. A resolver that took "some Impeccable plugin is installed" for an answer would resolve a path that isn't there. Version-mismatch is a real, load-bearing distinction, not a strictness preference.
+`context-signals.mjs` **does not exist** at 3.0.6, the other version cached on the recording machine. Neither does `doctor.mjs` or `concept-seed.mjs` — verified against the same cache, so the pin is load-bearing for *every* consumer of this resolver, not just Layer 0. A resolver that took "some Impeccable plugin is installed" for an answer would resolve a path that isn't there. Version-mismatch is a real, load-bearing distinction, not a strictness preference.
 
 ## Degradation
 
