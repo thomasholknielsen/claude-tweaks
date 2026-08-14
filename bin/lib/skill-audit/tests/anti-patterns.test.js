@@ -415,5 +415,21 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   diff's `^\+\|` Anti-Patterns lines are exactly these two rows — no
   //   other file in the corpus has a nonzero delta. Net +2. Measured by
   //   running the parser against the working tree, not summed.
-  assert.strictEqual(total, 375);
+  //
+  //   375 -> 369, assess-agent-autonomy router+mode-sub-file split (#395).
+  //   Not an eviction — a relocation this test's SKILL.md-only scan can't
+  //   see: assess-agent-autonomy/SKILL.md went from 9 rows to 3 (the three
+  //   genuinely cross-mode ones), and the other 6 moved verbatim into the
+  //   mode's own sub-file — 5 into merge-check.md, 1 into failure-check.md
+  //   (grant-check.md and ceremony-check.md gained none; no row in either
+  //   was mode-exclusive). Same precedent already covers browse's
+  //   agent-browser-reference.md, flow's multispec-review-console.md, and
+  //   routine's fleet.md, each carrying its own Anti-Patterns table this
+  //   count has never included. Verified with the real parser (not
+  //   grep, which also matches this file's other tables):
+  //   `extractAntiPatternRows` on `git show HEAD^:skills/assess-agent-
+  //   autonomy/SKILL.md` returns 9, on the new SKILL.md returns 3; the 6
+  //   moved rows are byte-identical (modulo heading level) in their new
+  //   sub-file. 375 - 6 = 369.
+  assert.strictEqual(total, 369);
 });
