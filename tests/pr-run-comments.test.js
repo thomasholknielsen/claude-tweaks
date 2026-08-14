@@ -6,9 +6,9 @@ const path = require('path');
 
 // #410: PR as run surface — verdict/brief/failure comments on the PR, the
 // failure tombstone, and PR-state reads in /help and /tidy. Prose-as-
-// implementation, same convention as pending-review-durability.test.js and
-// pr-early-run-lifecycle.test.js — pin the key claims against the actual
-// file text so the doc can't silently drift from what it promises.
+// implementation, same convention as pr-early-run-lifecycle.test.js — pin
+// the key claims against the actual file text so the doc can't silently
+// drift from what it promises.
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');

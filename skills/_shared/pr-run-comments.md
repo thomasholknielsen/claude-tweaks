@@ -39,11 +39,9 @@ the kind without parsing prose.
 ## Post-or-update procedure (per kind, per run)
 
 **One comment per kind per run.** A re-run (a re-triggered review, a resumed wrap-up) edits the
-existing marker comment in place — it never appends a duplicate. This is the one place in the
-plugin's PR-comment surface that edits rather than always-appends
-(`pending-review-durability.md`'s bundle-failure comment explicitly accepts duplicate noise on
-retry instead; this file's callers cannot, since a stale `verdict`/`brief` sitting above a fresh
-one would misinform a reader skimming the PR).
+existing marker comment in place — it never appends a duplicate. A stale `verdict`/`brief` sitting
+above a fresh one would misinform a reader skimming the PR, so this is the one place in the
+plugin's PR-comment surface that edits rather than always-appends.
 
 1. **Find.** Resolve `{owner}/{repo}` once (`gh repo view --json nameWithOwner -q .nameWithOwner`), then:
 

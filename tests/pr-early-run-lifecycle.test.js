@@ -6,9 +6,8 @@ const path = require('path');
 
 // #409: a pr-first run is born public — draft PR at run start, one push +
 // checklist flip per phase exit, thereafter. The procedure is prose, not
-// code (mirrors pending-review-durability.md, the file this generalizes),
-// so prose is what has to be pinned — these tests catch the doc drifting
-// out from under the deliverables/ACs it was written to satisfy.
+// code, so prose is what has to be pinned — these tests catch the doc
+// drifting out from under the deliverables/ACs it was written to satisfy.
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
@@ -30,11 +29,11 @@ test('the run marker is the unconditional first line of the PR body', () => {
   );
 });
 
-test('the push at run start is its own Bash call, matching the durability procedure\'s own form', () => {
+test('the push at run start is its own Bash call, never chained', () => {
   assert.match(
     LIFECYCLE,
     /git -C "\{worktree-path\}" push origin \{branch\}/,
-    'the worktree.always gate denies a chained push entirely (IL-33) — same reason pending-review-durability.md issues it standalone',
+    'the worktree.always gate denies a chained push entirely (IL-33)',
   );
 });
 
@@ -56,7 +55,7 @@ test('Fixes lines are safe because the PR stays draft until gates pass, not beca
   assert.match(
     LIFECYCLE,
     /GitHub blocks merging a draft by default/,
-    'this is the discriminator from pending-review-durability.md\'s Refs-only convention — that PR opens after review already passed; this one opens before any gate has run',
+    'unlike the retired dispatch-only durability procedure this file replaced (IL-128), whose PR opened only after review already passed and used Refs, this one opens before any gate has run',
   );
   assert.match(LIFECYCLE, /Fixes #\{n\}/);
 });

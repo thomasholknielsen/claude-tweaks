@@ -154,6 +154,8 @@ this call's report is read.
 
 ## Dispatching-session merge execution (local-merge fallback — `OUTCOME: ready-to-merge` only)
 
+<!-- local-merge-fallback -->
+
 `integration-model: pr-first` groups never reach this section — their merge already ran above, inside the Task call itself. This section is the `local-merge` fallback only, preserved in full for projects with no GitHub forge to integrate through (`_shared/integration-model.md`).
 
 Runs in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread — never inside a Task call. This is the one part of the Auto-merge gate that needs main-checkout access, which only a top-level session has, never a Task-tool subagent.
@@ -162,7 +164,7 @@ Nothing is threaded back from the second Task call beyond its `OUTCOME: ready-to
 
 - **`{group-worktree}` and `{branch}`** — this session created and entered both for this group in Step 5; it is still inside it (or can `cd` back — the path was captured then). Neither is derived from the Task call's report.
 - **`{run-dir}`** — the same value `two-call-gate.md` section 1 already derived from the first call's `MANIFEST:` report and handed to the second call in section 3.
-- **the group's issue numbers and titles** — already in `/tmp/dispatch-groups.json` from Step 2's queue pull. Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pending-review-durability.md`'s Step 4 once used for its PR title (retired on the pr-first path; still the convention here).
+- **the group's issue numbers and titles** — already in `/tmp/dispatch-groups.json` from Step 2's queue pull. Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pr-first-merge.md`'s own `summary` argument (line 128 above) uses for its PR title on the `pr-first` path.
 
 Clear this run's worktree assignment before merging, the same way `flow/worktree-merge.md`'s reconciliation does:
 

@@ -474,7 +474,7 @@ brief's text content is unaffected.
 `![{description}](../../demo-evidence/{record}/{NN}-{description}.png)` (adjust the relative
 depth to the record file's actual location under `specs/`).
 
-**Branch durability (dispatch-originated runs only).** If `{run-dir}/pending-review-durability.md` exists, read its four lines (`push:`, `pr:`, `branch:`, `resume:` — written by `_shared/pending-review-durability.md` Step 5) and render the `### Branch` section of the template below from them: where the branch was pushed, the draft PR's link, any push or PR-open failure stated plainly rather than paraphrased so a human knows the branch is local-only or that a PR still needs opening by hand, and the literal `resume:` command for finishing the branch decision (merge/keep/discard) with its claim-release and grant-label cleanup done as one step, rather than merging by hand and reconstructing that cleanup separately. Omit the section entirely when the file is absent — and an empty heading would imply a durability step that never ran. Two populations correctly never produce one **here**: an interactive run, which never runs the durability step at all; and a dispatched **bundle**, whose record is written at the *parent* run dir's root (not this spec's `$PIPELINE_RUN_DIR`) and only after every per-spec brief has already posted. Do not go looking for it up a level to close that gap — the ordering, not the location, is why the bundle path cannot use this reader, and `_shared/pending-review-durability.md` Step 5 carries a bundle's push/PR failure to each record as its own comment instead.
+**Branch (`integration-model: pr-first` only, `_shared/integration-model.md`).** Nothing to render here — under `pr-run-comments.md`'s gate, this brief already posts *on* the run's own PR (opened at run start by `_shared/pr-early-run-lifecycle.md`, kept current at every phase exit), so a reader already has the branch and the PR in front of them. No separate `### Branch` section is composed.
 
 Render this exact template:
 
@@ -512,15 +512,6 @@ Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 
 {this section's content follows `skills/_shared/observation-plan.md`'s schema and grammar; it is
 always present on a sub-issue brief — a parent brief omits it (Parent-Gate Procedure)}
-
-### Branch
-{dispatch-originated runs only, sourced from {run-dir}/pending-review-durability.md above:
-where the branch was pushed and the draft PR link — or, plainly, that the push failed and the
-branch is local only, or that the push landed but the PR still needs opening by hand}
-
-To finish this branch and release its claim + grant labels as one step, resume this run's own
-Review Console rather than merging by hand: `{resume line from pending-review-durability.md}`
-{omit this section entirely when that file does not exist}
 
 ---
 

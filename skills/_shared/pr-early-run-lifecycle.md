@@ -3,11 +3,11 @@
 Canonical procedure for making a `pr-first` (`_shared/integration-model.md`) pipeline run
 **born public**: a draft PR opens immediately after the worktree exists and the materialize
 commit lands, before any implementation work — not only when a run happens to reach
-`pending-review` (`pending-review-durability.md`'s narrower, dispatch-only procedure; this file
-generalizes that one's push/PR mechanics to every pr-first run's very first phase). Every later
-phase exit pushes (`_shared/git-discipline.md`'s Phase-exit push section) and updates the PR's
-phase checklist, so the PR always reflects live progress rather than only the state as of run
-start or only the state as of `pending-review`.
+`pending-review` (`docs/incident-log.md`'s `[IL-128]` records the narrower, dispatch-only
+procedure this generalizes and replaces). Every later phase exit pushes
+(`_shared/git-discipline.md`'s Phase-exit push section) and updates the PR's phase checklist, so
+the PR always reflects live progress rather than only the state as of run start or only the state
+as of `pending-review`.
 
 `local-merge` runs (`_shared/integration-model.md`) skip this file entirely — today's no-PR
 lifecycle, unchanged.
@@ -127,14 +127,14 @@ duplicate that logic, just skip the row when it will never happen.
 
 **One `Fixes #{n}` line per record.** A single-record run gets one line. A dispatch bundle
 (`dispatch/SKILL.md`'s file-overlap grouping) enumerates every record from the parent
-`manifest.yml`'s `specs[].id` list and lists one `Fixes #{m}` line per record — same enumeration
-`pending-review-durability.md`'s own bundle handling uses, but `Fixes` here (not `Refs`): unlike
-that file's PR (opened only when a run already reached `pending-review`, i.e. after `review`'s
-gate already passed), this PR opens **before any gate has run**, and it stays in draft the whole
-time gates are still pending — GitHub blocks merging a draft by default, so `Fixes` sitting inert
-in a draft body is safe. It only becomes live once the merge-path sub-issue marks the PR ready
-after gates pass. A human force-merging a draft mid-run is accepting ungated work; that risk is
-stated once here, not re-litigated at every call site.
+`manifest.yml`'s `specs[].id` list and lists one `Fixes #{m}` line per record. Unlike the retired
+dispatch-only durability procedure this file replaced (`docs/incident-log.md`'s `[IL-128]`),
+whose PR opened only when a run already reached `pending-review` (i.e. after `review`'s gate
+already passed) and used `Refs`, this PR opens **before any gate has run**, and it stays in
+draft the whole time gates are still pending — GitHub blocks merging a draft by default, so
+`Fixes` sitting inert in a draft body is safe. It only becomes live once the merge-path sub-issue
+marks the PR ready after gates pass. A human force-merging a draft mid-run is accepting ungated
+work; that risk is stated once here, not re-litigated at every call site.
 
 `{target}` and `{next-step}` in the Resume line: `{target}` is the same record reference(s) this
 run was invoked with (`#{n}` or the bundle's comma-joined list). `{next-step}` is the step this
@@ -147,8 +147,8 @@ gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {b
   --title "{record title} (#{n})" --body-file /tmp/pr-early-body-{n}.md
 ```
 
-`{record title}` — the lowest-numbered record's title for a bundle, same convention
-`pending-review-durability.md` uses; `{n}` likewise the lowest-numbered record.
+`{record title}` — the lowest-numbered record's title for a bundle; `{n}` likewise the
+lowest-numbered record.
 
 **If creation fails, retry once.** If the retry also fails: log and continue local-only, same
 message shape as the push-failure log above (`reason` naming the `gh pr create` failure). The

@@ -40,8 +40,8 @@ origin {branch}`, its own Bash call, never chained onto anything else (same reas
 other push in this file — the `worktree.always` gate denies a compound command whole). This is
 what makes the run's draft PR (`_shared/pr-early-run-lifecycle.md`) show live progress instead
 of only the state as of run start, and what keeps the branch durable at every phase boundary
-rather than only at finish — see `pending-review-durability.md`'s own motivating incident for
-what "only pushed once, at the very end" costs when a session never reaches the end.
+rather than only at finish — see `docs/incident-log.md`'s `[IL-128]` for what "only pushed once,
+at the very end" costs when a session never reaches the end.
 
 Ship at every phase exit, not batched — measured at ≥50× headroom against the GitHub API budget
 (spike #405; `git push` itself costs zero REST/GraphQL calls, so per-phase cadence is free
