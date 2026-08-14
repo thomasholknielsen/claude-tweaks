@@ -5,7 +5,7 @@ Loaded by `/init` Phase 1 when existing config is detected. Covers the Update Mo
 ## Sub-phases at a glance
 
 - **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
-- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections; and detect policy keys still living in CLAUDE.md, which no longer apply, offering to move them
+- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections; detect policy keys still living in CLAUDE.md, which no longer apply, offering to move them; and a general `policy.yml` Policy Configuration Review, distinct from the known-key migrations, with a low-friction skip
 - **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
 
 ## Phase 1u: Audit Existing Configuration
@@ -264,6 +264,18 @@ declining leaves it exactly as it was.
 
 On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
 `Operational` row.
+
+### Policy Configuration Review
+
+A general "does your `policy.yml` look right?" pass, distinct from Config Home Drift and Renamed
+key drift above — those catch a key in the wrong file or under a retired name, this reviews the
+full recognized-lever surface (every key currently set, whether its value validates, and a
+skippable one-click walkthrough of what each lever does). Both empty findings and a non-empty
+list count the same way toward Phase 1u.6's Total drift count as the checks above. Read
+`policy-review.md` in this skill's directory for the full procedure (the `auditPolicy()` call,
+the always-surfaced one-line count, the single low-friction skip prompt, and the Show-details
+rendering that reuses `_shared/policy-schema.md`'s own Meaning column rather than re-authoring
+lever descriptions here).
 
 ### Maturity Drift
 
