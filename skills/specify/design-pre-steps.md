@@ -59,7 +59,7 @@ Replaces the single-scaffold offer below entirely.
 On option 1: invoke `/claude-tweaks:design-wrapper explore --scope identity --source specify` via the Skill tool.
 
 - On `{result: "ok", design_md: "seeded", visual_reference}`: note the returned `visual_reference` path for Step 3's `Visual-reference:` line via item 5's mechanism below, then proceed to Step 2.5c. `live` is intentionally **not** re-offered after the identity tournament: the pick seeds `DESIGN.md`, and element-level tuning of a specific surface belongs to a later run's layout branch (below), which offers `live` on its own tournament winner. A future editor must read this absence as a decision, not an omission.
-- On `{skipped: ...}` (Impeccable absent, off-pin, kill-switch, native, no-PRODUCT): fall through to the single-scaffold offer below — today's behavior. A skip never removes the existing path.
+- On `{skipped: ...}` (Impeccable absent, off-pin, kill-switch, native, no-PRODUCT): fall through to the single-scaffold offer below — today's behavior.
 
 On option 2, or no affirmative response: proceed to Step 2.5c with no further action — the single-scaffold offer below is also skipped this run.
 
@@ -82,7 +82,7 @@ On option 2: proceed directly to the single-scaffold offer below — today's beh
 
 ### Single-scaffold offer (fallback)
 
-Reached when the identity or layout branch above skips through, or when its own option 2 routes here directly. Offer once, as its own message:
+Reached when either branch above returns `{skipped}`, or when the layout branch's option 2 routes here directly. Offer once, as its own message:
 
 **Call `AskUserQuestion`:**
 

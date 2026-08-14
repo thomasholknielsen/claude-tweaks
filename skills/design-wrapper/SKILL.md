@@ -30,8 +30,8 @@ Every mode in the Input table below is active, plus the `reset-recommendations` 
 - `/claude-tweaks:visual-review` invokes `survey` mode after browser review
 - `/claude-tweaks:flow` invokes `survey` mode in the pipeline summary
 - `/claude-tweaks:specify` invokes `live` mode against a throwaway shape-time scaffold before decomposition
-- `/claude-tweaks:specify` invokes `explore` from Step 2.5b-ii's scope-resolved pre-check — the identity tournament replaces the single-scaffold offer at genesis (no `DESIGN.md` yet), the layout tournament is offered ahead of `live` once one is locked
-- `/claude-tweaks:init` recommends `explore` at its design-integration step (Step 11) — recommendation only, never invoked directly by `/init`
+- `/claude-tweaks:specify` invokes `explore` from Step 2.5b-ii's scope-resolved pre-check — identity tournament at genesis (no `DESIGN.md` yet), layout tournament once one is locked
+- `/claude-tweaks:init` recommends `explore` at its design-integration step (Step 11) — text only, never an invocation
 - `/claude-tweaks:visual-review` invokes `live` mode (standalone Boost gate only) against the already-running app
 - `/claude-tweaks:tidy` invokes `doctor` mode as one scan step, to surface drift in the project's own Impeccable artifacts
 - A user runs `/claude-tweaks:design-wrapper <mode> <target>` directly to invoke a single mode without going through the lifecycle skill
@@ -274,7 +274,7 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
 
-The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (1-4 options, matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 (after `polish ok + commands_invoked` or `test fail`) — `label`: `"Re-verify (Recommended after polish or test fail)"`, `description`: `"/claude-tweaks:test {spec} — re-verify"`
 - Option 2 (after `test pass` or `review advisory`) — `label`: `"Code review (Recommended after test pass or review advisory)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`

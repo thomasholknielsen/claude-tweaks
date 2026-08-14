@@ -150,4 +150,4 @@ Each observation maps to one creative command:
 - The **refinement set** is the polish phase's phase-fixed membership, named separately because its dispatches carry the job-statement suffix that keeps them scoped to refinement.
 - **Suggestion-driven** commands are too noisy to run unconditionally — they run only when an audit finding names them, and the finding names them itself rather than the wrapper re-deriving a command from the finding's text.
 - **Intent-driven** commands are creative direction — running them without explicit intent produces non-deterministic creative drift across runs.
-- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`document`, `live`, `hooks`) — `document`'s one scripted caller, `explore` mode's Lock-in, still only ever invokes it interactively after a human pick, never from a pipeline, so this holds without exception.
+- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`document`, `live`, `hooks`). `document`'s one scripted caller — `explore` mode's Lock-in — is no exception: see its row above.
