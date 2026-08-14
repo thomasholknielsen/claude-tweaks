@@ -345,7 +345,12 @@ Each returned record resolves to one of five verdicts (see `skills/routine/SKILL
   manual investigation — was the skill renamed, delete and recreate under the new name;
   Stale suggests the same delete-and-recreate recourse STATUS Step 2 already documents for a
   routine deleted out-of-band; Malformed requires a human to inspect and fix or delete the
-  broken record file directly — there is no template or live routine to resync against).
+  broken record file directly — there is no template or live routine to resync against). If
+  recovery for any of these points at `/claude-tweaks:routine fleet on`, flag first that
+  `fleet on` reconciles against the *current* fleet composition table, not the project's prior
+  live set — re-provisioning this way can add or change routines beyond restoring parity — and
+  offer `/claude-tweaks:routine status <skill>` as the lower-commitment first step, before
+  naming `fleet on`.
 
 This check's Drifted count (not Orphaned/Stale/Malformed, which have no auto-fix and so aren't
 "drift a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total
