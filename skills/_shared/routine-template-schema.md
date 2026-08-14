@@ -113,6 +113,14 @@ deletions (stale records, merged branches and worktrees) — standing effects be
 report — and any future routine whose skill claims work or writes beyond report-only
 surfaces gets the same exclusion.
 
+Before the kickoff below, run reconcile using whichever plugin root resolved above:
+`node "<plugin-root>/bin/hooks.js" reconcile`. Report its one-line JSON result. This
+converges local state toward origin before the skill starts — mirrors the integration
+branch, releases finished claims, archives closed runs, and reaps merged worktrees under
+`pr-first` (`bin/lib/reconcile`, #407); under `local-merge` only the worktree reap runs.
+Diagnostic and best-effort like the resolved-build line above — never a gate, never a
+reason to stop the kickoff.
+
 Then: /claude-tweaks:{skill}
 ```
 
