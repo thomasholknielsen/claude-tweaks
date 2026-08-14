@@ -37,9 +37,30 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
 - **A match with `state: OPEN`** (draft or not): reuse it. Record via `record-pr` (below) and
   skip PR creation. **Never flip an already-non-draft open PR back to draft** — log the reuse and
   move on.
-- **A match with `state: CLOSED` or `state: MERGED`**: this branch had a PR that's no longer
-  live. Treat as no match — fall through to creation. (A closed/merged PR for a branch about to
-  receive new commits is stale, not authoritative; opening a fresh one is correct.)
+- **A match with `state: CLOSED`**: this is a retry — by construction, nothing else in this
+  design closes a run's PR except `_shared/pr-run-comments.md`'s failure tombstone (a prior
+  attempt's HARD-GATE failure). Reopen it rather than starting fresh, so the new attempt's
+  comments land in the same thread as the prior failure(s):
+
+  ```bash
+  gh pr reopen {number} --repo {owner}/{repo}
+  ```
+
+  **Reopen succeeds:** record via `record-pr` and skip creation, same as the OPEN branch above.
+  Log: `AUTO {time} — PR-early run lifecycle: reopened PR #{number} for retry. Reversibility: high.`
+
+  **Reopen fails** (the branch was force-pushed out from under it, or some other state GitHub
+  rejects): fall through to creation below. The fresh PR reuses the same title/body template;
+  its new number/url overwrites the stale one via `record-pr` (Step 4), and — only if a pointer
+  comment already exists on the issue from an earlier attempt that reached far enough to post one
+  (Verification Brief routing, `_shared/pr-run-comments.md`) — update that pointer comment to the
+  new PR via the same find-and-update-by-marker shape, since it would otherwise link to a closed,
+  now-orphaned PR. A failed HARD-GATE run never reaches the brief, so this update is usually a
+  no-op — stated for the rare case a later phase's own failure follows an earlier phase's partial
+  progress.
+- **A match with `state: MERGED`**: this branch's PR already merged — the record is done. Treat
+  as no match and fall through to creation; a fresh run against an already-merged branch is an
+  unexpected precondition this file does not need to specially handle beyond not erroring.
 - **No match**: fall through to creation.
 
 ### Step 2: Push the branch

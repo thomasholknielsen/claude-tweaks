@@ -74,6 +74,28 @@ Each `kind: branch` finding is a **remote-tracking** branch (of the integration 
 | No related spec found | Remove/delete (orphan) |
 | Unmerged changes | Keep (flag for attention) |
 
+**PR-state override (`integration-model: pr-first` runs only — `_shared/integration-model.md`).** Before applying the table above
+to a worktree/branch pair, check whether it belongs to a run that recorded a PR: run dirs are
+anchored to `{REPO_ROOT}` regardless of which worktree they assigned
+(`_shared/pipeline-run-dir.md`), so read every `.claude-tweaks/pipelines/*/run-state.json`
+directly (no per-worktree access needed) and join by `state.worktree` matching this pair's
+worktree path — the same join `bin/lib/hooks/context.js`'s `findRunByWorktreePath` performs
+in-process. A match whose `run-state.json` carries a `pr` object overrides the table above:
+
+```bash
+gh pr view {pr-number} --repo {owner}/{repo} --json state,isDraft
+```
+
+| PR state | Row |
+|---|---|
+| `OPEN` (draft or not) | **in-flight** — keep, PR #{number} open (never reached by the table above's "Unmerged changes" row's ambiguity — this is a positive, not a default) |
+| `MERGED` | Same as "Related spec complete + changes merged" — the reconciler (`bin/lib/reconcile`) should have already reaped this; a survivor here means the reconciler hasn't run recently, not a different disposition |
+| `CLOSED` (unmerged) — check for the tombstone marker: `gh pr view {pr-number} --json comments --jq '.comments[] \| select(.body \| startswith("<!-- run-comment: failure -->"))'` | **Non-empty result → tombstoned.** Keep — same as `bin/lib/reconcile/reap-merged.js`'s own `pr-closed-unmerged` skip decision; this row states in prose what that module already enforces in code, never contradicting it. Recommendation: `Keep (tombstoned — retry via /claude-tweaks:dispatch or /claude-tweaks:flow, PR #{number})`. **Empty result → abandoned**, not tombstoned — a human closed the draft without the run ever reaching the failure path. Recommendation: `Keep (abandoned — closed PR #{number} carries no failure marker; manual review before removing worktree)`. Never auto-remove either case — `/tidy` never escalates a "manual review" row to a destructive delete on its own. |
+
+Absent a `pr` object (`local-merge`, or a degraded `pr-first` run), or when the `gh` calls above
+fail, fall back to the table above unchanged — this override only ever adds information, never
+removes the pre-#410 classification's own coverage.
+
 → Collect each as: `[git] {worktree/branch} — {recommendation}`
 
 Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.

@@ -35,7 +35,11 @@ function run(ctx) {
       // ordering: the reaper removes merged worktrees, which breaks branch
       // derivation for the integrity check.
       const lines = stale.map(({ dir, state }) => {
-        const base = `- ${path.basename(dir)} (status: ${(state && state.status) || 'unknown'})`;
+        // #410: read-only — the URL run-state.json already recorded, never a
+        // fresh gh call from this hot path. Absent for local-merge runs and
+        // any pr-first run whose run-start push/create degraded.
+        const prSuffix = state && state.pr && state.pr.url ? ` — PR ${state.pr.url}` : '';
+        const base = `- ${path.basename(dir)} (status: ${(state && state.status) || 'unknown'})${prSuffix}`;
         try {
           const verdict = runIntegrity.checkRunIntegrity(dir);
           if (verdict.state === 'shipped-unclosed') {

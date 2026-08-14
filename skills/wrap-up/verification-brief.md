@@ -538,15 +538,30 @@ the backstop exists for: parents that never reached `/wrap-up`. The same applies
 `/dispatch`-posted brief: that path never reached `/wrap-up`'s Phase 4 execution step either.
 
 `work-backend: github-issues` — write the rendered template to
-`/tmp/verification-brief-{issue}.md`, then:
+`/tmp/verification-brief-{issue}.md`, then check the pr-first gate (`run-state.json` carries a
+`pr` object — `_shared/pr-run-comments.md`):
+
+**No `pr` object** (`local-merge`, or a degraded `pr-first` run): post to the issue exactly as
+today.
 
 ```bash
 gh issue comment {issue} --body-file /tmp/verification-brief-{issue}.md
 gh issue edit {issue} --add-label demo:pending
 ```
 
-Post the comment before adding the label — a reader reacting to the label's appearance should
-never see `demo:pending` without a brief already attached.
+**`pr` object present:** the full brief moves to the PR; the issue keeps a one-line pointer
+instead of the whole template.
+
+```bash
+printf '<!-- run-comment: brief -->\n\n' | cat - /tmp/verification-brief-{issue}.md > /tmp/pr-brief-{issue}.md
+# find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=brief, against {pr-number}
+gh issue comment {issue} --body "Verification Brief posted to PR #{pr-number}: {pr-url}"
+gh issue edit {issue} --add-label demo:pending
+```
+
+Post the comment(s) before adding the label — a reader reacting to the label's appearance should
+never see `demo:pending` without a brief (or its pointer) already attached. Acceptance labeling
+stays on the issue either way — only where the full brief's content lives changes.
 
 `work-backend: local-files` — append the same template as a new `## Verification Brief` section
 to the record body (after any existing content), and write the record with

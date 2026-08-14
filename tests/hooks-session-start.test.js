@@ -51,6 +51,16 @@ test('stale runs are reported in additionalContext, capped at 3, newest first', 
   assert.ok(ctx.indexOf('spec-3') < ctx.indexOf('spec-2'), 'newest-first: spec-3 before spec-2');
 });
 
+test('#410: a stale run carrying a recorded pr URL includes it in the reported line; one without does not', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'active', pr: { number: 42, url: 'https://github.com/o/r/pull/42' } });
+  mkRun(project, '2026-07-02T090000-spec-2', { status: 'interrupted' });
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /spec-1 \(status: active\) — PR https:\/\/github\.com\/o\/r\/pull\/42/);
+  assert.match(ctx, /spec-2 \(status: interrupted\)\n/, 'a run with no recorded pr must not gain a PR suffix');
+});
+
 test('close-run hint substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
