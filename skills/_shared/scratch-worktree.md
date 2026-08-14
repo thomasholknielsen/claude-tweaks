@@ -17,6 +17,25 @@ five files once restated an earlier, narrower version of that list, and all five
 the next time the gate widened without a matching prose sweep). Check that block, not this
 paragraph, for the current, exact list of tools/git actions/Bash write shapes it covers.
 
+## Cross-caller `pr-first` check (#424)
+
+`/claude-tweaks:tidy` Step 7.5 used to merge back via this file's §5-6 unconditionally, even under
+`integration-model: pr-first` (`_shared/integration-model.md`), where the resulting commit never
+reached GitHub as a PR — dead machinery for `housekeeping-auto-merge`/`<!-- tidy-housekeeping-pr
+-->` (#414). #424 fixed that: Step 7.5 now branches on `integration-model` before landing the
+result, pushing a branch and
+opening a marker-stamped PR (reusing `_shared/pr-early-run-lifecycle.md`'s create/reopen shape)
+under `pr-first`, unchanged §5-6 merge-back under `local-merge`. The other two callers, checked at
+the same time:
+
+- **`flow/worktree-merge.md`**: shown unaffected — its own text already routes `pr-first` merges
+  through `_shared/pr-first-merge.md` instead of this file; this file's §5-6 is reached only on its
+  `local-merge` conflict-resolution path, by design.
+- **`wrap-up/residue-sweep.md`**: an equivalent-shaped gap (its `remedy: auto` fixes merge back via
+  this file unconditionally, no `integration-model` branch) — filed separately as #435 rather than
+  fixed here, since #424's own scope kept this file's mechanics minimal/zero and residue-sweep
+  fixes have no existing PR/marker convention to wire up the way tidy's did.
+
 ## 1. When to provision
 
 Provision **only on demand**. The trigger is at least one finding whose remedy is `remedy:
