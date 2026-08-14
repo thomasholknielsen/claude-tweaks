@@ -475,6 +475,18 @@ test('conformance: the real emilkowalski-skills entry is content-pinned, with it
   }
 });
 
+test('content-class keys on a probe-class entry each produce a validation error — the reciprocal dead-config guard', () => {
+  for (const key of ['pin', 'consumed']) {
+    const dep = validDependency();
+    dep[key] = key === 'pin' ? { commit: 'a'.repeat(40), versioning: 'nnone' } : [];
+    const errors = validateManifest({ dependencies: [dep] });
+    assert.ok(
+      errors.some((e) => e.includes(`'${key}'`) && e.includes('versioning: none')),
+      `expected an error naming '${key}', got: ${JSON.stringify(errors)}`,
+    );
+  }
+});
+
 test('YAML anchors are rejected by the parser, so entries cannot share a pin block via anchor/alias', () => {
   assert.throws(() => parseManifest('pin: &shared { commit: x }\n'), /line 1/);
   assert.throws(() => parseManifest('pin: *shared\n'), /line 1/);

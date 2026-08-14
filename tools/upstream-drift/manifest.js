@@ -454,6 +454,17 @@ function validateManifest(obj) {
       return;
     }
 
+    // The reciprocal guard: content-class keys on a probe-class entry are
+    // equally dead config (nothing reads `pin`/`consumed` outside the
+    // `versioning: none` path) — and a `pin` whose `versioning` value is
+    // anything but the literal 'none' lands here too, surfacing the typo
+    // instead of silently validating as a probe entry.
+    for (const key of ['pin', 'consumed']) {
+      if (hasKey(dep, key)) {
+        errors.push(`Dependency ${label}: '${key}' is only valid on a 'versioning: none' entry (pin.versioning === 'none') — on this entry nothing would ever read it`);
+      }
+    }
+
     if (!isPlainObject(dep['installed-probe'])) {
       errors.push(`Dependency ${label}: missing or invalid required key 'installed-probe' (must be a map)`);
     } else {
