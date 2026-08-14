@@ -4,8 +4,8 @@ Loaded by `/specify` Step 5 at dispatch time. The Template A block below is inli
 
 ## Parallel dispatch
 
-**Persona selection by tier** (`ceremony:*` label, stamped on the sub-issue in Step 3 — see
-`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`): `ceremony:fast-lane` →
+**Persona selection by tier** (`ceremony:*` label, stamped on the sub-issue in Step 3 — rationale
+was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`): `ceremony:fast-lane` →
 dispatch **Skeptical Reviewer only**; `ceremony:standard` (or a sub-issue with no `ceremony:*` label at
 all — treat as `standard`, the conservative default) → dispatch all **three** personas below,
 unchanged from before.

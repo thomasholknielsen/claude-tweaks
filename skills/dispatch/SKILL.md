@@ -70,8 +70,8 @@ check 2 selects) stay hard gates — there is no meaningful degraded mode for a 
 purpose is writing GitHub state. Check 2 (`gh` CLI installed) no longer gates on its own: `gh`
 present → proceed exactly as always; `gh` absent → proceed via the GitHub MCP path documented in
 `mcp-transport.md` in this skill's directory (and, for Settle and the Auto-merge gate, in
-`settle-and-merge.md`) — verified end-to-end against a live cloud Routine run, see
-`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`. Report the specific failing check and
+`settle-and-merge.md`) — verified end-to-end against a live cloud Routine run (was
+`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, deleted `d83f0720`). Report the specific failing check and
 stop for any real failure (headless self-report above still applies for the `next` form).
 
 **MCP transport details.** When `gh` is absent, read `mcp-transport.md` in this skill's directory

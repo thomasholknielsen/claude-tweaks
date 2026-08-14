@@ -17,10 +17,11 @@ const { execFileSync } = require('child_process');
 //
 // Writes are plain git plumbing (hash-object/mktree/commit-tree/push), not
 // the GitHub Data API — proven to work identically local or in a Claude Code
-// cloud Routine sandbox (no gh CLI, no MCP dependency either). See
+// cloud Routine sandbox (no gh CLI, no MCP dependency either). Was
 // docs/superpowers/specs/2026-07-30-durable-state-git-native-write-design.md
-// for why: these are plain Git Data API primitives with no GitHub-specific
-// semantics, unlike an actual GitHub write (issue create/comment/etc).
+// — deleted (70849915) — for why: these are plain Git Data API primitives
+// with no GitHub-specific semantics, unlike an actual GitHub write (issue
+// create/comment/etc).
 
 const HEALTH_STATE_BRANCH = 'health-state';
 const MAX_RUN_HISTORY = 90;
