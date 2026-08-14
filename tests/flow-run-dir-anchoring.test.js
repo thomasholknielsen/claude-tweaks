@@ -23,6 +23,7 @@ const MULTI_SPEC = read('skills', 'flow', 'multi-spec.md');
 const STEPS_AND_GATES = read('skills', 'flow', 'steps-and-gates.md');
 const AUTO_MODE_CONTRACT = read('skills', '_shared', 'auto-mode-contract.md');
 const CONTEXT_FLOW = read('skills', 'help', 'context-flow.md');
+const MATERIALIZE = read('skills', 'flow', 'materialize.md');
 
 test("manifesto.md's Path conventions anchor the run directory to $RUN_ROOT", () => {
   assert.match(
@@ -85,5 +86,35 @@ test('help/context-flow.md describes the run directory as $RUN_ROOT-anchored', (
     CONTEXT_FLOW,
     /\$RUN_ROOT\/\.claude-tweaks\/pipelines\/\{ISO-timestamp\}-\{spec-slug\}\//,
     'this is the reference doc /help points users at — it must not describe a path that omits the anchoring that actually happens',
+  );
+});
+
+// #439: materialize.md's own "Sequence, in worktree mode" text (~line 144) was never
+// touched by the fix above — it separately instructed scaffolding the WHOLE run dir
+// ("create `{run-dir}/work/` inside it [the worktree]") rather than only `work/`,
+// reproducing the identical hazard on a fresh (non-adoption) /flow run. Live-reproduced
+// during a #424 dispatch retry on 2026-08-14.
+
+test('materialize.md\'s Sequence text no longer instructs scaffolding the whole run dir inside the worktree', () => {
+  assert.doesNotMatch(
+    MATERIALIZE,
+    /create `\{run-dir\}\/work\/` inside it/,
+    'this phrasing reads as "scaffold the whole {run-dir}, including the gitignored decisions.md/config.yml/staged/, inside the worktree" — exactly the #424 live-repro hazard',
+  );
+});
+
+test('materialize.md\'s Sequence text states {run-dir} is anchored at $RUN_ROOT, never scaffolded inside the worktree', () => {
+  assert.match(
+    MATERIALIZE,
+    /`\{run-dir\}` itself is never scaffolded inside the worktree — it is anchored at `\$RUN_ROOT`/,
+    'the Sequence paragraph must state the anchoring explicitly, mirroring the Standalone fallback paragraph\'s already-correct wording a few lines below',
+  );
+});
+
+test('materialize.md\'s Sequence text still scopes worktree-local creation to work/ only', () => {
+  assert.match(
+    MATERIALIZE,
+    /Only `work\/` is created — inside the worktree, at the matching relative path/,
+    'work/{n}-spec.md staying inside the worktree is correct and must be preserved — only the framing of the REST of {run-dir} was buggy',
   );
 });
