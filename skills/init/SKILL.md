@@ -122,11 +122,11 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap/step-08-statusline-and-dependencies.md` for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–17):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and each token's own ordering/hard-depends notes.
+**Optional Enhancements (Steps 9–17):** Skipped when `--core-only` is set — every offer below is treated as declined, no prompt shown, and the invocation proceeds straight to whatever runs after Phase 0 (Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset by Enhancement filter tokens — see `## Input`'s token list for the full set and each token's ordering/hard-depends notes.
 
 ### Step 9: Establish GitHub Remote (Optional)
 
-Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository (personal account or an org, confirmed name defaulting to the project folder, private/public) and link it as `origin`. Establishes the remote that Steps 10/14/16/17 below each independently check for — declining any offer here falls through to their existing behavior unchanged. Read `bootstrap/step-09-establish-github-remote.md` for the full procedure.
+Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository (personal/org account, confirmed name, private/public) and link it as `origin`. Establishes the remote that Steps 10/14/16/17/20 below each independently check for — declining falls through to existing behavior. Read `bootstrap/step-09-establish-github-remote.md` for the full procedure.
 
 ### Step 10: GitHub Issue Form Template (Optional)
 
@@ -146,11 +146,11 @@ When frontend signals are detected and `components.json` doesn't exist (or exist
 
 ### Step 14: Cloud/Routine Parity Setup (Optional)
 
-Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, offers to attach it to the session environment, and writes the `## Cloud parity` CLAUDE.md section. Runs before Step 15 deliberately — a Routine created first would silently fail its first cloud firing. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure — including the local-plugin batch mirror offer, the `integration-branch` policy pointer for non-default-branch development, and the Ensure-setup-script attach via `routine/guided-environment-creation.md`.
+Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, offers to attach it to the session environment, and writes the `## Cloud parity` CLAUDE.md section. Runs before Step 15 deliberately — a Routine created first would silently fail its first cloud firing. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure — local-plugin batch mirror offer, `integration-branch` pointer for non-default branches, Ensure-setup-script attach via `routine/guided-environment-creation.md`.
 
 ### Step 15: Routine Installation (Optional Companion)
 
-Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Idempotent: candidates with an existing record are never re-offered — but Update Mode does audit existing records for drift, relevance, and environment dedication; see `update-mode.md`'s Routine Drift, Routine Relevance, and Routine Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md` for the full procedure.
+Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Idempotent: candidates with an existing record are never re-offered — but Update Mode does audit existing records for drift, relevance, and environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md` for the full procedure.
 
 ### Step 16: Non-Default-Branch Issue Tracking (Optional Companion)
 
@@ -158,7 +158,7 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Step 17: Work-Record Backend (Optional)
 
-Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now — see `_shared/work-record.md`'s Label taxonomy table for the current per-family and total counts, rather than a count restated here. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap/step-17-work-record-backend.md` for the full procedure.
+Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now (counts and the taxonomy these config keys govern: `_shared/work-record.md`'s Label taxonomy table, not restated here). Read `bootstrap/step-17-work-record-backend.md` for the full procedure.
 
 ### Step 18: Autonomy Level (Optional)
 
@@ -167,6 +167,10 @@ Ask how much claude-tweaks pipelines should decide on their own — ledger bookk
 ### Step 19: Emil Design-Engineering Skills (Optional)
 
 When frontend signals are detected (same detection as Step 11), offer `npx skills@latest add emilkowalski/skills` — the principles half of the craft layer's UI-dispatch context (`skills/_shared/design-craft.md`). Optional, cleanly declinable, degrades gracefully when absent. Deliberately no CLAUDE.md flag — availability is presence-based; the kill-switch is Step 11's `design-integration`. Idempotent (skips when already installed). Read `bootstrap/step-19-emil-skills.md` for the full procedure.
+
+### Step 20: Integration Model (Optional)
+
+On a GitHub-reachable project, offers pinning `integration-model: pr-first` to policy.yml (`_shared/integration-model.md`) so it resolves the same across environments instead of via per-session forge detection. Read `bootstrap/step-20-integration-model.md` for the full procedure.
 
 ---
 

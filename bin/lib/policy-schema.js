@@ -4,6 +4,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { PROFILES } = require('./model-profiles/profiles');
 
 const PROFILE_NAMES = Object.keys(PROFILES);
@@ -18,6 +19,12 @@ const POLICY_KEYS = [
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree' },
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
   { key: 'integration-branch', type: 'string' },
+  // pr-first (origin is truth, GitHub PR integration) vs local-merge (today's
+  // local merge into the integration branch — the permanent no-forge
+  // fallback). Deliberately no static `default`: an absent value's default is
+  // computed by bin/resolve-policy.js's detectIntegrationModel (forge
+  // detection), not a schema literal — see skills/_shared/integration-model.md.
+  { key: 'integration-model', type: 'enum', values: ['pr-first', 'local-merge'] },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
   { key: 'dispatch-batch-size', type: 'integer', default: 3 },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
@@ -359,6 +366,28 @@ function extractMapEntry(raw, topKey) {
   return found ? map : undefined;
 }
 
+// Computed default for `integration-model` when absent from every config
+// source (run-config, policy.yml) — bin/resolve-policy.js's code twin of
+// skills/_shared/forge-detection.md's three-check ladder. Impure (shells out),
+// unlike resolvePolicyKeys above; kept separate so that function stays pure.
+// Never throws — fails open to 'local-merge' on any error, including no git
+// remote at all (checked first, so a local-files project with no remote never
+// shells out to gh). Each check runs under a 5s timeout.
+function detectIntegrationModel(repoRoot) {
+  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8' };
+  try {
+    execFileSync('git', ['remote', 'get-url', 'origin'], opts);
+  } catch {
+    return 'local-merge';
+  }
+  try {
+    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], opts);
+  } catch {
+    return 'local-merge';
+  }
+  return 'pr-first';
+}
+
 function auditPolicy(repoRoot) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const claudeMdRaw = readFileSafe(path.join(repoRoot, 'CLAUDE.md'));
@@ -423,4 +452,7 @@ function auditPolicy(repoRoot) {
   return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys };
 }
 
-module.exports = { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys };
+module.exports = {
+  POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
+  detectIntegrationModel,
+};

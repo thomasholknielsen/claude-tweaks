@@ -23,7 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolvePolicyKeys } = require('./lib/policy-schema');
+const { resolvePolicyKeys, detectIntegrationModel } = require('./lib/policy-schema');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 
 function fail(msg) {
@@ -92,12 +92,24 @@ function main(argv) {
     }
   }
 
-  const policyRaw = readFileSafe(path.join(repoRoot(), '.claude-tweaks', 'policy.yml'));
+  const root = repoRoot();
+  const policyRaw = readFileSafe(path.join(root, '.claude-tweaks', 'policy.yml'));
   // A run dir without a config.yml is not an error — the Manifesto may not
   // have written one yet; readFileSafe's null simply means no overlay.
   const runConfigRaw = runDir === null ? null : readFileSafe(path.join(runDir, 'config.yml'));
 
   const result = resolvePolicyKeys(keys, { policyRaw, runConfigRaw });
+
+  // integration-model has no static schema default (skills/_shared/integration-
+  // model.md) — an absent value (not a typo'd/invalid one; `invalid: true`
+  // stays visible as an error, never silently overwritten) is computed via
+  // forge detection instead of a literal.
+  if (keys.includes('integration-model')) {
+    const entry = result['integration-model'];
+    if (entry && entry.source === 'default' && !entry.invalid) {
+      result['integration-model'] = { value: detectIntegrationModel(root), source: 'default' };
+    }
+  }
 
   // model-profiles is the one block-style key — policy-only (the --run
   // overlay never applies; run configs hold flat lever lines, not nested

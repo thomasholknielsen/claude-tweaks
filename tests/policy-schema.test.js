@@ -38,8 +38,11 @@ test('POLICY_KEYS entries are unique', () => {
   // 41 -> 43, #366 (oversight-floor predicate): risk-floor, size-floor — the
   // shared floors grant-gate.js's gate 5 and /claude-tweaks:demo's binary gate
   // both read via exceedsOversightFloor.
-  assert.strictEqual(POLICY_KEYS.length, 43);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 43);
+  // 43 -> 44, #406 (pr-first integration model): integration-model — no static
+  // default (computed at resolve time by bin/resolve-policy.js's forge
+  // detection instead), see skills/_shared/integration-model.md.
+  assert.strictEqual(POLICY_KEYS.length, 44);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 44);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
