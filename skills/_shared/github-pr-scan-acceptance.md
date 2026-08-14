@@ -171,24 +171,45 @@ node -e "
 "
 ```
 
+### Oversight-floor pre-filter
+
+Before filtering for gaps, resolve `risk-floor`/`size-floor` **once** for this scan invocation —
+one `resolve-policy.js` call regardless of how many closed records were fetched above, never
+resolved per candidate record. Resolved inside the same code block that consumes it below, not a
+separate one: shell state does not survive between separate Bash calls, so a value read in an
+earlier block is empty by the time a later block runs (the same discipline the Fetch-limit and
+`work-links` resolutions above state for their own identical case).
+
 With `/tmp/tidy-acceptance-gap-sub-issues.json` written by whichever branch applies, filter the
 closed-record set — note the filename: this scope's sub-issue list and the `parent-gate` scope's
 `/tmp/tidy-parent-gates.json` are different artifacts written by different procedures in the same
-agent prompt, so they never share a path:
+agent prompt, so they never share a path. A closed, undisposed record is only reported when it
+both exceeds the oversight floor (`bin/lib/issues/oversight-floor.js`'s `exceedsOversightFloor`,
+built by #366) and is a `needsBackstop` gap — a record that closed below the floor never needed a
+disposition in the first place, so it is not a gap at all, not merely a low-priority one. The
+closed-record fetch above already carries `labels`, so `parseRecordFacets` reads `risk`/`size`
+straight off data already in hand — no second round-trip:
 
 ```bash
+{ read -r RISK_FLOOR; read -r SIZE_FLOOR; } < <(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor)
 node -e "
   const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
+  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const records = require('/tmp/tidy-closed-records.json');
   const subIssues = new Set(require('/tmp/tidy-acceptance-gap-sub-issues.json'));
+  const [riskFloor, sizeFloor] = process.argv.slice(1);
   const gaps = records
     .map(r => ({ ...r, labels: r.labels.map(l => l.name), hasParent: subIssues.has(r.number) }))
+    .filter(r => exceedsOversightFloor(parseRecordFacets(r.labels), { riskFloor, sizeFloor }).exceeds)
     .filter(r => needsBackstop({ state: 'CLOSED', labels: r.labels, hasParent: r.hasParent }));
   gaps.forEach(r => console.log('[acceptance-gap] #' + r.number + ': ' + r.title + ' — closed with no acceptance disposition — recommend /claude-tweaks:demo #' + r.number));
-"
+" "$RISK_FLOOR" "$SIZE_FLOOR"
 ```
 
-Note the spread order: derived fields come after the parsed spread, never before (`[IL-01]`).
+Note the spread order: derived fields come after the parsed spread, never before (`[IL-01]`). The
+oversight-floor filter runs before `needsBackstop`, per the pre-filter's own ordering — a
+below-floor record is skipped before ever reaching the disposition check, not after.
 
 Un-dispositioned closed records are **staged, never auto-applied**, regardless of
 `tidy-aggressiveness`. Applying a disposition is a judgment about whether shipped work actually
@@ -263,7 +284,7 @@ gh issue list --label parent-issue --state open --json number,title,body,labels 
 gh issue list --label family:parent --state open --json number,title,body,labels --limit "$LIMIT" \
   > /tmp/tidy-parent-issues-legacy.json
 
-gh issue list --state all --json number,state --limit "$LIMIT" \
+gh issue list --state all --json number,state,labels --limit "$LIMIT" \
   > /tmp/tidy-all-issue-states.json
 
 node -e "
@@ -282,6 +303,10 @@ node -e "
   }
 "
 ```
+
+The state map's `labels` field (added alongside `number`/`state`) is what lets the oversight-floor
+pre-filter below read each sub-issue's `risk:*` label from data already fetched here — no second
+`gh` round-trip per parent or per sub-issue.
 
 **Report every warning emitted above verbatim beside this scope's rows, and never suppress
 either of them.** Both truncations fail in the *quiet* direction — fewer rows, not wrong ones —
@@ -330,12 +355,15 @@ node -e "
   const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
   const parents = require('/tmp/tidy-parent-issues.json');
-  const stateOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, i.state]));
+  const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const gates = parents.map(p => ({
     number: p.number,
     title: p.title,
     parentLabels: p.labels.map(l => l.name),
-    leaves: parseSubIssues(p.body).map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
+    leaves: parseSubIssues(p.body).map(n => {
+      const info = infoOf.get(n);
+      return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
+    }),
   }));
   fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
 "
@@ -357,7 +385,7 @@ done
 node -e "
   const fs = require('fs');
   const parents = require('/tmp/tidy-parent-issues.json');
-  const stateOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, i.state]));
+  const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const byNumber = new Map(parents.map(p => [p.number, p]));
   const subRows = fs.readFileSync('/tmp/tidy-sub-issues.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
   const gates = subRows.map(({ number, subIssueNumbers }) => {
@@ -366,24 +394,59 @@ node -e "
       number,
       title: p.title,
       parentLabels: p.labels.map(l => l.name),
-      leaves: subIssueNumbers.map(n => ({ number: n, state: stateOf.get(n) || 'OPEN' })),
+      leaves: subIssueNumbers.map(n => {
+        const info = infoOf.get(n);
+        return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
+      }),
     };
   });
   fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
 "
 ```
 
+### Oversight-floor pre-filter
+
+Before filtering to due parents, resolve `risk-floor` **once** for this scan invocation — a single
+`resolve-policy.js` call regardless of how many parents were fetched above, never resolved per
+parent, inside the same code block that consumes it below (shell state does not survive between
+separate Bash calls — the same discipline this scope's own Fetch-limit and `work-links`
+resolutions state above). `sizeFloor` is never resolved at all: the parent-level check below always
+passes the literal `null` for it, per `exceedsOversightFloor`'s contract (#366) — a parent carries
+no `size:*` label of its own (`specify/record-creation.md`'s Parent record section), so evaluating
+size at this level would mean gating on a fact that does not exist.
+
 With `/tmp/tidy-parent-gates.json` assembled by whichever branch above applies, filter to parents
-whose gate is due:
+that both exceed the floor and whose gate is due. A parent's aggregate risk is the **max** risk
+tier across its `leaves` — never a size read at the parent level, and never omitted or defaulted
+to the resolved `size-floor` value, which would silently fail every leaf's missing `size` facet
+closed and gate every parent regardless of risk. Any single unscored leaf (`risk:*` missing or
+out-of-vocabulary) makes the whole parent's aggregate unscored too, matching
+`exceedsOversightFloor`'s own fail-closed rule for a missing facet:
 
 ```bash
+RISK_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor)
 node -e "
   const { parentGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
+  const { parseRecordFacets, TIERS } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const gates = require('/tmp/tidy-parent-gates.json'); // [{number, title, leaves, parentLabels}]
+  const [riskFloor] = process.argv.slice(1);
+  function maxRiskTier(leaves) {
+    let hasUnscored = false;
+    let maxIndex = -1;
+    for (const leaf of leaves) {
+      const { risk } = parseRecordFacets(leaf.labels);
+      const index = TIERS.indexOf(risk);
+      if (index === -1) { hasUnscored = true; continue; }
+      if (index > maxIndex) maxIndex = index;
+    }
+    return hasUnscored ? undefined : TIERS[maxIndex];
+  }
   gates
+    .filter(f => exceedsOversightFloor({ risk: maxRiskTier(f.leaves) }, { riskFloor, sizeFloor: null }).exceeds)
     .filter(f => parentGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
     .forEach(f => console.log('[parent-gate] #' + f.number + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo #' + f.number));
-"
+" "$RISK_FLOOR"
 ```
 
 Un-gated parents recommend the `Open parent gate` action (`tidy/SKILL.md`'s Action Vocabulary,
