@@ -134,13 +134,16 @@ test('multispec-review-console.md wires the same Console-on-PR split for bundles
   assert.match(MULTISPEC_CONSOLE, /one bundle PR — `_shared\/pr-early-run-lifecycle\.md`/);
 });
 
-test('multispec-review-console.md item ids are qualified per spec, citing console-on-pr.md\'s own scheme', () => {
+test('multispec-review-console.md delegates its item-id scheme to console-on-pr.md, rather than restating it', () => {
+  // The per-spec-qualified id scheme itself ({spec-slug}-{kind}-{n}) is
+  // pinned once, on console-on-pr.md, by this same file's "item ids follow
+  // the {kind}-{n} scheme with a bundle spec-slug qualifier" test above —
+  // this test only confirms the bundle console still delegates to it.
   const section = MULTISPEC_CONSOLE.slice(
     MULTISPEC_CONSOLE.indexOf('## Console-on-PR'),
     MULTISPEC_CONSOLE.indexOf('## Present the consolidated console'),
   );
   assert.match(section, /_shared\/console-on-pr\.md/);
-  assert.match(section, /per-spec ids per its.*[Ss]cheme/);
 });
 
 test('both review-console.md and multispec-review-console.md cite the shared integration-model fragment from their new sections', () => {

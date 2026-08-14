@@ -134,6 +134,20 @@ function run(ctx) {
     if (summary.length) {
       parts.push(`claude-tweaks: reconciled — ${summary.join('; ')}.`);
     }
+    // #413: a console whose "Resolve console" box is already ticked on the
+    // PR is answered-but-unexecuted work — surface it the same way an
+    // unfinished pipeline run is surfaced above, pointing at the procedure
+    // (`_shared/console-execution.md`) rather than executing here: several
+    // item kinds are judgment-bearing and only an agent session can run
+    // them (see that file's header).
+    const readyConsoles = (result.console && result.console.ready) || [];
+    if (readyConsoles.length) {
+      parts.push(
+        `claude-tweaks: ${readyConsoles.length} answered console(s) awaiting execution:\n` +
+          readyConsoles.map((c) => `- ${path.basename(c.runDir)} — PR #${c.prNumber}`).join('\n') +
+          '\nRead skills/_shared/console-execution.md and execute per its Execution routing.',
+      );
+    }
   } catch { /* best-effort */ }
   try {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the

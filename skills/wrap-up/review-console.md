@@ -292,7 +292,7 @@ After resolving, proceed directly to the phase-trace report — skip "Present th
 
 Reached only when the Auto-resolution short-circuit above did not already resolve and return. Resolve `integration-model` per `_shared/integration-model.md`; `local-merge` → skip to "Present the console" below, unchanged.
 
-`pr-first` with a `pr` object on `run-state.json` (`_shared/pr-run-comments.md`'s gate): read `_shared/console-on-pr.md` and follow it in full — same content as "Present the console" below, rendered as PR checkboxes and posted/updated there instead of a chat table, `console.json` written to the run dir. Report `pending-review` with the PR URL and end cleanly per that file's Headless conclusion — no `AskUserQuestion`, live or headless. Never also render "Present the console" on this path.
+`pr-first` with a `pr` object on `run-state.json` (`_shared/pr-run-comments.md`'s gate): read `_shared/console-on-pr.md` and follow it in full — same content as "Present the console" below, rendered as PR checkboxes and posted/updated there instead of a chat table, `console.json` written to the run dir. A live session also asks via `AskUserQuestion` here (`_shared/console-execution.md`'s Live-session accelerator, first answer wins); headless skips straight to reporting `pending-review` with the PR URL, per that file's Headless conclusion. Never also render "Present the console" on this path.
 
 `pr-first` with no `pr` object yet (fail-safe — should not normally happen): fall through to "Present the console" below.
 

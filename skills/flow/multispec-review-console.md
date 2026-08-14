@@ -63,9 +63,9 @@ When granted: render every section below as an informational report (nothing dro
 
 ## Console-on-PR (`integration-model: pr-first` only)
 
-Bundle analog of `wrap-up/review-console.md`'s Console-on-PR section (read there for rationale). Past the short-circuit above: `local-merge` (`_shared/integration-model.md`) → "Present the consolidated console" below.
+Bundle analog of `wrap-up/review-console.md`'s Console-on-PR section (rationale there). Past the short-circuit: `local-merge` (`_shared/integration-model.md`) → "Present the consolidated console" below.
 
-`pr-first` + `pr` on the parent `run-state.json` (one bundle PR — `_shared/pr-early-run-lifecycle.md`): read `_shared/console-on-pr.md`, compose the content below would (per-spec ids per its scheme), post to the PR, write `console.json` to the parent run dir, report `pending-review` + URL, end — no `AskUserQuestion`, never both. No `pr` yet: fall through below.
+`pr-first` + `pr` on the parent `run-state.json` (one bundle PR — `_shared/pr-early-run-lifecycle.md`): read `_shared/console-on-pr.md`, compose the content below would, post, write `console.json` to the parent run dir. Live: also ask `AskUserQuestion` (`_shared/console-execution.md`). Headless: report `pending-review` + URL. Never both. No `pr` yet: fall through below.
 
 ## Present the consolidated console
 

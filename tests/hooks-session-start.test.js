@@ -171,6 +171,31 @@ test('SessionStart fast-forwards a behind-and-clean integration branch via recon
   assert.match(out.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i);
 });
 
+test('#413: a run carrying an unresolved console.json never crashes SessionStart, and produces no answered-console message when gh cannot resolve the PR', () => {
+  // No live PR/gh mocking convention exists in this suite (console-execute.js
+  // is gh-CLI-only) — this proves the wiring is safe under exactly the
+  // network-failure/gh-absent skip path every other reconcile check already
+  // takes, not the positive "answered console" path (covered by
+  // tests/console-execute.test.js's pure decideConsoleExecute unit tests).
+  const project = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-console-')));
+  execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: project });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: project });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: project });
+  fs.writeFileSync(path.join(project, 'a.txt'), 'one\n');
+  execFileSync('git', ['add', 'a.txt'], { cwd: project });
+  execFileSync('git', ['commit', '-q', '-m', 'seed'], { cwd: project });
+
+  const run = mkRun(project, '2026-01-01T000000-test', { status: 'active' });
+  fs.writeFileSync(path.join(run, 'console.json'), JSON.stringify({
+    resolved: false, commentIds: ['IC_fake'], prNumber: 999999, items: [],
+  }));
+
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (out.json) {
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /answered console\(s\) awaiting execution/);
+  }
+});
+
 test('worktree.always nudge is absent when the session is already inside a linked worktree', () => {
   const project = gitProject();
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-m', 'init', '-q']);

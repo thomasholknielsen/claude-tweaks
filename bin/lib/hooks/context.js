@@ -90,6 +90,16 @@ function listRunDirs(cwd) {
 // The asymmetry is deliberate: an unowned run may still be ours (ownership is
 // only stamped by `record-worktree`, which a run without a worktree never
 // calls), but a run owned by someone else never is.
+//
+// Sanctioned exception (#413): console execution (`_shared/console-execution.md`)
+// deliberately acts on a run whose owning session is gone by design — the
+// session that built the run and rendered its console may have ended long
+// before a human ticks boxes on the PR. A foreign-owned or `null` ownedRun.dir
+// during console execution is expected there, not a bug; that file's own
+// writes (console.json, the reply comment, the resolved marker) go directly
+// to the run dir and the PR regardless of this resolution, the same way
+// `bin/lib/reconcile/*` already reads and writes runs regardless of session
+// ownership. Do not "fix" this by tightening the ownership check.
 function resolveRun(cwd, env, sessionId) {
   if (env && env.PIPELINE_RUN_DIR) {
     try {

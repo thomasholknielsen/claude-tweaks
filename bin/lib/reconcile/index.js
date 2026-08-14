@@ -15,15 +15,16 @@ const { mirrorFastForward } = require('./mirror-ff');
 const { reapMerged } = require('./reap-merged');
 const { releaseMerged } = require('./release-merged');
 const { archiveMerged } = require('./archive-merged');
+const { consoleExecuteDetect } = require('./console-execute');
 
-// Execution order (mirror, release, archive, reap) is significant — see the
-// ordering comment above the release/archive/reap dispatch below. This
-// array is the requested-subset default only; it is never iterated to
+// Execution order (mirror, console, release, archive, reap) is significant —
+// see the ordering comment above the release/archive/reap dispatch below.
+// This array is the requested-subset default only; it is never iterated to
 // determine dispatch order.
-const ALL_CHECKS = ['mirror', 'reap', 'release', 'archive'];
+const ALL_CHECKS = ['mirror', 'reap', 'release', 'archive', 'console'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
-// -> { mirror, worktrees, claims, runs, skipped }
+// -> { mirror, worktrees, claims, runs, console, skipped }
 // This module is gh-CLI-only by design (a Node subprocess cannot reach an
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
@@ -32,7 +33,7 @@ function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
-  const result = { mirror: null, worktrees: null, claims: null, runs: null, skipped: [] };
+  const result = { mirror: null, worktrees: null, claims: null, runs: null, console: null, skipped: [] };
 
   const root = mainCheckoutRoot(cwd);
   if (!root) {
@@ -66,12 +67,20 @@ function reconcile(opts = {}) {
         result.skipped.push({ check: 'reap', reason: 'deferred', count: legacy.deferred });
       }
     }
-    result.skipped.push({ check: 'mirror,release,archive', reason: 'local-merge-model' });
+    result.skipped.push({ check: 'mirror,release,archive,console', reason: 'local-merge-model' });
     return result;
   }
 
   if (checks.includes('mirror')) {
     result.mirror = mirrorFastForward(root, integration);
+  }
+
+  // Detection only — never mutates repo/run state, so its position relative
+  // to release/archive/reap's own ordering constraints (below) is
+  // unconstrained. Placed here, right after mirror, since it needs neither a
+  // worktree-list join nor merged-PR evidence, unlike the three that follow.
+  if (checks.includes('console')) {
+    result.console = consoleExecuteDetect({ cwd: root });
   }
 
   // Ordering is load-bearing, not incidental: release and archive both
