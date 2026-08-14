@@ -22,18 +22,25 @@ Before routing (Step 3), walk each Near-misses finding through `_shared/causal-d
 
 ### Friction Lens
 
-Unlike the other four lenses, Friction evaluates the pipeline's own behavior toward the operator
+Unlike the other lenses, Friction evaluates the pipeline's own behavior toward the operator
 during this run, not the code that got built.
 
 **Input:** the run's `events.jsonl` (no run dir / no file → this lens reports nothing), filtered
-to: `wd-deny`, `gate-denial`, `wd-push-mismatch`, `wd-ambiguous`, `wd-foreign-teardown`,
-`contract-violation` (all logged by `bin/lib/hooks/pre-tool-use.js`), and `ask-user-question`
-(logged by `bin/lib/hooks/post-tool-use.js`).
+to: `wd-deny` and `gate-denial` (logged by `bin/lib/hooks/pre-tool-use.js`), `contract-violation`
+(logged by `bin/lib/hooks/subagent-stop.js`), and `ask-user-question` (logged by
+`bin/lib/hooks/post-tool-use.js`). `contract-violation` specifically can under-report — the
+SubagentStop hook it depends on fires unreliably for Task dispatches
+(`_shared/subagent-output-contract.md`, claude-code#27755) — so the lens should not treat its
+*absence* as proof of a clean run.
 
 **Membership rule:** an event qualifies only when it describes friction experienced by the run's
 own operator — a denied action, a forced stop. `wd-foreign-session` is excluded on this basis: it
 is logged when a *different* session than this run's owner attempts a wrong-checkout action, so
-it describes that other session's friction, not this run's.
+it describes that other session's friction, not this run's. `wd-foreign-teardown` is excluded for
+the same bystander reason — it's written when a *different* session attempts a teardown, not this
+run's own operator's friction. `wd-ambiguous` and `wd-push-mismatch` are excluded on a different
+basis: both resolve to allow, not a denial, and emit no `systemMessage` — they're silent
+breadcrumbs, not friction.
 
 **Per-event avoidability.** For each qualifying event, judge whether it was necessary or whether
 it indicates a claude-tweaks defect (a gate that shouldn't have fired) or gap (a decision the

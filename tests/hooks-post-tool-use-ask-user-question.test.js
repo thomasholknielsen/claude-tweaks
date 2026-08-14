@@ -2,10 +2,18 @@
 //
 // #452's ask-user-question event: one PostToolUse log-tier event per
 // AskUserQuestion call, holding every question posed in that call (1-4 per
-// AskUserQuestionInput) with its header, option labels, and resolved
-// answer. Schema confirmed against @anthropic-ai/claude-agent-sdk's
-// sdk-tools.d.ts (see evals/NOTES.md) — answers is a map keyed by each
-// question's own literal text, not by header.
+// AskUserQuestionInput) with its header, full question text, and option
+// labels, plus ONE raw `response` string for the whole event.
+//
+// `tool_response` for this tool is NOT the SDK's structured
+// `AskUserQuestionOutput` object (`{questions, answers}}`) — real captured
+// transcripts (`.superpowers/sdd/2026-08-15-452-friction-reflect-lens/
+// real-ask-user-question-payloads.md`) show it is always a plain
+// natural-language string with a varying prefix/suffix, and the embedded
+// question text can contain unescaped nested double quotes, making it unsafe
+// to regex-parse into a structured per-question answer map. So there is no
+// per-question `answer` field — only the whole-event `response` string,
+// extracted via this file's existing `extractToolResponseText` helper.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -30,73 +38,98 @@ function askCtx({ toolInput, toolResponse, ownedRun } = {}) {
   return { input, cwd: '/does/not/matter', ownedRun };
 }
 
-test('logs one ask-user-question event with header, option labels, and the matched answer', () => {
+test('logs questions (header, question, option labels) and the raw response text — real captured payload (Example 1)', () => {
+  // Real tool_input/tool_response pair, captured verbatim from this
+  // session's own transcript — see real-ask-user-question-payloads.md
+  // Example 1 (single question, plain recommended-option answer).
   const runDir = makeRunDir();
   const toolInput = {
     questions: [
       {
-        question: 'Which library should we use?',
-        header: 'Library choice',
+        question: 'The hardest part of this feature is judgment, not plumbing: ... Who should make that call?',
+        header: 'Judgment source',
         options: [
-          { label: 'date-fns', description: 'Lightweight, tree-shakeable' },
-          { label: 'moment', description: 'Legacy, larger bundle' },
+          { label: 'LLM judges each event in reflect (Recommended)', description: '...' },
+          { label: 'Deterministic heuristics in bin/lib/hooks/', description: '...' },
+          { label: "Hybrid: heuristics filter, LLM judges what's left", description: '...' },
         ],
-        multiSelect: false,
       },
     ],
   };
-  const toolResponse = {
-    questions: toolInput.questions,
-    answers: { 'Which library should we use?': 'date-fns' },
-  };
+  const toolResponse =
+    'Your questions have been answered: "The hardest part of this feature is judgment, not plumbing: ... Who should make that call?"="LLM judges each event in reflect (Recommended)". You can now continue with these answers in mind.';
   const out = post.run(askCtx({ toolInput, toolResponse, ownedRun: { dir: runDir } }));
   assert.deepStrictEqual(out, {});
   const events = readEvents(runDir).filter((e) => e.type === 'ask-user-question');
   assert.strictEqual(events.length, 1);
   assert.deepStrictEqual(events[0].questions, [
-    { header: 'Library choice', options: ['date-fns', 'moment'], answer: 'date-fns' },
+    {
+      header: 'Judgment source',
+      question: 'The hardest part of this feature is judgment, not plumbing: ... Who should make that call?',
+      options: [
+        'LLM judges each event in reflect (Recommended)',
+        'Deterministic heuristics in bin/lib/hooks/',
+        "Hybrid: heuristics filter, LLM judges what's left",
+      ],
+    },
   ]);
+  assert.strictEqual(events[0].response, toolResponse);
 });
 
-test('handles multiple questions in one call, including a multiSelect comma-separated answer', () => {
+test('handles multiple questions in one call — real captured payload (Example 3)', () => {
   const runDir = makeRunDir();
   const toolInput = {
     questions: [
       {
-        question: 'Pick a color',
-        header: 'Color',
-        options: [{ label: 'red' }, { label: 'blue' }],
-        multiSelect: false,
+        question:
+          'Should this be a brand-new 7th reflect lens (e.g. "Friction"), or folded into the existing "Near-misses" lens since both already look for things that almost went wrong?',
+        header: 'New lens vs. fold-in',
+        options: [{ label: 'New dedicated lens (Recommended)' }],
       },
       {
-        question: 'Pick features',
-        header: 'Features',
-        options: [{ label: 'dark-mode' }, { label: 'offline' }, { label: 'sync' }],
-        multiSelect: true,
+        question:
+          "Should this lens always run in every wrap-up (full/light mode), or short-circuit (skip, no LLM call) when the run's events.jsonl has zero denial/violation events and the session's AskUserQuestion count is below some baseline?",
+        header: 'Always run vs. short-circuit',
+        options: [{ label: 'Always run, let the lens itself decide there\'s nothing to flag' }],
       },
     ],
   };
-  const toolResponse = {
-    questions: toolInput.questions,
-    answers: { 'Pick a color': 'blue', 'Pick features': 'dark-mode, offline' },
-  };
+  const toolResponse =
+    'Your questions have been answered: "Should this be a brand-new 7th reflect lens (e.g. "Friction"), or folded into the existing "Near-misses" lens since both already look for things that almost went wrong?"="New dedicated lens (Recommended)", "Should this lens always run in every wrap-up (full/light mode), or short-circuit (skip, no LLM call) when the run\'s events.jsonl has zero denial/violation events and the session\'s AskUserQuestion count is below some baseline?"="Always run, let the lens itself decide there\'s nothing to flag". You can now continue with these answers in mind.';
   const out = post.run(askCtx({ toolInput, toolResponse, ownedRun: { dir: runDir } }));
   assert.deepStrictEqual(out, {});
   const events = readEvents(runDir).filter((e) => e.type === 'ask-user-question');
   assert.strictEqual(events.length, 1);
-  assert.deepStrictEqual(events[0].questions, [
-    { header: 'Color', options: ['red', 'blue'], answer: 'blue' },
-    { header: 'Features', options: ['dark-mode', 'offline', 'sync'], answer: 'dark-mode, offline' },
-  ]);
+  assert.strictEqual(events[0].questions.length, 2);
+  assert.strictEqual(events[0].questions[0].header, 'New lens vs. fold-in');
+  assert.strictEqual(events[0].questions[1].header, 'Always run vs. short-circuit');
+  assert.strictEqual(events[0].response, toolResponse);
 });
 
-test('records answer: null when a posed question has no matching key in answers', () => {
+test('extracts a normal string tool_response into the response field', () => {
   const runDir = makeRunDir();
-  const toolInput = { questions: [{ question: 'Unanswered?', header: 'H', options: [{ label: 'a' }] }] };
-  const toolResponse = { questions: toolInput.questions, answers: {} };
+  const toolInput = { questions: [{ question: 'Pick a color', header: 'Color', options: [{ label: 'red' }, { label: 'blue' }] }] };
+  const toolResponse = 'Your questions have been answered: "Pick a color"="blue". You can now continue with these answers in mind.';
   post.run(askCtx({ toolInput, toolResponse, ownedRun: { dir: runDir } }));
   const events = readEvents(runDir).filter((e) => e.type === 'ask-user-question');
-  assert.strictEqual(events[0].questions[0].answer, null);
+  assert.strictEqual(events[0].response, toolResponse);
+  assert.deepStrictEqual(events[0].questions, [
+    { header: 'Color', question: 'Pick a color', options: ['red', 'blue'] },
+  ]);
+});
+
+test('logs response: null when tool_response is absent or malformed, and never throws', () => {
+  const runDir = makeRunDir();
+  const toolInput = { questions: [{ question: 'Q?', header: 'H', options: [{ label: 'a' }] }] };
+  // tool_response missing entirely.
+  assert.doesNotThrow(() => post.run(askCtx({ toolInput, ownedRun: { dir: runDir } })));
+  // tool_response an object with none of the recognized shapes.
+  assert.doesNotThrow(() => post.run(askCtx({ toolInput, toolResponse: { unexpected: true }, ownedRun: { dir: runDir } })));
+  // tool_response a number.
+  assert.doesNotThrow(() => post.run(askCtx({ toolInput, toolResponse: 42, ownedRun: { dir: runDir } })));
+  const events = readEvents(runDir).filter((e) => e.type === 'ask-user-question');
+  assert.strictEqual(events.length, 3);
+  for (const e of events) assert.strictEqual(e.response, null);
 });
 
 test('does not fire for a tool other than AskUserQuestion', () => {
@@ -108,14 +141,14 @@ test('does not fire for a tool other than AskUserQuestion', () => {
 
 test('no-ops (writes nothing, never throws) when ctx.ownedRun.dir is unset', () => {
   const toolInput = { questions: [{ question: 'Q?', header: 'H', options: [{ label: 'a' }] }] };
-  const toolResponse = { questions: toolInput.questions, answers: { 'Q?': 'a' } };
+  const toolResponse = 'Your questions have been answered: "Q?"="a". You can now continue with these answers in mind.';
   const out = post.run(askCtx({ toolInput, toolResponse }));
   assert.deepStrictEqual(out, {});
   const out2 = post.run(askCtx({ toolInput, toolResponse, ownedRun: {} }));
   assert.deepStrictEqual(out2, {});
 });
 
-test('never throws on malformed tool_input/tool_response', () => {
+test('never throws on malformed tool_input', () => {
   const runDir = makeRunDir();
   // No tool_input at all.
   assert.doesNotThrow(() => post.run(askCtx({ ownedRun: { dir: runDir } })));
@@ -123,29 +156,18 @@ test('never throws on malformed tool_input/tool_response', () => {
   assert.doesNotThrow(() => post.run(askCtx({ toolInput: {}, ownedRun: { dir: runDir } })));
   // tool_input.questions not an array.
   assert.doesNotThrow(() => post.run(askCtx({ toolInput: { questions: 'nope' }, ownedRun: { dir: runDir } })));
-  // A posed question missing header/options entirely.
+  // A posed question missing header/question/options entirely.
   assert.doesNotThrow(() => post.run(askCtx({
-    toolInput: { questions: [{ question: 'Q?' }] },
-    toolResponse: { answers: { 'Q?': 'a' } },
-    ownedRun: { dir: runDir },
-  })));
-  // tool_response missing entirely.
-  assert.doesNotThrow(() => post.run(askCtx({
-    toolInput: { questions: [{ question: 'Q?', header: 'H', options: [{ label: 'a' }] }] },
-    ownedRun: { dir: runDir },
-  })));
-  // tool_response.answers not an object.
-  assert.doesNotThrow(() => post.run(askCtx({
-    toolInput: { questions: [{ question: 'Q?', header: 'H', options: [{ label: 'a' }] }] },
-    toolResponse: { answers: 'not-an-object' },
+    toolInput: { questions: [{}] },
+    toolResponse: 'Your questions have been answered: "?"="a". You can now continue with these answers in mind.',
     ownedRun: { dir: runDir },
   })));
   // An option missing its label.
   assert.doesNotThrow(() => post.run(askCtx({
     toolInput: { questions: [{ question: 'Q?', header: 'H', options: [{ description: 'no label' }] }] },
-    toolResponse: { answers: { 'Q?': 'a' } },
+    toolResponse: 'Your questions have been answered: "Q?"="a". You can now continue with these answers in mind.',
     ownedRun: { dir: runDir },
   })));
   const events = readEvents(runDir).filter((e) => e.type === 'ask-user-question');
-  assert.ok(events.length >= 6, 'every malformed call above should still log something, never throw');
+  assert.ok(events.length >= 5, 'every malformed call above should still log something, never throw');
 });
