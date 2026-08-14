@@ -1,6 +1,6 @@
 ---
 name: harness-health
-description: Use to check whether skills, rules, and CLAUDE.md still match the codebase, template, and best practice. Never edits code. Keywords - harness health, skill drift, rule drift, CLAUDE.md drift, best practice, template conformance, new-skill gap, routine.
+description: Use to check whether skills, rules, CLAUDE.md match codebase, template, practice. Never edits code. Keywords - harness health, skill health, skill drift, rule drift, CLAUDE.md drift, best practice, template conformance, new-skill gap, scheduled, routine.
 argument-hint: "[--target <id>] [--kind skill|rule|claude-md|design-artifact|memory] [--memory-dir <path>] [--budget <n>] [--min-confidence low|med|high] [--force-gap-scan] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---

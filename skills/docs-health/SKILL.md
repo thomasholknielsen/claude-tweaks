@@ -1,6 +1,6 @@
 ---
 name: docs-health
-description: Use when auditing docs/** for Diátaxis drift, depth-mismatch, findability, or staleness — dedups and files issues. Never edits docs. Keywords - docs-health, Diátaxis, genre drift, depth mismatch, findability, staleness, github issues, scheduled, routine.
+description: Use for docs/** audits: Diátaxis drift, depth-mismatch, findability, staleness; dedups + files. Never edits docs. Keywords - docs-health, Diátaxis, genre drift, depth mismatch, findability, orphan docs, staleness, proactive, github issues, scheduled, routine.
 argument-hint: "[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low|med|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---

@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Use to sweep the backlog for labels (refine), a next-build pick (overview), or headless grants (grant, github-issues only). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, distribution, recommend, autonomy ceiling.
+description: Use for backlog labels (refine), a next-build pick (overview), or headless grants (github-issues). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next, unattended, headless, autonomy ceiling.
 argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
