@@ -40,8 +40,9 @@ OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no p
 
 GROUP: {comma-joined issue numbers}
 OUTCOME: {build-test-ok | build-test-failed | build-test-blocked}
-MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
-  single-spec run dir path}
+MANIFEST: {absolute path anchored under the main checkout's `.claude-tweaks/pipelines/` --
+  never a relative or worktree-cwd-relative path -- to this group's run-dir
+  manifest.yml/decisions.md; for a singleton, the single-spec run dir path}
 
 One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
