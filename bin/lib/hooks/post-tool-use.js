@@ -413,8 +413,44 @@ function checkWorktreeStaleness(ctx) {
   }
 }
 
+// Log-tier breadcrumb, gated on ctx.ownedRun.dir exactly like
+// logWorktreeStalenessEvent above — the AskUserQuestion analogue. One event
+// per tool call (not per question): AskUserQuestionInput allows 1-4
+// questions per call, and AskUserQuestionOutput.answers is a single map
+// keyed by each question's own literal text (comma-separated already for a
+// multiSelect question) — see evals/NOTES.md's "AskUserQuestion input/output
+// shapes" section, sourced from @anthropic-ai/claude-agent-sdk's
+// sdk-tools.d.ts. Never throws — a malformed tool_input/tool_response
+// degrades to an empty/null-filled questions array rather than breaking the
+// session, per CLAUDE.md's Hooks section ("Never break a session").
+function logAskUserQuestion(ctx) {
+  const ownedRun = ctx.ownedRun || {};
+  if (!ownedRun.dir) return {};
+  try {
+    const posed = (ctx.input.tool_input && Array.isArray(ctx.input.tool_input.questions))
+      ? ctx.input.tool_input.questions
+      : [];
+    const rawAnswers = ctx.input.tool_response && ctx.input.tool_response.answers;
+    const answers = (rawAnswers && typeof rawAnswers === 'object') ? rawAnswers : {};
+    const questions = posed.map((q) => ({
+      header: (q && typeof q.header === 'string') ? q.header : null,
+      options: (q && Array.isArray(q.options))
+        ? q.options.map((o) => (o && typeof o.label === 'string') ? o.label : null)
+        : [],
+      answer: (q && typeof q.question === 'string' && Object.prototype.hasOwnProperty.call(answers, q.question))
+        ? answers[q.question]
+        : null,
+    }));
+    ctxLib.appendEvent(ownedRun.dir, 'ask-user-question', { questions }, ownedRun.attribution);
+  } catch {
+    /* best-effort — never break the session over a log-tier event */
+  }
+  return {};
+}
+
 function run(ctx) {
   if (ctx.input.tool_name === 'Skill') return skillInvocation.run(ctx);
+  if (ctx.input.tool_name === 'AskUserQuestion') return logAskUserQuestion(ctx);
 
   const command = ctx.input.tool_name === 'Bash' ? (ctx.input.tool_input && ctx.input.tool_input.command) : null;
   const hasCommand = typeof command === 'string' && !!command;
