@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-14T213317-dispatch-standalone",
-  "sessionId": "3c3ec9f2-cdfd-443e-bf48-6615bd00d899",
-  "claimedAt": "2026-08-14T21:35:45.737Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: worktree-attach",
+  "releasedAt": "2026-08-14T21:43:33.547Z"
 }
