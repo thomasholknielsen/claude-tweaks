@@ -4,7 +4,8 @@
 // row to the concrete permissions that tier allows for that class. Policy sets
 // the ceiling; evidence sets the level — this module is where the two meet, and
 // it grants nothing on its own. Callers apply the labels.
-// See docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md, Phase 3.
+// Was docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md, Phase
+// 3 — deleted (bdb2f4f6): all 4 phases shipped, v6.50.0-6.59.0.
 
 // Ordered least to most permissive. Index comparison is the tier test, so the
 // order is load-bearing, not cosmetic.

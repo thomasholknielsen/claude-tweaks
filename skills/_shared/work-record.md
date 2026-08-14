@@ -172,7 +172,9 @@ not-authorized state** — no label means no autonomous action, ever.
   (`_shared/autonomy-ceiling.md`, `_shared/policy-schema.md`), the candidate record's class
   reading a `clean` trust verdict, a `by:*` agent-filed origin, a content-aware
   `/claude-tweaks:assess-agent-autonomy` `grant-check` clearing, and no floor trip
-  (`merge-sensitive-paths`, `risk:high`, the fleet daily grant cap). **A human-filed record
+  (`merge-sensitive-paths`, the oversight floor — `risk` and/or `size` at or above policy's
+  configured `riskFloor`/`sizeFloor`, with an unscored axis failing closed — the fleet daily
+  grant cap). **A human-filed record
   (no `by:*` label) is never eligible, regardless of every other key** — this path narrows the
   existing invariant exactly once, deliberately, rather than widening any actor's row generally.
   Both opt-in keys are human-set project policy (`policy.yml`), never written by any skill; with

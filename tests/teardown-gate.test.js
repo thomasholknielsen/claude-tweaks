@@ -256,6 +256,31 @@ test('MINOR 5: Bash `git worktree remove -- <abs-path>` on an active run\'s work
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// whole-branch review (pre-6.80.0): teardownTargets used to check only a
+// literal `-C` token immediately after `git`, unlike gitTargets' loop which
+// skips past any global flag before the subcommand — so a global flag other
+// than -C ahead of `worktree remove` defeated the parser and silently
+// allowed tearing down a worktree still assigned to a non-terminal run.
+test('whole-branch review: Bash `git -c foo=bar worktree remove <abs-path>` on an active run\'s worktree is denied', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git -c foo=bar worktree remove ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('whole-branch review: Bash `git --no-pager worktree remove <abs-path>` on an active run\'s worktree is denied', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git --no-pager worktree remove ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 // IMPORTANT 4 (whole-branch review): teardownTargets must track `cd` across
 // shell segments (via git-command.js's forEachCommandSegment), not just
 // inspect each segment against the ORIGINAL cwd — otherwise `cd <dir> && git
