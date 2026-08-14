@@ -1,6 +1,6 @@
 {
   "released": true,
   "runId": "2026-08-14T175655-dispatch-standalone",
-  "reason": "failed: review-spec-compliance",
-  "releasedAt": "2026-08-14T19:19:34.013Z"
+  "reason": "abandoned: spec 424",
+  "releasedAt": "2026-08-14T19:30:53.304Z"
 }
