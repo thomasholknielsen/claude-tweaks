@@ -141,6 +141,17 @@ when it closes a parent's last sub-issue. A parent whose last sub-issue closes a
 hand, or by a run that ended before wrap-up — never reaches that eager path; this shape catches it
 after.
 
+Both backstop shapes below (this one and Shape 8) filter out below-floor candidates the same way
+their `github-issues` counterparts do — the same `bin/lib/issues/oversight-floor.js` predicate
+(#366), mirrored here rather than reimplemented. Each shape resolves `risk-floor`/`size-floor`
+**once, inside its own code block** (one `resolve-policy.js` call regardless of population size,
+never resolved per record) and passes the printed values as literal `process.argv` arguments to
+that same block's script — never resolved in a separate block and carried over via a shell
+variable, since shell state does not survive between separate Bash calls (the same discipline
+`_shared/github-pr-scan-acceptance.md`'s fetch-limit/work-links resolutions state for their own
+identical case). A closed record below the floor never needed a disposition in the first place, so
+it is not a gap.
+
 It is the local twin of Step 4.8's `parent-gate` scope (`_shared/github-pr-scan-acceptance.md`) — same
 finding, same `[parent-gate]` prefix, same `Open parent gate` action; only the store differs. It
 lives in this step rather than that file because that file is skipped whole whenever `gh` is
@@ -157,10 +168,22 @@ It needs its own query, not Step 1's shared fetch: that fetch returns open recor
 carries no sub-issue-to-parent index, and a parent's sub-issues are closed by definition when its
 gate is due.
 
+A parent's aggregate risk is the **max** `risk:*` tier across its sub-issue records — never a size
+read at the parent level (a local parent carries no scoring of its own, same as its `github-issues`
+counterpart), and the predicate call below passes the literal `sizeFloor: null`, never the resolved
+`$SIZE_FLOOR` value: passing the real value here, with no `size` facet to read, would fail every
+parent closed on a missing size it was never meant to have. Any single unscored sub-issue (missing
+or out-of-vocabulary `risk`) makes the whole parent's aggregate unscored too, matching
+`exceedsOversightFloor`'s own fail-closed rule:
+
 ```bash
+RISK_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor)
 node -e "
   const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
   const { parentGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
+  const { TIERS } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const [riskFloor] = process.argv.slice(1);
   const parents = queryRecords('specs', { isParentIssue: true });
   const gates = parents.map((p) => {
     const subIssueRecords = [
@@ -172,13 +195,24 @@ node -e "
       title: p.title,
       path: p.path,
       parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
-      leaves: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' })),
+      leaves: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
     };
   });
+  function maxRiskTier(leaves) {
+    let hasUnscored = false;
+    let maxIndex = -1;
+    for (const leaf of leaves) {
+      const index = TIERS.indexOf(leaf.risk);
+      if (index === -1) { hasUnscored = true; continue; }
+      if (index > maxIndex) maxIndex = index;
+    }
+    return hasUnscored ? undefined : TIERS[maxIndex];
+  }
   gates
+    .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.leaves) }, { riskFloor, sizeFloor: null }).exceeds)
     .filter((f) => parentGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
     .forEach((f) => console.log(f.path + '\t[parent-gate] ' + f.id + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo ' + f.id));
-"
+" "$RISK_FLOOR"
 ```
 
 Each line is `{path}<TAB>{finding}` — the path fills the row's `Path:Line` column (`SKILL.md`'s
@@ -234,25 +268,32 @@ records another shape already covers. That is the same reason the `github-issues
 its own sub-issue set before filtering.
 
 It needs its own query, not Step 1's shared fetch: that fetch returns open records only, and every
-record this shape looks at is closed by definition.
+record this shape looks at is closed by definition. `risk-floor`/`size-floor` are resolved again
+here, independently of Shape 7's own resolution above — per the discipline stated at the top of
+Shape 7, shell state does not survive between separate Bash calls, so a value resolved there is
+empty here:
 
 ```bash
+{ read -r RISK_FLOOR; read -r SIZE_FLOOR; } < <(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor)
 node -e "
   const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
   const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
+  const [riskFloor, sizeFloor] = process.argv.slice(1);
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   queryRecords('specs', { closed: true })
     .filter((r) => {
       const closedAt = Date.parse(r.facets.closedAt);
       return Number.isNaN(closedAt) || closedAt >= cutoff;
     })
+    .filter((r) => exceedsOversightFloor({ risk: r.facets.risk, size: r.facets.size }, { riskFloor, sizeFloor }).exceeds)
     .filter((r) => needsBackstop({
       state: r.facets.closed ? 'CLOSED' : 'OPEN',
       labels: r.facets.acceptance ? ['demo:' + r.facets.acceptance] : [],
       hasParent: r.facets.parent !== null,
     }))
     .forEach((r) => console.log(r.path + '\t[acceptance-gap] ' + r.id + ': ' + r.title + ' — closed with no acceptance disposition — recommend /claude-tweaks:demo ' + r.id));
-"
+" "$RISK_FLOOR" "$SIZE_FLOOR"
 ```
 
 Each line is `{path}<TAB>{finding}`, the same shape Shape 7 emits — the path fills the row's
