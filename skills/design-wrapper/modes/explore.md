@@ -16,7 +16,7 @@ This file covers both scopes. The `identity` scope (`## Procedure — identity s
 
 ## When this runs
 
-Called directly today via `/claude-tweaks:design-wrapper explore` — no lifecycle skill wires this mode in yet. Entry-point wiring into `/claude-tweaks:specify` (offering it at a genesis design doc) and `/claude-tweaks:init` is a separate decomposition sibling; this mode does not assume any particular caller and must work correctly when invoked standalone.
+Invoked directly via `/claude-tweaks:design-wrapper explore`, or by a caller that resolved the scope on its own side and passes `--scope` explicitly (an explicit `--scope` wins over this mode's auto-resolution, so the two sides cannot disagree). This mode does not assume any particular caller and must work correctly when invoked standalone — caller relationships live in `docs/skill-graph.md`, not here.
 
 Division of labor, load-bearing: **upstream deals, this mode derives and renders.** `concept-seed.mjs` assigns and deals; its output is a single prose instruction block that tells the calling agent how to derive grounded directions, fuse dealt challengers, and weigh them — it emits no per-world card payloads. This mode is that calling agent. The dealing catalog, exclusion rules, and canon semantics stay upstream's; this mode never maintains a parallel catalog and never filters a deal on its own judgment.
 

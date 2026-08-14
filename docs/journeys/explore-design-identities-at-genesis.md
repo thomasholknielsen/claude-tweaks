@@ -9,7 +9,7 @@ files:
 
 **Persona:** Developer starting a web project that has a `PRODUCT.md` but no locked `DESIGN.md` — they want to *see* competing visual identities rendered over their actual primary surface before committing one, instead of picking from prose descriptions.
 **Goal:** Compare dealt identity directions as real rendered skins in the browser, pick one (or reroll/steer), and have upstream Impeccable write the `DESIGN.md` seed from that pick.
-**Entry point:** A terminal in the project checkout: `/claude-tweaks:design-wrapper explore` (standalone — lifecycle entry points are wired separately).
+**Entry point:** A terminal in the project checkout: `/claude-tweaks:design-wrapper explore` standalone, or `/claude-tweaks:specify`'s Step 2.5b-ii pre-check offering the tournament at a genesis design doc.
 **Success state:** `DESIGN.md` seeded by upstream `document --seed`; the winning scaffold + skin kept on disk as a `visual_reference` path; losing skins deleted.
 
 ## Steps

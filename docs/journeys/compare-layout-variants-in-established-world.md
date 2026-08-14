@@ -8,7 +8,7 @@ files:
 
 **Persona:** Developer adding a new feature page to an app whose visual identity is already locked in `DESIGN.md` — they want to compare rendered composition variants (what's on the page, how it's arranged, where the primary action sits) before building for real, with the identity held fixed.
 **Goal:** Pick a composition from dealt staging variants, all dressed in the established `DESIGN.md` tokens, and carry the winner forward as a `Visual-reference:` for the build.
-**Entry point:** `/claude-tweaks:design-wrapper explore <surface-topic> --scope layout` (or scope auto-resolves to layout when `DESIGN.md` exists).
+**Entry point:** `/claude-tweaks:design-wrapper explore <surface-topic> --scope layout` standalone (scope also auto-resolves to layout when `DESIGN.md` exists), or `/claude-tweaks:specify`'s Step 2.5b-ii pre-check offering it ahead of `live` once an identity is locked.
 **Success state:** The winning markup kept on disk, its path returned as `visual_reference` for the caller to persist; `DESIGN.md` untouched throughout; losing markups deleted.
 
 ## Steps
