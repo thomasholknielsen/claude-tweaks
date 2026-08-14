@@ -126,6 +126,10 @@ dependencies:
         claims: "the canon standing exit is the user's door, never the mode's — listed last, never recommended"
         upstream-path: "skills/impeccable/reference/new-work.md"
         must-match: "It is the user's door, never yours"
+      - file: "skills/design-wrapper/modes/explore.md"
+        claims: "the surface-scope invocation exists"
+        upstream-path: "skills/impeccable/scripts/concept-seed.mjs"
+        must-match: "--scope surface"
     fixtures: []
 
   # superpowers: the repo's heaviest dependency — eight consumed skills, and
