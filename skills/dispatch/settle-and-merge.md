@@ -24,11 +24,13 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
    If `CLASSIFICATION` is `transient`, **preserve** `auto:merge` — do not remove it. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
-4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` via the canonical resolver), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct:
+4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` via the canonical resolver), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct.
+
+   **Comment source routes on the pr-first gate** (`_shared/pr-run-comments.md`): when `run-state.json` carries a `pr` object, the "Attempt N failed" comments this step counts live on the **PR**, not the issue — step 5 below posts the full failure comment there, not to the issue. Fetch from `repos/{owner}/{repo}/issues/{pr-number}/comments` (PRs are issues under the REST model, so the identical endpoint shape applies, just with the PR's number). Absent a `pr` object, fetch from the issue exactly as today.
 
    ```bash
    DISPATCH_RETRY_CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-retry-ceiling)
-   gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
+   gh api "repos/{owner}/{repo}/issues/${COMMENT_SOURCE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
    node -e "
      const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
      const comments = require(process.argv[1]);
@@ -41,7 +43,7 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
 **MCP path** (`gh` unavailable, same live-as-of-Task-10 status as `dispatch/SKILL.md`'s Step 4): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — `countFailedAttempts` and the rest of this step's logic consume the same comment-body-string shape regardless of transport.
 
-5. Post the failure comment, using the `attemptNumber` and `ceilingHit` just computed:
+5. Compose the failure comment, using the `attemptNumber` and `ceilingHit` just computed — content unchanged regardless of routing below:
 
    ```bash
    # Negative-evidence persist point (#268): passing classification here (from
@@ -51,14 +53,47 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    # trust.js's classification gate by construction. bin/lib/issues/trust.js's grading reads
    # this marker back from the record's comments as known-bad evidence for the record's class
    # (see its "Operational outcome evidence" section and _shared/autonomy-ceiling.md's
-   # Revocation section for the full semantics). No separate write step exists — it rides
-   # this one, the same comment post Settle already performs unconditionally.
+   # Revocation section for the full semantics).
    node -e "
      const { attemptFailedCommentBody } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
      const { attemptNumber, ceilingHit } = require(process.argv[1]);
      console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2], ceilingHit, classification: process.argv[3] }));
-   " "/tmp/attempt-info-${ISSUE}.json" "$REASON" "$CLASSIFICATION" > /tmp/attempt-comment.md
-   gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
+   " "/tmp/attempt-info-${ISSUE}.json" "$REASON" "$CLASSIFICATION" > /tmp/attempt-comment-body.md
+   ```
+
+   **`run-state.json` has no `pr` object** (`local-merge`, or a degraded `pr-first` run —
+   `_shared/pr-run-comments.md`'s gate): post to the issue exactly as today.
+
+   ```bash
+   gh issue comment "$ISSUE" --body-file /tmp/attempt-comment-body.md
+   ```
+
+   **`run-state.json` carries a `pr` object — this is the failure tombstone** (`_shared/pr-run-comments.md`):
+   prepend the `failure` kind's marker, post-or-update it on the PR by the canonical procedure,
+   then close the PR — a visible tombstone with a resume command (the PR body's own `### Resume`
+   section from `_shared/pr-early-run-lifecycle.md`) instead of an invisible dead worktree. Leave
+   the branch and worktree in place; nothing else in this step tears them down.
+
+   ```bash
+   printf '<!-- run-comment: failure -->\n\n' | cat - /tmp/attempt-comment-body.md > /tmp/failure-comment.md
+   # find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=failure
+   gh pr close {pr-number} --repo {owner}/{repo}
+   ```
+
+   Then, **separately**, extract just the trust-negative-evidence marker line (when the comment
+   carries one — `classification` was `correctness`/`ambiguous`, never `transient`) and post it
+   standalone to the **issue**, so `bin/lib/issues/trust.js` — which reads only the record
+   issue's comments and is not modified by this design — still sees it:
+
+   ```bash
+   node -e "
+     const { extractNegativeEvidenceMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const fs = require('fs');
+     const marker = extractNegativeEvidenceMarker(fs.readFileSync('/tmp/attempt-comment-body.md', 'utf8'));
+     if (marker) console.log(marker);
+   " > /tmp/marker-line.md
+   # Only post when non-empty (a transient-classified attempt produces no marker at all):
+   [ -s /tmp/marker-line.md ] && gh issue comment "$ISSUE" --body-file /tmp/marker-line.md
    ```
 
 6. **If `ceilingHit` was `true`:** bootstrap `bot:blocked` if it doesn't already exist:
@@ -82,19 +117,46 @@ When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check
 1. **Authorization** — `auto:merge` was present on every member of the group when Step 4 claimed it (true by construction).
 2. **Content judgment** — for each member of the group, invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`. This weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary (`bin/lib/issues/blast-radius.js`) holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`. **Every member's verdict must be `auto-merge`** for the group to proceed — a single `needs-human` verdict anywhere in the group falls the whole group back to the normal pending-review path.
 
-**Both layers pass — acceptance labeling runs first, for every member of the group.** This gate bypasses `/wrap-up`'s Phase 4 execution step, which is where acceptance labeling normally happens, so this gate must perform it itself. For each record in the group, run `wrap-up/verification-brief.md` starting from its **Routing** section — **one record at a time, never batched or concurrent.** Sequencing is what makes the once-per-parent idempotence below hold: each invocation re-reads the parent's labels, so a second member of the same parent sees the first's `demo:pending` and no-ops. Run two concurrently and both read no label, both compose, and both post — two briefs on one parent. That file owns the routing: a record with a resolvable parent goes to its Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), and everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to a group member independently of that routing: an `auto:merge`'d sub-issue is exactly the population `_shared/github-pr-scan.md`'s `parent-gate` backstop scope exists to catch. One brief and one label per record with no resolvable parent — the merge decision is group-wide, but acceptance is a per-record judgment and a group's members can differ in observation-plan kind and in what shipped for each. A parent-linked sub-issue is routed to the Parent-Gate Procedure instead. **Pass the whole group's record numbers as `$CLOSING_SUB_ISSUES` on every one of these per-member invocations** — not just the member in hand. That is the set `verification-brief.md`'s **Self-inclusion rule** reads: every number in it counts as `CLOSED` when the parent's `leaves` array is built (it overrides state, never adds sub-issues — a group member from another parent, or from none, is simply irrelevant to this parent). The whole group is the correct set here because the single merge below carries one `Fixes #{issue}` line per record, so the group closes together; every record is still open at this point (label before merge, below), and counting only the member in hand would make a group holding two or more sub-issues of one parent evaluate `incomplete` on every one of them, labeling nothing at all — sub-issue or parent — and leaving the parent to `/tidy`'s backstop that the eager gate exists to pre-empt. With the group's set passed, the first such member reaches `due` and gates the parent; the parent's remaining members re-fetch the parent's labels, read `gated`, and no-op — one brief and one `demo:pending` per parent, never a second. `/tidy`'s `parent-gate` sweep stays the backstop for parents this gate never sees at all: a sub-issue closed by hand, or a dispatch run that ended before this gate.
+**Both layers pass — acceptance labeling runs first, for every member of the group.** This gate bypasses `/wrap-up`'s Phase 4 execution step, which is where acceptance labeling normally happens, so this gate must perform it itself. For each record in the group, run `wrap-up/verification-brief.md` starting from its **Routing** section — **one record at a time, never batched or concurrent.** Sequencing is what makes the once-per-parent idempotence below hold: each invocation re-reads the parent's labels, so a second member of the same parent sees the first's `demo:pending` and no-ops. Run two concurrently and both read no label, both compose, and both post — two briefs on one parent. That file owns the routing: a record with a resolvable parent goes to its Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), and everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to a group member independently of that routing: an `auto:merge`'d sub-issue is exactly the population `_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch. One brief and one label per record with no resolvable parent — the merge decision is group-wide, but acceptance is a per-record judgment and a group's members can differ in observation-plan kind and in what shipped for each. A parent-linked sub-issue is routed to the Parent-Gate Procedure instead. **Pass the whole group's record numbers as `$CLOSING_SUB_ISSUES` on every one of these per-member invocations** — not just the member in hand. That is the set `verification-brief.md`'s **Self-inclusion rule** reads: every number in it counts as `CLOSED` when the parent's `leaves` array is built (it overrides state, never adds sub-issues — a group member from another parent, or from none, is simply irrelevant to this parent). The whole group is the correct set here because the single merge below carries one `Fixes #{issue}` line per record, so the group closes together; every record is still open at this point (label before merge, below), and counting only the member in hand would make a group holding two or more sub-issues of one parent evaluate `incomplete` on every one of them, labeling nothing at all — sub-issue or parent — and leaving the parent to `/tidy`'s backstop that the eager gate exists to pre-empt. With the group's set passed, the first such member reaches `due` and gates the parent; the parent's remaining members re-fetch the parent's labels, read `gated`, and no-op — one brief and one `demo:pending` per parent, never a second. `/tidy`'s `parent-gate` sweep stays the backstop for parents this gate never sees at all: a sub-issue closed by hand, or a dispatch run that ended before this gate.
 
-Order is load-bearing: the merge below carries one `Fixes #{issue}` line per record, so once it lands every member is closed and this gate has moved on. Label before merging, while the records are still open.
+Order is load-bearing: the merge carries one `Fixes #{issue}` line per record, so once it lands every member is closed and this gate has moved on. Label before merging, while the records are still open.
 
 `auto:merge` governs merge timing only and has no bearing on whether a record gets `demo:pending` — `_shared/work-record.md` states that an `auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and this gate is the only place on the group path that can honor it.
 
-**Stop here — this Task call never touches the main checkout.** A Task-tool subagent launched by dispatch is cwd-pinned to the worktree it inherited at launch and cannot reach a sibling directory (see the note at the top of this file). The merge into the integration branch cannot run inside this call, even though both layers just passed. Do not run `git merge`, do not run `ExitWorktree`/`git worktree remove`, and do not run wrap-up's own Item 4 (worktree removal), Item 7 (issue claim release), or Item 8 (run-dir archival) — all three depend on a merge that has not happened yet. Items 1, 2, 3, 5, and 6 are unaffected (not merge-dependent) and may still run normally as part of this call's own wrap-up execution.
+**Both layers pass — merge (`integration-model: pr-first`, `_shared/integration-model.md`):**
+run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — `tag: auto-merge`,
+`issue-list` the group's full record set, `summary` the lowest-numbered record's title for a
+singleton or a semicolon-joined list of every member's title for a bundle. `gh pr merge` needs no
+checkout, so this same cwd-pinned call performs the merge itself; there is no second thread, no
+`OUTCOME: ready-to-merge` relay, and no `close-run`/branch-guard/push-from-worktree dance —
+those existed only for a *local* merge. Report the outcome that procedure returned
+(`merged` / `armed` / `pending-review`) per `task-prompt.md`'s updated second-call template. On
+`merged`, this call also owes the cleanup a merge unlocks — worktree removal, claim release,
+run-dir archival (wrap-up's Items 4, 7, 8) — run them directly, citing the same canonical
+procedures Settle already cites for claim release: `wrap-up/cleanup-procedures.md` Section C
+(worktree), Section E (claim), Section B (run dir). On `armed` or `pending-review`, none of
+those three run yet — they wait for `merged` evidence, which the reconciler picks up
+convergently at its next trigger point, same as `_shared/pr-first-merge.md` states.
 
-Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call template) and return. **Dispatching-session merge execution**, below, is what actually merges — it runs in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread, immediately after this call's report is read. There is no human wait on this path (unlike the general `pending-review` case `_shared/pending-review-durability.md` protects), so there is no branch-durability gap to cover either.
+**Both layers pass — merge (`integration-model: local-merge`):** this Task call never touches
+the main checkout — a Task-tool subagent launched by dispatch is cwd-pinned to the worktree it
+inherited at launch and cannot reach a sibling directory (see the note at the top of this file).
+Do not run `git merge`, do not run `ExitWorktree`/`git worktree remove`, and do not run
+wrap-up's own Item 4 (worktree removal), Item 7 (issue claim release), or Item 8 (run-dir
+archival) — all three depend on a merge that has not happened yet. Items 1, 2, 3, 5, and 6 are
+unaffected (not merge-dependent) and may still run normally as part of this call's own wrap-up
+execution. Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call template) and
+return — `Dispatching-session merge execution (local-merge fallback)`, below, is what actually
+merges, in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread, immediately after
+this call's report is read.
 
 **Any layer fails:** proceed exactly as the `auto:build`-only path would — present the normal Review Console, wait for a human.
 
-## Dispatching-session merge execution (`OUTCOME: ready-to-merge` only)
+## Dispatching-session merge execution (local-merge fallback — `OUTCOME: ready-to-merge` only)
+
+<!-- local-merge-fallback -->
+
+`integration-model: pr-first` groups never reach this section — their merge already ran above, inside the Task call itself. This section is the `local-merge` fallback only, preserved in full for projects with no GitHub forge to integrate through (`_shared/integration-model.md`).
 
 Runs in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread — never inside a Task call. This is the one part of the Auto-merge gate that needs main-checkout access, which only a top-level session has, never a Task-tool subagent.
 
@@ -102,7 +164,7 @@ Nothing is threaded back from the second Task call beyond its `OUTCOME: ready-to
 
 - **`{group-worktree}` and `{branch}`** — this session created and entered both for this group in Step 5; it is still inside it (or can `cd` back — the path was captured then). Neither is derived from the Task call's report.
 - **`{run-dir}`** — the same value `two-call-gate.md` section 1 already derived from the first call's `MANIFEST:` report and handed to the second call in section 3.
-- **the group's issue numbers and titles** — already in `/tmp/dispatch-groups.json` from Step 2's queue pull. Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pending-review-durability.md`'s Step 4 already uses for its PR title.
+- **the group's issue numbers and titles** — already in `/tmp/dispatch-groups.json` from Step 2's queue pull. Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pr-first-merge.md`'s own `summary` argument (line 128 above) uses for its PR title on the `pr-first` path.
 
 Clear this run's worktree assignment before merging, the same way `flow/worktree-merge.md`'s reconciliation does:
 
@@ -112,7 +174,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "{run-dir}"
 
 so the merge itself, landing in the main checkout, isn't denied as a wrong-checkout commit (E1). That only satisfies E1, though — if the project also has `worktree.always: true` set, the separate, run-independent `checkWorktreeRequired` policy gate in `bin/lib/hooks/pre-tool-use.js` still applies, and it denies any `git push` issued from the main checkout regardless of `close-run` (that gate keys off whether the command's target is a linked worktree, not run state — `close-run` never touches it). `git merge` itself is never flagged by that gate (only `commit`/`push` targets are), so the merge below is safe to run from the main checkout either way. The push after it is not — it must run from inside this group's own linked worktree instead, as a **separate** Bash call: chaining merge-then-push into one compound command still gets the whole invocation denied before either half runs, since the gate inspects the full command string up front (see CLAUDE.md's Don'ts list on this exact shape).
 
-**Shell state does not survive between these calls** — each Bash invocation gets a fresh shell, so a variable assigned in one is empty in the next. Read `{integration-branch}` first and substitute it, and every other placeholder, **literally** into the calls below; do not carry them in shell variables. (Same rule and same reason as `wrap-up/review-console.md`'s fast-lane merge.)
+**Shell state does not survive between these calls** — each Bash invocation gets a fresh shell, so a variable assigned in one is empty in the next. Read `{integration-branch}` first and substitute it, and every other placeholder, **literally** into the calls below; do not carry them in shell variables.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch
@@ -153,4 +215,4 @@ Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already p
 
 **That claim covers what wrap-up *found*, not everything its Phase 4 execution step *does*.** Acceptance labeling is an action the second Task call already performed, before ever reporting `ready-to-merge` — not something this section repeats.
 
-**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. Fall back to `_shared/pending-review-durability.md`'s Step 1-4 push-and-draft-PR procedure, run directly from this same dispatching-session thread (it only needs worktree access, which this session already has, still `cd`'d into `{group-worktree}`) — that file's own caller table lists this exact call site as its one exception to the "ordinary auto-merge short-circuit never lands here" rule. Skip that procedure's acceptance-labeling caveat — labeling already ran, before this group ever reported `ready-to-merge`. Leave the worktree and run dir parked exactly as an ordinary un-pushed `pending-review` outcome does today (`dispatch/SKILL.md`'s Reporting section) — no Item 4/7/8 cleanup on this branch; a human resuming the parked run handles it normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it, and the branch/PR give a resuming human everything they need regardless. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.
+**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. Leave the worktree and run dir parked exactly as an ordinary un-pushed `pending-review` outcome does today (`dispatch/SKILL.md`'s Reporting section) — no Item 4/7/8 cleanup on this branch; a human resuming the parked run handles it normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.

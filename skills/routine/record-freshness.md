@@ -31,6 +31,13 @@ Distinct from #11 (the *cloud sandbox's* checkout being stale at firing time, ad
 template prompt preamble) and #132 (which branch a routine audits). This is the **local skill
 invocation** reading stale project state.
 
+**Generalized by #407/#408.** This file's own `git fetch` was a narrow, single-consumer fix for
+#190 — one skill's checkout-staleness problem, patched in isolation. `bin/lib/reconcile`
+generalizes the same fetch-and-converge operation to every shared-state read point in the
+plugin (`session-start.js`, `dispatch/SKILL.md`, `tidy/scan-procedures.md`, routine template
+preambles, `_shared/worktree-setup.md`); Step F2 below now calls it too instead of carrying its
+own copy. The disposition logic in Step F3 is untouched — only the freshness source changed.
+
 ## Step F1 — Resolve the comparison branch
 
 Resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`'s Resolution ladder.
@@ -52,22 +59,35 @@ report it unverified, and proceed. See Step F3's Unverified rule.
 
 ## Step F2 — Compare
 
-Assign and use `INTEGRATION_BRANCH` in the **same** Bash call — a fresh shell per invocation
-means a value resolved in an earlier call arrives empty here, and an empty branch silently
-degrades the check to unverified:
+First, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — this generalizes what used
+to be this step's own private fetch (see the pointer at the end of this section): reconcile's
+mirror-ff check (`bin/lib/reconcile`, #407/#408) already fetches `origin` for the main
+checkout, and remote-tracking refs (`refs/remotes/origin/*`) are shared repository-wide, so a
+linked worktree sees the same freshly fetched `origin/{INTEGRATION_BRANCH}` this reconcile call
+just produced, regardless of which checkout `/claude-tweaks:routine` is running from.
+
+Then, assign and use `INTEGRATION_BRANCH` in the **same** Bash call — a fresh shell per
+invocation means a value resolved in an earlier call arrives empty here, and an empty branch
+silently degrades the check to unverified:
 
 ```bash
 export INTEGRATION_BRANCH="<Step F1's resolved branch, or empty if nothing resolved>"
 node -e "
   const { compareRoutineRecords, freshnessNote } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/routine-template-parser.js');
-  const r = compareRoutineRecords({ branch: process.env.INTEGRATION_BRANCH || undefined });
+  const r = compareRoutineRecords({ branch: process.env.INTEGRATION_BRANCH || undefined, fetch: false });
   console.log(JSON.stringify({ ...r, note: freshnessNote(r) }, null, 2));
 "
 ```
 
-`compareRoutineRecords` fetches `origin/{INTEGRATION_BRANCH}` and returns a verdict over the
-**union** of the working checkout's records and that branch's. The union is the point: a record
-that exists only upstream is exactly the one a working-tree read cannot see. Relevant fields:
+`fetch: false` is deliberate — the reconcile call above already fetched `origin`, so
+`compareRoutineRecords` reads the remote-tracking ref reconcile just produced instead of
+issuing its own redundant `git fetch`. (The reconcile call is best-effort like every other
+call site — if it was skipped or degraded, `compareRoutineRecords` still resolves `origin/
+{INTEGRATION_BRANCH}` from whatever remote-tracking state already exists locally; a genuinely
+stale ref surfaces as a larger `behind` count, never a false "verified".) `compareRoutineRecords`
+returns a verdict over the **union** of the working checkout's records and that branch's. The
+union is the point: a record that exists only upstream is exactly the one a working-tree read
+cannot see. Relevant fields:
 
 | Field | Meaning |
 |---|---|

@@ -392,6 +392,13 @@ Reachable only when Step 6 ran in full mode and `/claude-tweaks:visual-review` p
 
 Present a structured summary covering spec compliance, test results (from `/claude-tweaks:test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). The summary must include an Actions Performed table (when autonomous fixes were applied) and a Next Actions block (always). For the complete template and context-signal rules, read `review-summary-template.md` in this skill's directory.
 
+**Verdict comment (`run-state.json` carries a `pr` object — `_shared/pr-run-comments.md`):** once
+the verdict is final (PASS or BLOCKED), compose a comment — `<!-- run-comment: verdict -->` as
+its first line, then the verdict, then the top findings by severity (max 5), reusing
+`review-summary-template.md`'s own `Category | Finding | Severity | Action` findings-table shape
+— and post-or-update it on the PR per that file's canonical procedure. A no-op when the `pr`
+object is absent (`local-merge`, or a degraded `pr-first` run).
+
 ### Key Learnings for Wrap-Up
 
 At the end of the summary, include a `### Key Learnings` section with 1-3 insights that emerged during this review — patterns discovered, conventions confirmed or challenged, techniques worth remembering. These feed directly into `/claude-tweaks:wrap-up`'s Phase 1 reflect pass so wrap-up doesn't have to re-derive them from scratch.
@@ -403,6 +410,8 @@ At the end of the summary, include a `### Key Learnings` section with 1-3 insigh
 ```
 
 If no notable learnings emerged, state: "No key learnings — straightforward review."
+
+**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode.
 
 ## Important Notes
 

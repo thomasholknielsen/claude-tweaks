@@ -17,7 +17,6 @@ When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md`'s Phase 1
 
 - Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
 - Skip that same branch's acceptance labeling — no `demo:pending` label write and no Verification Brief comment. Compose the brief and print it as a preview line instead. It is a network write to a live record, so it is preview-only for the same reason the merge is; the bullet above names only the two git commands because they were the only writes on that path when it was written.
-- Skip the pending-review durability push and draft-PR creation (see the section of that name below) — print what would have been pushed and which PR would have been opened as preview lines instead. Both are writes to origin and to a live PR surface, preview-only for the same reason the merge is.
 - Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
 - Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`, via `_shared/upstream-feedback-batch.md`'s chunked presentation) all still render for visibility, but their `AskUserQuestion` call(s) are skipped — each item renders as "would create: {content}" instead. Under `--dry-run`, no memory file is ever written and `/claude-tweaks:feedback --pre-confirmed` is never invoked.
 - Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
@@ -48,7 +47,7 @@ Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), 
 everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the Step 2.5
 safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
 independently of that routing: an `auto:merge`'d sub-issue is exactly the population
-`_shared/github-pr-scan.md`'s `parent-gate` backstop scope exists to catch, so gating it here
+`_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch, so gating it here
 would defeat the parent acceptance gate.
 
 Order is load-bearing: the merge below carries the `Fixes #{issue}` closing keyword, so once it
@@ -66,18 +65,47 @@ can honor it.
 `dispatch/task-prompt.md`'s two Task-call templates; an interactive, human-run `/flow` never sets
 it. When it **is** set, this call is running inside one of dispatch's own Task() calls — cwd-pinned
 to the worktree it inherited at launch, with no path to the main checkout
-(`dispatch/SKILL.md` Step 5's sequential-execution note). Do not run the merge procedure below.
-Stop here instead: report `OUTCOME: ready-to-merge` exactly as `task-prompt.md`'s second-call
-template directs — `dispatch/settle-and-merge.md`'s Dispatching-session merge execution section is
-what actually merges, in dispatch's own thread. This is the same split that section documents for
-a dispatched bundle; a dispatched singleton takes it too, through this branch. Everything from here
-through "Release-reason mapping" below applies only when `CLAIM_RUN_ID` is **unset** — a genuine
-top-level, human-run session, with the same ordinary main-checkout access it has for anything else
-it does.
+(`dispatch/SKILL.md` Step 5's sequential-execution note). This is what routes a dispatched
+**singleton**'s merge decision through this file's own short-circuit rather than
+`settle-and-merge.md`'s group-scoped Auto-merge gate — the two-layer check above already ran on
+this record alone.
+
+**`integration-model: pr-first`:** the checkout restriction below doesn't apply — `gh pr merge`
+needs no checkout, dispatched Task call or not. Run the merge procedure below exactly as the
+interactive path does; `CLAIM_RUN_ID` being set changes nothing about how this branch merges,
+only that `task-prompt.md`'s reporting format is what carries the outcome back
+(`merged`/`armed`/`pending-review`) instead of this file's own `PushNotification`.
+
+**`integration-model: local-merge`:** the checkout restriction is real — do not run the merge
+procedure below. Stop here instead: report `OUTCOME: ready-to-merge` exactly as
+`task-prompt.md`'s second-call template directs — `dispatch/settle-and-merge.md`'s Dispatching-session
+merge execution (local-merge fallback) section is what actually merges, in dispatch's own thread.
+
+Everything from here through "Release-reason mapping" below applies when `CLAIM_RUN_ID` is
+**unset** (a genuine top-level, human-run session) **or** when it is set under `pr-first` (the
+checkout-free merge above) — the local-merge stop-and-relay branch is the one exception.
 
 Skip the blocking wait and merge directly — bypass the
 interactive `/superpowers:finishing-a-development-branch` handoff entirely, since a verdict already
-exists and there is no useful human-in-the-loop step to route through. Before merging, clear this run's worktree
+exists and there is no useful human-in-the-loop step to route through.
+
+**`integration-model: pr-first` (`_shared/integration-model.md`):** run `_shared/pr-first-merge.md`'s
+procedure now — `tag: fast-lane` (preserving this path's own metric semantics, distinct from
+dispatch's `auto-merge` tag — `/help`'s auto-merged-this-week count keys on both,
+`_shared/github-pr-scan.md` `triage-queue` item 3), `issue-list` this one record, `summary` the
+record's own title. No checkout is needed — `gh pr merge` runs directly, which is what retires
+this section's own pre-#411 `git -C "$RUN_DIR"` worktree/branch resolution (#299: that resolution
+anchored against the run dir, not the worktree — `_shared/pipeline-run-dir.md`'s own anchoring
+rule means `$RUN_DIR` sits inside the *main checkout*, so that command silently resolved the main
+checkout's own toplevel/branch instead of the feature branch's — a defect that simply cannot
+recur once there is no checkout resolution step to get wrong). Still generate this console's
+full content (Auto-applied / Skill updates / Configuration updates sections, per "Present the
+console" below) and attach it to a `PushNotification` as a non-blocking FYI, whatever the
+procedure's outcome — nothing this console would have shown is discarded, only the wait for a
+live approval is skipped. Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}`
+
+**`integration-model: local-merge`:** before merging, clear this run's worktree
 assignment the same way `flow/worktree-merge.md`'s reconciliation does
 (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so
 the merge itself, landing in the main checkout, isn't denied as a
@@ -89,8 +117,8 @@ run-independent policy gate still applies, and it covers `git push` as well as
 **must not** be chained onto the merge (the gate inspects the whole command
 string up front, so one compound call is denied entirely and the merge never
 runs either). `git merge` itself is not covered, so it runs in the main
-checkout normally. This is the same two-call shape `dispatch/settle-and-merge.md`
-already uses; see the `worktree.always` coverage block in
+checkout normally. This is the same two-call shape `dispatch/settle-and-merge.md`'s
+local-merge fallback already uses; see the `worktree.always` coverage block in
 `_shared/policy-schema.md` for what the gate does and does not intercept.
 
 **Shell state does not survive between the two calls** — each Bash invocation
@@ -99,13 +127,19 @@ Read the values you need first and substitute them **literally** into the
 second call; do not carry them in shell variables.
 
 ```bash
-git -C "$RUN_DIR" rev-parse --show-toplevel      # -> {worktree-path}
-git -C "$RUN_DIR" branch --show-current          # -> {branch}
+node -e "console.log(require('$RUN_DIR/run-state.json').worktree)"   # -> {worktree-path}
+git -C "{worktree-path}" branch --show-current   # -> {branch}
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch
 gh api "repos/{owner}/{repo}" -q .default_branch # only when the line above came back empty
 ```
 
-The third and fourth commands together resolve `{integration-branch}` — the branch
+The first command reads `{worktree-path}` from `run-state.json`'s own `worktree` field —
+`record-worktree` (`build/worktree-setup.md` Step 4.5) is what stamped it there, and it is the
+one value that actually names the worktree, unlike `$RUN_DIR` itself (**#299**: `$RUN_DIR` sits
+inside the main checkout per `_shared/pipeline-run-dir.md`'s anchoring rule, so a bare
+`git -C "$RUN_DIR"` silently resolves the main checkout's own toplevel/branch — never the feature
+branch — which is exactly the defect this fix closes). The third and fourth commands together
+resolve `{integration-branch}` — the branch
 this project integrates work into, which is not always the GitHub default (see
 `skills/_shared/integration-branch.md` for the full precedence, including the CLAUDE.md
 and explicit-argument ranks this two-command shorthand collapses — and its git-inference
@@ -167,13 +201,17 @@ logging why the auto-merge path was abandoned.
 Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
 
-**Release-reason mapping.** This direct merge counts as the `merged:` outcome for Section E's
-release-reason mapping (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane
-path never runs `/superpowers:finishing-a-development-branch`, so Section E's usual "map the
-outcome from that skill" instruction has nothing to read here; treat a successful fast-lane
-merge exactly as if that skill had reported `merged`, with `$LINK` set to this merge's commit
-sha. Grant removal (Section E step 6) follows the same `merged:` outcome — `auto:build` and
-`auto:merge` both come off once this merge lands.
+**Release-reason mapping.** A `merged` outcome (either model) counts as Section E's `merged:`
+outcome (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane path never runs
+`/superpowers:finishing-a-development-branch`, so Section E's usual "map the outcome from that
+skill" instruction has nothing to read here; treat it exactly as if that skill had reported
+`merged`, with `$LINK` set to the merge commit sha (local-merge) or the PR url (pr-first). Grant
+removal (Section E step 6) follows the same `merged:` outcome — `auto:build` and `auto:merge`
+both come off once the merge actually lands. **`pr-first`'s `armed`/`pending-review` outcomes are
+not `merged`** — nothing in Section E runs yet on either; claim, worktree, and run-dir cleanup all
+wait for `merged` evidence, which the reconciler picks up convergently later
+(`_shared/pr-first-merge.md`), same as any other pr-first run whose merge hasn't landed
+synchronously.
 
 **Any layer fails:** proceed to render the console normally, exactly as an
 `auto:build`-only record would — no different from any other pipeline run.
@@ -225,17 +263,15 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 
 Read `ledger-narrowing-auto-file.md` in this skill's directory and follow it before building any of the tables below — when `_shared/autonomy-ceiling.md`'s `queueWriteAutoFile` capability is unlocked, a staged queue-write proposal is created directly and logged as `AUTO` (listed under **Auto-applied**) instead of waiting for the Queue writes section's per-item approval.
 
-## Pending-review branch durability (dispatch-originated runs)
+## Pending-review branch durability
 
-Run this before rendering the console below, never after. At `supervised`/`trusted` the console still ends in a blocking `AskUserQuestion` that a headless firing never returns from, so a step scheduled after it does not run on the very path it exists to protect. At `unattended`, the Auto-resolution short-circuit below (`consoleAutoResolve`) completes the console instead of blocking on it — but the push-before-console ordering holds at every tier regardless (unchanged by this sub-issue; see `_shared/pending-review-durability.md`), so this section still runs first here too.
+No longer a separate step here. Under `integration-model: pr-first`, `_shared/pr-early-run-lifecycle.md` already opened this run's draft PR at run start, and every phase exit since has kept it current (`_shared/git-discipline.md`'s Phase-exit push section) — a run that parks at `pending-review` already has a live, up-to-date PR with nothing left to push. The old dispatch-only durability procedure existed to protect exactly the runs that now get this for free at run start, so nothing runs here anymore.
 
-**Gate the read.** Read `_shared/pending-review-durability.md` — the scope guard, the worktree-safe push, the existing-open-PR check, the draft-PR creation, and the push/PR failure fallbacks — only when `CLAIM_RUN_ID` is set and non-empty (dispatch-originated; an interactive human-run `/flow` never sets it), **and** this run used a worktree strategy, **and** this `/flow` invocation's step list contained `review` and that step passed (a `wrap-up`-only invocation is `dispatch/two-call-gate.md` section 5's failure-path teardown call, reaching this console with `CLAIM_RUN_ID` set on a genuinely `failed` run — so the outcome condition is enforced here, not merely asserted inside the file). Otherwise skip this section entirely and do not read the file.
-
-That file owns the whole procedure and the reasons behind it, including why it never calls `close-run` and never clears the run's worktree assignment: this run stays `active`, exactly as an un-pushed `pending-review` outcome does today, and only gains a branch on origin plus one open draft PR.
+<!-- local-merge-fallback --> Under `local-merge` this was never populated either — its scope guard required `CLAIM_RUN_ID` (dispatch-originated) and dispatch requires a forge, which `local-merge` runs don't have. A `local-merge` run that parks stays resident in the session that built it, unchanged.
 
 ## Auto-resolution short-circuit (`consoleAutoResolve`)
 
-This is the tier split for headless firings: `supervised`/`trusted` keep today's resting state — the console below renders as a blocking prompt that a headless run never answers, landing on `pending-review` (see `_shared/pending-review-durability.md`). `unattended` is the only tier that completes without a human.
+This is the tier split for headless firings: `supervised`/`trusted` keep today's resting state — the console below renders as a blocking prompt that a headless run never answers, landing on `pending-review`. `unattended` is the only tier that completes without a human.
 
 Resolve the ceiling once — `CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy)` — and check `bookkeepingPermissions(ceiling).consoleAutoResolve` (`bin/lib/issues/autonomy.js`, granted at `unattended` only — see `_shared/autonomy-ceiling.md`). When **not** granted, skip this section entirely and proceed to "Present the console" below — the ordinary `supervised`/`trusted`/interactive path, unchanged. When `--dry-run` was also passed, its preview-only behavior (above) takes precedence regardless of ceiling — nothing here executes a real write.
 
@@ -248,6 +284,14 @@ When granted, render the console as an **informational report** instead of a pro
 Execute each resolution via the normal "On approval" procedure below. Two differences from a human-driven "Approve all": log one `AUTO {time} — Review Console: auto-resolved {item}. Reversibility: {…}.` line per item to `decisions.md` instead of relying on a user answer to imply it, and **retain `staged/` files** rather than deleting/consuming them on apply — they stay as revert artifacts, the same way the auto-merge short-circuit's own commit is still revertible. Send one consolidated `PushNotification` summarizing the run, at the same point the auto-merge short-circuit sends its own FYI (`_shared/autonomy-ceiling.md`'s Notification section) — one notification for the whole run, never one per item.
 
 After resolving, proceed directly to the phase-trace report — skip "Present the console" and its `AskUserQuestion` call entirely.
+
+## Console-on-PR (`integration-model: pr-first` only)
+
+Reached only when the Auto-resolution short-circuit above did not already resolve and return. Resolve `integration-model` per `_shared/integration-model.md`; `local-merge` → skip to "Present the console" below, unchanged.
+
+`pr-first` with a `pr` object on `run-state.json` (`_shared/pr-run-comments.md`'s gate): read `_shared/console-on-pr.md` and follow it in full — same content as "Present the console" below, rendered as PR checkboxes and posted/updated there instead of a chat table, `console.json` written to the run dir. A live session also asks via `AskUserQuestion` here (`_shared/console-execution.md`'s Live-session accelerator, first answer wins); headless skips straight to reporting `pending-review` with the PR URL, per that file's Headless conclusion. Never also render "Present the console" on this path.
+
+`pr-first` with no `pr` object yet (fail-safe — should not normally happen): fall through to "Present the console" below.
 
 ## Present the console
 

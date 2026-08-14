@@ -111,14 +111,14 @@ Brief covers the whole parent issue's primary path rather than one diff, but res
 through this same branch exactly like any other label-backed entry. Two things can have applied
 that gate: `/claude-tweaks:wrap-up`'s own eager path (closing the parent's last sub-issue), or `/claude-tweaks:tidy`'s
 `Open parent gate` action backstopping a parent issue that missed it (surfaced by
-`_shared/github-pr-scan.md`'s `parent-gate` scope under `work-backend: github-issues`, or by
+`_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope under `work-backend: github-issues`, or by
 `tidy/step-1-records.md`'s Shape 7 under `local-files`) — all of them write the identical
 `demo:pending` + brief, so this branch never needs to know or care which one ran.
 
 If the result does **not** carry `demo:pending` (e.g. it was built ad hoc in some other session
 and closed by a `Fixes #N` commit, never reaching `/claude-tweaks:wrap-up`'s Phase 4 execution step), recover that **closing
 commit** before reaching for session recall. This is the population `/claude-tweaks:tidy`'s
-`acceptance-gap` sweep surfaces — its `github-pr-scan.md` scope under `work-backend:
+`acceptance-gap` sweep surfaces — its `github-pr-scan-acceptance.md` scope under `work-backend:
 github-issues`, `tidy/step-1-records.md`'s Shape 8 under `local-files` — and it is by construction
 *other* sessions' work. Recall will have nothing, but the commit that closed the record is still
 on disk, and this recovery reads git rather than the backend, so it is identical on both drivers:

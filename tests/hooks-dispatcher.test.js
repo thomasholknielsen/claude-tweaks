@@ -432,3 +432,56 @@ test('e2e: pre-tool-use CLI allows an Edit when worktree.always policy is not se
   assert.strictEqual(result.code, 0);
   assert.strictEqual(result.stdout, '');
 });
+
+// #409: record-pr writes run-state.json's pr:{number,url} field — same shape
+// and precedent as record-worktree/close-run (CLAUDE.md's write-ownership rule).
+test('record-pr writes run-state.pr and prints a confirmation line', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['record-pr', '42', 'https://github.com/o/r/pull/42'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /claude-tweaks: PR #42 recorded for 2026-07-01T090000-spec-1/);
+  const state = readRunState(run);
+  assert.deepStrictEqual(state.pr, { number: 42, url: 'https://github.com/o/r/pull/42' });
+});
+
+test('record-pr --run pins the target run dir, same as record-worktree', () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
+  fs.mkdirSync(staleDir, { recursive: true });
+  fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(ownDir, { recursive: true });
+
+  const result = runHook(['record-pr', '--run', ownDir, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(readRunState(ownDir).pr, { number: 7, url: 'https://github.com/o/r/pull/7' });
+  assert.strictEqual(readRunState(staleDir).pr, undefined, 'the stale run must not have been written to');
+});
+
+test('record-pr with a non-existent --run path fails loudly instead of falling back or claiming success', () => {
+  const project = tmpProject();
+  const bogus = path.join(project, 'nope');
+  const result = runHook(['record-pr', '--run', bogus, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path not found/);
+});
+
+test('record-pr with no resolvable run dir prints a not-recorded notice instead of silent success', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
+  const result = runHook(['record-pr', '7', 'https://github.com/o/r/pull/7'], { cwd: bare });
+  assert.strictEqual(result.code, 0);
+  assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
+  assert.doesNotMatch(result.stdout, /PR #7 recorded/);
+});
+
+test('record-pr with a non-numeric or missing number/url prints a usage notice instead of writing garbage state', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  for (const args of [['record-pr'], ['record-pr', 'not-a-number', 'https://x'], ['record-pr', '7']]) {
+    const result = runHook(args, { cwd: project });
+    assert.strictEqual(result.code, 0);
+    assert.match(result.stdout, /usage: record-pr/);
+    assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
+  }
+});

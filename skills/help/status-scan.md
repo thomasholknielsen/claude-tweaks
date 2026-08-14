@@ -81,6 +81,43 @@ node -e "
 
 **Framing flag:** flag every `backlog`-bucket record showing a baked framing verdict — under `work-backend: github-issues` the `framing:baked` label, under `work-backend: local-files` `facets.framing === true` (already present on the fetched record above — no extra call either way) — the verdict `/claude-tweaks:specify` stamped via `/claude-tweaks:challenge`'s `framing-check` mode when it shaped the record. Flag matches in the Needs Attention table with a pointer to read the record's `## Gotchas`, where framing-check wrote the surfaced assumptions — not a suggestion to re-run `/claude-tweaks:challenge`, which only `/claude-tweaks:specify` invokes.
 
+### PR-state join (in-flight runs and tombstones)
+
+`work-backend: github-issues` only (`local-files` has no PR concept — skip this sub-section
+entirely for that driver). One additional bounded call, shared across every record in the
+`ready`/`authorized`/`building` buckets rather than one call per record — the
+never-`gh issue list --search` rule (`_shared/github-write-transport.md`'s eventually-consistent
+search index anti-pattern) applies here too, so this is a plain list, filtered client-side:
+
+```bash
+gh pr list --repo {owner}/{repo} --state all --limit 100 --json number,url,state,isDraft,body,updatedAt > /tmp/help-prs.json
+```
+
+Filter to PRs whose body starts with `<!-- claude-tweaks-run:` (`_shared/pr-early-run-lifecycle.md`'s
+marker — the plugin-created signal), then match each surviving PR to a record via its `Fixes #{n}`
+line(s). Join against Stage 1's `ready`/`authorized`/`building` buckets:
+
+- **`state: OPEN`** → the record has a visible in-flight run. Note the PR URL; no flag needed —
+  this is the expected case for a `building` record under `pr-first`.
+- **`state: CLOSED` (unmerged)** → a prior attempt's run ended without merging — most likely a
+  tombstone (`_shared/pr-run-comments.md`'s failure path), possibly a manually-closed draft
+  (`/claude-tweaks:tidy` Step 4.8's `repo-wide` scope is the precise source for that distinction —
+  it also checks the `failure`-kind marker comment, which this cheaper dashboard join does not).
+  Flag the record in the Needs Attention table either way — a human deciding whether to retry
+  doesn't need the marker check to know a closed PR is worth a look: `{ref} — closed run (PR
+  #{number}, {url}), likely tombstoned — retry via /claude-tweaks:dispatch or
+  /claude-tweaks:flow {ref}`, reusing the same table the conflict/framing flags already render
+  into rather than a new section.
+- **`state: MERGED`**, or no matching PR at all → nothing to flag; the record's own bucket
+  (backlog/ready/etc.) already reflects its real state.
+
+A record can have more than one matching PR across its history (retries that recreated rather
+than reopened — `_shared/pr-early-run-lifecycle.md`'s reopen-fails fallback); use the
+most-recently-`updatedAt` match only.
+
+**Fail-open**: a failed `gh pr list` here degrades the same way Stage 1's own fetch does — emit
+`PR-state join skipped — {reason}` and omit the tombstone flags for this run, never BLOCKED.
+
 ### Conflict detection (file overlap)
 
 Feeds from open **in-flight** records — any record with `facets.stage === 'ready'` (covers the ready, authorized, building, and blocked sub-states alike: the `ready` label persists for a record's entire life once shaped, and is never removed by `/claude-tweaks:dispatch`, `/claude-tweaks:build`, `/claude-tweaks:flow`, or `/claude-tweaks:wrap-up` — `_shared/work-record.md`'s permission matrix). Backlog and parked records are never spec-shaped, so they carry no `### Key Files` subsection and would contribute nothing to the map — same reasoning `/claude-tweaks:specify`'s Step 1 File Reference Map documents — so skip them.
@@ -163,9 +200,10 @@ session's own recall-detected work, or one explicit `#N`), so this stage is the 
 surface for which records are outstanding. Skip silently (same fail-open detection ladder as
 Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines
-`_shared/forge-detection.md`'s Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into this
-agent's prompt — subagents cannot read sibling files.
+Scan per `_shared/github-pr-scan-acceptance.md`, **`acceptance-queue`** scope (extracted from
+`_shared/github-pr-scan.md` — #204). The dispatcher inlines `_shared/forge-detection.md`'s
+Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into
+this agent's prompt — subagents cannot read sibling files.
 
 ## Stage 4.8: Trust Table (GitHub)
 

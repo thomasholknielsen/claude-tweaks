@@ -113,7 +113,7 @@ Retired labels — [IL-85] PERMANENT adopter-compat list; entries removable only
 |---|---|---|
 | `family:parent` | `parent-issue` | #339 — see `_shared/work-record.md`'s Label taxonomy |
 
-A record carrying an entry above is still **read** correctly everywhere: `_shared/github-pr-scan.md`'s
+A record carrying an entry above is still **read** correctly everywhere: `_shared/github-pr-scan-acceptance.md`'s
 `parent-gate` and `acceptance-gap` scopes fetch both spellings, and `local-store.js` keeps the
 matching frontmatter fallback. This shape does not fix a broken read — it surfaces the rename as a
 one-command hygiene action, so an adopter repo eventually stops needing the compatibility path at
@@ -141,7 +141,7 @@ when it closes a parent's last sub-issue. A parent whose last sub-issue closes a
 hand, or by a run that ended before wrap-up — never reaches that eager path; this shape catches it
 after.
 
-It is the local twin of Step 4.8's `parent-gate` scope (`_shared/github-pr-scan.md`) — same
+It is the local twin of Step 4.8's `parent-gate` scope (`_shared/github-pr-scan-acceptance.md`) — same
 finding, same `[parent-gate]` prefix, same `Open parent gate` action; only the store differs. It
 lives in this step rather than that file because that file is skipped whole whenever `gh` is
 absent, and a sweep needing no `gh` must not inherit that skip; that scope's own header states
@@ -208,7 +208,7 @@ does not cover.
 **`work-backend: local-files` only.** Finds records that closed carrying no acceptance
 disposition at all — work that shipped and disappeared with nothing on record about whether it
 actually solved the problem. Its `github-issues` counterpart is Step 4.8's `acceptance-gap` scope
-(`_shared/github-pr-scan.md`), and this shape exists for the same reason Shape 7 does: that scope
+(`_shared/github-pr-scan-acceptance.md`), and this shape exists for the same reason Shape 7 does: that scope
 queries GitHub labels, and its whole file is skipped whenever `gh` is unreachable — its Detection
 Ladder gates on remote/install/auth, never on the driver — so a sweep that needs no `gh` must not
 inherit that skip. Same `[acceptance-gap]` prefix, same recommendation, same severity, so no
