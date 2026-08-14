@@ -4,7 +4,7 @@ Reusable procedure for producing themed, self-contained HTML+SVG visual output: 
 
 ## Step 1: Token extraction
 
-Read the project's `DESIGN.md` (canonical path: project root; fallback: `docs/design/DESIGN.md`, `docs/DESIGN.md` — same resolution order `/claude-tweaks:design-wrapper`'s `pre-build` mode already uses). Parse the YAML frontmatter for `colors`, `typography`, `rounded`, `spacing`. Also read the sibling `DESIGN.json` sidecar (same directory, same basename) when present, for `extensions.colorMeta` tonal ramps and any dark-mode-specific values.
+Read the project's `DESIGN.md` (canonical path: project root; fallback: `docs/design/DESIGN.md`, `docs/DESIGN.md` — same resolution order `/claude-tweaks:design-wrapper`'s `pre-build` mode already uses). Parse the YAML frontmatter for `colors`, `typography`, `rounded`, `spacing`. Also read the `.impeccable/design.json` sidecar (project root — Impeccable 4.x's location; a pre-4.x project may instead carry a sibling `DESIGN.json` next to `DESIGN.md`, read that when the root sidecar is absent) when present, for `extensions.colorMeta` tonal ramps and any dark-mode-specific values.
 
 Map each `colors.<slug>` entry to a CSS custom property named `--<slug>` (kebab-case slugs pass through unchanged, e.g. `colors.basil-green` → `--basil-green`). Map `typography.<role>.fontFamily`/`fontSize`/`fontWeight`/`lineHeight`/`letterSpacing` to `--font-<role>-family`, `--font-<role>-size`, `--font-<role>-weight`, `--font-<role>-line-height`, `--font-<role>-letter-spacing`.
 
