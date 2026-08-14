@@ -92,6 +92,16 @@ Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` e
 ```bash
 RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 RUN_DIR="${PIPELINE_RUN_DIR:-}"
+if [ -n "$RUN_DIR" ]; then
+  # Adoption-time anchoring check (pipeline-run-dir.md step 1): an inherited value must
+  # resolve under $RUN_ROOT, not inside whatever worktree happens to be cwd — treat a
+  # worktree-trapped path as unset and fall through, same as a missing directory ([IL-127]).
+  REAL_RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd)
+  case "$REAL_RUN_DIR" in
+    "$RUN_ROOT"/*) : ;;      # anchored to the main checkout — keep it
+    *) RUN_DIR="" ;;         # missing, or resolves outside $RUN_ROOT (e.g. inside a worktree)
+  esac
+fi
 if [ -z "$RUN_DIR" ]; then
   RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
 fi

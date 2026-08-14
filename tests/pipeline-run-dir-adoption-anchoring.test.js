@@ -23,6 +23,10 @@ const SHARED_DOC = fs.readFileSync(
   path.join(ROOT, 'skills', '_shared', 'pipeline-run-dir.md'),
   'utf8',
 );
+const WRAP_UP_SKILL = fs.readFileSync(
+  path.join(ROOT, 'skills', 'wrap-up', 'SKILL.md'),
+  'utf8',
+);
 
 function extractSnippet() {
   const section = SHARED_DOC.match(
@@ -32,8 +36,21 @@ function extractSnippet() {
   return section[1];
 }
 
-function runResolution({ cwd, runDirEnv, specSlug }) {
-  const snippet = extractSnippet();
+// wrap-up/SKILL.md carries its own copy of the resolution snippet rather than
+// deferring to the shared file (it needs to also stamp run-state.json at
+// creation) — #421 fixed the shared snippet's adoption-time anchoring but
+// never touched this copy, so it silently adopted a worktree-trapped
+// $PIPELINE_RUN_DIR. Extracted verbatim, same reasoning as extractSnippet()
+// above: a future edit that drops the anchoring check breaks this test.
+function extractWrapUpSnippet() {
+  const section = WRAP_UP_SKILL.match(
+    /### Establish the run directory \(unconditional\)[\s\S]*?```bash\n([\s\S]*?)\n```/,
+  );
+  assert.ok(section, 'skills/wrap-up/SKILL.md must have a "### Establish the run directory (unconditional)" section with a fenced bash block — extraction pattern is out of sync with the doc');
+  return section[1];
+}
+
+function runResolutionWith(snippet, { cwd, runDirEnv, specSlug }) {
   const script = `${snippet}\nprintf 'RESOLVED:%s\\n' "$RUN_DIR"`;
   const out = execFileSync('bash', ['-c', script], {
     cwd,
@@ -51,42 +68,57 @@ function runResolution({ cwd, runDirEnv, specSlug }) {
   return line.slice('RESOLVED:'.length);
 }
 
-test('adoption anchoring: an inherited PIPELINE_RUN_DIR trapped inside a linked worktree is rejected, not adopted', () => {
-  const main = gitRepo();
-  const wt = linkedWorktreeOf(main);
+const SNIPPETS = [
+  { label: 'shared pipeline-run-dir.md snippet', extract: extractSnippet },
+  { label: "wrap-up/SKILL.md's own copy", extract: extractWrapUpSnippet },
+];
 
-  // Simulate the #389 shape: a run directory that exists, but lives inside
-  // the worktree instead of the main checkout.
-  const trapped = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-999');
-  fs.mkdirSync(trapped, { recursive: true });
+for (const { label, extract } of SNIPPETS) {
+  test(`adoption anchoring (${label}): an inherited PIPELINE_RUN_DIR trapped inside a linked worktree is rejected, not adopted`, () => {
+    const main = gitRepo();
+    const wt = linkedWorktreeOf(main);
 
-  const resolved = runResolution({ cwd: wt, runDirEnv: trapped, specSlug: 'record-999' });
+    // Simulate the #389 shape: a run directory that exists, but lives inside
+    // the worktree instead of the main checkout.
+    const trapped = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-999');
+    fs.mkdirSync(trapped, { recursive: true });
 
-  assert.notStrictEqual(
-    resolved,
-    trapped,
-    'the trapped-in-worktree directory must never be adopted as RUN_DIR — this is the exact #389 failure shape',
-  );
-  // Nothing under the (empty) main checkout matches the slug either, so
-  // resolution must fall through all the way to empty (interactive fallback),
-  // not silently substitute some other value.
-  assert.strictEqual(resolved, '', `expected empty RUN_DIR (fall-through to interactive mode), got: ${resolved}`);
-});
+    const resolved = runResolutionWith(extract(), { cwd: wt, runDirEnv: trapped, specSlug: 'record-999' });
 
-test('adoption anchoring: an inherited PIPELINE_RUN_DIR correctly anchored to the main checkout is still adopted', () => {
-  const main = gitRepo();
-  const wt = linkedWorktreeOf(main);
+    assert.notStrictEqual(
+      resolved,
+      trapped,
+      'the trapped-in-worktree directory must never be adopted as RUN_DIR — this is the exact #389 failure shape',
+    );
+    // Both snippets must reject the trapped path, but their fallback shapes
+    // differ by design: the shared snippet only creates a standalone dir when
+    // MODE=auto (unset here, so it falls through to empty/interactive);
+    // wrap-up/SKILL.md's copy creates one unconditionally ("Every wrap-up run
+    // has a run directory from Phase 1 on"). Either way, whatever it resolves
+    // to must never live inside the worktree.
+    if (resolved !== '') {
+      assert.ok(
+        resolved.startsWith(main + path.sep) || resolved === main,
+        `resolved RUN_DIR must be anchored under the main checkout (${main}), not the worktree — got: ${resolved}`,
+      );
+    }
+  });
 
-  const anchored = path.join(main, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-421');
-  fs.mkdirSync(anchored, { recursive: true });
+  test(`adoption anchoring (${label}): an inherited PIPELINE_RUN_DIR correctly anchored to the main checkout is still adopted`, () => {
+    const main = gitRepo();
+    const wt = linkedWorktreeOf(main);
 
-  // Invoked from inside the worktree (the dispatch shape) — the anchoring
-  // check must still accept a value that is legitimately under $RUN_ROOT.
-  const resolved = runResolution({ cwd: wt, runDirEnv: anchored, specSlug: 'record-421' });
+    const anchored = path.join(main, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-421');
+    fs.mkdirSync(anchored, { recursive: true });
 
-  assert.strictEqual(
-    resolved,
-    anchored,
-    'a PIPELINE_RUN_DIR that genuinely resolves under the main checkout must still be adopted — anchoring must not become a false-positive rejection',
-  );
-});
+    // Invoked from inside the worktree (the dispatch shape) — the anchoring
+    // check must still accept a value that is legitimately under $RUN_ROOT.
+    const resolved = runResolutionWith(extract(), { cwd: wt, runDirEnv: anchored, specSlug: 'record-421' });
+
+    assert.strictEqual(
+      resolved,
+      anchored,
+      'a PIPELINE_RUN_DIR that genuinely resolves under the main checkout must still be adopted — anchoring must not become a false-positive rejection',
+    );
+  });
+}
