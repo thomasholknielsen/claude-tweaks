@@ -199,7 +199,7 @@ run.
 
 Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the three-phase procedure: Phase 1 fix-exhaust silently → Phase 2 present remainder for per-item user decision → Phase 3 apply).
 
-**Gate the read.** Read `ledger/resolve-gate.md` when the ledger exists **and holds at least one item** — of any status, not just `open`. If, after the sweep above has run, the ledger still doesn't exist or holds zero items, report "No ledger items to resolve" and skip this gate entirely without reading the file.
+**Gate the read.** Read `_shared/ledger-format.md`'s Resolve Gate section when the ledger exists **and holds at least one item** — of any status, not just `open`. If, after the sweep above has run, the ledger still doesn't exist or holds zero items, report "No ledger items to resolve" and skip this gate entirely without reading the file.
 
 The same condition gates `nothing-left-behind.md` in this skill's directory — wrap-up's own wrapper around that gate: the item-existence rationale, the hard requirements (Phase 1 fix-exhaust before any user-facing output, Phase 2's mandatory per-item input, and what `auto` never silences), the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step with its `autonomy`-ceiling-gated batched multiSelect branch. When the gate is closed, read neither file.
 

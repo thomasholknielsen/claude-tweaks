@@ -107,7 +107,7 @@ Only list an item here if at least one is true:
 - **Requires human judgment** — a name, value, or copy decision someone must make at execution time
 - **Requires out-of-band signoff** — security review, legal approval, change-management ticket
 
-State the reason in each entry using the `reason-not-auto` qualifier (see `/claude-tweaks:ledger` Required-for-ops section).
+State the reason in each entry using the `reason-not-auto` qualifier (see `_shared/ledger-format.md`'s Required-for-ops section).
 
 **Do not list** items like these — they have CLIs and will be auto-executed by `/build` Step 2.5:
 - ~~"Set `STRIPE_SECRET_KEY` in production"~~ → `gh secret set` / `vercel env add` / `fly secrets set`

@@ -125,13 +125,13 @@ Phase 1 lands in the Leftover routing row as the specific sections that remain,
 never as a percentage.
 
 > Items whose disposition is `Filed as #{n}` or `Accepted` are completed after
-> merging. Each is a real, trackable record (`ledger/resolve-gate.md`'s
+> merging. Each is a real, trackable record (`_shared/ledger-format.md`'s Resolve Gate section's
 > `Acknowledge` disposition) — not just a note in this transcript.
 
 #### Routed to backlog
 
 Render in every mode whenever `ledgerRouteRemainder` (`unattended` only)
-auto-routed at least one item — parsed from `resolve-gate.md`'s Phase 2
+auto-routed at least one item — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
 `AUTO … auto-routed to backlog as {ref} (blocker: {category}) — "{description}"`
 log lines, one row per line:
 

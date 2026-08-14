@@ -80,7 +80,7 @@ When `wrap-up` is absent — `build,test`, `build,test,review`, `review` alone, 
 - **The run is deliberately unfinished.** Rendering "Pipeline Complete" and resolving the ledger would assert a completion that has not happened.
 - **The ledger gate is un-answerable there.** It is not silenced by `auto` mode (`_shared/auto-mode-contract.md`'s "what auto never silences" list) and requires per-item resolution, so firing it mid-pipeline in a headless run — a scheduled `/claude-tweaks:dispatch next` firing has nobody present — is exactly the new mid-flow `auto` stop CLAUDE.md's Don'ts forbid.
 
-Ledger items simply stay `open` in the ledger *file*, a durable artifact by design, for whichever later invocation does include `wrap-up` to resolve. Nothing is silenced or dropped: only *when* the gate runs moves, onto the step list that reaches the step where resolution actually happens — which is what `ledger/resolve-gate.md` already assumes. Render this instead of everything else in Step 5:
+Ledger items simply stay `open` in the ledger *file*, a durable artifact by design, for whichever later invocation does include `wrap-up` to resolve. Nothing is silenced or dropped: only *when* the gate runs moves, onto the step list that reaches the step where resolution actually happens — which is what `_shared/ledger-format.md`'s Resolve Gate section already assumes. Render this instead of everything else in Step 5:
 
 ```markdown
 ## Flow: Steps Complete

@@ -42,7 +42,7 @@ observation          (informational, non-blocking — e.g., QA caveats)
 
 **Non-terminal status:** `open` — these items block pipeline completion.
 
-User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see `resolve-gate.md` Phase 3 for the full disposition table).
+User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see this file's Resolve Gate section, Phase 3, for the full disposition table).
 
 ## Phase Taxonomy
 

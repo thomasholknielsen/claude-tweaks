@@ -97,7 +97,7 @@ For each item, probe in this order:
 3. **Triage:**
    - **Auto-executable** (tool + creds present) — execute now via Bash. In `auto` mode, log command, exit code, and one-line outcome to `decisions.md`. In interactive mode, surface the command and result inline. Do NOT seed the ledger. **`ops=confirm` token:** when present in `$ARGUMENTS`, do not execute automatically even here — call `AskUserQuestion` with the exact command and a one-line description of its effect, options "Run it (Recommended)" and "Skip — seed to ledger instead," before running (or, if skipped, seed as `ops` with `(reason-not-auto: user-declined)`). This applies in both interactive and `auto` mode — `ops=confirm` is a stronger, explicit opt-in for operational/secret-mutating commands specifically, so it is not silenced by `auto`.
    - **Auth-gap** (tool present, creds missing) — in interactive mode, surface the one-time `{tool} login` command and wait; on success, fall through to auto-execute. In `auto` mode, seed as `ops` with `(reason-not-auto: auth-not-configured)` so the user can resolve at the wrap-up Review Console.
-   - **Truly manual** (no CLI, requires human judgment, requires signoff) — seed as `ops` with the matching `(reason-not-auto: …)` qualifier from `/claude-tweaks:ledger` Required-for-ops section.
+   - **Truly manual** (no CLI, requires human judgment, requires signoff) — seed as `ops` with the matching `(reason-not-auto: …)` qualifier from `_shared/ledger-format.md`'s Required-for-ops section.
 
 If the ledger doesn't exist, create it using the ledger skill's create operation.
 
