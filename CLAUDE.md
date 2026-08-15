@@ -88,7 +88,7 @@ How to execute any task here. These apply project-wide unless a more specific ru
 ## Commands
 
 ```bash
-npm test                            # Full suite — tests/, every bin/lib/*/tests/ directory, plus tools/upstream-drift/tests/
+npm test                            # Full suite — tests/ (includes every tests/bin-lib/{module} suite) and tools/upstream-drift/tests/ — a recursive glob, not a fixed list; new tests/bin-lib/{x} directories are picked up automatically
 npm run test:perf                   # Timing budgets (perf/) — deliberately excluded from npm test, see docs/plugin-structure.md
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
