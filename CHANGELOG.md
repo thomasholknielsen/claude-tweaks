@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.82.0 — Add a Friction reflect lens for hook/AskUserQuestion friction (#452); fold /version into /help (#440); reclassify ledger as a _shared format spec (#437); flow run-dir anchoring + oversight-floor backstop fixes (#421, #368, #388) — plus a pre-release whole-branch review fixing 8 cross-task doc/pointer defects
+
+Add a Friction reflect lens for hook/AskUserQuestion friction (#452); fold /version into /help (#440); reclassify ledger as a _shared format spec (#437); flow run-dir anchoring + oversight-floor backstop fixes (#421, #368, #388) — plus a pre-release whole-branch review fixing 8 cross-task doc/pointer defects.
+
 ## v6.81.0 — Ship the pr-first integration model (#405-#415): GitHub-backed runs born public with a background reconciler converging state, PR-checkbox Review Console, local-merge fallback retained — plus a pre-release whole-branch review fixing 3 reconciler defects and a CI-breaking Node-version-dependent test-glob bug
 
 Ship the pr-first integration model (#405-#415): GitHub-backed runs born public with a background reconciler converging state, PR-checkbox Review Console, local-merge fallback retained — plus a pre-release whole-branch review fixing 3 reconciler defects and a CI-breaking Node-version-dependent test-glob bug.
