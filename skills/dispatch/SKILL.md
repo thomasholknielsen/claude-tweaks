@@ -1,7 +1,7 @@
 ---
 name: dispatch
 description: "Use to claim and build authorized GitHub records — the queue consumer between the human gate and the executor. Bare, next, or #N direct. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine."
-argument-hint: "[next|#N[,#M...]] [--claim-only] [--batch-size <n>] [--priority high|medium|low]"
+argument-hint: "[next|#N[,#M...]] [--batch-size <n>] [--priority high|medium|low]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -48,7 +48,6 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
-| `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic blob write, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
 | `--batch-size <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-batch-size` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (sequential dispatch order). |
 | `--concurrent <n>` (deprecated alias) | Deprecated alias for `--batch-size <n>` — same effect, logs one warn-tier notice per invocation. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
@@ -146,73 +145,28 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 
 **`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-batch-size` (extra groups stay claimed for a later firing, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
 
-### Step 4: Claim the selected group (whole group, or none)
+### Step 4: Mint the selected group's run directory
 
 **Sibling-session check, before any write** — run `check-sibling-sessions --record` per group
 member and branch on its output; read `sibling-session-check.md` in this skill's directory and
-follow it. Additive to the existing branches/claims/labels check below, never a replacement.
+follow it.
 
-**Mint this group's run directory, before writing anything.** Derive `$RUN_ROOT` via
-`_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-common-dir`, then its
-parent directory). This group's **representative record** is its lowest-numbered member (the
-same rule `_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
+**Mint this group's run directory.** Derive `$RUN_ROOT` via `_shared/pipeline-run-dir.md`'s
+Anchoring section (`git rev-parse --git-common-dir`, then its parent directory). This group's
+**representative record** is its lowest-numbered member (the same rule
+`_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
 `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` (mkdir only — no
-`config.yml`, no `decisions.md`; `/flow` writes those when its first Task call adopts the
-directory, per `flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Call the
-result `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
-`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
-{$GROUP_RUN_DIR} for group [{issue list}].` This is a plain directory creation, not a claim —
-if the claim below fails for any member, the minted directory is simply never adopted; the
-reconciler's archive sweep (`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint` criterion)
-picks up an empty, unadopted mint older than its TTL.
+`config.yml`, no `decisions.md`, and, as of this change, no claim written here either — the
+first Task call's own `/flow` invocation claims the group at its Step 2.8, per
+`flow/claim-targets.md`; this step only ensures both of that group's Task calls receive the same
+identity to claim under). Call the result `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log
+one line to this firing's own `decisions.md` (Step 1's standalone dir, not this new one): `AUTO
+{time} — Step 4: minted {$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed
+directory is reclaimed by the reconciler's archive sweep
+(`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint` criterion) once its TTL elapses.
 
-Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before
-starting any**. Resolve the detection check once per run, not per issue (per
-`_shared/github-write-transport.md`). Every claim below uses `$GROUP_RUN_ID` — this group's
-minted directory, not this firing's own standalone `$RUN_ID` from Step 1.
-
-**Both transports write the same `claims/issue-<n>.json` blob on `claims-registry`** — see
-`_shared/issue-claims.md`'s "The lock" section for the full read-then-classify-then-write
-procedure (`classifyClaimBlob`'s five states, and which write form — create-only vs
-conditional-update — each one calls for). For each member of the selected group:
-
-**gh CLI path** (`gh` on PATH):
-
-```bash
-for ISSUE in "${GROUP_MEMBERS[@]}"; do
-  # 1. Read: gh api "repos/{owner}/{repo}/contents/claims/issue-${ISSUE}.json?ref=claims-registry"
-  #    (404 = absent). 2. Classify with classifyClaimBlob. 3. Write per "The lock":
-  #    absent -> create-only PUT (no sha); tombstone/stale -> conditional PUT (sha from the
-  #    read); live/unreadable -> contested, no write. See _shared/issue-claims.md for the
-  #    literal gh api commands at each step.
-  : # ... branch on the result below, per member
-done
-```
-
-**MCP path** (`gh` unavailable): read `mcp-transport.md` in this skill's directory — it carries
-the per-member claim-payload generation and the same read-then-classify-then-write procedure
-over the MCP tools. Branch on its outcome below, per member, exactly as the `gh` path branches.
-
-**On success (claimed, either path):** bootstrap-then-add `bot:in-progress` (still a plain
-label edit — `gh issue edit` or `issue_write` per the CRUD mapping in
-`_shared/github-write-transport.md`), then post the claim comment (`claimPayload`'s
-`commentBody`, unchanged regardless of which path claimed it — human-visibility mirror only,
-per `_shared/issue-claims.md`'s "The mirror"):
-
-```bash
-# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [['bot:in-progress', 'Bot state: an agent currently holds the claim on this record']]
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
-  runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$GROUP_RUN_ID" > /tmp/claim-${ISSUE}.md
-gh issue edit "$ISSUE" --add-label bot:in-progress
-gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
-# This gh-CLI block runs only when gh is present; the gh-absent claim path lives in
-# mcp-transport.md in this skill's directory.
-```
-
-**Anything other than a clean claim on every member** — a rejected write, an unresolvable `gh`/MCP failure during claim, or a group only partly claimable — and the `--claim-only` modifier's stop point: read `claim-outcomes.md` in this skill's directory and follow it. It carries the `classifyClaimBlob` classification and the `_shared/issue-claims.md` failure-posture branch (skip / break-and-take-over / treat-as-live), the partial-claim release-and-move-on rule, and `--claim-only`'s report plus manual-release commands. A group claimed cleanly on every member, with no `--claim-only`, proceeds straight to Step 5.
+Nothing else happens in this step — claiming, the `bot:in-progress` bootstrap, and the claim
+comment all moved to `/flow`'s Step 2.8 (`flow/claim-targets.md`). Proceed to Step 5.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
