@@ -1,4 +1,94 @@
-# Ledger Resolve Gate
+# Ledger Format — Shared Contract
+
+Canonical definition of the pipeline ledger's file format, status lifecycle, phase taxonomy, and resolve-gate procedure. Read by `/claude-tweaks:build`, `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:flow` as a knowledge dependency — none of them invoke `/claude-tweaks:ledger` through the Skill tool; they read this file to learn the format, then read/write `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. `skills/ledger/SKILL.md` is the thin skill for the two standalone human commands (`/claude-tweaks:ledger`, `/claude-tweaks:ledger resolve`) and cites this file rather than restating the contract.
+
+## Ledger File Format
+
+### Location
+
+```
+docs/plans/YYYY-MM-DD-{feature}-ledger.md
+```
+
+The `{feature}` name matches the execution plan or spec topic. One ledger per pipeline run.
+
+### Format
+
+```markdown
+# Open Items — {spec title or design topic}
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | build/ops | Set `API_KEY` in environment — referenced in `src/api.ts` (reason-not-auto: auth-not-configured — `gh secret set` requires `gh auth login` first) | open | — |
+| 2 | review | Missing validation on `updateUser` input | fixed | Added zod schema — `abc1234` |
+| 3 | test | Login story fails — selector `.login-btn` not found | open | — |
+```
+
+### Item Numbering
+
+Items are numbered sequentially starting at 1. New items always get the next available number. Numbers are never reused — if item 3 is resolved, the next item is still 4.
+
+## Status Lifecycle
+
+```
+open → fixed         (item was addressed in code)
+open → deferred      (staged as a work record proposal — parked, with origin, files, and trigger — resolved at the run's Queue writes surface)
+open → accepted      (intentional decision, with stated reason)
+open → acknowledged  (for ops items — user is aware, requires action outside codebase; staged as a work record proposal — backlog — resolved at the run's Queue writes surface, same as deferred)
+observation          (informational, non-blocking — e.g., QA caveats)
+```
+
+**Terminal statuses:** `fixed`, `deferred`, `accepted`, `acknowledged`, `observation` — these items are resolved and will not block the pipeline.
+
+**Non-terminal status:** `open` — these items block pipeline completion.
+
+User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see this file's Resolve Gate section, Phase 3, for the full disposition table).
+
+## Phase Taxonomy
+
+Each item is tagged with a phase indicating where it was discovered.
+
+**Schema:**
+
+```
+Phase     ::= Skill | Skill "/" Qualifier
+Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops" | "flow" | "design"
+Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
+```
+
+The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (Wrap-Up Review Console, `/tidy` cross-spec scans) parse the phase string by splitting on `/` — keep the format strict.
+
+| Phase | Source | Typical Items |
+|-------|--------|---------------|
+| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage (only items with a `reason-not-auto` qualifier — see below) |
+| `build` | `/claude-tweaks:build` | Architecture deviations, blocked work, shared constants |
+| `build/ops` | `/claude-tweaks:build` | Operational requirements that survived the platform probe — auto-executable items do not appear here |
+| `build/skill` | `/claude-tweaks:build` | Skill update candidates from build observations |
+| `test` | `/claude-tweaks:test` | Standard verification failures (types / lint / tests) |
+| `test/qa` | `/claude-tweaks:test` (QA mode) | QA story failures and observations from `qa-reporting.md` Phase 5.5 |
+| `review` | `/claude-tweaks:review` | Code review findings (all categories) |
+| `review/skill` | `/claude-tweaks:review` | Skill update candidates from review |
+| `review/hindsight` | `/claude-tweaks:reflect` (hindsight mode, via /review) | Implementation hindsight findings |
+| `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up) | Reflection insights |
+| `reflect` | `/claude-tweaks:reflect` (standalone) | Standalone reflection findings |
+| `design` | `/claude-tweaks:flow` (polish phase, via `/claude-tweaks:design-wrapper`) | One entry per design-wrapper command invoked during polish — `fixed` for each `commands_invoked` entry (a command the wrapper actually dispatched), `observation` for each `staged_suggestions` entry (nothing ran; it awaits a human at the Review Console) |
+
+> **Phase taxonomy:** Use the item description and category column to distinguish finding types within a phase. Sub-phases (`build/ops`, `build/skill`, `review/skill`, `review/hindsight`, `test/qa`) carry semantic meaning that downstream skills filter on — keep them distinct. Lens-specific review sub-phases (e.g., `review/convention`, `review/ux`, `review/coverage`) collapse into `review`; the lens is recorded in the entry body, not the phase.
+
+### Required for `ops`-phase items (`ops`, `build/ops`)
+
+All `ops`-phase items must embed a `(reason-not-auto: {value})` qualifier in the Item description. This forces the writer to justify why the pipeline cannot resolve the item rather than reflexively routing "outside the codebase" tasks to manual.
+
+| Value | When to use |
+|-------|------------|
+| `no-cli` | Dashboard-only, physical, or vendor-side — no programmatic interface exists |
+| `requires-judgment` | A name, value, or copy decision someone must make at execution time |
+| `requires-signoff` | Security, legal, change-management, or product approval gates the action |
+| `auth-not-configured` | A CLI exists but credentials aren't set up on this machine. After the user runs the login command, the item should be re-triaged — it often becomes auto-executable. |
+
+Items without a `reason-not-auto` qualifier are classification errors (the spec writer or the build skill missed the triage). If you encounter one, propose the correct classification rather than appending as-is — most "outside the codebase" tasks have a CLI and should not land here.
+
+## Resolve Gate (Nothing-Left-Behind)
 
 The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5 — the latter only when `wrap-up` is in that invocation's resolved step list (`flow/steps-and-gates.md`'s **Partial step lists**). That condition defers *when* the gate runs onto the invocation that reaches wrap-up; it does not silence it, and does not touch the `auto` rule below.
 
@@ -10,7 +100,7 @@ The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 a
 
 ---
 
-## Phase 1 — Exhaust fixes (agent, silent)
+### Phase 1 — Exhaust fixes (agent, silent)
 
 For each item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** An item qualifies for fix-now if **all** of these hold:
 
@@ -33,9 +123,9 @@ If the item qualifies, fix it, commit it, update status to `fixed` with the comm
 
 ---
 
-## Phase 2 — Present remainder (per-item user input required)
+### Phase 2 — Present remainder (per-item user input required)
 
-### Ledger narrowing (runs first, before the table below)
+#### Ledger narrowing (runs first, before the table below)
 
 Resolve the `ceiling` per `_shared/autonomy-ceiling.md`'s existing precedence ladder. If
 `bookkeepingPermissions(ceiling).ledgerNarrowing === true` (`bin/lib/issues/autonomy.js`), before
@@ -143,7 +233,7 @@ None of Step 1/2a/2b's options carries `(Recommended)` — every remaining item 
 
 ---
 
-## Phase 3 — Apply user decisions
+### Phase 3 — Apply user decisions
 
 For each item, apply the user-chosen disposition. **Each new work record (`parked` or `backlog`) requires the user's explicit choice for that specific item — never bulk-write without their per-item input.** Creating the record itself is a second, separate approval from the per-item disposition choice (`_shared/auto-mode-card.md`'s work-record-creation row) — `Defer`, `Keep`, and `Acknowledge` therefore **stage a record proposal**, never create the record directly, mirroring `wrap-up/leftover-routing.md`'s Auto mode behavior:
 

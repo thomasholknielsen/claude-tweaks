@@ -1,6 +1,6 @@
 # Phase 3's ledger gate — Nothing Left Behind (wrap-up's wrapper around the resolve gate)
 
-Loaded by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate under the same condition that gates `ledger/resolve-gate.md`: the ledger exists and holds at least one item, of any status. Holds the requirements the resolve gate runs under here, the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step.
+Loaded by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate under the same condition that gates `_shared/ledger-format.md`'s Resolve Gate section: the ledger exists and holds at least one item, of any status. Holds the requirements the resolve gate runs under here, the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step.
 
 The gate is item-*existence*, not open-item-existence: the bulk-resolve fast path below still stages proposals for `acknowledged` items via that file's Phase 3 `Acknowledge` disposition, and the Ops acknowledgment sub-step below applies the same disposition — both operate on items that are already terminal. Gating on `open` items alone would skip the read while those two paths still need it.
 
@@ -13,7 +13,7 @@ The gate is item-*existence*, not open-item-existence: the bulk-resolve fast pat
 
 ### Bulk-resolve fast path (terminal-status only)
 
-The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. Before reporting completion, check every `acknowledged` item for a staged proposal (a producer can create an item pre-set to `acknowledged`, bypassing Phase 3 entirely — e.g. `build/worktree-setup.md`'s auto-mode divergence entry): stage one now, per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, for any that lack one. Then report: "All {N} ledger items resolved. No open items." and proceed to Phase 4.
+The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. Before reporting completion, check every `acknowledged` item for a staged proposal (a producer can create an item pre-set to `acknowledged`, bypassing Phase 3 entirely — e.g. `build/worktree-setup.md`'s auto-mode divergence entry): stage one now, per `_shared/ledger-format.md`'s Resolve Gate Phase 3 `Acknowledge` disposition, for any that lack one. Then report: "All {N} ledger items resolved. No open items." and proceed to Phase 4.
 
 Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-card.md` — it is never skipped, regardless of `auto` state, when any `open` item exists.
 
@@ -34,7 +34,7 @@ precedence ladder. If `bookkeepingPermissions(ceiling).opsAckAutoAcknowledge ===
 (`bin/lib/issues/autonomy.js` — gated at `unattended`, the tier that also skips acknowledging a
 post-merge infrastructure follow-up, not just a reversible bookkeeping item), skip the drill below
 entirely — for every item, stage a record proposal and update status to `acknowledged` per
-`ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, log
+`_shared/ledger-format.md`'s Resolve Gate Phase 3 `Acknowledge` disposition, log
 `AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged, staged for filing. Reversibility: high.` to
 `decisions.md`, and continue to Phase 4's Review Console. Otherwise, present the drill below.
 
@@ -46,4 +46,4 @@ instead, leaving it `open` for a later run's Phase 2 drill:
 
 - `question`: `"These ops items need acknowledgment — you need to action them post-merge. Read each one before submitting. (checked = Acknowledge, uncheck to defer)"`, `header`: `"Ops items"`, each checkbox option's label the item's own short description
 
-After a chunk resolves, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition to every checked item — stage a record proposal per item and update status to `acknowledged`. The actual record creation is a separate approval at the Review Console's Queue writes section — folded into "Approve all" at supervised/trusted, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at unattended, per `_shared/auto-mode-contract.md`'s tiered stance (this drill only stages the proposal; it does not silently create N records). An unchecked item's status stays `open` — it is not acknowledged, and remains subject to a later resolve-gate pass rather than silently dropped.
+After a chunk resolves, apply `_shared/ledger-format.md`'s Resolve Gate Phase 3 `Acknowledge` disposition to every checked item — stage a record proposal per item and update status to `acknowledged`. The actual record creation is a separate approval at the Review Console's Queue writes section — folded into "Approve all" at supervised/trusted, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at unattended, per `_shared/auto-mode-contract.md`'s tiered stance (this drill only stages the proposal; it does not silently create N records). An unchecked item's status stays `open` — it is not acknowledged, and remains subject to a later resolve-gate pass rather than silently dropped.

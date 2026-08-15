@@ -3,7 +3,7 @@
 Run by Phase 3's ledger gate as its preamble, before the resolve gate. Computes what this work leaves outstanding
 by re-scanning the repository at close time, rather than trusting whatever the session happened
 to remember and write into the transcript — then writes each finding into this run's ledger, so
-the ledger's own three-phase resolve gate (`ledger/resolve-gate.md`) has something to enforce on
+the ledger's own three-phase resolve gate (`_shared/ledger-format.md`'s Resolve Gate section) has something to enforce on
 a standalone run, where no other producer ever creates one.
 
 ## Running the sweep
@@ -49,7 +49,7 @@ file exists yet for this run (the standalone case this preamble exists for), cre
 ledger's own Create operation before adding the first item.
 
 **There is no second disposition mechanism here.** Phase 3's existing three-phase resolve gate
-(`ledger/resolve-gate.md`) is what assigns each item's eventual disposition, exactly as it already
+(`_shared/ledger-format.md`'s Resolve Gate section) is what assigns each item's eventual disposition, exactly as it already
 does for every other ledger producer (build, test, review, reflect):
 
 - Phase 1 fixes it now → ledger status `fixed`, with the commit hash
