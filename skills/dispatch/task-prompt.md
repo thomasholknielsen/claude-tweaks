@@ -48,8 +48,9 @@ MANIFEST: {absolute path to this group's run-dir manifest.yml/decisions.md -- a
 One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
 
-[Use: Standard model -- this dispatch wraps build+test execution, not analysis; the
-pipeline's own steps select their own models as usual.]
+[Use: Standard] -- this dispatch wraps build+test execution, not analysis; the pipeline's own
+steps select their own models as usual. Resolve via `node bin/resolve-profile.js standard`
+(contract § Model Selection).
 ```
 
 ## Second call — review,polish,wrap-up (gated on the first call)
@@ -129,8 +130,9 @@ distinct "the branch reached its finish decision, a PR just opened" transition t
 run that reaches the Review Console with nobody answering it is `pending-review` regardless of
 how long the PR has already existed.
 
-[Use: Standard model -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
-pipeline's own steps select their own models as usual.]
+[Use: Standard] -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
+pipeline's own steps select their own models as usual. Resolve via
+`node bin/resolve-profile.js standard` (contract § Model Selection).
 ```
 
 None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.
