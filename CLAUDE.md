@@ -95,6 +95,8 @@ claude --plugin-dir ./              # Local development — load plugin from cur
 
 Per-suite test invocations, the `bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
 
+A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken.
+
 ### Subagent Contract (v4.2+)
 
 The contract is **dispatch correctness** discipline, not a token-saving measure: the clean room is what makes N agents independent evidence rather than N echoes, the status line stops a failed dispatch from aggregating as a clean result, and the templates keep aggregation mechanical rather than paraphrased. Costing less to run is a side effect, never the rationale.
