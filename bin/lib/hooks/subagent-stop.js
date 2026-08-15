@@ -1,6 +1,11 @@
 // bin/lib/hooks/subagent-stop.js — E3: Subagent Contract status-line check (warn tier).
 // Best-effort by design: SubagentStop fires unreliably for Task dispatches
 // (claude-code#27755) and transcript field names may drift. Never blocks.
+// Known false-positive source: a dispatch whose own template specifies a
+// different first-line contract (e.g. superpowers:subagent-driven-development's
+// task-reviewer, which begins with a spec-compliance verdict) is logged here
+// even though nothing was actually violated — STATUS_RE has no way to know a
+// dispatch declared a different contract.
 'use strict';
 const fs = require('fs');
 const ctxLib = require('./context');
