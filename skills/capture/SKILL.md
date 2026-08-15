@@ -57,7 +57,7 @@ already applied — see `_shared/autonomy-ceiling.md`. At `supervised`, the defa
 any repo that has not opted in, this never fires and the paragraph above holds unchanged.
 
 **Definition short-circuit.** Before any of the below (the `gh issue list`/git-log round trip),
-check the final, post-override `$DEFINITION` value from Guessing the Type and Definition above. If
+check the final, post-override `$DEFINITION` value from Guessing the Type and Definition below. If
 it is `needed`, skip this entire block — do not fetch trust records, do not resolve the ceiling, do
 not add `ready`. A record that structurally cannot be born-ready (it needs a human to resolve its
 open choice first) is not worth spending the round trip on. Proceed straight to filing with
@@ -163,7 +163,7 @@ grant.
      # + --label needs:definition when $DEFINITION is "needed" (bootstrap it first, per label-bootstrap.md)
    ```
 
-   Both branches: append `--label needs:definition` only when `$DEFINITION` (Guessing the Type and Definition above, post-override) is `needed`; omit the flag entirely when `clear` — never pass an explicit "clear" label, matching `parseRecordFacets`'s absent-not-false convention.
+   Both branches: append `--label needs:definition` only when `$DEFINITION` (Guessing the Type and Definition below, post-override) is `needed`; omit the flag entirely when `clear` — never pass an explicit "clear" label, matching `parseRecordFacets`'s absent-not-false convention.
 
 3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
 

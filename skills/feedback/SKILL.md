@@ -254,11 +254,15 @@ gh label list --repo thomasholknielsen/claude-tweaks --limit 200
 ```
 
 Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
-that label is present in the output.
+that label is present in the output. Same rule for `needs:definition`: pass it **only** when
+Step 5's judgment (post any correction) reads `Needed` **and** the same `gh label list` output
+above confirms it exists — never assume it's bootstrapped on the target repo, exactly like
+`bug`/`enhancement` above. When the judgment reads `Needed` but the label isn't present, file
+without it and say so — a missing label is not a reason to fail the whole filing.
 
 **Then** file, appending the resolved `--label` argument if and only if the
-previous command confirmed it, plus `--label needs:definition` when Step 5's judgment (post any
-correction) reads `Needed`:
+previous command confirmed it, plus `--label needs:definition` when both of the conditions above
+hold:
 
 ```bash
 BODY_FILE=$(mktemp)

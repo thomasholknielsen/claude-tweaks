@@ -4,10 +4,13 @@
 // style bin/lib/policy.js uses — the plugin ships zero runtime npm deps, so there
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
-// risk, size, ceremony, framing, priority, stage, grants{build,merge}, bot{inProgress,
-// blocked}, acceptance, isParentIssue — plus type, parent, blockedBy, unsynced, closed,
-// closedAt, which are local-files-only); the github driver's callers get
-// type/parent/blockedBy from the issue JSON itself, not from labels. No network calls.
+// risk, size, ceremony, solutionUnjustified, priority, stage, grants{build,merge},
+// bot{inProgress, blocked}, acceptance, isParentIssue — plus type, parent, blockedBy,
+// unsynced, closed, closedAt, which are local-files-only); the github driver's callers
+// get type/parent/blockedBy from the issue JSON itself, not from labels. needsDefinition
+// is presence-only on both drivers (set true, or left absent — never explicit false), so
+// it is deliberately NOT in facet-shape.js's shared defaults; see record.js's identical
+// convention. No network calls.
 'use strict';
 
 const fs = require('fs');
