@@ -33,7 +33,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
      │  calls: visualize (diagram suggestion, all surfaces)
      │                     (deletes Design Doc)
      │
-  ┈┈ /claude-tweaks:backlog refine grants, /claude-tweaks:dispatch claims (utility skills, no fixed position) ┈┈
+  ┈┈ /claude-tweaks:backlog refine grants, /claude-tweaks:dispatch selects+mints, /claude-tweaks:flow claims (utility skills, no fixed position) ┈┈
      │
   ┈┈ /claude-tweaks:flow automates below (worktree mode default) ┈┈
      │
@@ -86,13 +86,13 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 Every unit of work — a captured idea, a health-skill finding, or a human-filed issue — is the same thing underneath: a **work record**, tracked through one spine regardless of who filed it:
 
 ```
-BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/flow claims──► BUILDING ──user merges──► CLOSED
 ```
 
 - **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, captures skip there too, once the `producer:capture` class has earned a `clean` trust verdict — see `skills/_shared/autonomy-ceiling.md`.
 - **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready sub-issues.
 - **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one. The `autonomy` ceiling defines one machine-origination exception at its `unattended` tier, gated behind a second, explicit opt-in (`grant-origination-enabled` in `policy.yml`, off by default): `/claude-tweaks:backlog grant`, the headless machine-grant mode, is the one path that reads both keys and acts on them, itself narrowed by a per-record gate chain (clean trust verdict, agent-filed origin, content-aware review, no floor trip).
-- **building** — an agent holds the claim. `/claude-tweaks:dispatch` claims an authorized record's whole file-overlap group and hands it to `/claude-tweaks:flow`.
+- **building** — an agent holds the claim. `/claude-tweaks:dispatch` selects an authorized record's whole file-overlap group and mints its run directory; `/claude-tweaks:flow` claims the group at its own Step 2.8, whether dispatched or run directly.
 - **closed** — completed via your own merge (close-via-merge — the pipeline never runs `gh issue close`), or not-planned (wontfix, duplicate, absorbed into another record).
 
 A record can also **park** at any pre-authorized stage (on hold, with a wake trigger — a date or a watched file path) via `/claude-tweaks:tidy`'s Defer action, and can close as not-planned at any point.

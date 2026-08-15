@@ -2,7 +2,7 @@
 //
 // Canonical work-profile data. The markdown table in
 // skills/_shared/subagent-output-contract.md §Model Selection is pinned to
-// PROFILES by bin/lib/model-profiles/tests/table-pinning.test.js — change
+// PROFILES by tests/bin-lib/model-profiles/table-pinning.test.js — change
 // them together or the suite goes red.
 'use strict';
 

@@ -1,0 +1,537 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const {
+  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING,
+  extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
+  buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
+} = require('../../../bin/lib/issues/record');
+
+test('recordPayload assembles labels for a born-ready health record', () => {
+  const result = recordPayload({
+    title: 't', body: 'b', type: 'task', origin: 'code-health',
+    risk: 'low', size: 'low', ready: true, fingerprint: 'ch:abc',
+  });
+  assert.deepStrictEqual(result.labels, ['by:code-health', 'risk:low', 'size:low', 'ready']);
+  assert.strictEqual(result.type, 'task');
+  assert.strictEqual(result.body, 'b\n\n<!-- work-fingerprint: ch:abc -->');
+});
+
+test('recordPayload assembles a plain capture record', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'feature', origin: 'capture' });
+  assert.deepStrictEqual(result.labels, ['by:capture']);
+  assert.strictEqual(result.body, 'b');
+});
+
+test('recordPayload with origin omitted emits no by:* label and does not throw', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'bug' });
+  assert.deepStrictEqual(result.labels, []);
+});
+
+test('recordPayload throws when title is missing', () => {
+  assert.throws(() => recordPayload({ body: 'b', type: 'task' }), /title/);
+});
+
+test('recordPayload throws when title is not a string', () => {
+  assert.throws(() => recordPayload({ title: 5, body: 'b', type: 'task' }), /title/);
+});
+
+test('recordPayload throws when body is missing', () => {
+  assert.throws(() => recordPayload({ title: 't', type: 'task' }), /body/);
+});
+
+test('recordPayload throws when body is not a string', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 5, type: 'task' }), /body/);
+});
+
+test('recordPayload throws on unknown type; absence never throws', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'epic' }), /bug|feature|task/);
+});
+
+test('recordPayload throws on unknown origin', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', origin: 'wrap-up' }), /origin/);
+});
+
+test('recordPayload accepts origin: docs-health', () => {
+  const payload = recordPayload({ title: 'x', body: 'y', type: 'task', origin: 'docs-health' });
+  assert.ok(payload.labels.includes('by:docs-health'));
+});
+
+test('recordPayload accepts origin: dispatch', () => {
+  const payload = recordPayload({ title: 'x', body: 'y', type: 'task', origin: 'dispatch' });
+  assert.ok(payload.labels.includes('by:dispatch'));
+});
+
+test('recordPayload throws on unknown risk', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', risk: 'critical' }), /risk/);
+});
+
+test('recordPayload throws on unknown size', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', size: 'gigantic' }), /size/);
+});
+
+// The emit side is size-only: a caller still passing `effort` (composed inline
+// from pre-rename facets, e.g.) must fail loud rather than silently drop the
+// scoring label — matches the throw-on-unknown pattern above for risk/size.
+test('recordPayload throws on a legacy effort argument instead of silently dropping it', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', effort: 'low' }),
+    /effort/
+  );
+});
+
+test('recordPayload throws on unknown priority', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', priority: 'urgent' }), /priority/);
+});
+
+test('recordPayload throws when both ready and parked are true', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', ready: true, parked: true }),
+    /both ready and parked/
+  );
+});
+
+test('recordPayload emits parked and priority labels', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', parked: true, priority: 'high' });
+  assert.deepStrictEqual(result.labels, ['parked', 'priority:high']);
+});
+
+test('TYPE_LABELS has exactly 3 pairs naming type:bug|feature|task with descriptions <= 100 chars', () => {
+  assert.strictEqual(TYPE_LABELS.length, 3);
+  assert.deepStrictEqual(TYPE_LABELS.map(([name]) => name), ['type:bug', 'type:feature', 'type:task']);
+  for (const [, description] of TYPE_LABELS) {
+    assert.ok(description.length <= 100, `description too long: "${description}"`);
+  }
+});
+
+test('recordPayload emits ceremony:{tier} when ceremony is supplied', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'fast-lane', ready: true });
+  assert.ok(result.labels.includes('ceremony:fast-lane'));
+});
+
+test('recordPayload emits no ceremony:* label when ceremony is omitted', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low' });
+  assert.ok(!result.labels.some((l) => l.startsWith('ceremony:')));
+});
+
+test('recordPayload throws on unknown ceremony value', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', ceremony: 'medium' }), /ceremony/);
+});
+
+test('recordPayload emits labels in order: by:*, risk:*, size:*, ceremony:*, ready, parked, priority:*', () => {
+  const result = recordPayload({
+    title: 't', body: 'b', type: 'task', origin: 'capture',
+    risk: 'low', size: 'low', ceremony: 'standard', ready: true, priority: 'high',
+  });
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'ready', 'priority:high']);
+});
+
+test('recordPayload emits framing:baked when framing is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true });
+  assert.ok(result.labels.includes('framing:baked'));
+});
+
+test('recordPayload emits no framing:baked label when framing is omitted', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('framing:baked'));
+});
+
+test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+  const result = recordPayload({
+    title: 't', body: 'b', type: 'task', origin: 'capture',
+    risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+  });
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+});
+
+// The classification -> scoring-axis fold the health issue-payload builders read:
+// its second axis is the size facet, so its key is `size`, not `effort`.
+test('CLASSIFICATION_SCORING folds each classification onto a risk/size pair', () => {
+  assert.deepStrictEqual(CLASSIFICATION_SCORING.additive, { risk: 'low', size: 'low' });
+  assert.deepStrictEqual(CLASSIFICATION_SCORING.restructural, { risk: 'medium', size: 'high' });
+});
+
+test('CLASSIFICATION_SCORING has no entry for a deliberately unscored kind', () => {
+  assert.strictEqual(CLASSIFICATION_SCORING['new-skill'], undefined);
+});
+
+// AC 2 — dual-marker extraction
+
+test('extractFingerprint reads the legacy code-health-fingerprint marker', () => {
+  assert.strictEqual(extractFingerprint('x\n<!-- code-health-fingerprint: old:1 -->'), 'old:1');
+});
+
+test('extractFingerprint reads the new work-fingerprint marker', () => {
+  assert.strictEqual(extractFingerprint('x\n<!-- work-fingerprint: new:2 -->'), 'new:2');
+});
+
+test('extractFingerprint prefers the new work-fingerprint marker when both are present', () => {
+  assert.strictEqual(
+    extractFingerprint('<!-- code-health-fingerprint: old:1 -->\n<!-- work-fingerprint: new:2 -->'),
+    'new:2'
+  );
+});
+
+test('extractFingerprint reads the legacy harness-health-fingerprint marker', () => {
+  assert.strictEqual(extractFingerprint('x\n<!-- harness-health-fingerprint: hh:1 -->'), 'hh:1');
+});
+
+test('extractFingerprint reads the legacy journey-health-fingerprint marker', () => {
+  assert.strictEqual(extractFingerprint('x\n<!-- journey-health-fingerprint: jh:1 -->'), 'jh:1');
+});
+
+test('extractFingerprint prefers work-fingerprint over harness-health-fingerprint', () => {
+  assert.strictEqual(
+    extractFingerprint('<!-- harness-health-fingerprint: hh:1 -->\n<!-- work-fingerprint: new:2 -->'),
+    'new:2'
+  );
+});
+
+test('extractFingerprint prefers work-fingerprint over journey-health-fingerprint', () => {
+  assert.strictEqual(
+    extractFingerprint('<!-- journey-health-fingerprint: jh:1 -->\n<!-- work-fingerprint: new:2 -->'),
+    'new:2'
+  );
+});
+
+test('extractFingerprint returns null when no marker is present', () => {
+  assert.strictEqual(extractFingerprint('no markers here'), null);
+});
+
+test('extractFingerprint returns null for null, undefined, and empty-string bodies', () => {
+  assert.strictEqual(extractFingerprint(null), null);
+  assert.strictEqual(extractFingerprint(undefined), null);
+  assert.strictEqual(extractFingerprint(''), null);
+});
+
+// AC 4 — facets
+
+test('parseRecordFacets: by:capture + parked', () => {
+  assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
+    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
+    grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    acceptance: null, isParentIssue: false,
+  });
+});
+
+test('parseRecordFacets: ready + auto:build + bot:in-progress', () => {
+  const result = parseRecordFacets(['ready', 'auto:build', 'bot:in-progress']);
+  assert.strictEqual(result.stage, 'ready');
+  assert.deepStrictEqual(result.grants, { build: true, merge: false });
+  assert.deepStrictEqual(result.bot, { inProgress: true, blocked: false });
+  assert.strictEqual(result.origin, null);
+});
+
+test('parseRecordFacets: auto:build + auto:merge grants both build and merge', () => {
+  const result = parseRecordFacets(['auto:build', 'auto:merge']);
+  assert.deepStrictEqual(result.grants, { build: true, merge: true });
+});
+
+test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', () => {
+  const result = parseRecordFacets(['bot:blocked']);
+  assert.deepStrictEqual(result.bot, { inProgress: false, blocked: true });
+});
+
+test('parseRecordFacets: empty label list', () => {
+  assert.deepStrictEqual(parseRecordFacets([]), {
+    origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
+    grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    acceptance: null, isParentIssue: false,
+  });
+});
+
+// Regression test for the line-by-line finding: normalizeLabelNames's `l.name`
+// branch had no null-guard, unlike its sibling helper (metrics.js's
+// labelName), so a null/undefined entry in a labels array — e.g. from a
+// malformed `gh api`/`gh issue list --json labels` response — threw instead
+// of being skipped. (grouping.js previously had its own byte-identical
+// `labelNames` copy too; it now imports normalizeLabelNames directly.)
+test('parseRecordFacets: a null or undefined entry in the labels array is skipped, not thrown on', () => {
+  const result = parseRecordFacets([null, 'ready', undefined, { name: 'risk:high' }]);
+  assert.strictEqual(result.stage, 'ready');
+  assert.strictEqual(result.risk, 'high');
+});
+
+test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched wontfix ignored', () => {
+  const result = parseRecordFacets([
+    { name: 'risk:high' }, { name: 'size:low' }, { name: 'priority:medium' }, { name: 'wontfix' },
+  ]);
+  assert.strictEqual(result.risk, 'high');
+  assert.strictEqual(result.size, 'low');
+  assert.strictEqual(result.priority, 'medium');
+  assert.strictEqual(result.stage, 'backlog');
+});
+
+// AC — the size facet, and its permanent effort:* read-side fallback
+
+test('parseRecordFacets: size:* is the primary label for the size facet', () => {
+  assert.strictEqual(parseRecordFacets(['size:high']).size, 'high');
+  assert.strictEqual(parseRecordFacets(['size:medium']).size, 'medium');
+  assert.strictEqual(parseRecordFacets(['size:low']).size, 'low');
+});
+
+test('parseRecordFacets: a pre-rename effort:* label still resolves to facets.size', () => {
+  assert.strictEqual(parseRecordFacets(['effort:high']).size, 'high');
+});
+
+test('parseRecordFacets: facets.effort is never populated — the facet is size', () => {
+  assert.strictEqual(parseRecordFacets(['size:high']).effort, undefined);
+  assert.strictEqual(parseRecordFacets(['effort:high']).effort, undefined);
+});
+
+test('parseRecordFacets: size:* wins over effort:* when both are present, in either array order', () => {
+  assert.strictEqual(parseRecordFacets(['size:low', 'effort:high']).size, 'low');
+  assert.strictEqual(parseRecordFacets(['effort:high', 'size:low']).size, 'low');
+});
+
+test('parseRecordFacets: repeated effort:* labels resolve last-wins, matching facets.size and local-store.js', () => {
+  assert.strictEqual(parseRecordFacets(['effort:low', 'effort:high']).size, 'high');
+  assert.strictEqual(parseRecordFacets(['effort:high', 'effort:low']).size, 'low');
+});
+
+test('parseRecordFacets: an out-of-range size:* value leaves the facet null and does not fall back to effort:*', () => {
+  assert.strictEqual(parseRecordFacets(['size:gigantic']).size, null);
+  assert.strictEqual(parseRecordFacets(['effort:gigantic']).size, null);
+});
+
+test('parseRecordFacets: size defaults to null when neither label is present', () => {
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).size, null);
+});
+
+test('parseRecordFacets: malformed ready+parked resolves deterministically to ready (ready > parked)', () => {
+  assert.strictEqual(parseRecordFacets(['ready', 'parked']).stage, 'ready');
+});
+
+test('parseRecordFacets: malformed parked+ready still resolves to ready regardless of array order', () => {
+  assert.strictEqual(parseRecordFacets(['parked', 'ready']).stage, 'ready');
+});
+
+// AC — acceptance axis (demo skill)
+
+test('parseRecordFacets: demo:pending sets acceptance to pending', () => {
+  assert.strictEqual(parseRecordFacets(['demo:pending']).acceptance, 'pending');
+});
+
+test('parseRecordFacets: demo:approved sets acceptance to approved', () => {
+  assert.strictEqual(parseRecordFacets(['demo:approved']).acceptance, 'approved');
+});
+
+test('parseRecordFacets: demo:changes-requested sets acceptance to changes-requested', () => {
+  assert.strictEqual(parseRecordFacets(['demo:changes-requested']).acceptance, 'changes-requested');
+});
+
+test('parseRecordFacets: acceptance defaults to null when no demo:* label is present', () => {
+  assert.strictEqual(parseRecordFacets([]).acceptance, null);
+  assert.strictEqual(parseRecordFacets(['ready', 'auto:build']).acceptance, null);
+});
+
+test('parseRecordFacets: LABELS exposes the three demo:* acceptance label strings', () => {
+  const { LABELS } = require('../../../bin/lib/issues/record');
+  assert.strictEqual(LABELS.DEMO_PENDING, 'demo:pending');
+  assert.strictEqual(LABELS.DEMO_APPROVED, 'demo:approved');
+  assert.strictEqual(LABELS.DEMO_CHANGES_REQUESTED, 'demo:changes-requested');
+});
+
+test('parseRecordFacets: ceremony:fast-lane sets facets.ceremony', () => {
+  assert.strictEqual(parseRecordFacets(['ceremony:fast-lane']).ceremony, 'fast-lane');
+});
+
+test('parseRecordFacets: ceremony:standard sets facets.ceremony', () => {
+  assert.strictEqual(parseRecordFacets(['ceremony:standard']).ceremony, 'standard');
+});
+
+test('parseRecordFacets: ceremony defaults to null when the label is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).ceremony, null);
+});
+
+// AC — framing axis (challenge framing-check, presence-only label)
+
+test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+});
+
+test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).framing, false);
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
+});
+
+// AC 5 — dependencies
+
+test('parseDependencies collects line-anchored Blocked-by numbers in order of appearance', () => {
+  assert.deepStrictEqual(parseDependencies('intro\nBlocked by #12\nBlocked by #7\ntail'), [12, 7]);
+});
+
+test('parseDependencies dedupes repeated numbers', () => {
+  assert.deepStrictEqual(parseDependencies('Blocked by #12\nBlocked by #12'), [12]);
+});
+
+test('parseDependencies returns an empty array when there are no dependency lines', () => {
+  assert.deepStrictEqual(parseDependencies('no deps'), []);
+});
+
+test('parseDependencies ignores mid-line occurrences (line-anchored only)', () => {
+  assert.deepStrictEqual(parseDependencies('see Blocked by #9 mid-line'), []);
+});
+
+test('hasOpenNativeBlocker returns true when any blockedBy node is OPEN', () => {
+  assert.strictEqual(
+    hasOpenNativeBlocker({ number: 39, blockedBy: { nodes: [{ number: 14, state: 'OPEN' }] } }),
+    true
+  );
+});
+
+test('hasOpenNativeBlocker returns false when all blockedBy nodes are CLOSED', () => {
+  assert.strictEqual(
+    hasOpenNativeBlocker({ number: 39, blockedBy: { nodes: [{ number: 14, state: 'CLOSED' }] } }),
+    false
+  );
+});
+
+test('hasOpenNativeBlocker returns false when blockedBy has no nodes', () => {
+  assert.strictEqual(hasOpenNativeBlocker({ number: 39, blockedBy: { nodes: [] } }), false);
+});
+
+test('hasOpenNativeBlocker returns false for null or undefined input', () => {
+  assert.strictEqual(hasOpenNativeBlocker(null), false);
+  assert.strictEqual(hasOpenNativeBlocker(undefined), false);
+});
+
+test('hasOpenNativeBlocker returns false when blockedBy is missing entirely', () => {
+  assert.strictEqual(hasOpenNativeBlocker({ number: 39 }), false);
+});
+
+test('buildNativeDependencyQuery aliases each number and requests blockedBy state', () => {
+  const q = buildNativeDependencyQuery([39, 37]);
+  assert.match(q, /i39: issue\(number:39\)/);
+  assert.match(q, /i37: issue\(number:37\)/);
+  assert.match(q, /blockedBy\(first:25\)/);
+  assert.match(q, /state/);
+  assert.match(q, /repository\(owner:\$owner,name:\$repo\)/);
+});
+
+test('buildNativeDependencyQuery returns null for an empty array', () => {
+  assert.strictEqual(buildNativeDependencyQuery([]), null);
+});
+
+test('buildNativeDependencyQuery returns null for non-array input', () => {
+  assert.strictEqual(buildNativeDependencyQuery(undefined), null);
+});
+
+// AC — dependency assumptions (cross-spec-promise-tracking)
+
+test('parseDependencyAssumptions captures trailing text after the colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #14: needs getStatus() to exist'),
+    [{ number: 14, assumption: 'needs getStatus() to exist' }],
+  );
+});
+
+test('parseDependencyAssumptions handles multiple lines in order of appearance', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #12: first thing\nBlocked by #7: second thing'),
+    [
+      { number: 12, assumption: 'first thing' },
+      { number: 7, assumption: 'second thing' },
+    ],
+  );
+});
+
+test('parseDependencyAssumptions omits bare Blocked-by lines with no colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #12\nBlocked by #7: has text'),
+    [{ number: 7, assumption: 'has text' }],
+  );
+});
+
+test('parseDependencyAssumptions returns an empty array when there are no assumption lines', () => {
+  assert.deepStrictEqual(parseDependencyAssumptions('Blocked by #9\nno colon here'), []);
+});
+
+test('parseDependencyAssumptions ignores mid-line occurrences (line-anchored only)', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('see Blocked by #9: mid-line text'),
+    [],
+  );
+});
+
+test('parseDependencyAssumptions trims leading whitespace after the colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:    padded text'),
+    [{ number: 3, assumption: 'padded text' }],
+  );
+});
+
+test('parseDependencyAssumptions does not let a bare colon-only line swallow the next line', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:\nBlocked by #7: real assumption'),
+    [{ number: 7, assumption: 'real assumption' }],
+  );
+});
+
+test('specShapedBody composes the gate-verified skeleton with string sections', () => {
+  const body = specShapedBody({
+    header: '**Kind:** x',
+    currentState: 'the state',
+    deliverables: 'the work',
+    acceptanceCriteria: 'the proof',
+    filedBy: '/claude-tweaks:harness-health',
+  });
+  assert.strictEqual(body, [
+    '**Kind:** x',
+    '## Current State',
+    'the state',
+    '## Deliverables',
+    'the work',
+    '## Acceptance Criteria',
+    'the proof',
+    '_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n\n'));
+});
+
+test('specShapedBody renders array sections as blank-line-separated blocks', () => {
+  const body = specShapedBody({
+    header: 'h',
+    currentState: ['block one', 'block two'],
+    deliverables: 'd',
+    acceptanceCriteria: 'a',
+    filedBy: '/claude-tweaks:code-health',
+  });
+  assert.ok(body.includes('## Current State\n\nblock one\n\nblock two\n\n## Deliverables'));
+});
+
+test('specShapedBody throws on a missing or empty section', () => {
+  assert.throws(() => specShapedBody({ header: 'h', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
+  assert.throws(() => specShapedBody({ header: 'h', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
+  assert.throws(() => specShapedBody({ header: 'h', currentState: [], deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
+});
+
+test('parseSubIssues reads a parent task list', () => {
+  const body = 'Design summary\n\n- [ ] #46\n- [x] #47\n- [ ] #48\n';
+  assert.deepEqual(parseSubIssues(body), [46, 47, 48]);
+});
+
+test('parseSubIssues ignores mid-line mentions and dedupes', () => {
+  // Mirrors parseDependencies: only a line-anchored entry declares a sub-issue.
+  const body = 'see - [ ] #99 inline\n- [ ] #46\n- [ ] #46\n';
+  assert.deepEqual(parseSubIssues(body), [46]);
+});
+
+test('parseSubIssues returns empty for absent or non-string bodies', () => {
+  assert.deepEqual(parseSubIssues(''), []);
+  assert.deepEqual(parseSubIssues(undefined), []);
+  assert.deepEqual(parseSubIssues('no task list here'), []);
+});
+
+test('parseRecordFacets sets isParentIssue from the parent-issue label', () => {
+  assert.strictEqual(parseRecordFacets([{ name: 'parent-issue' }]).isParentIssue, true);
+});
+
+test('parseRecordFacets sets isParentIssue from the legacy family:parent label', () => {
+  // Contract, not implementation echo: legacy labels on adopter repos must keep working ([IL-85]).
+  assert.strictEqual(parseRecordFacets([{ name: 'family:parent' }]).isParentIssue, true);
+});
+
+test('parseRecordFacets defaults isParentIssue to false', () => {
+  assert.strictEqual(parseRecordFacets([]).isParentIssue, false);
+  assert.strictEqual(parseRecordFacets([{ name: 'ready' }]).isParentIssue, false);
+});

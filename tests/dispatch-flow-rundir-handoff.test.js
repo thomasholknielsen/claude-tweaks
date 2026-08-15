@@ -111,29 +111,53 @@ test('steps-and-gates.md: a minted-but-empty PIPELINE_RUN_DIR is adopted and ini
   );
 });
 
-test('dispatch/SKILL.md Step 4: the group run directory is minted before any claim write', () => {
+test('dispatch/SKILL.md Step 4: mints the group run directory only, with no claim write present', () => {
+  // #464 moved claim acquisition out of dispatch Step 4 into flow's Step 2.8
+  // (skills/flow/claim-targets.md), so there is no claim write left here to order the mint
+  // against. This guard pins what replaced that ordering: the mint still runs, is logged to
+  // decisions.md, exposes $GROUP_RUN_ID — and no claim write has crept back in.
   const start = DISPATCH_SKILL.indexOf('### Step 4:');
   assert.notStrictEqual(start, -1, 'dispatch/SKILL.md no longer has a "### Step 4:" heading — this guard has lost its anchor');
   const end = DISPATCH_SKILL.indexOf('\n### Concurrency note', start);
   assert.notStrictEqual(end, -1, 'Step 4 is no longer followed by the Concurrency note — this guard has lost its anchor');
   const region = DISPATCH_SKILL.slice(start, end);
 
-  const mintIdx = region.search(/Mint this group's run directory, before writing anything/i);
-  assert.notStrictEqual(mintIdx, -1, 'Step 4 must mint the group\'s run directory before writing anything else — AC1');
+  assert.match(
+    region,
+    /\*\*Mint this group's run directory\.\*\*/,
+    'Step 4 must still mint the group\'s run directory — AC1',
+  );
 
-  const claimWriteIdx = region.indexOf('gh issue edit "$ISSUE" --add-label bot:in-progress');
-  assert.notStrictEqual(claimWriteIdx, -1, 'Step 4 no longer contains the bot:in-progress claim write — this guard has lost its anchor');
-  assert.ok(mintIdx < claimWriteIdx, 'minting must appear before the claim write in Step 4\'s procedure, not after — AC1');
+  assert.doesNotMatch(
+    region,
+    /--add-label bot:in-progress/,
+    'Step 4 must contain no bot:in-progress claim write — that bootstrap moved to flow/claim-targets.md\'s Step 2.8 (mentioning that it moved away is fine; actually invoking it is not)',
+  );
+  assert.doesNotMatch(
+    region,
+    /gh issue edit "\$ISSUE"/,
+    'Step 4 must contain no gh issue edit claim write of any kind',
+  );
+  assert.doesNotMatch(
+    region,
+    /gh issue comment/,
+    'Step 4 must not post a claim comment — that also moved to flow/claim-targets.md',
+  );
+  assert.match(
+    region,
+    /no claim written here either/,
+    'Step 4 must explicitly say no claim is written here — this is the mint-only invariant\'s own self-documentation',
+  );
 
   assert.match(
     region,
-    /Log one line to this firing's own\s*`decisions\.md`/i,
-    'minting must be logged to decisions.md — AC1\'s verification reads this log line',
+    /Log\s+one\s+line\s+to\s+this\s+firing's\s+own\s*`decisions\.md`/i,
+    'minting must still be logged to decisions.md — AC1\'s verification reads this log line',
   );
   assert.match(
     region,
     /\$GROUP_RUN_ID/,
-    'the claim write must key off the group\'s own minted identity, not the firing-level $RUN_ID',
+    'the minted directory\'s identity must still be exposed as $GROUP_RUN_ID for the Task calls to claim under',
   );
 });
 

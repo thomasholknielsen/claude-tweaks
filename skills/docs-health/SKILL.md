@@ -68,7 +68,7 @@ First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
 Then a JSON array of findings in exactly the shape shown in this prompt (empty array `[]` if none).
 Do not add narration before or after the status line and JSON array.
 
-[Use: Standard model — multi-file judgment, format-sensitive output]
+[Use: Standard] (contract § Model Selection — multi-file judgment, format-sensitive output)
 ```
 
 Assemble each target's returned findings before continuing that target's own Step 3.5 VERIFY GATE onward — Steps 3.5-6 still run per-target, sequentially, in the main thread, since they touch shared state (the issue index, dedup cache, filing) that cannot safely run in parallel Task agents.

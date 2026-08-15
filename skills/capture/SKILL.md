@@ -176,7 +176,7 @@ node -e "const fs=require('fs');
   console.log(record.path)" "$TITLE" "$BODY" "$TYPE"
 ```
 
-`{slug}` is derived from the title by `local-store.js`'s `deriveSlug(title, existingSlugs)` — lowercase, collapse runs of non-alphanumeric characters to a single `-`, trim leading/trailing `-`, truncate to 60 characters, dedupe against `existingSlugs` with a numeric suffix (`-2`, `-3`, ...). One deterministic implementation, not a hand-executed algorithm — see `bin/lib/issues/local-store.js` and its tests in `bin/lib/issues/tests/local-store.test.js`. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
+`{slug}` is derived from the title by `local-store.js`'s `deriveSlug(title, existingSlugs)` — lowercase, collapse runs of non-alphanumeric characters to a single `-`, trim leading/trailing `-`, truncate to 60 characters, dedupe against `existingSlugs` with a numeric suffix (`-2`, `-3`, ...). One deterministic implementation, not a hand-executed algorithm — see `bin/lib/issues/local-store.js` and its tests in `tests/bin-lib/issues/local-store.test.js`. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
 
 ## Entry Format
 

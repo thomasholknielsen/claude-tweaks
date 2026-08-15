@@ -178,7 +178,7 @@ On a GitHub-reachable project, offers pinning `integration-model: pr-first` to p
 
 If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens; the known early-exit paths (`bootstrap` scope, the Scope Selection Gate's Option 4, and Option 2's per-phase "Done") write it themselves instead, and are known cases rather than an exhaustive list.
 
-For the full exit-path rule, the merge-don't-overwrite write procedure, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
+For the full exit-path rule, the isolated-worktree write mechanism, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
 
 ---
 
@@ -274,7 +274,7 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 >
 > **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
 >
-> **Model tier:** Standard — applying the Frequency + Complexity + Danger rubric against Phase 2 evidence requires judgment across three dimensions per candidate, not mechanical enough for Fast and not synthesis-heavy enough to need Capable.
+> **Model profile:** [Use: Standard] — three-dimension judgment against Phase 2 evidence; not mechanical enough for Fast, not synthesis-heavy enough for Capable. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 
 Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become backlog work records with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
@@ -300,7 +300,7 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 
 > **Parallel execution (conditional):** Under Update Mode, when the drift-patch audit's read set (`_shared/harness-health-analysis.md`) covers ≥ 8 existing skills, dispatch the per-skill audit as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`) — the same threshold and pattern Phase 4 already uses for scoring. Otherwise, run the audit inline in the main thread.
 >
-> **Model tier:** Standard — comparing each skill's content against the canonical template across multiple conformance dimensions (structure, sync with reference files, quality gates) is format-sensitive checking, not synthesis-heavy enough to need Capable; defaulting to Capable across 8+ agents is roughly a 5x cost multiplier for no judgment gain.
+> **Model profile:** [Use: Standard] — format-sensitive conformance checking, not synthesis-heavy; defaulting to Capable across 8+ agents costs ~5x for no judgment gain. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 
 **Initial Mode** generates full SKILL.md files for each approved skill. **Update Mode** produces targeted patches for drifted skills and full SKILL.md for gap skills. Each generated skill must pass quality gates (codebase-grounded examples, working commands, project-specific anti-patterns). Skill depth scales with complexity score.
 
@@ -346,17 +346,19 @@ Both modes lead with a **Verified & Consistent** section — an affirmative repo
 
 For the complete summary templates for both modes, read `summary-templates.md` in this skill's directory.
 
+### Isolated Write Step
+
+Every write below happens inside an isolated worktree, **unconditionally**, regardless of the current `worktree.always` policy — reconnaissance (Phases 1-8.5) stays direct. Read `isolated-write-step.md` for the full mechanism: scope, dirty-file pre-check, provisioning, ff-only merge-back.
+
 ### Actions Performed
 
-After writing files, surface what was created as a `| Action | Detail | Ref |` table generated from the actual artifacts produced this run — only rows for actions that actually occurred, and the Worktree policy row always last. The full row set (bootstrap, starter files, statusline, design and shadcn integration, work records, GitHub remote, cloud parity, routines, routine re-sync, worktree policy, classification, CLAUDE.md, skills, rules, journeys, doc registry, backlog) is in `summary-templates.md` — the same file this phase already reads for the mode summaries, so it costs no extra load.
+After the Isolated Write Step lands, surface what was created as a `| Action | Detail | Ref |` table generated from the actual artifacts produced this run — only rows for actions that actually occurred, and the Worktree policy row always last. The full row set (bootstrap, starter files, statusline, design and shadcn integration, work records, GitHub remote, cloud parity, routines, routine re-sync, worktree policy, classification, CLAUDE.md, skills, rules, journeys, doc registry, backlog) is in `summary-templates.md` — the same file this phase already reads for the mode summaries, so it costs no extra load.
 
 Execute only after user confirmation.
 
 ### Worktree Policy Finalization
 
-Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, write it now; the `bootstrap`-only scope already wrote its own, so there is nothing to do here for that scope.
-
-For the deferral rationale, the merge-don't-overwrite write procedure, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
+If Step 6 queued a `worktree.always` decision, write it now, bundled into "Isolated Write Step"'s worktree/commit/merge; early-exit paths that skip Phase 9 write it standalone the same way. Still the last filesystem action of the invocation. Read `worktree-policy-finalization.md` for merge-don't-overwrite mechanics and the "Yes" message.
 
 ---
 

@@ -53,7 +53,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 
 **`unconfirmed` findings can originate from several sources**, and all render identically in this table with `(low-confidence)` appended — the caller does not distinguish them:
 
-- No reproduction agreement (Step 3) — a lens's finding surfaced by only one of its two reproduction agents.
+- No reproduction agreement (Step 3) — a lens's finding surfaced by only one of its two reproduction agents. **Direct-verification override:** this specific source can still resolve to `confirmed` — see `step3-lens-dispatch.md`'s "Direct-verification override" — when the reviewing agent independently reads the actual conflicting source text (not the agent report) and confirms the finding; that override is additional to reproduction-pair agreement, not a substitute for it, and does not apply to any of the other `unconfirmed` sources below.
 - Cross-lens debate converged negative (Step 3.5) — both judges disagreed.
 - A `confirmed` finding downgraded by the Per-Candidate Refutation Pass (Step 3.5, `xhigh`/`max` only) — the finding survived reproduction (and possibly debate) but a later falsification agent refuted it.
 - Gap-sweep, single-source by design (Step 3.6, `xhigh`/`max` only) — a fresh-eyes finding with no reproduction partner, by design (pairing it against a second identical fresh-eyes agent would defeat its purpose).
@@ -141,7 +141,7 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 >
-> **Model tier:** Standard (Sonnet) — fix agents make targeted code edits constrained to their assigned files. Upgrade to Capable (Opus) only when the fix requires architectural redesign rather than localized correction.
+> **Model profile:** [Use: Standard] — fix agents make targeted code edits constrained to their assigned files. Upgrade to Capable only when the fix requires architectural redesign rather than localized correction. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 >
 > **Output template (each agent must follow exactly):**
 >

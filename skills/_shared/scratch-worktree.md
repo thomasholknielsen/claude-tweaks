@@ -2,9 +2,11 @@
 
 Canonical procedure for provisioning a throwaway, write-legal checkout once a feature
 worktree is already gone. Consumed by `/wrap-up`'s `residue-sweep.md` (the `remedy: auto`
-branch — an auto-fixable residue finding whose fix needs an `Edit`/`Write`/`commit`/`push`)
-and by `/tidy` (record-creation writes under `work-backend: local-files`, and the Step 7
-mutations described under `worktree.always: true`).
+branch — an auto-fixable residue finding whose fix needs an `Edit`/`Write`/`commit`/`push`),
+by `/tidy` (record-creation writes under `work-backend: local-files`, and the Step 7
+mutations described under `worktree.always: true`), and by `/init` (`SKILL.md`'s Phase 9
+"Isolated Write Step" and `worktree-policy-finalization.md`) — the last with a trigger that
+differs from the other two, see "1. When to provision" below.
 
 **Why this exists.** Once a feature worktree is torn down, `/wrap-up` and `/tidy` are back in
 the main checkout. On a project with `worktree.always: true` set
@@ -38,13 +40,23 @@ the same time:
 
 ## 1. When to provision
 
-Provision **only on demand**. The trigger is at least one finding whose remedy is `remedy:
-auto` **and** whose fix needs a write the coverage block above covers. Two remedy shapes never
-qualify, because both are already legal straight from the main checkout: removing a worktree
-(`git worktree remove` / `ExitWorktree`) and deleting a local branch (`git branch -d`). A run
-that finds no such finding must never create a worktree — nothing below is unconditional, and
-a project with no `worktree.always` policy at all never needs this procedure in the first
-place, since every write is already legal there.
+For `/wrap-up` and `/tidy`, provision **only on demand**. The trigger is at least one finding
+whose remedy is `remedy: auto` **and** whose fix needs a write the coverage block above
+covers. Two remedy shapes never qualify, because both are already legal straight from the main
+checkout: removing a worktree (`git worktree remove` / `ExitWorktree`) and deleting a local
+branch (`git branch -d`). A run that finds no such finding must never create a worktree —
+nothing below is unconditional for these two callers, and a project with no `worktree.always`
+policy at all never needs this procedure for them in the first place, since every write is
+already legal there.
+
+`/init` is the one exception to "only on demand." It provisions **unconditionally** for its
+own Phase 9 writes (and the deferred `worktree.always` write), regardless of whether
+`worktree.always` is set at all. The goal there is broader than gate compliance — the same
+concurrent-session collision protection `worktree.always` exists to provide, applied to
+`/init`'s own output even on a project that hasn't opted into the policy — see `SKILL.md`'s
+Phase 9 "Isolated Write Step" for the full rationale. Sections 2-7 below apply identically
+once `/init` decides to provision (Section 4's one-commit deviation aside — see its own note);
+only the trigger differs.
 
 ## 2. Creating it
 
@@ -78,6 +90,11 @@ Apply each remedy as **its own commit**, in this same worktree, one at a time. N
 or more remedies into a single commit — a mid-sequence failure this way leaves every
 already-applied remedy committed and intact, instead of losing completed work along with
 whichever remedy failed.
+
+`/init` deviates here by design: its Phase 9 writes are one already-confirmed, atomic unit
+(the user approved the whole batch in one gate), not a list of independent auto-fixes, so it
+lands them as a **single** commit rather than one per file. This is the one documented
+exception to "own commit" above.
 
 ## 5. Returning to the integration branch
 
@@ -139,7 +156,11 @@ silently — and would itself become a `kind: worktree` finding on the next resi
 
 ## 7. Shell constraint
 
-After entering a worktree, `&&` chains and heredocs are refused by shape — issue one plain
-command per Bash call. Use `Edit` to append to a file rather than a heredoc append, and (as
-noted in step 5) resolve any value a later call needs explicitly and paste it in literally —
-it will not survive in a shell variable between calls.
+After entering a worktree, the Claude Code CLI harness enforces limits on what Bash commands can run in a single call, independent of the command's effect on the filesystem. The boundary is pragmatic, not principled — it reflects what the harness can efficiently verify stays isolated.
+
+Empirically observed boundary (2026-08-15, tested live against the harness build available then — read this as "last observed," not a guarantee; earlier reports from 2026-08-09 and this record's own #5 describe a stricter boundary, and may reflect harness changes over time):
+
+- **Pass:** single plain commands, commands with a single `$(...)` substitution or a `|` pipeline, 2-command `&&` chains of simple commands, standalone heredocs (`cat > file <<EOF`) regardless of target location.
+- **Refused:** two or more independent `$(...)` substitutions in one command (e.g., comparing `$(git rev-parse A)` against `$(git rev-parse B)` inside a `[ ]` test), `;`-separated sequences of top-level commands, any `for`/`while` loop (even with no filesystem access or all-read body).
+
+**Practical workaround:** default to one plain command per Bash call inside a worktree session. Use `Edit` to append to a file rather than a heredoc append; use the `Write` tool to create a script when multi-step logic is unavoidable, then invoke it with a single plain command. Resolve any value a later call needs explicitly and paste it in literally — it will not survive in a shell variable between calls.

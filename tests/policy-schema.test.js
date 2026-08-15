@@ -45,8 +45,11 @@ test('POLICY_KEYS entries are unique', () => {
   // housekeeping-auto-merge — the two threshold keys plus the tidy
   // housekeeping-PR arming grant, see skills/_shared/github-pr-scan.md's
   // 'unarmed ready PR' check.
-  assert.strictEqual(POLICY_KEYS.length, 47);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 47);
+  // 47 -> 48, #363 (plans-retention policy): superpowers-plans-retention —
+  // configurable docs/superpowers/plans/*.md retention at wrap-up cleanup
+  // item 1, default keep-forever preserves today's unconditional behavior.
+  assert.strictEqual(POLICY_KEYS.length, 48);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 48);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -387,6 +390,32 @@ test('doc-convention.adr is an enum with no default — unset means "detect and 
   const result = auditPolicy(bad);
   assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
   assert.strictEqual(result.invalidValues[0].key, 'doc-convention.adr');
+});
+
+test('superpowers-plans-retention is an enum defaulting to keep-forever', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'superpowers-plans-retention');
+  assert.ok(key, 'superpowers-plans-retention missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'enum');
+  assert.deepStrictEqual(key.values, ['keep-forever', 'prune-after-wrapup', 'ask']);
+  assert.strictEqual(key.default, 'keep-forever');
+
+  assert.strictEqual(resolveValue('superpowers-plans-retention', undefined), 'keep-forever');
+  assert.strictEqual(resolveValue('superpowers-plans-retention', 'prune-after-wrapup'), 'prune-after-wrapup');
+  assert.strictEqual(resolveValue('superpowers-plans-retention', 'ask'), 'ask');
+  // Out-of-enum degrades to the default via the existing resolveValue coercion contract — no throw.
+  assert.strictEqual(resolveValue('superpowers-plans-retention', 'delete-immediately'), 'keep-forever');
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'superpowers-plans-retention: prune-after-wrapup\n');
+  const ok = auditPolicy(repo);
+  assert.deepStrictEqual(ok.invalidValues, []);
+  assert.deepStrictEqual(ok.unrecognizedKeys, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'superpowers-plans-retention: delete-everything\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'superpowers-plans-retention');
 });
 
 test('trust-revert-window-days is a recognized integer key with a floor of 1, defaulting to 14', () => {

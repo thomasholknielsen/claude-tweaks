@@ -202,6 +202,28 @@ test('renderProject: resolves a linked worktree to the main project name', () =>
   }
 });
 
+test('renderAccount: extracts slug from a .claude-accounts transcript_path', () => {
+  assert.strictEqual(
+    sl.renderAccount({ transcript_path: '/Users/x/.claude-accounts/personal-gmail/projects/foo/session.jsonl' }),
+    'acct: personal-gmail',
+  );
+});
+
+test('renderAccount: matches a Windows-style backslash path', () => {
+  assert.strictEqual(
+    sl.renderAccount({ transcript_path: 'C:\\Users\\x\\.claude-accounts\\work\\projects\\foo\\session.jsonl' }),
+    'acct: work',
+  );
+});
+
+test('renderAccount returns null on a single-account layout (no .claude-accounts segment)', () => {
+  assert.strictEqual(sl.renderAccount({ transcript_path: '/Users/x/.claude/projects/foo/session.jsonl' }), null);
+});
+
+test('renderAccount returns null when transcript_path is missing', () => {
+  assert.strictEqual(sl.renderAccount({}), null);
+});
+
 test('renderContext: uses used_percentage when provided', () => {
   const r = sl.renderContext({ context_window: { used_percentage: 18 } });
   assert.ok(r.includes('ctx: 18%'));
@@ -563,6 +585,17 @@ test('end-to-end: project segment is always present, even with empty input', () 
   const absCommonDir = path.isAbsolute(commonDir) ? commonDir : path.resolve(process.cwd(), commonDir);
   const expectedName = path.basename(path.dirname(absCommonDir));
   assert.ok(out.startsWith(expectedName), `expected project segment: ${out}`);
+});
+
+test('end-to-end: transcript_path under .claude-accounts renders the acct segment at the end', () => {
+  const out = runStatusline(
+    {
+      model: { display_name: 'Sonnet 5' },
+      transcript_path: '/Users/x/.claude-accounts/personal-gmail/projects/foo/session.jsonl',
+    },
+    { NO_COLOR: '1' },
+  );
+  assert.ok(out.endsWith('acct: personal-gmail'), `expected acct segment at end: ${out}`);
 });
 
 test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {

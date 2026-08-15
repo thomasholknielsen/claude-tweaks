@@ -11,13 +11,13 @@ payload assembly, facet parsing). If the two disagree, one of them has a bug —
 ## Lifecycle spine
 
 ```
-BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
-   │ ▲          ▲              │ ▲                      │                                │                    (completed)
-   │ │          │              │ └─── flag back ────────┘                                │
-   │ │          │              │      (remove ready)                                     ├──► retry ceiling: bot:blocked,
-   │ │   born-ready (health    │                                                         │    grants removed → needs re-triage
-   │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger       │
-   │ │   into READY)                                                                     └──► failure: auto:merge revoked unless transient;
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch dispatches──► BUILDING ──user merges──► CLOSED
+   │ ▲          ▲              │ ▲                      │                                    │                    (completed)
+   │ │          │              │ └─── flag back ────────┘                                    │
+   │ │          │              │      (remove ready)                                         ├──► retry ceiling: bot:blocked,
+   │ │   born-ready (health    │                                                             │    grants removed → needs re-triage
+   │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger           │
+   │ │   into READY)                                                                         └──► failure: auto:merge revoked unless transient;
    │ └── parked record wakes (trigger fires, parked removed)                                  auto:build retries next firing
    └──── closed as not-planned (wontfix / duplicate / absorbed) at any stage
 ```

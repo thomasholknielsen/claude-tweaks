@@ -39,7 +39,7 @@ Possible QA statuses (the four canonical values from qa-reporting.md's Status de
 | {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/captured/accepted} |
 (or: No findings — code is clean.)
 
-> This table lists `confirmed` findings — findings reproduced by both agents in the per-lens reproduction pair, or upgraded to `confirmed` after a cross-lens debate round (Step 3.5). At `review-effort: xhigh`, `unconfirmed` findings (single-source, or debate converged negative) also appear here, labeled `(low-confidence)`. At `max`, `contested` findings (debate inconclusive) also appear here too, labeled `(contested — {verdicts})`. Below `xhigh`, `unconfirmed`/`contested` findings are staged to the Wrap-Up Review Console instead — they are not silently dropped either way. Override or apply each in batch from the Console.
+> This table lists `confirmed` findings — findings reproduced by both agents in the per-lens reproduction pair, elevated via the reviewer's own direct-verification override (`step3-lens-dispatch.md`), or upgraded to `confirmed` after a cross-lens debate round (Step 3.5). At `review-effort: xhigh`, `unconfirmed` findings (single-source, or debate converged negative) also appear here, labeled `(low-confidence)`. At `max`, `contested` findings (debate inconclusive) also appear here too, labeled `(contested — {verdicts})`. Below `xhigh`, `unconfirmed`/`contested` findings are staged to the Wrap-Up Review Console instead — they are not silently dropped either way. Override or apply each in batch from the Console.
 
 ### Implementation Hindsight
 - {finding} → {change now / capture / accept as-is — not an improvement because {reason}}

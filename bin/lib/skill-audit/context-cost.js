@@ -15,6 +15,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
+const { listSkillDirs } = require('./skill-catalog');
 
 const CEILING_BYTES = 40 * 1024;
 
@@ -39,14 +40,10 @@ function skillsDir(repoRoot) {
 // are lazy-loaded and deliberately excluded.
 function measureSkills(repoRoot) {
   const dir = skillsDir(repoRoot);
-  return fs
-    .readdirSync(dir)
-    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
-    .sort()
-    .map((name) => {
-      const file = path.join(dir, name, 'SKILL.md');
-      return { name, bytes: fs.statSync(file).size };
-    });
+  return listSkillDirs(repoRoot).map((name) => {
+    const file = path.join(dir, name, 'SKILL.md');
+    return { name, bytes: fs.statSync(file).size };
+  });
 }
 
 // Sub-files are not free either: a stub that cites one costs the whole file when
@@ -105,21 +102,47 @@ function extractDescription(content) {
   return value;
 }
 
+// True when a raw `description:` frontmatter line (as it sits on disk) would
+// have a YAML parser silently truncate it — #393. Operates on the RAW line,
+// not extractDescription's output: the file on disk always holds the full
+// pre-truncation text (nothing here runs a YAML parser), so checking the
+// already-extracted value can't detect what a real parser would have dropped.
+// A quoted scalar (`description: "..."`) is immune — everything inside the
+// quotes is literal. An unquoted (plain) scalar starts a YAML comment at a
+// `#` that is either the first character of the value or preceded by
+// whitespace; a `#` glued to a non-space character (`issue#5`) is not a
+// comment marker and is not a hazard.
+function descriptionHashHazard(line) {
+  const value = line.replace(/^description:/, '').replace(/^\s+/, '');
+  if (value.startsWith('"')) return false;
+  return /(^|\s)#/.test(value);
+}
+
+// Every shipped skill whose description: line carries the #393 hazard.
+// [] means the corpus is currently clean — the historical instance
+// (skills/dispatch/SKILL.md) was independently fixed by #394's trim.
+function findDescriptionHashHazards(repoRoot) {
+  const dir = skillsDir(repoRoot);
+  return listSkillDirs(repoRoot).filter((name) => {
+    const content = fs.readFileSync(path.join(dir, name, 'SKILL.md'), 'utf8');
+    const split = splitFrontmatterFence(content);
+    if (!split) return false;
+    const line = split.frontmatter.find((l) => /^description:\s*/.test(l));
+    return line ? descriptionHashHazard(line) : false;
+  });
+}
+
 // Every SKILL.md's description length, in characters (not bytes — an em dash
 // or accented letter is one character but multiple UTF-8 bytes, and this
 // ceiling is about how much a human/LLM reads, not disk usage).
 function measureDescriptions(repoRoot) {
   const dir = skillsDir(repoRoot);
-  return fs
-    .readdirSync(dir)
-    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
-    .sort()
-    .map((name) => {
-      const file = path.join(dir, name, 'SKILL.md');
-      const content = fs.readFileSync(file, 'utf8');
-      const description = extractDescription(content);
-      return { name, chars: description === null ? 0 : [...description].length, description };
-    });
+  return listSkillDirs(repoRoot).map((name) => {
+    const file = path.join(dir, name, 'SKILL.md');
+    const content = fs.readFileSync(file, 'utf8');
+    const description = extractDescription(content);
+    return { name, chars: description === null ? 0 : [...description].length, description };
+  });
 }
 
 function overDescriptionCeiling(entries) {
@@ -140,6 +163,8 @@ module.exports = {
   totalBytes,
   headroom,
   extractDescription,
+  descriptionHashHazard,
+  findDescriptionHashHazards,
   measureDescriptions,
   overDescriptionCeiling,
   totalDescriptionChars,

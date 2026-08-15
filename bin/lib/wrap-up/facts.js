@@ -45,14 +45,21 @@ function dirNonEmpty(dirPath) {
 }
 
 function listMarkdownFiles(dirPath, relativePrefix) {
+  let entries;
   try {
-    return fs
-      .readdirSync(dirPath)
-      .filter((name) => name.endsWith('.md'))
-      .map((name) => `${relativePrefix}/${name}`);
+    entries = fs.readdirSync(dirPath, { withFileTypes: true });
   } catch {
     return [];
   }
+  const results = [];
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      results.push(...listMarkdownFiles(path.join(dirPath, entry.name), `${relativePrefix}/${entry.name}`));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      results.push(`${relativePrefix}/${entry.name}`);
+    }
+  }
+  return results;
 }
 
 // Lines after a `## Commands` heading up to (not including) the next `## `
