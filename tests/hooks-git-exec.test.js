@@ -76,6 +76,56 @@ test('isIndeterminate: success (null failure) is not indeterminate', () => {
   assert.strictEqual(isIndeterminate(null), false);
 });
 
+test('runGit: CT_HOOKS_GIT_TIMEOUT_MS env override raises the budget when opts.timeoutMs is not given (#104)', () => {
+  // Sibling `npm test` runs contending for the same machine can push a plain
+  // git call past DEFAULT_TIMEOUT_MS (#104 measured 12.1s). A 1ms override
+  // still can't complete any real invocation, so this deterministically
+  // proves the env var reaches runGit's actual timeout, not just that a low
+  // value happens to work — same technique as the `timeoutMs: 1` test above.
+  const dir = gitRepo();
+  const prior = process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+  process.env.CT_HOOKS_GIT_TIMEOUT_MS = '1';
+  try {
+    const { failure } = runGit(['rev-parse', '--show-toplevel'], dir);
+    assert.strictEqual(failure, FAILURE.TIMEOUT);
+  } finally {
+    if (prior === undefined) delete process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+    else process.env.CT_HOOKS_GIT_TIMEOUT_MS = prior;
+  }
+});
+
+test('runGit: an explicit opts.timeoutMs still wins over CT_HOOKS_GIT_TIMEOUT_MS', () => {
+  // Tests that force the timeout branch deterministically via opts.timeoutMs
+  // (e.g. the #134 tests above) must not be silently overridden by whatever
+  // this env var happens to be set to in the running test process.
+  const dir = gitRepo();
+  const prior = process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+  process.env.CT_HOOKS_GIT_TIMEOUT_MS = '60000';
+  try {
+    const { failure } = runGit(['rev-parse', '--show-toplevel'], dir, { timeoutMs: 1 });
+    assert.strictEqual(failure, FAILURE.TIMEOUT, 'explicit opts.timeoutMs must still apply');
+  } finally {
+    if (prior === undefined) delete process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+    else process.env.CT_HOOKS_GIT_TIMEOUT_MS = prior;
+  }
+});
+
+test('runGit: a non-numeric or non-positive CT_HOOKS_GIT_TIMEOUT_MS falls back to DEFAULT_TIMEOUT_MS', () => {
+  const dir = gitRepo();
+  const prior = process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+  for (const bad of ['not-a-number', '0', '-5', '']) {
+    process.env.CT_HOOKS_GIT_TIMEOUT_MS = bad;
+    try {
+      const { stdout, failure } = runGit(['rev-parse', '--show-toplevel'], dir);
+      assert.strictEqual(failure, null, `bad override ${JSON.stringify(bad)} must not break a normal call`);
+      assert.strictEqual(stdout, fs.realpathSync(dir));
+    } finally {
+      if (prior === undefined) delete process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+      else process.env.CT_HOOKS_GIT_TIMEOUT_MS = prior;
+    }
+  }
+});
+
 test('the default budget has real headroom over the peak measured under load', () => {
   // #134 measured the enforcement-critical rev-parse at 2492ms maximum under 24
   // concurrent workers plus two full test suites. The previous 3000ms budget
