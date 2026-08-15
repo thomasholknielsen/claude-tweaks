@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { detectEntrypoints } = require('../candidates-dead-code');
+const { detectEntrypoints } = require('../../../bin/lib/code-health/candidates-dead-code');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-deadcode-'));
@@ -132,7 +132,7 @@ test('detectEntrypoints: bin/lib/hooks/*.js is NOT an implicit entrypoint when b
   assert.ok(!eps.has('bin/lib/hooks/session-start.js'), 'a literal (non-computed) require must not trigger the implicit-entrypoint carve-out');
 });
 
-const { extractModuleExports } = require('../candidates-dead-code');
+const { extractModuleExports } = require('../../../bin/lib/code-health/candidates-dead-code');
 
 // ── extractModuleExports ─────────────────────────────────────────────────────
 
@@ -227,7 +227,7 @@ test('extractModuleExports: a "module.exports = {" inside a string value is not 
   assert.deepStrictEqual(found.map((f) => f.symbol), ['real']);
 });
 
-const { isReferenced } = require('../candidates-dead-code');
+const { isReferenced } = require('../../../bin/lib/code-health/candidates-dead-code');
 
 // ── isReferenced ──────────────────────────────────────────────────────────────
 
@@ -355,14 +355,14 @@ test('isReferenced: the same linesByFile map is safely reused across multiple ca
   assert.strictEqual(isReferenced('usedFn', 'lib/a.js', declRange, allFiles, linesByFile), true);
 });
 
-const { isFileOrphan, referencedFileSpecifiers } = require('../candidates-dead-code');
+const { isFileOrphan, referencedFileSpecifiers } = require('../../../bin/lib/code-health/candidates-dead-code');
 
 // ── isFileOrphan ──────────────────────────────────────────────────────────────
 
 test('isFileOrphan: a file required by another file (relative path, any depth) is not orphan', () => {
   const contentsByFile = new Map([
     ['lib/used.js', 'module.exports = {};\n'],
-    ['bin/main.js', "const used = require('../lib/used');\n"],
+    ['bin/main.js', "const used = require('../../../bin/lib/code-health/lib/used');\n"],
   ]);
   const allFiles = ['lib/used.js', 'bin/main.js'];
   assert.strictEqual(isFileOrphan('lib/used.js', allFiles, contentsByFile), false);
@@ -480,7 +480,7 @@ test('referencedFileSpecifiers: finds require, static import, side-effect import
 });
 
 const { execFileSync } = require('node:child_process');
-const { candidatesDeadCode, scanDeadCode, listTrackedSourceFiles, isGlobDiscoveredTestFile } = require('../candidates-dead-code');
+const { candidatesDeadCode, scanDeadCode, listTrackedSourceFiles, isGlobDiscoveredTestFile } = require('../../../bin/lib/code-health/candidates-dead-code');
 
 function gitInit(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);
@@ -543,7 +543,7 @@ function buildAc1Fixture() {
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.writeFileSync(
     path.join(root, 'bin', 'entry.js'),
-    "require('../lib/caller');\nfunction entryOnlyFn() { return 4; }\nmodule.exports = { entryOnlyFn };\n",
+    "require('../../../bin/lib/code-health/lib/caller');\nfunction entryOnlyFn() { return 4; }\nmodule.exports = { entryOnlyFn };\n",
   );
 
   // A gitignored file containing an otherwise-dead-looking export — must
@@ -619,7 +619,7 @@ test('AC2: a spread-based barrel re-export beyond one hop produces no candidate 
   );
   fs.writeFileSync(
     path.join(root, 'bin', 'main.js'),
-    "const { fromA, fromB } = require('../lib/barrel');\nfromA();\nfromB();\n",
+    "const { fromA, fromB } = require('../../../bin/lib/code-health/lib/barrel');\nfromA();\nfromB();\n",
   );
   const candidates = candidatesDeadCode(root);
   assert.deepStrictEqual(candidates, []);
@@ -750,7 +750,7 @@ test('candidates are emitted in a deterministic file-then-symbol order', () => {
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
   // Entrypoint — keeps lib/multi.js off the orphan list so its exports get checked.
-  fs.writeFileSync(path.join(root, 'bin', 'main.js'), "require('../lib/multi');\n");
+  fs.writeFileSync(path.join(root, 'bin', 'main.js'), "require('../../../bin/lib/code-health/lib/multi');\n");
   fs.writeFileSync(
     path.join(root, 'lib', 'multi.js'),
     'function beta() { return 1; }\nfunction alpha() { return 2; }\nmodule.exports = { beta, alpha };\n',
@@ -788,7 +788,7 @@ test('each candidate carries evidence naming its own file and symbol', () => {
 // first so the header's illustrative `require('./a')`-style examples don't
 // count as imports.
 test('cursor-neutrality: the module imports nothing beyond fs/path/child_process/./focus-generators — never scope.js or next-slice', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'candidates-dead-code.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'bin', 'lib', 'code-health', 'candidates-dead-code.js'), 'utf8');
   const codeOnly = src.split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
   const imports = (codeOnly.match(/require\(\s*['"][^'"]+['"]\s*\)/g) || []).sort();
   // './focus-generators' is the shared framework registry this module

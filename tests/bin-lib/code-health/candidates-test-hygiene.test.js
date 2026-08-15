@@ -14,7 +14,7 @@ const {
   findPairing,
   scanTestHygiene,
   candidatesTestHygiene,
-} = require('../candidates-test-hygiene');
+} = require('../../../bin/lib/code-health/candidates-test-hygiene');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-testhygiene-'));
@@ -68,7 +68,7 @@ function buildAc1Fixture(root) {
   write(
     root,
     'lib/tests/paired.test.js',
-    "const assert = require('node:assert/strict');\nconst { pairedFn } = require('../paired');\nrequire('node:test').test('x', () => { assert.strictEqual(pairedFn(1), 2); });\n",
+    "const assert = require('node:assert/strict');\nconst { pairedFn } = require('../../../bin/lib/code-health/paired');\nrequire('node:test').test('x', () => { assert.strictEqual(pairedFn(1), 2); });\n",
   );
 
   // Assertion-free test file (still references paired.js by name, so it
@@ -111,7 +111,7 @@ test('AC1b: a paired file with one unreferenced exported symbol yields a symbol-
   write(
     root,
     'lib/tests/multi.test.js',
-    "const assert = require('node:assert/strict');\nconst { usedOne } = require('../multi');\nrequire('node:test').test('x', () => { assert.strictEqual(usedOne(1), 1); });\n",
+    "const assert = require('node:assert/strict');\nconst { usedOne } = require('../../../bin/lib/code-health/multi');\nrequire('node:test').test('x', () => { assert.strictEqual(usedOne(1), 1); });\n",
   );
   const candidates = candidatesTestHygiene(root);
   // The file itself must NOT be a file-level gap (it is paired).

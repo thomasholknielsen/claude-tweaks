@@ -17,7 +17,7 @@ const {
   candidatesAbstractionPolice,
   BODY_OVERLAP_THRESHOLD,
   MAX_BODY_CHARS,
-} = require('../candidates-abstraction-police');
+} = require('../../../bin/lib/code-health/candidates-abstraction-police');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-abspolice-'));

@@ -8,9 +8,9 @@ const {
   registerPipelineRunDirTest,
   registerNoEmojiTest,
   registerRequiredTokenTests,
-} = require('../../health-core/tests/skill-md-house-checks');
+} = require('../health-core/skill-md-house-checks');
 
-const SKILL = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
+const SKILL = path.resolve(__dirname, '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('frontmatter declares the canonical name', () => {
@@ -38,7 +38,7 @@ test('docs/skill-graph.md records the edges to /specify, /capture, /tidy, /flow'
   // These edges used to be asserted against this skill's own Relationship table.
   // That table is gone; the edges live in the graph, which uses the short form.
   const graph = fs.readFileSync(
-    path.join(__dirname, '..', '..', '..', '..', 'docs', 'skill-graph.md'), 'utf8',
+    path.join(__dirname, '..', '..', '..', 'docs', 'skill-graph.md'), 'utf8',
   );
   for (const s of ['/specify', '/capture', '/tidy', '/flow']) {
     assert.ok(graph.includes(s), `docs/skill-graph.md is missing the edge to ${s}`);
@@ -47,7 +47,7 @@ test('docs/skill-graph.md records the edges to /specify, /capture, /tidy, /flow'
 
 // ── v2 code-health SKILL.md anchors ─────────────────────────────────────────
 
-const skillMdPath = path.join(__dirname, '..', '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
+const skillMdPath = path.join(__dirname, '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
 
 test('v2 SKILL.md: exists', () => {
   assert.ok(fs.existsSync(skillMdPath), `SKILL.md not found at ${skillMdPath}`);
