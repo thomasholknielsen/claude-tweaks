@@ -357,6 +357,25 @@ test('writeRecord writes framing: true, readRecord reads it back, and a false fr
   assert.strictEqual(readRecord(withoutFraming).facets.framing, false);
 });
 
+// notPlanned mirrors framing's presence-only convention exactly — written only
+// when true, absent-on-read falls back to sharedFacetDefaults()' false. Added
+// alongside the wontfix-label parse in record.js (refs #513) so both drivers
+// carry the shared facet symmetrically.
+test('writeRecord writes not-planned: true, readRecord reads it back, and a false notPlanned writes no line', (t) => {
+  const dir = tmp(t);
+  const withNotPlanned = path.join(dir, '3-c.md');
+  writeRecord(withNotPlanned, { title: 'C', body: 'b', facets: baseFacets({ notPlanned: true }) });
+  const rawWith = fs.readFileSync(withNotPlanned, 'utf8');
+  assert.ok(/^not-planned: true$/m.test(rawWith));
+  assert.strictEqual(readRecord(withNotPlanned).facets.notPlanned, true);
+
+  const withoutNotPlanned = path.join(dir, '4-d.md');
+  writeRecord(withoutNotPlanned, { title: 'D', body: 'b', facets: baseFacets() });
+  const rawWithout = fs.readFileSync(withoutNotPlanned, 'utf8');
+  assert.ok(!/^not-planned:/m.test(rawWithout));
+  assert.strictEqual(readRecord(withoutNotPlanned).facets.notPlanned, false);
+});
+
 // --- malformed file (AC 5) ---
 
 test('readRecord on a file with no frontmatter: type null, stage backlog, body is the whole content', (t) => {
