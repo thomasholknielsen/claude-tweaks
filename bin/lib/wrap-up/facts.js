@@ -9,6 +9,7 @@
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { listClaudeMd, listRules } = require('../harness-health/scope');
 
 function makeGitRunner(cwd) {
   return (args) => {
@@ -97,6 +98,56 @@ function computeClaudeMdCommandRenamed(git, cwd, base) {
   return baseLines.some((line) => !worktreeLines.has(line));
 }
 
+// wc -l semantics: count of newline characters. Matches
+// harness-health-analysis.md Step 1 check 4's own `wc -l` invocation exactly,
+// so this fact and that check never disagree about what "over budget" means
+// for the same file.
+function lineCount(filePath) {
+  try {
+    const out = execFileSync('wc', ['-l', filePath], { encoding: 'utf8' });
+    return Number(out.trim().split(/\s+/)[0]);
+  } catch {
+    return 0;
+  }
+}
+
+// Re-resolves the same two policy keys harness-health-analysis.md's tiered
+// line-budget check reads, via the same CLI (bin/resolve-policy.js) — never a
+// second, hand-maintained budget constant. Falls back to the schema defaults
+// (bin/lib/policy-schema.js: 30 / 150) if resolution fails for any reason,
+// matching this file's existing fail-open shape for every other check.
+function resolveBudgets(cwd) {
+  try {
+    const scriptPath = path.join(__dirname, '..', '..', 'resolve-policy.js');
+    const out = execFileSync(
+      process.execPath,
+      [scriptPath, '--values', 'harness-health.scoped-rule-budget', 'harness-health.always-loaded-budget'],
+      { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    const [scopedRuleBudget, alwaysLoadedBudget] = out.trim().split('\n').map(Number);
+    return { scopedRuleBudget, alwaysLoadedBudget };
+  } catch {
+    return { scopedRuleBudget: 30, alwaysLoadedBudget: 150 };
+  }
+}
+
+// A static filesystem snapshot at HEAD, not a diff signal — unlike
+// claudeMdCommandRenamed/headingRenamed/renamedOrDeleted, this has no isRepo
+// dependency and must not be nested inside gatherFacts()'s `if (isRepo)`
+// block. Checks CLAUDE.md and every rule file independently against its own
+// tier's budget (never a summed total) — one over-budget target is enough.
+function computeClaudeMdOverBudget(cwd) {
+  const { scopedRuleBudget, alwaysLoadedBudget } = resolveBudgets(cwd);
+  const targets = [
+    ...listClaudeMd(cwd).map((t) => ({ path: t.path, budget: alwaysLoadedBudget })),
+    ...listRules(cwd).map((t) => ({
+      path: t.path,
+      budget: t.pathGlobs.length > 0 ? scopedRuleBudget : alwaysLoadedBudget,
+    })),
+  ];
+  return targets.some((t) => lineCount(t.path) > t.budget);
+}
+
 function gatherFacts({ cwd, base } = {}) {
   const git = makeGitRunner(cwd);
   const isRepo = git(['rev-parse', '--is-inside-work-tree']) === 'true';
@@ -120,6 +171,7 @@ function gatherFacts({ cwd, base } = {}) {
   const skillsLibraryExists = fs.existsSync(path.join(cwd, '.claude', 'skills'));
   const docsTreeNonEmpty = dirNonEmpty(path.join(cwd, 'docs'));
   const journeyFiles = listMarkdownFiles(path.join(cwd, 'docs', 'journeys'), 'docs/journeys');
+  const claudeMdOverBudget = computeClaudeMdOverBudget(cwd);
 
   return {
     isRepo,
@@ -133,6 +185,7 @@ function gatherFacts({ cwd, base } = {}) {
     claudeMdCommandRenamed,
     renamedOrDeleted: renamedDeleted.length > 0,
     headingRenamed,
+    claudeMdOverBudget,
   };
 }
 

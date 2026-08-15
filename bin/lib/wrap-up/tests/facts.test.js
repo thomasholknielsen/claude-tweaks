@@ -170,3 +170,61 @@ test('gatherFacts claudeMdCommandRenamed is false when CLAUDE.md is absent at ba
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('gatherFacts claudeMdOverBudget is true when CLAUDE.md exceeds the always-loaded budget', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-budget-'));
+  try {
+    git(['init', '-q'], dir);
+    git(['config', 'user.email', 'test@example.com'], dir);
+    git(['config', 'user.name', 'Test'], dir);
+    // Default always-loaded-budget is 150 lines (bin/lib/policy-schema.js) —
+    // no .claude-tweaks/policy.yml in this temp dir, so the schema default applies.
+    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), `${'line\n'.repeat(151)}`);
+    git(['add', '.'], dir);
+    git(['commit', '-q', '-m', 'over budget'], dir);
+    const sha = git(['rev-parse', 'HEAD'], dir);
+    const f = gatherFacts({ cwd: dir, base: sha });
+    assert.strictEqual(f.claudeMdOverBudget, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gatherFacts claudeMdOverBudget is false when CLAUDE.md is within budget and no rules exist', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-budget-ok-'));
+  try {
+    git(['init', '-q'], dir);
+    git(['config', 'user.email', 'test@example.com'], dir);
+    git(['config', 'user.name', 'Test'], dir);
+    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), 'short\n');
+    git(['add', '.'], dir);
+    git(['commit', '-q', '-m', 'in budget'], dir);
+    const sha = git(['rev-parse', 'HEAD'], dir);
+    const f = gatherFacts({ cwd: dir, base: sha });
+    assert.strictEqual(f.claudeMdOverBudget, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gatherFacts claudeMdOverBudget is true when a scoped rule exceeds the scoped-rule budget', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-budget-rule-'));
+  try {
+    git(['init', '-q'], dir);
+    git(['config', 'user.email', 'test@example.com'], dir);
+    git(['config', 'user.name', 'Test'], dir);
+    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), 'short\n');
+    fs.mkdirSync(path.join(dir, '.claude', 'rules'), { recursive: true });
+    // Default scoped-rule-budget is 30 lines. A `paths:` key makes this a
+    // scoped rule, not an always-loaded one.
+    const ruleBody = ['---', 'paths:', '  - src/**', '---', ...Array(31).fill('line')].join('\n');
+    fs.writeFileSync(path.join(dir, '.claude', 'rules', 'scoped.md'), `${ruleBody}\n`);
+    git(['add', '.'], dir);
+    git(['commit', '-q', '-m', 'scoped rule over budget'], dir);
+    const sha = git(['rev-parse', 'HEAD'], dir);
+    const f = gatherFacts({ cwd: dir, base: sha });
+    assert.strictEqual(f.claudeMdOverBudget, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
