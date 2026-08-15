@@ -24,6 +24,18 @@ the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list li
                                               demo:approved                          demo:changes-requested → follow-up record (backlog)
 ```
 
+**`demo:pending` is no longer unconditional (`#367`).** `/claude-tweaks:wrap-up`'s acceptance-labeling
+step only applies the gate — brief plus `demo:pending` — to a record whose `risk:*`/`size:*`
+facets exceed the configured oversight floor (`exceedsOversightFloor`,
+`bin/lib/issues/oversight-floor.js`; a decomposition parent is gated on the max risk tier across
+its sub-issues, aggregated by `wrap-up/verification-brief.md`'s Parent-Gate Procedure, never on
+size). A record that doesn't clear the floor closes with **no** `demo:*` label at all — not a new
+`demo:exempt` marker, just the absence of one. It is never unreachable by this skill: the
+closing-commit-reconstruction fallback below (previously exercised only for the occasional record
+that closed outside `/wrap-up`'s normal flow) is now also the default discovery path for this
+below-floor population — a `/claude-tweaks:demo #N` on a below-floor record resolves through it
+exactly as it always has for any other unlabeled record, no code change needed for that case.
+
 ## When to Use
 
 - You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
