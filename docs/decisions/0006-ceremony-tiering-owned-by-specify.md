@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-07-20
-- **Context:** `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`
+- **Context:** `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` (deleted `70849915`)
 
 **Note (2026-08-08):** the `effort:*` facet referenced below was renamed to `size:*` in spec #217 — this document's body is left as originally written to preserve the historical record.
 

@@ -103,7 +103,7 @@ Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "grant-check #{n}")
 ```
 
 Each invocation returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (see
-`skills/assess-agent-autonomy/SKILL.md`'s `grant-check` mode). Derive the unified table's
+`skills/assess-agent-autonomy/grant-check.md`). Derive the unified table's
 Recommended column directly from this output, and carry `RATIONALE` through to the table's own
 Rationale column (Step 4) and the `decisions.md` log line (Step 5) — a content-aware judgment the
 human is about to act on must stay visible at decision time and stay in the audit trail

@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-07-31
-- **Context:** Cloud Routine Environment Freshness & Per-Project Dedication (`docs/superpowers/specs/2026-07-31-cloud-routine-environment-freshness-design.md`), Task 3 fix round 1
+- **Context:** Cloud Routine Environment Freshness & Per-Project Dedication (`docs/superpowers/specs/2026-07-31-cloud-routine-environment-freshness-design.md`, deleted `70849915`), Task 3 fix round 1
 
 > **Scope note (6.70.0).** A fourth procedure, `Ensure-setup-script`, now exists in
 > `guided-environment-creation.md`. It is **not** the fourth procedure rejected under

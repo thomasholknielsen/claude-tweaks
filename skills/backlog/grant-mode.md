@@ -131,8 +131,8 @@ in the report exactly as that step does.
 Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "grant-check #{n}")
 ```
 
-Returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (`assess-agent-autonomy/SKILL.md`'s
-`grant-check` mode — the identical call `refine-mode.md` Step 3 makes). Fold into `grantCheck`:
+Returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (`assess-agent-autonomy/grant-check.md`
+— the identical call `refine-mode.md` Step 3 makes). Fold into `grantCheck`:
 `{ clear: RECOMMEND_BUILD === true, rationale: RATIONALE }`. `RECOMMEND_MERGE` is read separately
 below — it is advisory context for the audit trail, never a second gate: `evaluateGrantGate`'s
 own final `autoMerge` decision comes from `permittedGrants`, not from `grant-check`'s merge

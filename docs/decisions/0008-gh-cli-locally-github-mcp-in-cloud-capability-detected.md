@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-07-29
-- **Context:** gh-CLI/MCP-fallback branch (`docs/superpowers/specs/2026-07-28-gh-cli-mcp-fallback-design.md`), closing GitHub issues #60 (tidy's `--scope=github` digest/triage), #61 (dispatch's claim lock), #63 (health-engine durable-state cursor writes)
+- **Context:** gh-CLI/MCP-fallback branch (`docs/superpowers/specs/2026-07-28-gh-cli-mcp-fallback-design.md`, deleted `70849915`), closing GitHub issues #60 (tidy's `--scope=github` digest/triage), #61 (dispatch's claim lock), #63 (health-engine durable-state cursor writes)
 
 > **Premise note (6.70.0).** The alternatives below reject setup scripts as the fix mechanism partly
 > because they are "account-level manual configuration the plugin cannot ship, enforce, or verify."
@@ -74,6 +74,6 @@ here. Dispatch's read path was bridged in v6.24.0 (closes #61) — a live diagno
 against a real cloud sandbox confirmed every needed MCP primitive, including the
 `create_branch` bootstrap step this section originally logged as an unverified open risk, before
 any bridge documentation was written and before Preflight's `gh`-CLI hard gate was flipped. See
-`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` and `CHANGELOG.md`'s v6.24.0 entry.
+`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` (deleted `d83f0720`) and `CHANGELOG.md`'s v6.24.0 entry.
 `/tidy`'s Step 4.8 sweep remains unbridged, still parked as follow-up (Slice 2 of the same
 design doc, `docs/superpowers/specs/2026-08-02-dispatch-tidy-mcp-bridge-design.md`).
