@@ -33,21 +33,17 @@ test('error message names the label', () => {
   assert.throws(() => ensureLabelPayload('code-health:review-quality', 'x'.repeat(101)), /code-health:review-quality/);
 });
 
-test('solution:unjustified is bootstrappable with a description within the cap', () => {
+test('framing:baked is bootstrappable with a description within the cap', () => {
   // Read the description from the canonical fence (see canonicalLabelsFromBootstrapDoc
   // below) instead of hand-copying it, so a future edit to that source that pushes the
   // description over the cap fails here rather than drifting silently.
-  const [, description] = canonicalLabelsFromBootstrapDoc().find(([name]) => name === 'solution:unjustified');
-  const payload = ensureLabelPayload('solution:unjustified', description);
-  assert.strictEqual(payload.name, 'solution:unjustified');
+  const [, description] = canonicalLabelsFromBootstrapDoc().find(([name]) => name === 'framing:baked');
+  const payload = ensureLabelPayload('framing:baked', description);
+  assert.strictEqual(payload.name, 'framing:baked');
   assert.ok(payload.description.length <= 100);
 });
 
-test('solution:unjustified is exported as a LABELS constant', () => {
-  assert.strictEqual(LABELS.SOLUTION_UNJUSTIFIED, 'solution:unjustified');
-});
-
-test('framing:baked is retained as a LABELS constant for permanent legacy read support', () => {
+test('framing:baked is exported as a LABELS constant', () => {
   assert.strictEqual(LABELS.FRAMING_BAKED, 'framing:baked');
 });
 
