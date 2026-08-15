@@ -170,10 +170,14 @@ function releaseMerged({ cwd } = {}) {
       }
     }
 
-    // Fetch issue state only when PR evidence alone cannot release: the
-    // no-pr and pr-closed-unmerged join results (incl. join failures above).
+    // Fetch issue state only for release candidates where PR evidence alone
+    // cannot release: the no-pr and pr-closed-unmerged join results (incl.
+    // join failures above). Gated on live/stale first — tombstones persist
+    // forever (overwrites, not deletions), so an ungated fetch here would be
+    // a growing per-pass gh api cost with zero effect on non-candidates.
     let issueState;
-    if (prState === null || (prState && typeof prState === 'object' && prState.state === 'CLOSED')) {
+    if ((classified.state === 'live' || classified.state === 'stale')
+        && (prState === null || (prState && typeof prState === 'object' && prState.state === 'CLOSED'))) {
       issueState = readIssueState(repoSlug, issueNumber);
     }
 
