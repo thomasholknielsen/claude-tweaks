@@ -149,27 +149,22 @@ function resultsFromGateReasons(worklist) {
   return results;
 }
 
+const CLOSED_FACTS = {
+  isRepo: true, changedFiles: [], renamedDeleted: [],
+  skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
+  journeysExist: false, journeyFiles: [],
+  claudeMdCommandRenamed: false, renamedOrDeleted: false,
+};
+
 test('every gateReason with all gates closed passes FORBIDDEN_VOCABULARY (renderTrace does not throw)', () => {
-  const closedFacts = {
-    isRepo: true, changedFiles: [], renamedDeleted: [],
-    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
-    journeysExist: false, journeyFiles: [],
-    claudeMdCommandRenamed: false, renamedOrDeleted: false,
-  };
-  const wl = buildWorklist({ facts: closedFacts, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  const wl = buildWorklist({ facts: CLOSED_FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
   assert.ok(wl.rows.every((r) => r.gate === 'closed'), 'fixture must close every gate');
   const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
   assert.doesNotThrow(() => renderTrace(state));
 });
 
 test('memory/upstream gateReason with signals open (recorded clean) passes FORBIDDEN_VOCABULARY', () => {
-  const closedFacts = {
-    isRepo: true, changedFiles: [], renamedDeleted: [],
-    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
-    journeysExist: false, journeyFiles: [],
-    claudeMdCommandRenamed: false, renamedOrDeleted: false,
-  };
-  const wl = buildWorklist({ facts: closedFacts, signals: { d4Count: 2, d5Count: 3 }, ceremonyProfile: 'standard', budgets: {} });
+  const wl = buildWorklist({ facts: CLOSED_FACTS, signals: { d4Count: 2, d5Count: 3 }, ceremonyProfile: 'standard', budgets: {} });
   const memoryRow = wl.rows.find((r) => r.id === 'memory');
   const upstreamRow = wl.rows.find((r) => r.id === 'upstream');
   assert.strictEqual(memoryRow.gate, 'open');
