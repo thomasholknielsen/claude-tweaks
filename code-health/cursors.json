@@ -30,5 +30,9 @@
   "bin/lib": {
     "lastSweptMs": 1786677295085,
     "lastHash": "1bf301a65ba1b6884541a13b27497d823cf07436"
+  },
+  "bin/lib/code-health": {
+    "lastSweptMs": 1786763389561,
+    "lastHash": "e8fd6c0cc20b675e99137762742df5cdb5d8b7c9"
   }
 }
