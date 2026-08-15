@@ -4,7 +4,7 @@
 //
 // Before this module, four test files each hard-coded the shipped skill count as
 // a literal `33` (tests/skill-conventions.test.js, and three files under
-// bin/lib/skill-audit/tests/: context-cost.test.js, anti-patterns.test.js,
+// tests/bin-lib/skill-audit/: context-cost.test.js, anti-patterns.test.js,
 // relationship-rows.test.js) -- the issue that motivated this module claimed
 // "three", but a repo-wide grep found a fourth (`[IL-71]`: measure the premise
 // against the live files, not the issue body). Every new skill directory
@@ -31,7 +31,7 @@ function listSkillDirs(repoRoot) {
 // full roster (that would just restate the directory listing), but enough that
 // a broken glob/filter returns an empty or truncated list loudly rather than
 // silently passing a count-only check. Mirrors the pattern already established
-// in bin/lib/skill-audit/tests/house-structure.test.js.
+// in tests/bin-lib/skill-audit/house-structure.test.js.
 const KNOWN_SKILLS = ['build', 'flow', 'review', 'wrap-up', 'specify', 'test'];
 
 function escapeRegExp(s) {

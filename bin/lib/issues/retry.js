@@ -33,6 +33,17 @@ function attemptFailedCommentBody({ attemptNumber, reason, ceilingHit, classific
   return base;
 }
 
+// Extracts just the marker line from a comment body, or null when absent.
+// #410: under `integration-model: pr-first`, the full failure comment posts
+// to the PR (settle-and-merge.md Step 6 step 5) but trust.js reads only the
+// record ISSUE's comments — this is what lets the marker still reach the
+// issue as its own one-line comment without posting the whole attempt
+// narrative there twice.
+function extractNegativeEvidenceMarker(body) {
+  const m = NEGATIVE_EVIDENCE_RE.exec(body || '');
+  return m ? m[0] : null;
+}
+
 // comments -> boolean. Read by trust.js's grading; also usable standalone by
 // anything else that needs "has this record ever been marked negative"
 // without pulling in the rest of trust.js. Presence-only (see the header
@@ -61,4 +72,5 @@ function hasHitRetryCeiling(comments, ceiling = 3) {
 
 module.exports = {
   attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling, hasNegativeEvidenceMarker,
+  extractNegativeEvidenceMarker,
 };

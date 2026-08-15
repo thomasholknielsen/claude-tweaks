@@ -132,7 +132,7 @@ file; this table only needs enough to render the prompt.
 
 **Where the `Q#` rows come from.** Every file in `{run-dir}/staged/` carrying a
 `Title:`/`Type:`/`Labels:` header is a queue write — `ledger-record-*.md`
-(`ledger/resolve-gate.md` Phase 3's `Defer` / `Keep` / `Acknowledge` dispositions, including the
+(`_shared/ledger-format.md`'s Resolve Gate Phase 3 `Defer` / `Keep` / `Acknowledge` dispositions, including the
 ones `nothing-left-behind.md`'s Ops acknowledgment stages), `leftover-*.md`, and any other
 producer's staged proposal. Identify them by that header, not by filename, so a new producer is
 picked up without editing this file.

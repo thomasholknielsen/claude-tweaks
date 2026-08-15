@@ -162,9 +162,9 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 `ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
 `ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
 what "always-present label" buys: `/claude-tweaks:specify` stamps `ceremony:*` on every record it
-shapes, so the header always carries a value and there is nothing for a default to fill in. See
+shapes, so the header always carries a value and there is nothing for a default to fill in. Was
 `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`'s "Promoting `ceremony:`
-to an explicit, always-present label".
+to an explicit, always-present label" — deleted `70849915`.
 
 ## Approval flow
 

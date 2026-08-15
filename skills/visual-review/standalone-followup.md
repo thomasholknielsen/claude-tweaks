@@ -26,6 +26,8 @@ Before invoking any accepted item's command, verify Impeccable plugin availabili
 
 For each accepted item (once availability is confirmed), invoke its listed command directly via the Skill tool against its target (page or file) — e.g. `/impeccable:impeccable bolder pricing` — the same low-level invocation the relevant `design-wrapper` mode performs internally; no new wrapper mode is needed. Group items that share the same file and command into one invocation (relevant to Step 5's findings table; a no-op here, since each row here targets its own page).
 
+Before applying any accepted item, assemble craft context per `_shared/design-craft.md` at runtime: a path that dispatches an agent inlines the assembled result into the dispatch prompt (agents can't follow references), and a path that applies fixes directly in-session assembles the same context into the composer's own working context before editing.
+
 If any command ran, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result. If re-verification fails, report the failure and name the most recently invoked command as the likely cause rather than reverting automatically — reverting is the user's call.
 
 ## Step 5: Boost
@@ -52,6 +54,8 @@ After Step 4's Creative Opportunities block (and any apply-gate action from it) 
 
    Pre-fill Recommended: `severity: error` or `severity: warning` → `"Fix"`; `severity: info` → `"Skip"`.
 3. Run the apply gate ("Apply gate (shared procedure)" above), using `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`. "Apply all" here means every row marked `Fix` above; each accepted finding's command is its `suggestion`-named Impeccable command, invoked against the finding's `file`.
+
+   Before applying any accepted finding here, assemble craft context per `_shared/design-craft.md` at runtime — same split as Step 4's apply gate: inline into the dispatch prompt when dispatching, assemble into the composer's own working context when editing in-session. The "Explore alternatives" option below (a delegation to `live` mode that processes no outcome) gets nothing.
 
 **Option 2 or 3 — Explore alternatives:**
 

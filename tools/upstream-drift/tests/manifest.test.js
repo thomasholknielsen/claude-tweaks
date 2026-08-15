@@ -395,6 +395,99 @@ test('P3: quoted values containing colons are unaffected, and the real manifest.
   const result = loadManifest(realManifestPath);
   assert.deepStrictEqual(
     result.dependencies.map((d) => d.name),
-    ['impeccable-cli', 'impeccable-plugin', 'superpowers'],
+    ['impeccable-cli', 'impeccable-plugin', 'superpowers', 'emilkowalski-skills'],
   );
+});
+
+// ─── content-pinned entry class (`versioning: none`) ────────────────────
+
+// A known-valid content-pinned dependency, mirroring validDependency()'s
+// role for the probe class: tests delete/mutate exactly one field per case.
+function validContentPinnedDependency() {
+  return {
+    name: 'sample-skills',
+    kind: 'skill-repo',
+    pin: { commit: 'a'.repeat(40), versioning: 'none' },
+    upstream: { repo: 'example/skills' },
+    consumed: [{ path: 'skills/one/SKILL.md', sha256: 'b'.repeat(64) }],
+  };
+}
+
+test('a valid content-pinned (versioning: none) entry validates clean without any probe-class key', () => {
+  assert.deepStrictEqual(validateManifest({ dependencies: [validContentPinnedDependency()] }), []);
+});
+
+test('a content-pinned entry with a malformed pin.commit produces a validation error', () => {
+  const dep = validContentPinnedDependency();
+  dep.pin.commit = 'not-a-sha';
+  const errors = validateManifest({ dependencies: [dep] });
+  assert.ok(errors.some((e) => e.includes('sample-skills') && e.includes('pin.commit')));
+});
+
+test('a content-pinned entry with a malformed consumed sha256 produces a validation error', () => {
+  const dep = validContentPinnedDependency();
+  dep.consumed[0].sha256 = 'deadbeef';
+  const errors = validateManifest({ dependencies: [dep] });
+  assert.ok(errors.some((e) => e.includes('consumed[0].sha256')));
+});
+
+test('a content-pinned entry with an empty consumed list produces a validation error', () => {
+  const dep = validContentPinnedDependency();
+  dep.consumed = [];
+  const errors = validateManifest({ dependencies: [dep] });
+  assert.ok(errors.some((e) => e.includes("'consumed'") && /non-empty/.test(e)));
+});
+
+test('probe-machinery keys on a content-pinned entry each produce a validation error — silently-dead config fails loudly', () => {
+  for (const key of ['installed-probe', 'pinned', 'contract-paths', 'assertions', 'fixtures']) {
+    const dep = validContentPinnedDependency();
+    dep[key] = key === 'pinned' ? '1.0.0' : key === 'installed-probe' ? { type: 'command', run: 'x' } : [];
+    const errors = validateManifest({ dependencies: [dep] });
+    assert.ok(
+      errors.some((e) => e.includes(`'${key}'`) && e.includes('versioning: none')),
+      `expected an error naming '${key}', got: ${JSON.stringify(errors)}`,
+    );
+  }
+});
+
+test('conformance: the real emilkowalski-skills entry is content-pinned, with its own pin block shared by no other entry', () => {
+  const realManifestPath = path.join(__dirname, '..', 'manifest.yml');
+  const result = loadManifest(realManifestPath);
+  const emil = result.dependencies.find((d) => d.name === 'emilkowalski-skills');
+
+  assert.ok(emil, 'emilkowalski-skills entry exists');
+  assert.strictEqual(emil.pin.versioning, 'none');
+  assert.match(emil.pin.commit, /^[0-9a-f]{40}$/);
+  assert.ok(Array.isArray(emil.consumed) && emil.consumed.length > 0);
+  for (const c of emil.consumed) {
+    assert.match(c.sha256, /^[0-9a-f]{64}$/);
+    assert.match(c.path, /\/SKILL\.md$/, 'scope: only SKILL.md files are pinned');
+  }
+
+  // No two entries share a pin: the emil pin object belongs to exactly one
+  // entry, and the probe-class entries carry their own distinct `pinned`
+  // scalars rather than any `pin` block at all.
+  const sharingPin = result.dependencies.filter((d) => d.pin === emil.pin);
+  assert.strictEqual(sharingPin.length, 1);
+  for (const d of result.dependencies) {
+    if (d.name === 'emilkowalski-skills') continue;
+    assert.strictEqual(d.pin, undefined, `${d.name} must not carry a 'pin' block`);
+  }
+});
+
+test('content-class keys on a probe-class entry each produce a validation error — the reciprocal dead-config guard', () => {
+  for (const key of ['pin', 'consumed']) {
+    const dep = validDependency();
+    dep[key] = key === 'pin' ? { commit: 'a'.repeat(40), versioning: 'nnone' } : [];
+    const errors = validateManifest({ dependencies: [dep] });
+    assert.ok(
+      errors.some((e) => e.includes(`'${key}'`) && e.includes('versioning: none')),
+      `expected an error naming '${key}', got: ${JSON.stringify(errors)}`,
+    );
+  }
+});
+
+test('YAML anchors are rejected by the parser, so entries cannot share a pin block via anchor/alias', () => {
+  assert.throws(() => parseManifest('pin: &shared { commit: x }\n'), /line 1/);
+  assert.throws(() => parseManifest('pin: *shared\n'), /line 1/);
 });

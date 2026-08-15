@@ -108,40 +108,14 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 > **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
 >
-> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Standard (Sonnet) — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-tier mechanical extraction. Upgrade to Capable (Opus) only if the walk requires synthesis of subjective UX judgment.
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Standard] — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-profile mechanical extraction. Upgrade to Capable only if the walk requires synthesis of subjective UX judgment. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 >
-> **Output template (each agent must follow exactly):**
->
-> Use Template A when the walk reports issues / findings:
->
-> ```markdown
-> OUTPUT FORMAT (required):
-> Return ONLY a markdown table, no preamble:
->
-> | Severity | Path:Line | Finding | Evidence |
-> |---|---|---|---|
-> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
->
-> Severity scale: critical / high / medium / low / info
-> If no findings: return literal text "No findings."
-> Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
-> Do not add narration, headers, or summaries before or after the table.
-> ```
->
-> Use Template B when the walk reports navigation locations / references:
->
-> ```markdown
-> OUTPUT FORMAT (required):
-> Return ONLY bullet lines, one per match:
->
-> - {path}:{line} — {one-line context}
->
-> If no matches: return literal text "No matches."
-> Do not add narration or grouping headers.
-> ```
->
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the chosen template.
+> **Output template:** a browse walk that reports issues/findings uses `_shared/subagent-output-contract.md`'s
+> Template A; one that reports navigation locations/references uses its Template B. Read that file
+> for the literal template text and inline it verbatim in the dispatch prompt — this file only
+> names which one a browse walk uses, it is not the template's source. Each agent's first reply
+> line must still be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the chosen
+> template.
 
 ## Next Actions
 

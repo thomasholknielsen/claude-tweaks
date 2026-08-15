@@ -22,7 +22,7 @@ Continuing from the shared step (1) in `SKILL.md`'s table: (2) comment naming th
 
 ## Open parent gate
 
-The `[parent-gate]` findings this action resolves come from `_shared/github-pr-scan.md`'s
+The `[parent-gate]` findings this action resolves come from `_shared/github-pr-scan-acceptance.md`'s
 `parent-gate` scope, which queries the `parent-issue` label and therefore only ever finds
 `work-backend: github-issues` parents — `_shared/forge-detection.md`'s Detection Ladder (which that scope runs behind) gates on `gh` reachability,
 not on the driver. The `local-files` driver has its own twin of this action
@@ -49,13 +49,47 @@ that table. Posting a comment and adding a label is an outward-facing GitHub API
 reversibility floor requires `high` — "undoable via file edit or `git revert`" — and its
 never-reversible list separately forbids "network calls beyond reads (no API writes, no message
 sends)" at every tier regardless of mode. Neither bar is clearable by this write, however
-mechanical or precondition-only it is. `_shared/github-pr-scan.md`'s `parent-gate` scope states
+mechanical or precondition-only it is. `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope states
 the same reasoning at the scope level.
 
 This action never applies `demo:approved` or `demo:changes-requested` — those two labels stay
 exclusively `/claude-tweaks:demo`'s job, applied only after an explicit human verdict. Opening
 the gate is the precondition for that verdict, not the verdict itself, which is why the
 recommendation still ends with `/claude-tweaks:demo #{n}` even once the gate is open.
+
+## Arm ready PR
+
+The `[pr-unarmed]` findings this action resolves come from `_shared/github-pr-scan.md`'s
+`repo-wide` scope item 9 — a `github-issues`-only action, since there is no PR concept under
+`local-files`. Two grant flavors reach here (the housekeeping-marker PR and the record-linked PR),
+both executed identically once staged and approved — only `step-6-auto.md`'s tier gate
+distinguishes them (housekeeping may auto-apply at `moderate`+; the record-linked flavor always
+stages).
+
+**Re-verify before writing — never trust the scan's own snapshot.** Time has passed since Step
+4.8 ran: re-fetch the PR's `isDraft`, `statusCheckRollup`, `autoMergeRequest`, and unresolved
+thread count fresh, and re-check the grant (every linked record still carries `auto:merge`, or
+`housekeeping-auto-merge` is still set) before doing anything. If any gate no longer holds — a new
+commit landed, a check regressed, a thread reopened, the grant was revoked — this is a silent
+no-op: skip it, don't error, and don't report it as armed in the applied-report either, exactly as
+`## Open parent gate`'s own re-verification note above states for its finding.
+
+When judging `statusCheckRollup`, use the same non-blocking conclusion set
+`_shared/github-pr-scan.md` item 9 defines (`SUCCESS`, `SKIPPED`, `NEUTRAL` — a `SUCCESS`-only
+check treats a job whose own `if:` condition is false, e.g. a default-branch-only cleanup job,
+as a permanent regression); do not re-derive it.
+
+If every gate still holds, run `_shared/pr-first-merge.md`'s Step 3 (Attempt auto-merge) against
+this PR directly — that file already defines the full degrade chain (`--auto` arm → immediate
+merge on repos without auto-merge enabled → ready-and-comment on any other failure), so this
+action does not reimplement it. This is the one call site that reaches Step 3 from outside a build
+or dispatch pipeline; the outcome vocabulary (`armed`/`merged`/`pending-review`) still applies —
+log which outcome landed, since "armed" and "merged" are both legitimate results of the same call
+and neither is a failure.
+
+This action never touches Step 1 (Acceptance labeling) or Step 2 (Mark the PR ready) of
+`_shared/pr-first-merge.md` — by construction, item 9 only ever selects PRs that are already not
+draft and already green, so both preconditions already hold by the time this action runs.
 
 ## Sync to GitHub
 

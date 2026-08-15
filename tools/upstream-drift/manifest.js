@@ -412,6 +412,59 @@ function validateManifest(obj) {
       errors.push(`Dependency ${label}: missing or empty required key 'kind'`);
     }
 
+    // ─── content-pinned entry class (`versioning: none`) ─────────────────
+    // Detected by pin.versioning === 'none'. This class pins a tagless
+    // upstream by commit SHA plus per-file sha256 digests compared against
+    // committed fixtures (checks.js's checkContentPins). Nothing is
+    // installed, so the probe-machinery keys are not merely optional here —
+    // their presence is an error, because nothing would ever read them
+    // (checkVersion/checkAssertions/replayFixtures never run for the class,
+    // and silently-dead config is the misparse-adjacent failure mode this
+    // module errs loudly on).
+    if (isPlainObject(dep.pin) && dep.pin.versioning === 'none') {
+      if (!isNonEmptyString(dep.pin.commit) || !/^[0-9a-f]{40}$/.test(dep.pin.commit)) {
+        errors.push(`Dependency ${label}: 'pin.commit' must be a 40-char lowercase hex commit SHA for 'versioning: none' entries`);
+      }
+      if (!isPlainObject(dep.upstream) || !isNonEmptyString(dep.upstream.repo)) {
+        errors.push(`Dependency ${label}: 'upstream.repo' is required`);
+      }
+      const consumed = requireList(dep, 'consumed', label, errors);
+      if (consumed !== null) {
+        if (consumed.length === 0) {
+          errors.push(`Dependency ${label}: 'consumed' must be a non-empty list for 'versioning: none' entries`);
+        }
+        consumed.forEach((c, i) => {
+          if (!isPlainObject(c)) {
+            errors.push(`Dependency ${label}: 'consumed[${i}]' must be a map`);
+            return;
+          }
+          if (!isNonEmptyString(c.path)) {
+            errors.push(`Dependency ${label}: 'consumed[${i}].path' is required`);
+          }
+          if (!isNonEmptyString(c.sha256) || !/^[0-9a-f]{64}$/.test(c.sha256)) {
+            errors.push(`Dependency ${label}: 'consumed[${i}].sha256' must be a 64-char lowercase hex digest`);
+          }
+        });
+      }
+      for (const key of ['installed-probe', 'pinned', 'contract-paths', 'assertions', 'fixtures']) {
+        if (hasKey(dep, key)) {
+          errors.push(`Dependency ${label}: '${key}' is not part of the 'versioning: none' entry class — nothing would ever read it`);
+        }
+      }
+      return;
+    }
+
+    // The reciprocal guard: content-class keys on a probe-class entry are
+    // equally dead config (nothing reads `pin`/`consumed` outside the
+    // `versioning: none` path) — and a `pin` whose `versioning` value is
+    // anything but the literal 'none' lands here too, surfacing the typo
+    // instead of silently validating as a probe entry.
+    for (const key of ['pin', 'consumed']) {
+      if (hasKey(dep, key)) {
+        errors.push(`Dependency ${label}: '${key}' is only valid on a 'versioning: none' entry (pin.versioning === 'none') — on this entry nothing would ever read it`);
+      }
+    }
+
     if (!isPlainObject(dep['installed-probe'])) {
       errors.push(`Dependency ${label}: missing or invalid required key 'installed-probe' (must be a map)`);
     } else {

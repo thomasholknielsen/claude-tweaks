@@ -47,7 +47,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects, filters, or claims records itself: `/claude-tweaks:dispatch` claims before handing off (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`), or a human runs `/flow #{n}` directly against any record carrying no live claim. When the caller set the `CLAIM_RUN_ID` env var (dispatch always does — see `dispatch/SKILL.md` Step 5), thread it through unchanged to `/wrap-up`'s Section E / `multispec-review-console.md` release step as the ownership-check comparison value, instead of `/flow`'s own `PIPELINE_RUN_DIR` — dispatch claimed the record under its own (earlier, differently-named) run id. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
+| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects or filters records — `/claude-tweaks:dispatch` does that and mints the run directory (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]`); `/flow` claims its named targets itself at Step 2.8 (`claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly against any record carrying no live claim. `/wrap-up`'s Section E / `multispec-review-console.md` release step derives the claim's identity as `basename($PIPELINE_RUN_DIR)` — the same directory dispatch minted and flow adopted, not a separately threaded value. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
@@ -65,7 +65,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 
 ### Input resolution
 
-1. **Record reference(s)** (e.g., `#123` or `#123,#456`; under `work-backend: local-files`, drop the `#`) → **Record mode** — resolved, shape-gated, and materialized via `materialize.md` in this skill's directory before the pipeline proper starts; an unshaped record stops the run with a pointer to `/claude-tweaks:specify #{n}`. Checked first, since a leading `#` (or, under `work-backend: local-files`, a bare id that resolves to an existing record) unambiguously means record mode. `/claude-tweaks:dispatch` is the primary caller of this form (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`) — a human can also run it directly against any record carrying no live claim. A single record runs the standard single-spec pipeline below, built from the materialized file. Multiple records (`#A,#B`) run **Multi-spec mode** (below), each materializing to its own file under the shared run's `spec-{id}/work/` subdirectory (see `materialize.md`'s Multi-record layout and `multi-spec.md`) — they run sequentially in one terminal (see Multi-Spec Sequential Flow below); for true parallel execution, use separate terminals with `worktree` mode. When `/claude-tweaks:dispatch` is the caller (a bundle group — see `dispatch/SKILL.md` Step 5), it sets `CLAIM_RUN_ID`; thread it through to every record's `/wrap-up` — the release ownership check needs dispatch's run id, not any per-record one.
+1. **Record reference(s)** (e.g., `#123` or `#123,#456`; under `work-backend: local-files`, drop the `#`) → **Record mode** — resolved, shape-gated, and materialized via `materialize.md` in this skill's directory before the pipeline proper starts; an unshaped record stops the run with a pointer to `/claude-tweaks:specify #{n}`. Checked first, since a leading `#` (or, under `work-backend: local-files`, a bare id that resolves to an existing record) unambiguously means record mode. `/claude-tweaks:dispatch` is the primary caller of this form (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]`) — a human can also run it directly against any record carrying no live claim. A single record runs the standard single-spec pipeline below, built from the materialized file. Multiple records (`#A,#B`) run **Multi-spec mode** (below), each materializing to its own file under the shared run's `spec-{id}/work/` subdirectory (see `materialize.md`'s Multi-record layout and `multi-spec.md`) — they run sequentially in one terminal (see Multi-Spec Sequential Flow below); for true parallel execution, use separate terminals with `worktree` mode. When `/claude-tweaks:dispatch` is the caller (a bundle group — see `dispatch/SKILL.md` Step 5), the run identity it minted and threaded in as `PIPELINE_RUN_DIR` is what every record's `/wrap-up` release step reads (`basename($PIPELINE_RUN_DIR)`) — no separate value to thread.
 2. **Topic name** (e.g., `meal planning`) → search the configured `work-backend` for a matching record. If found, use record mode. If only a design doc exists at `docs/superpowers/specs/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
 3. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
 
@@ -128,16 +128,24 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 2: Pre-flight Checks
 
-Three checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
+Four checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
 - 2.5 — Branch-divergence check (branch ahead/behind)
 - 2.6 — Shape check (structural coupling, hard-fail on cross-task deps)
 - 2.7 — Design-doc rejection (granularity contract — records only, not design docs). **Path / topic input only** — a record reference is never a file path, so this ambiguity doesn't arise for `#N` input; `materialize.md`'s Step 1 hard gate is the equivalent granularity check there.
+- 2.8 — Claim the targets. Read `claim-targets.md` in this skill's directory and follow it: a
+  skip-guard (local-files backend, topic-name mode, every target already owned by this run's
+  identity, or a resolved step list with neither `build` nor `test`), a mint-if-unset resolution
+  of this run's claim identity, a file-overlap warning (never a gate), then a
+  group-claim-all-or-abort procedure over `_shared/issue-claims.md`'s lock.
+  A contested target stops the pipeline before the Config Manifesto — no worktree, nothing to
+  tear down. `keep-going` (multi-target runs) downgrades a contested target to a skip instead of
+  aborting the whole run.
 
-Any hard fail or rejection stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for the detailed procedure for each substep.
+Any hard fail, rejection, or claim contest stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for 2.5-2.7's detailed procedure; `claim-targets.md` for 2.8's.
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 
-**Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry and naming an existing directory is adopted (nothing created or re-initialized, levers read from its `config.yml`); set-but-missing or unset creates as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
+**Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry, naming an existing anchored directory that already carries `config.yml`, is adopted as-is (nothing created or re-initialized, levers read from that file). A set, existing, anchored directory that is still **empty** (no `config.yml` — a run dir `/claude-tweaks:dispatch` Step 4 minted before claiming) is adopted by identity and initialized in place, exactly as a from-scratch run would be. Set-but-missing, unanchored, or unset creates fresh as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
 
 This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
 
@@ -192,79 +200,7 @@ Runs only when the polish phase actually dispatches. Read `polish-execution.md` 
 
 For both surveys' full procedures (wrapper/skill return handling, the depth pre-check and responsibility boundary) and the Creative Opportunities decline-detection algorithm, read `survey.md` in this skill's directory.
 
-On successful completion of all steps (`wrap-up` in the step list):
-
-```markdown
-## Flow: Pipeline Complete
-
-### Spec {number}: {title}
-
-| Step | Outcome |
-|------|---------|
-| build | Verification passed |
-| stories | {Generated N stories | Skipped — no UI changes | Skipped — no-stories} |
-| test | {Passed (types + lint + tests) | Passed (QA: N stories) | Passed (verification skipped — passed in build, QA: N stories)} |
-| review | Verdict: PASS {(code + visual) | (code only — no browser)} |
-| polish | {Invoked N commands ({list}); re-verify passed | Skipped — non-frontend | Skipped — no-polish | Skipped — Impeccable not installed | No changes to apply | re-verify failed (see failure card)} |
-| wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
-
-### Key Outputs
-- {summary of what was built}
-- {summary of review findings, if any}
-- {summary of wrap-up actions taken}
-
-### Manual Steps Required
-| # | What | Where |
-|---|------|-------|
-| 1 | {description} | {source} |
-(or: No manual steps — nothing to do outside the codebase.)
-
-> Complete these after merging. The pipeline detected them but cannot execute them.
-
-### Actions Performed
-
-{Rolled-up table from all phases. When >15 rows, collapse to per-phase summaries.}
-
-| Action | Detail | Ref |
-|--------|--------|-----|
-| {rows from build, stories, review, polish, wrap-up phases} | ... | ... |
-
-### Creative Opportunities
-
-The polish phase ran the refinement set + suggestion-driven + intent-driven commands. These could enhance the result further:
-
-| Command | Why it might help |
-|---------|------------------|
-| `/impeccable:impeccable colorize dashboard` | Heavy monochrome — strategic accent color recommended |
-| `/impeccable:impeccable animate settings` | Toggle interactions are static |
-
-Each is a one-shot manual command; flow does not run these automatically.
-
-> Render this block only when `survey` returned `recommendations` non-empty. When the wrapper reports `suppressed > 0`, append: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.` Omit the entire section when the wrapper returned `recommendations: []` or `{skipped}`, or when `no-creative` was set (the survey never ran).
-
-### Depth Opportunities
-
-The depth survey analyzed the changed modules. These are shallow abstractions worth restructuring — `/flow` did **not** refactor them (architecture is low-reversibility; the depth refactor is a deliberate, interactive pass):
-
-| Module | Kind | Why it's shallow | Leverage |
-|--------|------|------------------|----------|
-| `src/services/user.ts` | collapse | Pass-through wrapper — every method forwards one call to the DB | 4 callers simpler |
-| `src/jobs/runner.ts` | deepen | Callers must call `init()`→`configure()`→`run()` in order; the module could own the sequence | smaller surface, 3 callers |
-
-Run `/claude-tweaks:deepen <changed-paths>` to act on these — it presents candidates, then walks the interface design for the ones you pick. Flow never runs this automatically.
-
-> Render this block only when the depth survey returned candidates. Cap at the top 3 by leverage; if more exist append `> N more lower-leverage candidates — run /claude-tweaks:deepen for the full list.` Omit the entire section when the survey found no shallow modules, the pre-check skipped it (no source modules changed), or `no-deepen` was set.
-```
-
-### Next Actions
-
-Close the template's fence above, then assemble the applicable options (the base 2 always; the two conditional options only when their trigger condition holds) and present them via one `AskUserQuestion` call as unfenced prose:
-
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: short name of the next spec's run suffixed `(Recommended)`, `description`: `"/claude-tweaks:flow {next spec} — full pipeline on spec {N}: \"{title}\""`
-- Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
-- Option 3 (if unblocked specs) — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — spec {N} \"{title}\" now unblocked"`
-- Option 4 (if the depth survey surfaced candidates) — `label`: `"Depth opportunities"`, `description`: `"/claude-tweaks:deepen {changed-paths} — act on the {N} depth opportunit{y/ies} surfaced above"`
+On successful completion of all steps (`wrap-up` in the step list), read `summary-template.md` in this skill's directory and render it — never on the failure path (see `failure-cards.md`).
 
 ---
 
@@ -299,7 +235,7 @@ Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as pa
 
 ## Component-Skill Contract
 
-`/claude-tweaks:dispatch` is the only skill that invokes `/claude-tweaks:flow` as a caller (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]` — see `dispatch/SKILL.md` Step 5, and the `/dispatch` section of `docs/skill-graph.md`). Unlike a nested component skill (`/simplify`, `/reflect`, `/deepen`, and the others this convention targets), `/flow` is never folded into a larger pipeline's own handoff — it creates and owns its own `PIPELINE_RUN_DIR` (Step 3) unless invoked with one already set to an existing run directory — dispatch's second per-group call does, and `/flow` then resumes that run — and dispatch renders no console of its own that would supersede it (`dispatch/SKILL.md`'s Reporting section: a headless firing's durable trace is label state + `decisions.md`, not a rendered console). `/flow` therefore always renders its own outcome-conditional Next Actions (embedded in the success or failure template — see above), regardless of caller; there is no parent-vs-direct branch to detect.
+`/claude-tweaks:dispatch` is the only skill that invokes `/claude-tweaks:flow` as a caller (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]` — see `dispatch/SKILL.md` Step 5, and the `/dispatch` section of `docs/skill-graph.md`). Unlike a nested component skill (`/simplify`, `/reflect`, `/deepen`, and the others this convention targets), `/flow` is never folded into a larger pipeline's own handoff — it creates and owns its own `PIPELINE_RUN_DIR` (Step 3) unless invoked with one already set to an existing (or minted-but-empty) run directory — both of dispatch's per-group Task calls do, and `/flow` adopts it either way (Step 3's cases 1 and 2) — and dispatch renders no console of its own that would supersede it (`dispatch/SKILL.md`'s Reporting section: a headless firing's durable trace is label state + `decisions.md`, not a rendered console). `/flow` therefore always renders its own outcome-conditional Next Actions (embedded in the success or failure template — see above), regardless of caller; there is no parent-vs-direct branch to detect.
 
 ## Anti-Patterns
 

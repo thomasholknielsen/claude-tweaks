@@ -199,10 +199,10 @@ function resolveRefutation(verdict) {
   return verdict === 'not-refuted' ? 'confirmed' : 'unconfirmed';
 }
 
-function buildReproductionDispatch(taskScope, tier = 'Standard') {
-  const prompt = `${taskScope}\n\n[Use: ${tier} model — reproduction agent. Independent run.]`;
+function buildReproductionDispatch(taskScope, profile = 'Standard') {
+  const prompt = `${taskScope}\n\n[Use: ${profile}] (contract § Model Selection — reproduction agent, independent run)`;
   return {
-    tier,
+    profile,
     agentCount: REPRODUCTION_AGENT_COUNT,
     agents: [
       { role: 'reproducer-A', prompt },
@@ -211,13 +211,13 @@ function buildReproductionDispatch(taskScope, tier = 'Standard') {
   };
 }
 
-function buildDebateDispatch(contestedFinding, tier = 'Capable') {
+function buildDebateDispatch(contestedFinding, profile = 'Capable') {
   const prompt =
     `Review this finding and reply with verdict ('agree' / 'disagree' / 'partial') ` +
     `then one paragraph of reasoning:\n\n${JSON.stringify(contestedFinding)}\n\n` +
-    `[Use: ${tier} model — debate agent.]`;
+    `[Use: ${profile}] (contract § Model Selection — debate agent)`;
   return {
-    tier,
+    profile,
     agentCount: DEBATE_AGENT_COUNT,
     rounds: 1,
     agents: [
@@ -227,13 +227,13 @@ function buildDebateDispatch(contestedFinding, tier = 'Capable') {
   };
 }
 
-function buildRedTeamDispatch(specContent, tier = 'Standard') {
+function buildRedTeamDispatch(specContent, profile = 'Standard') {
   return {
-    tier,
+    profile,
     agentCount: RED_TEAM_PERSONAS.length,
     agents: RED_TEAM_PERSONAS.map((p) => ({
       role: p.name,
-      prompt: `${p.lens}\n\nSpec under review:\n\n${specContent}\n\n[Use: ${tier} model — ${p.name} persona.]`,
+      prompt: `${p.lens}\n\nSpec under review:\n\n${specContent}\n\n[Use: ${profile}] (contract § Model Selection — ${p.name} persona)`,
     })),
   };
 }

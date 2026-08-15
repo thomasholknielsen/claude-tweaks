@@ -34,6 +34,16 @@ git fetch origin {integration-branch}
 git merge origin/{integration-branch}
 ```
 
+The `git fetch` above cites, rather than duplicates, what `bin/lib/reconcile`'s mirror-ff
+check already does for the main checkout (#407/#408) — most call paths into worktree
+creation (`session-start.js`, `dispatch/SKILL.md`'s queue pull, `tidy/scan-procedures.md`)
+already ran `reconcile()` earlier in the same session, so `origin` is often already fresh
+here. Run the fetch anyway — reconcile is best-effort and may have been skipped or
+degraded (no remote, network failure) — but do not substitute reconcile for this step's
+`git merge`: reconcile's mirror-ff only advances the *main checkout's* own
+`{integration-branch}` ref, and never touches a worktree's own branch, which is exactly
+what this merge does.
+
 Resolve `{integration-branch}` via `skills/_shared/integration-branch.md`'s canonical ladder —
 never hardcode `main`. Run this regardless of which creation path was used (`EnterWorktree`,
 `git worktree add`, or any other), and regardless of whether the project has `worktree.baseRef`

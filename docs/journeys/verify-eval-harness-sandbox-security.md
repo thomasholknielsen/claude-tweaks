@@ -39,4 +39,4 @@ files:
 ## Origin
 - Created during build of record #46 ("Harden evals/ actor.js's scope guard beyond path-bearing tool inputs")
 - All 3 steps built in this session — `actor-escape-attempt.yaml` (Task 3), the `absolute-path-exists` assertion + `{{ESCAPE_TARGET_PATH}}` templating it depends on (Task 2), and the `autoAllowBashIfSandboxed: false` fix (Task 1) that makes step 2's `tool-called` check meaningful
-- Related specs: `docs/superpowers/plans/2026-08-02-actor-scope-guard.md`
+- Related specs: `docs/superpowers/plans/2026-08-02-actor-scope-guard.md` (deleted `d83f0720`)

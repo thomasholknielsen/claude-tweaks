@@ -321,6 +321,27 @@ function resolveIntegrationBranch(repoRoot) {
   return name || null;
 }
 
+// Is this worktree path held by a live session right now? The one predicate
+// #407's reconciler needs from this module — exported so it consumes the
+// same pid-parsing logic reapWorktrees does above, rather than a second copy.
+// Fails CLOSED, same posture as every other predicate in this file: an
+// unresolvable root, a failed `git worktree list`, or no matching entry all
+// read as "cannot confirm it's free" except the last, which genuinely means
+// there is nothing here to lock (not registered at all).
+function isWorktreeLocked(wtPath, { cwd } = {}) {
+  const root = mainCheckoutRoot(cwd || wtPath);
+  if (!root) return true;
+  const { stdout, failure } = runGit(['worktree', 'list', '--porcelain'], root);
+  if (failure) return true;
+  const target = safeReal(wtPath) || wtPath;
+  for (const entry of parseWorktreeList(stdout)) {
+    const real = safeReal(entry.path) || entry.path;
+    if (real !== target && entry.path !== wtPath) continue;
+    return lockVerdict(entry) === 'in-use';
+  }
+  return false;
+}
+
 module.exports = {
   parseWorktreeList,
   isPidAlive,
@@ -330,6 +351,7 @@ module.exports = {
   isContentIdentical,
   reapWorktrees,
   resolveIntegrationBranch,
+  isWorktreeLocked,
   HARNESS_WORKTREE_DIR,
   ORPHAN_GRACE_MS,
   MAX_EXAMINED_PER_RUN,

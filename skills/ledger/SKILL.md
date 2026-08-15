@@ -1,6 +1,6 @@
 ---
 name: ledger
-description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file. Called by /claude-tweaks:build, /claude-tweaks:test, /claude-tweaks:review, /claude-tweaks:wrap-up, and /claude-tweaks:flow — or standalone for ledger inspection.
+description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file, or standalone for ledger inspection. A knowledge dependency read by build/test/review/wrap-up/flow, never invoked via the Skill tool.
 argument-hint: "[resolve [<feature-name>]|<feature-name>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
@@ -37,91 +37,17 @@ Manage the open items ledger that tracks findings, operational tasks, and observ
 | `resolve {feature-name}` | Run the nothing-left-behind gate on the ledger matching `{feature-name}`, instead of defaulting to the most recent one |
 | `{feature-name}` | Show ledger for a specific feature |
 
-## Ledger File
+## Ledger File Format
 
-### Location
-
-```
-docs/plans/YYYY-MM-DD-{feature}-ledger.md
-```
-
-The `{feature}` name matches the execution plan or spec topic. One ledger per pipeline run.
-
-### Format
-
-```markdown
-# Open Items — {spec title or design topic}
-
-| # | Phase | Item | Status | Resolution |
-|---|-------|------|--------|------------|
-| 1 | build/ops | Set `API_KEY` in environment — referenced in `src/api.ts` (reason-not-auto: auth-not-configured — `gh secret set` requires `gh auth login` first) | open | — |
-| 2 | review | Missing validation on `updateUser` input | fixed | Added zod schema — `abc1234` |
-| 3 | test | Login story fails — selector `.login-btn` not found | open | — |
-```
-
-### Item Numbering
-
-Items are numbered sequentially starting at 1. New items always get the next available number. Numbers are never reused — if item 3 is resolved, the next item is still 4.
+Location, entry table format, and item-numbering rules: `_shared/ledger-format.md`'s Ledger File Format section.
 
 ## Status Lifecycle
 
-```
-open → fixed         (item was addressed in code)
-open → deferred      (staged as a work record proposal — parked, with origin, files, and trigger — resolved at the run's Queue writes surface)
-open → accepted      (intentional decision, with stated reason)
-open → acknowledged  (for ops items — user is aware, requires action outside codebase; staged as a work record proposal — backlog — resolved at the run's Queue writes surface, same as deferred)
-observation          (informational, non-blocking — e.g., QA caveats)
-```
-
-**Terminal statuses:** `fixed`, `deferred`, `accepted`, `acknowledged`, `observation` — these items are resolved and will not block the pipeline.
-
-**Non-terminal status:** `open` — these items block pipeline completion.
-
-User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see `resolve-gate.md` Phase 3 for the full disposition table).
+Full state machine and terminal-status rules: `_shared/ledger-format.md`'s Status Lifecycle section.
 
 ## Phase Taxonomy
 
-Each item is tagged with a phase indicating where it was discovered.
-
-**Schema:**
-
-```
-Phase     ::= Skill | Skill "/" Qualifier
-Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops" | "flow" | "design"
-Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
-```
-
-The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (Wrap-Up Review Console, `/tidy` cross-spec scans) parse the phase string by splitting on `/` — keep the format strict.
-
-| Phase | Source | Typical Items |
-|-------|--------|---------------|
-| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage (only items with a `reason-not-auto` qualifier — see below) |
-| `build` | `/claude-tweaks:build` | Architecture deviations, blocked work, shared constants |
-| `build/ops` | `/claude-tweaks:build` | Operational requirements that survived the platform probe — auto-executable items do not appear here |
-| `build/skill` | `/claude-tweaks:build` | Skill update candidates from build observations |
-| `test` | `/claude-tweaks:test` | Standard verification failures (types / lint / tests) |
-| `test/qa` | `/claude-tweaks:test` (QA mode) | QA story failures and observations from `qa-reporting.md` Phase 5.5 |
-| `review` | `/claude-tweaks:review` | Code review findings (all categories) |
-| `review/skill` | `/claude-tweaks:review` | Skill update candidates from review |
-| `review/hindsight` | `/claude-tweaks:reflect` (hindsight mode, via /review) | Implementation hindsight findings |
-| `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up) | Reflection insights |
-| `reflect` | `/claude-tweaks:reflect` (standalone) | Standalone reflection findings |
-| `design` | `/claude-tweaks:flow` (polish phase, via `/claude-tweaks:design-wrapper`) | One entry per design-wrapper command invoked during polish — `fixed` for each `commands_invoked` entry (a command the wrapper actually dispatched), `observation` for each `staged_suggestions` entry (nothing ran; it awaits a human at the Review Console) |
-
-> **Phase taxonomy:** Use the item description and category column to distinguish finding types within a phase. Sub-phases (`build/ops`, `build/skill`, `review/skill`, `review/hindsight`, `test/qa`) carry semantic meaning that downstream skills filter on — keep them distinct. Lens-specific review sub-phases (e.g., `review/convention`, `review/ux`, `review/coverage`) collapse into `review`; the lens is recorded in the entry body, not the phase.
-
-### Required for `ops`-phase items (`ops`, `build/ops`)
-
-All `ops`-phase items must embed a `(reason-not-auto: {value})` qualifier in the Item description. This forces the writer to justify why the pipeline cannot resolve the item rather than reflexively routing "outside the codebase" tasks to manual.
-
-| Value | When to use |
-|-------|------------|
-| `no-cli` | Dashboard-only, physical, or vendor-side — no programmatic interface exists |
-| `requires-judgment` | A name, value, or copy decision someone must make at execution time |
-| `requires-signoff` | Security, legal, change-management, or product approval gates the action |
-| `auth-not-configured` | A CLI exists but credentials aren't set up on this machine. After the user runs the login command, the item should be re-triaged — it often becomes auto-executable. |
-
-Items without a `reason-not-auto` qualifier are classification errors (the spec writer or the build skill missed the triage). If you encounter one, propose the correct classification rather than appending as-is — most "outside the codebase" tasks have a CLI and should not land here.
+Phase schema, the full phase table, and the `reason-not-auto` qualifier rules for `ops`-phase items: `_shared/ledger-format.md`'s Phase Taxonomy section.
 
 ## Operations
 
@@ -179,7 +105,7 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-card.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure: `_shared/ledger-format.md`'s Resolve Gate section. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
 
 ### Delete
 
@@ -224,7 +150,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Invocation Model
 
-`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API, so the standard Component-Skill Contract (which suppresses `## Next Actions` when a parent skill is driving the interaction via `$PIPELINE_RUN_DIR`) does not apply here: no parent skill ever invokes `/claude-tweaks:ledger` through the Skill tool, so every actual run of this skill's own procedure is a direct, standalone invocation — `## Next Actions` always renders.
+`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API, so the standard Component-Skill Contract (which suppresses `## Next Actions` when a parent skill is driving the interaction via `$PIPELINE_RUN_DIR`) does not apply here: no parent skill ever invokes `/claude-tweaks:ledger` through the Skill tool, so every actual run of this skill's own procedure is a direct, standalone invocation — `## Next Actions` always renders. The format contract itself (entry schema, statuses, phase taxonomy, resolve-gate procedure) lives in `_shared/ledger-format.md` — this file covers only the two standalone human commands and the mutation operations (Create/Add/Update/Query/Delete).
 
 ## Anti-Patterns
 

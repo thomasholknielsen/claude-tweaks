@@ -5,7 +5,7 @@ Loaded by `/init` Phase 1 when existing config is detected. Covers the Update Mo
 ## Sub-phases at a glance
 
 - **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
-- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections; and detect policy keys still living in CLAUDE.md, which no longer apply, offering to move them
+- **Phase 1u.5** — detect claude-tweaks contract drift: compare the project's plugin-authored CLAUDE.md sections against the current template via `bin/lib/init/claude-md-conformance.js`, reporting missing and drifted sections; detect policy keys still living in CLAUDE.md, which no longer apply, offering to move them; and a general `policy.yml` Policy Configuration Review, distinct from the known-key migrations, with a low-friction skip
 - **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
 
 ## Phase 1u: Audit Existing Configuration
@@ -265,6 +265,18 @@ declining leaves it exactly as it was.
 On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
 `Operational` row.
 
+### Policy Configuration Review
+
+A general "does your `policy.yml` look right?" pass, distinct from Config Home Drift and Renamed
+key drift above — those catch a key in the wrong file or under a retired name, this reviews the
+full recognized-lever surface (every key currently set, whether its value validates, and a
+skippable one-click walkthrough of what each lever does). Both empty findings and a non-empty
+list count the same way toward Phase 1u.6's Total drift count as the checks above. Read
+`policy-review.md` in this skill's directory for the full procedure (the `auditPolicy()` call,
+the always-surfaced one-line count, the single low-friction skip prompt, and the Show-details
+rendering that reuses `_shared/policy-schema.md`'s own Meaning column rather than re-authoring
+lever descriptions here).
+
 ### Maturity Drift
 
 Like the Work-Record Backend Drift check above, maturity drift isn't reported by the
@@ -345,7 +357,12 @@ Each returned record resolves to one of five verdicts (see `skills/routine/SKILL
   manual investigation — was the skill renamed, delete and recreate under the new name;
   Stale suggests the same delete-and-recreate recourse STATUS Step 2 already documents for a
   routine deleted out-of-band; Malformed requires a human to inspect and fix or delete the
-  broken record file directly — there is no template or live routine to resync against).
+  broken record file directly — there is no template or live routine to resync against). If
+  recovery for any of these points at `/claude-tweaks:routine fleet on`, flag first that
+  `fleet on` reconciles against the *current* fleet composition table, not the project's prior
+  live set — re-provisioning this way can add or change routines beyond restoring parity — and
+  offer `/claude-tweaks:routine status <skill>` as the lower-commitment first step, before
+  naming `fleet on`.
 
 This check's Drifted count (not Orphaned/Stale/Malformed, which have no auto-fix and so aren't
 "drift a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total

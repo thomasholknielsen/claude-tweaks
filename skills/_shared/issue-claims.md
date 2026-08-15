@@ -134,10 +134,18 @@ content itself carries, so the comment is a legible copy of the blob, not a seco
 <!-- agent-claim-release: {"runId":"...","reason":"...","releasedAt":"<ISO>"} -->
 ```
 
-Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) for a
-pipeline-owned run; for a headless routine with no pipeline (`/claude-tweaks:dispatch`), it's
-that firing's standalone-auto run dir basename per `_shared/pipeline-run-dir.md` (e.g.
-`{ISO-timestamp}-dispatch-standalone`). `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same
+Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) — for a
+directly-run or human-resumed `/flow`, the run directory it creates or adopts itself
+(`basename($PIPELINE_RUN_DIR)`); for a `/claude-tweaks:dispatch`-originated claim, the
+per-group run directory dispatch Step 4 mints (`{ISO-timestamp}-record-{n}`,
+keyed to the group's representative record — see `dispatch/SKILL.md` Step 4) and passes to
+both of that group's Task calls as `PIPELINE_RUN_DIR`. One identity either way: the directory
+the claim was written under is always the same directory the pipeline itself resolves as
+`$PIPELINE_RUN_DIR`, so no separate variable threads the two together. Dispatch's own
+firing-level standalone-auto run dir (`_shared/pipeline-run-dir.md`, e.g.
+`{ISO-timestamp}-dispatch-standalone`) is a different thing entirely — it holds that firing's
+own `decisions.md` (queue pull, selection, per-group minting log), never a claim's `runId`.
+`sessionId` is `CLAUDE_CODE_SESSION_ID` — the same
 identity `record-worktree` stamps. **If the comment post fails after the blob write succeeded,
 the claim still stands** — retry once, warn, proceed; the blob is the lock, and this comment
 never gates anything.
@@ -220,14 +228,19 @@ and let `/tidy`'s sweep surface it for human judgment.
 now holds the lock — skip the write, log, and post nothing. `/tidy`'s sweep is exempt: it
 releases *other* runs' stale claims by design, after batch approval.
 
-**Dispatch's success path.** `/claude-tweaks:dispatch` claims with the dispatch firing's
-`$RUN_ID`, but a successful run's release happens inside `/wrap-up` (cleanup Section E), under
-the handed-off pipeline's own, later, differently-named run dir — so `dispatch/SKILL.md`'s
-execution step exports `CLAIM_RUN_ID` before invoking `/flow`, threaded through unchanged to
-every per-spec `/wrap-up` (`flow/multi-spec.md`'s env-var table, multi-spec/bundle case);
-`cleanup-procedures.md` Section E resolves `$RUN_ID` as
-`${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}`. The failure path (dispatch's own settle
-step) already releases with the same `$RUN_ID` that made the claim.
+**Dispatch's success path.** `/claude-tweaks:dispatch` Step 4 mints the group's run directory;
+the first Task call's own `/claude-tweaks:flow` invocation claims it at Step 2.8
+(`flow/claim-targets.md`) with the group's minted directory's basename as identity, and a
+successful run's release happens inside `/wrap-up` (cleanup Section E) under that same
+directory — `/flow` adopts it
+directly as `$PIPELINE_RUN_DIR` rather than creating a separate one of its own, so
+`cleanup-procedures.md` Section E resolves `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`
+directly, no separate variable to thread through. A dispatched bundle is the one exception:
+each spec's own `$PIPELINE_RUN_DIR` is a `spec-{N}/` subdirectory of the group's minted
+parent, so Section E is deferred per-spec and the actual release happens once, at end-of-run,
+against `basename($MULTISPEC_PARENT_DIR)` — see `flow/multispec-review-console.md`'s "Shared
+teardown." The failure path (dispatch's own settle step) already releases with the same
+identity that made the claim.
 
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when one
 exists — it lands in the release marker and human line.
@@ -269,11 +282,11 @@ permission, so a label is a maintainer's signature**. Authorization is two stack
 by `/claude-tweaks:backlog refine`'s interactive invocation. Machinery may remove or downgrade
 grants; it never adds them:
 
-- `auto:build` — authorized to build. `/dispatch` selects on this, claims the record's whole
-  file-overlap group, and hands it to `/flow #{n}`. Label = standing request, claim = in
-  flight: the claim blob prevents double-dispatch across firings, and the grant persists until
-  *successful* wrap-up — a failed run retries at a later firing once its claim ages out, up
-  to the `dispatch-retry-ceiling` config key.
+- `auto:build` — authorized to build. `/dispatch` selects on this, mints the run directory for
+  the record's whole file-overlap group, and hands it to `/flow #{n}`, which claims the group at
+  Step 2.8. Label = standing request, claim = in flight: the claim blob prevents double-dispatch
+  across firings, and the grant persists until *successful* wrap-up — a failed run retries at a
+  later firing once its claim ages out, up to the `dispatch-retry-ceiling` config key.
 - `auto:merge` — additionally authorized to auto-merge without a live Review Console
   approval, but only when `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode verdicts
   `auto-merge` (the two-layer gate defined in `skills/dispatch/SKILL.md`). Additive on
@@ -309,12 +322,14 @@ Fail-closed on claiming; never block the session.
 | Blob listing fails in `/tidy` | Skip the sweep step, note it in the report |
 | Any other `gh`/MCP failure during claim | Drop that issue, log, continue — partial batch over hung batch |
 
+**Group-claim-all-or-abort exception.** The row above assumes an independent-batch context (dispatch's per-issue loop, `/tidy`'s sweep), where dropping one issue and continuing is safe. A consumer claiming multiple targets under the group-claim-all-or-abort invariant (`flow/claim-targets.md`'s Step 2.8) gets different treatment: any transient `gh`/MCP failure during a claim read or write — not just a classification-based contest — triggers the same all-or-abort release-and-stop (or `keep-going` skip) as a live contest, since silently continuing with one named target unclaimed reopens the double-build race group-claiming exists to prevent.
+
 ## Consumers
 
 | Skill | Role |
 |---|---|
-| `/claude-tweaks:dispatch` | Claims each authorized record's whole file-overlap group before handing off to `/flow`; releases + revokes on failure (per the retry-ceiling procedure) |
-| `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:dispatch` always claims before invoking `/flow #{n}`. |
+| `/claude-tweaks:dispatch` | Selects each authorized record's whole file-overlap group, mints the run directory, and hands off to `/flow` (which claims at Step 2.8); the settle procedure it dispatches releases + revokes on failure (per the retry-ceiling procedure) |
+| `/claude-tweaks:flow` (issue-reference mode) | Claims its named targets at Step 2.8 (`flow/claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly. Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 

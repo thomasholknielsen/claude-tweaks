@@ -22,7 +22,7 @@ wrong by omission). Four call sites exist today:
 Parent-Gate Procedure below in place of — not alongside — Steps 1-4.** A decomposed sub-issue
 never carries its own `demo:pending`; its parent carries one gate for all of them. This
 holds on every path equally, including the two that bypass Phase 4's execution step entirely: an `auto:merge`'d
-sub-issue is precisely the population `_shared/github-pr-scan.md`'s `parent-gate` backstop scope
+sub-issue is precisely the population `_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope
 exists to catch, so giving it its own gate here would both defeat the parent acceptance gate and
 falsify that scope's stated reason for existing. `auto:merge` governs merge timing only — it does not
 change the unit of acceptance.
@@ -54,7 +54,7 @@ Every step from **Enumerate the parent's sub-issues** onward is shared, unchange
   below in order, starting with **Resolve the parent**.
 - **Parent-side entry** — **`/claude-tweaks:tidy`'s `Open parent gate` action**, on either
   driver: `tidy/actions-github-issues.md` executing on a `[parent-gate]` finding from
-  `_shared/github-pr-scan.md`'s `parent-gate` scope, or `tidy/actions-local-files.md` executing
+  `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope, or `tidy/actions-local-files.md` executing
   on one from `tidy/step-1-records.md`'s Shape 7. Both arrive already holding the
   **parent** number directly (`$PARENT_NUM` — a `parent-issue`-labeled issue number, or an
   `is-parent-issue: true` record's id), read straight from their own scan. Skip **Resolve the
@@ -537,7 +537,7 @@ brief's text content is unaffected.
 `![{description}](../../demo-evidence/{record}/{NN}-{description}.png)` (adjust the relative
 depth to the record file's actual location under `specs/`).
 
-**Branch durability (dispatch-originated runs only).** If `{run-dir}/pending-review-durability.md` exists, read its four lines (`push:`, `pr:`, `branch:`, `resume:` — written by `_shared/pending-review-durability.md` Step 5) and render the `### Branch` section of the template below from them: where the branch was pushed, the draft PR's link, any push or PR-open failure stated plainly rather than paraphrased so a human knows the branch is local-only or that a PR still needs opening by hand, and the literal `resume:` command for finishing the branch decision (merge/keep/discard) with its claim-release and grant-label cleanup done as one step, rather than merging by hand and reconstructing that cleanup separately. Omit the section entirely when the file is absent — and an empty heading would imply a durability step that never ran. Two populations correctly never produce one **here**: an interactive run, which never runs the durability step at all; and a dispatched **bundle**, whose record is written at the *parent* run dir's root (not this spec's `$PIPELINE_RUN_DIR`) and only after every per-spec brief has already posted. Do not go looking for it up a level to close that gap — the ordering, not the location, is why the bundle path cannot use this reader, and `_shared/pending-review-durability.md` Step 5 carries a bundle's push/PR failure to each record as its own comment instead.
+**Branch (`integration-model: pr-first` only, `_shared/integration-model.md`).** Nothing to render here — under `pr-run-comments.md`'s gate, this brief already posts *on* the run's own PR (opened at run start by `_shared/pr-early-run-lifecycle.md`, kept current at every phase exit), so a reader already has the branch and the PR in front of them. No separate `### Branch` section is composed.
 
 Render this exact template:
 
@@ -576,15 +576,6 @@ Code review: {spec-compliance verdict}. {key quality notes, 1-2 lines}
 {this section's content follows `skills/_shared/observation-plan.md`'s schema and grammar; it is
 always present on a sub-issue brief — a parent brief omits it (Parent-Gate Procedure)}
 
-### Branch
-{dispatch-originated runs only, sourced from {run-dir}/pending-review-durability.md above:
-where the branch was pushed and the draft PR link — or, plainly, that the push failed and the
-branch is local only, or that the push landed but the PR still needs opening by hand}
-
-To finish this branch and release its claim + grant labels as one step, resume this run's own
-Review Console rather than merging by hand: `{resume line from pending-review-durability.md}`
-{omit this section entirely when that file does not exist}
-
 ---
 
 _Posted by {poster}. Resolve with `/claude-tweaks:demo`._
@@ -601,15 +592,30 @@ the backstop exists for: parents that never reached `/wrap-up`. The same applies
 `/dispatch`-posted brief: that path never reached `/wrap-up`'s Phase 4 execution step either.
 
 `work-backend: github-issues` — write the rendered template to
-`/tmp/verification-brief-{issue}.md`, then:
+`/tmp/verification-brief-{issue}.md`, then check the pr-first gate (`run-state.json` carries a
+`pr` object — `_shared/pr-run-comments.md`):
+
+**No `pr` object** (`local-merge`, or a degraded `pr-first` run): post to the issue exactly as
+today.
 
 ```bash
 gh issue comment {issue} --body-file /tmp/verification-brief-{issue}.md
 gh issue edit {issue} --add-label demo:pending
 ```
 
-Post the comment before adding the label — a reader reacting to the label's appearance should
-never see `demo:pending` without a brief already attached.
+**`pr` object present:** the full brief moves to the PR; the issue keeps a one-line pointer
+instead of the whole template.
+
+```bash
+printf '<!-- run-comment: brief -->\n\n' | cat - /tmp/verification-brief-{issue}.md > /tmp/pr-brief-{issue}.md
+# find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=brief, against {pr-number}
+gh issue comment {issue} --body "Verification Brief posted to PR #{pr-number}: {pr-url}"
+gh issue edit {issue} --add-label demo:pending
+```
+
+Post the comment(s) before adding the label — a reader reacting to the label's appearance should
+never see `demo:pending` without a brief (or its pointer) already attached. Acceptance labeling
+stays on the issue either way — only where the full brief's content lives changes.
 
 `work-backend: local-files` — append the same template as a new `## Verification Brief` section
 to the record body (after any existing content), and write the record with

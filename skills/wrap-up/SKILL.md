@@ -60,6 +60,8 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 
 `resume` recovers a run halted at the Review Console's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Phase 4's Review Console, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop. Because Phase 1 creates a run directory on every run, a standalone run is now *eligible* for `resume` — but only on the same precondition as any other: its `run-state.json` must carry `status: interrupted`, which the hooks layer stamps on interruption. When no such run exists, `resume` reports none found and stops, exactly as before.
 
+**`resume` does not apply to a run parked by a headless dispatch firing.** A `/claude-tweaks:dispatch`-originated Task agent that reaches the Review Console with nobody to answer its prompt does not choose "Stop and re-engage" — it reports `pending-review` and its turn ends normally (`dispatch/SKILL.md`'s Reporting section). A normal turn end is not a session end, so the hooks layer's interruption stamp (`bin/lib/hooks/session-end.js`, fired only at session end for a run the ending session owns) never runs, and `run-state.json` stays `status: active` — `resume`'s precondition can never hold on this path. Re-enter that run by re-invoking `/claude-tweaks:wrap-up` with the explicit record reference(s) instead (e.g. `/claude-tweaks:wrap-up #{n}`) — this re-adopts the same run directory via `_shared/pipeline-run-dir.md`'s most-recent-matching-directory resolution, not via `resume`'s gate. `dispatch/SKILL.md`'s own "Resuming a parked run" note documents the dispatch-specific form of the same re-entry (`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up`).
+
 #### Flags
 
 - **`--dry-run`** — run the full analysis (reflection, the Phase 2 engine pass, leftover routing, the Review Console's auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `gh issue edit` / `gh issue comment` / `git merge` / `git push` calls — the three `gh` shapes cover both Phase 4's acceptance labeling and the auto-merge branch's own copy of it. Console and summary tables render as previews of what *would* happen instead of records of what *did*. Passed through to the engine, where it suppresses the telemetry append. See `review-console.md`'s "Dry-run mode" section and Phase 4's execution note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
@@ -90,6 +92,16 @@ Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` e
 ```bash
 RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 RUN_DIR="${PIPELINE_RUN_DIR:-}"
+if [ -n "$RUN_DIR" ]; then
+  # Adoption-time anchoring check (pipeline-run-dir.md step 1): an inherited value must
+  # resolve under $RUN_ROOT, not inside whatever worktree happens to be cwd — treat a
+  # worktree-trapped path as unset and fall through, same as a missing directory ([IL-127]).
+  REAL_RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd)
+  case "$REAL_RUN_DIR" in
+    "$RUN_ROOT"/*) : ;;      # anchored to the main checkout — keep it
+    *) RUN_DIR="" ;;         # missing, or resolves outside $RUN_ROOT (e.g. inside a worktree)
+  esac
+fi
 if [ -z "$RUN_DIR" ]; then
   RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
 fi
@@ -120,7 +132,7 @@ Read `config.yml`'s `ceremony-profile` from the run directory. Run `/claude-twea
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
 - **`--source wrap-up`** — always: reflect's `$PIPELINE_RUN_DIR` signal now resolves the same way on every wrap-up run, so the explicit flag is the stable statement of the same fact — see `/claude-tweaks:reflect`'s Component-Skill Contract
 
-Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — those two are the lenses that can still produce a Safety regression finding, which is what the ceremony escape hatch below keys on; the rest are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
+Full mode handles all five reflection lenses (Surprises, Approach, Near-misses, Fresh start, Friction), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses, Fresh-start, and Friction lenses and skips the tradeoff review — Near-misses and Fresh-start are the lenses that can still produce a Safety regression finding, which is what the ceremony escape hatch below keys on; Friction survives for a different reason — it's orthogonal to code-narrative depth, judging the pipeline's own behavior toward the operator rather than the size of the change. Surprises, Approach, and the tradeoff review are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
 
 If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved. The surviving insight set is Phase 2's input.
 
@@ -199,7 +211,7 @@ run.
 
 Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the three-phase procedure: Phase 1 fix-exhaust silently → Phase 2 present remainder for per-item user decision → Phase 3 apply).
 
-**Gate the read.** Read `ledger/resolve-gate.md` when the ledger exists **and holds at least one item** — of any status, not just `open`. If, after the sweep above has run, the ledger still doesn't exist or holds zero items, report "No ledger items to resolve" and skip this gate entirely without reading the file.
+**Gate the read.** Read `_shared/ledger-format.md`'s Resolve Gate section when the ledger exists **and holds at least one item** — of any status, not just `open`. If, after the sweep above has run, the ledger still doesn't exist or holds zero items, report "No ledger items to resolve" and skip this gate entirely without reading the file.
 
 The same condition gates `nothing-left-behind.md` in this skill's directory — wrap-up's own wrapper around that gate: the item-existence rationale, the hard requirements (Phase 1 fix-exhaust before any user-facing output, Phase 2's mandatory per-item input, and what `auto` never silences), the terminal-status bulk-resolve fast path, and the ops-acknowledgment sub-step with its `autonomy`-ceiling-gated batched multiSelect branch. When the gate is closed, read neither file.
 

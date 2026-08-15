@@ -11,13 +11,13 @@ payload assembly, facet parsing). If the two disagree, one of them has a bug —
 ## Lifecycle spine
 
 ```
-BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
-   │ ▲          ▲              │ ▲                      │                                │                    (completed)
-   │ │          │              │ └─── flag back ────────┘                                │
-   │ │          │              │      (remove ready)                                     ├──► retry ceiling: bot:blocked,
-   │ │   born-ready (health    │                                                         │    grants removed → needs re-triage
-   │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger       │
-   │ │   into READY)                                                                     └──► failure: auto:merge revoked unless transient;
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch dispatches──► BUILDING ──user merges──► CLOSED
+   │ ▲          ▲              │ ▲                      │                                    │                    (completed)
+   │ │          │              │ └─── flag back ────────┘                                    │
+   │ │          │              │      (remove ready)                                         ├──► retry ceiling: bot:blocked,
+   │ │   born-ready (health    │                                                             │    grants removed → needs re-triage
+   │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger           │
+   │ │   into READY)                                                                         └──► failure: auto:merge revoked unless transient;
    │ └── parked record wakes (trigger fires, parked removed)                                  auto:build retries next firing
    └──── closed as not-planned (wontfix / duplicate / absorbed) at any stage
 ```
@@ -89,9 +89,12 @@ are about to apply.
 | Acceptance (3) | `demo:pending`, `demo:approved`, `demo:changes-requested` | Acceptance |
 | Closure (1) | `wontfix` | re-filing suppression |
 | Upstream (1) | `upstream-candidate` | marks a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate |
-| Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan.md`); never carried by a sub-issue |
-| Framing (1) | `framing:baked` | Marks a record whose stated problem names a solution that was never traded off; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean |
+| Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan-acceptance.md`); never carried by a sub-issue |
+| Framing (1) | `solution:unjustified` | Names a solution that was never traded off, and a bounded evidence search found nothing supporting it; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean or evidence was found. Renamed from `framing:baked` — `parseRecordFacets`/`readRecord` permanently read the old label/frontmatter line back as this same facet on records that predate the rename |
+| Definition (1) | `needs:definition` | Marks a record that hasn't had its tradeoffs decided yet at filing time |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
+
+`needs:definition`'s presence-only flag is stamped by `/claude-tweaks:capture` and `/claude-tweaks:feedback` at filing time (see the permission matrix below); `facets.needsDefinition` and `facets.solutionUnjustified` are independent, non-exclusive booleans — a record could in principle carry both, though no automated path stamps both today. Downstream consumers must not assume mutual exclusivity.
 
 Retired name: `family:parent` — [IL-85] PERMANENT read-side support remains for adopter repos; removable only at a major version that drops pre-rename repo support.
 
@@ -131,8 +134,9 @@ hold as written whatever the ceiling says.
 |---|---|---|---|
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
 | **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `size:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`size:*` | nothing | `auto:*`, `bot:*`, `parked` |
-| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`); `ready` **only** under `autonomy: trusted`+ when `producer:capture`'s trust verdict is `clean` (see `_shared/autonomy-ceiling.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`; `ready` whenever either half of that condition fails — at `supervised` (the default), or on any verdict but `clean` |
-| **`/specify`** (shaper) | `ready`, `risk:*`/`size:*` when unstamped, `ceremony:*` (always — no unscored state), `framing:baked` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `parent-issue` (decomposition parents only, never sub-issues) | `parked` (promotion) | `auto:*`, `bot:*` |
+| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`); `needs:definition` unconditionally (own judgment call, not gated on label existence); `ready` **only** under `autonomy: trusted`+ when `producer:capture`'s trust verdict is `clean` (see `_shared/autonomy-ceiling.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`; `ready` whenever either half of that condition fails — at `supervised` (the default), or on any verdict but `clean` |
+| **`/feedback`** | `needs:definition` unconditionally (own judgment call, not gated on label existence); `bug`/`enhancement` only when `gh label list` confirms it exists (existing rule, unchanged) | nothing | every other internal-taxonomy label |
+| **`/specify`** (shaper) | `ready`, `risk:*`/`size:*` when unstamped, `ceremony:*` (always — no unscored state), `solution:unjustified` (via `/claude-tweaks:challenge`'s `framing-check`, after a bounded evidence search finds nothing), Type, `parent-issue` (decomposition parents only, never sub-issues) | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`size:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
 | **`/backlog grant`** (headless machine-grant mode, `github-issues` only — the one machine-origination path, see Grant semantics above) | `auto:build` (+`auto:merge` when `permittedGrants` also authorizes it), only on a record whose full gate chain clears (`bin/lib/issues/grant-gate.js`, `backlog/grant-mode.md`) | `bot:blocked` (re-authorize, `auto:build` only — never bundles `auto:merge`) | granting a human-filed record (no `by:*`), adding `ready`/`priority:*`/any `bot:*`, body-shaping beyond the audit comment, running at all under `work-backend: local-files` (no headless consumer acts on a local grant) |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
@@ -204,7 +208,7 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   (`auto:merge`, a hand-close, a dispatch run that ended early), `/tidy` finds the un-gated
   parent and, once approved, applies the same disposition — reusing the identical Parent-Gate
   Procedure rather than a second copy of it. Only the sweep that surfaces it differs by driver:
-  `_shared/github-pr-scan.md`'s `parent-gate` scope under `github-issues`, and
+  `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope under `github-issues`, and
   `tidy/step-1-records.md`'s Shape 7 under `local-files` — the first queries the
   `parent-issue` label, which no local record carries, and its file is skipped entirely whenever
   `gh` is absent, so the local sweep cannot live there.
@@ -358,7 +362,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
-| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `parent-gate` surfaces complete-but-un-gated parent issues and carries the `Open parent gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan-acceptance.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `parent-gate` surfaces complete-but-un-gated parent issues and carries the `Open parent gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 | `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |

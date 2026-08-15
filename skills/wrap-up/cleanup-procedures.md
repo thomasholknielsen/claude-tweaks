@@ -8,7 +8,7 @@ Eight cleanup actions, executed in order (Phase 4's execution step) and surfaced
 
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
-| 1 | Execution plans | Delete ephemeral plan files in `~/.claude/plans/` related to this spec (Claude Code's own native plan-mode scratch output). **Do NOT delete `docs/superpowers/plans/*.md`** — this project's CLAUDE.md documents it as a permanent historical archive, pruned only as a separate, deliberate maintenance action, never per-build. This applies regardless of build mode (design-mode or otherwise) — a spec-specific plan file there is kept, same as every other. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | record-based work | No (idempotent — leave to per-spec wrap-up) |
+| 1 | Execution plans | Delete ephemeral plan files in `~/.claude/plans/` related to this spec (Claude Code's own native plan-mode scratch output). **Do NOT delete `docs/superpowers/plans/*.md`** — per ADR-0007 (`docs/decisions/0007-historical-design-doc-archive-is-periodically-pruned.md`), a plan/spec file is kept at the time of its own build; the accumulated archive is only pruned in bulk, later, as a separate, deliberate maintenance action — never per-build. This applies regardless of build mode (design-mode or otherwise) — a spec-specific plan file there is kept, same as every other. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | record-based work | No (idempotent — leave to per-spec wrap-up) |
 | 2 | Open items ledger | Delete via `/ledger`'s delete operation, only after Phase 3's ledger gate confirms zero open items | ledger exists | No (idempotent) |
 | 3 | Design wrapper caches | Section A below — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` | design wrapper active | **Yes — defer to parent `/flow` console** |
 | 4 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
@@ -249,19 +249,31 @@ stop before attempting any release.
    closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier
    note). This applies per spec's own wrap-up commit in multi-spec current-branch runs.
 3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Resolve `$RUN_ID`
-   first: `RUN_ID="${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}"`. `CLAIM_RUN_ID` is set by
-   `/flow` whenever *its own* caller set it (dispatch always does for both issue-mode singletons
-   and multi-spec bundles, on both of a group's two Task calls — see `dispatch/SKILL.md`'s
-   "Step 5: Dispatch — one group at a time, sequentially") — the issue was claimed under that run
-   id, a different and earlier one than this pipeline's own `PIPELINE_RUN_DIR`, so using the
-   latter here would make every dispatch-originated release wrongly conclude "a successor holds
-   the lock" and skip the delete and the comment on every success. A spec reaching this point
-   through any other path (a human running `/flow #{issue}` directly, or a spec merely *derived
-   from* an issue with no live claim) falls back to this pipeline's own run id — the only value
-   used here before this distinction existed. Read the claim blob at `claims/issue-${ISSUE}.json`
+   as `basename($PIPELINE_RUN_DIR)`. Whether that value matches the run id `/claude-tweaks:dispatch`
+   claimed under follows directly from dispatch minting the run directory itself: dispatch Step 4
+   mints `PIPELINE_RUN_DIR` and writes the claim's `runId` as that directory's own basename, then
+   passes the same `PIPELINE_RUN_DIR` value inline on both of a group's Task calls — `/flow` Step 3
+   adopts it (its case 2, for the first call reaching an empty minted directory, or case 1 once
+   `config.yml` exists) rather than creating a separate run directory of its own, so this pipeline's
+   `$PIPELINE_RUN_DIR` **is** the directory the claim was written under, for a singleton. (A
+   multi-spec bundle is the one exception this single-spec Section E does not itself resolve — see
+   the callout below.) A spec reaching this point through any other path (a human running
+   `/flow #{issue}` directly, or a spec merely *derived from* an issue with no live claim) resolves
+   the same way — there is no separate fallback branch needed now that a single run identity
+   covers both cases. Read the claim blob at `claims/issue-${ISSUE}.json`
    on `claims-registry` (per `_shared/issue-claims.md`'s "The lock"). If its `runId` is not the
    resolved `$RUN_ID`, a successor holds the lock — skip the write AND the comment, log
    `AUTO — skipped release of issue #{issue}: claim held by run {claim.runId}`, and continue.
+
+   **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
+   `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" above) — release happens once, at
+   end-of-run, in `flow/multispec-review-console.md`'s "Shared teardown," which resolves `$RUN_ID`
+   as `basename($MULTISPEC_PARENT_DIR)` instead: the claim dispatch wrote is keyed to the parent
+   directory's basename (the identity minted for the whole group), while each spec's own
+   `$PIPELINE_RUN_DIR` in that context is the `spec-{N}/` subdirectory, not the parent. This
+   section's own `basename($PIPELINE_RUN_DIR)` resolution above is correct only for the
+   non-deferred, single-run case — a singleton, or any run whose `$PIPELINE_RUN_DIR` names the
+   directory the claim was actually written under.
 4. Generate the release content/comment with `releasePayload`, conditionally overwrite the
    blob with the tombstone (sha = the blob's current sha, from step 3's read), post the comment:
 

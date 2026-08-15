@@ -122,7 +122,7 @@ function permittedGrants(input) {
 // already requires as legitimate -- the only categories bookkeeping narrowing is
 // allowed to auto-route without asking. Moved verbatim from the retired
 // unattended-tier.js -- same regex patterns, same logic, no behavior change.
-// See docs/superpowers/specs/2026-07-16-unattended-tier-design.md.
+// Was docs/superpowers/specs/2026-07-16-unattended-tier-design.md — deleted (652a97c4).
 
 const CATEGORY_PATTERNS = [
   // External state: third-party data, prod traffic, approvals

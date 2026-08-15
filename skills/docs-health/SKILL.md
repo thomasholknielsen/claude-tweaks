@@ -1,6 +1,6 @@
 ---
 name: docs-health
-description: Use when you want a proactive, report-only sweep of docs/** that surfaces Diátaxis genre-drift (implied doc type vs. actual content shape, and directory placement vs. content genre), depth-mismatch (implied reading investment vs. actual word count), findability (can a reader or agent actually discover this doc), and factual staleness (including author-declared freshness dependencies), deduplicated and filed as GitHub issues. An LLM judges the docs; deterministic helpers handle scope rotation, fingerprinting, dedup, issue filing, word-count computation, inbound-reference counting, and tracked-dependency freshness checks. Never edits docs. Keywords - docs-health, documentation drift, Diátaxis, genre drift, depth mismatch, findability, orphan docs, staleness, proactive, github issues, scheduled, routine.
+description: Use for docs/** audits: Diátaxis drift, depth-mismatch, findability, staleness; dedups + files. Never edits docs. Keywords - docs-health, Diátaxis, genre drift, depth mismatch, findability, orphan docs, staleness, proactive, github issues, scheduled, routine.
 argument-hint: "[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low|med|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
@@ -68,7 +68,7 @@ First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
 Then a JSON array of findings in exactly the shape shown in this prompt (empty array `[]` if none).
 Do not add narration before or after the status line and JSON array.
 
-[Use: Standard model — multi-file judgment, format-sensitive output]
+[Use: Standard] (contract § Model Selection — multi-file judgment, format-sensitive output)
 ```
 
 Assemble each target's returned findings before continuing that target's own Step 3.5 VERIFY GATE onward — Steps 3.5-6 still run per-target, sequentially, in the main thread, since they touch shared state (the issue index, dedup cache, filing) that cannot safely run in parallel Task agents.

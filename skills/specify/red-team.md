@@ -4,8 +4,8 @@ Loaded by `/specify` Step 5 at dispatch time. The Template A block below is inli
 
 ## Parallel dispatch
 
-**Persona selection by tier** (`ceremony:*` label, stamped on the sub-issue in Step 3 — see
-`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`): `ceremony:fast-lane` →
+**Persona selection by tier** (`ceremony:*` label, stamped on the sub-issue in Step 3 — rationale
+was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`): `ceremony:fast-lane` →
 dispatch **Skeptical Reviewer only**; `ceremony:standard` (or a sub-issue with no `ceremony:*` label at
 all — treat as `standard`, the conservative default) → dispatch all **three** personas below,
 unchanged from before.
@@ -15,7 +15,7 @@ unchanged from before.
 > narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
 > complete.
 >
-> **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — personas never modify the record themselves.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node bin/resolve-profile.js standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
 >
 > **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
 >
@@ -40,7 +40,7 @@ unchanged from before.
 > Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 > Do not add narration, headers, or summaries before or after the table.
 >
-> [Use: Standard model.]
+> [Use: Standard] — resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 > ```
 >
 > **The three personas (lens questions verbatim):**

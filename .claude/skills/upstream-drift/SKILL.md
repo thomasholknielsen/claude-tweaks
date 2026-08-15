@@ -53,7 +53,7 @@ Not for: editing upstream, or editing `skills/**`. This skill produces findings;
 From the repository root:
 
 ```bash
-node -e "const{loadManifest}=require('./tools/upstream-drift/manifest.js');const{checkVersion,checkAssertions,replayFixtures}=require('./tools/upstream-drift/checks.js');const m=loadManifest('./tools/upstream-drift/manifest.yml');console.log(JSON.stringify(m.dependencies.map(d=>({name:d.name,upstream:d.upstream,contractPaths:d['contract-paths'],version:checkVersion(d),assertions:checkAssertions(d),fixtures:replayFixtures(d)})),null,2))"
+node -e "const{loadManifest}=require('./tools/upstream-drift/manifest.js');const{checkVersion,checkAssertions,replayFixtures,checkContentPins,isContentPinned}=require('./tools/upstream-drift/checks.js');const m=loadManifest('./tools/upstream-drift/manifest.yml');console.log(JSON.stringify(m.dependencies.map(d=>isContentPinned(d)?{name:d.name,upstream:d.upstream,contentPins:checkContentPins(d)}:{name:d.name,upstream:d.upstream,contractPaths:d['contract-paths'],version:checkVersion(d),assertions:checkAssertions(d),fixtures:replayFixtures(d)}),null,2))"
 ```
 
 Use `node -e`, not a script file: inside `-e`, `require` resolves relative paths against the current working directory, which is what makes the `./tools/...` paths above correct. The same lines saved to a file resolve against the *file's* directory and fail with `MODULE_NOT_FOUND`.
@@ -61,6 +61,8 @@ Use `node -e`, not a script file: inside `-e`, `require` resolves relative paths
 `tools/upstream-drift/` is read-only input to this skill. Never edit `checks.js`, `manifest.js`, or `manifest.yml` from here — a manifest change is a deliberate act, not an audit side effect. If a check reveals the manifest itself is wrong (a pin naming a version that was never installed, a `contract-path` that resolves nowhere), report it as a finding and stop.
 
 Filter to `--dep` if given. Under `--capability-only`, still run this step — the capability judgment needs `checkVersion`'s installed version to pick the diff's starting tag — but emit no drift findings from it.
+
+**Content-pinned entries (`pin.versioning: none`).** The command above routes these through `checkContentPins` instead of the three probe checks — nothing is installed for the class, so `checkVersion` would misreport it as absent, and a real pin/fixture breach would go unseen. Steps 3-4's tag pair does not exist for a tagless upstream either: the class's capability posture is commit-based — compare the entry's `pin.commit` against the upstream default branch's HEAD (`gh api "repos/{upstream.repo}/commits/{default-branch}"`); newer commits mean new or changed upstream files to triage (a re-pin is a deliberate act: re-fetch the consumed files at the new SHA, recompute hashes, update the fixtures — never edit from this skill), and a pinned SHA no longer reachable upstream (history rewrite) is itself a drift finding for a human to resolve, never a test failure.
 
 ### Step 2 — Decide sequential or parallel
 

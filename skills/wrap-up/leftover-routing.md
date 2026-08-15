@@ -59,7 +59,7 @@ For each unfinished section that genuinely cannot be finished, first present a s
 | 1 | {section} | partial | {specific blocker} |
 ```
 
-Then, for each section, run a two-step `AskUserQuestion` drill (the five routing choices exceed the tool's 4-option-per-question cap — same shape as `ledger/resolve-gate.md`'s per-item drill).
+Then, for each section, run a two-step `AskUserQuestion` drill (the five routing choices exceed the tool's 4-option-per-question cap — same shape as `_shared/ledger-format.md`'s Resolve Gate per-item drill).
 
 **Step 1 (always) — call `AskUserQuestion` with `question`: `"How do you want to handle section #{N}: {section name}?"`, `header`: `"Section #{N}"`, `multiSelect`: `false`, and:**
 

@@ -14,9 +14,9 @@
 // folded in to get the final decision (which re-walks gates 1-3 too, cheaply,
 // since they're pure).
 //
-// See docs/superpowers/specs/2026-08-09-self-maintaining-fleet-design.md and
-// #269 (backlog grant mode: headless machine-grant unit behind the unattended
-// ceiling).
+// Was docs/superpowers/specs/2026-08-09-self-maintaining-fleet-design.md —
+// decomposed into #265 + #267-#276 (bc1de29d) — and #269 (backlog grant mode:
+// headless machine-grant unit behind the unattended ceiling).
 
 const { normalizeLabelNames, parseRecordFacets } = require('./record.js');
 const { resolveProvenance } = require('./provenance.js');
@@ -64,6 +64,14 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // 'unattended' alone never authorizes a machine-originated grant.
   if (pol.grantOriginationEnabled !== true) {
     return deny('grant-origination-opt-in', 'ceiling is unattended, but grant-origination-enabled is not set — machine-originated grants need their own explicit opt-in');
+  }
+
+  // Gate 1c: needs:definition — cheapest possible per-record disqualifier (no
+  // trustVerdicts row lookup, independent of origin), so it runs first among the
+  // per-record checks, before any trust-row computation is spent on a record
+  // this gate would refuse anyway.
+  if (facets.needsDefinition === true) {
+    return deny('needs-definition', 'record carries needs:definition — an open choice has not been decided yet; run /claude-tweaks:specify to route through brainstorming first');
   }
 
   // Gate 2: record class trust reads 'clean'.

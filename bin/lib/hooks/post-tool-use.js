@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + skill-invocation ledger (log tier, see ./skill-invocation.js).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
 'use strict';
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
@@ -413,8 +413,54 @@ function checkWorktreeStaleness(ctx) {
   }
 }
 
+// Log-tier breadcrumb, gated on ctx.ownedRun.dir exactly like
+// logWorktreeStalenessEvent above — the AskUserQuestion analogue. One event
+// per tool call (not per question): AskUserQuestionInput allows 1-4
+// questions per call.
+//
+// What's logged as `questions` (header/question/options) comes straight from
+// `tool_input` — reliable, SDK-typed. What's logged as `response` does NOT
+// come from the SDK's structured `AskUserQuestionOutput` shape
+// (`{questions, answers}`) an earlier version of this function assumed —
+// real captured transcripts (see evals/NOTES.md's "AskUserQuestion
+// input/output shapes" section's Correction) show `tool_response` for
+// this tool is always a plain natural-language string (e.g. `Your questions
+// have been answered: "..."="...". You can now continue with these answers
+// in mind.`) with a varying prefix/suffix, and the embedded question text can
+// contain unescaped nested double quotes — not safely regex-parseable into a
+// structured per-question answer map. So there is no per-question `answer`
+// field; instead ONE raw `response` string for the whole event, extracted via
+// this file's own `extractToolResponseText` (reused, not reimplemented — see
+// that function's header comment, which already documents this exact class
+// of `tool_response`-shape problem for other tools). Never throws — a
+// malformed tool_input/tool_response degrades to an empty questions array
+// and/or a null response rather than breaking the session, per CLAUDE.md's
+// Hooks section ("Never break a session").
+function logAskUserQuestion(ctx) {
+  const ownedRun = ctx.ownedRun || {};
+  if (!ownedRun.dir) return {};
+  try {
+    const posed = (ctx.input.tool_input && Array.isArray(ctx.input.tool_input.questions))
+      ? ctx.input.tool_input.questions
+      : [];
+    const questions = posed.map((q) => ({
+      header: (q && typeof q.header === 'string') ? q.header : null,
+      question: (q && typeof q.question === 'string') ? q.question : null,
+      options: (q && Array.isArray(q.options))
+        ? q.options.map((o) => (o && typeof o.label === 'string') ? o.label : null)
+        : [],
+    }));
+    const response = extractToolResponseText(ctx.input.tool_response);
+    ctxLib.appendEvent(ownedRun.dir, 'ask-user-question', { questions, response }, ownedRun.attribution);
+  } catch {
+    /* best-effort — never break the session over a log-tier event */
+  }
+  return {};
+}
+
 function run(ctx) {
   if (ctx.input.tool_name === 'Skill') return skillInvocation.run(ctx);
+  if (ctx.input.tool_name === 'AskUserQuestion') return logAskUserQuestion(ctx);
 
   const command = ctx.input.tool_name === 'Bash' ? (ctx.input.tool_input && ctx.input.tool_input.command) : null;
   const hasCommand = typeof command === 'string' && !!command;

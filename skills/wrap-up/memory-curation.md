@@ -46,4 +46,4 @@ rule 4 *here* and act on the result in this step:
 | Re-classified outcome | Where it goes |
 |---|---|
 | D1 / D2 | Stages as a configuration or skill update, alongside the CLAUDE.md & rules and Skills rows' own output |
-| D3 | Becomes a queue-write proposal, staged the way `ledger/resolve-gate.md` Phase 3 stages `Keep`/`Defer`, for the Review Console to create on approval |
+| D3 | Becomes a queue-write proposal, staged the way `_shared/ledger-format.md`'s Resolve Gate Phase 3 stages `Keep`/`Defer`, for the Review Console to create on approval |

@@ -44,8 +44,8 @@ const durable = createDurableState('journey-health', { includeDeclined: true });
 // cursor set, unrelated cursor keys preserved, run-history append) can be
 // unit tested directly with plain-object fixtures, the same way
 // harness-health's buildValidateFindingsUpdate is tested in
-// bin/lib/harness-health/tests/build-validate-findings-update.test.js — see
-// bin/lib/journey-health/tests/build-validate-findings-update.test.js.
+// tests/bin-lib/harness-health/build-validate-findings-update.test.js — see
+// tests/bin-lib/journey-health/build-validate-findings-update.test.js.
 // Every CLI-level test that reaches cmdValidateFindings's persistence step
 // fails its `git fetch origin health-state` first (no real GitHub-hosted
 // remote configured in any test), so the mutator itself is never actually

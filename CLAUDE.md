@@ -59,6 +59,7 @@ All hook registrations route through `bin/hooks.js <event>` — one dispatcher, 
 - Run-dir state files written by hooks: `events.jsonl` (append-only typed events) and `run-state.json` (status: active | interrupted | clean, worktree assignment, owning session id). Skills write run-state only through `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree <path>` / `close-run` (plus the one creation-time stamp: wrap-up Phase 1 writes the initial `run-state.json` with `createdBy` when it creates a standalone run dir — no `hooks.js` verb creates run dirs).
 - Hook processes are spawned with the harness's own environment, so a `PIPELINE_RUN_DIR` exported inside a Bash tool call does not reach them; hooks instead resolve runs from the Bash call's cwd, and a commit issued from inside a worktree that contains no `.claude-tweaks/` resolves no run dir and is allowed (fail-open).
 - **Two resolutions, not one** (`context.js`'s `resolveRun`, since 6.47.0): enforcement reads the newest non-terminal run *regardless of owner* — E1's foreign-session warning exists precisely to tell a bystander the checkout belongs to someone else's worktree. Anything that **writes** (event breadcrumbs, `interrupted`/`lastEvent` stamps) uses the ownership-scoped `ctx.ownedRun` instead: a run owned by another session is never written to, and an unowned run is written to but tagged `attribution: "fallback"`. Ownership is stamped only by `record-worktree`, so runs that never provisioned a worktree stay unowned by design `[IL-96]`.
+- **Background convergence (`integration-model: pr-first` only):** `bin/lib/reconcile/` (fast-forward, worktree reap, claim release, run-dir archive, console execution) runs from SessionStart and dispatch's own trigger points — a session that opened a run's PR need not be the one that finishes it, since state converges from GitHub, not from session continuity.
 
 Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption): `_shared/git-discipline.md`, `_shared/subagent-output-contract.md`, `_shared/pipeline-run-dir.md`, `_shared/auto-mode-contract.md`, `build/worktree-setup.md`, `flow/worktree-merge.md`, `dispatch/SKILL.md` (auto-merge gate clears the run's worktree assignment via `close-run` before merging into the main checkout), `wrap-up/cleanup-procedures.md`, `wrap-up/SKILL.md`, `wrap-up/review-console.md`.
 
@@ -87,12 +88,14 @@ How to execute any task here. These apply project-wide unless a more specific ru
 ## Commands
 
 ```bash
-npm test                            # Full suite — tests/, every bin/lib/*/tests/ directory, plus tools/upstream-drift/tests/
+npm test                            # Full suite — tests/ (includes every tests/bin-lib/{module} suite) and tools/upstream-drift/tests/ — a recursive glob, not a fixed list; new tests/bin-lib/{x} directories are picked up automatically
 npm run test:perf                   # Timing budgets (perf/) — deliberately excluded from npm test, see docs/plugin-structure.md
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
 
 Per-suite test invocations, the `bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
+
+A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken.
 
 ### Subagent Contract (v4.2+)
 
@@ -139,6 +142,8 @@ work-types: labels
 **Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
 
 **`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.
+
+**Integration model** (`skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first` — a worktree run is born public (draft PR at run start, every phase pushes, merge happens via `gh pr merge`); no-forge projects use `local-merge`, the permanent fallback. Never re-derive which one applies ad hoc — read the resolution, once, per that file.
 
 **Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
