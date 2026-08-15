@@ -166,19 +166,33 @@ Contract rules, each independently checkable:
 
 ## Dependency integrity (hard prerequisite)
 
-Chains are the centerpiece visual, so the prose/parser mismatch that mis-ordered
-#418/#419/#420 must become impossible to hit silently. Three coordinated pieces, none of
-which change `parseDependencies` semantics (its canonical-line contract has other
-consumers and guessing from prose would trade a loud gap for quiet wrong parses):
+Chains are the centerpiece visual, so the dependency blindness that mis-ordered
+#418/#419/#420 must become impossible to hit silently. Specify-time correction to the
+first draft of this section: the deeper root cause is a *mode mismatch*, not just prose.
+This repo runs `work-links: native` — dependencies live in GitHub's blocked-by graph
+(#418's links were wired there), while `rankNextToBuild` reads only bodies via
+`parseDependencies`. Stamping duplicate `Blocked by #N` body lines, as the first draft
+proposed, would create two sources of truth in a native-links repo. Corrected mechanism,
+still preserving `parseDependencies` semantics and `ranking.js`'s purity contract
+(callers do the I/O):
 
-1. **Detection in overview.** After ranking, a cheap mechanical check: any candidate whose
-   body matches `/blocked by #\d/i` while parsing to zero blockers flags the whole
-   dispatchable block — loudly, with the affected ids and a `refine` pointer — and
-   suppresses chain rendering for those records rather than rendering a wrong chain.
-2. **Repair in refine.** `refine` mode's apply step gains stamping of canonical line-start
-   `Blocked by #N` lines derived from prose dependencies (surfaced for confirmation like
-   its other label writes, per its existing gates).
-3. **Headline replacement.** When detection fires (or the model otherwise concludes the
+1. **Native-link fetch in overview.** Step 3's candidate assembly fetches each
+   candidate's blocked-by set from the native graph (the GraphQL `blockedBy` field
+   `capabilities-probe.js` already probes for) and attaches it as `candidate.blockedBy`.
+2. **Expand-contract in `ranking.js`.** `computeUnblocksCount` (and any blocker-aware
+   logic Phase 3 adds) prefers an explicit `blockedBy` array when the caller attached
+   one, falling back to `parseDependencies(c.body)` when absent — body-text-mode and
+   existing callers unaffected.
+3. **Detection.** After assembly, a cheap mechanical check: any candidate whose body
+   matches `/blocked by #\d/i` while its resolved blocker set is empty flags the
+   dispatchable block loudly — with the affected ids — and suppresses chain rendering for
+   those records rather than drawing a wrong chain. In native mode this catches unwired
+   links; in body-text mode, prose that never became canonical lines.
+4. **Mode-aware repair in refine.** `refine`'s apply step offers to wire the missing
+   dependency where the mode says it belongs: the native blocked-by API under
+   `work-links: native`, canonical line-start `Blocked by #N` lines under `body-text` —
+   surfaced for confirmation like its other writes, per its existing gates.
+5. **Headline replacement.** When detection fires (or the model otherwise concludes the
    mechanical order is wrong), the corrected order is the recommendation — per the report
    contract above.
 
@@ -239,9 +253,10 @@ pointers (`refine`, lens names). This phase alone removes most of the observed n
 
 ## Phase 2: Dependency integrity
 
-The detection check in overview, the canonical `Blocked by #N` stamping in refine's apply
-step, and the headline-replacement rule. Independent of Phase 1's render but required
-before Phase 3 may draw chains.
+The native-link fetch in overview's candidate assembly, the `blockedBy` expand-contract
+in `ranking.js`, the mismatch detection, refine's mode-aware dependency repair, and the
+headline-replacement rule. Independent of Phase 1's render but required before Phase 3
+may draw chains.
 
 ## Phase 3: Batch emitter
 
