@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { toIssuePayload } = require('../issue-payload');
-const { extractFingerprint } = require('../../issues/record');
+const { toIssuePayload } = require('../../../bin/lib/harness-health/issue-payload');
+const { extractFingerprint } = require('../../../bin/lib/issues/record');
 
 function patchFinding(overrides = {}) {
   return {
