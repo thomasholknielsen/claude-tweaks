@@ -216,7 +216,7 @@ Every wrapper invocation returns one of two shapes:
 | `{mode, result, ...}` | Active mode dispatched and completed |
 | `{mode, skipped, ...}` | Detection or availability check returned skip |
 
-Callers must handle both. Skips are not failures — they are valid outcomes that mean "Impeccable doesn't apply here."
+Callers must handle both — see the canonical caller-side contract below for what each shape means.
 
 **Both shapes additionally carry a top-level `platform` field**, surfaced from Layer 0's `setup.platform`:
 

@@ -57,15 +57,15 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 `flow/SKILL.md` Step 3 branches on the `PIPELINE_RUN_DIR` env var **as it stands when the invocation starts**, before any directory is created. Three cases, checked in this order:
 
-1. **Set, and the directory it names exists** → **adopt it.** Create no new run directory. Do **not** re-initialize `config.yml` or `decisions.md` — both already exist, written by the invocation that created this run, and overwriting them destroys exactly the auto-decision trail the handoff exists to preserve. Read the existing `config.yml` for this run's policy levers instead of recomputing them from the precedence chain, and render the mode's Manifesto behavior (the FYI table in `auto`, the approval gate in `confirm`/`hybrid`) from those values. Note it in the pipeline's output, one line, so the adoption is visible rather than silent:
+1. **Set, the directory it names exists, AND it resolves under `$RUN_ROOT`** (`_shared/pipeline-run-dir.md`'s Anchoring section: `RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)` — the adopted path's realpath must be a descendant of `$RUN_ROOT`, never merely inside whatever worktree happens to be cwd) → **adopt it.** Create no new run directory. Do **not** re-initialize `config.yml` or `decisions.md` — both already exist, written by the invocation that created this run, and overwriting them destroys exactly the auto-decision trail the handoff exists to preserve. Read the existing `config.yml` for this run's policy levers instead of recomputing them from the precedence chain, and render the mode's Manifesto behavior (the FYI table in `auto`, the approval gate in `confirm`/`hybrid`) from those values. Note it in the pipeline's output, one line, so the adoption is visible rather than silent:
 
    `Resuming existing run directory: {path}`
 
    Everything downstream then resolves this same directory through `_shared/pipeline-run-dir.md`'s resolution-order step 1 as usual — Step 3's own export is a re-export of the value it was handed.
 
-2. **Set, but the directory does not exist** → stale value: fall through to case 3's creation path, and note the discrepancy rather than silently ignoring that a value was supplied and turned out wrong:
+2. **Set, but the directory does not exist, OR it exists but does not resolve under `$RUN_ROOT`** (e.g. it points inside a linked worktree instead of the main checkout — the shape `[IL-127]` recorded) → stale/unanchored value: fall through to case 3's creation path, and note the discrepancy rather than silently ignoring that a value was supplied and turned out wrong:
 
-   `PIPELINE_RUN_DIR was set to {path}, which does not exist — created a fresh run directory instead.`
+   `PIPELINE_RUN_DIR was set to {path}, which {does not exist | is not anchored to the main checkout} — created a fresh run directory instead.`
 
 3. **Unset** → existing behavior, unchanged: create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` (`$RUN_ROOT` per `_shared/pipeline-run-dir.md`'s Anchoring section — never the current directory, since this creation can run from inside a worktree; see `manifesto.md`'s Path conventions), write `config.yml`, initialize `decisions.md`, export it.
 

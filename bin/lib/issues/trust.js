@@ -4,7 +4,7 @@
 // (provenance x risk band) and tallies outcome signals per cell so a later
 // phase can decide which classes of work have earned more autonomy. This
 // module acts on nothing — it computes and returns rows for display only.
-// See docs/superpowers/plans/2026-08-07-supervised-trust-table.md.
+// Was docs/superpowers/plans/2026-08-07-supervised-trust-table.md — deleted (d83f0720).
 const { resolveProvenance } = require('./provenance.js');
 const { dispositionState } = require('./acceptance.js');
 const { resolveValue } = require('../policy-schema.js');

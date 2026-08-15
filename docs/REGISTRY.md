@@ -15,7 +15,6 @@
 | docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
 | docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts`, docs/donts.md |
 | docs/shipped-versions.tsv | Authoritative record of every shipped version + date | `.claude-plugin/plugin.json`, `CHANGELOG.md` |
-| docs/github-issues-integration-review.md | GitHub-issues work-record backend design review | `bin/lib/issues/**` |
 | docs/decisions/*.md | Architecture Decision Records — hard-to-reverse, surprising trade-offs | *(no auto-detect — written deliberately by /wrap-up's ADR gate)* |
 | docs/diagrams/*.html | Generated visual diagrams | *(no auto-detect — generated on demand by `/claude-tweaks:visualize`)* |
 | docs/journeys/*.md | User/developer journeys backing agent e2e testing | *(no auto-detect — see per-journey `files:` frontmatter instead)* |

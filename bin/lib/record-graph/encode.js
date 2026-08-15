@@ -1,8 +1,9 @@
 // bin/lib/record-graph/encode.js
 // Pure: the six-axis visual-encoding contract from
-// docs/superpowers/specs/2026-08-03-visualize-record-graph-design.md. One
-// record in, one {fillKey, borderStyle, badges} out — every renderer (D2, SVG)
-// reads exclusively from this shape, never from the raw record again.
+// docs/superpowers/specs/2026-08-03-visualize-record-graph-design.md (deleted
+// 70849915). One record in, one {fillKey, borderStyle, badges} out — every
+// renderer (D2, SVG) reads exclusively from this shape, never from the raw
+// record again.
 'use strict';
 
 const { TYPE_LABELS, normalizeLabelNames } = require('../issues/record');

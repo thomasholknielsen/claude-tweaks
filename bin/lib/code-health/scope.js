@@ -149,8 +149,9 @@ function splitOversized(id, absDir, out) {
 // Falls back to hashing the directory listing string if find/read fails.
 // recursive:false scans only direct file children of absDir (maxdepth 1) —
 // used for the '.' slice, which must NOT overlap every subdirectory/
-// workspace slice that already covers everything beneath root. See
-// docs/superpowers/specs/2026-07-30-durable-state-git-native-write-design.md.
+// workspace slice that already covers everything beneath root. Was
+// docs/superpowers/specs/2026-07-30-durable-state-git-native-write-design.md
+// — deleted (70849915).
 function sourceFiles(absDir, { recursive = true } = {}) {
   try {
     const excludeArgs = [];

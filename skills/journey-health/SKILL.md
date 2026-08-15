@@ -1,6 +1,6 @@
 ---
 name: journey-health
-description: Use when you want to check whether docs/journeys/*.md files still accurately describe the codebase and still back reliable agent e2e testing — picks one journey to audit (or the coverage scan, when due), judges it via file-existence + self-review + coverage checks, and always files a by:journey-health-labelled GitHub issue. Runs standalone or on a schedule via a Routine. Never edits journeys, stories, or code. Keywords - journey health, journey drift, journey staleness, agent e2e testing, coverage gap, scheduled, routine.
+description: Use to check whether docs/journeys/*.md still back reliable e2e testing — audits one journey or the due coverage scan; always files an issue. Keywords - journey health, journey drift, journey staleness, agent e2e testing, coverage gap, scheduled, routine.
 argument-hint: "[--target <journey-name>] [--budget <n>] [--deep] [--dry-run] [--root <dir>] [--min-confidence <low|med|high>]"
 allowed-tools: Read, Grep, Glob, Bash, Skill, Write, AskUserQuestion
 ---
