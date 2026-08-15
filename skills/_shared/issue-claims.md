@@ -137,7 +137,7 @@ content itself carries, so the comment is a legible copy of the blob, not a seco
 Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) — for a
 directly-run or human-resumed `/flow`, the run directory it creates or adopts itself
 (`basename($PIPELINE_RUN_DIR)`); for a `/claude-tweaks:dispatch`-originated claim, the
-per-group run directory dispatch Step 4 mints *before* claiming (`{ISO-timestamp}-record-{n}`,
+per-group run directory dispatch Step 4 mints (`{ISO-timestamp}-record-{n}`,
 keyed to the group's representative record — see `dispatch/SKILL.md` Step 4) and passes to
 both of that group's Task calls as `PIPELINE_RUN_DIR`. One identity either way: the directory
 the claim was written under is always the same directory the pipeline itself resolves as
@@ -228,9 +228,11 @@ and let `/tidy`'s sweep surface it for human judgment.
 now holds the lock — skip the write, log, and post nothing. `/tidy`'s sweep is exempt: it
 releases *other* runs' stale claims by design, after batch approval.
 
-**Dispatch's success path.** `/claude-tweaks:dispatch` claims with the group's own minted
-run directory's basename (Step 4, before either Task call), and a successful run's release
-happens inside `/wrap-up` (cleanup Section E) under that same directory — `/flow` adopts it
+**Dispatch's success path.** `/claude-tweaks:dispatch` Step 4 mints the group's run directory;
+the first Task call's own `/claude-tweaks:flow` invocation claims it at Step 2.8
+(`flow/claim-targets.md`) with the group's minted directory's basename as identity, and a
+successful run's release happens inside `/wrap-up` (cleanup Section E) under that same
+directory — `/flow` adopts it
 directly as `$PIPELINE_RUN_DIR` rather than creating a separate one of its own, so
 `cleanup-procedures.md` Section E resolves `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`
 directly, no separate variable to thread through. A dispatched bundle is the one exception:
