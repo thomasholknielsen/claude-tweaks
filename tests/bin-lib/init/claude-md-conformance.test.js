@@ -1,8 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
 const {
   extractTemplateBody,
   splitSections,
+  classifySections,
+  checkConformance,
+  PHILOSOPHY_EXCEPTION,
 } = require('../../../bin/lib/init/claude-md-conformance');
 
 const FIXTURE = [
@@ -67,8 +72,6 @@ test('extractTemplateBody throws when a nested fence truncates the template', ()
   assert.throws(() => extractTemplateBody(nested), /stopped early/i);
 });
 
-const { classifySections, PHILOSOPHY_EXCEPTION } = require('../../../bin/lib/init/claude-md-conformance');
-
 test('classifySections sorts known sections into the two lists', () => {
   const sections = new Map([
     ['Stack', '\n| Layer | Tech |\n|---|---|\n| ... | ... |\n'],
@@ -103,9 +106,6 @@ test('PHILOSOPHY_EXCEPTION names the present/absent-only section', () => {
   assert.strictEqual(PHILOSOPHY_EXCEPTION, 'Philosophy');
 });
 
-const fs = require('fs');
-const path = require('path');
-
 const TEMPLATE = path.resolve(
   __dirname, '..', '..', '..', 'skills', 'init', 'claude-md-template.md',
 );
@@ -137,8 +137,6 @@ test('the live template still ends with Don\'ts — the fence is unambiguous', (
   const names = [...splitSections(extractTemplateBody(src)).keys()];
   assert.strictEqual(names[names.length - 1], "Don'ts");
 });
-
-const { checkConformance } = require('../../../bin/lib/init/claude-md-conformance');
 
 const TPL = [
   '## Initial Mode Template',
@@ -262,4 +260,32 @@ test('a missing Philosophy section is reported with a generation instruction, no
   assert.strictEqual(typeof workingApproach.expected, 'string');
   assert.match(workingApproach.expected, /Think before coding/);
   assert.strictEqual(workingApproach.generate, undefined);
+});
+
+test('splitSections tolerates CRLF line endings', () => {
+  const crlfFixture = FIXTURE.replace(/\n/g, '\r\n');
+  const lfSections = splitSections(extractTemplateBody(FIXTURE));
+  const crlfSections = splitSections(extractTemplateBody(crlfFixture));
+  assert.deepStrictEqual([...crlfSections.keys()], [...lfSections.keys()]);
+  for (const key of lfSections.keys()) {
+    assert.strictEqual(crlfSections.get(key), lfSections.get(key));
+  }
+});
+
+test('checkConformance reports missing sections on a CRLF template, not an empty result', () => {
+  // TPL_WITH_PHILOSOPHY exists to exercise the Philosophy special case and has
+  // no `## claude-tweaks Pipeline` heading of its own; splice one in so this
+  // test can assert all three plugin-authored sections, matching the spec's
+  // acceptance criterion, without changing TPL_WITH_PHILOSOPHY's shape for the
+  // other test that relies on it having exactly two.
+  const tplWithAllThree = TPL_WITH_PHILOSOPHY.replace(
+    "## Don'ts",
+    "## claude-tweaks Pipeline\n\n**Artifacts:** design doc then spec.\n\n## Don'ts",
+  );
+  const crlfTemplate = tplWithAllThree.replace(/\n/g, '\r\n');
+  const r = checkConformance({ templateSource: crlfTemplate, projectClaudeMd: '' });
+  assert.deepStrictEqual(
+    r.missing.map((m) => m.section).sort(),
+    ['Philosophy', 'Working Approach', 'claude-tweaks Pipeline'].sort(),
+  );
 });
