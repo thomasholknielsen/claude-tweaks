@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { resolve } = require('../profiles');
+const { resolve } = require('../../../bin/lib/model-profiles/profiles');
 
 test('table default resolves with source default', () => {
   assert.deepStrictEqual(resolve('standard', {}), {
