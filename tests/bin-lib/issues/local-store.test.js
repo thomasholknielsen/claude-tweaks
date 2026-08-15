@@ -22,7 +22,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const dir = tmp(t);
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
-    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', framing: true, priority: null,
+    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', framing: true, needsDefinition: false, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: 12, isParentIssue: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
@@ -44,7 +44,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   writeRecord(filePath, {
     title: 'Min', body: 'b',
     facets: {
-      type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null,
+      type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
       parent: null, isParentIssue: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
