@@ -5,9 +5,13 @@ Routine fires with nobody present to read a stop message. Every other form (bare
 `#N,#M,...`) runs with a human present per the Input table in `SKILL.md`, reports the failing check
 directly, and never reads this file.
 
-**Ordering.** This procedure runs *before* the stop it accompanies — both for Preflight's
-`work-backend` checks and for its Detection Ladder. It does not soften or defer any of them: the
-stop still happens, this just leaves a durable trace first.
+**Ordering.** This procedure runs *before* the stop it accompanies — for Preflight's
+`work-backend` checks, its Detection Ladder, and (new) a `next`-form firing's first Task call
+hitting a Step 2.8 claim contest inside its own `/flow` invocation (`dispatch/settle-and-merge.md`'s
+Settle procedure invokes this file directly from inside that Task call when `DISPATCH_HEADLESS=1`
+was set — the same file, the same dedup-by-marker mechanism, just a different caller than
+dispatch's own Preflight thread). It does not soften or defer any of these stops — the stop still
+happens, this just leaves a durable trace first.
 
 **Resolved build.** Every path below records which plugin build this firing actually ran, as one line:
 
