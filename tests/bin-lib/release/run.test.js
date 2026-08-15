@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runRelease } = require('../run.js');
+const { runRelease } = require('../../../bin/lib/release/run.js');
 
 const manifest = (v) => JSON.stringify({ name: 'claude-tweaks', version: v, description: 'Desc' }, null, 2);
 const CHANGELOG = '# Changelog\n\nProse.\n\n## v6.70.1 — Prior\n\nBody.\n';

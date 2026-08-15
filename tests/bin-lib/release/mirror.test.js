@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { composeMirroredCatalog, mirrorRelease } = require('../mirror.js');
+const { composeMirroredCatalog, mirrorRelease } = require('../../../bin/lib/release/mirror.js');
 
 const CATALOG = JSON.stringify({
   name: 'claude-tweaks-marketplace',

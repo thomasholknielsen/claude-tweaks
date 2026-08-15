@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { collectClaims, checkCollisions, precheck } = require('../precheck.js');
+const { collectClaims, checkCollisions, precheck } = require('../../../bin/lib/release/precheck.js');
 
 // Lazily-evaluated canned git — a function per invocation, never an IIFE [IL-30].
 function fakeGit(responses) {

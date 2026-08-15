@@ -1,8 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { nextVersion, bumpManifest, stubChangelogEntry, RELEASE_FILES } = require('../compose.js');
-const { parseChangelogVersions, findHeadingDefects } = require('../../changelog.js');
+const { nextVersion, bumpManifest, stubChangelogEntry, RELEASE_FILES } = require('../../../bin/lib/release/compose.js');
+const { parseChangelogVersions, findHeadingDefects } = require('../../../bin/lib/changelog.js');
 
 const CHANGELOG_FIXTURE = `# Changelog
 
