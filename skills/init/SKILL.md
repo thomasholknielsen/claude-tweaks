@@ -178,7 +178,7 @@ On a GitHub-reachable project, offers pinning `integration-model: pr-first` to p
 
 If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens; the known early-exit paths (`bootstrap` scope, the Scope Selection Gate's Option 4, and Option 2's per-phase "Done") write it themselves instead, and are known cases rather than an exhaustive list.
 
-For the full exit-path rule, the merge-don't-overwrite write procedure, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
+For the full exit-path rule, the isolated-worktree write mechanism, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
 
 ---
 
@@ -346,17 +346,19 @@ Both modes lead with a **Verified & Consistent** section — an affirmative repo
 
 For the complete summary templates for both modes, read `summary-templates.md` in this skill's directory.
 
+### Isolated Write Step
+
+Every write below happens inside an isolated worktree, **unconditionally**, regardless of the current `worktree.always` policy — reconnaissance (Phases 1-8.5) stays direct. Read `isolated-write-step.md` for the full mechanism: scope, dirty-file pre-check, provisioning, ff-only merge-back.
+
 ### Actions Performed
 
-After writing files, surface what was created as a `| Action | Detail | Ref |` table generated from the actual artifacts produced this run — only rows for actions that actually occurred, and the Worktree policy row always last. The full row set (bootstrap, starter files, statusline, design and shadcn integration, work records, GitHub remote, cloud parity, routines, routine re-sync, worktree policy, classification, CLAUDE.md, skills, rules, journeys, doc registry, backlog) is in `summary-templates.md` — the same file this phase already reads for the mode summaries, so it costs no extra load.
+After the Isolated Write Step lands, surface what was created as a `| Action | Detail | Ref |` table generated from the actual artifacts produced this run — only rows for actions that actually occurred, and the Worktree policy row always last. The full row set (bootstrap, starter files, statusline, design and shadcn integration, work records, GitHub remote, cloud parity, routines, routine re-sync, worktree policy, classification, CLAUDE.md, skills, rules, journeys, doc registry, backlog) is in `summary-templates.md` — the same file this phase already reads for the mode summaries, so it costs no extra load.
 
 Execute only after user confirmation.
 
 ### Worktree Policy Finalization
 
-Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, write it now; the `bootstrap`-only scope already wrote its own, so there is nothing to do here for that scope.
-
-For the deferral rationale, the merge-don't-overwrite write procedure, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
+If Step 6 queued a `worktree.always` decision, write it now, bundled into "Isolated Write Step"'s worktree/commit/merge; early-exit paths that skip Phase 9 write it standalone the same way. Still the last filesystem action of the invocation. Read `worktree-policy-finalization.md` for merge-don't-overwrite mechanics and the "Yes" message.
 
 ---
 

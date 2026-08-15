@@ -45,6 +45,9 @@ before(() => {
   );
   fs.mkdirSync(path.join(repoDir, 'docs', 'journeys'), { recursive: true });
   fs.writeFileSync(path.join(repoDir, 'docs', 'journeys', 'j1.md'), '# Journey 1\n');
+  fs.mkdirSync(path.join(repoDir, 'docs', 'journeys', 'checkout'), { recursive: true });
+  fs.writeFileSync(path.join(repoDir, 'docs', 'journeys', 'checkout', 'happy-path.md'), '# Nested journey\n');
+  fs.writeFileSync(path.join(repoDir, 'docs', 'journeys', 'checkout', 'notes.txt'), 'not markdown\n');
   fs.mkdirSync(path.join(repoDir, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(repoDir, '.claude', 'skills', 's1.md'), '# Skill 1\n');
   fs.writeFileSync(path.join(repoDir, 'docs', 'guide.md'), '# Guide\n');
@@ -107,6 +110,16 @@ test('gatherFacts renamedDeleted records rename shape with old and new paths', (
 test('gatherFacts journeyFiles lists the journey markdown files', () => {
   const f = gatherFacts({ cwd: repoDir, base: baseSha });
   assert.ok(f.journeyFiles.some((p) => p.endsWith('j1.md')));
+});
+
+test('gatherFacts journeyFiles recurses into subdirectories', () => {
+  const f = gatherFacts({ cwd: repoDir, base: baseSha });
+  assert.ok(f.journeyFiles.includes('docs/journeys/checkout/happy-path.md'));
+});
+
+test('gatherFacts journeyFiles excludes non-markdown files in subdirectories', () => {
+  const f = gatherFacts({ cwd: repoDir, base: baseSha });
+  assert.ok(!f.journeyFiles.some((p) => p.endsWith('notes.txt')));
 });
 
 test('gatherFacts headingRenamed is false when no modified md file changed a heading', () => {
