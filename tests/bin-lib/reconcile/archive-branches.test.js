@@ -1,0 +1,70 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { decideArchive, inScope, shouldAgeTag } = require('../../../bin/lib/reconcile/archive-branches');
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// AC4: cherry-equivalent branch, no PR or closed PR -> delete (no tag)
+test('decideArchive: cherry-equivalent + no PR -> delete', () => {
+  const r = decideArchive({ branch: 'build/x', tipAgeDays: 2, cherryEquivalent: true, prState: null });
+  assert.strictEqual(r.action, 'delete');
+});
+test('decideArchive: cherry-equivalent + closed PR -> delete', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 2, cherryEquivalent: true, prState: { number: 3, state: 'CLOSED' } }).action, 'delete');
+});
+test('decideArchive: cherry-equivalent + merged PR -> delete', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 2, cherryEquivalent: true, prState: { number: 3, state: 'MERGED' } }).action, 'delete');
+});
+
+// AC4: any OPEN PR -> skip, cherry-equivalent or not
+test('decideArchive: open PR -> skip, even when cherry-equivalent', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: true, prState: { number: 3, state: 'OPEN' } }).action, 'skip');
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, prState: { number: 3, state: 'OPEN' } }).action, 'skip');
+});
+
+// AC4: genuinely unmerged, aged, no-pr / pr-closed-unmerged -> tag-and-delete
+test('decideArchive: unmerged 15-day-old + closed-unmerged PR -> tag-and-delete', () => {
+  const r = decideArchive({ branch: 'build/x', tipAgeDays: 15, cherryEquivalent: false, prState: { number: 3, state: 'CLOSED' } });
+  assert.strictEqual(r.action, 'tag-and-delete');
+});
+test('decideArchive: unmerged 15-day-old + no PR -> tag-and-delete', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 15, cherryEquivalent: false, prState: null }).action, 'tag-and-delete');
+});
+test('decideArchive: unmerged 13-day-old -> skip (too young)', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 13, cherryEquivalent: false, prState: null }).action, 'skip');
+});
+
+// Fail closed on unknown PR state
+test('decideArchive: transport failures -> skip', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: true, prState: 'gh-absent' }).action, 'skip');
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, prState: 'network-failure' }).action, 'skip');
+});
+test('decideArchive: unmerged + merged PR (rebased remnant) -> skip', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, prState: { number: 3, state: 'MERGED' } }).action, 'skip');
+});
+
+// AC4 scope guard: namespaces + worktree attachment
+test('inScope: only build/*, worktree-*, demo/* namespaces', () => {
+  assert.strictEqual(inScope('build/x', []), true);
+  assert.strictEqual(inScope('worktree-record-42', []), true);
+  assert.strictEqual(inScope('demo/y', []), true);
+  assert.strictEqual(inScope('main', []), false);
+  assert.strictEqual(inScope('feature/z', []), false);
+  assert.strictEqual(inScope('flow/spec-1-2', []), false);
+});
+test('inScope: branch attached to a worktree is out of scope', () => {
+  const wts = [{ path: '/w/a', branch: 'build/x' }];
+  assert.strictEqual(inScope('build/x', wts), false);
+  assert.strictEqual(inScope('build/y', wts), true);
+});
+
+// AC5: tag aging on committer date, 90-day threshold
+test('shouldAgeTag: 91 days old -> true, 89 days -> false', () => {
+  const now = Date.parse('2026-08-16T00:00:00Z');
+  assert.strictEqual(shouldAgeTag(new Date(now - 91 * DAY).toISOString(), now), true);
+  assert.strictEqual(shouldAgeTag(new Date(now - 89 * DAY).toISOString(), now), false);
+});
+test('shouldAgeTag: unparseable date -> false (fail closed)', () => {
+  assert.strictEqual(shouldAgeTag('not-a-date', Date.now()), false);
+});
