@@ -4,7 +4,7 @@
   "version": "6.70.0",
   "description": "claude-tweaks plugin — test harness only; the plugin itself ships no runtime npm deps.",
   "scripts": {
-    "test": "node --test $(find tests bin/lib/*/tests tools/upstream-drift/tests -name '*.test.js' | sort)",
+    "test": "node --test $(find tests tools/upstream-drift/tests -name '*.test.js' | sort)",
     "test:perf": "node --test $(find perf -name '*.test.js' | sort)"
   }
 }

@@ -75,25 +75,25 @@ LICENSE                           → MIT
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/, every bin/lib/*/tests directory, and tools/upstream-drift/tests (see package.json's `test` script — a glob, not a fixed list; new bin/lib/{x}/tests directories are picked up automatically)
-node --test bin/lib/code-health/tests/*.test.js   # Code-health unit suite only
+npm test                            # Runs node --test over tests/ (includes every tests/bin-lib/{module} suite) and tools/upstream-drift/tests (see package.json's `test` script — a recursive glob; new tests/bin-lib/{x} directories are picked up automatically)
+node --test tests/bin-lib/code-health/*.test.js   # Code-health unit suite only
 node bin/code-health.js <cmd>             # Code-health CLI — run with no args for its subcommand list
-node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
+node --test tests/bin-lib/harness-health/*.test.js   # Harness-health unit suite only
 node bin/harness-health.js <cmd>     # Harness-health CLI — run with no args for its subcommand list
-node --test bin/lib/journey-health/tests/*.test.js   # Journey-health unit suite only
+node --test tests/bin-lib/journey-health/*.test.js   # Journey-health unit suite only
 node bin/journey-health.js <cmd>     # Journey-health CLI — run with no args for its subcommand list
-node --test bin/lib/docs-health/tests/*.test.js   # Docs-health unit suite only
+node --test tests/bin-lib/docs-health/*.test.js   # Docs-health unit suite only
 node bin/docs-health.js <cmd>        # Docs-health CLI — run with no args for its subcommand list
-node --test bin/lib/record-graph/tests/*.test.js   # Record-graph unit suite only
+node --test tests/bin-lib/record-graph/*.test.js   # Record-graph unit suite only
 node bin/record-graph.js render <faceted-json-path> --format <d2|svg> --work-links <native|body-text> [--fetch-limit N] [--generated-at ISO8601] [--out path]   # Record-graph CLI — render is its only command
-node --test bin/lib/init/tests/*.test.js   # Init CLAUDE.md-conformance unit suite only
-node --test bin/lib/wrap-up/tests/*.test.js   # Wrap-up unit suite only
+node --test tests/bin-lib/init/*.test.js   # Init CLAUDE.md-conformance unit suite only
+node --test tests/bin-lib/wrap-up/*.test.js   # Wrap-up unit suite only
 node bin/wrap-up-state.js --since <base-sha> [--json]   # Wrap-up-state CLI — emits the /wrap-up State block and in-scope history ops, read from git rather than recalled
 node bin/wrap-up-engine.js plan|record|render …         # Wrap-up curation engine — `plan` builds the Phase 2 worklist from the registry (--run-dir --base [--ceremony] [--signals] [--skill-budget] [--doc-budget] [--dry-run]), `record` takes one judgment payload per open row on stdin, `render --section trace|console [--strict]` emits the phase-trace table or the console's engine-fed sections; `render --section console --spec-state <id>=<path> [--spec-state <id>=<path> ...] [--start-at n] [--strict]` (no --run-dir) merges N specs' engine-state.json files into one consolidated console table for a multi-spec /flow run
-node --test bin/lib/residue/tests/*.test.js   # Residue unit suite only
+node --test tests/bin-lib/residue/*.test.js   # Residue unit suite only
 node bin/residue.js --base <commit-ish> [--scope repo|blast-radius] [--integration-branch <ref>] [--no-suite] [--json]   # Residue CLI — runs the six outstanding-residue probes (worktrees, branches, forge PRs, claims, test suite, release triple) and renders the Outstanding table; `--scope` defaults to `repo` (every finding renders) — `blast-radius` narrows to findings whose own `scope` field is `blast-radius` (this work's own footprint, which includes a red test suite), dropping `observed` ones (e.g. a sibling worktree, a sibling lane's PR); an unrun probe still renders `unknown` under either scope. Exits 2 only on a malformed invocation (missing --base), never on a degraded probe
 node bin/resolve-policy.js [--run <dir>] <key> [<key>…]   # Policy resolver CLI — canonical read path for .claude-tweaks/policy.yml with optional run-config overlay; JSON envelope {value, source} per key
-node bin/release.js <minor|patch> "<summary>" [--dry-run]   # Release CLI — one-command release: 5-source collision pre-check, bump+CHANGELOG+tsv in one commit, push, marketplace mirror (fixture-tested in `bin/lib/release/tests/`)
+node bin/release.js <minor|patch> "<summary>" [--dry-run]   # Release CLI — one-command release: 5-source collision pre-check, bump+CHANGELOG+tsv in one commit, push, marketplace mirror (fixture-tested in `tests/bin-lib/release/`)
 npm run test:perf                               # Timing budgets in perf/ — NOT part of `npm test`; run alone, without a competing suite
 cd evals && npm install && node --test tests/   # Eval harness's own free unit suite — NOT included in root `npm test` (separate package.json/node_modules)
 cd evals && node runner.js run <scenario>       # Runs a real scenario against the live Claude Agent SDK — costs real tokens/dollars, see evals/README.md
