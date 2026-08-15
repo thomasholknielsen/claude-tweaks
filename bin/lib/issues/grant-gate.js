@@ -14,9 +14,9 @@
 // folded in to get the final decision (which re-walks gates 1-3 too, cheaply,
 // since they're pure).
 //
-// See docs/superpowers/specs/2026-08-09-self-maintaining-fleet-design.md and
-// #269 (backlog grant mode: headless machine-grant unit behind the unattended
-// ceiling).
+// Was docs/superpowers/specs/2026-08-09-self-maintaining-fleet-design.md —
+// decomposed into #265 + #267-#276 (bc1de29d) — and #269 (backlog grant mode:
+// headless machine-grant unit behind the unattended ceiling).
 
 const { normalizeLabelNames, parseRecordFacets } = require('./record.js');
 const { resolveProvenance } = require('./provenance.js');

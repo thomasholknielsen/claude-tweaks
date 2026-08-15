@@ -1,6 +1,6 @@
 ---
 name: dispatch
-description: Use when you want to claim and build already-authorized GitHub work records — the queue consumer between the human gate and the executor. Bare picklist, next for the headless routine unit, or #N direct; claims the whole file-overlap group, hands off to /flow, and settles the result. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine.
+description: "Use to claim and build authorized GitHub records — the queue consumer between the human gate and the executor. Bare, next, or #N direct. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine."
 argument-hint: "[next|#N[,#M...]] [--claim-only] [--batch-size <n>] [--priority high|medium|low]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
@@ -70,8 +70,8 @@ check 2 selects) stay hard gates — there is no meaningful degraded mode for a 
 purpose is writing GitHub state. Check 2 (`gh` CLI installed) no longer gates on its own: `gh`
 present → proceed exactly as always; `gh` absent → proceed via the GitHub MCP path documented in
 `mcp-transport.md` in this skill's directory (and, for Settle and the Auto-merge gate, in
-`settle-and-merge.md`) — verified end-to-end against a live cloud Routine run, see
-`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`. Report the specific failing check and
+`settle-and-merge.md`) — verified end-to-end against a live cloud Routine run (was
+`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, deleted `d83f0720`). Report the specific failing check and
 stop for any real failure (headless self-report above still applies for the `next` form).
 
 **MCP transport details.** When `gh` is absent, read `mcp-transport.md` in this skill's directory

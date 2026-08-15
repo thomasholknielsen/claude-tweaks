@@ -3,7 +3,8 @@
 // Pure: the mechanical half of assess-agent-autonomy's merge-check verdict mode. Classifies a
 // diff's files (test vs. implementation, sensitive vs. not) and reduces that to the summary the
 // merge-check verdict weighs as one input alongside review findings and diff content — never a pass/fail gate on its
-// own. See docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md.
+// own. Was docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md
+// — deleted (d83f0720).
 
 // Recognizes multiple ecosystems' test-path conventions, since
 // classifyDiffFiles/blastRadiusSummary judge diffs from arbitrary downstream

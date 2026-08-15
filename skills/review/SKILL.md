@@ -40,8 +40,8 @@ to cap. Standalone review (no pipeline run directory) always runs every step, ma
 `/claude-tweaks:reflect`/`/claude-tweaks:wrap-up`'s own standalone-defaults-to-full rule. A Review
 finding at any severity still triggers the existing ceremony escape hatch
 (`/claude-tweaks:wrap-up`'s Phase 1 ceremony escape hatch downgrades `ceremony-profile` to `standard` for the rest of
-the run) — unchanged. See
-`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` for the full rationale.
+the run) — unchanged. Full rationale was in
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
 
 ## Review Modes
 

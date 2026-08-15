@@ -72,8 +72,9 @@ function collectIndentedContinuation(lines, startIndex) {
 
 // Parses the narrow YAML subset every routine-template.yml uses: top-level
 // scalars, inline flow arrays, one level of nested map, and a single folded
-// block scalar (`>`). Not a general-purpose YAML parser by design — see
-// Global Constraints in docs/superpowers/plans/2026-07-05-routine-improvements.md.
+// block scalar (`>`). Not a general-purpose YAML parser by design — was
+// docs/superpowers/plans/2026-07-05-routine-improvements.md's Global
+// Constraints — deleted (652a97c4).
 function parseRoutineTemplate(text) {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const result = {};

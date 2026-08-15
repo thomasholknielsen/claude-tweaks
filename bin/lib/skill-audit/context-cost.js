@@ -14,8 +14,22 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
 
 const CEILING_BYTES = 40 * 1024;
+
+// Frontmatter `description:` budget (#394). Every description loads into every
+// session of every project with the plugin enabled, regardless of whether that
+// skill ever fires — unlike SKILL.md bytes above (paid once per invocation),
+// this is paid every session. A #394 audit found the 33 descriptions totaling
+// 10,455 chars, 13 of them carrying body content (procedure summaries,
+// enumerations, negative-scope clauses) that belongs in the SKILL.md body
+// instead. Per-description ceiling is a hard, mechanically-checked line: the
+// corpus ceiling is deliberately looser, since trimming the last chars off an
+// already-tight description means dropping a Keywords token — the one thing
+// this ceiling must never cost (a lost keyword can stop a skill from firing).
+const DESCRIPTION_CEILING_CHARS = 260;
+const DESCRIPTION_TOTAL_CEILING_CHARS = 7500;
 
 function skillsDir(repoRoot) {
   return path.join(repoRoot, 'skills');
@@ -71,11 +85,62 @@ function headroom(entry) {
   return CEILING_BYTES - entry.bytes;
 }
 
+// Pulls the single-line `description:` frontmatter value out of a SKILL.md,
+// handling both the plain-scalar form (most skills) and the double-quoted
+// form (needed whenever the value contains a bare `#` — an unquoted `#`
+// preceded by whitespace starts a YAML comment and silently truncates the
+// rest of the line, exactly the failure #393 named against dispatch's own
+// description). Every description in this corpus is a single physical line
+// (verified against the full skill set at #394's authoring time — none use
+// YAML block-scalar folding), so no multi-line handling is needed here.
+function extractDescription(content) {
+  const split = splitFrontmatterFence(content);
+  if (!split) return null;
+  const line = split.frontmatter.find((l) => /^description:\s*/.test(l));
+  if (!line) return null;
+  let value = line.replace(/^description:\s*/, '');
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    value = value.slice(1, -1).replace(/\\"/g, '"');
+  }
+  return value;
+}
+
+// Every SKILL.md's description length, in characters (not bytes — an em dash
+// or accented letter is one character but multiple UTF-8 bytes, and this
+// ceiling is about how much a human/LLM reads, not disk usage).
+function measureDescriptions(repoRoot) {
+  const dir = skillsDir(repoRoot);
+  return fs
+    .readdirSync(dir)
+    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
+    .sort()
+    .map((name) => {
+      const file = path.join(dir, name, 'SKILL.md');
+      const content = fs.readFileSync(file, 'utf8');
+      const description = extractDescription(content);
+      return { name, chars: description === null ? 0 : [...description].length, description };
+    });
+}
+
+function overDescriptionCeiling(entries) {
+  return entries.filter((e) => e.chars > DESCRIPTION_CEILING_CHARS);
+}
+
+function totalDescriptionChars(entries) {
+  return entries.reduce((sum, e) => sum + e.chars, 0);
+}
+
 module.exports = {
   CEILING_BYTES,
+  DESCRIPTION_CEILING_CHARS,
+  DESCRIPTION_TOTAL_CEILING_CHARS,
   measureSkills,
   measureSubFiles,
   overCeiling,
   totalBytes,
   headroom,
+  extractDescription,
+  measureDescriptions,
+  overDescriptionCeiling,
+  totalDescriptionChars,
 };
