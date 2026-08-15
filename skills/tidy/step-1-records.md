@@ -112,15 +112,17 @@ Retired labels — [IL-85] PERMANENT adopter-compat list; entries removable only
 | Retired label | Current name | Renamed by |
 |---|---|---|
 | `family:parent` | `parent-issue` | #339 — see `_shared/work-record.md`'s Label taxonomy |
+| `framing:baked` | `solution:unjustified` | #475 — see `_shared/work-record.md`'s Label taxonomy |
 
 A record carrying an entry above is still **read** correctly everywhere: `_shared/github-pr-scan-acceptance.md`'s
-`parent-gate` and `acceptance-gap` scopes fetch both spellings, and `local-store.js` keeps the
-matching frontmatter fallback. This shape does not fix a broken read — it surfaces the rename as a
-one-command hygiene action, so an adopter repo eventually stops needing the compatibility path at
-all. The recommended command is the current-name rename for whichever entry was found; with one
-entry in the table today, it is literal.
+`parent-gate` and `acceptance-gap` scopes fetch both spellings for `family:parent`/`parent-issue`,
+and `record.js`/`local-store.js` keep the matching legacy-label/frontmatter fallback for every row
+in this table. This shape does not fix a broken read — it surfaces the rename as a one-command
+hygiene action, so an adopter repo eventually stops needing the compatibility path at all. The
+recommended command is the current-name rename for whichever retired label was found on this
+record — `{retired}`/`{current}` below are that row's own two columns, not a literal.
 
-→ Collect each as: `[legacy] {title} — carries retired label {label} — recommend: gh label edit "family:parent" --name "parent-issue"`
+→ Collect each as: `[legacy] {title} — carries retired label {retired} — recommend: gh label edit "{retired}" --name "{current}"`
 
 Severity `info`, and **no mutation** — the row is surfaced for visibility and the rename stays the
 user's call, since `gh label edit` re-labels every issue carrying it repo-wide in a single
