@@ -8,9 +8,9 @@ const {
   registerPipelineRunDirTest,
   registerNoEmojiTest,
   registerRequiredTokenTests,
-} = require('../../health-core/tests/skill-md-house-checks');
+} = require('../health-core/skill-md-house-checks');
 
-const SKILL = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'journey-health', 'SKILL.md');
+const SKILL = path.resolve(__dirname, '..', '..', '..', 'skills', 'journey-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('exists', () => {
@@ -42,7 +42,7 @@ test('docs/skill-graph.md records the edges to /journeys, /stories, /test, /tidy
   // These edges used to be asserted against this skill's own Relationship table.
   // That table is gone; the edges live in the graph, which uses the short form.
   const graph = fs.readFileSync(
-    path.join(__dirname, '..', '..', '..', '..', 'docs', 'skill-graph.md'), 'utf8',
+    path.join(__dirname, '..', '..', '..', 'docs', 'skill-graph.md'), 'utf8',
   );
   for (const s of ['/journeys', '/stories', '/test', '/tidy', '/backlog', '/routine']) {
     assert.ok(graph.includes(s), `docs/skill-graph.md is missing the edge to ${s}`);

@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validateFinding } = require('../validate-finding');
+const { validateFinding } = require('../../../bin/lib/journey-health/validate-finding');
 
 function validFinding(overrides = {}) {
   return {
