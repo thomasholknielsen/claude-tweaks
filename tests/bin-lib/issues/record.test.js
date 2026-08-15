@@ -252,7 +252,7 @@ test('parseRecordFacets: a null or undefined entry in the labels array is skippe
   assert.strictEqual(result.risk, 'high');
 });
 
-test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched wontfix ignored', () => {
+test('parseRecordFacets: {name} label objects for risk/size/priority; wontfix sets notPlanned, not stage', () => {
   const result = parseRecordFacets([
     { name: 'risk:high' }, { name: 'size:low' }, { name: 'priority:medium' }, { name: 'wontfix' },
   ]);
@@ -260,6 +260,7 @@ test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched 
   assert.strictEqual(result.size, 'low');
   assert.strictEqual(result.priority, 'medium');
   assert.strictEqual(result.stage, 'backlog');
+  assert.strictEqual(result.notPlanned, true);
 });
 
 test('parseRecordFacets: wontfix label sets notPlanned', () => {

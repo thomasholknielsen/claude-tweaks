@@ -312,6 +312,24 @@ test('funnelBuckets: blockedBy absent means every granted record is dispatchable
   assert.deepEqual(b.granted, []);
 });
 
+test('funnelBuckets: facets.blockedBy (local-files driver fallback) demotes ready+granted to granted, not dispatchable', () => {
+  const records = [
+    rec(1, { stage: 'ready', grants: { build: true, merge: false }, blockedBy: [2] }),
+    rec(2, { stage: 'ready', grants: { build: false, merge: true } }),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.granted.map((r) => r.number), [1]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [2]);
+});
+
+test('funnelBuckets: top-level r.blockedBy wins over facets.blockedBy when both are present', () => {
+  const b = funnelBuckets([
+    rec(1, { stage: 'ready', grants: { build: true, merge: false }, blockedBy: [2] }, { blockedBy: [] }),
+  ]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [1]);
+  assert.deepEqual(b.granted, []);
+});
+
 test('funnelBuckets: scored means any of priority/risk/size without ready stage', () => {
   const b = funnelBuckets([rec(1, { risk: 'low' }), rec(2, { size: 'medium' }), rec(3, { priority: 'low' }), rec(4)]);
   assert.deepEqual(b.scored.map((r) => r.number), [1, 2, 3]);

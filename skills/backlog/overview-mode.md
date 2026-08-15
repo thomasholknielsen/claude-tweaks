@@ -1,6 +1,6 @@
 # Backlog — Overview Mode
 
-Entirely mechanical — no per-record LLM reads, so it scales to the full fetched set cheaply. Collapses the `critical`/`risk-value`/`cleanup` lenses into one picture and adds a "what to build next" recommendation.
+Entirely mechanical — no per-record LLM reads, so it scales to the full fetched set cheaply. Renders a funnel decision surface over the open queue and recommends what to build next; the `critical`/`risk-value`/`cleanup`/`trust` lenses are one explicit argument away.
 
 **Failure-only narration:** interstitial status lines render only when a check fails or degrades (truncation warning hit, fetch fallback taken, trust fetch skipped) — never to announce that a step ran or passed. A clean step is silent; its output speaks through the report itself.
 
