@@ -16,10 +16,13 @@ Runs in the main thread, before dispatch.
   leading dot both convert — that doubling is correct, not a bug to normalize away.
 - **`<session-id>`:** the value of `$CLAUDE_CODE_SESSION_ID`.
 
-**Fallback when `$CLAUDE_CODE_SESSION_ID` is unset:** pick the newest `.jsonl` file in the
-resolved project-slug directory by mtime. When two or more files in that directory were modified
-within the last 24 hours, the rendered report must name the chosen file together with its mtime
-and list the ignored siblings — never silent newest-wins.
+**Fallback — whenever the id-derived path does not resolve:** `$CLAUDE_CODE_SESSION_ID` unset, or
+set but no file exists at the derived path (a stale or rotated session id) — pick the newest
+`.jsonl` file in the resolved project-slug directory by mtime. Whenever this fallback ran at all,
+the rendered report names the chosen file together with its mtime; when the directory holds more
+than one `.jsonl` file, of any age, it also lists the ones ignored — never silent newest-wins.
+Only when no candidate `.jsonl` exists at all (or the directory itself doesn't exist) does the
+self-assessment degradation below apply.
 
 **Scope statement:** this resolves the **main session's own transcript only.** Any Task agent
 dispatched during this session wrote its own separate transcript file, which is out of scope here
@@ -34,7 +37,9 @@ Exactly one Task agent per invocation.
 --unattended` (no `--run-dir` — one judge dispatch per invocation, the contract's
 standalone-invocation cap for this skill's Frontier singleton, enforced by this skill rather than
 a run-dir tally). Degradation to Capable on a missed precondition is the resolver's own job,
-logged in its `source` — never re-enumerated here.
+logged in its `source` — never re-enumerated here. The cap counts evaluations, not retries: a
+`NEEDS_CONTEXT` or `BLOCKED` return may be re-dispatched once with the missing context supplied;
+a second failure degrades to the self-assessment path below rather than dispatching again.
 
 **Prompt contents, in this order:**
 
@@ -66,8 +71,11 @@ NOT EVALUATED — {reason}
 **Evidence:** {transcript excerpt or precise pointer}
 **Measurement:** {counts — countable lenses only; omit the line for judgment lenses}
 **Proposed fix:** {concrete solution idea}
-The Avoidable interactions block always states the session's total AskUserQuestion count,
-whichever outcome it renders.
+
+Template note (applies to the Avoidable interactions block only, whichever outcome it renders):
+end that block with a Measurement line stating the session total, e.g.
+**Measurement:** total AskUserQuestion calls: {N}; {M} of {N} resolved to the pre-marked
+Recommended option.
 ```
 
 The status line is the contract's usual `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`
@@ -91,3 +99,9 @@ Hand each returned finding to `skills/feedback/SKILL.md`'s existing per-finding 
 classify, dedup, draft, scrub, confirm — unchanged by whether the finding came from the judge or
 from self-assessment. A `NOT EVALUATED` block is not a finding: report it in the run summary and
 never file it.
+
+A reply that violates the template — missing the status line, or missing per-objective blocks —
+is re-prompted once on format, per `_shared/subagent-output-contract.md`. A terminal failure
+(the retry also fails, or the re-dispatch above was already spent) reports the evaluation as
+failed in the run summary; the run proceeds on the queue gather alone, per `skills/feedback/SKILL.md`'s
+failure-isolation rule.
