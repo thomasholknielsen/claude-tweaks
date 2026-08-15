@@ -17,10 +17,10 @@ const {
   measureDescriptions,
   overDescriptionCeiling,
   totalDescriptionChars,
-} = require('../context-cost.js');
-const { listSkillDirs, KNOWN_SKILLS } = require('../skill-catalog.js');
+} = require('../../../bin/lib/skill-audit/context-cost.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../../../bin/lib/skill-audit/skill-catalog.js');
 
-const REPO = path.join(__dirname, '..', '..', '..', '..');
+const REPO = path.join(__dirname, '..', '..', '..');
 const kb = (b) => (b / 1024).toFixed(1);
 
 test('measureSkills finds every shipped skill', () => {

@@ -26,9 +26,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { sectionIndex, EMOJI_RE } = require('../../health-core/tests/skill-md-house-checks');
+const { sectionIndex, EMOJI_RE } = require('../health-core/skill-md-house-checks');
 
-const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
+const ROOT = path.resolve(__dirname, '..', '..', '..');
 const SKILLS_DIR = path.join(ROOT, 'skills');
 
 // docs/skill-authoring.md's "Interaction style directive" section: this exact

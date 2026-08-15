@@ -20,9 +20,9 @@ const {
   auditCorpus,
   formatBloatReport,
   bloatReport,
-} = require('../bloat.js');
+} = require('../../../bin/lib/skill-audit/bloat.js');
 
-const REPO = path.join(__dirname, '..', '..', '..', '..');
+const REPO = path.join(__dirname, '..', '..', '..');
 
 // A minimal skill body with one Anti-Patterns table, parameterised by rows.
 const skillWith = (rows) => [
