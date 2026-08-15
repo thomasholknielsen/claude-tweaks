@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require('../record-buckets');
+const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require('../../../bin/lib/issues/record-buckets');
 
 function makeRecord(overrides = {}) {
   return {

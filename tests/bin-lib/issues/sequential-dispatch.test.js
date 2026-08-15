@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { runGroupsSequentially } = require('../sequential-dispatch');
+const { runGroupsSequentially } = require('../../../bin/lib/issues/sequential-dispatch');
 
 function deferred() {
   let resolve;

@@ -9,8 +9,8 @@ const {
   selectBudgetSlice,
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
-} = require('../backlog');
-const { parseRecordFacets } = require('../record');
+} = require('../../../bin/lib/issues/backlog');
+const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
 function record(overrides) {
   return {

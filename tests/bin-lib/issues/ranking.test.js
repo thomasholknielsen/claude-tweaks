@@ -1,8 +1,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { rankNextToBuild } = require('../ranking');
-const { parseRecordFacets } = require('../record');
+const { rankNextToBuild } = require('../../../bin/lib/issues/ranking');
+const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
 function candidate(overrides) {
   return {

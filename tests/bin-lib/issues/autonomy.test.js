@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { CEILINGS, resolveCeiling, permittedGrants, clearsFloor, bookkeepingPermissions } = require('../autonomy.js');
+const { CEILINGS, resolveCeiling, permittedGrants, clearsFloor, bookkeepingPermissions } = require('../../../bin/lib/issues/autonomy.js');
 
 const cleanRow = { verdict: 'clean', kind: 'producer', dispositioned: 9, coverage: 0.9 };
 
