@@ -35,18 +35,22 @@ function skillsDir(repoRoot) {
   return path.join(repoRoot, 'skills');
 }
 
-// Every SKILL.md, with its size. This is the per-invocation payload: sub-files
-// are lazy-loaded and deliberately excluded.
-function measureSkills(repoRoot) {
+// Every skill's name + SKILL.md path, sorted. Shared by measureSkills and
+// measureDescriptions, which both walk the same directory shape but read a
+// different thing from the file.
+function listSkillFiles(repoRoot) {
   const dir = skillsDir(repoRoot);
   return fs
     .readdirSync(dir)
     .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
     .sort()
-    .map((name) => {
-      const file = path.join(dir, name, 'SKILL.md');
-      return { name, bytes: fs.statSync(file).size };
-    });
+    .map((name) => ({ name, file: path.join(dir, name, 'SKILL.md') }));
+}
+
+// Every SKILL.md, with its size. This is the per-invocation payload: sub-files
+// are lazy-loaded and deliberately excluded.
+function measureSkills(repoRoot) {
+  return listSkillFiles(repoRoot).map(({ name, file }) => ({ name, bytes: fs.statSync(file).size }));
 }
 
 // Sub-files are not free either: a stub that cites one costs the whole file when
@@ -120,17 +124,11 @@ function extractDescription(content) {
 // or accented letter is one character but multiple UTF-8 bytes, and this
 // ceiling is about how much a human/LLM reads, not disk usage).
 function measureDescriptions(repoRoot) {
-  const dir = skillsDir(repoRoot);
-  return fs
-    .readdirSync(dir)
-    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
-    .sort()
-    .map((name) => {
-      const file = path.join(dir, name, 'SKILL.md');
-      const content = fs.readFileSync(file, 'utf8');
-      const description = extractDescription(content);
-      return { name, chars: description === null ? 0 : [...description].length, description };
-    });
+  return listSkillFiles(repoRoot).map(({ name, file }) => {
+    const content = fs.readFileSync(file, 'utf8');
+    const description = extractDescription(content);
+    return { name, chars: description === null ? 0 : [...description].length, description };
+  });
 }
 
 function overDescriptionCeiling(entries) {
