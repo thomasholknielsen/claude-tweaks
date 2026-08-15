@@ -164,7 +164,7 @@ One mechanism, one registry, one engine. Every knowledge asset wrap-up curates i
 | Skills | `.claude/skills/` exists, or the diff changed 2+ files | Domain-overlap ranking, top 5 (fast-lane 2; `--skill-budget` overrides) | `skill-curation.md` | `apply-or-stage` |
 | Docs | `docs/` exists and is non-empty | Domain-overlap ranking, top 3 (fast-lane 1; `--doc-budget` overrides) | `docs-health-integration.md` | `apply-or-stage` |
 | Journeys | At least one `docs/journeys/*.md` exists | Journeys whose `files:` frontmatter overlaps the diff (deterministic, no cap) | `journey-curation.md` | `apply-or-stage` |
-| CLAUDE.md & rules | A `## Commands` line was renamed or removed since the base, or a don't-repeat candidate, a contradicted convention, or a recorded incident was signalled | `CLAUDE.md` plus `.claude/rules/` | `claude-md-curation.md` | `stage-only` |
+| CLAUDE.md & rules | A `## Commands` line was renamed or removed since the base, `CLAUDE.md`/`.claude/rules/*.md` exceeds its tier's line budget, or a don't-repeat candidate, a contradicted convention, or a recorded incident was signalled | `CLAUDE.md` plus `.claude/rules/` | `claude-md-curation.md` | `stage-only` |
 | Decision records | One or more decision candidates were signalled for the ADR gate | The decisions this run surfaced | `adr-curation.md` | `stage` |
 | Broken references | Renames/deletions in diff, or a renamed heading | Repo-wide references surviving a renamed or deleted target | `reference-sweep.md` | `apply-or-stage` |
 | Memory | One or more learnings were signalled as memory-bound | Learnings no earlier row claimed | `memory-curation.md` | `stage` |
