@@ -1,7 +1,7 @@
 ---
 name: backlog
 description: Use for backlog labels (refine), a next-build pick (overview), or headless grants (github-issues). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next, unattended, headless, autonomy ceiling.
-argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
+argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup|trust] [--budget <n>] [--origin <origin>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -43,7 +43,7 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 - `refine` → the write/labeling-sweep mode. Read `refine-mode.md` in this skill's directory for the full procedure.
 - `overview` → the read-only distribution + recommendation mode. Read `overview-mode.md` in this skill's directory for the full procedure.
 - `grant` → the headless machine-grant mode. Read `grant-mode.md` in this skill's directory for the full procedure. This is `/dispatch next`'s headless-unit shape applied to granting: no `AskUserQuestion` decides any individual grant — the gate chain (`bin/lib/issues/grant-gate.js`) decides, mechanically, per record.
-- `critical` / `risk-value` / `cleanup` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
+- `critical` / `risk-value` / `cleanup` / `trust` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
 - `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20).
 - `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`) or on `refine`'s priority/Related sweep.
 
@@ -76,7 +76,7 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 - Option 1 — `label`: `"Refine the labels (Recommended)"`, `description`: `"/claude-tweaks:backlog refine — apply the priority/Related/grant suggestions this overview surfaced"` — omit when nothing surfaced needs refining
 - Option 2 — `label`: `"Shape the top priority record"`, `description`: `"/claude-tweaks:specify #{n} — shape the single highest-priority backlog record this run surfaced"`
 - Option 3 — `label`: `"Generate a hand-off block"`, `description`: `"Parallelize shaping or dispatching across terminals for the batch this run surfaced"` — omit when no natural batch was produced this run
-- Option 4 (only after a named-lens run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:backlog overview {other-mode} — {one-line description of that mode}"`, naming exactly one of the two named lenses not yet run this session.
+- Option 4 (only after a named-lens run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:backlog overview {other-mode} — {one-line description of that mode}"`, naming exactly one of the named lenses not yet run this session.
 
 If situational filtering leaves only one option (a bare run that surfaced nothing needing refinement, produced no natural batch, and is this session's first lens run leaves Option 2 alone), state or execute it directly instead of calling `AskUserQuestion` — per this project's own convention, a lone option isn't a decision. The same rule applies to the `refine` block above.
 
