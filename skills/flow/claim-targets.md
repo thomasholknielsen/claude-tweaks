@@ -16,24 +16,40 @@ any of:
   `SKILL.md`'s Input resolution case 2, still mid-search).
 - **Every** named target's claim already shows `claim.runId === basename($PIPELINE_RUN_DIR)` —
   read each target's claim blob (`_shared/issue-claims.md`'s "Reading claim state") and compare.
-  This condition covers two distinct callers without branching on which one it is: a dispatched
-  group's *second* Task call (already claimed by the first call's Step 2.8 run under the same
-  minted directory), and a human resuming a parked run
+  This catches a resume invocation whose step list still contains `build` or `test` (so the
+  condition below doesn't apply) where this same run already holds the claim from an earlier,
+  interrupted pass — e.g. `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow {target} test` resuming
+  after a build-gate failure that left the claim held per `failure-cards.md`. Without this check,
+  the claim attempt below would see the blob still `'live'` under this run's own identity and
+  treat it as contested, self-blocking a run that already owns the record. Since the resumed
+  invocation inherits the same `PIPELINE_RUN_DIR` the original claim was written under, the blob
+  is still `'live'`/`'stale'` under this run's own identity, so `_shared/issue-claims.md`'s
+  "Reading claim state" script exposes a non-null `claim` to compare against.
+- **The resolved step list (`SKILL.md` Step 1, item 4) contains neither `build` nor `test`** — a
+  teardown-only or resume-from-review-onward invocation has nothing left to build, so there is
+  nothing left to lock. This covers two invocation shapes that would otherwise reach the claim
+  attempt below with no self-owned `runId` to match against the condition above: a dispatched
+  group's *second* Task call (`review,polish,wrap-up` — already claimed by the first call's
+  Step 2.8 run, matched here by step list rather than by claim state), and any `wrap-up`-only
+  invocation, whether a human resuming a parked run
   (`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up` per
-  `dispatch/SKILL.md`'s Reporting section). Do not special-case these two separately — they
-  collapse to this one check by construction, since both inherit the same `PIPELINE_RUN_DIR` the
-  original claim was written under, and in both cases the blob is still `'live'`/`'stale'` under
-  this run's own identity, so `_shared/issue-claims.md`'s "Reading claim state" script exposes a
-  non-null `claim` to compare against.
-  - **Does not cover** the failure-path `wrap-up`-only teardown call
-    (`dispatch/two-call-gate.md` section 5's `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow
-    {target} wrap-up`): by the time that call reaches this step, Settle has already released the
-    claim (written a tombstone), so the blob reads `'tombstone'` and exposes no `runId` to
-    compare — this check can never match it. That call falls through to a normal claim attempt
-    below, which succeeds via the `'tombstone'` → conditional-write path (a harmless reclaim,
-    immediately followed by `wrap-up`'s own release). This is the same accepted overlap
-    `two-call-gate.md` section 5 already documents for a duplicate release comment — not a new
-    defect, just one extra reclaim/release hop.
+  `dispatch/SKILL.md`'s Reporting section) or the failure-path teardown-only call
+  (`dispatch/two-call-gate.md` section 5's identical invocation shape). An earlier revision of
+  this file distinguished those last two by claim state — Settle having already released the
+  claim before the teardown call reaches this step, leaving no `runId` for the condition above to
+  match, so that call fell through to a normal (harmless but unnecessary) reclaim. That fall-through
+  carried a real gap: between Settle's release and this step's reclaim attempt, the record sits
+  genuinely unclaimed and re-eligible, and a concurrent `dispatch next` firing could claim it
+  first — this step would then see `'live'` under someone else's `runId` and contest, stopping the
+  pipeline before Step 3 with wrap-up never run and the worktree never torn down, stalling
+  `dispatch/SKILL.md`'s sequential per-group worktree loop (`[IL-116]` forbids a raw removal as an
+  escape hatch). Skipping Step 2.8 outright for any `wrap-up`-only step list closes that window
+  entirely rather than narrowing it, and it makes the claim-state distinction between the two
+  bullets moot — both are `wrap-up`-only, so both now skip cleanly via this condition regardless
+  of what the claim blob reads. `wrap-up`'s own Section E release step still ownership-checks
+  (`claim.runId === basename($PIPELINE_RUN_DIR)`) before releasing and correctly no-ops when this
+  run doesn't own the claim, so skipping the claim attempt here loses no safety — it only stops
+  re-acquiring a lock nobody needs for a run that will only run cleanup.
 
 Otherwise, proceed below.
 
@@ -124,8 +140,8 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
   with a target it cannot claim.
 
 - **Multi-target run, default (no `keep-going`)** — release every target this run *did* claim so
-  far this step (reason `never-started: file-overlap group partial claim`, mirroring
-  `claim-outcomes.md`'s original partial-claim rule), then stop with the same message shape as
+  far this step (reason `never-started: file-overlap group partial claim`, per
+  `_shared/issue-claims.md`'s Failure-posture table), then stop with the same message shape as
   above, naming every contested target.
 
 - **Multi-target run with `keep-going`** — downgrade the contested target to a skip (drop it from
@@ -134,5 +150,4 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
   aborting the whole run.
 
 Any other `gh`/MCP failure during claim (not a classification-based contest): skip that target,
-log, continue to the next — same as `claim-outcomes.md`'s original "Any other `gh` failure"
-handling.
+log, continue to the next — per `_shared/issue-claims.md`'s Failure-posture table.

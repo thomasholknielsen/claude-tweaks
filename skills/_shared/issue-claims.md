@@ -282,11 +282,11 @@ permission, so a label is a maintainer's signature**. Authorization is two stack
 by `/claude-tweaks:backlog refine`'s interactive invocation. Machinery may remove or downgrade
 grants; it never adds them:
 
-- `auto:build` — authorized to build. `/dispatch` selects on this, claims the record's whole
-  file-overlap group, and hands it to `/flow #{n}`. Label = standing request, claim = in
-  flight: the claim blob prevents double-dispatch across firings, and the grant persists until
-  *successful* wrap-up — a failed run retries at a later firing once its claim ages out, up
-  to the `dispatch-retry-ceiling` config key.
+- `auto:build` — authorized to build. `/dispatch` selects on this, mints the run directory for
+  the record's whole file-overlap group, and hands it to `/flow #{n}`, which claims the group at
+  Step 2.8. Label = standing request, claim = in flight: the claim blob prevents double-dispatch
+  across firings, and the grant persists until *successful* wrap-up — a failed run retries at a
+  later firing once its claim ages out, up to the `dispatch-retry-ceiling` config key.
 - `auto:merge` — additionally authorized to auto-merge without a live Review Console
   approval, but only when `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode verdicts
   `auto-merge` (the two-layer gate defined in `skills/dispatch/SKILL.md`). Additive on
@@ -326,8 +326,8 @@ Fail-closed on claiming; never block the session.
 
 | Skill | Role |
 |---|---|
-| `/claude-tweaks:dispatch` | Claims each authorized record's whole file-overlap group before handing off to `/flow`; releases + revokes on failure (per the retry-ceiling procedure) |
-| `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:dispatch` always claims before invoking `/flow #{n}`. |
+| `/claude-tweaks:dispatch` | Selects each authorized record's whole file-overlap group, mints the run directory, and hands off to `/flow` (which claims at Step 2.8); the settle procedure it dispatches releases + revokes on failure (per the retry-ceiling procedure) |
+| `/claude-tweaks:flow` (issue-reference mode) | Claims its named targets at Step 2.8 (`flow/claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly. Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 

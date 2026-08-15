@@ -33,9 +33,11 @@ production incidents when `tidy`'s Rolling digest briefly used `gh issue list --
 (#1016, #1079, #1089). Always use the plain list-then-filter approach (`list_issues`/
 `gh issue list`, no `--search`, then `findByMarker` in-process), on both transports.
 
-## The conditional-write pattern (dispatch's claim lock)
+## The conditional-write pattern (flow's claim lock)
 
-Dispatch's claim lock needs "write this, but only if nothing else wrote first." `gh`'s
+Flow's claim lock (Step 2.8, `flow/claim-targets.md` — reached whether `/claude-tweaks:dispatch`
+handed off the run or a human invoked `/flow` directly) needs "write this, but only if nothing
+else wrote first." `gh`'s
 ref-level compare-and-set (atomic create, fast-forward-only update) has no MCP equivalent —
 but `create_or_update_file` carries the identical guarantee one level down, at the file-blob
 level: omit its `sha` parameter and the write fails if the file already exists; supply a
