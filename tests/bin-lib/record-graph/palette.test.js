@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   COLUMN_ORDER, COLUMN_LABELS, ORIGIN_COLORS, BORDER_COLORS,
-} = require('../palette');
+} = require('../../../bin/lib/record-graph/palette');
 
 test('palette exports all three column keys in a fixed left-to-right order', () => {
   assert.deepStrictEqual(COLUMN_ORDER, ['backlog', 'parked', 'ready']);
