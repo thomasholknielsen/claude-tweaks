@@ -70,7 +70,10 @@ limit, state this in the summary rather than silently treating it as complete.)
 **Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory and run
 its judge dispatch (or its self-assessment degradation) against `_shared/feedback-objectives.md`'s
 rubric. Each returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a
-finding — session-evaluation.md's own rule — and never enters the batch.
+finding — session-evaluation.md's own rule — and never enters the batch. The two gathers are
+failure-isolated: a judge dispatch that errors or returns nothing usable never aborts the run —
+Gather 1's queue candidates proceed through the batch regardless, with the evaluation reported as
+failed in the run summary.
 
 **Merging.** The two gathers feed **one merged batch by concatenation, no reconciliation** — each
 item keeps its own draft shape; nothing here reconciles a queue candidate against an evaluation
