@@ -16,15 +16,24 @@ any of:
   `SKILL.md`'s Input resolution case 2, still mid-search).
 - **Every** named target's claim already shows `claim.runId === basename($PIPELINE_RUN_DIR)` —
   read each target's claim blob (`_shared/issue-claims.md`'s "Reading claim state") and compare.
-  This one condition covers three distinct callers without branching on which one it is: a
-  dispatched group's *second* Task call (already claimed by the first call's Step 2.8 run under
-  the same minted directory), a failure-path `wrap-up`-only teardown call
-  (`dispatch/two-call-gate.md` section 5's `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow
-  {target} wrap-up`), and a human resuming a parked run
+  This condition covers two distinct callers without branching on which one it is: a dispatched
+  group's *second* Task call (already claimed by the first call's Step 2.8 run under the same
+  minted directory), and a human resuming a parked run
   (`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up` per
-  `dispatch/SKILL.md`'s Reporting section). Do not special-case these three separately — they
-  collapse to this one check by construction, since all three inherit the same
-  `PIPELINE_RUN_DIR` the original claim was written under.
+  `dispatch/SKILL.md`'s Reporting section). Do not special-case these two separately — they
+  collapse to this one check by construction, since both inherit the same `PIPELINE_RUN_DIR` the
+  original claim was written under, and in both cases the blob is still `'live'`/`'stale'` under
+  this run's own identity, so `_shared/issue-claims.md`'s "Reading claim state" script exposes a
+  non-null `claim` to compare against.
+  - **Does not cover** the failure-path `wrap-up`-only teardown call
+    (`dispatch/two-call-gate.md` section 5's `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow
+    {target} wrap-up`): by the time that call reaches this step, Settle has already released the
+    claim (written a tombstone), so the blob reads `'tombstone'` and exposes no `runId` to
+    compare — this check can never match it. That call falls through to a normal claim attempt
+    below, which succeeds via the `'tombstone'` → conditional-write path (a harmless reclaim,
+    immediately followed by `wrap-up`'s own release). This is the same accepted overlap
+    `two-call-gate.md` section 5 already documents for a duplicate release comment — not a new
+    defect, just one extra reclaim/release hop.
 
 Otherwise, proceed below.
 
