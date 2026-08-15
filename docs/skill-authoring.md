@@ -74,10 +74,23 @@ Skill prose that shells out to a plugin file writes `node "${CLAUDE_PLUGIN_ROOT}
 
 Rules that follow:
 
-- Keep writing the `${CLAUDE_PLUGIN_ROOT}` spelling in skill prose. It is the greppable, install-location-independent convention. Do not hardcode an absolute path (plugin cache locations differ per machine and per account config dir), and do not add a shell lookup ladder to resolve it at runtime — a glob over cache directories is fragile across those same layouts, and worktree-isolated sessions refuse compound commands, so the ladder is unrunnable exactly where builds happen.
+- Keep writing the `${CLAUDE_PLUGIN_ROOT}` spelling in skill prose. It is the greppable, install-location-independent convention. Do not hardcode an absolute path (plugin cache locations differ per machine and per account config dir), and do not add a shell lookup ladder to resolve it at runtime — a glob over cache directories is fragile across those same layouts, and worktree-isolated sessions refuse multi-step commands (see "Worktree-isolated sessions and compound Bash commands" below), so the ladder is unrunnable exactly where builds happen.
 - `hooks/hooks.json` is the exception, not the model for skill prose: hook processes are spawned by the harness with `CLAUDE_PLUGIN_ROOT` populated in their environment, so hook command strings rely on the real variable.
 - The substituted root points at the **installed** build, which can lag a claude-tweaks dev checkout — when the running build matters, resolve it from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (CLAUDE.md `[IL-89]`, `[IL-119]`).
 - A `Cannot find module '/bin/…'` / `'undefined/bin/…'` failure means the placeholder reached the shell unsubstituted — re-issue with the resolved absolute path; do not diagnose the CLI itself.
+
+## Worktree-isolated sessions and compound Bash commands
+
+A session working inside a worktree created by `EnterWorktree` (or entered into one) is subject to a Claude Code CLI harness-level guard on the Bash tool — separate from, and unrelated to, this plugin's own `worktree.always` PreToolUse gate (`bin/lib/hooks/pre-tool-use.js`). The two are easy to conflate when triaging feedback (`#174` was originally filed against the wrong one). When the harness cannot cheaply verify that a command's effects stay inside the worktree, it refuses the whole call outright: `this command is too complex to verify that it stays inside the worktree; break it into plain, separate commands.` This is harness code the plugin has no access to and cannot alter from `bin/hooks.js` or any hook — the plugin's own gate produces entirely different deny text (`claude-tweaks: this project requires an isolated worktree for...`, `claude-tweaks working-directory discipline: ...`), which is how the two are told apart in practice.
+
+Empirically observed boundary (2026-08-15, tested live against the harness build available then — read this as "the shape as last observed," not a guaranteed contract, since the harness may change independently of this plugin):
+
+- A single command — including one with a `$(...)` substitution, or a `|` pipeline — passes.
+- A 2-command `&&` chain of simple commands passes.
+- Two or more independent `$(...)` substitutions in one command (e.g. comparing `$(git rev-parse A)` against `$(git rev-parse B)` inside a `[ ]` test), a `;`-separated sequence of top-level commands, and any `for`/`while` loop are all refused — even when every command inside is a pure read, or the loop body has no filesystem access at all.
+- A heredoc (`cat > file <<EOF`) is a single command and passes on its own, regardless of whether the write target is inside or outside the worktree.
+
+**Workaround:** default to one plain command per Bash call inside a worktree session. When real multi-step logic is unavoidable, write it to a scratch script with the `Write` tool (not a Bash heredoc chained to anything else) and invoke that script with a single plain command (`node script.mjs`, `bash script.sh`).
 
 ## Interaction style directive
 

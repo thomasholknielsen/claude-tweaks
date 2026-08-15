@@ -6,7 +6,9 @@ warning the owner of the *current* branch before creating one, when that branch 
 behind the integration branch. Consolidates what were two byte-identical copies
 (`skills/flow/validation.md` Step 2.5, `skills/build/worktree-setup.md` Step 1) — see CLAUDE.md's
 `[IL-32]`. `skills/_shared/scratch-worktree.md` Section 3 cites the Post-creation catch-up section
-below instead of carrying its own copy.
+below instead of carrying its own copy. For the harness's separate worktree-session compound-Bash
+guard (a different mechanism from anything in this file), see `docs/skill-authoring.md`'s
+"Worktree-isolated sessions and compound Bash commands" section.
 
 ## Resolving `{integration-branch}`
 
