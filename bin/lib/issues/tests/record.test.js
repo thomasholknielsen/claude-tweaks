@@ -355,6 +355,23 @@ test('parseRecordFacets: framing defaults to false when framing:baked is absent'
   assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
 });
 
+// AC — needs:definition axis (needs:definition label, presence-only, absent not false)
+
+test('parseRecordFacets: needs:definition sets facets.needsDefinition to true', () => {
+  assert.strictEqual(parseRecordFacets(['needs:definition']).needsDefinition, true);
+});
+
+test('parseRecordFacets: needsDefinition is absent (not false) when needs:definition is absent', () => {
+  assert.strictEqual('needsDefinition' in parseRecordFacets(['by:capture']), false);
+  assert.strictEqual('needsDefinition' in parseRecordFacets([]), false);
+});
+
+test('parseRecordFacets: needsDefinition and framing are independent, non-exclusive booleans', () => {
+  const facets = parseRecordFacets(['needs:definition', 'framing:baked']);
+  assert.strictEqual(facets.needsDefinition, true);
+  assert.strictEqual(facets.framing, true);
+});
+
 // AC 5 — dependencies
 
 test('parseDependencies collects line-anchored Blocked-by numbers in order of appearance', () => {
