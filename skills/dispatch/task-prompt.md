@@ -9,12 +9,17 @@ Each group is dispatched as **two sequential `Task()` calls**, not one (per `_sh
 **No handoff to capture from this call's report.** Dispatch Step 4 already minted this group's run directory before either call — `{minted-run-dir}` below is that same directory, substituted literally, on both calls. There is nothing to parse out of this call's prose report to construct the second call's input; the gate between calls (`two-call-gate.md`) reduces to reading the status line and `OUTCOME`.
 
 ```
-Task scope: Execute claude-tweaks build+test for this already-claimed file-overlap group of
+Task scope: Execute claude-tweaks build+test for this file-overlap group of
 GitHub records: {issue list}. Singleton -> run
-`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{issue} build,test`.
+`PIPELINE_RUN_DIR="{minted-run-dir}" DISPATCH_HEADLESS=1 /claude-tweaks:flow #{issue} build,test`.
 Bundle (2+ issues) -> run
-`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow "#{n1},#{n2},..." build,test`
-once, comma-joined. Stop after the test gate -- do not proceed to review, polish, or wrap-up;
+`PIPELINE_RUN_DIR="{minted-run-dir}" DISPATCH_HEADLESS=1 /claude-tweaks:flow "#{n1},#{n2},..." build,test`
+once, comma-joined. Omit `DISPATCH_HEADLESS=1` unless the dispatching session's own firing was
+`next`-form (bare/`#N`/explicit-list forms have a human present, per `SKILL.md`'s Input table,
+and omit it). When set, it tells this call's Settle procedure (`settle-and-merge.md`) that
+nobody is present to read a Step 2.8 claim-contest stop, so a contest there should self-report
+via `headless-self-report.md` instead of just failing silently to whoever isn't watching. Stop
+after the test gate -- do not proceed to review, polish, or wrap-up;
 a separate Task call handles those. If you reference any of these issue numbers in an
 intermediate commit message, write "refs #N" -- never "closes #N" or "fixes #N".
 
