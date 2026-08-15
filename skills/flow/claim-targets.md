@@ -24,7 +24,12 @@ any of:
   treat it as contested, self-blocking a run that already owns the record. Since the resumed
   invocation inherits the same `PIPELINE_RUN_DIR` the original claim was written under, the blob
   is still `'live'`/`'stale'` under this run's own identity, so `_shared/issue-claims.md`'s
-  "Reading claim state" script exposes a non-null `claim` to compare against.
+  "Reading claim state" script exposes a non-null `claim` to compare against. If a target's
+  claim-blob read is itself unreadable or fails during this check, treat that target as **not**
+  already owned by this run — fall through to the claiming procedure below, whose own fail-closed
+  handling (`'unreadable'` fails closed to contested) then applies; a read failure at this
+  skip-guard stage must never cause an incorrect skip of a target this run doesn't verifiably
+  already own.
 - **The resolved step list (`SKILL.md` Step 1, item 4) contains neither `build` nor `test`** — a
   teardown-only or resume-from-review-onward invocation has nothing left to build, so there is
   nothing left to lock. This covers two invocation shapes that would otherwise reach the claim
@@ -49,7 +54,12 @@ any of:
   of what the claim blob reads. `wrap-up`'s own Section E release step still ownership-checks
   (`claim.runId === basename($PIPELINE_RUN_DIR)`) before releasing and correctly no-ops when this
   run doesn't own the claim, so skipping the claim attempt here loses no safety — it only stops
-  re-acquiring a lock nobody needs for a run that will only run cleanup.
+  re-acquiring a lock nobody needs for a run that will only run cleanup. This condition is
+  deliberately broad — keyed on step-list shape, not on verified prior ownership — so it also
+  matches a human directly invoking `/flow #{n}` with a hand-picked non-build/test step list (e.g.
+  `review,polish`) against a record this run has never claimed. That's intentional: a step list
+  lacking both `build` and `test` has nothing to build regardless of who invoked it, so there is no
+  work here a lock would need to protect.
 
 Otherwise, proceed below.
 
@@ -93,7 +103,22 @@ knowledge beyond this one warning check.
 ## Claim every named target, all-or-abort
 
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all** named targets before proceeding
-to Step 3 for any of them. For each target, read-classify-write exactly as
+to Step 3 for any of them.
+
+**Before attempting to claim, per target:** check whether this run already owns it — read that
+target's claim blob (the same "Reading claim state" procedure the skip-guard above uses) and
+compare `claim.runId === basename($PIPELINE_RUN_DIR)`. If it matches, this run already holds the
+claim for that target: skip claiming it and move to the next target in the loop, rather than
+re-attempting a claim, since `classifyClaimBlob` has no self-claim exemption and would classify
+this run's own `'live'` blob as contested against itself. This is a per-target check inside the
+claiming loop, distinct from the skip-guard's own all-targets check above (which decides whether
+to enter Step 2.8 at all) — a multi-target run resumed after a partial interruption can have some
+targets already owned by this run and others not yet claimed, in which case the skip-guard's
+all-targets condition correctly doesn't fire (there is still real claiming work to do for the
+unowned targets) and this per-target check is what prevents a redundant, spuriously-contested
+reclaim of the targets already held.
+
+For each remaining target, read-classify-write exactly as
 `_shared/issue-claims.md`'s "The lock" section describes (`gh` path shown; MCP path is the same
 read-then-classify-then-write over the MCP tools — see `_shared/github-write-transport.md`):
 
@@ -149,5 +174,27 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
   meaning elsewhere in flow (`multi-spec.md`) — continue past a per-target failure rather than
   aborting the whole run.
 
-Any other `gh`/MCP failure during claim (not a classification-based contest): skip that target,
-log, continue to the next — per `_shared/issue-claims.md`'s Failure-posture table.
+**A transient `gh`/MCP failure during claim (not a classification-based contest)** — a network
+timeout, a transport error, or any other unclassified failure while reading, writing, or posting
+for a target — gets the identical all-or-abort treatment as a classification-based contest above,
+not a silent skip-and-continue: **single-target run** releases nothing and stops before Step 3;
+**multi-target run, default** releases every target this run *did* claim so far this step and
+stops; **multi-target run with `keep-going`** downgrades just the failing target to a skip and
+proceeds with the remainder. Use the same three bullets above for the release/stop mechanics —
+the only difference is the message, which names the transient failure instead of a holder
+identity (there is no holder to report):
+
+```markdown
+## Flow: Claim failed
+
+#{target} could not be claimed due to a transient failure ({error-summary}), not a competing
+claim. Retry once the underlying `gh`/MCP issue clears.
+```
+
+This supersedes, for this file specifically, `_shared/issue-claims.md`'s general Failure-posture
+line "Any other `gh`/MCP failure during claim: drop that issue, log, continue" — that line was
+written for independent-batch contexts (dispatch's old multi-group loop, `/tidy`'s sweep) where
+dropping one issue and continuing is safe because each issue in that context is independent. This
+section's group-claim **all-or-abort** invariant is exactly the case that general line doesn't
+fit: silently proceeding to Step 3 with one named target unclaimed reopens the double-build race
+this step exists to prevent.
