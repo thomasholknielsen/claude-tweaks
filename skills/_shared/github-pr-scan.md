@@ -273,7 +273,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    (singleton or bundle, both via `dispatch/settle-and-merge.md`'s Dispatching-session merge
    execution — genuinely headless); `[fast-lane]` (`wrap-up/review-console.md`'s Auto-merge
    short-circuit) is reachable only by an interactive, human-run single-record `/flow` — its own
-   `CLAIM_RUN_ID` branch redirects a dispatch-originated singleton to `[auto-merge]` instead, so a
+   dispatch-claim branch redirects a dispatch-originated singleton to `[auto-merge]` instead, so a
    `[fast-lane]` commit is never headless.
 
    ```bash
