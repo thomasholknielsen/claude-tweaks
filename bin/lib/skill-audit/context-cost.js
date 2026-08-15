@@ -15,6 +15,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
+const { listSkillDirs } = require('./skill-catalog');
 
 const CEILING_BYTES = 40 * 1024;
 
@@ -39,14 +40,10 @@ function skillsDir(repoRoot) {
 // are lazy-loaded and deliberately excluded.
 function measureSkills(repoRoot) {
   const dir = skillsDir(repoRoot);
-  return fs
-    .readdirSync(dir)
-    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
-    .sort()
-    .map((name) => {
-      const file = path.join(dir, name, 'SKILL.md');
-      return { name, bytes: fs.statSync(file).size };
-    });
+  return listSkillDirs(repoRoot).map((name) => {
+    const file = path.join(dir, name, 'SKILL.md');
+    return { name, bytes: fs.statSync(file).size };
+  });
 }
 
 // Sub-files are not free either: a stub that cites one costs the whole file when
@@ -126,17 +123,13 @@ function descriptionHashHazard(line) {
 // (skills/dispatch/SKILL.md) was independently fixed by #394's trim.
 function findDescriptionHashHazards(repoRoot) {
   const dir = skillsDir(repoRoot);
-  return fs
-    .readdirSync(dir)
-    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
-    .filter((name) => {
-      const content = fs.readFileSync(path.join(dir, name, 'SKILL.md'), 'utf8');
-      const split = splitFrontmatterFence(content);
-      if (!split) return false;
-      const line = split.frontmatter.find((l) => /^description:\s*/.test(l));
-      return line ? descriptionHashHazard(line) : false;
-    })
-    .sort();
+  return listSkillDirs(repoRoot).filter((name) => {
+    const content = fs.readFileSync(path.join(dir, name, 'SKILL.md'), 'utf8');
+    const split = splitFrontmatterFence(content);
+    if (!split) return false;
+    const line = split.frontmatter.find((l) => /^description:\s*/.test(l));
+    return line ? descriptionHashHazard(line) : false;
+  });
 }
 
 // Every SKILL.md's description length, in characters (not bytes — an em dash
@@ -144,16 +137,12 @@ function findDescriptionHashHazards(repoRoot) {
 // ceiling is about how much a human/LLM reads, not disk usage).
 function measureDescriptions(repoRoot) {
   const dir = skillsDir(repoRoot);
-  return fs
-    .readdirSync(dir)
-    .filter((n) => fs.existsSync(path.join(dir, n, 'SKILL.md')))
-    .sort()
-    .map((name) => {
-      const file = path.join(dir, name, 'SKILL.md');
-      const content = fs.readFileSync(file, 'utf8');
-      const description = extractDescription(content);
-      return { name, chars: description === null ? 0 : [...description].length, description };
-    });
+  return listSkillDirs(repoRoot).map((name) => {
+    const file = path.join(dir, name, 'SKILL.md');
+    const content = fs.readFileSync(file, 'utf8');
+    const description = extractDescription(content);
+    return { name, chars: description === null ? 0 : [...description].length, description };
+  });
 }
 
 function overDescriptionCeiling(entries) {
