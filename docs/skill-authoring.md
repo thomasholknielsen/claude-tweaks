@@ -74,10 +74,16 @@ Skill prose that shells out to a plugin file writes `node "${CLAUDE_PLUGIN_ROOT}
 
 Rules that follow:
 
-- Keep writing the `${CLAUDE_PLUGIN_ROOT}` spelling in skill prose. It is the greppable, install-location-independent convention. Do not hardcode an absolute path (plugin cache locations differ per machine and per account config dir), and do not add a shell lookup ladder to resolve it at runtime — a glob over cache directories is fragile across those same layouts, and worktree-isolated sessions refuse compound commands, so the ladder is unrunnable exactly where builds happen.
+- Keep writing the `${CLAUDE_PLUGIN_ROOT}` spelling in skill prose. It is the greppable, install-location-independent convention. Do not hardcode an absolute path (plugin cache locations differ per machine and per account config dir), and do not add a shell lookup ladder to resolve it at runtime — a glob over cache directories is fragile across those same layouts, and worktree-isolated sessions limit what Bash commands can run (see `skills/_shared/scratch-worktree.md`'s "## 7. Shell constraint"), so the ladder is unrunnable exactly where builds happen.
 - `hooks/hooks.json` is the exception, not the model for skill prose: hook processes are spawned by the harness with `CLAUDE_PLUGIN_ROOT` populated in their environment, so hook command strings rely on the real variable.
 - The substituted root points at the **installed** build, which can lag a claude-tweaks dev checkout — when the running build matters, resolve it from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (CLAUDE.md `[IL-89]`, `[IL-119]`).
 - A `Cannot find module '/bin/…'` / `'undefined/bin/…'` failure means the placeholder reached the shell unsubstituted — re-issue with the resolved absolute path; do not diagnose the CLI itself.
+
+## Harness-level worktree Bash guard vs. the plugin's PreToolUse gate
+
+A session working inside a worktree created by `EnterWorktree` (or entered into one) is subject to a Claude Code CLI harness-level guard on the Bash tool — separate from, and unrelated to, this plugin's own `worktree.always` PreToolUse gate (`bin/lib/hooks/pre-tool-use.js`). The two are easy to conflate when triaging feedback (`#174` was originally filed against the wrong one). When the harness cannot cheaply verify that a command's effects stay inside the worktree, it refuses the whole call outright: `this command is too complex to verify that it stays inside the worktree; break it into plain, separate commands.` This is harness code the plugin has no access to and cannot alter from `bin/hooks.js` or any hook — the plugin's own gate produces entirely different deny text (`claude-tweaks: this project requires an isolated worktree for...`, `claude-tweaks working-directory discipline: ...`), which is how the two are told apart in practice.
+
+For the empirically observed boundary of what Bash commands pass and fail in a worktree session, see `skills/_shared/scratch-worktree.md`'s "## 7. Shell constraint" — that is the canonical, detailed statement that skill implementers will actually encounter in their dispatch context.
 
 ## Interaction style directive
 
