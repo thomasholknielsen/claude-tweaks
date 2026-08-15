@@ -50,7 +50,7 @@ function splitSections(markdown) {
   const sections = new Map();
   let current = null;
   let buffer = [];
-  for (const line of markdown.split('\n')) {
+  for (const line of markdown.replace(/\r\n/g, '\n').split('\n')) {
     const m = /^## (.+)$/.exec(line);
     if (m) {
       if (current !== null) sections.set(current, buffer.join('\n'));

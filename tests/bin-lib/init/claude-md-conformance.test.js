@@ -263,3 +263,22 @@ test('a missing Philosophy section is reported with a generation instruction, no
   assert.match(workingApproach.expected, /Think before coding/);
   assert.strictEqual(workingApproach.generate, undefined);
 });
+
+test('splitSections tolerates CRLF line endings', () => {
+  const crlfFixture = FIXTURE.replace(/\n/g, '\r\n');
+  const lfSections = splitSections(extractTemplateBody(FIXTURE));
+  const crlfSections = splitSections(extractTemplateBody(crlfFixture));
+  assert.deepStrictEqual([...crlfSections.keys()], [...lfSections.keys()]);
+  for (const key of lfSections.keys()) {
+    assert.strictEqual(crlfSections.get(key).trim(), lfSections.get(key).trim());
+  }
+});
+
+test('checkConformance reports missing sections on a CRLF template, not an empty result', () => {
+  const crlfTemplate = TPL.replace(/\n/g, '\r\n');
+  const r = checkConformance({ templateSource: crlfTemplate, projectClaudeMd: '' });
+  assert.deepStrictEqual(
+    r.missing.map((m) => m.section).sort(),
+    ['Working Approach', 'claude-tweaks Pipeline'].sort(),
+  );
+});
