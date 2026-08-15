@@ -18,5 +18,6 @@
 | docs/decisions/*.md | Architecture Decision Records — hard-to-reverse, surprising trade-offs | *(no auto-detect — written deliberately by /wrap-up's ADR gate)* |
 | docs/diagrams/*.html | Generated visual diagrams | *(no auto-detect — generated on demand by `/claude-tweaks:visualize`)* |
 | docs/journeys/*.md | User/developer journeys backing agent e2e testing | *(no auto-detect — see per-journey `files:` frontmatter instead)* |
+| docs/plans/*.md | Per-run pipeline ledgers (spec/record scoping, resolve-gate state) | *(no auto-detect — generated per pipeline run by `/claude-tweaks:ledger`)* |
 | docs/skill-authoring.md | Skill-file authoring conventions — structure, frontmatter, interaction patterns, CSC | `skills/**/*.md` |
 | docs/releasing.md | Release procedure + judgment calls | `bin/release.js`, `bin/lib/release/**` |

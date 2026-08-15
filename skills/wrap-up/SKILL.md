@@ -136,6 +136,8 @@ Full mode handles all five reflection lenses (Surprises, Approach, Near-misses, 
 
 If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved. The surviving insight set is Phase 2's input.
 
+**Multi-spec defer:** when `MULTISPEC_CURATION_DEFER=1` is set by `/flow` multi-spec orchestration, skip this per-spec Reflect step entirely — do not invoke `/claude-tweaks:reflect`, write no per-spec reflect insight set or ledger entry for this step. The batch-scope reflect pass at end-of-run (`skills/flow/multispec-batch-curation.md`) covers the full multi-spec diff once, after the final spec's pipeline reaches Phase 4 or the run aborts. Proceed directly to the Ceremony escape hatch below (its own trigger conditions still read this spec's own `/claude-tweaks:review` summary, independent of whether reflect ran).
+
 ### Ceremony escape hatch (formerly Step 3.5, fast-lane runs only)
 
 Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (including standalone wrap-up, where no `config.yml` exists). Otherwise, check both trigger conditions:
@@ -164,7 +166,7 @@ One mechanism, one registry, one engine. Every knowledge asset wrap-up curates i
 | Skills | `.claude/skills/` exists, or the diff changed 2+ files | Domain-overlap ranking, top 5 (fast-lane 2; `--skill-budget` overrides) | `skill-curation.md` | `apply-or-stage` |
 | Docs | `docs/` exists and is non-empty | Domain-overlap ranking, top 3 (fast-lane 1; `--doc-budget` overrides) | `docs-health-integration.md` | `apply-or-stage` |
 | Journeys | At least one `docs/journeys/*.md` exists | Journeys whose `files:` frontmatter overlaps the diff (deterministic, no cap) | `journey-curation.md` | `apply-or-stage` |
-| CLAUDE.md & rules | A `## Commands` line was renamed or removed since the base, or a don't-repeat candidate, a contradicted convention, or a recorded incident was signalled | `CLAUDE.md` plus `.claude/rules/` | `claude-md-curation.md` | `stage-only` |
+| CLAUDE.md & rules | A `## Commands` line was renamed or removed since the base, `CLAUDE.md`/`.claude/rules/*.md` exceeds its tier's line budget, or a don't-repeat candidate, a contradicted convention, or a recorded incident was signalled | `CLAUDE.md` plus `.claude/rules/` | `claude-md-curation.md` | `stage-only` |
 | Decision records | One or more decision candidates were signalled for the ADR gate | The decisions this run surfaced | `adr-curation.md` | `stage` |
 | Broken references | Renames/deletions in diff, or a renamed heading | Repo-wide references surviving a renamed or deleted target | `reference-sweep.md` | `apply-or-stage` |
 | Memory | One or more learnings were signalled as memory-bound | Learnings no earlier row claimed | `memory-curation.md` | `stage` |
@@ -178,7 +180,9 @@ This table is the human-readable half of `bin/lib/wrap-up/registry.js`; `tests/w
 
 ### Run the engine
 
-Read `curation-engine.md` in this skill's directory and execute its invocation sequence — it owns the plan/record/render commands, the payload contract, the parallel-dispatch rule, and the prose fallback. This read is unconditional: Phase 2 runs on every wrap-up.
+**Multi-spec defer:** when `MULTISPEC_CURATION_DEFER=1` is set, skip this per-spec `plan`/`record`/`render` sequence entirely — no `spec-{N}/engine-state.json` is created for this spec. The batch-scope registry pass at end-of-run (`skills/flow/multispec-batch-curation.md`) evaluates the full 8-row registry once, against the parent run dir, after the final spec's pipeline reaches Phase 4 or the run aborts. Proceed to Phase 3.
+
+Otherwise: read `curation-engine.md` in this skill's directory and execute its invocation sequence — it owns the plan/record/render commands, the payload contract, the parallel-dispatch rule, and the prose fallback. This read is unconditional whenever this step actually runs.
 
 **Constructing `--signals`.** The engine computes every fact-based gate itself from git and the filesystem. It cannot compute the six judgment-derived signals, so Phase 1's outputs supply them at `plan` time:
 

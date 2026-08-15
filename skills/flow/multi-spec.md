@@ -111,11 +111,12 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-`manifest.yml` lists the records in execution order plus their status as the run progresses:
+`manifest.yml` lists the records in execution order plus their status as the run progresses. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
 ```yaml
 multispec:
   parent: .claude-tweaks/pipelines/2026-05-16T143207-spec-157-159-160/
+  baseSha: f9b5ec84d6c462050ed6a40d640ae50b67f6ee36   # omitted when MULTISPEC_CURATION_DEFER is unset
   specs:
     - id: 157             # record id
       status: complete    # pending | running | complete | failed | not-run
@@ -151,6 +152,7 @@ For each per-spec invocation, `/flow` exports these environment variables (the l
 | `MULTISPEC_PARENT_DIR` | `{parent}/` | Pointer to the parent run dir — read by the consolidated console at end-of-run |
 | `MULTISPEC_KEEP_GOING` | `1` (when `keep-going` arg set) | Signals per-spec pipelines to continue the multi-spec run after this spec's HARD-GATE failure |
 | `MULTISPEC_SHARED_WORKTREE` | `1` (when `worktree` strategy resolved) | Signals per-spec `/build` Common Step 1 to skip worktree creation — the run's single shared worktree already exists and the pipeline is running inside it |
+| `MULTISPEC_CURATION_DEFER` | `1` (same condition as `MULTISPEC_REVIEW_DEFER` — multi-spec run, `auto`/`hybrid` mode) | Signals `/wrap-up`'s Phase 1 Reflect and Phase 2 Run the engine to skip their per-spec passes — the consolidated end-of-run batch pass (`multispec-batch-curation.md`) covers the full multi-spec diff once instead of once per spec |
 
 Note on claim ownership for a dispatched bundle: each spec's own `PIPELINE_RUN_DIR` above is the per-spec `{parent}/spec-{N}/` subdirectory, but the claim `/claude-tweaks:dispatch` wrote (Step 4) is keyed to the **parent** directory's basename — the identity dispatch minted for the whole group. Per-spec `/wrap-up` Section E claim release is deferred under `MULTISPEC_REVIEW_DEFER=1` for exactly this reason (see `wrap-up/cleanup-procedures.md`'s Multi-spec defer behavior); the actual release happens once, at end-of-run, in `multispec-review-console.md`'s "Shared teardown," which resolves the ownership check against `basename($MULTISPEC_PARENT_DIR)`, not any per-spec `$PIPELINE_RUN_DIR`.
 

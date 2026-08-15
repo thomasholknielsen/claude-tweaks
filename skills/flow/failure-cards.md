@@ -10,8 +10,9 @@ Two templates live here. Pick by failure shape:
 | Any other gate (build / stories / test / review / wrap-up) | "Generic gate failure" below |
 
 **Claims held by a record-mode run:** when the stopped run holds issue claims
-(`claims/issue-{issue}.json` on `claims-registry`, claimed by `/claude-tweaks:dispatch` before
-hand-off, per `_shared/issue-claims.md`), the card must OFFER release — never auto-release. Resuming is the
+(`claims/issue-{issue}.json` on `claims-registry`, claimed at Step 2.8 by this run
+(`flow/claim-targets.md`), whether dispatched or run directly, per `_shared/issue-claims.md`),
+the card must OFFER release — never auto-release. Resuming is the
 recommended next action, and a resumed run needs its claims intact; an unreleased claim ages
 out via TTL anyway.
 

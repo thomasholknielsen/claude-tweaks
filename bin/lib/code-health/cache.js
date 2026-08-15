@@ -19,7 +19,7 @@ const durable = createDurableState('code-health', { includeRemembered: true });
 // computeChurn (union-denominator ratio + the `stayed` field) now lives once
 // in health-core/runs.js, shared by all four health-suite engines — re-export
 // it here so existing call sites (bin/code-health.js,
-// bin/lib/code-health/tests/*) keep importing it from this module.
+// tests/bin-lib/code-health/*) keep importing it from this module.
 
 // Pure: computes the next durable-state object for a validate-findings run.
 // current: { cursors, remembered, retryQueue, runs } — the current durable
@@ -42,7 +42,7 @@ const durable = createDurableState('code-health', { includeRemembered: true });
 // so its four behaviors (selective per-swept-area cursor update, un-swept-area
 // cursor preservation, remembered-candidate merge, run-history append) can be
 // unit tested directly with plain-object fixtures. See
-// bin/lib/code-health/tests/build-validate-findings-update.test.js.
+// tests/bin-lib/code-health/build-validate-findings-update.test.js.
 function buildValidateFindingsUpdate(current, { areasSwept, hashes, rememberCandidates, runRecord, now = Date.now() }) {
   const cursors = { ...current.cursors };
   for (const areaId of areasSwept) {

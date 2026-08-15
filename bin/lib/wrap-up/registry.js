@@ -35,7 +35,7 @@ const REGISTRY = [
     target: 'CLAUDE.md & rules',
     judge: 'claude-md-curation.md',
     disposition: 'stage-only',
-    gate: Object.freeze({ kind: 'facts', anyOf: ['claudeMdCommandRenamed'], orSignals: ['dontCandidate', 'contradictedConvention', 'incidentRecorded'] }),
+    gate: Object.freeze({ kind: 'facts', anyOf: ['claudeMdCommandRenamed', 'claudeMdOverBudget'], orSignals: ['dontCandidate', 'contradictedConvention', 'incidentRecorded'] }),
     scope: Object.freeze({ kind: 'fixed', paths: ['CLAUDE.md', '.claude/rules/'] }),
   },
   {

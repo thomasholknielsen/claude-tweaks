@@ -16,6 +16,7 @@ const FACT_REASONS = {
   docsTreeNonEmpty: { open: 'docs/ tree exists', closed: 'no docs/ tree' },
   journeysExist: { open: 'docs/journeys/ exists', closed: 'no journeys' },
   claudeMdCommandRenamed: { open: 'CLAUDE.md Commands section changed', closed: 'CLAUDE.md Commands section unchanged' },
+  claudeMdOverBudget: { open: 'CLAUDE.md/rules over the size budget', closed: 'CLAUDE.md/rules within budget' },
   renamedOrDeleted: { open: 'renames or deletions in diff', closed: 'no renames or deletions in diff' },
   headingRenamed: { open: 'a heading was renamed in a modified file', closed: 'no renamed headings' },
 };

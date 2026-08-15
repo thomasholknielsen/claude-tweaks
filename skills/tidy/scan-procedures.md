@@ -98,7 +98,27 @@ removes the pre-#410 classification's own coverage.
 
 → Collect each as: `[git] {worktree/branch} — {recommendation}`
 
-Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
+Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete). `-d` only proves containment in `HEAD`/the branch's own `@{upstream}` — it refuses identically whether the branch is genuinely unmerged or merged into a *different* long-lived base (a `dev` → `staging` → `main` promotion chain is the common shape). Treat a refusal as **ambiguous**, not as proof of unmerged work: before surfacing anything, resolve every other configured base to a **plain branch name** — the project's `integration-branch` policy value (when pinned) plus the repo's own default branch, resolved via `git -C "{REPO_ROOT}" symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@'` — per `_shared/integration-branch.md`'s canonical ladder, deduped when they're the same. **Never use the raw `origin/HEAD` form as `{base}` below** — substituting it into `origin/{base}` yields the malformed ref `origin/origin/HEAD`. For each resolved `{base}`, check `{branch}`'s membership **both** ways — this repo's own dominant merge shape for worktree-derived branches (`_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern) leaves no remote-tracking ref at all, so checking the remote-tracking form alone reproduces the exact false negative this fix exists to eliminate:
+
+- `git -C "{REPO_ROOT}" branch --merged origin/{base}` (remote-tracking ref, when it exists)
+- `git -C "{REPO_ROOT}" branch --merged {base}` (local branch, when it exists)
+
+Before classifying a `-d` refusal by merge state at all, check whether `{branch}` is currently
+checked out in another worktree (`git -C "{REPO_ROOT}" worktree list --porcelain`, scanning for
+`branch refs/heads/{branch}`) — a checked-out branch refuses `-d`/`-D` alike regardless of merge
+state, and since this step deliberately keeps locked worktrees (see below), that refusal reason is
+otherwise indistinguishable from "needs -D" and would get the wrong remedy.
+
+`{branch}` counts as merged into `{base}` if either form lists it. Four outcomes, never three:
+
+| Outcome | Recommendation |
+|---|---|
+| `{branch}` is checked out in another worktree | **`checked out in {worktree-path} — remove worktree first, then re-run`**. `-D` would refuse for the same reason `-d` did; this is not a merge-state question |
+| `-d` succeeds | Deleted — no further action |
+| `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
+| `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** (unchanged) — this is the only case that actually means unmerged work |
+
+Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 
 A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
 is using it. Surface it as `locked — manual review required`.

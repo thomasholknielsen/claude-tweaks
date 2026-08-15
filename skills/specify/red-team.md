@@ -15,7 +15,7 @@ unchanged from before.
 > narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
 > complete.
 >
-> **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — personas never modify the record themselves.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node bin/resolve-profile.js standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
 >
 > **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
 >
@@ -40,7 +40,7 @@ unchanged from before.
 > Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 > Do not add narration, headers, or summaries before or after the table.
 >
-> [Use: Standard model.]
+> [Use: Standard] — resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 > ```
 >
 > **The three personas (lens questions verbatim):**
