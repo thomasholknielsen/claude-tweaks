@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.84.0 — Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec
+
+Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec.
+
 ## v6.83.0 — Isolate /init's file writes in a worktree unconditionally, regardless of the worktree.always policy setting
 
 Isolate /init's file writes in a worktree unconditionally, regardless of the worktree.always policy setting.
