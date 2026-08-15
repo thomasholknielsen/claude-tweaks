@@ -112,12 +112,10 @@ test('steps-and-gates.md: a minted-but-empty PIPELINE_RUN_DIR is adopted and ini
 });
 
 test('dispatch/SKILL.md Step 4: mints the group run directory only, with no claim write present', () => {
-  // #464 moved claim acquisition (the bot:in-progress bootstrap and the claim comment) out of
-  // dispatch Step 4 and into flow's Step 2.8 (skills/flow/claim-targets.md). Step 4 is now
-  // mint-only, so "minted before the claim write" is no longer a meaningful ordering to assert —
-  // there is no claim write left in this step at all. This guard now pins the two things that
-  // are still true: the mint paragraph runs, logged to decisions.md and keyed off
-  // $GROUP_RUN_ID/$GROUP_RUN_DIR, and no claim-write-shaped content has crept back in.
+  // #464 moved claim acquisition out of dispatch Step 4 into flow's Step 2.8
+  // (skills/flow/claim-targets.md), so there is no claim write left here to order the mint
+  // against. This guard pins what replaced that ordering: the mint still runs, is logged to
+  // decisions.md, exposes $GROUP_RUN_ID — and no claim write has crept back in.
   const start = DISPATCH_SKILL.indexOf('### Step 4:');
   assert.notStrictEqual(start, -1, 'dispatch/SKILL.md no longer has a "### Step 4:" heading — this guard has lost its anchor');
   const end = DISPATCH_SKILL.indexOf('\n### Concurrency note', start);

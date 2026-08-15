@@ -45,9 +45,9 @@ Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), derivin
 | Argument | Behavior |
 |---|---|
 | *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-batch-size` groups per firing |
-| `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
-| `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
-| `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
+| `next` | Headless-safe — select + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
+| `#N` | Direct — select + dispatch record `#N`'s whole file-overlap group |
+| `#N,#M,...` | Explicit list — select + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 | `--batch-size <n>` (modifier) | Suffix bare or `#N,#M,...` — per-firing override of `dispatch-batch-size` (Configuration below) for this invocation only; does not edit `.claude-tweaks/policy.yml`. Highest-precedence per `_shared/auto-mode-card.md`'s CLI-arg-first ordering. No effect on `next`/`#N`, which always dispatch exactly one group regardless of the cap. See Step 3 (bare-mode question wording) and Step 5 (sequential dispatch order). |
 | `--concurrent <n>` (deprecated alias) | Deprecated alias for `--batch-size <n>` — same effect, logs one warn-tier notice per invocation. Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 | `--priority <high\|medium\|low>` (modifier) | Suffix `next` only — restrict this firing's candidate pool to groups whose representative member (Step 3's `next`-ranking definition) carries that priority band before ranking/selection runs. Lets multiple differently-scheduled Routines each own a distinct slice of the queue (e.g. a fast-cadence `--priority high` routine alongside a slower one covering everything else). No effect on bare or `#N`/`#N,#M,...`, which select by human pick or explicit name, not the `next` ranking. |
@@ -155,18 +155,18 @@ follow it.
 Anchoring section (`git rev-parse --git-common-dir`, then its parent directory). This group's
 **representative record** is its lowest-numbered member (the same rule
 `_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
-`$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` (mkdir only — no
-`config.yml`, no `decisions.md`, and, as of this change, no claim written here either — the
-first Task call's own `/flow` invocation claims the group at its Step 2.8, per
-`flow/claim-targets.md`; this step only ensures both of that group's Task calls receive the same
-identity to claim under). Call the result `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log
-one line to this firing's own `decisions.md` (Step 1's standalone dir, not this new one): `AUTO
-{time} — Step 4: minted {$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed
-directory is reclaimed by the reconciler's archive sweep
-(`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint` criterion) once its TTL elapses.
+`$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` — mkdir only: no
+`config.yml`, no `decisions.md`, and no claim written here either. Call the result
+`$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
+`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
+{$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
+the reconciler's archive sweep (`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint`
+criterion) once its TTL elapses.
 
-Nothing else happens in this step — claiming, the `bot:in-progress` bootstrap, and the claim
-comment all moved to `/flow`'s Step 2.8 (`flow/claim-targets.md`). Proceed to Step 5.
+Nothing else happens in this step. Claiming, the `bot:in-progress` bootstrap, and the claim
+comment all live in `/flow`'s Step 2.8 (`flow/claim-targets.md`), which the group's first Task
+call reaches under the identity this mint establishes — handing both Task calls the same
+directory to claim under is this step's whole purpose. Proceed to Step 5.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 

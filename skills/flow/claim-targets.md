@@ -19,12 +19,11 @@ any of:
   This catches a resume invocation whose step list still contains `build` or `test` (so the
   condition below doesn't apply) where this same run already holds the claim from an earlier,
   interrupted pass — e.g. `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow {target} test` resuming
-  after a build-gate failure that left the claim held per `failure-cards.md`. Without this check,
-  the claim attempt below would see the blob still `'live'` under this run's own identity and
-  treat it as contested, self-blocking a run that already owns the record. Since the resumed
-  invocation inherits the same `PIPELINE_RUN_DIR` the original claim was written under, the blob
-  is still `'live'`/`'stale'` under this run's own identity, so `_shared/issue-claims.md`'s
-  "Reading claim state" script exposes a non-null `claim` to compare against. If a target's
+  after a build-gate failure that left the claim held per `failure-cards.md`. The resumed
+  invocation inherits the same `PIPELINE_RUN_DIR` the original claim was written under, so the
+  blob still reads `'live'`/`'stale'` under this run's *own* identity and "Reading claim state"
+  exposes a non-null `claim` to compare against — without this check, the claim attempt below
+  would read that as contested and self-block a run that already owns the record. If a target's
   claim-blob read is itself unreadable or fails during this check, treat that target as **not**
   already owned by this run — fall through to the claiming procedure below, whose own fail-closed
   handling (`'unreadable'` fails closed to contested) then applies; a read failure at this
@@ -32,34 +31,32 @@ any of:
   already own.
 - **The resolved step list (`SKILL.md` Step 1, item 4) contains neither `build` nor `test`** — a
   teardown-only or resume-from-review-onward invocation has nothing left to build, so there is
-  nothing left to lock. This covers two invocation shapes that would otherwise reach the claim
+  nothing left to lock. This covers the invocation shapes that would otherwise reach the claim
   attempt below with no self-owned `runId` to match against the condition above: a dispatched
   group's *second* Task call (`review,polish,wrap-up` — already claimed by the first call's
-  Step 2.8 run, matched here by step list rather than by claim state), and any `wrap-up`-only
-  invocation, whether a human resuming a parked run
+  Step 2.8 run), and any `wrap-up`-only invocation, whether a human resuming a parked run
   (`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up` per
   `dispatch/SKILL.md`'s Reporting section) or the failure-path teardown-only call
-  (`dispatch/two-call-gate.md` section 5's identical invocation shape). An earlier revision of
-  this file distinguished those last two by claim state — Settle having already released the
-  claim before the teardown call reaches this step, leaving no `runId` for the condition above to
-  match, so that call fell through to a normal (harmless but unnecessary) reclaim. That fall-through
-  carried a real gap: between Settle's release and this step's reclaim attempt, the record sits
-  genuinely unclaimed and re-eligible, and a concurrent `dispatch next` firing could claim it
-  first — this step would then see `'live'` under someone else's `runId` and contest, stopping the
-  pipeline before Step 3 with wrap-up never run and the worktree never torn down, stalling
-  `dispatch/SKILL.md`'s sequential per-group worktree loop (`[IL-116]` forbids a raw removal as an
-  escape hatch). Skipping Step 2.8 outright for any `wrap-up`-only step list closes that window
-  entirely rather than narrowing it, and it makes the claim-state distinction between the two
-  bullets moot — both are `wrap-up`-only, so both now skip cleanly via this condition regardless
-  of what the claim blob reads. `wrap-up`'s own Section E release step still ownership-checks
+  (`dispatch/two-call-gate.md` section 5's identical invocation shape).
+
+  Keying this on step-list shape rather than on claim state is deliberate, and closes a real
+  window. Settle releases the claim before the teardown call reaches this step, so that call would
+  otherwise find no `runId` to match and fall through to a reclaim — but between Settle's release
+  and that reclaim the record sits genuinely unclaimed and re-eligible, and a concurrent
+  `dispatch next` firing could claim it first. This step would then see `'live'` under someone
+  else's `runId` and contest, stopping the pipeline before Step 3 with wrap-up never run and the
+  worktree never torn down, stalling `dispatch/SKILL.md`'s sequential per-group worktree loop
+  (`[IL-116]` forbids a raw removal as an escape hatch). Skipping Step 2.8 outright for any
+  `wrap-up`-only step list closes that window entirely rather than narrowing it.
+
+  Skipping loses no safety: `wrap-up`'s own Section E release step still ownership-checks
   (`claim.runId === basename($PIPELINE_RUN_DIR)`) before releasing and correctly no-ops when this
-  run doesn't own the claim, so skipping the claim attempt here loses no safety — it only stops
-  re-acquiring a lock nobody needs for a run that will only run cleanup. This condition is
-  deliberately broad — keyed on step-list shape, not on verified prior ownership — so it also
-  matches a human directly invoking `/flow #{n}` with a hand-picked non-build/test step list (e.g.
-  `review,polish`) against a record this run has never claimed. That's intentional: a step list
-  lacking both `build` and `test` has nothing to build regardless of who invoked it, so there is no
-  work here a lock would need to protect.
+  run doesn't own the claim — this only stops re-acquiring a lock nobody needs for a run that will
+  only run cleanup. The condition is also deliberately broad, so it matches a human directly
+  invoking `/flow #{n}` with a hand-picked non-build/test step list (e.g. `review,polish`) against
+  a record this run has never claimed. That's intentional: a step list lacking both `build` and
+  `test` has nothing to build regardless of who invoked it, so there is no work here a lock would
+  need to protect.
 
 Otherwise, proceed below.
 
