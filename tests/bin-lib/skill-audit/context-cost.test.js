@@ -2,6 +2,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const {
@@ -14,6 +16,8 @@ const {
   totalBytes,
   headroom,
   extractDescription,
+  descriptionHashHazard,
+  findDescriptionHashHazards,
   measureDescriptions,
   overDescriptionCeiling,
   totalDescriptionChars,
@@ -22,6 +26,19 @@ const { listSkillDirs, KNOWN_SKILLS } = require('../../../bin/lib/skill-audit/sk
 
 const REPO = path.join(__dirname, '..', '..', '..');
 const kb = (b) => (b / 1024).toFixed(1);
+
+// Builds a scratch {tmp}/skills/{name}/SKILL.md fixture so findDescriptionHashHazards
+// can be proven against a synthetic corpus without touching the real skills/ tree.
+function makeFixtureRepo(skillName, descriptionLine) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-hazard-'));
+  const skillDir = path.join(root, 'skills', skillName);
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(skillDir, 'SKILL.md'),
+    `---\nname: ${skillName}\n${descriptionLine}\n---\nbody\n`,
+  );
+  return root;
+}
 
 test('measureSkills finds every shipped skill', () => {
   const skills = measureSkills(REPO);
@@ -103,6 +120,44 @@ test('extractDescription reads a double-quoted description (needed when the valu
 test('extractDescription returns null with no frontmatter or no description field', () => {
   assert.strictEqual(extractDescription('no frontmatter here'), null);
   assert.strictEqual(extractDescription('---\nname: x\n---\nbody\n'), null);
+});
+
+test('descriptionHashHazard: unquoted, no hash — safe', () => {
+  assert.strictEqual(descriptionHashHazard('description: Use when doing a thing.'), false);
+});
+
+test('descriptionHashHazard: unquoted, hash preceded by whitespace — hazard (#393)', () => {
+  assert.strictEqual(descriptionHashHazard('description: Bare, next, or #N direct.'), true);
+});
+
+test('descriptionHashHazard: unquoted, value itself starts with hash — hazard', () => {
+  assert.strictEqual(descriptionHashHazard('description: #N direct only.'), true);
+});
+
+test('descriptionHashHazard: unquoted, hash glued to a non-space character — not a YAML comment marker', () => {
+  assert.strictEqual(descriptionHashHazard('description: see issue#5 for context.'), false);
+});
+
+test('descriptionHashHazard: double-quoted scalar is immune even with a bare hash inside', () => {
+  assert.strictEqual(descriptionHashHazard('description: "Bare, next, or #N direct."'), false);
+});
+
+test('findDescriptionHashHazards: proof — flags a synthetic skill carrying the hazard', () => {
+  const root = makeFixtureRepo('hazard-skill', 'description: Bare, next, or #N direct.');
+  assert.deepStrictEqual(findDescriptionHashHazards(root), ['hazard-skill']);
+});
+
+test('findDescriptionHashHazards: proof — a quoted description with the same text is not flagged', () => {
+  const root = makeFixtureRepo('safe-skill', 'description: "Bare, next, or #N direct."');
+  assert.deepStrictEqual(findDescriptionHashHazards(root), []);
+});
+
+test('findDescriptionHashHazards: the real skill corpus is currently clean (#393)', () => {
+  assert.deepStrictEqual(
+    findDescriptionHashHazards(REPO),
+    [],
+    'an unquoted description containing a bare # (preceded by whitespace) gets silently truncated by the YAML frontmatter parser — see #393',
+  );
 });
 
 test('measureDescriptions finds every shipped skill', () => {
