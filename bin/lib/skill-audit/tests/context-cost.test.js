@@ -6,11 +6,17 @@ const path = require('node:path');
 
 const {
   CEILING_BYTES,
+  DESCRIPTION_CEILING_CHARS,
+  DESCRIPTION_TOTAL_CEILING_CHARS,
   measureSkills,
   measureSubFiles,
   overCeiling,
   totalBytes,
   headroom,
+  extractDescription,
+  measureDescriptions,
+  overDescriptionCeiling,
+  totalDescriptionChars,
 } = require('../context-cost.js');
 const { listSkillDirs, KNOWN_SKILLS } = require('../skill-catalog.js');
 
@@ -78,4 +84,51 @@ test('reports the payload total and the tightest headroom', () => {
 
   assert.ok(total > 0);
   assert.ok(tightest.free >= 0, `${tightest.name} is already over the ceiling`);
+});
+
+// ── Description budget (#394). Descriptions load into every session of every
+// project with the plugin enabled, regardless of whether the skill ever
+// fires — a corpus-wide cost the per-SKILL.md ceiling above doesn't cover.
+
+test('extractDescription reads a plain-scalar description', () => {
+  const content = '---\nname: x\ndescription: Use when doing a thing. Keywords - a, b.\nargument-hint: "[x]"\n---\nbody\n';
+  assert.strictEqual(extractDescription(content), 'Use when doing a thing. Keywords - a, b.');
+});
+
+test('extractDescription reads a double-quoted description (needed when the value contains a bare #)', () => {
+  const content = '---\nname: x\ndescription: "Use when doing a thing with #N. Keywords - a, b."\n---\nbody\n';
+  assert.strictEqual(extractDescription(content), 'Use when doing a thing with #N. Keywords - a, b.');
+});
+
+test('extractDescription returns null with no frontmatter or no description field', () => {
+  assert.strictEqual(extractDescription('no frontmatter here'), null);
+  assert.strictEqual(extractDescription('---\nname: x\n---\nbody\n'), null);
+});
+
+test('measureDescriptions finds every shipped skill', () => {
+  const descriptions = measureDescriptions(REPO);
+  assert.strictEqual(descriptions.length, listSkillDirs(REPO).length);
+  for (const known of KNOWN_SKILLS) {
+    assert.ok(descriptions.some((d) => d.name === known), `measureDescriptions is missing known skill: ${known}`);
+  }
+  assert.ok(descriptions.every((d) => d.chars > 0), 'every shipped skill must carry a non-empty description');
+});
+
+test('no description exceeds the per-skill ceiling', () => {
+  const over = overDescriptionCeiling(measureDescriptions(REPO));
+  assert.deepStrictEqual(
+    over.map((d) => `${d.name} (${d.chars} chars)`),
+    [],
+    `description is the skill-selection surface: trim prose, never Keywords — see #394. Ceiling is ${DESCRIPTION_CEILING_CHARS} chars.`,
+  );
+});
+
+test('the corpus-wide description total stays under budget', () => {
+  const descriptions = measureDescriptions(REPO);
+  const total = totalDescriptionChars(descriptions);
+  console.log(`    shipped description payload: ${total} chars across ${descriptions.length} skills`);
+  assert.ok(
+    total <= DESCRIPTION_TOTAL_CEILING_CHARS,
+    `description corpus is ${total} chars, over the ${DESCRIPTION_TOTAL_CEILING_CHARS}-char budget (#394)`,
+  );
 });

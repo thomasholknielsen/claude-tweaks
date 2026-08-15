@@ -10,11 +10,11 @@
 // prefix in build and test's CSC prose -- fixed in the same change, not
 // allowlisted), and the Next Actions < CSC < Anti-Patterns order.
 //
-// Three skills carry no CSC section at all -- `init` and `version` are
-// user-invoked entry points never read as a component by another skill;
-// `ledger` documents its own exemption in-file (`## Invocation Model`): every
-// caller reads it as a knowledge dependency, never through the Skill tool, so
-// there is no `$PIPELINE_RUN_DIR` to key on. Six more carry a CSC section
+// Two skills carry no CSC section at all -- `init` is a user-invoked entry
+// point never read as a component by another skill; `ledger` documents its
+// own exemption in-file (`## Invocation Model`): every caller reads it as a
+// knowledge dependency, never through the Skill tool, so there is no
+// `$PIPELINE_RUN_DIR` to key on. Six more carry a CSC section
 // that deliberately doesn't mention `$PIPELINE_RUN_DIR` -- two are always a
 // component (no direct-invocation case to disambiguate: assess-agent-
 // autonomy, flow), four are never a component (standalone-only, documented
@@ -40,7 +40,7 @@ const readSkill = (name) => fs.readFileSync(path.join(SKILLS_DIR, name, 'SKILL.m
 
 // house-structure.test.js's NO_NEXT_ACTIONS, mirrored: skills genuinely
 // exempt from carrying a Component-Skill Contract section at all.
-const NO_CSC = new Set(['init', 'ledger', 'version']);
+const NO_CSC = new Set(['init', 'ledger']);
 
 // Skills whose CSC section legitimately omits `$PIPELINE_RUN_DIR` -- each
 // entry's regex is the sentence in that skill's own file that justifies it.

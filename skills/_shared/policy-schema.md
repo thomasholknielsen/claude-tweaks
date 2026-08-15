@@ -88,6 +88,12 @@ Do not write a procedure that depends on either gap: they are unpatched holes, n
 
 `git worktree` subcommands other than `remove` (`list`, `add`, `prune`, `lock`, …) pass untouched. `git push`/merge are deliberately not gated (dispatch's auto-merge path), and SessionEnd is not hooked (it cannot deny) — that window belongs to the SessionStart run-integrity scan.
 
+## Integration model
+
+| Key | Canonical home | Owner skill(s) | Default | Meaning |
+|---|---|---|---|---|
+| `integration-model` | `policy.yml` | `/claude-tweaks:init` (Step 20 offer) | unset — computed at resolve time by `bin/resolve-policy.js`'s `detectIntegrationModel` (forge detection), never a schema literal | `pr-first`/`local-merge` — which backend a project integrates through. Explicit value validates and wins outright (ordinary enum validation, unconditional); detection runs only when the key is absent. See `_shared/integration-model.md` for the full resolution ladder, run-scoped pinning, and consumer table |
+
 ## Project facts
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
@@ -115,6 +121,9 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `automerge-max-files` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
 | `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in the `merge-check` verdict, and feeding `/review`'s diff-heuristic risk proxy |
 | `work-links` | `policy.yml` | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
+| `pr-unarmed-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a green, gate-passed, granted PR may sit with `--auto` unarmed before the sweep surfaces `[pr-unarmed]` |
+| `unsettled-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a live claim or stale `bot:in-progress` may sit with no PR progress before the sweep surfaces `[unsettled]` |
+| `housekeeping-auto-merge` | `policy.yml` | `/claude-tweaks:tidy` Step 7, `_shared/github-pr-scan.md`'s `repo-wide` scope | `false` | When set, the sweep may arm `--auto` on tidy's own green, marker-stamped Step-7 PRs — otherwise they stage like any other unarmed PR |
 
 ## Review
 

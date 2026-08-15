@@ -3,7 +3,7 @@
 # /claude-tweaks:backlog refine). Re-create it via
 # `/claude-tweaks:routine create dispatch` (this template) — the old routine keeps
 # firing a dead prompt until you replace or delete it at claude.ai/code/routines.
-template_version: 7
+template_version: 8
 routine_name: dispatch-weekdays
 prompt: >
   Before anything else, fetch origin and confirm this checkout is on {{TARGET_BRANCH}}
@@ -89,6 +89,14 @@ prompt: >
   deletions (stale records, merged branches and worktrees) — standing effects beyond a
   report — and any future routine whose skill claims work or writes beyond report-only
   surfaces gets the same exclusion.
+
+  Before the kickoff below, run reconcile using whichever plugin root resolved above:
+  `node "<plugin-root>/bin/hooks.js" reconcile`. Report its one-line JSON result. This
+  converges local state toward origin before the skill starts — mirrors the integration
+  branch, releases finished claims, archives closed runs, and reaps merged worktrees
+  under `pr-first` (`bin/lib/reconcile`, #407); under `local-merge` only the worktree
+  reap runs. Diagnostic and best-effort like the resolved-build line above — never a
+  gate, never a reason to stop the kickoff.
 
   Then: /claude-tweaks:dispatch next
 # Optional: `branch: <name>` pins the prompt's {{TARGET_BRANCH}}. Normally unset here — a

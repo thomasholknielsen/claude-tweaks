@@ -40,8 +40,9 @@ OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no p
 
 GROUP: {comma-joined issue numbers}
 OUTCOME: {build-test-ok | build-test-failed | build-test-blocked}
-MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
-  single-spec run dir path}
+MANIFEST: {absolute path anchored under the main checkout's `.claude-tweaks/pipelines/` --
+  never a relative or worktree-cwd-relative path -- to this group's run-dir
+  manifest.yml/decisions.md; for a singleton, the single-spec run dir path}
 
 One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
@@ -95,27 +96,35 @@ Status line (required): First line of your reply must be one of: DONE / DONE_WIT
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
-OUTCOME: {ready-to-merge | pr-opened | pending-review | failed | blocked}
+OUTCOME: {merged | armed | pending-review | failed | blocked}
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
   single-spec run dir path}
 
 One line per issue in this group that hit a HARD-GATE or the retry ceiling (omit if none):
 ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 
-Choosing between two OUTCOME values: report pending-review -- not `pr-opened` -- when the run
-reached the Review Console with nobody answering it, even though a draft PR was opened for branch
-durability. `pr-opened` means the branch reached its finish decision; a durability PR is an
-unanswered human gate wearing a review surface.
+**`integration-model: pr-first`** (`_shared/integration-model.md`) — `merged` / `armed` /
+`pending-review` are `_shared/pr-first-merge.md`'s own outcome vocabulary, reported verbatim: you
+run the merge procedure yourself, in this same call, whichever file's Auto-merge gate you reach
+(`dispatch/settle-and-merge.md` for a bundle, `wrap-up/review-console.md`'s `CLAIM_RUN_ID` branch
+for a singleton). `merged` means you also completed worktree removal, claim release, and run-dir
+archival (that procedure's Step 4) — nothing is deferred to the dispatching session on this path.
+`armed`/`pending-review` complete none of those three; the reconciler finishes them later, on
+merged-PR evidence, whichever trigger point observes it first. There is no `ready-to-merge` value
+under this model — the merge already happened, or didn't, by the time you report.
 
-Report `ready-to-merge` when the group's Auto-merge gate passed both layers and you already applied
-acceptance labeling for every member -- never `merged`. You do not merge yourself: a Task-tool
-subagent cannot reach the main checkout. This applies whichever file's Auto-merge procedure you
-actually reach -- `dispatch/settle-and-merge.md`'s Auto-merge gate for a bundle, or
-`wrap-up/review-console.md`'s Auto-merge short-circuit for a singleton (its own `CLAIM_RUN_ID`
-branch says the same thing). Stop right after labeling -- do not run worktree removal, claim
-release, or run-dir archival on this path; the dispatching session completes all three after it
-merges, per
-`settle-and-merge.md`'s Dispatching-session merge execution section.
+**`integration-model: local-merge`** — report `ready-to-merge` when the group's Auto-merge gate
+passed both layers and you already applied acceptance labeling for every member -- never
+`merged`. You do not merge yourself on this path: a Task-tool subagent cannot reach the main
+checkout. Stop right after labeling -- do not run worktree removal, claim release, or run-dir
+archival; the dispatching session completes all three after it merges, per
+`settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
+
+`pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
+already exists from run start (`_shared/pr-early-run-lifecycle.md`), so there is no longer a
+distinct "the branch reached its finish decision, a PR just opened" transition to report — a
+run that reaches the Review Console with nobody answering it is `pending-review` regardless of
+how long the PR has already existed.
 
 [Use: Standard model -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual.]

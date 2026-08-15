@@ -590,3 +590,78 @@ test('buildFindings runs end-to-end against the real manifest with stubbed check
     assert.strictEqual(ev.due, false, `${dep.name}: nothing moved, so nothing is due`);
   }
 });
+
+// ─── content-pinned entries (`versioning: none`) ─────────────────────────
+
+function contentPinnedEntry() {
+  return {
+    name: 'sample-skills',
+    kind: 'skill-repo',
+    pin: { commit: 'a'.repeat(40), versioning: 'none' },
+    upstream: { repo: 'example/skills' },
+    consumed: [{ path: 'skills/one/SKILL.md', sha256: 'b'.repeat(64) }],
+  };
+}
+
+test('evaluate takes the content-pin path for a versioning: none entry — no probe checks, no latest-tag resolution', () => {
+  let probeCalled = false;
+  const ev = evaluate(contentPinnedEntry(), {
+    checkVersion: () => { probeCalled = true; },
+    checkAssertions: () => { probeCalled = true; },
+    replayFixtures: () => { probeCalled = true; },
+    resolveLatest: () => { probeCalled = true; },
+    checkContentPins: () => ({ check: 'content-pins', name: 'sample-skills', commit: 'a'.repeat(40), status: 'ok', results: [] }),
+  });
+  assert.strictEqual(probeCalled, false, 'no probe-class check may run for the class');
+  assert.strictEqual(ev.pinned, 'a'.repeat(40));
+  assert.strictEqual(ev.latest, null);
+  assert.strictEqual(ev.due, false);
+  assert.deepStrictEqual(buildFindings(ev), []);
+});
+
+test('a content-pin mismatch makes the entry due and builds one valid content-pin-breach finding', () => {
+  const { validateFinding } = require('../run');
+  const ev = evaluate(contentPinnedEntry(), {
+    checkContentPins: () => ({
+      check: 'content-pins',
+      name: 'sample-skills',
+      commit: 'a'.repeat(40),
+      status: 'mismatch',
+      results: [
+        { path: 'skills/one/SKILL.md', status: 'mismatch', observed: 'c'.repeat(64), detail: 'observed differs' },
+      ],
+    }),
+  });
+  assert.strictEqual(ev.due, true);
+
+  const findings = buildFindings(ev);
+  assert.strictEqual(findings.length, 1);
+  const f = findings[0];
+  assert.strictEqual(f.kind, 'content-pin-breach');
+  assert.strictEqual(f.class, 'drift');
+  assert.strictEqual(f.severity, 'high');
+  assert.strictEqual(f.subject, 'skills/one/SKILL.md');
+
+  const v = validateFinding(f);
+  assert.strictEqual(v.ok, true, JSON.stringify(v.errors));
+  const payload = toIssuePayload(f);
+  assert.ok(payload.title.includes('sample-skills'));
+  assert.ok(payload.title.includes('skills/one/SKILL.md'));
+});
+
+test('a missing fixture also builds a content-pin-breach finding with a non-empty versions.from', () => {
+  const ev = evaluate(contentPinnedEntry(), {
+    checkContentPins: () => ({
+      check: 'content-pins',
+      name: 'sample-skills',
+      commit: 'a'.repeat(40),
+      status: 'mismatch',
+      results: [
+        { path: 'skills/one/SKILL.md', status: 'missing-fixture', observed: null, detail: 'does not exist' },
+      ],
+    }),
+  });
+  const findings = buildFindings(ev);
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].versions.from, '(missing fixture)');
+});

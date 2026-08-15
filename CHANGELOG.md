@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.81.0 — Ship the pr-first integration model (#405-#415): GitHub-backed runs born public with a background reconciler converging state, PR-checkbox Review Console, local-merge fallback retained — plus a pre-release whole-branch review fixing 3 reconciler defects and a CI-breaking Node-version-dependent test-glob bug
+
+Ship the pr-first integration model (#405-#415): GitHub-backed runs born public with a background reconciler converging state, PR-checkbox Review Console, local-merge fallback retained — plus a pre-release whole-branch review fixing 3 reconciler defects and a CI-breaking Node-version-dependent test-glob bug.
+
 ## v6.80.0 — Skill-invocation ledger, run-integrity detection, and teardown gate (#364/#371-373); oversight-floor predicate generalizing risk/size gates (#365-368); Frontier tier bundle (#179/#220/#221/#223); #350/#351 console fold into ledger route-remainder; #348/#349 autonomy-console + headless wrap-up; #342 residue-sweep blast-radius default — plus a pre-release whole-branch-review fix closing a teardown-gate global-flag bypass
 
 Skill-invocation ledger, run-integrity detection, and teardown gate (#364/#371-373); oversight-floor predicate generalizing risk/size gates (#365-368); Frontier tier bundle (#179/#220/#221/#223); #350/#351 console fold into ledger route-remainder; #348/#349 autonomy-console + headless wrap-up; #342 residue-sweep blast-radius default — plus a pre-release whole-branch-review fix closing a teardown-gate global-flag bypass.

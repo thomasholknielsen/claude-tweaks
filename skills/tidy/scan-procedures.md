@@ -51,6 +51,8 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
 
+**Reconcile first:** before any probe below, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges `{REPO_ROOT}` toward origin (`bin/lib/reconcile`, #407) so this step's worktree/branch audit reads already-current state instead of racing a stale mirror, the same placement `dispatch/SKILL.md` Step 2 uses for its own queue pull. Log the JSON result to this run's `decisions.md`. A non-empty `console.ready` array names answered consoles this sweep is well-placed to close out — follow `_shared/console-execution.md` for each before continuing.
+
 **Worktrees and merged remote branches — shared probe.** Run, anchored at `{REPO_ROOT}`:
 
 ```bash
@@ -71,6 +73,28 @@ Each `kind: branch` finding is a **remote-tracking** branch (of the integration 
 | Related spec in progress | Keep |
 | No related spec found | Remove/delete (orphan) |
 | Unmerged changes | Keep (flag for attention) |
+
+**PR-state override (`integration-model: pr-first` runs only — `_shared/integration-model.md`).** Before applying the table above
+to a worktree/branch pair, check whether it belongs to a run that recorded a PR: run dirs are
+anchored to `{REPO_ROOT}` regardless of which worktree they assigned
+(`_shared/pipeline-run-dir.md`), so read every `.claude-tweaks/pipelines/*/run-state.json`
+directly (no per-worktree access needed) and join by `state.worktree` matching this pair's
+worktree path — the same join `bin/lib/hooks/context.js`'s `findRunByWorktreePath` performs
+in-process. A match whose `run-state.json` carries a `pr` object overrides the table above:
+
+```bash
+gh pr view {pr-number} --repo {owner}/{repo} --json state,isDraft
+```
+
+| PR state | Row |
+|---|---|
+| `OPEN` (draft or not) | **in-flight** — keep, PR #{number} open (never reached by the table above's "Unmerged changes" row's ambiguity — this is a positive, not a default) |
+| `MERGED` | Same as "Related spec complete + changes merged" — the reconciler (`bin/lib/reconcile`) should have already reaped this; a survivor here means the reconciler hasn't run recently, not a different disposition |
+| `CLOSED` (unmerged) — check for the tombstone marker: `gh pr view {pr-number} --json comments --jq '.comments[] \| select(.body \| startswith("<!-- run-comment: failure -->"))'` | **Non-empty result → tombstoned.** Keep — same as `bin/lib/reconcile/reap-merged.js`'s own `pr-closed-unmerged` skip decision; this row states in prose what that module already enforces in code, never contradicting it. Recommendation: `Keep (tombstoned — retry via /claude-tweaks:dispatch or /claude-tweaks:flow, PR #{number})`. **Empty result → abandoned**, not tombstoned — a human closed the draft without the run ever reaching the failure path. Recommendation: `Keep (abandoned — closed PR #{number} carries no failure marker; manual review before removing worktree)`. Never auto-remove either case — `/tidy` never escalates a "manual review" row to a destructive delete on its own. |
+
+Absent a `pr` object (`local-merge`, or a degraded `pr-first` run), or when the `gh` calls above
+fail, fall back to the table above unchanged — this override only ever adds information, never
+removes the pre-#410 classification's own coverage.
 
 → Collect each as: `[git] {worktree/branch} — {recommendation}`
 
@@ -240,7 +264,7 @@ aren't even sufficient to redo item 1's classification below (no `updatedAt`, `i
 `reviewDecision`, or `url`), so this step still fetches PRs itself and keeps its full procedure
 below unchanged.
 
-Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus that file's **`acceptance-gap`** and **`parent-gate`** scopes. The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `parent-gate` procedure) and this file's Output Contract, plus `_shared/forge-detection.md`'s Detection Ladder, into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `parent-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero sub-issues from every parent, so every sub-issue re-enters `acceptance-gap` as a false row and `parent-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus `_shared/github-pr-scan-acceptance.md`'s **`acceptance-gap`** and **`parent-gate`** scopes (extracted from the first file — #204). The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `parent-gate` procedure), `github-pr-scan.md`'s Output Contract, and `_shared/forge-detection.md`'s Detection Ladder into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `parent-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero sub-issues from every parent, so every sub-issue re-enters `acceptance-gap` as a false row and `parent-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy — Shapes 1, 2, 3, 4, 5, and 5.5 of `step-1-records.md`) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
@@ -248,7 +272,7 @@ The `acceptance-gap` scope finds closed records with no acceptance label at all 
 
 The `parent-gate` scope finds decomposition parents whose every sub-issue has closed but which carry no acceptance disposition — the backstop for a parent that missed `/claude-tweaks:wrap-up`'s eager gate (a sub-issue closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches that eager path). Unlike `acceptance-gap`, its recommendation **is** one of the Action Vocabulary's atomic actions — `Open parent gate` — which composes and posts the parent's Verification Brief and applies `demo:pending`, reusing `wrap-up/verification-brief.md`'s Parent-Gate Procedure rather than a second copy of that logic (`tidy/actions-github-issues.md`'s `## Open parent gate`). It never applies `demo:approved`/`demo:changes-requested` — that verdict stays exclusively `/claude-tweaks:demo`'s job, so the finding still ends with "then run `/claude-tweaks:demo #{n}`" even once approved.
 
-GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. `acceptance-gap` findings are staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan.md`'s `acceptance-gap` scope for why. `parent-gate`'s `Open parent gate` action is staged the same way too, at every aggressiveness level: it posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan.md`'s `parent-gate` scope and `tidy/step-6-auto.md`'s Open parent gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
+GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. `acceptance-gap` findings are staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope for why. `parent-gate`'s `Open parent gate` action is staged the same way too, at every aggressiveness level: it posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope and `tidy/step-6-auto.md`'s Open parent gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`

@@ -38,8 +38,15 @@ test('POLICY_KEYS entries are unique', () => {
   // 41 -> 43, #366 (oversight-floor predicate): risk-floor, size-floor — the
   // shared floors grant-gate.js's gate 5 and /claude-tweaks:demo's binary gate
   // both read via exceedsOversightFloor.
-  assert.strictEqual(POLICY_KEYS.length, 43);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 43);
+  // 43 -> 44, #406 (pr-first integration model): integration-model — no static
+  // default (computed at resolve time by bin/resolve-policy.js's forge
+  // detection instead), see skills/_shared/integration-model.md.
+  // 44 -> 47, #414 (sweep backstop): pr-unarmed-age-hours, unsettled-age-hours,
+  // housekeeping-auto-merge — the two threshold keys plus the tidy
+  // housekeeping-PR arming grant, see skills/_shared/github-pr-scan.md's
+  // 'unarmed ready PR' check.
+  assert.strictEqual(POLICY_KEYS.length, 47);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 47);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
-const { checkVersion, checkAssertions, replayFixtures } = require('../checks');
+const { checkVersion, checkAssertions, replayFixtures, checkContentPins, isContentPinned } = require('../checks');
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'upstream-drift-checks-'));
@@ -473,4 +473,75 @@ test('C6: a candidate directory that genuinely does not exist (ENOENT) is NOT re
   const result = checkVersion(entry);
   assert.strictEqual(result.status, 'absent');
   assert.deepStrictEqual(result.inspectionFailures, [], 'a genuinely missing directory is "nothing there", not an inspection failure');
+});
+
+// ─── checkContentPins (`versioning: none` entry class) ──────────────────
+
+const crypto = require('node:crypto');
+
+function sha256Of(text) {
+  return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+function contentPinnedEntry(overrides = {}) {
+  return {
+    name: 'sample-skills',
+    kind: 'skill-repo',
+    pin: { commit: 'a'.repeat(40), versioning: 'none' },
+    upstream: { repo: 'example/skills' },
+    consumed: [{ path: 'skills/one/SKILL.md', sha256: sha256Of('# One\n') }],
+    ...overrides,
+  };
+}
+
+test('isContentPinned recognizes only pin.versioning === "none"', () => {
+  assert.strictEqual(isContentPinned(contentPinnedEntry()), true);
+  assert.strictEqual(isContentPinned({ name: 'x', pinned: '1.0.0' }), false);
+  assert.strictEqual(isContentPinned({ name: 'x', pin: { commit: 'a'.repeat(40) } }), false);
+  assert.strictEqual(isContentPinned(null), false);
+});
+
+test('checkContentPins reports ok when the fixture bytes hash to the pinned digest', () => {
+  const root = tmpDir();
+  writeFile(root, 'skills/one/SKILL.md', '# One\n');
+  const result = checkContentPins(contentPinnedEntry(), { fixtureRoot: root });
+  assert.strictEqual(result.check, 'content-pins');
+  assert.strictEqual(result.status, 'ok');
+  assert.strictEqual(result.results[0].status, 'ok');
+  assert.strictEqual(result.results[0].observed, sha256Of('# One\n'));
+});
+
+test('checkContentPins reports mismatch when the pinned digest does not match the fixture — a corrupted pin fails loudly', () => {
+  const root = tmpDir();
+  writeFile(root, 'skills/one/SKILL.md', '# One\n');
+  const entry = contentPinnedEntry();
+  entry.consumed[0].sha256 = 'f'.repeat(64); // corrupted pin
+  const result = checkContentPins(entry, { fixtureRoot: root });
+  assert.strictEqual(result.status, 'mismatch');
+  assert.strictEqual(result.results[0].status, 'mismatch');
+  assert.ok(result.results[0].detail.includes('does not equal the pinned'));
+});
+
+test('checkContentPins reports mismatch when a tampered fixture no longer hashes to the pin', () => {
+  const root = tmpDir();
+  writeFile(root, 'skills/one/SKILL.md', '# One — tampered\n');
+  const result = checkContentPins(contentPinnedEntry(), { fixtureRoot: root });
+  assert.strictEqual(result.status, 'mismatch');
+});
+
+test('checkContentPins reports a missing fixture distinctly from a hash mismatch', () => {
+  const root = tmpDir();
+  const result = checkContentPins(contentPinnedEntry(), { fixtureRoot: root });
+  assert.strictEqual(result.status, 'mismatch');
+  assert.strictEqual(result.results[0].status, 'missing-fixture');
+  assert.strictEqual(result.results[0].observed, null);
+});
+
+test('conformance: the real emilkowalski-skills entry verifies against its committed fixtures, fully offline', () => {
+  const { loadManifest } = require('../manifest');
+  const manifest = loadManifest(path.join(__dirname, '..', 'manifest.yml'));
+  const emil = manifest.dependencies.find((d) => d.name === 'emilkowalski-skills');
+  assert.ok(emil, 'emilkowalski-skills entry exists');
+  const result = checkContentPins(emil); // default fixtureRoot: tools/upstream-drift/fixtures/emilkowalski-skills
+  assert.strictEqual(result.status, 'ok', JSON.stringify(result.results, null, 2));
 });

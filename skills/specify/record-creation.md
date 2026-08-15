@@ -63,7 +63,7 @@ at all: the `{design-doc-slug}:parent` fingerprint is a body marker reachable on
 issue list --search`, which this step's "Resuming after a partial run" note (below) says to
 never fall back to — without a label, a `/claude-tweaks:tidy` sweep has no way to find a parent
 issue whose gate was never applied
-(`_shared/github-pr-scan.md`'s `parent-gate` scope). Bootstrap both before the create (per
+(`_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope). Bootstrap both before the create (per
 `_shared/label-bootstrap.md`): `parent-issue` always, `type:feature` only under `work-types:
 labels`. The `parent-issue` row below is copied verbatim from `_shared/label-bootstrap.md`'s
 canonical `LABELS_JSON` and must stay byte-identical to it; the `type:feature` row comes from

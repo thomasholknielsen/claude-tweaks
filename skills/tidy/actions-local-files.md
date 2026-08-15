@@ -24,7 +24,7 @@ Continuing from the shared step (1) in `SKILL.md`'s table: (2) update the target
 ## Open parent gate
 
 Resolves a `[parent-gate]` finding. Under this driver those come from Step 1's **Shape 7**
-(`step-1-records.md`), not from `_shared/github-pr-scan.md`'s `parent-gate` scope — that scope
+(`step-1-records.md`), not from `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope — that scope
 queries the `parent-issue` label and so returns nothing here, and its file is skipped outright
 whenever `gh` is absent, which is why the local sweep lives in the record scan instead. Same
 finding prefix, same action; only the scan and the store differ.

@@ -205,6 +205,8 @@ If the user chooses to fix:
 
 When investigating a QA failure (option 1), follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` via `/superpowers:systematic-debugging` — the QA story failure is already a reproduction; confirm it, find the confirmed cause, then fix it, without patching the symptom (e.g., loosening a selector).
 
+**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode.
+
 ## Next Actions
 
 Pick the row matching the mode just completed:

@@ -4,7 +4,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 
 ## Execution model
 
-Stages split by cost. Stages 1, 4.5, 4.6, 4.7, and 4.8 each do real `gh` work over an independent data source and carry substantial inlined `_shared/` fragments, so each earns a Task agent — Stage 4.8 returns a bespoke data table rather than the shared Template A findings row (see its own section for why). Stages 2, 5, 6, and 7 are a glob or a grep apiece — dispatching those as agents would pay the full inherited `CLAUDE.md` cost to execute what amounts to a single `Glob`, so they run directly in the main thread instead.
+Stages split by cost. Stages 1, 4.5, 4.6, 4.7, and 4.8 each do real `gh` work over an independent data source and carry substantial inlined `_shared/` fragments, so each earns a Task agent — Stage 4.8 returns a bespoke data table rather than the shared Template A findings row (see its own section for why). Stages 0, 2, 5, 6, and 7 are a file read, a glob, or a grep apiece — dispatching those as agents would pay the full inherited `CLAUDE.md` cost to execute what amounts to a single `Read`/`Glob`, so they run directly in the main thread instead.
 
 > **Parallel execution:** Dispatch Stages 1, 4.5, 4.6, 4.7, and 4.8 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 >
@@ -30,13 +30,19 @@ Stages split by cost. Stages 1, 4.5, 4.6, 4.7, and 4.8 each do real `gh` work ov
 >
 > Stage 4.8 is deliberately exempt from this template — a trust-table row carries no severity, and its row count is held down by `provenance.js`'s normalization rather than by the 15-row cap (the `side-effect:{source}` half of the provenance axis is free text, so the taxonomy has no formal ceiling; see `_shared/trust-table.md`'s Render section for what actually bounds it). Capping it would hide exactly the Undispositioned count this feature exists to surface. See Stage 4.8's own section for what it returns instead.
 
-> **Parallel execution:** Use parallel tool calls aggressively — all `Glob`/`Grep` operations in Stages 2, 5, and 6 are independent and should run concurrently.
+> **Parallel execution:** Use parallel tool calls aggressively — all `Read`/`Glob`/`Grep` operations in Stages 0, 2, 5, and 6 are independent and should run concurrently.
 
-Issue those Stage 2/5/6 tool calls in the same message that dispatches the agent batch above — they depend on neither it nor each other, so the whole batch overlaps. Being in the main thread, they need no status line and no agent envelope; they contribute findings to the dashboard using the same column mapping as the agents.
+Issue those Stage 0/2/5/6 tool calls in the same message that dispatches the agent batch above — they depend on neither it nor each other, so the whole batch overlaps. Being in the main thread, they need no status line and no agent envelope; they contribute findings to the dashboard using the same column mapping as the agents.
 
-**Stage 7 runs last, in the main thread**, only once the agent batch and the Stage 2/5/6 calls have all returned. Several of its signals are derived from their output (Stage 1's backlog count, Stage 2's unspecified-design-doc count, Stage 4.5's stale-PR count); the rest are cheap local checks of its own. It must never be made concurrent with its own inputs. Stage 4.8's trust table is never one of these derived signals — it is display-only and feeds no recommendation.
+**Stage 7 runs last, in the main thread**, only once the agent batch and the Stage 0/2/5/6 calls have all returned. Several of its signals are derived from their output (Stage 1's backlog count, Stage 2's unspecified-design-doc count, Stage 4.5's stale-PR count); the rest are cheap local checks of its own. It must never be made concurrent with its own inputs. Stage 4.8's trust table is never one of these derived signals — it is display-only and feeds no recommendation.
 
-**Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`#{n}` / the local record path under `work-backend: local-files`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals. Stage 4.8 does not use this mapping — see its own section.
+**Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`#{n}` / the local record path under `work-backend: local-files`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals. Stage 4.8 does not use this mapping — see its own section. Stage 0 does not use this mapping either — it renders a single version line, not a finding row.
+
+## Stage 0: Plugin Version
+
+*(Main thread — a single file read, no `gh` call. Runs concurrently with the agent batch and Stages 2/5/6.)*
+
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Its `version` field is the sole source of truth for the installed claude-tweaks version — never hardcode it, and never infer it from install metadata (`claude plugin update` is version-string-only and doesn't reflect the running build). If the file is missing or unreadable, or `CLAUDE_PLUGIN_ROOT` is unset or points at a broken/partial install, do not guess or fall back to a hardcoded version — render the version line as `claude-tweaks — version unknown ({reason})` instead of a version number, naming the path attempted.
 
 ## Stage 1: Work Records (backlog / parked / ready / authorized / building / blocked)
 
@@ -80,6 +86,43 @@ node -e "
 **Wake-ready sub-count** (parked, milestone due in the past) is a cheap heuristic, not full trigger evaluation — a `local-files` parked record's trigger lives as body prose (`**Trigger:**`/`**Watched paths:**` lines), too expensive to read per-record on a dashboard pass. Omit the sub-count under this driver and report the bare `parked` count only. Full trigger evaluation (including watched-path `git log` checks on both drivers) stays `/claude-tweaks:tidy`'s job — this is a maintenance signal, not a substitute.
 
 **Framing flag:** flag every `backlog`-bucket record showing a baked framing verdict — under `work-backend: github-issues` the `framing:baked` label, under `work-backend: local-files` `facets.framing === true` (already present on the fetched record above — no extra call either way) — the verdict `/claude-tweaks:specify` stamped via `/claude-tweaks:challenge`'s `framing-check` mode when it shaped the record. Flag matches in the Needs Attention table with a pointer to read the record's `## Gotchas`, where framing-check wrote the surfaced assumptions — not a suggestion to re-run `/claude-tweaks:challenge`, which only `/claude-tweaks:specify` invokes.
+
+### PR-state join (in-flight runs and tombstones)
+
+`work-backend: github-issues` only (`local-files` has no PR concept — skip this sub-section
+entirely for that driver). One additional bounded call, shared across every record in the
+`ready`/`authorized`/`building` buckets rather than one call per record — the
+never-`gh issue list --search` rule (`_shared/github-write-transport.md`'s eventually-consistent
+search index anti-pattern) applies here too, so this is a plain list, filtered client-side:
+
+```bash
+gh pr list --repo {owner}/{repo} --state all --limit 100 --json number,url,state,isDraft,body,updatedAt > /tmp/help-prs.json
+```
+
+Filter to PRs whose body starts with `<!-- claude-tweaks-run:` (`_shared/pr-early-run-lifecycle.md`'s
+marker — the plugin-created signal), then match each surviving PR to a record via its `Fixes #{n}`
+line(s). Join against Stage 1's `ready`/`authorized`/`building` buckets:
+
+- **`state: OPEN`** → the record has a visible in-flight run. Note the PR URL; no flag needed —
+  this is the expected case for a `building` record under `pr-first`.
+- **`state: CLOSED` (unmerged)** → a prior attempt's run ended without merging — most likely a
+  tombstone (`_shared/pr-run-comments.md`'s failure path), possibly a manually-closed draft
+  (`/claude-tweaks:tidy` Step 4.8's `repo-wide` scope is the precise source for that distinction —
+  it also checks the `failure`-kind marker comment, which this cheaper dashboard join does not).
+  Flag the record in the Needs Attention table either way — a human deciding whether to retry
+  doesn't need the marker check to know a closed PR is worth a look: `{ref} — closed run (PR
+  #{number}, {url}), likely tombstoned — retry via /claude-tweaks:dispatch or
+  /claude-tweaks:flow {ref}`, reusing the same table the conflict/framing flags already render
+  into rather than a new section.
+- **`state: MERGED`**, or no matching PR at all → nothing to flag; the record's own bucket
+  (backlog/ready/etc.) already reflects its real state.
+
+A record can have more than one matching PR across its history (retries that recreated rather
+than reopened — `_shared/pr-early-run-lifecycle.md`'s reopen-fails fallback); use the
+most-recently-`updatedAt` match only.
+
+**Fail-open**: a failed `gh pr list` here degrades the same way Stage 1's own fetch does — emit
+`PR-state join skipped — {reason}` and omit the tombstone flags for this run, never BLOCKED.
 
 ### Conflict detection (file overlap)
 
@@ -163,9 +206,10 @@ session's own recall-detected work, or one explicit `#N`), so this stage is the 
 surface for which records are outstanding. Skip silently (same fail-open detection ladder as
 Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines
-`_shared/forge-detection.md`'s Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into this
-agent's prompt — subagents cannot read sibling files.
+Scan per `_shared/github-pr-scan-acceptance.md`, **`acceptance-queue`** scope (extracted from
+`_shared/github-pr-scan.md` — #204). The dispatcher inlines `_shared/forge-detection.md`'s
+Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into
+this agent's prompt — subagents cannot read sibling files.
 
 ## Stage 4.8: Trust Table (GitHub)
 
@@ -224,6 +268,8 @@ all-insufficient collapse line, with no narration before or after either form.
 
 ```markdown
 ## Workflow Status
+
+claude-tweaks v{version} (Stage 0 — see its own section for the missing/unreadable fallback line)
 
 ### Pipeline
 | Stage | Count | Action |

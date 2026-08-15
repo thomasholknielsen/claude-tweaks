@@ -4,7 +4,7 @@ Loaded by `/claude-tweaks:dispatch` only when Preflight's Detection Ladder check
 absent. Every call site in `SKILL.md` runs its `gh` CLI form unchanged when `gh` is present, so a
 normal run never reads this file.
 
-Live as of Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, which verified the
+Live as of Task 10 of the dispatch MCP bridge plan (was `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` — deleted `d83f0720`), which verified the
 whole chain against a live cloud run and flipped Preflight's check 2 from a hard gate to a branch.
 CRUD mappings throughout are per `_shared/github-write-transport.md`. Settle and the Auto-merge gate
 have their own MCP notes in `settle-and-merge.md`; the self-report block's MCP mapping lives with
@@ -16,8 +16,9 @@ that block, in `headless-self-report.md`.
 
 When `gh` is absent, check 3 (authenticated + repo reachable) is
 satisfied via a bounded `list_issues` call (e.g. `list_issues {owner, repo, state: "open", perPage:
-1}`) — a lightweight, confirmed-working read (per `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`'s
-Task 2 live verification) that fails identically to `gh repo view --json owner,name` when auth or
+1}`) — a lightweight, confirmed-working read (per the dispatch MCP bridge plan's Task 2 live
+verification — was `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, deleted `d83f0720`)
+that fails identically to `gh repo view --json owner,name` when auth or
 repo access is broken. This is dispatch-specific documentation: only dispatch treats check 3 as a
 hard gate that needs an MCP equivalent — `_shared/github-pr-scan.md` itself defines check 3 purely
 as `gh repo view`, unchanged, since its other consumers (`/help`, `/tidy`) fail-open on this ladder
@@ -27,8 +28,8 @@ and don't need one.
 
 Check 2 no longer gates on its own as of the MCP-bridge plan's Task 10 — every call site that used to be
 `gh`-only end to end (Step 2's queue pull and dependency checks, the contested-claim comment
-fetch, all of `settle-and-merge.md`) now has a confirmed, live-verified MCP path
-(`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, Tasks 1-2's diagnostic Routine). A
+fetch, all of `settle-and-merge.md`) now has a confirmed, live-verified MCP path (Tasks 1-2's
+diagnostic Routine, was `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, deleted `d83f0720`). A
 prior attempt at this same bridge (`274e30e`, reverted the next day as `d4bdfb9`) shipped this
 exact gate change without finishing the read-path bridge first, producing an unstructured
 `gh: command not found` crash instead of a clean stop — this version does not repeat that

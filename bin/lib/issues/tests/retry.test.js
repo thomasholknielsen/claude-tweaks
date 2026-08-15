@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling, hasNegativeEvidenceMarker,
+  extractNegativeEvidenceMarker,
 } = require('../retry');
 
 test('attemptFailedCommentBody formats the human-readable retry comment', () => {
@@ -137,4 +138,18 @@ test('idempotency: two failed attempts on the same record still read as present 
     { body: attemptFailedCommentBody({ attemptNumber: 2, reason: 'b', classification: 'ambiguous' }) },
   ];
   assert.strictEqual(hasNegativeEvidenceMarker(comments), true);
+});
+
+// #410: under pr-first the full comment moves to the PR; trust.js still needs
+// just the marker line on the issue, extracted from that same comment body.
+test('extractNegativeEvidenceMarker returns just the marker line for a correctness/ambiguous comment', () => {
+  const body = attemptFailedCommentBody({ attemptNumber: 2, reason: 'test gate failed', classification: 'correctness' });
+  assert.strictEqual(extractNegativeEvidenceMarker(body), '<!-- trust-negative-evidence: attempt=2 classification=correctness -->');
+});
+
+test('extractNegativeEvidenceMarker returns null for a transient comment or unrelated text', () => {
+  const transient = attemptFailedCommentBody({ attemptNumber: 1, reason: 'x', classification: 'transient' });
+  assert.strictEqual(extractNegativeEvidenceMarker(transient), null);
+  assert.strictEqual(extractNegativeEvidenceMarker('unrelated'), null);
+  assert.strictEqual(extractNegativeEvidenceMarker(undefined), null);
 });

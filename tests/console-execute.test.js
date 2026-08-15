@@ -1,0 +1,299 @@
+// tests/console-execute.test.js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const {
+  decideConsoleExecute,
+  isResolveTicked,
+  parseItemTicks,
+  isClaimReclaimable,
+  readConsoleJson,
+  consoleExecuteDetect,
+  RECLAIM_STALE_MS,
+} = require('../bin/lib/reconcile/console-execute');
+const { reconcile } = require('../bin/lib/reconcile');
+
+function git(args, cwd) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8' });
+}
+
+// --- isResolveTicked / parseItemTicks: pure string parsing, no I/O ---
+
+test('isResolveTicked: ticked resolve row reads true', () => {
+  const body = '<!-- console-item: resolve -->\n- [x] **Resolve console** — tick this last';
+  assert.strictEqual(isResolveTicked(body), true);
+});
+
+test('isResolveTicked: unticked resolve row reads false', () => {
+  const body = '<!-- console-item: resolve -->\n- [ ] **Resolve console** — tick this last';
+  assert.strictEqual(isResolveTicked(body), false);
+});
+
+test('isResolveTicked: uppercase X still counts as ticked', () => {
+  const body = '<!-- console-item: resolve -->\n- [X] **Resolve console**';
+  assert.strictEqual(isResolveTicked(body), true);
+});
+
+test('isResolveTicked: no resolve marker at all reads false, never throws', () => {
+  assert.strictEqual(isResolveTicked('nothing here'), false);
+  assert.strictEqual(isResolveTicked(undefined), false);
+  assert.strictEqual(isResolveTicked(null), false);
+});
+
+test('isResolveTicked: an item row that merely mentions "resolve" in its label does not false-positive', () => {
+  const body = '<!-- console-item: staged-3 -->\n- [x] resolve the flaky test\n\n<!-- console-item: resolve -->\n- [ ] **Resolve console**';
+  assert.strictEqual(isResolveTicked(body), false);
+});
+
+test('parseItemTicks: reads every item id to its tick state, resolve excluded', () => {
+  const body = [
+    '<!-- console-item: staged-1 -->',
+    '- [x] item one',
+    '',
+    '<!-- console-item: q-2 -->',
+    '- [ ] item two',
+    '',
+    '<!-- console-item: resolve -->',
+    '- [x] **Resolve console**',
+  ].join('\n');
+  assert.deepStrictEqual(parseItemTicks(body), { 'staged-1': true, 'q-2': false });
+});
+
+test('parseItemTicks: bundle-qualified ids (spec-slug-kind-n) parse correctly', () => {
+  const body = '<!-- console-item: console-on-pr-staged-5 -->\n- [x] a bundle item';
+  assert.deepStrictEqual(parseItemTicks(body), { 'console-on-pr-staged-5': true });
+});
+
+test('parseItemTicks: no markers at all returns an empty object, never throws', () => {
+  assert.deepStrictEqual(parseItemTicks('plain text'), {});
+  assert.deepStrictEqual(parseItemTicks(undefined), {});
+});
+
+// --- isClaimReclaimable ---
+
+test('isClaimReclaimable: no claim at all is reclaimable', () => {
+  assert.strictEqual(isClaimReclaimable(undefined, Date.now()), true);
+  assert.strictEqual(isClaimReclaimable(null, Date.now()), true);
+  assert.strictEqual(isClaimReclaimable('', Date.now()), true);
+});
+
+test('isClaimReclaimable: a fresh claim is not reclaimable', () => {
+  const now = Date.now();
+  const claimedAt = new Date(now - 1000).toISOString();
+  assert.strictEqual(isClaimReclaimable(claimedAt, now), false);
+});
+
+test('isClaimReclaimable: a claim exactly at the reclaim window is not yet reclaimable (strict >)', () => {
+  const now = Date.now();
+  const claimedAt = new Date(now - RECLAIM_STALE_MS).toISOString();
+  assert.strictEqual(isClaimReclaimable(claimedAt, now), false);
+});
+
+test('isClaimReclaimable: a claim older than the reclaim window is reclaimable', () => {
+  const now = Date.now();
+  const claimedAt = new Date(now - RECLAIM_STALE_MS - 1000).toISOString();
+  assert.strictEqual(isClaimReclaimable(claimedAt, now), true);
+});
+
+test('isClaimReclaimable: a corrupt timestamp fails open (reclaimable), never throws', () => {
+  assert.strictEqual(isClaimReclaimable('not-a-date', Date.now()), true);
+});
+
+// --- decideConsoleExecute: pure, covers the full skip/ready decision tree ---
+
+test('decideConsoleExecute: no console.json at all -> skip no-console', () => {
+  assert.deepStrictEqual(decideConsoleExecute(null, [], Date.now()), { action: 'skip', reason: 'no-console' });
+});
+
+test('decideConsoleExecute: unparseable console.json -> skip, fails closed', () => {
+  assert.deepStrictEqual(decideConsoleExecute(undefined, [], Date.now()), { action: 'skip', reason: 'unparseable-console-json' });
+});
+
+test('decideConsoleExecute: already resolved -> skip, never re-detected as ready', () => {
+  const consoleJson = { resolved: true, commentIds: ['IC_1'], prNumber: 1, items: [] };
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], Date.now()), { action: 'skip', reason: 'already-resolved' });
+});
+
+test('decideConsoleExecute: a fresh claim by another executor -> skip claimed', () => {
+  const now = Date.now();
+  const consoleJson = { resolved: false, executingAt: new Date(now - 1000).toISOString(), commentIds: ['IC_1'], prNumber: 1, items: [] };
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], now), { action: 'skip', reason: 'claimed' });
+});
+
+test('decideConsoleExecute: no commentIds -> skip no-comment-ids', () => {
+  const consoleJson = { resolved: false, commentIds: [], prNumber: 1, items: [] };
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], Date.now()), { action: 'skip', reason: 'no-comment-ids' });
+});
+
+test('decideConsoleExecute: no prNumber -> skip no-pr-number', () => {
+  const consoleJson = { resolved: false, commentIds: ['IC_1'], items: [] };
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], Date.now()), { action: 'skip', reason: 'no-pr-number' });
+});
+
+test('decideConsoleExecute: primary comment not found among fetched comments -> skip comment-not-found', () => {
+  const consoleJson = { resolved: false, commentIds: ['IC_missing'], prNumber: 1, items: [] };
+  const comments = [{ id: 'IC_other', body: '- [x] whatever' }];
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, comments, Date.now()), { action: 'skip', reason: 'comment-not-found' });
+});
+
+test('decideConsoleExecute: Resolve unticked -> skip not-resolved-yet', () => {
+  const consoleJson = { resolved: false, commentIds: ['IC_1'], prNumber: 1, items: [] };
+  const comments = [{ id: 'IC_1', body: '<!-- console-item: resolve -->\n- [ ] **Resolve console**' }];
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, comments, Date.now()), { action: 'skip', reason: 'not-resolved-yet' });
+});
+
+test('decideConsoleExecute: Resolve ticked -> ready, with every item\'s approved tick resolved from the comment', () => {
+  const consoleJson = {
+    resolved: false,
+    commentIds: ['IC_1'],
+    prNumber: 42,
+    items: [
+      { id: 'staged-1', kind: 'staged', summary: 'a finding', stagedHash: 'abc' },
+      { id: 'q-2', kind: 'queue', summary: 'a queue write', stagedHash: 'def' },
+    ],
+  };
+  const comments = [{
+    id: 'IC_1',
+    body: [
+      '<!-- console-item: staged-1 -->',
+      '- [x] a finding',
+      '',
+      '<!-- console-item: q-2 -->',
+      '- [ ] a queue write',
+      '',
+      '<!-- console-item: resolve -->',
+      '- [x] **Resolve console**',
+    ].join('\n'),
+  }];
+  const result = decideConsoleExecute(consoleJson, comments, Date.now());
+  assert.strictEqual(result.action, 'ready');
+  assert.strictEqual(result.prNumber, 42);
+  assert.deepStrictEqual(result.items, [
+    { id: 'staged-1', kind: 'staged', summary: 'a finding', stagedHash: 'abc', approved: true },
+    { id: 'q-2', kind: 'queue', summary: 'a queue write', stagedHash: 'def', approved: false },
+  ]);
+});
+
+test('decideConsoleExecute: overflow comments — an item\'s ticks are read from ITS OWN comment, not the primary\'s', () => {
+  const consoleJson = {
+    resolved: false,
+    commentIds: ['IC_primary', 'IC_overflow'],
+    prNumber: 42,
+    items: [
+      { id: 'staged-1', kind: 'staged', summary: 'in primary' },
+      { id: 'staged-9', kind: 'staged', summary: 'in overflow', commentId: 'IC_overflow' },
+    ],
+  };
+  const comments = [
+    { id: 'IC_primary', body: '<!-- console-item: staged-1 -->\n- [x] in primary\n\n<!-- console-item: resolve -->\n- [x] **Resolve console**' },
+    { id: 'IC_overflow', body: '<!-- console-item: staged-9 -->\n- [x] in overflow' },
+  ];
+  const result = decideConsoleExecute(consoleJson, comments, Date.now());
+  assert.strictEqual(result.action, 'ready');
+  const overflowItem = result.items.find((i) => i.id === 'staged-9');
+  assert.strictEqual(overflowItem.approved, true);
+});
+
+// --- readConsoleJson: real temp files, matching archive-merged.js's own convention ---
+
+test('readConsoleJson: absent file reads as null (distinct from unparseable)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-'));
+  assert.strictEqual(readConsoleJson(dir), null);
+});
+
+test('readConsoleJson: valid JSON parses through', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({ resolved: false, prNumber: 7 }));
+  assert.deepStrictEqual(readConsoleJson(dir), { resolved: false, prNumber: 7 });
+});
+
+test('readConsoleJson: unparseable content reads as undefined, distinct from absent (fails closed)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), '{not json');
+  assert.strictEqual(readConsoleJson(dir), undefined);
+});
+
+// --- consoleExecuteDetect: real repo fixture, no live gh/PR (mirrors
+// pr-state.js's own consumers — no test in this suite hits a real PR) ---
+
+test('consoleExecuteDetect: outside any repo returns empty ready/skipped, never throws', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-norepo-'));
+  const result = consoleExecuteDetect({ cwd: dir });
+  assert.deepStrictEqual(result, { ready: [], skipped: [] });
+});
+
+test('consoleExecuteDetect: a run dir with no console.json is reported as no-console, never crashes', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-run-')));
+  git(['init', '-q', '--initial-branch=main'], dir);
+  git(['config', 'user.email', 'test@example.com'], dir);
+  git(['config', 'user.name', 'Test'], dir);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], dir);
+  git(['commit', '-q', '-m', 'seed'], dir);
+
+  const runDir = path.join(dir, '.claude-tweaks', 'pipelines', '2026-01-01T000000-test');
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = consoleExecuteDetect({ cwd: dir });
+  assert.deepStrictEqual(result.ready, []);
+  assert.ok(result.skipped.some((s) => s.reason === 'no-console'));
+});
+
+test('consoleExecuteDetect: a run with console.json but no reachable PR is reported skipped (gh-absent or network-failure), never crashes or reports ready', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-run2-')));
+  git(['init', '-q', '--initial-branch=main'], dir);
+  git(['config', 'user.email', 'test@example.com'], dir);
+  git(['config', 'user.name', 'Test'], dir);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], dir);
+  git(['commit', '-q', '-m', 'seed'], dir);
+
+  const runDir = path.join(dir, '.claude-tweaks', 'pipelines', '2026-01-01T000000-test');
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({
+    resolved: false, commentIds: ['IC_fake'], prNumber: 999999, items: [],
+  }));
+
+  const result = consoleExecuteDetect({ cwd: dir });
+  assert.deepStrictEqual(result.ready, []);
+  const entry = result.skipped.find((s) => s.runDir === runDir);
+  assert.ok(entry, 'the run must be reported, not silently dropped');
+  assert.ok(['gh-absent', 'network-failure'].includes(entry.reason), `unexpected skip reason: ${entry.reason}`);
+});
+
+// --- Wiring: reconcile()'s new `console` check reaches this module ---
+
+test('reconcile(): the console check is wired in and reachable via ALL_CHECKS on a pr-first project', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-reconcile-'));
+  git(['init', '-q', '--initial-branch=main'], dir);
+  git(['config', 'user.email', 'test@example.com'], dir);
+  git(['config', 'user.name', 'Test'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\nintegration-branch: main\n');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], dir);
+  git(['commit', '-q', '-m', 'seed'], dir);
+  git(['remote', 'add', 'origin', 'https://github.com/example/example.git'], dir);
+
+  const r = reconcile({ cwd: dir });
+  assert.notStrictEqual(r.console, null, 'the console check must have run under pr-first');
+  assert.deepStrictEqual(r.console, { ready: [], skipped: [] });
+});
+
+test('reconcile(): local-merge skips the console check under the same combined skip entry as mirror/release/archive', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-lm-'));
+  git(['init', '-q', '--initial-branch=main'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: local-merge\nintegration-branch: main\n');
+
+  const r = reconcile({ cwd: dir });
+  assert.strictEqual(r.console, null);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,console', reason: 'local-merge-model' }]);
+});

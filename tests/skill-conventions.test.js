@@ -55,16 +55,16 @@ test('the directive keeps the prefix five existing tests assert on', () => {
 
 const LINEAR_DIAGRAM_SKILLS = [
   'capture', 'challenge', 'design-wrapper', 'feedback', 'init', 'review',
-  'specify', 'stories', 'test', 'version', 'wrap-up',
+  'specify', 'stories', 'test', 'wrap-up',
 ];
 
-test('the 11 linear-diagram skills carry a one-line Lifecycle marker', () => {
+test('the 10 linear-diagram skills carry a one-line Lifecycle marker', () => {
   for (const name of LINEAR_DIAGRAM_SKILLS) {
     assert.match(read(name), /^Lifecycle: .+$/m, `${name} missing Lifecycle marker`);
   }
 });
 
-test('the 11 linear-diagram skills no longer open with a fenced block', () => {
+test('the 10 linear-diagram skills no longer open with a fenced block', () => {
   for (const name of LINEAR_DIAGRAM_SKILLS) {
     const lines = read(name).split('\n');
     const h1 = lines.findIndex((l) => /^# /.test(l));
@@ -76,7 +76,7 @@ test('the 11 linear-diagram skills no longer open with a fenced block', () => {
   }
 });
 
-test('no YOU ARE HERE marker survives in the 11 rewritten skills', () => {
+test('no YOU ARE HERE marker survives in the 10 rewritten skills', () => {
   for (const name of LINEAR_DIAGRAM_SKILLS) {
     assert.ok(!read(name).includes('YOU ARE HERE'), `${name} still has YOU ARE HERE`);
   }
@@ -97,6 +97,21 @@ test('the skills outside LINEAR_DIAGRAM_SKILLS keep their diagrams', () => {
     const h1 = lines.findIndex((l) => /^# /.test(l));
     const fence = lines.findIndex((l, i) => i > h1 && /^```/.test(l));
     assert.ok(fence > h1 && fence <= h1 + 15, `${name} lost its diagram`);
+  }
+});
+
+test('no skill carries a Relationship section any more', () => {
+  // Relocated from bin/lib/skill-audit/tests/relationship-rows.test.js when
+  // relationship-rows.js was deleted as consumerless (#392) -- that file's own
+  // corpus-wide guard used the module's extractRelationshipRows parser, which no
+  // longer exists. This is a plain heading scan instead: Phase 2b removed the
+  // `## Relationship to Other Skills` convention outright (see docs/skill-graph.md),
+  // and this is the guard that stops it creeping back one skill at a time.
+  for (const name of skillNames()) {
+    assert.ok(
+      !/^##\s+Relationship to Other Skills/m.test(read(name)),
+      `${name}/SKILL.md has a Relationship section again — put the edge in docs/skill-graph.md`,
+    );
   }
 });
 

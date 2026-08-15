@@ -4,6 +4,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { PROFILES } = require('./model-profiles/profiles');
 
 const PROFILE_NAMES = Object.keys(PROFILES);
@@ -18,6 +19,12 @@ const POLICY_KEYS = [
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree' },
   { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
   { key: 'integration-branch', type: 'string' },
+  // pr-first (origin is truth, GitHub PR integration) vs local-merge (today's
+  // local merge into the integration branch — the permanent no-forge
+  // fallback). Deliberately no static `default`: an absent value's default is
+  // computed by bin/resolve-policy.js's detectIntegrationModel (forge
+  // detection), not a schema literal — see skills/_shared/integration-model.md.
+  { key: 'integration-model', type: 'enum', values: ['pr-first', 'local-merge'] },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
   { key: 'dispatch-batch-size', type: 'integer', default: 3 },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
@@ -28,6 +35,16 @@ const POLICY_KEYS = [
   { key: 'automerge-max-lines', type: 'integer', default: 40 },
   { key: 'automerge-max-files', type: 'integer', default: 2 },
   { key: 'merge-sensitive-paths', type: 'list', default: [] },
+  // Sweep-backstop thresholds (#414) — how long a green, gate-passed PR may sit
+  // with `--auto` unarmed, or a claimed/pushed run may sit with no PR progress,
+  // before the repo-wide scan surfaces it. See _shared/github-pr-scan.md's
+  // 'unarmed ready PR' and 'unsettled run' checks.
+  { key: 'pr-unarmed-age-hours', type: 'integer', default: 24 },
+  { key: 'unsettled-age-hours', type: 'integer', default: 24 },
+  // false by default: tidy's own Step 7 housekeeping PRs stage rather than arm
+  // --auto until a project opts in. See tidy/SKILL.md Step 7 and the
+  // <!-- tidy-housekeeping-pr --> body marker that identifies them.
+  { key: 'housekeeping-auto-merge', type: 'boolean', default: false },
   { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text' },
   { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30 },
@@ -359,6 +376,45 @@ function extractMapEntry(raw, topKey) {
   return found ? map : undefined;
 }
 
+// Computed default for `integration-model` when absent from every config
+// source (run-config, policy.yml) — bin/resolve-policy.js's code twin of
+// skills/_shared/forge-detection.md's three-check ladder. Impure (shells out),
+// unlike resolvePolicyKeys above; kept separate so that function stays pure.
+// Never throws — fails open to 'local-merge' on any error, including no git
+// remote at all (checked first, so a local-files project with no remote never
+// shells out to gh). Each check runs under a 5s timeout.
+function detectIntegrationModel(repoRoot) {
+  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8' };
+  try {
+    execFileSync('git', ['remote', 'get-url', 'origin'], opts);
+  } catch {
+    return 'local-merge';
+  }
+  try {
+    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], opts);
+  } catch {
+    return 'local-merge';
+  }
+  return 'pr-first';
+}
+
+// Full integration-model resolution for a caller that just wants the answer
+// — explicit policy.yml value (ordinary validation, wins outright) else the
+// computed forge-detection default, in one call. The shared entry point for
+// both bin/resolve-policy.js's CLI and bin/lib/reconcile/index.js (#407),
+// which needs the identical resolution in-process rather than shelling out
+// to the CLI. Never returns null: falls through to detection whenever the
+// key isn't cleanly set (absent, or set-but-invalid — a typo'd value still
+// gets a usable default here, unlike the raw resolvePolicyKeys/CLI path,
+// which surfaces `invalid: true` for a caller that wants to report it).
+function resolveIntegrationModel(repoRoot) {
+  const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
+  const resolved = resolvePolicyKeys(['integration-model'], { policyRaw, runConfigRaw: null });
+  const entry = resolved['integration-model'];
+  if (entry && entry.source !== 'default') return entry.value;
+  return detectIntegrationModel(repoRoot);
+}
+
 function auditPolicy(repoRoot) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const claudeMdRaw = readFileSafe(path.join(repoRoot, 'CLAUDE.md'));
@@ -423,4 +479,7 @@ function auditPolicy(repoRoot) {
   return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys };
 }
 
-module.exports = { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys };
+module.exports = {
+  POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
+  detectIntegrationModel, resolveIntegrationModel,
+};

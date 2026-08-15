@@ -1,9 +1,13 @@
 'use strict';
 
-// Three deterministic checks against the upstream-drift manifest
+// Deterministic checks against the upstream-drift manifest
 // (tools/upstream-drift/manifest.yml): is the artifact installed at the
 // pinned version, do this repo's cited assertions about upstream source
 // still hold, and do the recorded fixture replays still behave as recorded.
+// A fourth check, checkContentPins, covers the content-hash-pinned entry
+// class (`versioning: none` — tagless upstreams pinned by commit SHA plus
+// per-file sha256 against committed fixture snapshots); it is the class's
+// ONLY code path — the three probe-based checks never run for it.
 //
 // EVERY FUNCTION HERE RETURNS STRUCTURED DATA AND NEVER PRINTS. Rendering
 // and issue-filing are a later, separate module's job — mixing them in here
@@ -17,6 +21,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 // ─── default probe primitives (overridable via options) ────────────────────
@@ -366,4 +371,52 @@ function replayFixtures(entry, options = {}) {
   return { check: 'fixtures', name, status, results };
 }
 
-module.exports = { checkVersion, checkAssertions, replayFixtures };
+// ─── checkContentPins ───────────────────────────────────────────────────────
+
+// The `versioning: none` entry class's marker — pin.versioning === 'none'.
+// Shared with run.js's evaluate() so the two never disagree about which
+// entries take the content-pin path instead of the probe machinery.
+function isContentPinned(entry) {
+  return Boolean(entry && entry.pin && typeof entry.pin === 'object' && entry.pin.versioning === 'none');
+}
+
+// Recomputes each committed fixture's sha256 and compares it to the
+// manifest's pinned digest. Fully offline and deliberately fixture-based:
+// the fixtures are snapshots of the upstream files at the entry's pinned
+// commit, so a corrupted pin or a tampered fixture fails loudly here, while
+// live upstream comparison (new skills appearing, a rewritten history making
+// the pinned SHA unreachable) belongs to the auditor's own run, never to
+// `node --test`. `options.fixtureRoot` is injectable for tests; the default
+// mirrors the manifest convention: fixtures/{entry.name}/{consumed.path}.
+function checkContentPins(entry, options = {}) {
+  const { name } = entry;
+  const pin = entry.pin || {};
+  const consumed = entry.consumed || [];
+  const fixtureRoot = options.fixtureRoot || path.join(__dirname, 'fixtures', name);
+
+  const results = consumed.map((c) => {
+    const fullPath = path.join(fixtureRoot, c.path);
+    let content;
+    try {
+      content = fs.readFileSync(fullPath);
+    } catch (err) {
+      const reason = err.code === 'ENOENT' ? 'does not exist' : `could not be read: ${err.message}`;
+      return { path: c.path, status: 'missing-fixture', observed: null, detail: `${fullPath} ${reason}` };
+    }
+    const observed = crypto.createHash('sha256').update(content).digest('hex');
+    if (observed !== c.sha256) {
+      return {
+        path: c.path,
+        status: 'mismatch',
+        observed,
+        detail: `${fullPath}: observed sha256 ${observed} does not equal the pinned ${c.sha256}`,
+      };
+    }
+    return { path: c.path, status: 'ok', observed, detail: `${fullPath} matches its pinned sha256` };
+  });
+
+  const status = results.every((r) => r.status === 'ok') ? 'ok' : 'mismatch';
+  return { check: 'content-pins', name, commit: pin.commit || null, status, results };
+}
+
+module.exports = { checkVersion, checkAssertions, replayFixtures, checkContentPins, isContentPinned };

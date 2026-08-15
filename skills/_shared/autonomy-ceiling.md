@@ -8,8 +8,10 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
 (Step 6.5's negative-evidence persist point — see Revocation below), and — for the
 bookkeeping capabilities this file also documents — `_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
-route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve), and
-`wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge).
+route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve),
+`wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge), and `_shared/console-execution.md`
+(the reconciler-side `consoleAutoResolve` caller — a second, later trigger point for the same
+capability `wrap-up/review-console.md`'s own short-circuit uses from the live-session side).
 
 **Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
 is about the born-`ready` tier only — it is not a statement about everything the ceiling
@@ -96,7 +98,7 @@ The narrow, opt-in, logged, fully reversible bookkeeping behaviors in the table 
 | `ledgerNarrowing` | `trusted`+ | `_shared/ledger-format.md`'s Resolve Gate Phase 2 skips the per-item drill for an item whose Phase 1 blocker reason clears the floor (below), auto-selecting `Route to a record -> Keep (backlog)` only. Never `Fix anyway`, `Accept`, `Drop`, or `Defer -> parked` from this drill specifically. |
 | `queueWriteAutoFile` | `trusted`+ | `wrap-up/review-console.md` creates a proposed record (from the above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead of waiting for a live per-item approval at the Review Console. |
 | `opsAckAutoAcknowledge` | `unattended` only | `wrap-up/nothing-left-behind.md`, wrap-up's Phase 3 ledger gate — auto-acknowledges every ops item instead of presenting the acknowledgment drill. Held to the higher tier deliberately: this is the one bookkeeping capability that skips acknowledging a post-merge infrastructure follow-up, not just a reversible ledger/queue item. |
-| `consoleAutoResolve` | `unattended` only | The Review Console resolves every section (batch table, `M#`, `Q#`, `U#`) per its own defaults with zero `AskUserQuestion` calls, rendering as an informational report instead of a prompt. |
+| `consoleAutoResolve` | `unattended` only | The Review Console resolves every section (batch table, `M#`, `Q#`, `U#`) per its own defaults with zero `AskUserQuestion` calls, rendering as an informational report instead of a prompt. Two sanctioned callers: `wrap-up/review-console.md`'s own short-circuit (before a console ever renders), and `_shared/console-execution.md`'s reconciler-side executor (for a console already rendered on a PR, when the ceiling is raised or reconciled under a higher tier afterward). |
 | `ledgerRouteRemainder` | `unattended` only | Extends `ledgerNarrowing` — a ledger item whose blocker reason misses the four-category floor also auto-routes to `Route to a record -> Keep (backlog)` (never `Fix anyway`/`Accept`/`Drop`). |
 
 None of the bookkeeping capabilities touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`

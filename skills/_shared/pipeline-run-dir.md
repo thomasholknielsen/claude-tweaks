@@ -6,7 +6,7 @@ Operational reference for skills that need to locate the active pipeline run dir
 
 ## Resolution order
 
-1. **`PIPELINE_RUN_DIR` env var** — set explicitly by `/flow` when orchestrating. Use this when present (preferred path).
+1. **`PIPELINE_RUN_DIR` env var** — set explicitly by `/flow` when orchestrating. Use this when present (preferred path) **only after verifying it resolves under `$RUN_ROOT`** (the Anchoring section below — `git rev-parse --git-common-dir`, then its parent directory). An inherited value naming a directory that exists but resolves *inside* a linked worktree instead of the main checkout is stale/wrong the same way a missing directory is: treat it as unset and fall through to step 2, noting the discrepancy rather than silently adopting it. This is the adoption-time counterpart to the Anchoring section's creation-time rule — a caller can set the env var from inside a worktree just as easily as a creation site can build a path from cwd, and the failure mode (a worktree-trapped run directory a later `git worktree remove` silently destroys) is identical either way (`[IL-127]`).
 2. **Most-recent matching directory** — when the env var is unset, find the most recent directory under `.claude-tweaks/pipelines/` whose `spec-slug` segment matches the current spec or topic.
 3. **Record-mode materialization exception** — when neither step 1 nor step 2 resolves AND the invocation is `/claude-tweaks:build #{n}` running standalone (no `/flow` parent), create a standalone run dir at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{n}-standalone/` via `skills/flow/materialize.md`'s own fallback, purely as artifact storage for the materialized file. `$RUN_ROOT` is the **main checkout** root resolved by the Anchoring section below, not the current directory — a bare relative path builds the run dir inside whatever worktree happens to be cwd, which is exactly what anchoring exists to prevent. This is a mode-independent branch keyed on the invocation itself, distinct from step 4's auto-mode allowlist below: it fires regardless of mode — materialization needs somewhere to write the file whether or not `auto` is active — and `/build` is not itself on the step 4 allowlist.
 4. **Standalone auto fallback** — when steps 1-3 don't resolve AND the skill is running in `auto` mode AND the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:backlog`), create a standalone run dir at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` (same `$RUN_ROOT` as step 3, as the Bash snippet below already builds it) with `decisions.md` and `staged/`. The audit log stays on; the skill auto-resolves per project policy in `.claude-tweaks/policy.yml`. The dir is presented in a Pending Review section at the end of the skill's report (no separate Review Console — this is the bookend-end for a standalone run).
@@ -56,6 +56,16 @@ one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, 
 ```bash
 RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 RUN_DIR="${PIPELINE_RUN_DIR:-}"
+if [ -n "$RUN_DIR" ]; then
+  # Adoption-time anchoring check (step 1): an inherited value must resolve under $RUN_ROOT,
+  # not inside whatever worktree happens to be cwd — same failure shape as an unanchored
+  # creation, just caught at adopt time instead. Mismatch = treat as unset, fall through.
+  REAL_RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd)
+  case "$REAL_RUN_DIR" in
+    "$RUN_ROOT"/*) : ;;      # anchored to the main checkout — keep it
+    *) RUN_DIR="" ;;         # missing, or resolves outside $RUN_ROOT (e.g. inside a worktree)
+  esac
+fi
 if [ -z "$RUN_DIR" ]; then
   RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
 fi
