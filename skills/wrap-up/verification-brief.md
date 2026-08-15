@@ -28,8 +28,8 @@ falsify that scope's stated reason for existing. `auto:merge` governs merge timi
 change the unit of acceptance.
 
 **Otherwise — no resolvable parent** (a record human-filed or `/capture`d directly, not
-produced by a `/specify` decomposition) — run Steps 1-4 as written, applying `demo:pending` to
-the record itself.
+produced by a `/specify` decomposition) — run the **Oversight-floor gate** below, then Steps 1-4,
+applying `demo:pending` to the record itself only when the gate says the record clears the floor.
 
 A caller that already holds a **parent** number is inside the Parent-Gate Procedure by
 construction — there is no sub-issue to resolve, so it starts at **Enumerate the parent's
@@ -158,12 +158,15 @@ closed alike (the same two-call merge `specify/record-creation.md:35` already us
 ```js
 const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
 const subIssueRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
-const leaves = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN' }));
+const leaves = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', facets: r.facets }));
 ```
 
 For each sub-issue number resolved above (`work-backend: github-issues`), fetch its current state
-(`gh issue view {n} --json state -q .state`) to build the `leaves` array
-`parentGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads.
+**and labels** in one call — `gh issue view {n} --json state,labels` — to build the `leaves`
+array `parentGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads, with each
+leaf's `facets` (`parseRecordFacets(labels)`, `bin/lib/issues/record.js`) attached alongside
+`state`. `facets` is fetched here, once, and reused by the Oversight-floor check's `maxRiskTier`
+call below — no second per-leaf round-trip.
 
 Then fetch the **parent's** own current labels — the other argument that predicate takes, and
 the one nothing above has produced yet. Both entry shapes need this: the parent-side entry
@@ -232,8 +235,38 @@ translation of its `facets.acceptance` (`parent.facets.acceptance ? ['demo:' + p
 - `incomplete` — a sibling sub-issue is still open. No-op; this sub-issue's own closing proceeds
   with no acceptance labeling of any kind, neither its own nor the parent's.
 - `gated` or `resolved` — the parent already carries a `demo:*` disposition. No-op.
-- `due` — every sub-issue is closed and the parent carries no disposition yet. Compose and apply the
-  parent brief below.
+- `due` — every sub-issue is closed and the parent carries no disposition yet. **Continue to the
+  oversight-floor check below before composing anything** — `due` alone no longer opens the gate
+  (`#367`).
+
+**Oversight-floor check (risk only, never size).** Resolve `{riskFloor}`/`{sizeFloor}` the same
+way the non-parent path's Oversight-floor gate does:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor
+```
+
+Compute `maxTier = maxRiskTier(leaves.map((l) => l.facets))` (`bin/lib/issues/oversight-floor.js`
+— each leaf's already-fetched `risk:*` facets from **Enumerate the parent's sub-issues** above;
+a leaf missing `risk` entirely, or carrying an out-of-vocabulary value, makes `maxTier` `undefined`
+so the call below fails closed as `unscored` rather than being silently outvoted by its siblings).
+Call:
+
+```
+exceedsOversightFloor({ risk: maxTier }, { riskFloor, sizeFloor: null })
+```
+
+**`sizeFloor` must be the literal `null` here — never the resolved size-floor value and never
+omitted.** Per `#366`'s contract this is what makes a `facets` object carrying no `size` key
+correctly return `exceeds: false` (when risk doesn't trip) instead of failing closed on a `size`
+axis that was never meant to be evaluated at the parent level — parents carry no scoring of their
+own (`specify/record-creation.md`'s Parent record section), so there is nothing to read there
+regardless.
+
+- **`exceeds: false`** — the parent closes cleanly: no `demo:pending`, no brief, same as a
+  below-floor leaf record on the non-parent path. Stop here; do not compose the parent brief.
+- **`exceeds: true`** — proceed to **Compose the parent brief** below, exactly as `due` alone
+  used to trigger before this gate existed.
 
 ### Compose the parent brief
 
@@ -337,6 +370,36 @@ parentRecord.facets.acceptance = 'pending';
 parentRecord.body = parentRecord.body + '\n\n' + parentBriefTemplate;
 writeRecord(parentPath, parentRecord);
 ```
+
+## Oversight-floor gate (non-parent path only)
+
+`#367` — makes the gate below conditional on `exceedsOversightFloor` (`bin/lib/issues/oversight-floor.js`,
+from #366) rather than unconditional. **Parent-linked records never reach this section** — the
+Parent-Gate Procedure above has its own, separate risk-only aggregation in **Evaluate the gate**;
+this section is the non-parent path's equivalent, run in its place.
+
+Resolve `{riskFloor}`/`{sizeFloor}` and this record's own `risk:*`/`size:*` facets
+(`parseRecordFacets(labels)`, `bin/lib/issues/record.js` — the same labels already fetched to
+reach this file):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor
+```
+
+Call `exceedsOversightFloor({ risk: facets.risk, size: facets.size }, { riskFloor, sizeFloor })`.
+
+- **`exceeds: false`** — this record does not clear the oversight floor. **Skip Step 1 through
+  Step 4 entirely** — no `demo:pending` bootstrap, no observation plan, no brief composed or
+  posted. The record closes with no `demo:*` label and no ceremony (this is the *not required*
+  outcome, not a `demo:exempt` marker — see the design's Non-Goals). It stays demoable later on
+  request: `/claude-tweaks:demo #N`'s existing closing-commit-reconstruction fallback already
+  resolves a record carrying no `demo:pending` label, unchanged by this gate.
+- **`exceeds: true`** (including `reason: 'unscored'` — a missing or out-of-vocabulary
+  `risk`/`size` facet fails closed) — proceed to Step 1 exactly as before this gate existed.
+
+Log the outcome to `decisions.md` either way (`_shared/auto-decision-log.md`): `AUTO` status,
+rationale = the `reason` field (or `null` on a pass), reversibility = high (the closing-commit
+fallback covers a skipped gate; a human can still `/demo #N` it).
 
 ## Step 1: Bootstrap the Acceptance labels
 

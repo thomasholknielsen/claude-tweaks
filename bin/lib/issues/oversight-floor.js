@@ -49,4 +49,18 @@ function exceedsOversightFloor(facets, policy) {
   return { exceeds: false, reason: null };
 }
 
-module.exports = { exceedsOversightFloor };
+// The parent-aggregation input: the max risk tier across a decomposition parent's
+// sub-issues, for the caller to pass as `facets.risk` alongside `sizeFloor: null`
+// (see #367/#368 — size is never read at the parent level). `leaves` is an array
+// of per-sub-issue facets objects (`{ risk?: ... }`, as returned by
+// `parseRecordFacets`); any entry missing or out-of-vocabulary on `risk` makes the
+// whole aggregate unscored (returns `undefined`, which `exceedsOversightFloor`'s own
+// TIERS.includes check then fails closed on) — a single unscored sub-issue must not
+// be silently outvoted by its siblings' valid tiers.
+function maxRiskTier(leaves) {
+  const risks = (Array.isArray(leaves) ? leaves : []).map((leaf) => leaf && leaf.risk);
+  if (risks.length === 0 || risks.some((r) => !TIERS.includes(r))) return undefined;
+  return risks.reduce((max, r) => (TIERS.indexOf(r) > TIERS.indexOf(max) ? r : max), risks[0]);
+}
+
+module.exports = { exceedsOversightFloor, maxRiskTier };
