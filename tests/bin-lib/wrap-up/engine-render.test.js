@@ -7,8 +7,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { buildWorklist } = require('../engine-plan');
-const { renderTrace, renderConsoleSections, strictCheck, FORBIDDEN_VOCABULARY } = require('../engine-render');
+const { buildWorklist } = require('../../../bin/lib/wrap-up/engine-plan');
+const { renderTrace, renderConsoleSections, strictCheck, FORBIDDEN_VOCABULARY } = require('../../../bin/lib/wrap-up/engine-render');
 
 const FACTS = {
   isRepo: true, changedFiles: ['src/a.js', 'src/b.js'], renamedDeleted: ['old.md'],
@@ -390,7 +390,7 @@ test('renderConsoleSections throws when a finding summary smuggles forbidden voc
 
 // ---- renderConsoleSectionsMulti -------------------------------------------
 
-const { renderConsoleSectionsMulti } = require('../engine-render');
+const { renderConsoleSectionsMulti } = require('../../../bin/lib/wrap-up/engine-render');
 
 function makeConsoleResultsB() {
   return {
