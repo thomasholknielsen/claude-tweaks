@@ -362,7 +362,7 @@ const { isFileOrphan, referencedFileSpecifiers } = require('../../../bin/lib/cod
 test('isFileOrphan: a file required by another file (relative path, any depth) is not orphan', () => {
   const contentsByFile = new Map([
     ['lib/used.js', 'module.exports = {};\n'],
-    ['bin/main.js', "const used = require('../../../bin/lib/code-health/lib/used');\n"],
+    ['bin/main.js', "const used = require('../lib/used');\n"],
   ]);
   const allFiles = ['lib/used.js', 'bin/main.js'];
   assert.strictEqual(isFileOrphan('lib/used.js', allFiles, contentsByFile), false);
@@ -543,7 +543,7 @@ function buildAc1Fixture() {
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.writeFileSync(
     path.join(root, 'bin', 'entry.js'),
-    "require('../../../bin/lib/code-health/lib/caller');\nfunction entryOnlyFn() { return 4; }\nmodule.exports = { entryOnlyFn };\n",
+    "require('../lib/caller');\nfunction entryOnlyFn() { return 4; }\nmodule.exports = { entryOnlyFn };\n",
   );
 
   // A gitignored file containing an otherwise-dead-looking export — must
@@ -619,7 +619,7 @@ test('AC2: a spread-based barrel re-export beyond one hop produces no candidate 
   );
   fs.writeFileSync(
     path.join(root, 'bin', 'main.js'),
-    "const { fromA, fromB } = require('../../../bin/lib/code-health/lib/barrel');\nfromA();\nfromB();\n",
+    "const { fromA, fromB } = require('../lib/barrel');\nfromA();\nfromB();\n",
   );
   const candidates = candidatesDeadCode(root);
   assert.deepStrictEqual(candidates, []);
@@ -750,7 +750,7 @@ test('candidates are emitted in a deterministic file-then-symbol order', () => {
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
   // Entrypoint — keeps lib/multi.js off the orphan list so its exports get checked.
-  fs.writeFileSync(path.join(root, 'bin', 'main.js'), "require('../../../bin/lib/code-health/lib/multi');\n");
+  fs.writeFileSync(path.join(root, 'bin', 'main.js'), "require('../lib/multi');\n");
   fs.writeFileSync(
     path.join(root, 'lib', 'multi.js'),
     'function beta() { return 1; }\nfunction alpha() { return 2; }\nmodule.exports = { beta, alpha };\n',
