@@ -12,6 +12,10 @@
 // never trusts `-d`'s verdict.
 'use strict';
 
+const { runGit } = require('../hooks/git-exec');
+const { parseWorktreeList } = require('../hooks/worktree-reap');
+const { resolvePrState } = require('./pr-state');
+
 const BRANCH_AGE_DAYS = 14; // hardcoded by design — no policy lever
 const TAG_AGE_DAYS = 90; // matches git's default reflog window: past it, the tag's marginal recovery value is zero
 
@@ -58,4 +62,72 @@ function shouldAgeTag(committerDateIso, nowMs) {
   return nowMs - t > TAG_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
 
-module.exports = { decideArchive, inScope, shouldAgeTag, BRANCH_AGE_DAYS, TAG_AGE_DAYS };
+// Cherry equivalence: every commit on the branch is patch-equivalent to one
+// already on the integration branch (`git cherry` lines all start with '-';
+// empty output = no unique commits at all). A cherry failure fails closed.
+function isCherryEquivalent(root, integration, branch) {
+  const r = runGit(['cherry', integration, branch], root);
+  if (r.failure || r.stdout === null) return null; // unknown — fail closed at the call site
+  const lines = r.stdout.split('\n').map((s) => s.trim()).filter(Boolean);
+  return lines.every((l) => l.startsWith('-'));
+}
+
+function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
+  const root = cwd || process.cwd();
+  const nowMs = now || Date.now();
+  const resolve = resolvePr || resolvePrState;
+  const entries = [];
+
+  const wtList = runGit(['worktree', 'list', '--porcelain'], root);
+  const worktrees = wtList.failure ? [] : parseWorktreeList(wtList.stdout);
+
+  const refs = runGit(['for-each-ref', '--format=%(refname:short)\t%(committerdate:iso8601-strict)\t%(objectname)', 'refs/heads'], root);
+  if (refs.failure) return { entries, failure: 'git-failure' };
+
+  for (const line of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
+    const [branch, committerDate, tip] = line.split('\t');
+    if (!inScope(branch, worktrees)) continue; // scope guard: namespace + worktree attachment — never reaches the decision fn
+    const tipAgeDays = (nowMs - Date.parse(committerDate)) / (24 * 60 * 60 * 1000);
+    const cherryEquivalent = isCherryEquivalent(root, integration, branch);
+    if (cherryEquivalent === null) {
+      entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'cherry-failed' });
+      continue;
+    }
+    const prState = resolve(root, branch);
+    const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState });
+    if (decision.action === 'skip' || dryRun) {
+      entries.push({ name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
+      continue;
+    }
+    if (decision.action === 'tag-and-delete') {
+      const tag = runGit(['tag', `archive/${branch}`, tip], root);
+      if (tag.failure) {
+        entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'tag-failed' }); // fail closed: never delete untagged
+        continue;
+      }
+    }
+    const del = runGit(['branch', '-D', branch], root); // -D behind the decision table's evidence — -d's verdict is explicitly not trusted
+    entries.push(del.failure
+      ? { name: branch, kind: 'branch', action: 'skip', reason: 'delete-failed' }
+      : { name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
+  }
+
+  // Tag aging — archive/* tags whose tagged commit's committer date exceeds
+  // TAG_AGE_DAYS. Same committer-date basis as tipAgeDays above.
+  const tags = runGit(['for-each-ref', '--format=%(refname:short)\t%(committerdate:iso8601-strict)', 'refs/tags/archive'], root);
+  if (!tags.failure) {
+    for (const line of tags.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
+      const [tag, committerDate] = line.split('\t');
+      if (!shouldAgeTag(committerDate, nowMs)) continue;
+      if (dryRun) { entries.push({ name: tag, kind: 'tag', action: 'aged-out', reason: 'dry-run' }); continue; }
+      const del = runGit(['tag', '-d', tag], root);
+      entries.push(del.failure
+        ? { name: tag, kind: 'tag', action: 'skip', reason: 'delete-failed' }
+        : { name: tag, kind: 'tag', action: 'aged-out', reason: `> ${TAG_AGE_DAYS}d` });
+    }
+  }
+
+  return { entries, failure: null };
+}
+
+module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS };

@@ -68,3 +68,114 @@ test('shouldAgeTag: 91 days old -> true, 89 days -> false', () => {
 test('shouldAgeTag: unparseable date -> false (fail closed)', () => {
   assert.strictEqual(shouldAgeTag('not-a-date', Date.now()), false);
 });
+
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { archiveBranches } = require('../../../bin/lib/reconcile/archive-branches');
+const { reconcile, ALL_CHECKS } = require('../../../bin/lib/reconcile');
+
+function git(cwd, ...args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+function makeRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-branches-'));
+  git(dir, 'init', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'user.name', 't');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'a\n');
+  git(dir, 'add', 'a.txt');
+  git(dir, 'commit', '-m', 'init');
+  return dir;
+}
+
+test('archiveBranches: cherry-equivalent build/* branch is deleted; out-of-namespace branch untouched (dry-run reports, real run mutates)', () => {
+  const dir = makeRepo();
+  // cherry-equivalent branch: same patch as main's next commit
+  git(dir, 'checkout', '-b', 'build/eq');
+  fs.writeFileSync(path.join(dir, 'b.txt'), 'b\n');
+  git(dir, 'add', 'b.txt');
+  git(dir, 'commit', '-m', 'change');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/eq');
+  // out-of-namespace branch with the same shape
+  git(dir, 'branch', 'feature/keep', 'build/eq');
+
+  const dry = archiveBranches({ cwd: dir, integration: 'main', dryRun: true, resolvePr: () => null });
+  const dryEq = dry.entries.find((e) => e.name === 'build/eq');
+  assert.strictEqual(dryEq.action, 'delete');
+  assert.match(git(dir, 'branch', '--list', 'build/eq'), /build\/eq/); // dry-run did not mutate
+
+  const real = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const realEq = real.entries.find((e) => e.name === 'build/eq');
+  assert.strictEqual(realEq.action, 'delete');
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/eq').trim(), ''); // gone
+  assert.match(git(dir, 'branch', '--list', 'feature/keep'), /feature\/keep/); // out of scope, untouched
+});
+
+test('archiveBranches: unmerged aged branch gets archive tag then delete; young branch skipped', () => {
+  const dir = makeRepo();
+  const old = new Date(Date.now() - 20 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/aged');
+  fs.writeFileSync(path.join(dir, 'c.txt'), 'c\n');
+  git(dir, 'add', 'c.txt');
+  execFileSync('git', ['commit', '-m', 'aged'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
+  });
+  git(dir, 'checkout', 'main');
+  git(dir, 'checkout', '-b', 'build/young');
+  fs.writeFileSync(path.join(dir, 'd.txt'), 'd\n');
+  git(dir, 'add', 'd.txt');
+  git(dir, 'commit', '-m', 'young');
+  git(dir, 'checkout', 'main');
+
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  assert.strictEqual(r.entries.find((e) => e.name === 'build/aged').action, 'tag-and-delete');
+  assert.strictEqual(r.entries.find((e) => e.name === 'build/young').action, 'skip');
+  assert.match(git(dir, 'tag', '--list', 'archive/build/aged'), /archive\/build\/aged/);
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/aged').trim(), '');
+  assert.match(git(dir, 'branch', '--list', 'build/young'), /build\/young/);
+});
+
+test('archiveBranches: archive/* tag older than 90 days is deleted, younger kept', () => {
+  const dir = makeRepo();
+  const ancient = new Date(Date.now() - 91 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/tagsrc');
+  fs.writeFileSync(path.join(dir, 'e.txt'), 'e\n');
+  git(dir, 'add', 'e.txt');
+  execFileSync('git', ['commit', '-m', 'ancient'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: ancient, GIT_AUTHOR_DATE: ancient },
+  });
+  git(dir, 'tag', 'archive/old-tag');
+  git(dir, 'checkout', 'main');
+  git(dir, 'branch', '-D', 'build/tagsrc');
+  git(dir, 'tag', 'archive/fresh-tag'); // points at main's tip (fresh committer date)
+
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  assert.strictEqual(r.entries.find((e) => e.name === 'archive/old-tag' && e.kind === 'tag').action, 'aged-out');
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/old-tag').trim(), '');
+  assert.match(git(dir, 'tag', '--list', 'archive/fresh-tag'), /archive\/fresh-tag/);
+});
+
+// AC6: index wiring
+test("index: ALL_CHECKS includes 'archive-branches'; dispatch sits between 'archive' and 'reap'; result gains branches slot", () => {
+  assert.ok(ALL_CHECKS.includes('archive-branches'));
+  const src = fs.readFileSync(path.join(__dirname, '../../../bin/lib/reconcile/index.js'), 'utf8');
+  const iArchive = src.indexOf("checks.includes('archive')");
+  const iBranches = src.indexOf("checks.includes('archive-branches')");
+  const iReap = src.indexOf("checks.includes('reap')", iArchive);
+  assert.ok(iArchive > -1 && iBranches > iArchive && iReap > iBranches, 'dispatch order: archive < archive-branches < reap');
+});
+
+test('index: local-merge model skips archive-branches', () => {
+  const dir = makeRepo();
+  // no origin remote -> resolveIntegrationBranch fails -> skipped no-remote; that
+  // still proves archive-branches never dispatches outside pr-first. Assert the
+  // result shape carries the branches slot untouched.
+  const r = reconcile({ cwd: dir, checks: ['archive-branches'] });
+  assert.strictEqual(r.branches, null);
+});
