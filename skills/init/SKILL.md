@@ -82,7 +82,7 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 ### Core Bootstrap Version Check (runs before Step 1)
 
-Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:version` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
+Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:help` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
 
 Marker missing or unreadable → run Steps 1-8 fully, no changelog notice. Marker version equal to (or newer than) the installed version → skip Steps 1-8 entirely and print a one-line confirmation. Marker older → run Steps 1-8 fully, then surface a filtered changelog notice for the version range. The marker-state table, the changelog-notice procedure, and the rule for when the marker itself is written all live in `bootstrap/version-check.md` alongside the commands above — one read covers the whole check.
 

@@ -416,6 +416,19 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   other file in the corpus has a nonzero delta. Net +2. Measured by
   //   running the parser against the working tree, not summed.
   //
+  //   375 -> 371, retiring skills/version/ (refs #398). The version lookup
+  //   folded directly into /help (Stage 0 of status-scan.md); the standalone
+  //   skill and its whole four-row Anti-Patterns table were deleted, not
+  //   edited, so this is a pure eviction with no replacement rows anywhere.
+  //   Verified: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' | grep -E
+  //   '^-\|'` returns exactly version/SKILL.md's four rows ("Hardcoding the
+  //   version in skill content", "Adding decision prompts or finding gates",
+  //   "Bumping the version inside this skill", "Padding the output with
+  //   announcements like \"Here's the version!\""), and the same diff has no
+  //   `^\+\|` Anti-Patterns lines at all — no other file in the corpus has a
+  //   nonzero delta. Net -4. Measured by running the parser against the
+  //   working tree, not summed.
+  //
   //   375 -> 369, assess-agent-autonomy router+mode-sub-file split (#395).
   //   Not an eviction — a relocation this test's SKILL.md-only scan can't
   //   see: assess-agent-autonomy/SKILL.md went from 9 rows to 3 (the three
@@ -431,5 +444,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   autonomy/SKILL.md` returns 9, on the new SKILL.md returns 3; the 6
   //   moved rows are byte-identical (modulo heading level) in their new
   //   sub-file. 375 - 6 = 369.
-  assert.strictEqual(total, 369);
+  //
+  //   -> 365, merge of origin/main (#395) into the #398 branch. The two
+  //   entries above are the two sides of that merge, both measured against
+  //   the same 375 base: #398 evicted 4 rows via retirement (version), #395
+  //   evicted 6 via relocation (assess-agent-autonomy). Neither side's own
+  //   literal (371, 369) is correct after the merge — each omits the other's
+  //   eviction — so this number was re-derived by RUNNING the parser on the
+  //   merged tree, not by subtracting both deltas from 375, though the
+  //   arithmetic happens to agree here (375 - 4 - 6 = 365) — the same
+  //   `[IL-99]` pattern recorded above.
+  assert.strictEqual(total, 365);
 });

@@ -36,7 +36,7 @@ LICENSE                           → MIT
 
 **Lifecycle:** init, capture, specify, build, test, stories, review, wrap-up
 **Component:** challenge, reflect, simplify, deepen, journeys, visual-review, design-wrapper, visualize, assess-agent-autonomy, feedback
-**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, docs-health, backlog, dispatch, demo
+**Utility:** help, tidy, flow, browse, ledger, research, code-health, routine, harness-health, journey-health, docs-health, backlog, dispatch, demo
 
 ### Skills with sub-files
 

@@ -7,10 +7,10 @@
 // Task 0 findings (empirical, captured 2026-08-13 via a throwaway --settings
 // hook; see .claude-tweaks/pipelines/2026-08-13T201329-spec-371-372-373/
 // spec-371/work/task0-findings.md for raw payloads):
-//   (a) qualified invocation: tool_input.skill = "claude-tweaks:version"
+//   (a) qualified invocation: tool_input.skill = "claude-tweaks:help"
 //       ({namespace}:{skill-name}, a plain string).
 //   (b) bare invocation: tool_input.skill also accepts an unqualified name
-//       (e.g. "version"). It resolves and succeeds internally, but
+//       (e.g. "help"). It resolves and succeeds internally, but
 //       tool_response.commandName echoes back whatever was passed, NOT the
 //       resolved qualified name — no field in this payload ever exposes the
 //       resolved qualified form for a bare call. This module logs whatever
@@ -29,7 +29,7 @@
 //       extra agent_id/agent_type fields. Per the spec's Non-Goals, this
 //       module does not filter or special-case those — they are logged like
 //       any other skill_invoked event.
-//   (e) a user-typed slash command (e.g. "/claude-tweaks:version") runs by
+//   (e) a user-typed slash command (e.g. "/claude-tweaks:help") runs by
 //       direct content expansion with NO Skill tool call at all — the
 //       PostToolUse Skill matcher captures nothing (verified with a
 //       matcher-less control capture showing only Read/ToolSearch tool use).
