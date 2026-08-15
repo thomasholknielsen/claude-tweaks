@@ -58,6 +58,18 @@ test('claude-md gate stays closed when claudeMdOverBudget is false alongside eve
   assert.strictEqual(wl.rows.find((r) => r.id === 'claude-md').gate, 'closed');
 });
 
+test('claude-md gateReason names claudeMdOverBudget in both directions', () => {
+  const open = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: true }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(
+    open.rows.find((r) => r.id === 'claude-md').gateReason,
+    'CLAUDE.md/rules over the size budget');
+
+  const closed = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: false }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(
+    closed.rows.find((r) => r.id === 'claude-md').gateReason,
+    'CLAUDE.md Commands section unchanged, CLAUDE.md/rules within budget, no signals raised');
+});
+
 test('cap resolution: flag beats fast-lane beats default', () => {
   const flag = buildWorklist({ facts: { ...FACTS, skillsLibraryExists: true }, signals: {}, ceremonyProfile: 'fast-lane', budgets: { 'skill-budget': 7 } });
   assert.deepStrictEqual(

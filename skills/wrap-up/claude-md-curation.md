@@ -14,6 +14,7 @@ The gate is already evaluated when you read this. The signals mean:
 | `contradictedConvention` | A convention asserted in CLAUDE.md's `## Conventions` section is contradicted by this work's diff |
 | `incidentRecorded` | An incident account was recorded for this work |
 | `claudeMdCommandRenamed` (fact) | A command listed in CLAUDE.md's `## Commands` section was renamed or removed in this work's diff |
+| `claudeMdOverBudget` (fact) | `CLAUDE.md` or an in-scope `.claude/rules/*.md` file exceeds its tier's line budget (`harness-health.always-loaded-budget` / `harness-health.scoped-rule-budget`) — opens the row purely on aggregate size, independent of the other three signals |
 
 Do not re-evaluate them. They are context for what to look at first, not a gate to re-run.
 
