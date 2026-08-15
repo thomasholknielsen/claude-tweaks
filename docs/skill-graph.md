@@ -392,6 +392,7 @@ depends on them.
 | `/dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s periodic sweep rather than a console dispatch renders itself. |
 | `/help` | `/help` suggests `/tidy` when maintenance signals are detected; both read the same work-record queue via `parseRecordFacets`. |
 | `_shared/scratch-worktree.md` | Provisions a write-legal checkout for Step 7's record mutations and the tidy-up commit under `worktree.always: true`, and for `writeRecord` calls under `work-backend: local-files` — returned and torn down per that procedure rather than left open. |
+| `skills/_shared/integration-branch.md` | Step 4.5's base-resolution list for a `git branch -d` refusal — the project's `integration-branch` policy value (when pinned) plus the repo's own default branch — resolves via this fragment's canonical ladder before checking merge state against each. |
 
 ## visual-review
 

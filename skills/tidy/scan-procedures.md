@@ -103,10 +103,17 @@ Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete). `-d` only proves co
 - `git -C "{REPO_ROOT}" branch --merged origin/{base}` (remote-tracking ref, when it exists)
 - `git -C "{REPO_ROOT}" branch --merged {base}` (local branch, when it exists)
 
-`{branch}` counts as merged into `{base}` if either form lists it. Three outcomes, never two:
+Before classifying a `-d` refusal by merge state at all, check whether `{branch}` is currently
+checked out in another worktree (`git -C "{REPO_ROOT}" worktree list --porcelain`, scanning for
+`branch refs/heads/{branch}`) — a checked-out branch refuses `-d`/`-D` alike regardless of merge
+state, and since this step deliberately keeps locked worktrees (see below), that refusal reason is
+otherwise indistinguishable from "needs -D" and would get the wrong remedy.
+
+`{branch}` counts as merged into `{base}` if either form lists it. Four outcomes, never three:
 
 | Outcome | Recommendation |
 |---|---|
+| `{branch}` is checked out in another worktree | **`checked out in {worktree-path} — remove worktree first, then re-run`**. `-D` would refuse for the same reason `-d` did; this is not a merge-state question |
 | `-d` succeeds | Deleted — no further action |
 | `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
 | `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** (unchanged) — this is the only case that actually means unmerged work |
