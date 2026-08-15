@@ -86,6 +86,8 @@ Do not add narration, headers, or summaries before or after the table.
 
 **What it catches and the constraints** are the shared simplification criteria — read `_shared/criteria-simplification.md`. The same criteria are reused by `/claude-tweaks:code-health`'s simplification lens, so the reactive pass and the proactive sweep flag identical complexity. (The `code-simplifier` subagent applies them; the dispatch prompt above carries the scope and output contract.)
 
+**When dispatched with file-path scope** (rather than a diff range), the subagent optimizes the whole file — it has no way to know which lines the caller's own work actually touched. Before committing the returned changes, the caller should diff them against its own change scope and revert anything outside it, the same discipline `/review` Step 5 already applies to merge-provenance exclusions (`#174`).
+
 ## Step 3: Verify
 
 If the simplifier made changes, run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests.
