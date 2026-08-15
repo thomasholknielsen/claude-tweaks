@@ -102,6 +102,8 @@ function parseFrontmatterLines(fmLines) {
   let effortFallback = null;
   let sawNewParentLine = false;
   let legacyParentFallback = null;
+  let sawNewFramingLine = false;
+  let legacyFramingFallback = null;
 
   for (const rawLine of fmLines) {
     const line = rawLine.trim();
@@ -116,7 +118,11 @@ function parseFrontmatterLines(fmLines) {
     // Last such line wins among repeats, exactly as the pre-rename effort: parse did.
     if ((m = /^effort:\s*(.+)$/.exec(line))) { effortFallback = m[1].trim(); continue; }
     if ((m = /^ceremony:\s*(.+)$/.exec(line))) { facets.ceremony = m[1].trim(); continue; }
-    if ((m = /^framing:\s*(true|false)$/.exec(line))) { facets.framing = m[1] === 'true'; continue; }
+    if ((m = /^solution-unjustified:\s*(true|false)$/.exec(line))) { facets.solutionUnjustified = m[1] === 'true'; sawNewFramingLine = true; continue; }
+    // Read-side framing: fallback — PERMANENT cross-project support (pre-rename local records keep framing: lines); removable only at a major version that drops pre-rename repo support. [IL-85]
+    // Precedence is held-aside, not OR: an explicit solution-unjustified: line (either value) must win over any legacy line, so the legacy value applies after the pass and only when no new line was seen.
+    if ((m = /^framing:\s*(true|false)$/.exec(line))) { legacyFramingFallback = m[1] === 'true'; continue; }
+    if ((m = /^needs-definition:\s*true$/.exec(line))) { facets.needsDefinition = true; continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
     if ((m = /^stage:\s*(.+)$/.exec(line))) { facets.stage = m[1].trim(); continue; }
     if ((m = /^closed:\s*(true|false)$/.exec(line))) { facets.closed = m[1] === 'true'; continue; }
@@ -141,6 +147,7 @@ function parseFrontmatterLines(fmLines) {
 
   if (facets.size === null) facets.size = effortFallback;
   if (!sawNewParentLine && legacyParentFallback !== null) facets.isParentIssue = legacyParentFallback;
+  if (!sawNewFramingLine && legacyFramingFallback !== null) facets.solutionUnjustified = legacyFramingFallback;
 
   return facets;
 }
@@ -196,7 +203,8 @@ function serializeFrontmatter(facets) {
   if (facets.risk) lines.push(`risk: ${facets.risk}`);
   if (facets.size) lines.push(`size: ${facets.size}`);
   if (facets.ceremony) lines.push(`ceremony: ${facets.ceremony}`);
-  if (facets.framing) lines.push('framing: true');
+  if (facets.solutionUnjustified) lines.push('solution-unjustified: true');
+  if (facets.needsDefinition) lines.push('needs-definition: true');
   if (facets.priority) lines.push(`priority: ${facets.priority}`);
   if (facets.stage && facets.stage !== 'backlog') lines.push(`stage: ${facets.stage}`);
   if (facets.closed) lines.push('closed: true');
