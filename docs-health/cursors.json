@@ -22,5 +22,8 @@
   },
   "doc:decisions/0007-historical-design-doc-archive-is-periodically-pruned": {
     "lastAuditedMs": 1786687476969
+  },
+  "doc:decisions/0008-gh-cli-locally-github-mcp-in-cloud-capability-detected": {
+    "lastAuditedMs": 1786774016381
   }
 }
