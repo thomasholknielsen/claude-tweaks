@@ -245,6 +245,19 @@ function findOpenLedger(cwd) {
   return text;
 }
 
+// `~/.claude-accounts/<slug>/...` is an observed multi-account directory
+// layout, not part of Claude Code's documented statusline contract — only
+// `transcript_path` itself is documented. Match loosely (either path
+// separator) and return null on any miss so a layout change silently drops
+// this segment instead of breaking the statusline.
+function renderAccount(input) {
+  const tp = input.transcript_path;
+  if (!tp || typeof tp !== 'string') return null;
+  const match = tp.match(/\.claude-accounts[\\/]+([^\\/]+)[\\/]/);
+  if (!match) return null;
+  return `acct: ${match[1]}`;
+}
+
 async function main() {
   const raw = await readStdin();
   let input = {};
@@ -268,6 +281,7 @@ async function main() {
     renderRateLimit('week', rateLimits.seven_day, now),
     findActiveSpec(cwd),
     findOpenLedger(cwd),
+    renderAccount(input),
   ].filter((s) => s !== null && s !== undefined && s !== '');
 
   process.stdout.write(segments.join(SEPARATOR));
@@ -287,6 +301,7 @@ module.exports = {
   renderRateLimit,
   findActiveSpec,
   findOpenLedger,
+  renderAccount,
   formatDuration,
   colorByPct,
   parseStatusBranch,
