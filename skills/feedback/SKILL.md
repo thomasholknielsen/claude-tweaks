@@ -49,7 +49,9 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 
 When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this is bare invocation:
 run **two** gathers and merge their results into one batch before Steps 1-6 process it. Free-text
-invocation runs neither gather — the single-learning path (Steps 1-9) is unchanged.
+invocation runs neither gather — the single-learning path (Steps 1-9) is unchanged. A
+`--pre-confirmed` invocation never runs these gathers either — it processes only its
+caller-supplied staged item(s).
 
 **Gather 1 — local upstream-candidate queue (unchanged).** This project may already hold
 headless-filed candidates waiting for a human — the health sweeps' Subject check
@@ -227,10 +229,10 @@ and including invocations that began inside a pipeline.
 this step's removal criteria verbatim, and the agent returns the scrubbed body plus a one-line note
 of what it removed (or "nothing to remove"). Resolve the model via `node
 "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable --unattended` (no `--run-dir` — `/feedback`
-is typically invoked standalone with no run directory; this matches the contract's
-standalone-invocation cap of one dispatch per invocation, enforced here by this skill rather than
-by a run-dir tally). Record #221 originally granted this scrub the skill's one Frontier singleton
-slot; this skill's Frontier singleton slot now belongs to the session-evaluation judge
+is typically invoked standalone with no run directory; one scrub dispatch per invocation,
+enforced here by this skill rather than by a run-dir tally). Record #221 originally granted
+this scrub the skill's one Frontier singleton slot; this skill's Frontier singleton slot now
+belongs to the session-evaluation judge
 (`session-evaluation.md`, Step 0) instead, knowingly superseding #221's scrub entry — the scrub's
 structure, unconditionality, and hard-stop semantics above and below are unchanged. Degrades per
 the resolver's own preconditions, logged in its `source` — never re-enumerated here. Filing (Step

@@ -31,10 +31,10 @@ work was evaluated.
 Exactly one Task agent per invocation.
 
 **Model:** resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" frontier
---unattended` (no `--run-dir` — the same standalone-invocation cap framing `/feedback`'s scrub
-step already uses: one dispatch per invocation, enforced by this skill rather than a run-dir
-tally). Degradation to Capable on a missed precondition is the resolver's own job, logged in its
-`source` — never re-enumerated here.
+--unattended` (no `--run-dir` — one judge dispatch per invocation, the contract's
+standalone-invocation cap for this skill's Frontier singleton, enforced by this skill rather than
+a run-dir tally). Degradation to Capable on a missed precondition is the resolver's own job,
+logged in its `source` — never re-enumerated here.
 
 **Prompt contents, in this order:**
 
@@ -57,7 +57,7 @@ objective, in rubric order):**
 ```
 DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
 
-## {objective name}
+## {objective name — one block per rubric objective, in rubric order}
 NO FINDING
 — or —
 NOT EVALUATED — {reason}
@@ -66,12 +66,12 @@ NOT EVALUATED — {reason}
 **Evidence:** {transcript excerpt or precise pointer}
 **Measurement:** {counts — countable lenses only; omit the line for judgment lenses}
 **Proposed fix:** {concrete solution idea}
+The Avoidable interactions block always states the session's total AskUserQuestion count,
+whichever outcome it renders.
 ```
 
 The status line is the contract's usual `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`
-first line, per `_shared/subagent-output-contract.md`. The Avoidable interactions block always
-states the total `AskUserQuestion` count for the session, even when that block otherwise renders
-`NO FINDING` — the count is evidence in its own right, not conditional on a finding existing.
+first line, per `_shared/subagent-output-contract.md`.
 
 ## Degradation: self-assessment
 
