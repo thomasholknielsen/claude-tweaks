@@ -6,7 +6,8 @@ const { buildWorklist } = require('../engine-plan');
 const FACTS = { isRepo: true, changedFiles: ['src/a.js', 'src/b.js'], renamedDeleted: [],
   skillsLibraryExists: false, multiFileDiff: true, docsTreeNonEmpty: false,
   journeysExist: true, journeyFiles: ['docs/journeys/j1.md', 'docs/journeys/j2.md'],
-  claudeMdCommandRenamed: false, renamedOrDeleted: false, headingRenamed: false };
+  claudeMdCommandRenamed: false, renamedOrDeleted: false, headingRenamed: false,
+  claudeMdOverBudget: false };
 
 test('fact gates open on any listed fact', () => {
   const wl = buildWorklist({ facts: FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
