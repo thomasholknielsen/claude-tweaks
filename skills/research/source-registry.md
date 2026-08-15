@@ -140,14 +140,14 @@ commands, and fetch URLs; they never stage, commit, or branch. This removes the 
 rather than narrowing it — parallel agents with git access race on one index no matter how
 file-disjoint their reads look.
 
-Model tier: `Fast` for `codebase`, `repo-prose`, `tests`, and `history` — these are grep-and-read
-lookups against a named target. `Standard` for `runtime`, `telemetry`, `deps`, and `web`, where the
-agent has to judge whether what it found actually settles the claim.
+Model profile: [Use: Fast] for `codebase`, `repo-prose`, `tests`, and `history` — these are grep-and-read
+lookups against a named target. [Use: Standard] for `runtime`, `telemetry`, `deps`, and `web`, where the
+agent has to judge whether what it found actually settles the claim. Resolve via `node bin/resolve-profile.js {fast|standard}` (contract § Model Selection).
 
 Inline this block verbatim in every dispatch prompt. It is a define-in-prompt format rather than
 Template A, per `skills/_shared/subagent-output-contract.md`'s "Not every consumer uses A/B/C" — a
 source agent returns a verdict, and Template A's severity/path/finding columns cannot express one.
-The contract's input discipline, four-value status line, and model-tier selection all still apply.
+The contract's input discipline, four-value status line, and model profile selection all still apply.
 
 ```
 Report one of these as your FIRST line, alone:

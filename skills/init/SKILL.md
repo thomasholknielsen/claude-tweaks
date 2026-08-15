@@ -274,7 +274,7 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 >
 > **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
 >
-> **Model tier:** Standard — applying the Frequency + Complexity + Danger rubric against Phase 2 evidence requires judgment across three dimensions per candidate, not mechanical enough for Fast and not synthesis-heavy enough to need Capable.
+> **Model profile:** [Use: Standard] — applying the Frequency + Complexity + Danger rubric against Phase 2 evidence requires judgment across three dimensions per candidate, not mechanical enough for Fast and not synthesis-heavy enough to need Capable. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 
 Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become backlog work records with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
@@ -300,7 +300,7 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 
 > **Parallel execution (conditional):** Under Update Mode, when the drift-patch audit's read set (`_shared/harness-health-analysis.md`) covers ≥ 8 existing skills, dispatch the per-skill audit as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`) — the same threshold and pattern Phase 4 already uses for scoring. Otherwise, run the audit inline in the main thread.
 >
-> **Model tier:** Standard — comparing each skill's content against the canonical template across multiple conformance dimensions (structure, sync with reference files, quality gates) is format-sensitive checking, not synthesis-heavy enough to need Capable; defaulting to Capable across 8+ agents is roughly a 5x cost multiplier for no judgment gain.
+> **Model profile:** [Use: Standard] — comparing each skill's content against the canonical template across multiple conformance dimensions (structure, sync with reference files, quality gates) is format-sensitive checking, not synthesis-heavy enough to need Capable; defaulting to Capable across 8+ agents is roughly a 5x cost multiplier for no judgment gain. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
 
 **Initial Mode** generates full SKILL.md files for each approved skill. **Update Mode** produces targeted patches for drifted skills and full SKILL.md for gap skills. Each generated skill must pass quality gates (codebase-grounded examples, working commands, project-specific anti-patterns). Skill depth scales with complexity score.
 
