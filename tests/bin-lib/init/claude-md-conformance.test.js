@@ -1,8 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
 const {
   extractTemplateBody,
   splitSections,
+  classifySections,
+  checkConformance,
+  PHILOSOPHY_EXCEPTION,
 } = require('../../../bin/lib/init/claude-md-conformance');
 
 const FIXTURE = [
@@ -67,8 +72,6 @@ test('extractTemplateBody throws when a nested fence truncates the template', ()
   assert.throws(() => extractTemplateBody(nested), /stopped early/i);
 });
 
-const { classifySections, PHILOSOPHY_EXCEPTION } = require('../../../bin/lib/init/claude-md-conformance');
-
 test('classifySections sorts known sections into the two lists', () => {
   const sections = new Map([
     ['Stack', '\n| Layer | Tech |\n|---|---|\n| ... | ... |\n'],
@@ -103,9 +106,6 @@ test('PHILOSOPHY_EXCEPTION names the present/absent-only section', () => {
   assert.strictEqual(PHILOSOPHY_EXCEPTION, 'Philosophy');
 });
 
-const fs = require('fs');
-const path = require('path');
-
 const TEMPLATE = path.resolve(
   __dirname, '..', '..', '..', 'skills', 'init', 'claude-md-template.md',
 );
@@ -137,8 +137,6 @@ test('the live template still ends with Don\'ts — the fence is unambiguous', (
   const names = [...splitSections(extractTemplateBody(src)).keys()];
   assert.strictEqual(names[names.length - 1], "Don'ts");
 });
-
-const { checkConformance } = require('../../../bin/lib/init/claude-md-conformance');
 
 const TPL = [
   '## Initial Mode Template',
