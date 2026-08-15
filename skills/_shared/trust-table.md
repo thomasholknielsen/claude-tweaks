@@ -2,7 +2,9 @@
 
 Single source of truth for rendering `bin/lib/issues/trust.js`'s per-class trust table. Consumed
 by `/claude-tweaks:help` (`status-scan.md` Stage 4.8), `/claude-tweaks:backlog overview`
-(`overview-mode.md` Step 1.5), and `/claude-tweaks:backlog refine` (`refine-mode.md` Step 3, which
+(overview-mode.md — Step 1.5 computes once per invocation; bare mode renders a collapsed
+consequence line and the trust lens renders this table), and `/claude-tweaks:backlog refine`
+(`refine-mode.md` Step 3, which
 reuses the Fetch section for its advisory Trust column). Subagents cannot read this file —
 `/help`'s dispatcher inlines this file's Fetch and Render sections into Stage 4.8's agent prompt,
 the same pattern already used for `_shared/github-pr-scan.md`. The Fetch section goes in
