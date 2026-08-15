@@ -21,11 +21,11 @@ Resolved build: claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}
 
 Read `{version}` from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — the directory these skill files were loaded from, and so the one source that cannot disagree with them. Do not substitute `claude plugin list --json`'s `version` or `installed_plugins.json`'s `gitCommitSha`: both are installation metadata written beside the cache directory rather than read out of it, and the sha in particular is not refreshed by `claude plugin update`. If either value is unreadable, write `Resolved build: unresolved ({what failed})` — never drop the line.
 
-A Preflight failure filed without it is unactionable, because the two explanations it has to distinguish produce identical reports: a sandbox pinned to a stale build, and a defect in the build the marketplace currently serves. #129 is that case — a firing reported a `gh`-CLI hard gate that the shipped build had already replaced with an MCP branch four days earlier, and the report read as a live bug until the installed source was inspected by hand.
+A self-report filed without it is unactionable, because the two explanations it has to distinguish produce identical reports: a sandbox pinned to a stale build, and a defect in the build the marketplace currently serves. #129 is that case — a firing reported a `gh`-CLI hard gate that the shipped build had already replaced with an MCP branch four days earlier, and the report read as a live bug until the installed source was inspected by hand.
 
 ---
 
-A Preflight failure on this form needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (`SKILL.md`'s `work-backend` checks, or its Detection Ladder), search for an existing open report first, to avoid re-filing on every firing — never via `gh issue list --search`, which rides GitHub's eventually-consistent search index (the same anti-pattern documented in `_shared/github-write-transport.md`); use the same plain-list + marker-match idiom instead:
+A failure on this form needs a durable trace instead of a message nobody sees. Before stopping on any of the triggers this file accompanies (see Ordering above for the full list), search for an existing open report first, to avoid re-filing on every firing — never via `gh issue list --search`, which rides GitHub's eventually-consistent search index (the same anti-pattern documented in `_shared/github-write-transport.md`); use the same plain-list + marker-match idiom instead:
 
 ```bash
 gh issue list --label by:dispatch --state open --json number,title,body,createdAt --limit 500 > /tmp/dispatch-selfreport-issues.json
@@ -47,12 +47,12 @@ failure is definitionally a defect). The body now carries the marker so future f
 
 ```bash
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [['by:dispatch', 'Origin: self-filed by /claude-tweaks:dispatch on a headless Preflight failure']]
+# [['by:dispatch', 'Origin: self-filed by /claude-tweaks:dispatch on a headless self-report trigger']]
 # — bootstrap the matching type:bug pair too under work-types: labels, same as /capture does.
 
 # work-types: native
 gh issue create \
-  --title "Dispatch Preflight failure: {failing-check-name}" \
+  --title "Dispatch headless self-report: {failing-check-name}" \
   --body "{the exact diagnostic message this check would otherwise report to a human}
 
 Resolved build: claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}
@@ -63,7 +63,7 @@ Resolved build: claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}
 
 # work-types: labels
 gh issue create \
-  --title "Dispatch Preflight failure: {failing-check-name}" \
+  --title "Dispatch headless self-report: {failing-check-name}" \
   --body "{the exact diagnostic message this check would otherwise report to a human}
 
 Resolved build: claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}
