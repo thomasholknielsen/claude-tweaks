@@ -24,7 +24,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const facets = {
     type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', framing: true, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: 12, isParentIssue: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
+    parent: 12, isParentIssue: false, notPlanned: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
 
   writeRecord(filePath, { title: 'Bar', body: 'Current State…', facets });

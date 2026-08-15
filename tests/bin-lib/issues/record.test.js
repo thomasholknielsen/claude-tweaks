@@ -210,7 +210,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null, isParentIssue: false,
+    acceptance: null, isParentIssue: false, notPlanned: false,
   });
 });
 
@@ -236,7 +236,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null, isParentIssue: false,
+    acceptance: null, isParentIssue: false, notPlanned: false,
   });
 });
 
@@ -260,6 +260,16 @@ test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched 
   assert.strictEqual(result.size, 'low');
   assert.strictEqual(result.priority, 'medium');
   assert.strictEqual(result.stage, 'backlog');
+});
+
+test('parseRecordFacets: wontfix label sets notPlanned', () => {
+  const facets = parseRecordFacets(['wontfix']);
+  assert.equal(facets.notPlanned, true);
+});
+
+test('parseRecordFacets: notPlanned defaults to false', () => {
+  const facets = parseRecordFacets(['ready']);
+  assert.equal(facets.notPlanned, false);
 });
 
 // AC — the size facet, and its permanent effort:* read-side fallback

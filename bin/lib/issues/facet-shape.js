@@ -28,6 +28,7 @@ function sharedFacetDefaults() {
     bot: { inProgress: false, blocked: false },
     acceptance: null,
     isParentIssue: false,
+    notPlanned: false,
   };
 }
 
