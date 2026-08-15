@@ -7,8 +7,8 @@ stamping. Every sub-issue/single record, every `/specify` run, no pre-filtering 
 
 `/claude-tweaks:flow`'s materialize.md (`skills/flow/materialize.md`) calls this mode only as a
 **fallback**, for a record that reaches `/flow` carrying no `ceremony:*` label at all — a legacy
-hand-authored spec file, or a record created before this mode moved upstream. See
-`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` for the full rationale.
+hand-authored spec file, or a record created before this mode moved upstream. Full rationale was in
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
 
 ## Step 1: Gather
 
