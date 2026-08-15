@@ -151,7 +151,8 @@ For each per-spec invocation, `/flow` exports these environment variables (the l
 | `MULTISPEC_PARENT_DIR` | `{parent}/` | Pointer to the parent run dir — read by the consolidated console at end-of-run |
 | `MULTISPEC_KEEP_GOING` | `1` (when `keep-going` arg set) | Signals per-spec pipelines to continue the multi-spec run after this spec's HARD-GATE failure |
 | `MULTISPEC_SHARED_WORKTREE` | `1` (when `worktree` strategy resolved) | Signals per-spec `/build` Common Step 1 to skip worktree creation — the run's single shared worktree already exists and the pipeline is running inside it |
-| `CLAIM_RUN_ID` | passed through unchanged (when `/flow`'s own caller set it — e.g. `/claude-tweaks:dispatch` for a bundle group) | Signals each spec's `/wrap-up` Section E to use this value, not `PIPELINE_RUN_DIR`'s own id, for the issue-claim release ownership check — see `_shared/issue-claims.md`'s Identity section |
+
+Note on claim ownership for a dispatched bundle: each spec's own `PIPELINE_RUN_DIR` above is the per-spec `{parent}/spec-{N}/` subdirectory, but the claim `/claude-tweaks:dispatch` wrote (Step 4) is keyed to the **parent** directory's basename — the identity dispatch minted for the whole group. Per-spec `/wrap-up` Section E claim release is deferred under `MULTISPEC_REVIEW_DEFER=1` for exactly this reason (see `wrap-up/cleanup-procedures.md`'s Multi-spec defer behavior); the actual release happens once, at end-of-run, in `multispec-review-console.md`'s "Shared teardown," which resolves the ownership check against `basename($MULTISPEC_PARENT_DIR)`, not any per-spec `$PIPELINE_RUN_DIR`.
 
 ### Shared worktree (sequential multi-record/multi-spec)
 

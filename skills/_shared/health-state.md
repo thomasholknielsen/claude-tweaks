@@ -2,14 +2,18 @@
 
 `code-health`, `harness-health`, `journey-health`, and `docs-health` each need rotation cursors, a
 filing retry queue, and — where the skill opts in, see the tree below — a sub-threshold
-"remembered" cache to survive between scheduled Routine firings. A scheduled cloud-routine
-(CCR) firing starts from a fresh, stateless container every time, so local gitignored disk
-(`.claude-tweaks/{skill}/*.json`) does not survive between firings — only `cache.json`
-(the open/closed/wontfix/regressed dedup cache, rebuilt fresh from `gh issue list` every run)
-stays there, since GitHub issue state is already its own source of truth.
+"remembered" cache and/or a durable "declined" suppression record, to survive between scheduled
+Routine firings. A scheduled cloud-routine (CCR) firing starts from a fresh, stateless container
+every time, so local gitignored disk (`.claude-tweaks/{skill}/*.json`) does not survive between
+firings — only `cache.json` (the open/closed/wontfix/regressed dedup cache, rebuilt fresh from
+`gh issue list` every run) stays there, since GitHub issue state is already its own source of
+truth.
 
 Everything else durable lives on a dedicated branch, **`health-state`**, created once and never
-merged into `main` or any other branch — a scratch area for machine bookkeeping only:
+merged into `main` or any other branch — a scratch area for machine bookkeeping only. The tree
+below is derived from each skill's own `bin/lib/{skill}/cache.js` construction call to
+`createDurableState` — read those four call sites directly (not this file) if this tree and the
+code ever appear to disagree:
 
 ```
 code-health/cursors.json
@@ -21,15 +25,18 @@ harness-health/cursors.json
 harness-health/remembered.json
 harness-health/retry-queue.json
 harness-health/runs.json
+harness-health/declined.json     # fingerprint -> {status:'declined', lastSeenMs} — only where includeDeclined is set. Deleting it: previously-declined/wontfix findings resurface on the next sweep.
 
 journey-health/cursors.json
 journey-health/retry-queue.json
 journey-health/runs.json
+journey-health/declined.json     # same shape/consequence as harness-health's above — journey-health opts into includeDeclined but NOT includeRemembered
 
 docs-health/cursors.json
 docs-health/remembered.json
 docs-health/retry-queue.json
 docs-health/runs.json
+docs-health/declined.json        # same shape/consequence as harness-health's above
 ```
 
 ## Mechanism
@@ -65,6 +72,17 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   key. The skills that pass `{ includeRemembered: true }` are exactly the ones carrying a
   `remembered.json` in the tree above; any skill that leaves the flag at its default can
   never accidentally pick up a stray `remembered.json`.
+- `includeDeclined` (default `false`) gates `declined.json` the same way `includeRemembered`
+  gates `remembered.json` above — decided once, at `createDurableState` call time. `docs-health`,
+  `harness-health`, and `journey-health` pass `{ includeDeclined: true }`; `code-health` does not
+  (it has no `mark` command — see `bin/lib/health-core/mark.js`'s header comment — so there is
+  nothing to persist here). `declined.json` holds `{fingerprint: {status:'declined', lastSeenMs,
+  origin?}}` entries — a human `mark <fingerprint> declined` call (`mark.js`'s `makeCmdMark`) or a
+  GitHub-issue `wontfix` label (`mark.js`'s `mergeWontfixIntoDeclined`) folded in durably so the
+  suppression survives a scheduled Routine's fresh container, which the local gitignored cache
+  does not. **Deleting `declined.json` un-suppresses every fingerprint in it** — those findings
+  are eligible to be re-proposed (and re-filed) on the skill's next sweep, exactly as if they had
+  never been declined.
 - Each skill's own `bin/lib/{skill}/cache.js` calls these instead of the old local
   `readCursors`/`writeCursors` — same call shape, new storage underneath.
 - **`bin/lib/health-core/retry-cli.js`**'s `makeRetryQueueCommands({ readDurableState, writeDurableState })`

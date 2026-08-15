@@ -321,6 +321,76 @@ test('archiveRunDir: the old run dir is removed once empty — a later iterRunDi
   assert.deepStrictEqual([...iterRunDirsWithState(root)], []);
 });
 
+// --- isOrphanedMint / archiveOrphanedMint: dispatch-minted dirs that never got adopted by flow ---
+
+function bareRepoRoot() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-orphan-')));
+  git(['init', '-q', '--initial-branch=main'], root);
+  git(['config', 'user.email', 'test@example.com'], root);
+  git(['config', 'user.name', 'Test'], root);
+  fs.writeFileSync(path.join(root, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], root);
+  git(['commit', '-q', '-m', 'seed'], root);
+  return root;
+}
+
+function mintEmptyRunDir(root, runId, { ageMs = 0 } = {}) {
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(dir, { recursive: true });
+  if (ageMs) {
+    const backdated = new Date(Date.now() - ageMs);
+    fs.utimesSync(dir, backdated, backdated);
+  }
+  return dir;
+}
+
+test('isOrphanedMint: false when config.yml exists, regardless of age', () => {
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const dir = mintEmptyRunDir(root, '2026-08-01T000000-record-999', { ageMs: ORPHAN_MINT_TTL_MS * 2 });
+  fs.writeFileSync(path.join(dir, 'config.yml'), 'x: 1\n');
+  assert.strictEqual(isOrphanedMint(dir), false);
+});
+
+test('isOrphanedMint: false when empty but within the grace window', () => {
+  const { isOrphanedMint } = require('../bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const dir = mintEmptyRunDir(root, '2026-08-15T000000-record-999');
+  assert.strictEqual(isOrphanedMint(dir), false);
+});
+
+test('isOrphanedMint: true when empty (no config.yml) and older than the TTL', () => {
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const dir = mintEmptyRunDir(root, '2026-08-01T000000-record-999', { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
+  assert.strictEqual(isOrphanedMint(dir), true);
+});
+
+test('archiveMerged: an orphaned mint older than the TTL is archived on the next sweep, not left in place', () => {
+  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const runId = '2026-08-01T120000-record-999';
+  mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
+
+  const result = archiveMerged({ cwd: root });
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(archiveDir), 'orphaned mint should be moved to the archive path');
+  assert.ok(!fs.existsSync(path.join(root, '.claude-tweaks', 'pipelines', runId)), 'original mint dir should no longer exist');
+  assert.ok(result.archived.includes(path.join(root, '.claude-tweaks', 'pipelines', runId)));
+});
+
+test('archiveMerged: an orphaned mint within the TTL is left in place, not archived', () => {
+  const { archiveMerged } = require('../bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const runId = '2026-08-15T120000-record-999';
+  const dir = mintEmptyRunDir(root, runId);
+
+  archiveMerged({ cwd: root });
+
+  assert.ok(fs.existsSync(dir), 'a fresh mint should not be swept before the grace window elapses');
+});
+
 // --- isWorktreeLocked: reused verbatim from worktree-reap.js (not a copy) ---
 
 test('isWorktreeLocked: a plain unlocked linked worktree is not locked', () => {

@@ -84,7 +84,7 @@ at this bridge that shipped the gate change before the read path was finished.
 
 ### Step 1: Resolve this firing's run id
 
-Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run-dir resolution in `_shared/pipeline-run-dir.md` (dispatch is on the allowlist) — `$RUN_ID` is that run directory's basename (e.g. `2026-07-14T140322-dispatch-standalone`). Every claim this firing makes in Step 4 embeds this same value as `claimPayload`'s `runId`, and every Task call Step 5 dispatches for a group — both of them — receives it explicitly as `CLAIM_RUN_ID` (Task agents don't inherit shell variables — per `_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room), so Step 6's ownership check (`claim.runId === $RUN_ID`) — performed inside whichever of that group's two Task calls handles its terminal outcome (the first call on a `build,test` failure, the second on every path that reaches wrap-up), never in this thread — compares against the firing that actually claimed the record.
+Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run-dir resolution in `_shared/pipeline-run-dir.md` (dispatch is on the allowlist) — `$RUN_ID` is that run directory's basename (e.g. `2026-07-14T140322-dispatch-standalone`). This value scopes only this firing's own `decisions.md` (queue pull, selection, per-group minting log) — it is never a claim's `runId` and never passed to a Task call. Each *group's* claim identity is a separate value, minted per group in Step 4 (`$GROUP_RUN_ID`) and passed to both of that group's Task calls as `PIPELINE_RUN_DIR` (Task agents don't inherit shell variables — per `_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room). Step 6's ownership check (`claim.runId === basename($PIPELINE_RUN_DIR)`) — performed inside whichever of that group's two Task calls handles its terminal outcome (the first call on a `build,test` failure, the second on every path that reaches wrap-up), never in this thread — compares against that group's own minted directory, not this firing's `$RUN_ID`.
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
@@ -152,9 +152,24 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 member and branch on its output; read `sibling-session-check.md` in this skill's directory and
 follow it. Additive to the existing branches/claims/labels check below, never a replacement.
 
+**Mint this group's run directory, before writing anything.** Derive `$RUN_ROOT` via
+`_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-common-dir`, then its
+parent directory). This group's **representative record** is its lowest-numbered member (the
+same rule `_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
+`$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` (mkdir only — no
+`config.yml`, no `decisions.md`; `/flow` writes those when its first Task call adopts the
+directory, per `flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Call the
+result `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
+`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
+{$GROUP_RUN_DIR} for group [{issue list}].` This is a plain directory creation, not a claim —
+if the claim below fails for any member, the minted directory is simply never adopted; the
+reconciler's archive sweep (`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint` criterion)
+picks up an empty, unadopted mint older than its TTL.
+
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before
 starting any**. Resolve the detection check once per run, not per issue (per
-`_shared/github-write-transport.md`).
+`_shared/github-write-transport.md`). Every claim below uses `$GROUP_RUN_ID` — this group's
+minted directory, not this firing's own standalone `$RUN_ID` from Step 1.
 
 **Both transports write the same `claims/issue-<n>.json` blob on `claims-registry`** — see
 `_shared/issue-claims.md`'s "The lock" section for the full read-then-classify-then-write
@@ -190,7 +205,7 @@ per `_shared/issue-claims.md`'s "The mirror"):
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
   console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
   runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$RUN_ID" > /tmp/claim-${ISSUE}.md
+  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$GROUP_RUN_ID" > /tmp/claim-${ISSUE}.md
 gh issue edit "$ISSUE" --add-label bot:in-progress
 gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 # This gh-CLI block runs only when gh is present; the gh-absent claim path lives in
@@ -209,15 +224,24 @@ Two firings running close together each do their own unsynchronized Preflight re
 
 Work through the selected group(s) in the order Step 3's selection already established — bare / `#N,#M,...`: up to `{batch-size}` (Step 3's resolved `--batch-size` override, or `dispatch-batch-size` when absent) groups processed one after another this firing, remainder left claimed for a later firing to pick up; `next` / `#N`: exactly one, unaffected by batch size. For each group in turn, **this dispatching session** creates and enters that group's worktree (via `/superpowers:using-git-worktrees`, exactly as a normal `/flow` invocation would) *before* dispatching that group's first Task call — every Task call dispatched for this group inherits that one cwd and must never create a worktree of its own. This session enters the next group's worktree only once this group's own dispatch sequence has reached its terminal point *and* that worktree has been torn down — always through wrap-up's own cleanup, never a raw removal (`[IL-116]`), which on a first-call failure means one further explicit `/claude-tweaks:flow {target} wrap-up` call. A third terminal point exists under `integration-model: local-merge` only — `OUTCOME: ready-to-merge` — Step 6's job, via `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section. Under `pr-first` (`_shared/integration-model.md`), the second Task call merges itself (`_shared/pr-first-merge.md`) and there is nothing further for this session to do on that path. Never share a worktree path across groups. There is no per-group timeout, same posture as existing parallel-Task dispatch sites (e.g. `/help`'s Stage 1-7). See `sequential-execution.md` for the wall-clock trade-off this implies.
 
-Pass `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) inline on the `/claude-tweaks:flow` command line, as the templates already show: a dispatched Task agent inherits no shell environment from this session (see the clean-room note in the `$RUN_ID` paragraph above), so an export here would never reach it. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
+Pass `PIPELINE_RUN_DIR="{minted-run-dir}"` (this group's run directory, minted by Step 4 before
+either call — `$GROUP_RUN_DIR`) inline on the `/claude-tweaks:flow` command line, as the
+templates already show: a dispatched Task agent inherits no shell environment from this
+session, so an export here would never reach it. Both of this group's Task calls receive the
+identical value — there is no second, later run directory to bridge to. `/flow` Step 3 adopts
+it (empty on the first call, initialized by the time the second call reads it), and
+`/wrap-up`'s release step (`cleanup-procedures.md` Section E) resolves the ownership check as
+`basename($PIPELINE_RUN_DIR)` directly — the same directory the claim was written under, since
+Step 4 wrote the claim's `runId` as this directory's own basename. See `_shared/issue-claims.md`'s
+Identity section.
 
 **Two Task() calls per group, not one.** The agent's job is now split: a first call runs `/claude-tweaks:flow {target} build,test` and stops; only on a clean `build-test-ok` outcome does a second, entirely fresh Task() call run `/claude-tweaks:flow {target} review,polish,wrap-up`. This gives the reviewing agent genuine conversational isolation from the build — a live dispatch test found build/test/review running in one continuous context, defeating `/review`'s own adversarial multi-lens contract.
 
-**Singleton group** `[123]` — first call: `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123 build,test`. Second call (gated): `PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123 review,polish,wrap-up`.
+**Singleton group** `[123]` — first call: `PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #123 build,test`. Second call (gated): `PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #123 review,polish,wrap-up`.
 
-**Bundle group** `[123, 456]` — a granted record is already spec-shaped (`ready` + spec-shaped body per `_shared/work-record.md`); there is no per-member `/specify` pre-step to run first. First call: `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456" build,test`. Second call (gated): `PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#123,#456" review,polish,wrap-up`.
+**Bundle group** `[123, 456]` — a granted record is already spec-shaped (`ready` + spec-shaped body per `_shared/work-record.md`); there is no per-member `/specify` pre-step to run first. First call: `PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow "#123,#456" build,test`. Second call (gated): `PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow "#123,#456" review,polish,wrap-up`.
 
-**The gate between calls — read `two-call-gate.md` in this skill's directory and follow it.** Not optional bookkeeping: `/flow` creates and owns a *fresh* run directory whenever it is not handed an existing one, so without that file's handoff the second call silently starts a disconnected run and orphans everything build/test staged. In outline — capture the first call's reported `MANIFEST:` path, derive `{run-dir}` from it, and substitute it into the second call's command line as the `PIPELINE_RUN_DIR="{run-dir}"` prefix beside `CLAIM_RUN_ID` (inline in the command string, never an env export in this session — a resolution target, not an echoed finding, so the no-echo rule holds); gate on status `DONE`/`DONE_WITH_CONCERNS` **and** `OUTCOME: build-test-ok`. Anything else, or an underivable `{run-dir}`, means the second call is never dispatched: fail loud rather than proceed, leave Settle to the first call's own agent (it runs there, not in this thread — `settle-and-merge.md`), and tear down via that file's section 5.
+**The gate between calls — read `two-call-gate.md` in this skill's directory and follow it.** Simpler than before: since both calls already carry the same minted `PIPELINE_RUN_DIR`, there is nothing to capture or derive from the first call's report between calls. The gate reduces to reading the first call's status line and `OUTCOME`: dispatch the second call only on `DONE`/`DONE_WITH_CONCERNS` **and** `OUTCOME: build-test-ok`. Anything else means the second call is never dispatched: leave Settle to the first call's own agent (it runs there, not in this thread — `settle-and-merge.md`), and tear down via `two-call-gate.md`'s terminal-path section.
 
 Each group's two `Task()` prompts are defined in `task-prompt.md` in this skill's directory — read it and inline each call's content verbatim into its own `Task()` tool call (per `_shared/subagent-output-contract.md`'s input discipline: minimal input, literal output template inlined, no conversation history). Do not paraphrase or summarize either template; the exact wording is load-bearing for the four-value status line and output format contracts downstream skills parse.
 
@@ -233,7 +257,7 @@ A headless (Routine-fired) firing's report has nobody live to read it — the du
 
 `pending-review` outcomes park the group's `/flow`-created run dir, not the branch — at `supervised`/`trusted`, an unanswered Review Console `AskUserQuestion` during a headless firing is not an error, it is the expected resting state until a human resumes that session or the branch directly, or the claim's TTL expires and a later firing supersedes it. (At `unattended`, `consoleAutoResolve` completes the console instead of resting on it — see `_shared/autonomy-ceiling.md` and `wrap-up/review-console.md`'s Auto-resolution short-circuit.) Under `integration-model: pr-first`, the branch itself never waited on parking to become public in the first place: `_shared/pr-early-run-lifecycle.md` opened its draft PR at run start, and every phase exit since has kept it current, so a parked run already has a live PR carrying its Verification Brief — the work outlives the container that built it with nothing further to push here.
 
-**Resuming a parked run.** "Resumes that session" above is not literal — the Task-tool subagent that hit the console has already exited by the time anyone reads this report, and there is no way to re-attach to it. The actual resume mechanism is re-adopting the same run directory: `PIPELINE_RUN_DIR="{run-dir}" CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "{target}" wrap-up`, run from inside the group's still-assigned worktree (`{run-dir}`'s own worktree — parking never clears a run's worktree assignment, so it is still there). This re-enters the same Review Console live, and its own teardown is what invokes `/superpowers:finishing-a-development-branch` and `wrap-up/cleanup-procedures.md` Section E (claim release, `auto:build`/`bot:in-progress` label removal) as one step — never hand-chain `/claude-tweaks:demo` (acceptance only, never merges — see its own Anti-Patterns table) with `/superpowers:finishing-a-development-branch` and then reconstruct Section E's claim/label bookkeeping by hand; that skips the console and its automated cleanup entirely, doing by hand what resuming the console already does as a unit. `{run-dir}` and `{target}` are the same values this run was invoked with; `{RUN_ID}` is this firing's own claim marker value (Step 4 above). Under `integration-model: pr-first`, the same PR `_shared/pr-early-run-lifecycle.md` opened at run start carries the same `### Resume` pointer.
+**Resuming a parked run.** "Resumes that session" above is not literal — the Task-tool subagent that hit the console has already exited by the time anyone reads this report, and there is no way to re-attach to it. The actual resume mechanism is re-adopting the same run directory: `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up`, run from inside the group's still-assigned worktree (`{run-dir}`'s own worktree — parking never clears a run's worktree assignment, so it is still there). This re-enters the same Review Console live, and its own teardown is what invokes `/superpowers:finishing-a-development-branch` and `wrap-up/cleanup-procedures.md` Section E (claim release, `auto:build`/`bot:in-progress` label removal) as one step — never hand-chain `/claude-tweaks:demo` (acceptance only, never merges — see its own Anti-Patterns table) with `/superpowers:finishing-a-development-branch` and then reconstruct Section E's claim/label bookkeeping by hand; that skips the console and its automated cleanup entirely, doing by hand what resuming the console already does as a unit. `{run-dir}` and `{target}` are the same values this run was invoked with — `{run-dir}` is this group's own minted directory (Step 4 above), the same value the claim's `runId` already carries, so re-adopting it is all resuming needs. Under `integration-model: pr-first`, the same PR `_shared/pr-early-run-lifecycle.md` opened at run start carries the same `### Resume` pointer.
 
 `PushNotification` fires only at the retry ceiling and for auto-merge FYIs (Step 6's Settle procedure and Auto-merge gate, both in `settle-and-merge.md`) — never per-firing just because a firing happened, to avoid notification fatigue.
 
@@ -274,7 +298,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 `/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its four forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
 
-`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing. It is never the same directory as a dispatched group's `/flow` run dir, which is why Step 5 threads `CLAIM_RUN_ID` explicitly; read `design-notes.md` in this skill's directory.
+`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing, scoped to the firing as a whole (which may dispatch multiple groups in bare mode). That directory is distinct from the per-group run directory Step 4 mints before claiming — the one that *becomes* the dispatched group's own `PIPELINE_RUN_DIR` once its first Task call invokes `/flow` and adopts it (`flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Unlike before, there is no separate identity to bridge between the two: the minted directory's basename is the claim's `runId` directly, passed on the Task call's command line, nothing parsed out of a report.
 
 ## Anti-Patterns
 
