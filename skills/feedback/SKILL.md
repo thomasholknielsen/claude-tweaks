@@ -142,10 +142,16 @@ own prior filing.
 
 Title: `<component>: <symptom>`
 
+Judge Definition against `_shared/needs-definition-judgment.md`'s rubric: does this learning name
+a genuine open choice with no tradeoff made yet (`needed`), or a single clear ask (`clear`)? A
+content call, made this same turn — never a structural heuristic.
+
 ```
 **Summary:** <one line>
 
 **Kind:** Defect | Gap
+
+**Definition:** Needed | Clear — <one-line rationale>
 
 **Affected component:** <skill, contract, or CLI — or "unclear / general">
 
@@ -248,10 +254,15 @@ gh label list --repo thomasholknielsen/claude-tweaks --limit 200
 ```
 
 Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
-that label is present in the output.
+that label is present in the output. Same rule for `needs:definition`: pass it **only** when
+Step 5's judgment (post any correction) reads `Needed` **and** the same `gh label list` output
+above confirms it exists — never assume it's bootstrapped on the target repo, exactly like
+`bug`/`enhancement` above. When the judgment reads `Needed` but the label isn't present, file
+without it and say so — a missing label is not a reason to fail the whole filing.
 
 **Then** file, appending the resolved `--label` argument if and only if the
-previous command confirmed it:
+previous command confirmed it, plus `--label needs:definition` when both of the conditions above
+hold:
 
 ```bash
 BODY_FILE=$(mktemp)
@@ -266,7 +277,10 @@ gh issue create --repo thomasholknielsen/claude-tweaks \
 Omit `--label` entirely otherwise and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
-which belongs to records that moved through its in-repo pipeline.
+which belongs to records that moved through its in-repo pipeline. `needs:definition` is the single
+named exception to this rule: append `--label needs:definition` when the judgment reads `Needed`,
+regardless of whether `bug`/`enhancement` also confirmed — it is not internal-taxonomy in the sense
+this rule guards against, since it describes the learning itself, not this repo's pipeline state.
 
 **On success when invoked via `--pre-confirmed`:** delete the staged file at
 `staged/wrap-up-upstream-{N}.md` immediately after `gh issue create` returns the new issue URL —

@@ -23,7 +23,17 @@ node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/
 
 ## Step 2: Judge
 
-Read the body content directly — don't just trust the risk/size labels as ground truth. Weigh:
+**Mechanical check, first — before any content weighing below.** If the labels fetched in Step 1
+include `needs:definition`, skip the rest of this step entirely and go straight to Step 3 with:
+
+```
+RECOMMEND_BUILD: false
+RECOMMEND_MERGE: false
+RATIONALE: Carries needs:definition — this record names an open choice with no tradeoff made
+yet. Run /claude-tweaks:specify #{n} to route through brainstorming before it can be built.
+```
+
+Otherwise, read the body content directly — don't just trust the risk/size labels as ground truth. Weigh:
 
 - Does the Deliverables/Acceptance Criteria text describe touching authentication, session
   handling, claim/locking logic, or other structurally sensitive behavior, regardless of what the

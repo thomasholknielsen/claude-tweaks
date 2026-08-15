@@ -126,22 +126,23 @@ test('recordPayload emits labels in order: by:*, risk:*, size:*, ceremony:*, rea
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
-test('recordPayload emits framing:baked when framing is truthy', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true });
-  assert.ok(result.labels.includes('framing:baked'));
-});
-
-test('recordPayload emits no framing:baked label when framing is omitted', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', ready: true });
+test('recordPayload emits solution:unjustified when solutionUnjustified is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', solutionUnjustified: true, ready: true });
+  assert.ok(result.labels.includes('solution:unjustified'));
   assert.ok(!result.labels.includes('framing:baked'));
 });
 
-test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+test('recordPayload emits no solution:unjustified label when solutionUnjustified is omitted', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('solution:unjustified'));
+});
+
+test('recordPayload places solution:unjustified between ceremony:* and ready in the emitted array', () => {
   const result = recordPayload({
     title: 't', body: 'b', type: 'task', origin: 'capture',
-    risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+    risk: 'low', size: 'low', ceremony: 'standard', solutionUnjustified: true, ready: true, priority: 'high',
   });
-  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'solution:unjustified', 'ready', 'priority:high']);
 });
 
 // The classification -> scoring-axis fold the health issue-payload builders read:
@@ -208,7 +209,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, size: null, ceremony: null, solutionUnjustified: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false,
   });
@@ -234,7 +235,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
+    origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false,
   });
@@ -344,15 +345,36 @@ test('parseRecordFacets: ceremony defaults to null when the label is absent', ()
   assert.strictEqual(parseRecordFacets([]).ceremony, null);
 });
 
-// AC — framing axis (challenge framing-check, presence-only label)
+// AC — solution:unjustified axis (challenge framing-check, presence-only label, renamed from framing:baked)
 
-test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
-  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+test('parseRecordFacets: solution:unjustified sets facets.solutionUnjustified to true', () => {
+  assert.strictEqual(parseRecordFacets(['solution:unjustified']).solutionUnjustified, true);
 });
 
-test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
-  assert.strictEqual(parseRecordFacets([]).framing, false);
-  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
+test('parseRecordFacets: solutionUnjustified defaults to false when solution:unjustified is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).solutionUnjustified, false);
+  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).solutionUnjustified, false);
+});
+
+test('parseRecordFacets: legacy framing:baked label still sets facets.solutionUnjustified to true', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).solutionUnjustified, true);
+});
+
+// AC — needs:definition axis (needs:definition label, presence-only, absent not false)
+
+test('parseRecordFacets: needs:definition sets facets.needsDefinition to true', () => {
+  assert.strictEqual(parseRecordFacets(['needs:definition']).needsDefinition, true);
+});
+
+test('parseRecordFacets: needsDefinition is absent (not false) when needs:definition is absent', () => {
+  assert.strictEqual('needsDefinition' in parseRecordFacets(['by:capture']), false);
+  assert.strictEqual('needsDefinition' in parseRecordFacets([]), false);
+});
+
+test('parseRecordFacets: needsDefinition and solutionUnjustified are independent, non-exclusive booleans', () => {
+  const facets = parseRecordFacets(['needs:definition', 'solution:unjustified']);
+  assert.strictEqual(facets.needsDefinition, true);
+  assert.strictEqual(facets.solutionUnjustified, true);
 });
 
 // AC 5 — dependencies

@@ -11,7 +11,7 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't create skills without the standard structure (frontmatter, interaction directive, anti-patterns table) — and don't add a relationship table back; its edges belong in `docs/skill-graph.md`
 - Don't add one-directional cross-references — always update both sides
 - Don't silently skip or drop findings — every surfaced item must be explicitly resolved (fix now, defer, accept with reason)
-- Don't put detailed reference content inline in a SKILL.md — extract to a sub-file, cited as "read `{filename}` in this skill's directory." **40 KB soft ceiling per SKILL.md and per sub-file**: `Read` has no section granularity, so once two stubs cite *sections* of one sub-file, every stub pays for the whole file. Split by the stubs' own unit, extract don't reorganize in place, leave the old heading as a stub so external refs still resolve, and confirm every substantive line survives somewhere — no test reads skill prose `[IL-70]`
+- Don't put detailed reference content inline in a SKILL.md — extract to a sub-file, cited as "read `{filename}` in this skill's directory." **40 KB soft ceiling per SKILL.md and per sub-file**: the ceiling applies one level down too — a sub-file cited by 2+ stubs is the same overflow-bucket defect, since `Read` has no section granularity `[IL-70]`
 - Don't forget to update README.md and `/help` when adding or changing skills
 - Don't use emojis in skill files — use `**(Recommended)**` bold text instead
 - Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer

@@ -24,6 +24,21 @@ const { execFileSync } = require('child_process');
 // otherwise have denied, silently disabling a policy the user opted into.
 const DEFAULT_TIMEOUT_MS = 10000;
 
+// Test-only escape hatch: sibling `npm test` runs contending for the same
+// machine can push a plain `git init`/`rev-parse` on a fresh temp repo past
+// even this budget (#104 measured 12.1s), which reads as a false
+// `indeterminate` verdict to test code that expects a definitive answer.
+// Raising DEFAULT_TIMEOUT_MS itself would weaken production's safety net
+// (see the comment above) for every real hook invocation, not just tests, so
+// the override is opt-in via env var — unset in every real Claude Code
+// session, set only by the `test` npm script (package.json).
+function resolveTimeout(opts) {
+  if (opts.timeoutMs != null) return opts.timeoutMs;
+  const override = Number(process.env.CT_HOOKS_GIT_TIMEOUT_MS);
+  if (Number.isFinite(override) && override > 0) return override;
+  return DEFAULT_TIMEOUT_MS;
+}
+
 // Failure kinds. Only `git-error` is a real ANSWER from git (it ran and exited
 // non-zero — e.g. "not a git repository"); every other kind means the question
 // was never answered at all. A caller making a policy decision must tell these
@@ -71,7 +86,7 @@ function classify(err) {
 // opts.timeoutMs overrides the budget; tests use it to force the timeout branch
 // deterministically. Production callers omit it.
 function runGit(args, cwd, opts = {}) {
-  const timeout = opts.timeoutMs != null ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
+  const timeout = resolveTimeout(opts);
   try {
     const stdout = execFileSync('git', ['-C', cwd, ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout,
