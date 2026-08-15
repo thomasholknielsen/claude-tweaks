@@ -125,6 +125,14 @@ test('reproduction: dispatches exactly 2 agents in one batch with identical prom
   assert.strictEqual(c.REPRODUCTION_AGENT_COUNT, 2);
 });
 
+test('reproduction: returns a `profile` field (not `tier`) and the bare [Use: {Profile}] grammar', () => {
+  const dispatch = c.buildReproductionDispatch('Audit src/auth.ts for OWASP top 10.', 'Capable');
+  assert.strictEqual(dispatch.profile, 'Capable');
+  assert.strictEqual(dispatch.tier, undefined);
+  assert.ok(dispatch.agents[0].prompt.includes('[Use: Capable]'));
+  assert.ok(!dispatch.agents[0].prompt.includes('model'));
+});
+
 test('reproduction: matching Path:Line + matching severity bucket → confirmed', () => {
   const a = [{ path: 'src/auth.ts', line: 42, severity: 'critical', text: 'missing check' }];
   const b = [{ path: 'src/auth.ts', line: 43, severity: 'high', text: 'missing check' }];
@@ -360,6 +368,14 @@ test('debate: runs exactly 1 round with 2 agents', () => {
   assert.strictEqual(c.DEBATE_AGENT_COUNT, 2);
 });
 
+test('debate: returns a `profile` field (not `tier`) and the bare [Use: {Profile}] grammar', () => {
+  const dispatch = c.buildDebateDispatch({ path: 'src/x.ts', line: 10, severity: 'high' }, 'Standard');
+  assert.strictEqual(dispatch.profile, 'Standard');
+  assert.strictEqual(dispatch.tier, undefined);
+  assert.ok(dispatch.agents[0].prompt.includes('[Use: Standard]'));
+  assert.ok(!dispatch.agents[0].prompt.includes('model'));
+});
+
 test('debate: both agree → confirmed with AUTO entry matching the documented schema', () => {
   assert.strictEqual(c.resolveDebate('agree', 'agree'), 'confirmed');
   const entry = `- AUTO 14:41:02 — /review debate: src/auth.ts:42 confirmed (both agreed). Reversibility: high.`;
@@ -464,6 +480,16 @@ test('red-team: dispatches exactly 3 personas in one batch', () => {
   assert.strictEqual(c.RED_TEAM_PERSONAS.length, 3);
   const roles = dispatch.agents.map((a) => a.role);
   assert.deepStrictEqual(roles.sort(), ['Implementer', 'Maintainer', 'Skeptical Reviewer']);
+});
+
+test('red-team: returns a `profile` field (not `tier`) and the bare [Use: {Profile}] grammar', () => {
+  const dispatch = c.buildRedTeamDispatch('Spec content here.', 'Fast');
+  assert.strictEqual(dispatch.profile, 'Fast');
+  assert.strictEqual(dispatch.tier, undefined);
+  for (const agent of dispatch.agents) {
+    assert.ok(agent.prompt.includes('[Use: Fast]'));
+    assert.ok(!agent.prompt.includes('model'));
+  }
 });
 
 test('red-team: each persona prompt inlines its lens question verbatim', () => {
