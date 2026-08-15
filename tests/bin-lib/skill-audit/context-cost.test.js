@@ -15,6 +15,8 @@ const {
   overCeiling,
   totalBytes,
   headroom,
+  nearCeiling,
+  WARN_RATIO,
   extractDescription,
   descriptionHashHazard,
   findDescriptionHashHazards,
@@ -59,6 +61,20 @@ test('overCeiling and headroom agree on the boundary', () => {
   assert.strictEqual(headroom(over), -1);
 });
 
+test('nearCeiling flags only the half-open [90%, 100%) band', () => {
+  const belowBand = { name: 'a', bytes: Math.floor(CEILING_BYTES * 0.9) - 1 };
+  const atBandStart = { name: 'b', bytes: Math.ceil(CEILING_BYTES * 0.9) };
+  const justUnderCeiling = { name: 'c', bytes: CEILING_BYTES - 1 };
+  const atCeiling = { name: 'd', bytes: CEILING_BYTES };
+  const overCeilingEntry = { name: 'e', bytes: CEILING_BYTES + 1 };
+
+  assert.deepStrictEqual(nearCeiling([belowBand]), []);
+  assert.deepStrictEqual(nearCeiling([atBandStart]), [atBandStart]);
+  assert.deepStrictEqual(nearCeiling([justUnderCeiling]), [justUnderCeiling]);
+  assert.deepStrictEqual(nearCeiling([atCeiling]), []);
+  assert.deepStrictEqual(nearCeiling([overCeilingEntry]), []);
+});
+
 // ── The guards. Both can fail, and after the Phase 3 extraction several files
 // sit within a kilobyte of the ceiling, so they are one paragraph from doing so.
 
@@ -79,7 +95,7 @@ test('no lazy-loaded sub-file exceeds the ceiling either', () => {
   // behind 18 stubs (IL-70), while the per-SKILL.md rule was followed exactly.
   const over = overCeiling(measureSubFiles(REPO));
   assert.deepStrictEqual(
-    over.map((s) => `${s.skill}/${s.file} ${kb(s.bytes)} KB`),
+    over.map((s) => `${s.file} ${kb(s.bytes)} KB`),
     [],
     'split by the unit the stubs actually name, rather than growing one overflow file',
   );
@@ -101,6 +117,39 @@ test('reports the payload total and the tightest headroom', () => {
 
   assert.ok(total > 0);
   assert.ok(tightest.free >= 0, `${tightest.name} is already over the ceiling`);
+});
+
+// ── Early-warning tier (#336). Non-failing: flags files approaching the
+// ceiling before they cross it, so an extraction can be planned ahead of an
+// unrelated edit forcing one under time pressure.
+
+test('warns (without failing) on any file in the 90-100% ceiling band', () => {
+  const skillHits = nearCeiling(measureSkills(REPO));
+  const subFileHits = nearCeiling(measureSubFiles(REPO));
+
+  // Real assertions against the live corpus, not a vacuous placeholder: every
+  // hit nearCeiling returns must actually sit in the half-open warning band.
+  // This catches a future regression in nearCeiling's boundary logic even
+  // though the boundary itself is already unit-tested in Task 1 against
+  // synthetic entries — this test is what proves the composition with the
+  // real measureSkills/measureSubFiles output also holds.
+  const threshold = CEILING_BYTES * WARN_RATIO;
+  for (const hit of [...skillHits, ...subFileHits]) {
+    assert.ok(hit.bytes < CEILING_BYTES, `${hit.name || hit.file} should be under the ceiling`);
+    assert.ok(hit.bytes >= threshold, `${hit.name || hit.file} should be at or above the warning threshold`);
+  }
+
+  // Sorted by bytes descending (== headroom ascending): the file closest to
+  // the ceiling — the most urgent one to act on — prints first.
+  const warnings = [...skillHits, ...subFileHits]
+    .sort((a, b) => b.bytes - a.bytes)
+    .map((s) => (s.name ? `${s.name} ${kb(s.bytes)} KB` : `${s.file} ${kb(s.bytes)} KB`));
+
+  if (warnings.length > 0) {
+    console.warn(`    WARNING: ${warnings.length} file(s) at ${Math.round(WARN_RATIO * 100)}%+ `
+      + `of the ${kb(CEILING_BYTES)} KB ceiling:`);
+    for (const w of warnings) console.warn(`      ${w}`);
+  }
 });
 
 // ── Description budget (#394). Descriptions load into every session of every

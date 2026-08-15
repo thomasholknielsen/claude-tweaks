@@ -82,6 +82,17 @@ function headroom(entry) {
   return CEILING_BYTES - entry.bytes;
 }
 
+// Early-warning tier (#336): the ceiling above is a binary pass/fail exactly at
+// the limit, with no signal as a file approaches it. WARN_RATIO marks the
+// half-open band [90%, 100%) of CEILING_BYTES — a file already at or over the
+// ceiling is the hard-fail tests' job, never also flagged here.
+const WARN_RATIO = 0.9;
+
+function nearCeiling(entries) {
+  const threshold = CEILING_BYTES * WARN_RATIO;
+  return entries.filter((e) => e.bytes >= threshold && e.bytes < CEILING_BYTES);
+}
+
 // Pulls the single-line `description:` frontmatter value out of a SKILL.md,
 // handling both the plain-scalar form (most skills) and the double-quoted
 // form (needed whenever the value contains a bare `#` — an unquoted `#`
@@ -162,6 +173,8 @@ module.exports = {
   overCeiling,
   totalBytes,
   headroom,
+  nearCeiling,
+  WARN_RATIO,
   extractDescription,
   descriptionHashHazard,
   findDescriptionHashHazards,
