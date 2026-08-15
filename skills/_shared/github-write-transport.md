@@ -1,7 +1,7 @@
 # GitHub Write Transport — gh CLI locally, GitHub MCP tools in cloud Routines
 
 Single source of truth for choosing between `gh` CLI and GitHub MCP tools for a plain
-CRUD GitHub write (list-by-label, create, edit/label, comment, close). Dispatch's claim lock
+CRUD GitHub write (list-by-label, create, edit/label, comment, close). Flow's claim lock
 (the one remaining hard compare-and-set case using this mapping) doesn't use it directly —
 see `_shared/issue-claims.md`, built on the conditional-write pattern documented at the
 bottom of this file. Health-state's cursor writes (`_shared/health-state.md`) no longer use
