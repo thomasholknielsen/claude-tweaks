@@ -48,6 +48,16 @@ test('claude-md gate opens on fact OR signal', () => {
   assert.strictEqual(bySignal.rows.find((r) => r.id === 'claude-md').gate, 'open');
 });
 
+test('claude-md gate opens on claudeMdOverBudget alone', () => {
+  const wl = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: true }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(wl.rows.find((r) => r.id === 'claude-md').gate, 'open');
+});
+
+test('claude-md gate stays closed when claudeMdOverBudget is false alongside every other signal', () => {
+  const wl = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: false }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(wl.rows.find((r) => r.id === 'claude-md').gate, 'closed');
+});
+
 test('cap resolution: flag beats fast-lane beats default', () => {
   const flag = buildWorklist({ facts: { ...FACTS, skillsLibraryExists: true }, signals: {}, ceremonyProfile: 'fast-lane', budgets: { 'skill-budget': 7 } });
   assert.deepStrictEqual(
