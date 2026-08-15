@@ -12,6 +12,7 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't add one-directional cross-references — always update both sides
 - Don't silently skip or drop findings — every surfaced item must be explicitly resolved (fix now, defer, accept with reason)
 - Don't put detailed reference content inline in a SKILL.md — extract to a sub-file, cited as "read `{filename}` in this skill's directory." **40 KB soft ceiling per SKILL.md and per sub-file**: the ceiling applies one level down too — a sub-file cited by 2+ stubs is the same overflow-bucket defect, since `Read` has no section granularity `[IL-70]`
+- Don't write a new phase-level mechanism inline and extract only after hitting the ceiling — on a SKILL.md already close to 40 KB, that reactive order costs several rounds of manual byte-trimming across every section touched. Draft the sub-file first, write only a short pointer paragraph inline, and check `wc -c` on the SKILL.md early if the addition is nontrivial
 - Don't forget to update README.md and `/help` when adding or changing skills
 - Don't use emojis in skill files — use `**(Recommended)**` bold text instead
 - Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer
