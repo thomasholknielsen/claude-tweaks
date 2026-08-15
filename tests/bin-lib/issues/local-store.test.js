@@ -73,6 +73,25 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.strictEqual(record.facets.framing, false);
 });
 
+// review finding (record #472, lens 3a): needsDefinition: true was silently
+// dropped on write/read — no test exercised the true case. Mirrors the
+// framing: true round-trip coverage above.
+test('writeRecord then readRecord round-trips needsDefinition: true', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '2-needs-def.md');
+  writeRecord(filePath, {
+    title: 'Needs def', body: 'b',
+    facets: {
+      type: 'task', origin: null, risk: null, size: null, ceremony: null, framing: false, needsDefinition: true, priority: null,
+      stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+      parent: null, isParentIssue: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
+    },
+  });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(/^needs-definition: true$/m.test(raw), 'must write needs-definition: true');
+  assert.strictEqual(readRecord(filePath).facets.needsDefinition, true);
+});
+
 // --- size facet (renamed from effort, record #217) ---
 // The emit side is size-only; the read side keeps a PERMANENT effort: fallback so
 // records written by a pre-rename repo still resolve their size facet.
