@@ -9,6 +9,7 @@ const {
   selectBudgetSlice,
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
+  funnelBuckets,
 } = require('../../../bin/lib/issues/backlog');
 const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
@@ -222,4 +223,97 @@ test('a pre-rename effort:* label reaches both gates through the parser permanen
   const legacy = recordFromLabels(9, ['risk:low', 'effort:low'], '2026-01-01T00:00:00Z');
   assert.deepStrictEqual(splitScoredUnscored([legacy]).scored.map((r) => r.number), [9]);
   assert.deepStrictEqual(filterCleanup([legacy]).map((r) => r.number), [9]);
+});
+
+// --- funnelBuckets (record #513) ---
+
+// Minimal faceted-record builder for funnelBuckets cases. Mirrors
+// sharedFacetDefaults()'s shape — keys funnelBuckets reads are explicit.
+function rec(number, facetOverrides = {}, extra = {}) {
+  return {
+    number,
+    facets: {
+      origin: null, risk: null, size: null, ceremony: null, framing: false,
+      priority: null, stage: 'backlog',
+      grants: { build: false, merge: false },
+      bot: { inProgress: false, blocked: false },
+      acceptance: null, isParentIssue: false, notPlanned: false,
+      ...facetOverrides,
+    },
+    ...extra,
+  };
+}
+
+test('funnelBuckets: every open record lands in exactly one bucket and sizes sum to input length', () => {
+  const records = [
+    rec(1, { bot: { inProgress: true, blocked: false } }),                                    // inFlight
+    rec(2, { stage: 'parked' }),                                                              // parked
+    rec(3, { notPlanned: true }),                                                             // notPlanned
+    rec(4, { stage: 'ready', grants: { build: true, merge: false } }, { blockedBy: [5] }),    // granted (5 in set)
+    rec(5, { stage: 'ready', grants: { build: true, merge: false } }),                        // dispatchable
+    rec(6, { stage: 'ready' }),                                                               // shaped
+    rec(7, { priority: 'high' }),                                                             // scored
+    rec(8),                                                                                   // captured
+  ];
+  const b = funnelBuckets(records);
+  const all = [...b.captured, ...b.scored, ...b.shaped, ...b.granted, ...b.dispatchable, ...b.inFlight, ...b.parked, ...b.notPlanned];
+  assert.equal(all.length, records.length);
+  assert.equal(new Set(all.map((r) => r.number)).size, records.length);
+  assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
+  assert.deepEqual(b.parked.map((r) => r.number), [2]);
+  assert.deepEqual(b.notPlanned.map((r) => r.number), [3]);
+  assert.deepEqual(b.granted.map((r) => r.number), [4]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [5]);
+  assert.deepEqual(b.shaped.map((r) => r.number), [6]);
+  assert.deepEqual(b.scored.map((r) => r.number), [7]);
+  assert.deepEqual(b.captured.map((r) => r.number), [8]);
+});
+
+test('funnelBuckets: empty input yields eight empty buckets', () => {
+  const b = funnelBuckets([]);
+  for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned']) {
+    assert.deepEqual(b[key], []);
+  }
+});
+
+// Adjacent-precedence pins (spec Deliverables): bot-state outranks stage labels;
+// granted outranks dispatchable.
+test('funnelBuckets precedence: bot:in-progress + parked resolves to inFlight', () => {
+  const b = funnelBuckets([rec(1, { stage: 'parked', bot: { inProgress: true, blocked: false } })]);
+  assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
+  assert.deepEqual(b.parked, []);
+});
+
+test('funnelBuckets precedence: bot:in-progress + ready + grant resolves to inFlight', () => {
+  const b = funnelBuckets([rec(1, { stage: 'ready', grants: { build: true, merge: false }, bot: { inProgress: true, blocked: false } })]);
+  assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
+  assert.deepEqual(b.dispatchable, []);
+});
+
+test('funnelBuckets precedence: ready + grant + non-empty in-set blockedBy is granted, not dispatchable', () => {
+  const records = [
+    rec(1, { stage: 'ready', grants: { build: true, merge: false } }, { blockedBy: [2] }),
+    rec(2, { stage: 'ready', grants: { build: false, merge: true } }),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.granted.map((r) => r.number), [1]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [2]);
+});
+
+test('funnelBuckets: blockedBy ids outside the open input set do not demote to granted', () => {
+  const b = funnelBuckets([rec(1, { stage: 'ready', grants: { build: true, merge: false } }, { blockedBy: [999] })]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [1]);
+  assert.deepEqual(b.granted, []);
+});
+
+test('funnelBuckets: blockedBy absent means every granted record is dispatchable (pre-#514 dormancy)', () => {
+  const b = funnelBuckets([rec(1, { stage: 'ready', grants: { build: true, merge: true } })]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [1]);
+  assert.deepEqual(b.granted, []);
+});
+
+test('funnelBuckets: scored means any of priority/risk/size without ready stage', () => {
+  const b = funnelBuckets([rec(1, { risk: 'low' }), rec(2, { size: 'medium' }), rec(3, { priority: 'low' }), rec(4)]);
+  assert.deepEqual(b.scored.map((r) => r.number), [1, 2, 3]);
+  assert.deepEqual(b.captured.map((r) => r.number), [4]);
 });
