@@ -322,6 +322,8 @@ Fail-closed on claiming; never block the session.
 | Blob listing fails in `/tidy` | Skip the sweep step, note it in the report |
 | Any other `gh`/MCP failure during claim | Drop that issue, log, continue — partial batch over hung batch |
 
+**Group-claim-all-or-abort exception.** The row above assumes an independent-batch context (dispatch's per-issue loop, `/tidy`'s sweep), where dropping one issue and continuing is safe. A consumer claiming multiple targets under the group-claim-all-or-abort invariant (`flow/claim-targets.md`'s Step 2.8) gets different treatment: any transient `gh`/MCP failure during a claim read or write — not just a classification-based contest — triggers the same all-or-abort release-and-stop (or `keep-going` skip) as a live contest, since silently continuing with one named target unclaimed reopens the double-build race group-claiming exists to prevent.
+
 ## Consumers
 
 | Skill | Role |
