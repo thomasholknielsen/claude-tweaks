@@ -102,6 +102,37 @@ test('reports the payload total and the tightest headroom', () => {
   assert.ok(tightest.free >= 0, `${tightest.name} is already over the ceiling`);
 });
 
+// ── Early-warning tier (#336). Non-failing: flags files approaching the
+// ceiling before they cross it, so an extraction can be planned ahead of an
+// unrelated edit forcing one under time pressure.
+
+test('warns (without failing) on any file in the 90-100% ceiling band', () => {
+  const skillHits = nearCeiling(measureSkills(REPO));
+  const subFileHits = nearCeiling(measureSubFiles(REPO));
+
+  // Real assertions against the live corpus, not a vacuous placeholder: every
+  // hit nearCeiling returns must actually sit in the half-open warning band.
+  // This catches a future regression in nearCeiling's boundary logic even
+  // though the boundary itself is already unit-tested in Task 1 against
+  // synthetic entries — this test is what proves the composition with the
+  // real measureSkills/measureSubFiles output also holds.
+  const threshold = CEILING_BYTES * WARN_RATIO;
+  for (const hit of [...skillHits, ...subFileHits]) {
+    assert.ok(hit.bytes < CEILING_BYTES, `${hit.name || hit.file} should be under the ceiling`);
+    assert.ok(hit.bytes >= threshold, `${hit.name || hit.file} should be at or above the warning threshold`);
+  }
+
+  const skillWarnings = skillHits.map((s) => `${s.name} ${kb(s.bytes)} KB`);
+  const subFileWarnings = subFileHits.map((s) => `${s.skill}/${s.file} ${kb(s.bytes)} KB`);
+  const warnings = [...skillWarnings, ...subFileWarnings];
+
+  if (warnings.length > 0) {
+    console.warn(`    WARNING: ${warnings.length} file(s) at ${Math.round(WARN_RATIO * 100)}%+ `
+      + `of the ${kb(CEILING_BYTES)} KB ceiling:`);
+    for (const w of warnings) console.warn(`      ${w}`);
+  }
+});
+
 // ── Description budget (#394). Descriptions load into every session of every
 // project with the plugin enabled, regardless of whether the skill ever
 // fires — a corpus-wide cost the per-SKILL.md ceiling above doesn't cover.
