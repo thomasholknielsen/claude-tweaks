@@ -18,6 +18,8 @@ step is where its config keys first get written.
 
 **Gate:** same two-tier check Step 9 documents.
 
+**Confirmed against #469's alternative-visibility report.** As currently written, this step never renders a batch-table row for this decision at all: the gate-succeeds path below writes `github-issues` silently with no prompt or table, and the gate-fails path (below) renders the choice as two full `AskUserQuestion` options with their own labels/descriptions — the tool's own option list already surfaces both values natively. Neither path exhibits the "table row shows only the recommendation" pattern the canonical `docs/skill-authoring.md` convention fix addresses; re-verified live against this file at v6.82.0 rather than assumed from the original report (filed against v6.81.0). No change needed here.
+
 **When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
 below entirely and go straight to "Write the flag to CLAUDE.md" with
 `work-backend: github-issues`. GitHub issues is the richer, proven path
