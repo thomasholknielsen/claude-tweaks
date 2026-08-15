@@ -128,12 +128,19 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 2: Pre-flight Checks
 
-Three checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
+Four checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
 - 2.5 — Branch-divergence check (branch ahead/behind)
 - 2.6 — Shape check (structural coupling, hard-fail on cross-task deps)
 - 2.7 — Design-doc rejection (granularity contract — records only, not design docs). **Path / topic input only** — a record reference is never a file path, so this ambiguity doesn't arise for `#N` input; `materialize.md`'s Step 1 hard gate is the equivalent granularity check there.
+- 2.8 — Claim the targets. Read `claim-targets.md` in this skill's directory and follow it: a
+  skip-guard (local-files backend, topic-name mode, or every target already owned by this run's
+  identity), a mint-if-unset resolution of this run's claim identity, a file-overlap warning
+  (never a gate), then a group-claim-all-or-abort procedure over `_shared/issue-claims.md`'s lock.
+  A contested target stops the pipeline before the Config Manifesto — no worktree, nothing to
+  tear down. `keep-going` (multi-target runs) downgrades a contested target to a skip instead of
+  aborting the whole run.
 
-Any hard fail or rejection stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for the detailed procedure for each substep.
+Any hard fail, rejection, or claim contest stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for 2.5-2.7's detailed procedure; `claim-targets.md` for 2.8's.
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 
