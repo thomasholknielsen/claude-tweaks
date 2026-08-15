@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { makeFinding, validateFinding, KINDS, REMEDIES } = require('../finding');
+const { makeFinding, validateFinding, KINDS, REMEDIES } = require('../../../bin/lib/residue/finding');
 
 const BRANCH = {
   kind: 'branch', scope: 'blast-radius', subject: 'worktree-foo',
