@@ -13,6 +13,8 @@ const {
   overCeiling,
   totalBytes,
   headroom,
+  nearCeiling,
+  WARN_RATIO,
   extractDescription,
   measureDescriptions,
   overDescriptionCeiling,
@@ -40,6 +42,20 @@ test('overCeiling and headroom agree on the boundary', () => {
   assert.deepStrictEqual(overCeiling([over]), [over]);
   assert.strictEqual(headroom(at), 0);
   assert.strictEqual(headroom(over), -1);
+});
+
+test('nearCeiling flags only the half-open [90%, 100%) band', () => {
+  const belowBand = { name: 'a', bytes: Math.floor(CEILING_BYTES * 0.9) - 1 };
+  const atBandStart = { name: 'b', bytes: Math.ceil(CEILING_BYTES * 0.9) };
+  const justUnderCeiling = { name: 'c', bytes: CEILING_BYTES - 1 };
+  const atCeiling = { name: 'd', bytes: CEILING_BYTES };
+  const overCeilingEntry = { name: 'e', bytes: CEILING_BYTES + 1 };
+
+  assert.deepStrictEqual(nearCeiling([belowBand]), []);
+  assert.deepStrictEqual(nearCeiling([atBandStart]), [atBandStart]);
+  assert.deepStrictEqual(nearCeiling([justUnderCeiling]), [justUnderCeiling]);
+  assert.deepStrictEqual(nearCeiling([atCeiling]), []);
+  assert.deepStrictEqual(nearCeiling([overCeilingEntry]), []);
 });
 
 // ── The guards. Both can fail, and after the Phase 3 extraction several files
