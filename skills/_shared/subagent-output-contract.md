@@ -215,6 +215,7 @@ Cap at one retry. If still malformed, accept what you got and move on (do not lo
 | Asking for both narration AND a table | Agents pick narration. The contract must be exclusive. |
 | Omitting the severity scale | Agents invent their own scales (P0/P1, MUST/SHOULD, urgent/normal), making aggregation impossible. |
 | Letting agents read sibling files for the template | Agents only see their prompt. Always inline the template literally. |
+| Stating a requirement in prose beside the inlined template | The agent receives the fence, not the file around it. Anything outside the block never arrives. |
 | Skipping the "if no findings" literal text | Without it, agents pad empty results with explanation. |
 
 ## How to integrate at a dispatch site
