@@ -50,7 +50,12 @@ function splitSections(markdown) {
   const sections = new Map();
   let current = null;
   let buffer = [];
-  for (const line of markdown.replace(/\r\n/g, '\n').split('\n')) {
+  // Normalize CRLF pairs, then strip a lone trailing \r left behind when the
+  // extracted body's last line had no paired \n to match against (e.g. a fenced
+  // block sliced at its closing fence). Without this, JS's `$` anchor (no /m or
+  // /s flags) can't match past a trailing \r, so the per-line heading regex
+  // below fails silently on CRLF input and this function returns an empty Map.
+  for (const line of markdown.replace(/\r\n/g, '\n').replace(/\r$/, '').split('\n')) {
     const m = /^## (.+)$/.exec(line);
     if (m) {
       if (current !== null) sections.set(current, buffer.join('\n'));

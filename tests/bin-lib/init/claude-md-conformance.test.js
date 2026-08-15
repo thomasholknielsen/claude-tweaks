@@ -270,15 +270,24 @@ test('splitSections tolerates CRLF line endings', () => {
   const crlfSections = splitSections(extractTemplateBody(crlfFixture));
   assert.deepStrictEqual([...crlfSections.keys()], [...lfSections.keys()]);
   for (const key of lfSections.keys()) {
-    assert.strictEqual(crlfSections.get(key).trim(), lfSections.get(key).trim());
+    assert.strictEqual(crlfSections.get(key), lfSections.get(key));
   }
 });
 
 test('checkConformance reports missing sections on a CRLF template, not an empty result', () => {
-  const crlfTemplate = TPL.replace(/\n/g, '\r\n');
+  // TPL_WITH_PHILOSOPHY exists to exercise the Philosophy special case and has
+  // no `## claude-tweaks Pipeline` heading of its own; splice one in so this
+  // test can assert all three plugin-authored sections, matching the spec's
+  // acceptance criterion, without changing TPL_WITH_PHILOSOPHY's shape for the
+  // other test that relies on it having exactly two.
+  const tplWithAllThree = TPL_WITH_PHILOSOPHY.replace(
+    "## Don'ts",
+    "## claude-tweaks Pipeline\n\n**Artifacts:** design doc then spec.\n\n## Don'ts",
+  );
+  const crlfTemplate = tplWithAllThree.replace(/\n/g, '\r\n');
   const r = checkConformance({ templateSource: crlfTemplate, projectClaudeMd: '' });
   assert.deepStrictEqual(
     r.missing.map((m) => m.section).sort(),
-    ['Working Approach', 'claude-tweaks Pipeline'].sort(),
+    ['Philosophy', 'Working Approach', 'claude-tweaks Pipeline'].sort(),
   );
 });
