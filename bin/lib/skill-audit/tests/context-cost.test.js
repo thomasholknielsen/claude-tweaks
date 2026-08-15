@@ -78,7 +78,7 @@ test('no lazy-loaded sub-file exceeds the ceiling either', () => {
   // behind 18 stubs (IL-70), while the per-SKILL.md rule was followed exactly.
   const over = overCeiling(measureSubFiles(REPO));
   assert.deepStrictEqual(
-    over.map((s) => `${s.skill}/${s.file} ${kb(s.bytes)} KB`),
+    over.map((s) => `${s.file} ${kb(s.bytes)} KB`),
     [],
     'split by the unit the stubs actually name, rather than growing one overflow file',
   );
@@ -122,9 +122,11 @@ test('warns (without failing) on any file in the 90-100% ceiling band', () => {
     assert.ok(hit.bytes >= threshold, `${hit.name || hit.file} should be at or above the warning threshold`);
   }
 
-  const skillWarnings = skillHits.map((s) => `${s.name} ${kb(s.bytes)} KB`);
-  const subFileWarnings = subFileHits.map((s) => `${s.skill}/${s.file} ${kb(s.bytes)} KB`);
-  const warnings = [...skillWarnings, ...subFileWarnings];
+  // Sorted by bytes descending (== headroom ascending): the file closest to
+  // the ceiling — the most urgent one to act on — prints first.
+  const warnings = [...skillHits, ...subFileHits]
+    .sort((a, b) => b.bytes - a.bytes)
+    .map((s) => (s.name ? `${s.name} ${kb(s.bytes)} KB` : `${s.file} ${kb(s.bytes)} KB`));
 
   if (warnings.length > 0) {
     console.warn(`    WARNING: ${warnings.length} file(s) at ${Math.round(WARN_RATIO * 100)}%+ `
