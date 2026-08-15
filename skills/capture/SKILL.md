@@ -1,7 +1,7 @@
 ---
 name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
-argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task]'
+argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition]'
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -23,7 +23,7 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpow
 
 ## Input
 
-`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>]`:
+`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>] [--needs-definition|--no-needs-definition]`:
 
 | Argument | Behavior |
 |----------|----------|
@@ -31,6 +31,7 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpow
 | `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
 | `--title="..."` | Override the auto-derived title. |
 | `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
+| `--needs-definition` / `--no-needs-definition` | Override the content-judged Definition call outright — skips Judging Definition below. Same auto/headless rationale as `--type=`: forces the flag either way with no free-text turn to correct it. |
 
 When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
@@ -48,12 +49,19 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
-Apply `by:capture` and the Type expression and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated exception below.
+Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated exception below.
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
 `producer:capture` class carries a `clean` trust verdict, a fresh capture files with `ready`
 already applied — see `_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of
 any repo that has not opted in, this never fires and the paragraph above holds unchanged.
+
+**Skip entirely when this filing carries `needs:definition`** (`$NEEDS_DEFINITION` is `true` —
+see Judging Definition below). A record naming a genuine open choice cannot be born-ready by
+construction: `ready` means agent-sized and unambiguous, and an undecided record is neither. Skip
+before the `gh issue list`/git-log round-trip below, not just its conclusion — spending that
+round-trip on a record that structurally cannot be born-ready is wasted work, not just a display
+bug. File without `ready` and proceed straight to Backend Selection's filing step.
 
 Resolve it as a **single decision, before filing**, and only under `work-backend: github-issues`
 (the trust table reads `demo:*` labels, which do not exist on the `local-files` driver). Resolve
@@ -123,6 +131,10 @@ grant.
 
    When the project's `work-types` key reads `labels`, also bootstrap the guessed `type:{t}` label the same way — its pair lives in `record.js`'s `TYPE_LABELS` (e.g. `['type:bug', 'Type: a defect in existing behavior']` when the guess is `bug`).
 
+   When `$NEEDS_DEFINITION` is `true`, also bootstrap `needs:definition` the same way — its pair
+   lives in `_shared/label-bootstrap.md`'s `LABELS_JSON` (`["needs:definition", "Undecided idea —
+   must go through /specify's brainstorm redirect before reaching ready"]`).
+
 2. Build the payload via `recordPayload` and create the issue:
 
    ```bash
@@ -151,6 +163,9 @@ grant.
      --label "type:$TYPE"
    ```
 
+   Append `--label needs:definition` to whichever `gh issue create` call above ran, when
+   `$NEEDS_DEFINITION` is `true`.
+
 3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
 
    Tell the user issue creation failed and the record landed locally instead (path printed by the script), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
@@ -175,6 +190,10 @@ node -e "const fs=require('fs');
   });
   console.log(record.path)" "$TITLE" "$BODY" "$TYPE"
 ```
+
+Add `needsDefinition: true` to the `facets` object literal above, parallel to `type`/`origin`, when
+`$NEEDS_DEFINITION` is `true` — the local-files mirror of the `github-issues` branch's
+`--label needs:definition`.
 
 `{slug}` is derived from the title by `local-store.js`'s `deriveSlug(title, existingSlugs)` — lowercase, collapse runs of non-alphanumeric characters to a single `-`, trim leading/trailing `-`, truncate to 60 characters, dedupe against `existingSlugs` with a numeric suffix (`-2`, `-3`, ...). One deterministic implementation, not a hand-executed algorithm — see `bin/lib/issues/local-store.js` and its tests in `tests/bin-lib/issues/local-store.test.js`. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
 
@@ -214,6 +233,25 @@ When `--type=<value>` is supplied, skip this entirely and use it as `$TYPE` — 
 
 The guess rides in the existing "Added: '{title}' (Type: {t})" presentation (see Immediate Routing below) — no new question is added. In interactive mode, the user can still override via free text in the next message even after a guess; `--type=` is the deterministic override for auto/headless invocation, where there is no next message.
 
+### Judging Definition
+
+When `--needs-definition` or `--no-needs-definition` is supplied, skip this entirely and use it
+as `$NEEDS_DEFINITION` — no judgment, and the presentation line below renders with no rationale
+clause (the human already decided). Otherwise, judge from the idea's content in this same turn:
+does it name a genuine open choice with no tradeoff made yet — two or more viable directions,
+no stated preference — or does it read as a single clear ask? This is a content call, not a
+structural heuristic: resist scoring it by length or keyword match, the same way `framing:baked`'s
+judgment is a content call rather than a mechanical check. `$NEEDS_DEFINITION` is `true` only when
+the idea genuinely names an undecided choice; default `false` (clear) otherwise. When `true`, form
+a one-line rationale naming the open choice — this becomes `$DEFINITION_RATIONALE`, surfaced in
+the presentation line below and, later, bootstrapped/labeled per Backend Selection above.
+
+The judgment rides in the same "Added: '{title}' (Type: {t}, Definition: {needed|clear})"
+presentation the Type guess uses (see Immediate Routing below) — no new question is added.
+When `$NEEDS_DEFINITION` is `true` and came from the judgment (not an override), append the
+rationale inline: `(Type: {t}, Definition: needed — {$DEFINITION_RATIONALE})`. An override renders
+without the rationale clause: `(Type: {t}, Definition: needed)` / `(Type: {t}, Definition: clear)`.
+
 ## Immediate Routing
 
 After adding the record, route the item per the `--route` arg or by asking.
@@ -243,7 +281,7 @@ In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-
 AUTO {time} — Routing: defaulted to keep (no --route provided). Reversibility: high (record stays in backlog state; user can re-route via /tidy at any time).
 ```
 
-In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t})" and call `AskUserQuestion`:
+In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t}, Definition: {needed|clear})" (rationale clause per Judging Definition above, when applicable) and call `AskUserQuestion`:
 
 - `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`

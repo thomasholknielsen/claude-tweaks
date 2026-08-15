@@ -84,6 +84,14 @@ the symptom. For a defect, also gather repro steps and expected-vs-actual. For a
 gap, gather the use case — what the user was trying to do and why the plugin's
 current behavior does not support it.
 
+Also judge Definition: does this learning name a genuine open choice with no
+tradeoff made yet — two or more viable directions, no stated preference — or a
+single clear ask? This is a content call made in this same turn, not a
+structural heuristic (the same posture `framing:baked`'s judgment takes).
+`Needed` only when the learning genuinely names an undecided choice; default
+`Clear` otherwise. When `Needed`, form a one-line rationale naming the open
+choice — this and the verdict feed Step 5's draft.
+
 ### Step 2: Classify the kind
 
 Read `_shared/learning-routing.md` and confirm the learning is D5 at all.
@@ -158,6 +166,8 @@ Actual: ...
 
 **Use case:** (gap only)
 <what you were trying to do and why current behavior does not support it>
+
+**Definition:** Needed | Clear — <one-line rationale, when Needed>
 
 **Plugin version:** <from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>
 
@@ -250,8 +260,14 @@ gh label list --repo thomasholknielsen/claude-tweaks --limit 200
 Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
 that label is present in the output.
 
-**Then** file, appending the resolved `--label` argument if and only if the
-previous command confirmed it:
+When Step 1's Definition judgment (or Step 5's rendered `**Definition:**` line) reads `Needed`,
+also bootstrap `needs:definition` per `_shared/label-bootstrap.md`'s check-then-create loop
+(`["needs:definition", "Undecided idea — must go through /specify's brainstorm redirect before
+reaching ready"]`) and pass `--label needs:definition`. This is the **single named exception** to
+the internal-taxonomy rule below — every other label in that taxonomy stays off-limits here.
+
+**Then** file, appending the resolved `--label` argument(s) if and only if the
+previous checks confirmed them:
 
 ```bash
 BODY_FILE=$(mktemp)
@@ -263,10 +279,11 @@ gh issue create --repo thomasholknielsen/claude-tweaks \
   --body-file "$BODY_FILE"
 ```
 
-Omit `--label` entirely otherwise and say
+Omit `--label bug`/`--label enhancement` entirely when unconfirmed and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
-which belongs to records that moved through its in-repo pipeline.
+which belongs to records that moved through its in-repo pipeline — `needs:definition` above is
+the one deliberate, named exception to this rule.
 
 **On success when invoked via `--pre-confirmed`:** delete the staged file at
 `staged/wrap-up-upstream-{N}.md` immediately after `gh issue create` returns the new issue URL —
