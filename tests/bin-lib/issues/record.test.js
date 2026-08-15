@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING,
+  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
 } = require('../../../bin/lib/issues/record');
@@ -337,7 +337,6 @@ test('parseRecordFacets: acceptance defaults to null when no demo:* label is pre
 });
 
 test('parseRecordFacets: LABELS exposes the three demo:* acceptance label strings', () => {
-  const { LABELS } = require('../../../bin/lib/issues/record');
   assert.strictEqual(LABELS.DEMO_PENDING, 'demo:pending');
   assert.strictEqual(LABELS.DEMO_APPROVED, 'demo:approved');
   assert.strictEqual(LABELS.DEMO_CHANGES_REQUESTED, 'demo:changes-requested');
