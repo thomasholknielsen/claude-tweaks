@@ -126,14 +126,16 @@ test('renderTrace throws when a detail field smuggles forbidden vocabulary', () 
 //   - all-gates-open (below): every FACT_REASONS.open string reachable, plus
 //     the remaining SIGNAL_COUNT_REASONS.open string (adrCandidateCount).
 // One gap remains, by construction rather than oversight: claude-md's gate
-// is `{kind:'facts', anyOf:['claudeMdCommandRenamed'], orSignals:[...]}`,
-// and evaluateGate() returns on the first satisfied *fact* before ever
-// consulting orSignals — so SIGNAL_BOOL_REASONS's three strings
-// (dontCandidate/contradictedConvention/incidentRecorded) can only become a
-// row's gateReason when claudeMdCommandRenamed is false, which no "make
-// every gate open" fixture can express alongside a true fact. None of the
-// three strings contains any FORBIDDEN_VOCABULARY token by inspection, but
-// that claim is unverified by a render test today.
+// is `{kind:'facts', anyOf:['claudeMdCommandRenamed', 'claudeMdOverBudget'],
+// orSignals:[...]}`, and evaluateGate() returns on the first satisfied
+// *fact* before ever consulting orSignals — so SIGNAL_BOOL_REASONS's three
+// strings (dontCandidate/contradictedConvention/incidentRecorded) can only
+// become a row's gateReason when both claudeMdCommandRenamed and
+// claudeMdOverBudget are false, which no "make every gate open" fixture can
+// express alongside two true facts. None of the three strings contains any
+// FORBIDDEN_VOCABULARY token by inspection, but that claim is unverified by
+// a render test today. claudeMdOverBudget's own open string IS exercised —
+// see the dedicated test below.
 function resultsFromGateReasons(worklist) {
   const results = {};
   for (const row of worklist.rows) {
@@ -147,27 +149,22 @@ function resultsFromGateReasons(worklist) {
   return results;
 }
 
+const CLOSED_FACTS = {
+  isRepo: true, changedFiles: [], renamedDeleted: [],
+  skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
+  journeysExist: false, journeyFiles: [],
+  claudeMdCommandRenamed: false, renamedOrDeleted: false,
+};
+
 test('every gateReason with all gates closed passes FORBIDDEN_VOCABULARY (renderTrace does not throw)', () => {
-  const closedFacts = {
-    isRepo: true, changedFiles: [], renamedDeleted: [],
-    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
-    journeysExist: false, journeyFiles: [],
-    claudeMdCommandRenamed: false, renamedOrDeleted: false,
-  };
-  const wl = buildWorklist({ facts: closedFacts, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  const wl = buildWorklist({ facts: CLOSED_FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
   assert.ok(wl.rows.every((r) => r.gate === 'closed'), 'fixture must close every gate');
   const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
   assert.doesNotThrow(() => renderTrace(state));
 });
 
 test('memory/upstream gateReason with signals open (recorded clean) passes FORBIDDEN_VOCABULARY', () => {
-  const closedFacts = {
-    isRepo: true, changedFiles: [], renamedDeleted: [],
-    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
-    journeysExist: false, journeyFiles: [],
-    claudeMdCommandRenamed: false, renamedOrDeleted: false,
-  };
-  const wl = buildWorklist({ facts: closedFacts, signals: { d4Count: 2, d5Count: 3 }, ceremonyProfile: 'standard', budgets: {} });
+  const wl = buildWorklist({ facts: CLOSED_FACTS, signals: { d4Count: 2, d5Count: 3 }, ceremonyProfile: 'standard', budgets: {} });
   const memoryRow = wl.rows.find((r) => r.id === 'memory');
   const upstreamRow = wl.rows.find((r) => r.id === 'upstream');
   assert.strictEqual(memoryRow.gate, 'open');
@@ -194,6 +191,22 @@ test('every gateReason with all gates open passes FORBIDDEN_VOCABULARY (renderTr
   assert.ok(wl.rows.every((r) => r.gate === 'open'), 'fixture must open every gate');
 
   const state = { version: 1, worklist: wl, results: resultsFromGateReasons(wl) };
+  assert.doesNotThrow(() => renderTrace(state));
+});
+
+test('claude-md gateReason for claudeMdOverBudget alone passes FORBIDDEN_VOCABULARY', () => {
+  const facts = {
+    isRepo: true, changedFiles: [], renamedDeleted: [],
+    skillsLibraryExists: false, multiFileDiff: false, docsTreeNonEmpty: false,
+    journeysExist: false, journeyFiles: [],
+    claudeMdCommandRenamed: false, renamedOrDeleted: false, claudeMdOverBudget: true,
+  };
+  const wl = buildWorklist({ facts, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  const claudeMdRow = wl.rows.find((r) => r.id === 'claude-md');
+  assert.strictEqual(claudeMdRow.gate, 'open');
+  assert.strictEqual(claudeMdRow.gateReason, 'CLAUDE.md/rules over the size budget');
+
+  const state = { version: 1, worklist: wl, results: { [claudeMdRow.id]: { rowId: claudeMdRow.id, target: claudeMdRow.target, result: 'clean', detail: claudeMdRow.gateReason } } };
   assert.doesNotThrow(() => renderTrace(state));
 });
 

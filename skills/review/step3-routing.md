@@ -25,7 +25,9 @@ Do NOT flag:
 When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.
 
 OUTPUT FORMAT (required):
-Return ONLY a markdown table, no preamble:
+First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
+WRONG: "Based on my review, DONE" — narration before the status word still violates this.
+Then return ONLY a markdown table, no preamble:
 
 | Severity | Path:Line | Finding | Evidence |
 |---|---|---|---|

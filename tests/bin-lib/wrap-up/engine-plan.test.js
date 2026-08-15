@@ -6,7 +6,8 @@ const { buildWorklist } = require('../../../bin/lib/wrap-up/engine-plan');
 const FACTS = { isRepo: true, changedFiles: ['src/a.js', 'src/b.js'], renamedDeleted: [],
   skillsLibraryExists: false, multiFileDiff: true, docsTreeNonEmpty: false,
   journeysExist: true, journeyFiles: ['docs/journeys/j1.md', 'docs/journeys/j2.md'],
-  claudeMdCommandRenamed: false, renamedOrDeleted: false, headingRenamed: false };
+  claudeMdCommandRenamed: false, renamedOrDeleted: false, headingRenamed: false,
+  claudeMdOverBudget: false };
 
 test('fact gates open on any listed fact', () => {
   const wl = buildWorklist({ facts: FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
@@ -46,6 +47,28 @@ test('claude-md gate opens on fact OR signal', () => {
   assert.strictEqual(byFact.rows.find((r) => r.id === 'claude-md').gate, 'open');
   const bySignal = buildWorklist({ facts: FACTS, signals: { incidentRecorded: true }, ceremonyProfile: 'standard', budgets: {} });
   assert.strictEqual(bySignal.rows.find((r) => r.id === 'claude-md').gate, 'open');
+});
+
+test('claude-md gate opens on claudeMdOverBudget alone', () => {
+  const wl = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: true }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(wl.rows.find((r) => r.id === 'claude-md').gate, 'open');
+});
+
+test('claude-md gate stays closed when claudeMdOverBudget is false alongside every other signal', () => {
+  const wl = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: false }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(wl.rows.find((r) => r.id === 'claude-md').gate, 'closed');
+});
+
+test('claude-md gateReason names claudeMdOverBudget in both directions', () => {
+  const open = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: true }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(
+    open.rows.find((r) => r.id === 'claude-md').gateReason,
+    'CLAUDE.md/rules over the size budget');
+
+  const closed = buildWorklist({ facts: { ...FACTS, claudeMdOverBudget: false }, signals: {}, ceremonyProfile: 'standard', budgets: {} });
+  assert.strictEqual(
+    closed.rows.find((r) => r.id === 'claude-md').gateReason,
+    'CLAUDE.md Commands section unchanged, CLAUDE.md/rules within budget, no signals raised');
 });
 
 test('cap resolution: flag beats fast-lane beats default', () => {
