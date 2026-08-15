@@ -246,7 +246,7 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 | 3e Architecture | high | Critical only when a layering violation will break a near-term feature; otherwise medium. |
 | 3f Test quality | medium | Tests are not production code; flag only when a missing test would have caught a real bug. |
 | 3g-cov Coverage | low / informational | Never blocks the review. |
-| 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
+| 3h UX (when QA data) | high | Capable profile — judgment-heavy synthesis. |
 | 3i Doc freshness | low / informational | Never blocks the review. |
 
 **3a skill-routed entries.** Lens 3a records a `review/skill` ledger entry rather than choosing a destination; `/claude-tweaks:wrap-up`'s Skills curation row classifies it via `skills/_shared/learning-routing.md`, where a finding about a claude-tweaks skill resolves to D5 (upstream) rather than a project skill update. Do not inline this note into the 3a agent prompt — that agent's job is to record, not to route.
