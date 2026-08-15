@@ -102,11 +102,11 @@ function releasedEntry(issueNumber, runId, prState) {
 // sha mismatch (someone else already broke/re-claimed it) surfaces as an
 // ordinary write failure here; the caller logs it as a release race, exactly
 // the posture that file's Failure posture table documents.
-function writeTombstone(repoSlug, name, sha, tombstoneContent) {
+function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
   const encoded = Buffer.from(tombstoneContent, 'utf8').toString('base64');
   const r = ghApi([
     '--method', 'PUT', `repos/${repoSlug}/contents/claims/${name}`,
-    '-f', `message=Release claim ${name} — reconciled (PR merged)`,
+    '-f', `message=Release claim ${name} — ${reason}`,
     '-f', `content=${encoded}`,
     '-f', `branch=${CLAIMS_BRANCH}`,
     '-f', `sha=${sha}`,
@@ -178,6 +178,8 @@ function releaseMerged({ cwd } = {}) {
     let issueState;
     if ((classified.state === 'live' || classified.state === 'stale')
         && (prState === null || (prState && typeof prState === 'object' && prState.state === 'CLOSED'))) {
+      // One gh api call per candidate, per pass — intentional; bounded by the
+      // open claim count (typically small), not by repo or issue history size.
       issueState = readIssueState(repoSlug, issueNumber);
     }
 
@@ -192,7 +194,7 @@ function releaseMerged({ cwd } = {}) {
       ? `issue-closed: reconciled from #${issueNumber}`
       : decision.reason;
     const payload = releasePayload({ issueNumber, runId, reason, now: Date.now() });
-    const ok = writeTombstone(repoSlug, name, claim.sha, payload.tombstoneContent);
+    const ok = writeTombstone(repoSlug, name, claim.sha, payload.tombstoneContent, reason);
     if (!ok) { skipped.push({ issueNumber, runId, reason: 'release-write-failed' }); continue; }
     removeInProgressLabel(repoSlug, issueNumber); // best-effort, never gates the release
     released.push(releasedEntry(issueNumber, runId, prState));

@@ -140,6 +140,47 @@ test('archiveBranches: unmerged aged branch gets archive tag then delete; young 
   assert.match(git(dir, 'branch', '--list', 'build/young'), /build\/young/);
 });
 
+test('archiveBranches: same-pass survival — 120-day-old tip gets tagged AND the tag survives the same pass (annotated tag ages from taggerdate, not the old commit date)', () => {
+  const dir = makeRepo();
+  const ancient = new Date(Date.now() - 120 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/veryold');
+  fs.writeFileSync(path.join(dir, 'f.txt'), 'f\n');
+  git(dir, 'add', 'f.txt');
+  execFileSync('git', ['commit', '-m', 'very old'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: ancient, GIT_AUTHOR_DATE: ancient },
+  });
+  git(dir, 'checkout', 'main');
+
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const entry = r.entries.find((e) => e.name === 'build/veryold');
+  assert.strictEqual(entry.action, 'tag-and-delete');
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/veryold').trim(), ''); // branch gone
+  assert.match(git(dir, 'tag', '--list', 'archive/build/veryold'), /archive\/build\/veryold/); // tag survives — not aged out in the same pass
+});
+
+test('archiveBranches: retry idempotency — a pre-existing lightweight archive tag from an earlier failed pass is force-replaced, not a dead end', () => {
+  const dir = makeRepo();
+  const old = new Date(Date.now() - 20 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/retry');
+  fs.writeFileSync(path.join(dir, 'g.txt'), 'g\n');
+  git(dir, 'add', 'g.txt');
+  execFileSync('git', ['commit', '-m', 'retry'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
+  });
+  const tip = git(dir, 'rev-parse', 'build/retry').trim();
+  git(dir, 'tag', `archive/build/retry`, tip); // pre-existing lightweight tag, same tip, from an earlier failed pass
+  git(dir, 'checkout', 'main');
+
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const entry = r.entries.find((e) => e.name === 'build/retry');
+  assert.strictEqual(entry.action, 'tag-and-delete');
+  assert.notStrictEqual(entry.reason, 'tag-failed');
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/retry').trim(), '');
+  assert.match(git(dir, 'tag', '--list', 'archive/build/retry'), /archive\/build\/retry/);
+});
+
 test('archiveBranches: archive/* tag older than 90 days is deleted, younger kept', () => {
   const dir = makeRepo();
   const ancient = new Date(Date.now() - 91 * DAY).toISOString();
@@ -171,7 +212,7 @@ test("index: ALL_CHECKS includes 'archive-branches'; dispatch sits between 'arch
   assert.ok(iArchive > -1 && iBranches > iArchive && iReap > iBranches, 'dispatch order: archive < archive-branches < reap');
 });
 
-test('index: local-merge model skips archive-branches', () => {
+test('index: no-remote repo never dispatches archive-branches; result.branches stays null', () => {
   const dir = makeRepo();
   // no origin remote -> resolveIntegrationBranch fails -> skipped no-remote; that
   // still proves archive-branches never dispatches outside pr-first. Assert the

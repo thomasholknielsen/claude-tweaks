@@ -6,6 +6,13 @@
 // checkouts converge independently (origin-side cleanup belongs to PR
 // merges and tidy's remote-ref pruning).
 //
+// Tags created here are annotated local tags (`git tag -a -f`), aged from
+// their own tagger date — the clock starts when the tag is created, not
+// when the tagged commit was authored, since the tip commit can already be
+// >90 days old at archival time (an aged branch is exactly what this check
+// tags). A legacy lightweight tag (no tagger date) falls back to aging from
+// its tagged commit's committer date.
+//
 // `git cherry {integration} {branch}` is the merged-in-substance evidence —
 // it catches squash merges that ancestry checks and `git branch -d` both
 // miss; that is why execution uses `-D` behind this decision table and
@@ -46,7 +53,7 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, prState }) {
   }
   const closedUnmerged = prState && prState.state === 'CLOSED';
   if ((prState === null || closedUnmerged) && tipAgeDays > BRANCH_AGE_DAYS) {
-    return { action: 'tag-and-delete', reason: `unmerged-aged: ${tipAgeDays}d > ${BRANCH_AGE_DAYS}d` };
+    return { action: 'tag-and-delete', reason: `unmerged-aged: ${Math.floor(tipAgeDays)}d > ${BRANCH_AGE_DAYS}d` };
   }
   if (prState === null || closedUnmerged) {
     return { action: 'skip', reason: 'too-young' };
@@ -54,10 +61,11 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, prState }) {
   return { action: 'skip', reason: 'merged-pr-without-cherry-equivalence' }; // rebased remnant — human territory
 }
 
-// Tag aging: delete archive/* tags whose tagged commit's COMMITTER date
-// (%cI) exceeds TAG_AGE_DAYS. Unparseable dates fail closed (kept).
-function shouldAgeTag(committerDateIso, nowMs) {
-  const t = Date.parse(committerDateIso);
+// Tag aging: pure threshold check against a single ISO date. The call site
+// selects which date (tagger, falling back to committer) to pass in.
+// Unparseable/empty dates fail closed (kept).
+function shouldAgeTag(dateIso, nowMs) {
+  const t = Date.parse(dateIso);
   if (Number.isNaN(t)) return false;
   return nowMs - t > TAG_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
@@ -79,7 +87,8 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   const entries = [];
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
-  const worktrees = wtList.failure ? [] : parseWorktreeList(wtList.stdout);
+  if (wtList.failure) return { entries, failure: 'git-failure' };
+  const worktrees = parseWorktreeList(wtList.stdout);
 
   const refs = runGit(['for-each-ref', '--format=%(refname:short)\t%(committerdate:iso8601-strict)\t%(objectname)', 'refs/heads'], root);
   if (refs.failure) return { entries, failure: 'git-failure' };
@@ -100,7 +109,11 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
       continue;
     }
     if (decision.action === 'tag-and-delete') {
-      const tag = runGit(['tag', `archive/${branch}`, tip], root);
+      // Annotated + force-created: -f also fixes the retry dead-end where a
+      // pre-existing archive/{branch} tag from an earlier failed pass would
+      // permanently block archival — the tag is simply recreated at the
+      // same tip.
+      const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${branch}`, tip], root);
       if (tag.failure) {
         entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'tag-failed' }); // fail closed: never delete untagged
         continue;
@@ -112,13 +125,15 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
       : { name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
   }
 
-  // Tag aging — archive/* tags whose tagged commit's committer date exceeds
-  // TAG_AGE_DAYS. Same committer-date basis as tipAgeDays above.
-  const tags = runGit(['for-each-ref', '--format=%(refname:short)\t%(committerdate:iso8601-strict)', 'refs/tags/archive'], root);
+  // Tag aging — archive/* tags whose age (from tagger date for annotated
+  // tags this check creates, falling back to committer date for legacy
+  // lightweight tags) exceeds TAG_AGE_DAYS.
+  const tags = runGit(['for-each-ref', '--format=%(refname:short)\t%(taggerdate:iso8601-strict)\t%(committerdate:iso8601-strict)', 'refs/tags/archive'], root);
   if (!tags.failure) {
     for (const line of tags.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
-      const [tag, committerDate] = line.split('\t');
-      if (!shouldAgeTag(committerDate, nowMs)) continue;
+      const [tag, taggerDate, committerDate] = line.split('\t');
+      const ageDate = taggerDate || committerDate;
+      if (!shouldAgeTag(ageDate, nowMs)) continue;
       if (dryRun) { entries.push({ name: tag, kind: 'tag', action: 'aged-out', reason: 'dry-run' }); continue; }
       const del = runGit(['tag', '-d', tag], root);
       entries.push(del.failure
