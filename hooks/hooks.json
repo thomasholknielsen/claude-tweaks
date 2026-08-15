@@ -91,6 +91,12 @@
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
+        ]
       }
     ],
     "SubagentStop": [

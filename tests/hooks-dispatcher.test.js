@@ -330,6 +330,20 @@ test('hooks.json registers a PostToolUse matcher for Skill (unfiltered, literal 
   assert.match(skillEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
 });
 
+test('hooks.json registers a PostToolUse matcher for AskUserQuestion (unfiltered, literal tool-name match)', () => {
+  // Pinning test for a real gap: post-tool-use.js's run() has had an
+  // `if (ctx.input.tool_name === 'AskUserQuestion') return logAskUserQuestion(ctx);`
+  // branch since #452, but with no matcher entry here the hook was never
+  // spawned for that tool at all — the branch was dead code in production.
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const askEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'AskUserQuestion');
+  assert.ok(askEntry, 'expected a PostToolUse AskUserQuestion matcher entry');
+  assert.strictEqual(askEntry.hooks.length, 1);
+  assert.strictEqual(askEntry.hooks[0].type, 'command');
+  assert.ok(!('if' in askEntry.hooks[0]), 'AskUserQuestion matcher must be a literal tool-name match, not pattern-filtered');
+  assert.match(askEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
+});
+
 test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_FLAGS entry git-command.js's gitTargets() resolves (finding regression)", () => {
   // git-command.js's gitTargets() is written and unit-tested to correctly
   // resolve a commit/push target through `-c`, `--exec-path`, and

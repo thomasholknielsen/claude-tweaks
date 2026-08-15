@@ -117,6 +117,8 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
 **Plan-authoring check:** when the plan's tasks grow an existing function's return shape, grep the repo for tests asserting against that return value — `notDeepEqual`-style discrimination checks, hard-coded object-literal comparisons — and for prose citing a literal count derived from it. A widened return shape can silently defang the assertion and leave the count stale. Flag any hits before finalizing the plan. (Same check applies in Design Step 3 below.)
 
+**Blocking-verification-downgrade check:** when a plan task exists specifically to verify a live/external contract (a real API response, a real hook payload, a real third-party behavior) before implementing against it, and that task gets scoped down during authoring to something that doesn't touch live data (a re-read of documentation, a type declaration, a spec citation) — flag it explicitly rather than letting the downgrade pass silently. The two are not equivalent: a task-level review that only compares the plan text against the implemented code has nothing to catch here, since both sides agree with the (possibly wrong) documented contract. Name the downgrade in the plan or the ledger so it reads as a stated risk, not an invisible one. (Same check applies in Design Step 3 below.)
+
 Proceed to **Common Step 2**.
 
 ---
