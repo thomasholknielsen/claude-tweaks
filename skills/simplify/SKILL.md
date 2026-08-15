@@ -64,7 +64,7 @@ If no files are in scope, state: "No changed files to simplify." and stop.
 
 ## Step 2: Run Code Simplifier
 
-Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), tier **Standard (Sonnet)**, and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
+Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), `[Use: Standard]` (resolve via `node bin/resolve-profile.js standard`, contract § Model Selection), and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
 
 ```
 SCOPE (required):
@@ -85,6 +85,8 @@ Do not add narration, headers, or summaries before or after the table.
 ```
 
 **What it catches and the constraints** are the shared simplification criteria — read `_shared/criteria-simplification.md`. The same criteria are reused by `/claude-tweaks:code-health`'s simplification lens, so the reactive pass and the proactive sweep flag identical complexity. (The `code-simplifier` subagent applies them; the dispatch prompt above carries the scope and output contract.)
+
+**When dispatched with file-path scope** (rather than a diff range), the subagent optimizes the whole file — it has no way to know which lines the caller's own work actually touched. Before committing the returned changes, the caller should diff them against its own change scope and revert anything outside it, the same discipline `/review` Step 5 already applies to merge-provenance exclusions (`#174`).
 
 ## Step 3: Verify
 

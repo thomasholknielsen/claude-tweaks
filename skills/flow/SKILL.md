@@ -47,7 +47,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects, filters, or claims records itself: `/claude-tweaks:dispatch` claims before handing off (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]`), or a human runs `/flow #{n}` directly against any record carrying no live claim. `/wrap-up`'s Section E / `multispec-review-console.md` release step derives the claim's identity as `basename($PIPELINE_RUN_DIR)` — the same directory dispatch minted and flow adopted, not a separately threaded value. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
+| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects or filters records — `/claude-tweaks:dispatch` does that and mints the run directory (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]`); `/flow` claims its named targets itself at Step 2.8 (`claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly against any record carrying no live claim. `/wrap-up`'s Section E / `multispec-review-console.md` release step derives the claim's identity as `basename($PIPELINE_RUN_DIR)` — the same directory dispatch minted and flow adopted, not a separately threaded value. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
@@ -128,12 +128,20 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 2: Pre-flight Checks
 
-Three checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
+Four checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
 - 2.5 — Branch-divergence check (branch ahead/behind)
 - 2.6 — Shape check (structural coupling, hard-fail on cross-task deps)
 - 2.7 — Design-doc rejection (granularity contract — records only, not design docs). **Path / topic input only** — a record reference is never a file path, so this ambiguity doesn't arise for `#N` input; `materialize.md`'s Step 1 hard gate is the equivalent granularity check there.
+- 2.8 — Claim the targets. Read `claim-targets.md` in this skill's directory and follow it: a
+  skip-guard (local-files backend, topic-name mode, every target already owned by this run's
+  identity, or a resolved step list with neither `build` nor `test`), a mint-if-unset resolution
+  of this run's claim identity, a file-overlap warning (never a gate), then a
+  group-claim-all-or-abort procedure over `_shared/issue-claims.md`'s lock.
+  A contested target stops the pipeline before the Config Manifesto — no worktree, nothing to
+  tear down. `keep-going` (multi-target runs) downgrades a contested target to a skip instead of
+  aborting the whole run.
 
-Any hard fail or rejection stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for the detailed procedure for each substep.
+Any hard fail, rejection, or claim contest stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for 2.5-2.7's detailed procedure; `claim-targets.md` for 2.8's.
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 

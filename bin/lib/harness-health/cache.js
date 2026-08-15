@@ -38,8 +38,8 @@ const durable = createDurableState('harness-health', { includeRemembered: true, 
 // unrelated cursor keys preserved, remembered-candidate merge, run-history
 // append) can be unit tested directly with plain-object fixtures, the same
 // way code-health's buildValidateFindingsUpdate is tested in
-// bin/lib/code-health/tests/build-validate-findings-update.test.js — see
-// bin/lib/harness-health/tests/build-validate-findings-update.test.js.
+// tests/bin-lib/code-health/build-validate-findings-update.test.js — see
+// tests/bin-lib/harness-health/build-validate-findings-update.test.js.
 // Every CLI-level test that reaches cmdValidateFindings's persistence step
 // fails its `git fetch origin health-state` first (no real GitHub-hosted
 // remote configured in any test), so the mutator itself is never actually

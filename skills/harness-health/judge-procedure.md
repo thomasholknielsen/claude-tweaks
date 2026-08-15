@@ -215,4 +215,4 @@ Write the findings array to `/tmp/harness-health-findings-{target.id}.json`.
 
 Reply with **nothing but** a single status line: `DONE` (or `DONE_WITH_CONCERNS`) once that file is written, `NEEDS_CONTEXT` if the target or this procedure was insufficient, or `BLOCKED` if you could not complete. An empty findings array (`[]`) written to that path with a `DONE` status is a valid, expected outcome — do not invent findings to avoid it.
 
-[Use: Standard model — judgment-heavy analysis against the dimension check, not mechanical extraction]
+[Use: Standard] (contract § Model Selection — judgment-heavy analysis against the dimension check, not mechanical extraction)

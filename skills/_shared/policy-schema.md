@@ -115,7 +115,7 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `dispatch-retry-ceiling` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Consecutive autonomous build failures before `bot:blocked` + `auto:*` removal |
-| `dispatch-batch-size` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Max groups one `/dispatch` firing processes **sequentially**, one after another (never concurrently — see #155); remaining picks stay claimed for a later firing |
+| `dispatch-batch-size` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Max groups one `/dispatch` firing processes **sequentially**, one after another (never concurrently — see #155); remaining picks stay unclaimed in the queue for a later firing to select |
 | `dispatch-pick-max-concurrent` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Deprecated alias for `dispatch-batch-size` — still resolves, emits one warn-tier notice per invocation. Removal condition: `skills/dispatch/deprecated-aliases.md` |
 | `automerge-max-lines` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff |
 | `automerge-max-files` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
@@ -170,6 +170,7 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 | `auto-fix-threshold` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:test` | `lint+type` | `lint-only`/`lint+type`/`lint+type+test` |
 | `review-severity-floor` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply cutoff; ceiling-conditional default at `unattended` — see `_shared/autonomy-ceiling.md` |
 | `tidy-aggressiveness` | `policy.yml` | `/claude-tweaks:tidy` | `conservative` | `conservative`/`moderate`/`aggressive` |
+| `superpowers-plans-retention` | `policy.yml` | `/claude-tweaks:wrap-up`'s cleanup-planning item 1 (`cleanup-procedures.md`) | `keep-forever` | `keep-forever` (never delete `docs/superpowers/plans/*.md` — this plugin's own ADR-0007 convention) / `prune-after-wrapup` (delete this spec's own plan/spec file(s) as part of cleanup) / `ask` (stage the decision for the Wrap-Up Review Console) |
 
 ## Model profiles
 

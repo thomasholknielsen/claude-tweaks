@@ -57,7 +57,7 @@ This is explicitly NOT a second reproduction pair — reproduction pairs (Step 3
 
 > **Parallel execution:** Dispatch one refutation agent per **in-scope** `confirmed` candidate (after the floor and cap in steps 2-3 below) as parallel Task agents — each runs independently, sees only its own candidate finding (not the other candidates or the lens's original reasoning chain), and returns a `refuted`/`not-refuted` verdict. Assemble results after all agents complete.
 
-This pass is the only place in the skill where an unbounded fan-out would meet the Capable (Opus) tier, so it carries an explicit severity floor and fan-out cap — fixed values stated here, not left to model judgment. This is the same cost discipline Cross-Lens Debate's step 5 applies ("Avoid running debate on every `Path:Line`…"), made concrete.
+This pass is the only place in the skill where an unbounded fan-out would meet the Capable profile, so it carries an explicit severity floor and fan-out cap — fixed values stated here, not left to model judgment. This is the same cost discipline Cross-Lens Debate's step 5 applies ("Avoid running debate on every `Path:Line`…"), made concrete.
 
 1. **Collect candidates.** Once Cross-Lens Debate above has resolved, take the full `confirmed` bucket — every finding that would otherwise proceed to Step 3 Routing, whether it got there via plain reproduction or via debate converging positive. Then apply the floor and the cap below, in that order.
 
@@ -95,8 +95,8 @@ This pass is the only place in the skill where an unbounded fan-out would meet t
 >    Finding: {finding text}
 >    Cached evidence: {evidence text}
 >
->    [Use: Capable model — refutation agent. Independent run; fresh file read, not the
->    lens's original context.]
+>    [Use: Capable] — refutation agent. Independent run; fresh file read, not the
+>    lens's original context. Resolve via `node bin/resolve-profile.js capable` (contract § Model Selection).
 >    ```
 
 5. **Resolve.** First check the dispatched agent's own status line, per the Subagent Contract (`_shared/subagent-output-contract.md`): a `BLOCKED`/`NEEDS_CONTEXT` status, or a response with no parseable `Verdict:` line, means the refutation attempt itself failed — do not fabricate a verdict for `resolveRefutation`. Treat this case directly: downgrade to `unconfirmed` and write `AUTO {HH:MM:SS} — Refutation: {path}:{line} — dispatch failed ({status}/unparseable verdict), not genuinely re-examined. Downgraded to unconfirmed out of caution. Reversibility: high.` A failed dispatch must never be logged as if a real falsification attempt happened.

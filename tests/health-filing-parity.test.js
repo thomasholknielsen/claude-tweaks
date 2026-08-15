@@ -51,6 +51,22 @@ function normalize(paragraph, skillName) {
   return paragraph.split(skillName).join('{SKILL}');
 }
 
+// Extracts the body of a `## {heading}` section — everything between the
+// heading line and the next `## ` heading, trimmed. Unlike extractParagraph
+// (blank-line-delimited), a section's own heading line is immediately
+// followed by a blank line before its body, so a blank-line stop would
+// return nothing; this stops at the next top-level heading instead. Throws
+// (test failure) if the heading is missing, matching extractParagraph's
+// no-silent-skip behavior.
+function extractSection(source, heading) {
+  const idx = source.indexOf(heading);
+  assert.ok(idx !== -1, `heading not found: ${JSON.stringify(heading)}`);
+  const afterHeading = source.slice(idx + heading.length);
+  const nextHeadingIdx = afterHeading.indexOf('\n## ');
+  const body = nextHeadingIdx === -1 ? afterHeading : afterHeading.slice(0, nextHeadingIdx);
+  return body.trim();
+}
+
 test('the "Subject check before filing" paragraph is byte-identical (modulo skill name) across all four health sweeps', () => {
   const marker = '**Subject check before filing.**';
   const normalized = {};
@@ -85,9 +101,27 @@ test('the "Exception — a headless D5 finding" paragraph is byte-identical (mod
   }
 });
 
-test('every source file actually contains both canonical markers (a renamed heading would otherwise silently empty this suite)', () => {
+test('the "## Component-Skill Contract" section is byte-identical (modulo skill name) across all four health sweeps', () => {
+  const heading = '## Component-Skill Contract';
+  const normalized = {};
+  for (const [skill, source] of Object.entries(SOURCES)) {
+    normalized[skill] = normalize(extractSection(source, heading), skill);
+  }
+  const values = Object.values(normalized);
+  const [first, ...rest] = values;
+  for (let i = 0; i < rest.length; i++) {
+    assert.strictEqual(
+      rest[i], first,
+      `Component-Skill Contract section drifted in one of the four skills (compared against code-health's). `
+      + `Got:\n${rest[i]}\n\nExpected (normalized):\n${first}`,
+    );
+  }
+});
+
+test('every source file actually contains both canonical markers plus the Component-Skill Contract heading (a renamed heading would otherwise silently empty this suite)', () => {
   for (const [skill, source] of Object.entries(SOURCES)) {
     assert.ok(source.includes('**Subject check before filing.**'), `${skill} is missing the Subject-check marker`);
     assert.ok(source.includes('**Exception — a headless D5 finding.**'), `${skill} is missing the D5-exception marker`);
+    assert.ok(source.includes('## Component-Skill Contract'), `${skill} is missing the Component-Skill Contract heading`);
   }
 });
