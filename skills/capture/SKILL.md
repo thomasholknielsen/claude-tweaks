@@ -30,8 +30,8 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpow
 | Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). |
 | `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
 | `--title="..."` | Override the auto-derived title. |
-| `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
-| `--needs-definition` / `--no-needs-definition` | Override the same-turn Definition judgment (see Guessing the Type / Definition below) outright. The final (post-override) value is what gets filed and what the born-ready short-circuit reads. Useful for auto-mode/headless capture calls, where there is no next message to send a free-text correction in. |
+| `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type and Definition below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
+| `--needs-definition` / `--no-needs-definition` | Override the same-turn Definition judgment (see Guessing the Type and Definition below) outright. The final (post-override) value is what gets filed and what the born-ready short-circuit reads. Useful for auto-mode/headless capture calls, where there is no next message to send a free-text correction in. |
 
 When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
