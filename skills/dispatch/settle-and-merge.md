@@ -12,6 +12,21 @@ A group is dispatched as **two** sequential Task calls (Step 5). This procedure 
 
 When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
+**Claim-contest special case (before the numbered steps below).** When the failure this call is
+settling is a Step 2.8 claim contest (`flow/claim-targets.md`'s "Claim contested" stop — no build
+or test ever ran, the pipeline stopped before the Config Manifesto), this record was never
+claimed by this run at all, so step 1 below's ownership check will correctly find no claim to
+release (skip is the right outcome there, not an error). The one thing this case adds: **when
+`DISPATCH_HEADLESS=1` was set on this Task call's invocation** (`dispatch/task-prompt.md`'s first
+template — set only for a `next`-form firing, where nobody is present to read the contest stop
+directly), read `headless-self-report.md` in this skill's directory and follow its dedup-and-file
+procedure, using failing-check-name `flow-step-2.8-claim-contest` and the contest stop message as
+the diagnostic body. This is the one Settle branch that runs *before* any release/classification
+logic, since there is nothing to release or classify — it is a pre-flight stop, not a build/test
+failure. When `DISPATCH_HEADLESS` is unset (a human-present dispatch form), skip this — the
+contest message the Task call already produced is sufficient; nobody headless needs a durable
+trace of it.
+
 1. Before releasing, read this record's claim blob (`claims/issue-{n}.json` on `claims-registry`, per `_shared/issue-claims.md`'s "The lock" and Ownership rule) and confirm its `runId` equals `basename($PIPELINE_RUN_DIR)` — the group directory dispatch minted before claiming and this Task call received directly (`dispatch/task-prompt.md`). A mismatch means a successor already broke the stale claim and now holds the lock — skip the rest of this step entirely (no release, no label changes, no comment), log, and move to the next record.
 2. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s Release triggers table), then remove `bot:in-progress` the same way `wrap-up/cleanup-procedures.md` Section E's claim-mirror removal does (best-effort — log a warning and continue on failure). This is a cross-reference, not a restatement — if Section E's mechanics for this step ever change, this step must be re-verified against it rather than assumed still correct.
 3. **Classify the failure and act on `auto:merge` accordingly.** Invoke `/claude-tweaks:assess-agent-autonomy` in `failure-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "failure-check #{n}")`. If `CLASSIFICATION` is `correctness` or `ambiguous`, revoke `auto:merge` if present — today's behavior for this class, unchanged:
