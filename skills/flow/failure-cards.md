@@ -1,6 +1,6 @@
 # Flow — Failure Cards
 
-Loaded by `/claude-tweaks:flow` Step 4 **only when a gate fails**. These templates are never rendered on the success path; the Pipeline Summary template in SKILL.md handles successful completion.
+Loaded by `/claude-tweaks:flow` Step 4 **only when a gate fails**. These templates are never rendered on the success path; `summary-template.md` handles successful completion.
 
 Two templates live here. Pick by failure shape:
 
