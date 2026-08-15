@@ -7,7 +7,7 @@ argument-hint: "[next|#N[,#M...]] [--batch-size <n>] [--priority high|medium|low
 
 # Dispatch — the Queue Consumer
 
-The thin protocol wrapper between the authorization gate and the executor: select → claim group → invoke /flow → settle. Sits outside the main brainstorm-to-build chain, downstream of the gate:
+The thin protocol wrapper between the authorization gate and the executor: select → mint run dir → invoke /flow (claims + executes) → settle. Sits outside the main brainstorm-to-build chain, downstream of the gate:
 
 ```
 capture / code-health / harness-health / journey-health / docs-health   (file records)
@@ -34,7 +34,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 - A scheduled Routine needs a single, deterministic unit of headless work to fire on a cadence — that's `/dispatch next`.
 - A prior dispatched build failed and you want the retry/ceiling bookkeeping to run — this happens automatically inside the Settle step (Step 6), not as a separate invocation.
 
-Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), deriving a spec, or building anything yourself. Dispatch only ever claims, hands off to `/claude-tweaks:flow`, and settles the result.
+Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), deriving a spec, or building anything yourself. Dispatch only ever mints, hands off to `/claude-tweaks:flow` (which claims), and settles the result.
 
 **Why no `drain` mode.** No mode shepherds every authorized group to completion in one session — context rot; throughput comes from routine cadence × single-group firings. The old multi-group Review Console dies with it (see Reporting below). Read `design-notes.md` in this skill's directory.
 
@@ -95,7 +95,7 @@ The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependen
 
 Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces `/tmp/dispatch-groups.json`, which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
 
-The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is Step 4's atomic 201/422 claim attempt; a record can pass this pre-filter and still turn out contested by the time it's actually claimed. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
+The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is `/flow`'s Step 2.8 atomic 201/422 claim attempt (`flow/claim-targets.md`) — a record can pass this pre-filter and still turn out contested by the time the first Task call actually claims it. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
 
 ### Step 3: Select
 
@@ -170,7 +170,7 @@ comment all moved to `/flow`'s Step 2.8 (`flow/claim-targets.md`). Proceed to St
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
-Two firings running close together each do their own unsynchronized Preflight read, so one can see different `work-backend` content than another purely from wall-clock timing. Accepted, not engineered around: it's self-correcting, and Step 4's atomic claim write — not the Preflight read — is the actual correctness boundary, so no concurrent Preflight check can cause a double-build. Read `design-notes.md` in this skill's directory.
+Two firings running close together each do their own unsynchronized Preflight read, so one can see different `work-backend` content than another purely from wall-clock timing. Accepted, not engineered around: it's self-correcting, and `/flow`'s Step 2.8 atomic claim write (inside the first Task call) — not the Preflight read, and not dispatch's own Step 4 mint — is the actual correctness boundary, so no concurrent Preflight check can cause a double-build. Read `design-notes.md` in this skill's directory.
 
 ### Step 5: Dispatch — one group at a time, sequentially
 
@@ -186,7 +186,8 @@ identical value — there is no second, later run directory to bridge to. `/flow
 it (empty on the first call, initialized by the time the second call reads it), and
 `/wrap-up`'s release step (`cleanup-procedures.md` Section E) resolves the ownership check as
 `basename($PIPELINE_RUN_DIR)` directly — the same directory the claim was written under, since
-Step 4 wrote the claim's `runId` as this directory's own basename. See `_shared/issue-claims.md`'s
+Step 4 minted this directory and `/flow`'s Step 2.8 (inside the first Task call) wrote the
+claim's `runId` as this directory's own basename. See `_shared/issue-claims.md`'s
 Identity section.
 
 **Two Task() calls per group, not one.** The agent's job is now split: a first call runs `/claude-tweaks:flow {target} build,test` and stops; only on a clean `build-test-ok` outcome does a second, entirely fresh Task() call run `/claude-tweaks:flow {target} review,polish,wrap-up`. This gives the reviewing agent genuine conversational isolation from the build — a live dispatch test found build/test/review running in one continuous context, defeating `/review`'s own adversarial multi-lens contract.
@@ -252,7 +253,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 `/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its four forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
 
-`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing, scoped to the firing as a whole (which may dispatch multiple groups in bare mode). That directory is distinct from the per-group run directory Step 4 mints before claiming — the one that *becomes* the dispatched group's own `PIPELINE_RUN_DIR` once its first Task call invokes `/flow` and adopts it (`flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Unlike before, there is no separate identity to bridge between the two: the minted directory's basename is the claim's `runId` directly, passed on the Task call's command line, nothing parsed out of a report.
+`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the queue-pull/selection/minting audit trail for this firing, scoped to the firing as a whole (which may dispatch multiple groups in bare mode). That directory is distinct from the per-group run directory Step 4 mints, before `/flow`'s Step 2.8 claims it — the one that *becomes* the dispatched group's own `PIPELINE_RUN_DIR` once its first Task call invokes `/flow` and adopts it (`flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Unlike before, there is no separate identity to bridge between the two: the minted directory's basename is the claim's `runId` directly, passed on the Task call's command line, nothing parsed out of a report.
 
 ## Anti-Patterns
 
