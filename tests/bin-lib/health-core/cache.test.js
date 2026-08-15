@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { createCache } = require('../cache');
+const { createCache } = require('../../../bin/lib/health-core/cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'health-core-cache-')); }
 

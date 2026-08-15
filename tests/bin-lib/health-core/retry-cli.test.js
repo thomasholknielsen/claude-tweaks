@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { makeRetryQueueCommands } = require('../retry-cli');
+const { makeRetryQueueCommands } = require('../../../bin/lib/health-core/retry-cli');
 
 function fakeDurableState(initial) {
   let state = { retryQueue: [], ...initial };

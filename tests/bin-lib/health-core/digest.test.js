@@ -12,7 +12,7 @@ const {
   digestEntryLine,
   initialDigestBody,
   appendDigestEntries,
-} = require('../digest');
+} = require('../../../bin/lib/health-core/digest');
 
 // --- decideFilingMode: cap boundary ---
 
