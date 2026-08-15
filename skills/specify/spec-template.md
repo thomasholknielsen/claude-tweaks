@@ -134,6 +134,7 @@ Every spec section must contain content that `/superpowers:writing-plans` can ac
 - "Standard error handling" — name the error class, the user-facing message, the log format
 - Types, models, endpoints, or files referenced anywhere in the spec that aren't defined in `Data / API Surface` or `Key Files`
 - Gotchas that say "be careful" without saying what to do (`"watch out for races"` ≠ `"use upsert, not delete+insert"`)
+- An AC asserting "styling/classes are unchanged" as literal string equality (`className === "flex p-4 text-sm"` ≠ class-*set* equivalence or a rendered/visual check) — a class-sorting formatter such as `prettier-plugin-tailwindcss` reorders class tokens on every commit, making literal-string equality structurally unenforceable
 
 If you would need `/superpowers:writing-plans` to guess, the spec is incomplete — finish it before handing off. Vagueness here compounds into plan failures downstream.
 

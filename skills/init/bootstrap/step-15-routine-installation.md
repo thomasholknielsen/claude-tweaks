@@ -14,6 +14,8 @@ For each match, note the candidate skill name (the directory under `skills/`). R
 
 Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step 2 does: resolve `git remote get-url origin`, take the resolved URL's `{repo}` segment, lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, trim leading/trailing `-`. For each candidate, a record already exists iff `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exists in the current project. If `git remote get-url origin` fails (no remote configured), treat every candidate as un-instantiated and offer them all — `/claude-tweaks:routine`'s own CREATE workflow (Step 2) handles the actual missing-remote stop later, at the point a candidate is actually created. Only offer candidates without a matching record. If no candidates remain, skip this step silently.
 
+**Confirmed out of scope for #469's alternative-visibility fix.** This preview table's rows are independently selectable routine candidates, not a recommendation-vs-alternative decision — every candidate already becomes its own checkable option in the `multiSelect` picklist below (`docs/skill-authoring.md`'s "Chunked multiSelect batch" convention, not "Multi-item decisions"), so there is no hidden alternative to surface. Leave this table as-is.
+
 **Present the candidate table** (plain text, not a tool call) — one row per candidate:
 
 ```
