@@ -34,5 +34,9 @@
   "bin/lib/code-health": {
     "lastSweptMs": 1786763389561,
     "lastHash": "e8fd6c0cc20b675e99137762742df5cdb5d8b7c9"
+  },
+  "bin/lib/code-health/tests": {
+    "lastSweptMs": 1786763614087,
+    "lastHash": "abd6ddc8cdc2e9f20f9fb2f16dfe06fc63f61b16"
   }
 }
