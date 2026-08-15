@@ -22,7 +22,8 @@ Lifecycle: `/claude-tweaks:reflect` → **`/claude-tweaks:feedback`** → upstre
   rather than this project's own code.
 - Invoked bare (no arguments) to check this project's own `upstream-candidate`
   backlog — findings the health sweeps' headless path already filed locally
-  and left for a human to forward (see Step 0).
+  and left for a human to forward — and to evaluate the session itself
+  against the maintainer-objective rubric (see Step 0).
 
 Do **not** use this skill to file against any repository other than
 `thomasholknielsen/claude-tweaks`. A learning owned by a third-party dependency
@@ -44,9 +45,17 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 
 ## Workflow
 
-### Step 0: Local upstream-candidate queue (bare invocation)
+### Step 0: Bare-invocation umbrella (queue check + session evaluation)
 
-When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this project may already hold headless-filed candidates waiting for a human — the health sweeps' Subject check (`_shared/learning-routing.md`) files these locally with `upstream-candidate` plus the sweep's own `by:` label, deliberately without `ready`, precisely because nothing else in the plugin queries them (#239). Check for them before falling back to "gather from the conversation or ask":
+When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this is bare invocation:
+run **two** gathers and merge their results into one batch before Steps 1-6 process it. Free-text
+invocation runs neither gather — the single-learning path (Steps 1-9) is unchanged.
+
+**Gather 1 — local upstream-candidate queue (unchanged).** This project may already hold
+headless-filed candidates waiting for a human — the health sweeps' Subject check
+(`_shared/learning-routing.md`) files these locally with `upstream-candidate` plus the sweep's own
+`by:` label, deliberately without `ready`, precisely because nothing else in the plugin queries them
+(#239). Check for them:
 
 ```bash
 gh issue list --label upstream-candidate --state open --json number,title,body,labels --limit 100
@@ -56,19 +65,40 @@ gh issue list --label upstream-candidate --state open --json number,title,body,l
 full backlog — while still bounding the read per `[IL-67]`; if the count returned equals the
 limit, state this in the summary rather than silently treating it as complete.)
 
-- **None found:** proceed to Step 1 as usual (gather from the conversation, or ask).
-- **One or more found:** run Steps 1-6 (gather from the issue's own body — component and symptom
-  are already in it — classify, confirm self-reference doesn't apply, dedup search, draft, scrub)
-  non-interactively for each candidate, then call `_shared/upstream-feedback-batch.md`'s shared
-  batch contract once — chunked per that file's own rule — instead of looping Step 7 individually
-  per candidate. Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one candidate that
-  triggered it — drop that candidate from the batch (report why, alongside the others' results)
-  and continue the loop for the rest; it never aborts the whole `--queue` run, matching Step 7's
-  own per-item isolation for the drift-check fallback. A dedup match in Step 4 does not stop the
-  candidate or ask interactively — see Step 4's own batch-mode text. On a checked item filing
-  successfully (Step 8), close the local `upstream-candidate` issue with a comment linking the new
-  upstream issue. An unchecked item is handled per the shared contract's decline rule (comment +
-  leave the local issue open).
+**Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory and run
+its judge dispatch (or its self-assessment degradation) against `_shared/feedback-objectives.md`'s
+rubric. Each returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a
+finding — session-evaluation.md's own rule — and never enters the batch.
+
+**Merging.** The two gathers feed **one merged batch by concatenation, no reconciliation** — each
+item keeps its own draft shape; nothing here reconciles a queue candidate against an evaluation
+finding even when they describe the same underlying issue. Run Steps 1-6 non-interactively for
+every item in the merged batch (gather from the queue issue's own body, or from the finding's
+symptom/evidence/proposed fix — component and symptom are already available either way — classify,
+confirm self-reference doesn't apply, dedup search, draft, scrub), then call
+`_shared/upstream-feedback-batch.md`'s shared batch contract once — chunked per that file's own
+rule — instead of looping Step 7 individually per item. Step 4's dedup fingerprint basis stays the
+affected component plus the core symptom, exactly as today — the draft template's
+`**Objective:**`/`**Measurement:**` fields (Step 5) never join that basis.
+
+Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one item that triggered it — drop that
+item from the batch (report why, alongside the others' results) and continue the loop for the
+rest; it never aborts the whole bare-invocation run, matching Step 7's own per-item isolation for
+the drift-check fallback. A judge finding that Step 2 classifies as not D5 drops from the batch the
+same way. A dedup match in Step 4 does not stop the item or ask interactively — see Step 4's own
+batch-mode text. On a checked queue-derived item filing successfully (Step 8), close the local
+`upstream-candidate` issue with a comment linking the new upstream issue — an evaluation finding has
+no local issue to close. An unchecked item is handled per the shared contract's decline rule
+(comment + leave the local issue open, where one exists).
+
+**Interaction budget.** The whole bare-invocation run — both gathers, however many items each
+produces — costs exactly one Step 7 batch confirmation plus one `## Next Actions` call; the
+evaluation gather itself adds zero mid-flow `AskUserQuestion` calls. Under `--dry-run`, findings
+from both gathers render and the run stops — Step 7's existing `--dry-run` precedence, extended
+here to evaluation findings without change.
+
+**Neither gather produced anything:** proceed to Step 1 as usual (gather from the conversation, or
+ask).
 
 This is what resolves `upstream-candidate`'s dead-write state (#239): the label's own consumer
 was always meant to be a human eyeball plus a manual `/claude-tweaks:feedback` invocation
@@ -149,6 +179,10 @@ Title: `<component>: <symptom>`
 
 **Affected component:** <skill, contract, or CLI — or "unclear / general">
 
+**Objective:** <objective name from _shared/feedback-objectives.md> (evaluation-sourced drafts only)
+
+**Measurement:** <counts> (countable lenses only — omitted for judgment lenses)
+
 **Repro steps:** (defect only)
 1. ...
 
@@ -169,6 +203,9 @@ Filed via /claude-tweaks:feedback.
 Resolve the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`,
 never from install metadata or `gitCommitSha` (`[IL-89]`).
 
+**Objective**/**Measurement** omission rule: both fields are omitted entirely on drafts no
+evaluation produced — free-text learnings and Step 0 queue candidates alike.
+
 ### Step 6: Scrub — HARD GATE
 
 The target repository is **public** and the learning was derived from a codebase
@@ -185,16 +222,20 @@ Keep only what a maintainer needs to reproduce or understand the report.
 This gate is unconditional. It runs on every invocation, including `--dry-run`
 and including invocations that began inside a pipeline.
 
-**`[Use: Frontier]` singleton (record #221).** The scrub judgment is dispatched — never run inline
+**`[Use: Capable]` singleton.** The scrub judgment is dispatched — never run inline
 — as **one** Task agent per invocation: the main thread hands it the drafted body from Step 5 and
 this step's removal criteria verbatim, and the agent returns the scrubbed body plus a one-line note
-of what it removed (or "nothing to remove"). Resolve the model via `node bin/resolve-profile.js
-frontier --unattended` (no `--run-dir` — `/feedback` is typically invoked standalone with no run
-directory; this matches the contract's standalone-invocation cap of one dispatch per invocation,
-enforced here by this skill rather than by a run-dir tally). Degrades to Capable per the resolver's
-own preconditions, logged in its `source` — never re-enumerated here. Filing (Step 8) and
-confirmation (Step 7) stay in the main thread and human-gated regardless of which model scrubbed
-the draft; the dispatch structure is identical either way.
+of what it removed (or "nothing to remove"). Resolve the model via `node
+"${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable --unattended` (no `--run-dir` — `/feedback`
+is typically invoked standalone with no run directory; this matches the contract's
+standalone-invocation cap of one dispatch per invocation, enforced here by this skill rather than
+by a run-dir tally). Record #221 originally granted this scrub the skill's one Frontier singleton
+slot; this skill's Frontier singleton slot now belongs to the session-evaluation judge
+(`session-evaluation.md`, Step 0) instead, knowingly superseding #221's scrub entry — the scrub's
+structure, unconditionality, and hard-stop semantics above and below are unchanged. Degrades per
+the resolver's own preconditions, logged in its `source` — never re-enumerated here. Filing (Step
+8) and confirmation (Step 7) stay in the main thread and human-gated regardless of which model
+scrubbed the draft; the dispatch structure is identical either way.
 
 **If the learning cannot survive the scrub, stop.** When the report is only
 intelligible with content that must be removed — the reproduction depends on
