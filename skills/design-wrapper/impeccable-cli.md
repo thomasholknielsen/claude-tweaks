@@ -1,7 +1,7 @@
 # Impeccable CLI — Invocation + JSON Parsing
 
-<!-- upstream-pin: impeccable-cli@3.5.0 -->
-*Contract pinned to Impeccable CLI 3.5.0 and proven by `tests/impeccable-cli-contract.test.js`, which replays committed fixtures against the installed binary. A prose re-verification pass is not a substitute for running that test: the 3.2.1 stamp this replaces was written in good faith twice while the machine ran 2.1.8, because nothing ever compared the stamp to what was installed (`[IL-89]`).*
+<!-- upstream-pin: impeccable-cli@3.6.0 -->
+*Contract pinned to Impeccable CLI 3.6.0 and proven by `tests/impeccable-cli-contract.test.js`, which replays committed fixtures against the installed binary. A prose re-verification pass is not a substitute for running that test: the 3.2.1 stamp this replaces was written in good faith twice while the machine ran 2.1.8, because nothing ever compared the stamp to what was installed (`[IL-89]`).*
 
 Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a deterministic Node binary that scans frontend files for design anti-patterns without LLM cost.
 
@@ -19,7 +19,7 @@ npx impeccable detect --json <file1> <file2> ... <fileN>
 | `--json` | Machine-readable output — required for parsing |
 | `<files>` | Space-separated list of files to scan; passed positionally |
 
-`--fast` was removed from this invocation. At the pinned 3.5.0 it is deprecated and ignored, and passing it writes `Note: --fast is deprecated and ignored. The full scan is fast now and runs every rule.` to stderr on every call — noise in a stream the parser reads. At 2.1.8 it was not a no-op at all: it forced regex-only scanning and skipped linked stylesheets entirely, which is the degradation CLI 3.5.0's own release notes describe as turning eighteen findings into one.
+`--fast` was removed from this invocation. At the pinned 3.6.0 it is still deprecated and ignored, and passing it writes `Note: --fast is deprecated and ignored. The full scan is fast now and runs every rule.` to stderr on every call — noise in a stream the parser reads. At 2.1.8 it was not a no-op at all: it forced regex-only scanning and skipped linked stylesheets entirely, which is the degradation CLI 3.5.0's own release notes describe as turning eighteen findings into one.
 
 ### Arguments resolution
 
@@ -109,7 +109,7 @@ The schema above is the pinned CLI version's real, verified output shape — the
 {
   "mode": "test",
   "skipped": "Impeccable CLI returned malformed output",
-  "install_hint": "Verify the pin: `npx impeccable --version` should print 3.5.0"
+  "install_hint": "Verify the pin: `npx impeccable --version` should print 3.6.0"
 }
 ```
 
