@@ -134,10 +134,18 @@ content itself carries, so the comment is a legible copy of the blob, not a seco
 <!-- agent-claim-release: {"runId":"...","reason":"...","releasedAt":"<ISO>"} -->
 ```
 
-Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) for a
-pipeline-owned run; for a headless routine with no pipeline (`/claude-tweaks:dispatch`), it's
-that firing's standalone-auto run dir basename per `_shared/pipeline-run-dir.md` (e.g.
-`{ISO-timestamp}-dispatch-standalone`). `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same
+Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) — for a
+directly-run or human-resumed `/flow`, the run directory it creates or adopts itself
+(`basename($PIPELINE_RUN_DIR)`); for a `/claude-tweaks:dispatch`-originated claim, the
+per-group run directory dispatch Step 4 mints *before* claiming (`{ISO-timestamp}-record-{n}`,
+keyed to the group's representative record — see `dispatch/SKILL.md` Step 4) and passes to
+both of that group's Task calls as `PIPELINE_RUN_DIR`. One identity either way: the directory
+the claim was written under is always the same directory the pipeline itself resolves as
+`$PIPELINE_RUN_DIR`, so no separate variable threads the two together. Dispatch's own
+firing-level standalone-auto run dir (`_shared/pipeline-run-dir.md`, e.g.
+`{ISO-timestamp}-dispatch-standalone`) is a different thing entirely — it holds that firing's
+own `decisions.md` (queue pull, selection, per-group minting log), never a claim's `runId`.
+`sessionId` is `CLAUDE_CODE_SESSION_ID` — the same
 identity `record-worktree` stamps. **If the comment post fails after the blob write succeeded,
 the claim still stands** — retry once, warn, proceed; the blob is the lock, and this comment
 never gates anything.
@@ -220,14 +228,17 @@ and let `/tidy`'s sweep surface it for human judgment.
 now holds the lock — skip the write, log, and post nothing. `/tidy`'s sweep is exempt: it
 releases *other* runs' stale claims by design, after batch approval.
 
-**Dispatch's success path.** `/claude-tweaks:dispatch` claims with the dispatch firing's
-`$RUN_ID`, but a successful run's release happens inside `/wrap-up` (cleanup Section E), under
-the handed-off pipeline's own, later, differently-named run dir — so `dispatch/SKILL.md`'s
-execution step exports `CLAIM_RUN_ID` before invoking `/flow`, threaded through unchanged to
-every per-spec `/wrap-up` (`flow/multi-spec.md`'s env-var table, multi-spec/bundle case);
-`cleanup-procedures.md` Section E resolves `$RUN_ID` as
-`${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}`. The failure path (dispatch's own settle
-step) already releases with the same `$RUN_ID` that made the claim.
+**Dispatch's success path.** `/claude-tweaks:dispatch` claims with the group's own minted
+run directory's basename (Step 4, before either Task call), and a successful run's release
+happens inside `/wrap-up` (cleanup Section E) under that same directory — `/flow` adopts it
+directly as `$PIPELINE_RUN_DIR` rather than creating a separate one of its own, so
+`cleanup-procedures.md` Section E resolves `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`
+directly, no separate variable to thread through. A dispatched bundle is the one exception:
+each spec's own `$PIPELINE_RUN_DIR` is a `spec-{N}/` subdirectory of the group's minted
+parent, so Section E is deferred per-spec and the actual release happens once, at end-of-run,
+against `basename($MULTISPEC_PARENT_DIR)` — see `flow/multispec-review-console.md`'s "Shared
+teardown." The failure path (dispatch's own settle step) already releases with the same
+identity that made the claim.
 
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when one
 exists — it lands in the release marker and human line.

@@ -13,6 +13,47 @@ const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { iterRunDirsWithState, writeRunState } = require('../hooks/context');
 const { resolvePrState } = require('./pr-state');
 
+// Orphan case introduced by the dispatch/flow run-identity unification:
+// dispatch mints an empty, anchored run directory (mkdir only, no
+// config.yml) before claiming, then hands it to flow's first Task call as
+// PIPELINE_RUN_DIR. If that call dies before flow ever adopts the directory
+// (writes config.yml), the mint is orphaned — no worktree, no branch, no PR
+// to resolve a state from, so the merged-PR criterion below can never catch
+// it. 24h mirrors worktree-reap.js's ORPHAN_GRACE_MS: longer than any
+// plausible pause before a retry picks the group back up, short enough that
+// a genuinely abandoned mint is swept the next day.
+const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
+
+// A minted run dir that never got adopted: no config.yml (flow's Manifesto
+// is what writes it) and older than the grace window. Pure — no I/O beyond
+// the two stats already needed to answer the question.
+function isOrphanedMint(dir, now = Date.now()) {
+  if (fs.existsSync(path.join(dir, 'config.yml'))) return false;
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(dir).mtimeMs;
+  } catch {
+    return false;
+  }
+  return (now - mtimeMs) > ORPHAN_MINT_TTL_MS;
+}
+
+// An orphaned mint has nothing to git-mv (no work/, since flow never got far
+// enough to materialize into it) and nothing to finalize as terminal (no
+// run-state.json, since record-worktree never ran on it) — a plain
+// directory move to the archive path is the whole operation.
+function archiveOrphanedMint(root, dir) {
+  const runId = path.basename(dir);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  try {
+    fs.mkdirSync(path.dirname(archiveDir), { recursive: true });
+    fs.renameSync(dir, archiveDir);
+  } catch {
+    return { ok: false, reason: 'move-failed' };
+  }
+  return { ok: true };
+}
+
 // A run's PR state + its console state -> what to do. Pure — no I/O.
 //   { action: 'archive' } | { action: 'skip', reason }
 function decideArchive(prState, consoleState) {
@@ -112,6 +153,13 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
   for (const { dir, state } of iterRunDirsWithState(root)) {
     // iterRunDirsWithState already excludes status: 'clean' — every dir
     // reached here is genuinely non-terminal.
+    if (isOrphanedMint(dir)) {
+      if (dryRun) { archived.push(dir); continue; }
+      const result = archiveOrphanedMint(root, dir);
+      if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
+      archived.push(dir);
+      continue;
+    }
     if (!state || !state.worktree) { skipped.push({ runDir: dir, reason: 'no-worktree' }); continue; }
     const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(state.worktree));
     const branch = wtEntry ? wtEntry.branch : null;
@@ -130,4 +178,7 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
   return { archived, skipped };
 }
 
-module.exports = { archiveMerged, decideArchive, readConsoleState, archiveRunDir };
+module.exports = {
+  archiveMerged, decideArchive, readConsoleState, archiveRunDir,
+  isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS,
+};

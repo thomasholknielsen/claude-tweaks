@@ -61,19 +61,25 @@ gets `demo:pending`; `_shared/work-record.md` states that an `auto:merge`'d reco
 on its now-closed issue, enabling retrospective sign-off, and this branch is the only place that
 can honor it.
 
-**`CLAIM_RUN_ID` branch — check this before merging anything.** `CLAIM_RUN_ID` is set only by
-`dispatch/task-prompt.md`'s two Task-call templates; an interactive, human-run `/flow` never sets
-it. When it **is** set, this call is running inside one of dispatch's own Task() calls — cwd-pinned
-to the worktree it inherited at launch, with no path to the main checkout
-(`dispatch/SKILL.md` Step 5's sequential-execution note). This is what routes a dispatched
-**singleton**'s merge decision through this file's own short-circuit rather than
-`settle-and-merge.md`'s group-scoped Auto-merge gate — the two-layer check above already ran on
-this record alone.
+**Dispatch-claim branch — check this before merging anything.** Read the claim blob at
+`claims/issue-${ISSUE}.json` on `claims-registry` (per `_shared/issue-claims.md`'s "The lock")
+and check whether its `runId` equals `basename($PIPELINE_RUN_DIR)`. A match means this record is
+claimed under the very run this session is executing — which only happens via
+`/claude-tweaks:dispatch` Step 4 minting `PIPELINE_RUN_DIR` before either Task call (both now
+receive that same value directly, per `dispatch/task-prompt.md`) or a human explicitly resuming
+that same claimed run (`dispatch/SKILL.md`'s "Resuming a parked run" note) — either way, this call
+is (or is standing in for) one of dispatch's own Task() calls: cwd-pinned to the worktree it
+inherited at launch, with no path to the main checkout (`dispatch/SKILL.md` Step 5's
+sequential-execution note). This is what routes a dispatched **singleton**'s merge decision
+through this file's own short-circuit rather than `settle-and-merge.md`'s group-scoped Auto-merge
+gate — the two-layer check above already ran on this record alone. No claim, or a claim held
+under a different run id, means this is a genuine top-level human-run session with nothing to
+short-circuit — fall through to the interactive path below.
 
 **`integration-model: pr-first`:** the checkout restriction below doesn't apply — `gh pr merge`
 needs no checkout, dispatched Task call or not. Run the merge procedure below exactly as the
-interactive path does; `CLAIM_RUN_ID` being set changes nothing about how this branch merges,
-only that `task-prompt.md`'s reporting format is what carries the outcome back
+interactive path does; the dispatch-claim branch matching changes nothing about how this branch
+merges, only that `task-prompt.md`'s reporting format is what carries the outcome back
 (`merged`/`armed`/`pending-review`) instead of this file's own `PushNotification`.
 
 **`integration-model: local-merge`:** the checkout restriction is real — do not run the merge
@@ -81,9 +87,10 @@ procedure below. Stop here instead: report `OUTCOME: ready-to-merge` exactly as
 `task-prompt.md`'s second-call template directs — `dispatch/settle-and-merge.md`'s Dispatching-session
 merge execution (local-merge fallback) section is what actually merges, in dispatch's own thread.
 
-Everything from here through "Release-reason mapping" below applies when `CLAIM_RUN_ID` is
-**unset** (a genuine top-level, human-run session) **or** when it is set under `pr-first` (the
-checkout-free merge above) — the local-merge stop-and-relay branch is the one exception.
+Everything from here through "Release-reason mapping" below applies when the dispatch-claim branch
+does **not** match (a genuine top-level, human-run session) **or** when it does match under
+`pr-first` (the checkout-free merge above) — the local-merge stop-and-relay branch is the one
+exception.
 
 Skip the blocking wait and merge directly — bypass the
 interactive `/superpowers:finishing-a-development-branch` handoff entirely, since a verdict already
@@ -218,13 +225,15 @@ synchronously.
 
 This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — an `auto:merge`-granted
 record that ends up inside a human-run multi-spec batch still gets the normal, fully-blocking
-consolidated Review Console, same as any other spec in the batch. No `CLAIM_RUN_ID` branch or
+consolidated Review Console, same as any other spec in the batch. No dispatch-claim branch or
 equivalent auto-merge gate exists for the multi-spec console today — it is exclusively a
 human-run-batch surface, never a dispatch one (`dispatch/SKILL.md` Step 5 dispatches groups one at
 a time; there is no dispatch path that produces a multi-spec batch for this console to defer).
 `skills/dispatch/SKILL.md`'s own "Auto-merge gate" is the mechanism a dispatched group — singleton
-or bundle — actually uses, via the `CLAIM_RUN_ID` branch above; this file's own direct-merge
-procedure is reachable only by an interactive, human-run single-record `/flow`.
+or bundle — actually uses: a singleton via the dispatch-claim branch above, a bundle via
+`settle-and-merge.md`'s own group-scoped gate directly (never reaching this file's branch at all);
+this file's own direct-merge procedure is reachable only by an interactive, human-run
+single-record `/flow` (or, per the dispatch-claim branch above, a session standing in for one).
 
 ## Multi-spec defer protocol
 
@@ -267,7 +276,7 @@ Read `ledger-narrowing-auto-file.md` in this skill's directory and follow it bef
 
 No longer a separate step here. Under `integration-model: pr-first`, `_shared/pr-early-run-lifecycle.md` already opened this run's draft PR at run start, and every phase exit since has kept it current (`_shared/git-discipline.md`'s Phase-exit push section) — a run that parks at `pending-review` already has a live, up-to-date PR with nothing left to push. The old dispatch-only durability procedure existed to protect exactly the runs that now get this for free at run start, so nothing runs here anymore.
 
-<!-- local-merge-fallback --> Under `local-merge` this was never populated either — its scope guard required `CLAIM_RUN_ID` (dispatch-originated) and dispatch requires a forge, which `local-merge` runs don't have. A `local-merge` run that parks stays resident in the session that built it, unchanged.
+<!-- local-merge-fallback --> Under `local-merge` this was never populated either — its scope guard required the dispatch-claim branch to match and dispatch requires a forge, which `local-merge` runs don't have. A `local-merge` run that parks stays resident in the session that built it, unchanged.
 
 ## Auto-resolution short-circuit (`consoleAutoResolve`)
 

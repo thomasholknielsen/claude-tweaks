@@ -58,7 +58,7 @@ for ISSUE in "${GROUP_MEMBERS[@]}"; do
   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
     console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
     runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
+    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$GROUP_RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
   # Then run _shared/issue-claims.md's "The lock" procedure against this payload's claimPath on
   # CLAIMS_BRANCH: read the file first, classify with classifyClaimBlob; absent ->
   # create_or_update_file omitting sha; tombstone or stale -> the same call WITH sha = the
