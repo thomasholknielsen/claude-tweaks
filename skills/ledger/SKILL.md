@@ -1,6 +1,6 @@
 ---
 name: ledger
-description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file, or standalone for ledger inspection. Read as a knowledge dependency (not invoked via the Skill tool) by /claude-tweaks:build, /claude-tweaks:test, /claude-tweaks:review, /claude-tweaks:wrap-up, and /claude-tweaks:flow.
+description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file, or standalone for ledger inspection. A knowledge dependency read by build/test/review/wrap-up/flow, never invoked via the Skill tool.
 argument-hint: "[resolve [<feature-name>]|<feature-name>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
