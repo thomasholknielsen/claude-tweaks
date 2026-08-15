@@ -1,0 +1,306 @@
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const {
+  ROW_LENGTH_MULTIPLE,
+  MIN_ROW_SAMPLE,
+  PROVENANCE_PATTERNS,
+  median,
+  corpusRowMedian,
+  overLongRows,
+  findProvenance,
+  extractTables,
+  similarity,
+  findDegenerateRows,
+  auditText,
+  auditCorpus,
+  formatBloatReport,
+  bloatReport,
+} = require('../../../bin/lib/skill-audit/bloat.js');
+
+const REPO = path.join(__dirname, '..', '..', '..');
+
+// A minimal skill body with one Anti-Patterns table, parameterised by rows.
+const skillWith = (rows) => [
+  '# A skill', '',
+  '## Anti-Patterns', '',
+  '| Pattern | Why It Fails |',
+  '|---------|--------------|',
+  ...rows,
+  '',
+].join('\n');
+
+const SHORT_ROW = '| Skipping the test gate | `TEST_PASSED=true` is the contract |';
+
+// ── Signal 2: over-long rows ────────────────────────────────────────────────
+
+test('median handles both parities', () => {
+  assert.strictEqual(median([1, 2, 3]), 2);
+  assert.strictEqual(median([1, 2, 3, 4]), 3); // rounded midpoint of 2 and 3
+  assert.strictEqual(median([]), null);
+});
+
+test('corpusRowMedian reports its sample and refuses a baseline below the floor', () => {
+  const thin = corpusRowMedian([{ text: skillWith([SHORT_ROW, SHORT_ROW]) }]);
+  assert.strictEqual(thin.sample, 2);
+  assert.strictEqual(thin.usable, false, 'two rows must not establish a corpus baseline');
+
+  const thick = corpusRowMedian(
+    Array.from({ length: MIN_ROW_SAMPLE }, () => ({ text: skillWith([SHORT_ROW]) })),
+  );
+  assert.strictEqual(thick.sample, MIN_ROW_SAMPLE);
+  assert.strictEqual(thick.usable, true);
+});
+
+// Discrimination: the same file, one row inflated past the multiple, is caught;
+// a row that merely sits above the median is not.
+test('over-long rows: the inflated row fails, the merely-above-median row passes', () => {
+  const baselineMedian = 150;
+  const threshold = baselineMedian * ROW_LENGTH_MULTIPLE; // 300 B
+
+  const honest = `| A pattern name | ${'x'.repeat(200)} |`;
+  const inflated = `| A pattern name | ${'x'.repeat(400)} |`;
+
+  assert.deepStrictEqual(
+    overLongRows(skillWith([honest]), baselineMedian).map((r) => r.line),
+    [],
+    `a ${200 + 15} B row is above the median but under the ${threshold} B threshold`,
+  );
+
+  const flagged = overLongRows(skillWith([inflated]), baselineMedian);
+  assert.strictEqual(flagged.length, 1);
+  assert.ok(flagged[0].bytes > threshold);
+});
+
+test('no baseline means no over-long-row findings, not zero findings by accident', () => {
+  const inflated = `| A pattern name | ${'x'.repeat(400)} |`;
+  assert.deepStrictEqual(overLongRows(skillWith([inflated]), null), []);
+});
+
+// ── Signal 3: provenance narration ──────────────────────────────────────────
+//
+// Each case pairs the bloat form with a legitimate counterexample taken from
+// this repo's own prose. The counterexample is the point: single-word patterns
+// were rejected precisely because these lines exist.
+
+const PROVENANCE_CASES = [
+  {
+    id: 'own-prior-behavior',
+    bloat: "files every surviving finding regardless of confidence, matching this skill's pre-existing behavior.",
+    legit: 'For any task modifying pre-existing behavior, write a quick smoke test capturing current output.',
+  },
+  {
+    id: 'behavior-unchanged-aside',
+    bloat: 'The dispatch now reads the cursor directly — behavior unchanged.',
+    legit: 'Declining any offer here falls through to their existing behavior unchanged.',
+  },
+  {
+    id: 'existing-precedent',
+    bloat: 'The flag is spelled `--min-confidence`, mirroring the existing precedent in `/code-health`.',
+    legit: 'A precedent set by an earlier record does not authorize skipping the gate.',
+  },
+  {
+    id: 'audit-outcome',
+    bloat: '`/claude-tweaks:init` Phase 6 — verified, no change needed.',
+    legit: 'Verify the regenerated content still matches the project state before closing the issue.',
+  },
+  {
+    id: 'sibling-remediation',
+    bloat: '`docs-health` closed the same gap the same way in the same pass.',
+    legit: 'Close the issue once the gap between the two files is gone.',
+  },
+  {
+    id: 'edit-status-marker',
+    bloat: '| **7. Template/structural conformance** (new) | Does this still match its generator? |',
+    legit: 'Pass `--force-gap-scan` to force a new scan regardless of the cursor.',
+  },
+  {
+    id: 'then-versus-now',
+    bloat: 'A 25-finding review previously fanned out to 25 unbounded agents; it now dispatches at most 10.',
+    legit: 'Suppress recommendations the user previously declined for the same spec.',
+  },
+];
+
+test('every declared pattern has a case pair', () => {
+  assert.deepStrictEqual(
+    PROVENANCE_PATTERNS.map((p) => p.id).sort(),
+    PROVENANCE_CASES.map((c) => c.id).sort(),
+  );
+});
+
+for (const { id, bloat, legit } of PROVENANCE_CASES) {
+  test(`provenance '${id}': fires on the narration, silent on the legitimate line`, () => {
+    const onBloat = findProvenance(bloat).map((h) => h.id);
+    assert.ok(onBloat.includes(id), `pattern ${id} did not fire on its own bloat case`);
+
+    const onLegit = findProvenance(legit).map((h) => h.id);
+    assert.ok(
+      !onLegit.includes(id),
+      `pattern ${id} fired on a legitimate line — it is too broad: ${legit}`,
+    );
+  });
+}
+
+// The live-corpus precision guard. /build's task briefs instruct on modifying
+// the *code under test*'s pre-existing behavior; a looser pattern turns three
+// real instructions into noise, and nothing else in this suite would notice.
+test('does not flag /build\'s legitimate "pre-existing behavior" instructions', () => {
+  const buildSkill = fs.readFileSync(path.join(REPO, 'skills', 'build', 'SKILL.md'), 'utf8');
+  const hits = findProvenance(buildSkill);
+  assert.deepStrictEqual(
+    hits.map((h) => `L${h.line} ${h.id}`),
+    [],
+    'build/SKILL.md contains no provenance narration, only runtime instructions',
+  );
+});
+
+// ── Signal 4: degenerate tables ─────────────────────────────────────────────
+
+test('extractTables separates header from body and drops separator rows', () => {
+  const tables = extractTables(skillWith([SHORT_ROW, SHORT_ROW]));
+  assert.strictEqual(tables.length, 1);
+  assert.deepStrictEqual(tables[0].header, ['Pattern', 'Why It Fails']);
+  assert.strictEqual(tables[0].rows.length, 2);
+});
+
+test('similarity ignores markdown emphasis and punctuation', () => {
+  assert.strictEqual(similarity('`Stage` — never auto-applied here', 'Stage, never auto-applied here'), 1);
+  assert.strictEqual(similarity('', 'anything'), 0);
+});
+
+const tableWith = (rows) => ['| Case | Outcome |', '|---|---|', ...rows, ''].join('\n');
+
+test('degenerate tables: repeated prose fails, a repeated verdict enum passes', () => {
+  const prose = 'Stage it; never auto-applied per the auto-mode contract reversibility floor';
+  const repeatedProse = tableWith([
+    `| A | ${prose} |`,
+    `| B | ${prose} |`,
+  ]);
+  const flagged = findDegenerateRows(repeatedProse);
+  assert.strictEqual(flagged.length, 1, 'two adjacent rows carrying one sentence is the defect');
+  assert.strictEqual(flagged[0].exact, true);
+
+  // The same shape with a short verdict column is a decision matrix doing its
+  // job. Measured: without this floor the live corpus yields 87 such pairs.
+  const verdicts = tableWith(['| A | Auto-apply |', '| B | Auto-apply |', '| C | Auto-apply |']);
+  assert.deepStrictEqual(findDegenerateRows(verdicts), []);
+});
+
+test('degenerate tables: deliberately parallel rows below the similarity floor pass', () => {
+  // The 0.7-0.8 band on the live corpus is this shape — the single varying word
+  // IS the row's content, so the table is not saying one thing N times.
+  // Verbatim from skills/design-wrapper/command-map.md, which measures 0.78.
+  const parallel = tableWith([
+    '| typography | Only when `audit` flagged a matching typography issue |',
+    '| layout | Only when `audit` flagged a matching layout issue |',
+  ]);
+  assert.deepStrictEqual(findDegenerateRows(parallel), []);
+
+  // Raise the same pair above the floor by rewording only one clause, and it
+  // is caught — the "same sentence, one clause reworded" shape.
+  const reworded = tableWith([
+    '| a | The record is meant to be safe to commit; account-scoped identifiers do not belong in a repo |',
+    '| b | The record is meant to be safe to commit — account-scoped credentials do not belong in a repo |',
+  ]);
+  assert.strictEqual(findDegenerateRows(reworded).length, 1);
+});
+
+test('degenerate detection never pairs rows across two different tables', () => {
+  const prose = 'Stage it; never auto-applied per the auto-mode contract reversibility floor';
+  const twoTables = `${tableWith([`| A | ${prose} |`])}\nSome prose between them.\n\n${tableWith([`| B | ${prose} |`])}`;
+  assert.deepStrictEqual(findDegenerateRows(twoTables), []);
+});
+
+// ── Composition ─────────────────────────────────────────────────────────────
+
+test('auditText reports the ceiling breach and its headroom', () => {
+  const clean = auditText(skillWith([SHORT_ROW]), { bytes: 1000, rowMedian: 150 });
+  assert.strictEqual(clean.overCeiling, false);
+  assert.ok(clean.headroom > 0);
+
+  const over = auditText(skillWith([SHORT_ROW]), { bytes: 1000, rowMedian: 150, ceiling: 500 });
+  assert.strictEqual(over.overCeiling, true);
+  assert.strictEqual(over.headroom, -500);
+});
+
+test('formatBloatReport says NO BASELINE rather than reporting a clean row check', () => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'bloat-'));
+  const file = path.join(dir, 'SKILL.md');
+  fs.writeFileSync(file, skillWith([SHORT_ROW, SHORT_ROW]));
+
+  const report = formatBloatReport(auditCorpus([file]));
+  assert.match(report, /NO BASELINE/);
+  assert.match(report, /no bloat signals/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('bloatReport reports only the target, dedupes it out of its own corpus, and honours the ceiling opt', () => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'bloat-'));
+  const long = `| A pattern | ${'x'.repeat(400)} |`;
+  const target = path.join(dir, 'target.md');
+  const sibling = path.join(dir, 'sibling.md');
+  fs.writeFileSync(target, skillWith([long]));
+  fs.writeFileSync(sibling, skillWith(Array.from({ length: MIN_ROW_SAMPLE }, () => SHORT_ROW)));
+
+  // Target listed twice, exactly as a shell glob would produce.
+  const report = bloatReport(target, [target, sibling]);
+  assert.ok(report.includes('target.md'));
+  assert.ok(!report.includes('sibling.md'), 'siblings supply the baseline, not findings');
+  assert.strictEqual(
+    (report.match(/long-row/g) || []).length, 1,
+    'a duplicated target path must not double-report its findings',
+  );
+  // MIN_ROW_SAMPLE short rows plus the one long row clears the sample floor.
+  assert.match(report, /row baseline: median \d+ B over \d+ rows/);
+
+  // An unmatched shell glob arrives as a literal path; it must not take the
+  // whole scan down with an ENOENT.
+  const withDeadGlob = bloatReport(target, [path.join(dir, 'nope', '*', 'SKILL.md'), sibling]);
+  assert.ok(withDeadGlob.includes('target.md'));
+
+  const withCeiling = bloatReport(target, [sibling], { ceiling: 10 });
+  assert.match(withCeiling, /over the 10 B soft ceiling/);
+  assert.ok(!bloatReport(target, [sibling], { ceiling: Infinity }).includes('soft ceiling'));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('auditCorpus runs over the whole live skill corpus and reports a usable baseline', () => {
+  const skillsDir = path.join(REPO, 'skills');
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.md')) files.push(p);
+    }
+  };
+  walk(skillsDir);
+
+  const result = auditCorpus(files);
+  assert.ok(result.rowBaseline.usable, 'the live corpus must clear the sample floor');
+
+  const totals = result.files.reduce((acc, f) => ({
+    ceiling: acc.ceiling + (f.overCeiling ? 1 : 0),
+    rows: acc.rows + f.longRows.length,
+    provenance: acc.provenance + f.provenance.length,
+    degenerate: acc.degenerate + f.degenerate.length,
+  }), { ceiling: 0, rows: 0, provenance: 0, degenerate: 0 });
+
+  // Informational, not asserted as a ratchet: these are report-only signals fed
+  // to a judging step, so pinning the counts would fail on every legitimate
+  // edit. What IS asserted is that the detector stays a signal rather than a
+  // wall — past a few percent of the corpus nobody reads the output.
+  console.log(`    bloat signals over ${files.length} files: `
+    + `${totals.ceiling} over-ceiling, ${totals.rows} long rows, `
+    + `${totals.provenance} provenance, ${totals.degenerate} degenerate`);
+  console.log(`    row baseline: median ${result.rowBaseline.median} B `
+    + `over ${result.rowBaseline.sample} rows, flag above ${result.rowThreshold} B`);
+
+  assert.ok(totals.provenance < files.length * 0.1, 'provenance patterns have gone broad');
+  assert.ok(totals.rows < result.rowBaseline.sample * 0.1, 'the row multiple has gone broad');
+});

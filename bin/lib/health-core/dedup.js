@@ -2,7 +2,7 @@
 
 // Decide what to do with a freshly-fingerprinted finding given the current
 // issue index and local cache. Pure — no I/O, no network, and asserted so by
-// bin/lib/health-core/tests/purity.test.js. Consumed by the three health
+// tests/bin-lib/health-core/purity.test.js. Consumed by the three health
 // sweeps below only — bin/lib/residue/ does not require this module; it
 // relies on fingerprint.js and finding-validation.js instead.
 //

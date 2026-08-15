@@ -66,6 +66,14 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
     return deny('grant-origination-opt-in', 'ceiling is unattended, but grant-origination-enabled is not set — machine-originated grants need their own explicit opt-in');
   }
 
+  // Gate 1c: needs:definition — cheapest possible per-record disqualifier (no
+  // trustVerdicts row lookup, independent of origin), so it runs first among the
+  // per-record checks, before any trust-row computation is spent on a record
+  // this gate would refuse anyway.
+  if (facets.needsDefinition === true) {
+    return deny('needs-definition', 'record carries needs:definition — an open choice has not been decided yet; run /claude-tweaks:specify to route through brainstorming first');
+  }
+
   // Gate 2: record class trust reads 'clean'.
   const { kind, source } = resolveProvenance({ labels: names, body: rec.body });
   const band = riskBand(names);

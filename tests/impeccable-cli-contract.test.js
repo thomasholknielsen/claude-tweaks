@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-const PINNED = '3.5.0';
+const PINNED = '3.6.0';
 const FIXTURES = path.join(__dirname, 'fixtures', 'impeccable-cli');
 
 function cliVersion() {

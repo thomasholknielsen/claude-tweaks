@@ -98,7 +98,15 @@ removes the pre-#410 classification's own coverage.
 
 → Collect each as: `[git] {worktree/branch} — {recommendation}`
 
-Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
+Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete). `-d` only proves containment in `HEAD`/the branch's own `@{upstream}` — it refuses identically whether the branch is genuinely unmerged or merged into a *different* long-lived base (a `dev` → `staging` → `main` promotion chain is the common shape). Treat a refusal as **ambiguous**, not as proof of unmerged work: before surfacing anything, check `{branch}` against every other configured base — the project's `integration-branch` policy value (when pinned) plus the repo's own default branch (`origin/HEAD`), per `_shared/integration-branch.md`'s canonical ladder, deduped when they're the same — via `git -C "{REPO_ROOT}" branch --merged origin/{base}` for each and check whether `{branch}` is listed. Three outcomes, never two:
+
+| Outcome | Recommendation |
+|---|---|
+| `-d` succeeds | Deleted — no further action |
+| `-d` refuses, but `{branch}` is listed under `--merged origin/{other-base}` for some other configured base | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
+| `-d` refuses, and `{branch}` is listed under no configured base's `--merged` | **`unmerged — manual review required`** (unchanged) — this is the only case that actually means unmerged work |
+
+Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 
 A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
 is using it. Surface it as `locked — manual review required`.
