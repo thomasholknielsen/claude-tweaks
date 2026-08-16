@@ -178,12 +178,11 @@ When invoked directly (not by a parent skill), present findings and end with the
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion`:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Full review (Recommended)"`, `description`: `"/claude-tweaks:review {spec} — full code review"`
-- Option 2 — `label`: `"Verify changes"`, `description`: `"/claude-tweaks:test {spec} — verify changes from reflection"`
-- Option 3 — `label`: `"Capture + clean up"`, `description`: `"/claude-tweaks:wrap-up {spec} — capture learnings and clean up"`
+**`/claude-tweaks:review {spec}`** — full code review (recommended)
+`/claude-tweaks:test {spec}` — verify changes from reflection
+`/claude-tweaks:wrap-up {spec}` — capture learnings and clean up
 
 ## Component-Skill Contract
 

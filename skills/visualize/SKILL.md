@@ -116,11 +116,11 @@ If `docs/REGISTRY.md` exists, Step 3 resolved to `docs/diagrams/{slug}.html` (th
 
 ## Next Actions
 
-After generating, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+After generating, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Generate another diagram (Recommended if more signals matched)"`, `description`: `"/claude-tweaks:visualize <type> <topic> — generate another diagram"`
-- Option 2 — `label`: `"Continue the calling flow"`, `description`: `"Return to wherever this was invoked from (journey commit, spec summary, review findings)"`
-- Option 3 (only when persisted) — `label`: `"View the file"`, `description`: `"Open {path} to see the generated diagram"`
+`/claude-tweaks:visualize <type> <topic>` — generate another diagram (recommended if more signals matched)
+Continue the calling flow — return to wherever this was invoked from (journey commit, spec summary, review findings)
+{path} — open to view the generated diagram (when persisted)
 
 ## Component-Skill Contract
 

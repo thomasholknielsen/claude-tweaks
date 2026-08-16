@@ -314,7 +314,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 
 ## Next Actions
 
-Generate 2-4 options based on context. The signal-to-option lookup table below stays as-is — it's the assistant's own logic for picking which options apply to the current build's signals, never itself shown to the user or converted into an `AskUserQuestion` option:
+Generate 2-4 lines based on context. The signal-to-option lookup table below stays as-is — it's the assistant's own logic for picking which lines apply to the current build's signals, never itself shown to the user:
 
 | Signal | Option |
 |--------|--------|
@@ -323,11 +323,12 @@ Generate 2-4 options based on context. The signal-to-option lookup table below s
 | QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
 | Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
 
-Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)` — normally the review line, chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line); in worktree mode, the finish-branch line takes the recommended slot instead:
 
-- Option 1 — switches on the browser-availability signal exactly as the table above (do not collapse the two branches into always-`full`): when UI changed AND a browser is available, `label`: `"Code + visual review"`, `description`: `"/claude-tweaks:review {N} full — code + visual review"`; otherwise `label`: `"Code review"`, `description`: `"/claude-tweaks:review {N} — code review"`. Suffixed `(Recommended)` unless worktree mode makes option 3 the recommendation instead.
-- Option 2 — `label`: `"QA validation"`, `description`: `"/claude-tweaks:test qa — validate {X} QA stories before review"`
-- Option 3 — `label`: `"Finish branch"`, `description`: `"/superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch"`, suffixed `(Recommended)` when in worktree mode instead of option 1
+`/claude-tweaks:review {N} full` — code + visual review
+`/claude-tweaks:review {N}` — code review
+`/claude-tweaks:test qa` — validate {X} QA stories before review (when QA stories exist)
+`/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode)
 
 ## Component-Skill Contract
 
