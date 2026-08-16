@@ -99,7 +99,7 @@ Keep track of which source won: Step 7's preview names it, and Step 9 writes the
 | A branch resolved | the branch name wrapped in backticks — e.g. `` `dev` `` |
 | Nothing resolved | ``the target branch (resolve it from `git remote show origin`'s HEAD branch line if not already obvious)`` |
 
-Substitute before assembling the body, never after — every downstream consumer (this body, Step 8's guided-creation `instructions`) reads `RESOLVED_PROMPT`, and a literal `{{TARGET_BRANCH}}` reaching a live routine means the firing tries to check out a branch by that name, matches nothing, and proceeds on whatever the container started with. Step 9's record captures `kernel_version` (read via the documented grep), not the prompt text itself. Verify no `{{` remains in the assembled content before calling `RemoteTrigger`.
+Substitute before assembling the body, never after — every downstream consumer (this body, Step 8's guided-creation `instructions`) reads `RESOLVED_PROMPT`, and a literal `{{TARGET_BRANCH}}` reaching a live routine means the firing tries to check out a branch by that name, matches nothing, and proceeds on whatever the container started with. Step 9's record captures `kernel_version` (read via the documented grep), not the prompt text itself. Verify no `{{` and no literal `{kickoff}` remains in the assembled content before calling `RemoteTrigger`.
 
 If `template.mcp_connections` is non-empty, add a top-level `mcp_connections` array with `{connector_uuid, name, url}` entries (same shape `/schedule` uses) — warn the user if a named connector isn't currently connected, and direct them to https://claude.ai/customize/connectors.
 
@@ -168,7 +168,7 @@ Otherwise, re-resolve schedule too: follow CREATE Step 5's full cadence-picker p
 
 Re-resolve the branch always, `--defaults` or not (unlike schedule, which `--defaults` freezes) — follow CREATE Step 5.5's precedence with one insertion: **the existing record's `branch` field sits between source 4 and source 5.** Explicit statements of intent (`--branch`, `template.branch`, `integration-branch` in `policy.yml`, a documented branching model) still outrank it, which is what makes the #132 migration work — add `integration-branch` to `policy.yml`, run `update`, and the live routine re-points. Git inference must not outrank it: without that insertion, running `update` from the default branch would silently re-point a routine already pinned to `dev` back to `main`, which is the original bug wearing an update's clothes. A record with no `branch` key at all (every record written before the field existed) inserts nothing and falls straight through to source 5. If the resolved branch differs from the record's, Step 4's diff must show it on its own line — it's the field most likely to change what a routine actually audits, and the least visible if it changes quietly.
 
-**Step 4.** Assemble the body the same way as CREATE's body-assembly step (Step 6 above), then show a diff between the recorded config (schedule, template version, resolved values) and the freshly assembled one. If nothing changed, report that and stop.
+**Step 4.** Assemble the body the same way as CREATE's body-assembly step (Step 6 above), then show a diff between the recorded config (schedule, template version, kernel_version, resolved values) and the freshly assembled one. If nothing changed, report that and stop.
 
 **Step 5.** Review gate — same standard as CREATE's Step 7: show the diff (Step 4's output) always, regardless of `--defaults`.
 
