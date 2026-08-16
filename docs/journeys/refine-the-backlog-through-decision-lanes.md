@@ -1,6 +1,7 @@
 ---
 files:
   - skills/backlog/refine-mode.md
+  - skills/backlog/refine-lanes.md
   - skills/backlog/SKILL.md
   - bin/lib/issues/backlog.js
 ---
