@@ -97,7 +97,7 @@ one-time provision-now offer, which uses this list whole):
   ["auto:build",        "Grant: agents may build this record autonomously (human-granted; machinery only removes)"],
   ["auto:merge",        "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)"],
   ["bot:in-progress",   "Bot state: an agent currently holds the claim on this record"],
-  ["bot:blocked",       "Bot state: retry ceiling reached — needs human re-triage before autonomous retry"],
+  ["bot:blocked",       "Bot state: retry ceiling or merge-verification park — needs human re-triage before autonomous retry"],
   ["demo:pending",           "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo"],
   ["demo:approved",          "Acceptance: a human verified this record does what was asked"],
   ["demo:changes-requested", "Acceptance: a human found a gap during sign-off — see the linked follow-up record"],

@@ -66,6 +66,16 @@ test('policy-schema.md\'s coverage block lists exactly the Bash write shapes the
     'GATE_COVERAGE.bashWriteShapes and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
 });
 
+test('policy-schema.md\'s coverage block lists exactly the gate\'s exemptions', () => {
+  // Derived from the constant, never a hand-typed literal (spec #537): a
+  // hand-typed expectation would keep passing even after the exemption's
+  // shape changed underneath it, which is exactly the drift this whole
+  // suite exists to catch.
+  const expected = [...GATE_COVERAGE.exemptions.paths, GATE_COVERAGE.exemptions.commit];
+  assert.deepStrictEqual(tokensFor(coverageBlock(), 'Exemptions'), expected,
+    'GATE_COVERAGE.exemptions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
+});
+
 test('GATE_COVERAGE is frozen, so a caller cannot mutate the contract at runtime', () => {
   assert.ok(Object.isFrozen(GATE_COVERAGE));
   for (const key of Object.keys(GATE_COVERAGE)) {
