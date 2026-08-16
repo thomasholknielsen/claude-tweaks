@@ -6,6 +6,7 @@ files:
   - skills/tidy/scan-procedures.md
   - bin/lib/reconcile/release-merged.js
   - bin/lib/reconcile/archive-branches.js
+  - bin/lib/reconcile/reap-merged.js
 ---
 
 # Tidy Standalone-Auto Report: Verb-Grouped Sections and Reconcile-Converged Rows
@@ -18,17 +19,17 @@ files:
 ## Steps
 
 ### 1. Scans run — reconcile converges first
-- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims whose issues merged or closed (`issue-closed: reconciled from #{n}`), and the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
-- **Expectation:** No approval prompt for any of this — these are reconcile's background-convergence writes, outside the skill-side auto-mode contract; tidy only reports the results.
+- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
+- **Expect:** No approval prompt for any of this — these are reconcile's background-convergence writes, outside the skill-side auto-mode contract; tidy only reports the results.
 
 ### 2. Findings route by the table, not judgment
 - **Action:** Each scan finding routes per `step-6-auto.md`'s tier table (default `moderate`): reversible git-tracked cleanups auto-apply, outward-facing GitHub writes stage, no-op findings surface with their command.
-- **Expectation:** The section a finding lands in is a stated function of its routing outcome (bucket mapping) — executed/converged → Applied; staged-executable → Approve; command-carrying no-ops → Yours; Keep/clean scans → Clean (counted, never itemized). Nothing renders information-only.
+- **Expect:** The section a finding lands in is a stated function of its routing outcome (bucket mapping) — executed/converged → Applied; staged-executable → Approve; command-carrying no-ops → Yours; Keep/clean scans → Clean (counted, never itemized). Nothing renders information-only.
 
 ### 3. The report renders before any question
 - **Action:** The hard gate requires the rendered report in the same response, above any `AskUserQuestion`.
-- **Expectation:** No box-drawing tables; records as `#{N} "{title}"` (titles from the scan agents' own findings — no per-row `gh issue view`); `{run-dir}/decisions.md` referenced by path exactly once.
+- **Expect:** No box-drawing tables; records as `#{N} "{title}"` (titles from the scan agents' own findings — no per-row `gh issue view`); `{run-dir}/decisions.md` referenced by path exactly once.
 
 ### 4. Next Actions close the loop
 - **Action:** The closing question derives from the report: "Apply all staged ({N})" first when Approve is non-empty, then up to Yours items (capped so the total never exceeds 4 options), then the help dashboard.
-- **Expectation:** A recurring staged item is read as a missing routing rule — the Approve bucket should trend empty as routing rows (or reconcile checks) absorb recurring classes; the durable exception is outward-facing GitHub writes, forbidden at every tier by the auto-mode contract.
+- **Expect:** A finding class that keeps staging run after run reads as a missing routing rule (the principle stated once in `step-6-auto.md`'s preamble) — the Approve bucket should trend empty as routing rows (or reconcile checks) absorb recurring classes; the durable exception is outward-facing GitHub writes, forbidden at every tier by the auto-mode contract.
