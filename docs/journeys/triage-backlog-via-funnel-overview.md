@@ -33,3 +33,9 @@ files:
 - **Should feel:** The full table you expected, exactly as before the funnel redesign — the lenses kept their complete renders, they just stopped rendering uninvited.
 - **Should understand:** The buildable population Step 3's "Recommended next" ranks over is `funnelBuckets`' `dispatchable` ∪ `granted` — the same numbers the header showed, one predicate, so the recommendation can never disagree with the funnel counts.
 - **Red flags:** A capped or truncated trust-lens table; lens output leaking into a later bare-mode run.
+
+### 4. Trust the recommendation's dependency data — or see it loudly refuse
+- **Action:** In bare mode, read the "Recommended next" callout on a repo with `work-links: native` and a wired dependency chain.
+- **Should feel:** Grounded — the recommendation ranks on the native blocked-by graph (`blockersOf` in `bin/lib/issues/ranking.js`: attached `blockedBy` → local `facets.blockedBy` → canonical body lines), not on prose guesses. A chain's tail record never outranks its unbuilt prerequisites on a phantom zero-dependency read.
+- **Should understand:** When a record's body *mentions* a dependency in prose but nothing resolves mechanically, the dependency-mismatch flag fires: the flagged records get no mechanical recommendation, and the headline is either a corrected pick with its evidence cited inline, or a plain "ranking is unreliable for these" statement pointing at `/claude-tweaks:backlog refine`'s repair. An unsynced local record's blockers are never matched against GitHub issue numbers (different id namespaces).
+- **Red flags:** A "Recommended next" the same output later retracts; a chain's last record recommended first on a natively-wired repo; a flagged record silently dropped from the report.
