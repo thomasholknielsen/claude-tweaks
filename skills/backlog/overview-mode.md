@@ -58,6 +58,14 @@ The full table render moves to the trust lens (Step 2).
 
 ## Step 2: Route by lens
 
+**Native blocked-by pre-attach (bare mode only, `work-links: native` repos only — refs #563).** Before the funnel-computation script below runs, resolve native `blockedBy` links for the **ready+granted subset only** (`bl.readyGrantedSubset(all)`, `bin/lib/issues/backlog.js`) — the only records whose `granted`/`dispatchable` split this header renders. This is deliberately narrower than Step 3's own buildable subset (`dispatchable` ∪ `granted`, computed only after this script runs) — see that function's own comment for why the two are not interchangeable.
+
+Resolve `work-links` (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links`); skip this subsection entirely on `work-links: body-text` or `work-backend: local-files` repos — `blockersOf`'s existing facets/body-text fallback stands unchanged for them, exactly as it does today.
+
+On `work-links: native`: check field availability via `capabilities-probe.js`'s `probeCapabilities({owner, repo}).dependencies` first. On probe failure or unavailability, skip the fetch entirely (no-op) — funnel computation proceeds below with `r.blockedBy` unset for every candidate, identical to today's behavior. On probe success, fetch every `readyGrantedSubset` candidate's blocked-by set as one aliased GraphQL query using `buildNativeDependencyQuery` (`bin/lib/issues/record.js`), chunked at 50 aliases per request (the same chunking Step 3 already uses), then for each candidate whose alias resolved, set `r.blockedBy = nodes.filter(open).map(number)` using `hasOpenNativeBlocker`-equivalent open-state filtering (`record.js`) — a candidate whose alias is missing or errored inside an otherwise-successful batch gets **nothing attached** (never coerced to `[]`), the same never-coerce rule Step 3 already documents. On whole-fetch failure, no-op the same as probe failure. Any of these degrade paths renders the header exactly as it does today — no hard stop, per this file's failure-only narration convention (one line only when at least one alias inside an otherwise-successful batch failed, naming the affected ids).
+
+The funnel-computation script below then reads `all` with these `r.blockedBy` values already attached — `funnelBuckets`'s existing `blockersOf` precedence (top-level `r.blockedBy` first) buckets a now-attached record into `granted` instead of `dispatchable` with no further change.
+
 ```bash
 node -e "
   const bl = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
@@ -128,12 +136,11 @@ counted twice by design.
 
 Restricted to the buildable subset — `funnelBuckets` output `dispatchable` ∪ `granted` (Step 2's
 `.funnel` view) — one predicate, owned by `funnelBuckets`, so the header's counts and this
-recommendation's population can never drift apart. One limitation on that guarantee: the funnel
-header's own `granted`/`dispatchable` split (Step 2) resolves blockers from body-text/`facets`
-data only — native `blockedBy` attachment happens here, in Step 3 — so on a `work-links: native`
-repo a natively-blocked record can still render `dispatchable` in the header even though this
-step's native fetch would resolve it as blocked. Header-level native resolution is deliberately
-out of this record's scope (captured as a follow-up record). For each candidate, compute the three inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself:
+recommendation's population can never drift apart. Step 2's own native `blockedBy` pre-attach
+(above, refs #563) now covers the ready+granted subset this header renders, so the header and this
+step's recommendation read the same blocker data for the population both touch — this step's own
+fetch below still runs independently over its own (differently-scoped) buildable candidate set,
+since the two subsets are not identical (see Step 2's pre-attach note for why). For each candidate, compute the three inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself:
 
 - `keyFiles` — extract the `### Key Files` subsection from the body, the same extraction `/help`'s Conflict detection sub-section already performs.
 - `hasPlan` — `true` if `docs/superpowers/plans/` contains a file whose name references this record's id/slug (a simple filename-pattern check, not a content read).
