@@ -15,24 +15,30 @@ const read = (...p) => fs.readFileSync(path.join(SKILLS, ...p), 'utf8');
 function walk(dir, acc = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, e.name);
-    if (e.isDirectory()) walk(full, acc); else if (e.name.endsWith('.md')) acc.push(full);
+    if (e.isDirectory()) walk(full, acc);
+    else if (e.name.endsWith('.md')) acc.push(full);
   }
   return acc;
+}
+
+// Every conformance check below scans all skill files except the gate itself.
+function* otherSkillFiles() {
+  for (const file of walk(SKILLS)) {
+    if (file !== GATE_FILE) yield file;
+  }
 }
 
 test('the gate is stated once — Step 2.5 heading exists exactly once, only in pr-first-merge.md', () => {
   const gate = fs.readFileSync(GATE_FILE, 'utf8');
   assert.equal((gate.match(/^## Step 2\.5: Merge-verification gate$/gm) || []).length, 1);
-  for (const file of walk(SKILLS)) {
-    if (file === GATE_FILE) continue;
+  for (const file of otherSkillFiles()) {
     assert.ok(!/^## Step 2\.5: Merge-verification gate$/m.test(fs.readFileSync(file, 'utf8')), `${path.relative(SKILLS, file)} restates the gate heading`);
   }
 });
 
 test('checks-pending-timeout is defined only in the gate; other files at most cite it', () => {
   const offenders = [];
-  for (const file of walk(SKILLS)) {
-    if (file === GATE_FILE) continue;
+  for (const file of otherSkillFiles()) {
     const text = fs.readFileSync(file, 'utf8');
     if (text.includes('checks-pending-timeout') && !text.includes('pr-first-merge.md')) offenders.push(path.relative(SKILLS, file));
   }
@@ -44,8 +50,7 @@ test('merge-when-green appears outside the gate only as a lever value (#559 file
   // the value must cite the gate's file.
   const LEVER_FILES = new Set(['_shared/policy-schema.md', 'flow/manifesto.md']);
   const offenders = [];
-  for (const file of walk(SKILLS)) {
-    if (file === GATE_FILE) continue;
+  for (const file of otherSkillFiles()) {
     const rel = path.relative(SKILLS, file);
     const text = fs.readFileSync(file, 'utf8');
     if (!/merge-when-green/i.test(text)) continue;
