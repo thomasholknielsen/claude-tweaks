@@ -209,8 +209,9 @@ function funnelBuckets(records) {
     // /tidy's domain; surfacing them as the session's recommended move would
     // invert the lane's premise. Skip before the facet checks below.
     if (f.bot.inProgress || f.stage === 'parked' || f.notPlanned === true) continue;
-    if (f.needsDefinition === true) needsYou.push({ id: r.number ?? r.id, kind: 'definition' });
-    else if (f.solutionUnjustified === true) needsYou.push({ id: r.number ?? r.id, kind: 'unjustified' });
+    const id = r.number ?? r.id;
+    if (f.needsDefinition === true) needsYou.push({ id, kind: 'definition' });
+    else if (f.solutionUnjustified === true) needsYou.push({ id, kind: 'unjustified' });
   }
   buckets.needsYou = needsYou;
   return buckets;
