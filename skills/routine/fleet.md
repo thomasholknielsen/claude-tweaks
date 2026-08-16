@@ -198,6 +198,43 @@ never a bare total over a domain the lookup can't enumerate (IL-110, IL-67).
 grant routine provisioned (or unattended keys unset); an **unattended** fleet has the grant
 routine present and both unattended keys true — detected from the provisioned set plus policy.
 
+## Fleet off (pause-based shutdown)
+
+Pause-based shutdown that preserves all durable state — rotation cursors, wontfix
+suppressions, trust history, and every instantiated record survive. `fleet off`
+**never deletes anything** (`RemoteTrigger` has no delete API to call in the first place)
+and **never touches a routine that is not fleet-marked** — a hand-created routine sharing
+a skill is untouched by construction.
+
+1. **Enumerate** fleet-marked routines exactly as Fleet status resolves membership
+   (composition-table `PREFIXED_NAME`s ∩ `record-freshness.md`'s `records[]`). Capture the
+   before-list. A repo with no fleet-marked routines reports that plainly — "no fleet-marked
+   routines in this project; nothing to pause" — and stops. Not an error.
+2. **Probe for the pause verb (#213).** Re-check at execution time whether the routine skill
+   has a pause mechanism (a pause/disable action documented in `create-and-update.md` or an
+   enabled/disabled field writable via `RemoteTrigger update`). #213 was open with no landed
+   verb when this section shipped, so the fallback below is the expected live path, not an
+   edge case.
+3. **Pause path (verb exists):** pause each fleet-marked routine via the landed mechanism —
+   consume whatever shipped, per #276's prerequisite note. Report the paused set and what
+   state survives (records, cursors, suppressions, trust history — all of it).
+4. **Fallback path (no pause verb — the live path today, AC6):** perform **no destructive
+   action**. For each fleet-marked routine, report the deletion-vs-keep tradeoff instead:
+
+   | Routine | If you delete it (manually, at claude.ai/code/routines) | If you keep it running |
+   |---|---|---|
+   | {name} | live firings stop; the instantiated record, rotation cursors, wontfix suppressions, and trust history all survive on disk — but deletion has no undo and re-provisioning re-creates billed infrastructure | keeps firing on schedule; report-only routines file findings as usual; the grant unit (if any) is harmless-by-construction at a downgraded ceiling (Gate 0 denies every candidate) |
+
+   Close with: deletion is a manual step at claude.ai/code/routines (IL-69: destroying billed
+   infrastructure must have a decided human owner); this skill never performs it.
+5. **Verify scope (AC3):** list routines before and after — the after-list must show every
+   fleet-marked routine paused (pause path) or untouched (fallback path), and every non-fleet
+   routine byte-identical in state. Include both lists in the report.
+6. **Round-trip note (AC4):** a paused fleet is resumed by re-running `fleet on` — Step 4's
+   reconcile detects the existing records and updates/resumes rather than duplicating. The
+   marker + paused-state semantics both verbs consume are this file's own composition-table
+   `PREFIXED_NAME` rule (Step 4.2) — one home, both consumers.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -209,3 +246,6 @@ routine present and both unattended keys true — detected from the provisioned 
 | Silently deleting or pausing a downgraded grant-unit routine | Deletion has no undo (`RemoteTrigger` has no delete API to call in the first place, at claude.ai/code/routines this is a manual step) — pause when the verb exists, otherwise surface prominently, never act unprompted beyond what Step 3 documents |
 | Re-prompting per row for schedule/environment/confirm | Fleet mode's whole point is one deliberate action — the Manifesto (Step 1) and the batch preview (Step 4.3) are the only confirmation points; 11 separate `AskUserQuestion` calls would defeat "one-action provisioning" |
 | Treating a missing template as a fleet-wide failure | Composition, not exhaustiveness — provision what exists, name what's missing, never refuse the whole fleet over one absent template |
+| Deleting (or offering to delete) routines from `fleet off` | Deletion has no API and no undo — `fleet off` is pause-based precisely so durable state survives; deletion is a human act at claude.ai/code/routines (IL-69) |
+| Pausing a routine that is not fleet-marked | A hand-created routine sharing a skill is someone else's infrastructure — membership is the composition-table `PREFIXED_NAME` intersection, never a skill-name match |
+| Rendering grant counters on a supervised fleet | No grant unit exists to count — state the posture and why grant counters are absent instead of rendering zeros that imply a grant unit ran |
