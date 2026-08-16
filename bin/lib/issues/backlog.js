@@ -147,8 +147,8 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 }
 
 // records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
-// parked, notPlanned }. Mutually exclusive buckets over the post-merge faceted
-// set (github + unsynced) — the funnel decision surface /claude-tweaks:backlog
+// parked, notPlanned, needsYou }. Mutually exclusive buckets over the post-merge
+// faceted set (github + unsynced) — the funnel decision surface /claude-tweaks:backlog
 // overview's bare mode renders. First match wins, in this order; the precedence
 // rationale: bot-state outranks stage labels because live work reflects current
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
@@ -166,6 +166,8 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // splitScoredUnscored's scored means FULLY scored — both risk and size — for
 // the lens views. Deliberate, not drift: the funnel tracks "has triage
 // started?" while the lenses need "is there enough signal to rank on?".
+// needsYou is an OVERLAY, never a ninth stage: every record above keeps its
+// one primary bucket (exclusivity and sum-to-total invariants untouched).
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
@@ -188,6 +190,22 @@ function funnelBuckets(records) {
     else if (f.priority || f.risk || f.size) buckets.scored.push(r);
     else buckets.captured.push(r);
   }
+  // needsYou is an OVERLAY, never a ninth stage: every record above keeps its
+  // one primary bucket (exclusivity and sum-to-total invariants untouched).
+  // Both facet keys are the EXPECTED post-#471 names — needsDefinition (#472's
+  // parser) and solutionUnjustified (#471's framing:baked rename). Neither
+  // exists on this repo yet, so this list is empty (dormant) until they land;
+  // if #471 ships a different key, this comment and the #471-citing tests are
+  // the reconciliation tripwire. A record carrying both facets yields one
+  // entry with kind 'definition' — the hard gate dominates. needs:definition
+  // exclusion from the Shape paste block happens at RENDER, never here.
+  const needsYou = [];
+  for (const r of records) {
+    const f = r.facets;
+    if (f.needsDefinition === true) needsYou.push({ id: r.number ?? r.id, kind: 'definition' });
+    else if (f.solutionUnjustified === true) needsYou.push({ id: r.number ?? r.id, kind: 'unjustified' });
+  }
+  buckets.needsYou = needsYou;
   return buckets;
 }
 

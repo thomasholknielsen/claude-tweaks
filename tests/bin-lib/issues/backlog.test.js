@@ -357,3 +357,48 @@ test('funnelBuckets: unsynced record blockers are never resolved against the mer
   assert.deepEqual(b.dispatchable.map((r) => r.number), [1, 2]);
   assert.deepEqual(b.granted, []);
 });
+
+test('funnelBuckets: dormant regression pin — no needs-facets leaves every bucket byte-identical and needsYou empty', () => {
+  const records = [
+    rec(1, { bot: { inProgress: true, blocked: false } }),
+    rec(2, { stage: 'parked' }),
+    rec(3, { stage: 'ready', grants: { build: true, merge: false } }),
+    rec(4, { priority: 'high' }),
+    rec(5),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.needsYou, []);
+  assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
+  assert.deepEqual(b.parked.map((r) => r.number), [2]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [3]);
+  assert.deepEqual(b.scored.map((r) => r.number), [4]);
+  assert.deepEqual(b.captured.map((r) => r.number), [5]);
+  assert.deepEqual(b.granted, []);
+  assert.deepEqual(b.shaped, []);
+  assert.deepEqual(b.notPlanned, []);
+});
+
+test('funnelBuckets: needs:definition record joins needsYou AND keeps its primary stage bucket (overlay semantics)', () => {
+  const records = [
+    rec(1, { needsDefinition: true }),
+    rec(2, { stage: 'ready' }),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.needsYou, [{ id: 1, kind: 'definition' }]);
+  assert.deepEqual(b.captured.map((r) => r.number), [1]);
+  assert.deepEqual(b.shaped.map((r) => r.number), [2]);
+});
+
+// Reads the expected post-#471-rename key (solutionUnjustified) — reconciliation
+// marker: if #471 ships a different key this test's fixture goes stale loudly.
+test('funnelBuckets: solutionUnjustified facet (expected #471 key) joins needsYou as kind unjustified', () => {
+  const b = funnelBuckets([rec(1, { solutionUnjustified: true, priority: 'low' })]);
+  assert.deepEqual(b.needsYou, [{ id: 1, kind: 'unjustified' }]);
+  assert.deepEqual(b.scored.map((r) => r.number), [1]);
+});
+
+// Both facets present: the hard gate dominates — one entry, kind definition (#471).
+test('funnelBuckets: both needs-facets yield exactly one needsYou entry with kind definition (#471 precedence)', () => {
+  const b = funnelBuckets([rec(1, { needsDefinition: true, solutionUnjustified: true })]);
+  assert.deepEqual(b.needsYou, [{ id: 1, kind: 'definition' }]);
+});
