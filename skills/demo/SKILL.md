@@ -3,7 +3,7 @@ name: demo
 description: Use for a human verdict on one built thing: this conversation's unrecorded work, or a specific `#N` record. Distinct from /test and /review. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
 argument-hint: "[#N]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Demo — Human Acceptance Sign-Off
 
@@ -278,12 +278,11 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 ## Next Actions
 
-Render via `AskUserQuestion`, `question`: `"What's next?"`, `header`: `"Next step"`,
-`multiSelect`: `false`:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 (when any `demo:changes-requested` follow-up was filed) — `label`: `"Triage the new follow-up (Recommended)"`, `description`: `"/claude-tweaks:backlog refine — the new gap record needs shaping/authorization like any other backlog item"`
-- Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
-- Option 3 (when this record remains `demo:pending` after Skip) — `label`: `"Check what else is outstanding"`, `description`: `"/claude-tweaks:help — lists every #N still awaiting sign-off (Stage 4.7)"`
+**`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed (recommended)
+`/claude-tweaks:help` — full pipeline status
+`/claude-tweaks:help` — lists every #N still awaiting sign-off (Stage 4.7); renders only when this record remains `demo:pending` after Skip
 
 ## Component-Skill Contract
 

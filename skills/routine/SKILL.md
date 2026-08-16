@@ -3,7 +3,7 @@ name: routine
 description: Use to create, update, or check status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a project-agnostic template into a live, scheduled routine. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
 argument-hint: "<create|update|status> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Routine — Instantiate Versioned Cloud Routines
 
@@ -79,11 +79,11 @@ Steps 1-5 live in `fleet.md` in this skill's directory: the Manifesto (policy le
 
 ## Next Actions
 
-For `create`/`update`/`status <skill>`, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+For `create`/`update`/`status <skill>`, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Right after a `create` operation, the "Check status" line renders first, bolded, with `(recommended)`; after `update` or `status`, no line is bolded:
 
-- Option 1 — `label`: `"Check status"`, `description`: `"/claude-tweaks:routine status <skill> — check on a routine you just created"`. Suffix the label `(Recommended)` right after a `create` operation.
-- Option 2 — `label`: `"Use /schedule"`, `description`: `"/schedule — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. Deletion always happens at claude.ai/code/routines."`
-- Option 3 — `label`: `"Re-sync"`, `description`: `"/claude-tweaks:routine update <skill> — re-sync after the template changes"`
+`/claude-tweaks:routine status <skill>` — check on a routine you just created
+`/schedule` — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. Deletion always happens at claude.ai/code/routines.
+`/claude-tweaks:routine update <skill>` — re-sync after the template changes
 
 For `fleet on`, `fleet.md`'s own Step 5 summary is the terminal output — and for `fleet status` / `fleet off`, the rendered dashboard / shutdown report is likewise terminal. Omit this block for all three.
 

@@ -6,7 +6,7 @@ Full reference for every skill in the claude-tweaks plugin, grouped by where it 
 
 **`/claude-tweaks:init`** — One-time project bootstrap. Scans the codebase, generates a CLAUDE.md with project-specific conventions and philosophy, creates workflow directories (`specs/`, `docs/plans/`, `docs/journeys/`), sets up browser integration (agent-browser), builds a documentation registry (`docs/REGISTRY.md`) mapping docs to code areas for automatic updates, and discovers existing user journeys.
 
-**`/claude-tweaks:capture`** — Brain-dump an idea into a new backlog work record (a GitHub issue carrying only `by:capture`, or a local `specs/{id}-{slug}.md` file — no stage label, per `work-backend`). Accepts free-text — no structure needed. Ideas are triaged later by `/claude-tweaks:tidy`.
+**`/claude-tweaks:capture`** — Brain-dump an idea into a new backlog work record (a GitHub issue carrying only `by:capture`, or a local `specs/{id}-{slug}.md` file — no stage label, per `work-backend`). Accepts free-text — no structure needed for a human idea; a supplied spec-shaped body takes the Shaped-body branch and files scored + `ready` (a deferral additionally requires `--defer-reason=`, per `_shared/deferral-gate.md`). Ideas are triaged later by `/claude-tweaks:tidy`.
 
 **`/superpowers:brainstorming`** *(Superpowers plugin)* — Generates solution approaches from a promoted backlog record or topic. Explores multiple directions, evaluates tradeoffs, and produces a Design Doc with a recommended approach.
 
