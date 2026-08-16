@@ -54,18 +54,24 @@ Wired — loaded when the trigger holds:
 | `animate`, `animation-vocabulary` | Only on an explicit motion signal. The signal is **consumer judgment reading the spec/description** — does it name motion work (animation, transition, gesture, micro-interaction)? — or `Design-intent: delightful`. This is an LLM judgment call by design, not a deterministic keyword gate. |
 | `apple-design` | Only on an explicit signal: the spec or `Design-intent:` names Apple-style/HIG-like treatment. Never inferred. |
 
+Wired — review-time critics (a skill may be wired for both roles; the writing-time table above governs context assembly, this one governs review-time critique — see `skills/design-wrapper/critics.md`):
+
+| Skill | Trigger |
+|---|---|
+| `emil-design-eng` | see `skills/design-wrapper/critics.md` |
+| `review-animations` | see `skills/design-wrapper/critics.md` |
+
 Deliberately not wired — a future consumer wires these by deliberate choice, not accident:
 
 | Skill | Why not |
 |---|---|
 | `prototype` | Superseded by design-wrapper `explore` mode's own renderer flow. |
 | `pick-ui-library` | Reserved for the stack-decision record #357. |
-| `review-animations` | Review-time critique of existing motion — no consumer composes build-time context from it. |
 | `improve-animations` | An editing pass over existing motion, not context for writing new UI. |
 | `find-animation-opportunities` | Survey-shaped; overlaps design-wrapper `survey`'s recommendation role. |
 | `ask-sonner` | Component-specific Q&A for one library — too narrow for ambient assembly. |
 
-The map accounts for the whole upstream skill set as pinned in the drift manifest. A new upstream skill appearing there is triaged into one of these two tables — never silently absent.
+The map accounts for the whole upstream skill set as pinned in the drift manifest. Every upstream skill appears in at least one wired table (a skill may be wired for both the writing-time and review-time roles) or in the not-wired table — never silently absent. A new upstream skill appearing there is triaged into one of them.
 
 ## Degradation posture
 

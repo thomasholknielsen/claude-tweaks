@@ -67,8 +67,10 @@ test('POLICY_KEYS entries are unique', () => {
   // item 1, default keep-forever preserves today's unconditional behavior.
   // 48 -> 49, #559 (merge-verification): CI-verification lever for merges
   // into the integration branch, default derived by bin/lib/merge-verification.js.
-  assert.strictEqual(POLICY_KEYS.length, 49);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 49);
+  // 49 -> 50, #595 (design-critique lever): off | auto | full, default auto —
+  // governs whether project-local design critics run at review time.
+  assert.strictEqual(POLICY_KEYS.length, 50);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 50);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -667,4 +669,15 @@ test('resolveValue passes an unrecognized key through unchanged', () => {
 test('resolveValue never throws on a malformed value of any type', () => {
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', {}));
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', ['x']));
+});
+
+test('design-critique is registered as an enum off|auto|full defaulting to auto (#595)', () => {
+  const lever = POLICY_KEYS.find((k) => k.key === 'design-critique');
+  assert.ok(lever, 'design-critique missing from POLICY_KEYS');
+  assert.strictEqual(lever.type, 'enum');
+  assert.deepStrictEqual(lever.values, ['off', 'auto', 'full']);
+  assert.strictEqual(lever.default, 'auto');
+  assert.strictEqual(lever.category, 'pipeline-behavior');
+  assert.strictEqual(lever.tier, 'advanced');
+  assert.ok(!POLICY_KEYS.some((k) => k.key === 'design.critique'), 'the dotted spelling must not be registered — keys are flat kebab-case');
 });

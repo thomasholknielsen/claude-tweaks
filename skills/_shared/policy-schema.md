@@ -220,6 +220,7 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 | `scope-creep` | `policy.yml` | `/claude-tweaks:build` | `add-to-plan` | `add-to-plan`/`stop-and-ask`/`drop` |
 | `overlap` | `policy.yml` (via `/flow` Manifesto only — no standalone direct-read site exists) | `/flow` Manifesto → `/claude-tweaks:specify` | `companion` | `companion`/`extend`/`skip`/`replace` |
 | `design-intent` | `policy.yml` (via `/flow` Manifesto/`config.yml`; a standalone invocation with no pipeline run dir asks the user inline instead of reading CLAUDE.md) | `/claude-tweaks:specify` | `none` | `none`/`bold`/`quiet`/`minimal`/`delightful`/`onboarding` |
+| `design-critique` | `policy.yml` (via `/flow` Manifesto/`config.yml`, or the resolver directly outside a pipeline run) | `/claude-tweaks:design-wrapper` `review` mode (Step 3.8 critic dispatch, #598) | `auto` | `off`/`auto`/`full` — how eagerly project-local craft critics run at review time; `auto` keys on `DESIGN.md` presence or a `Design-intent:` line, per `skills/design-wrapper/critics.md`. Critique only — writing-context assembly (`_shared/design-craft.md`) is untouched by every value |
 | `leftover-default` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — leftover routing is inherently pipeline-scoped, no standalone site exists) | `/claude-tweaks:wrap-up` | `defer` | `defer`/`backlog`/`drop` |
 | `auto-fix-threshold` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:test` | `lint+type` | `lint-only`/`lint+type`/`lint+type+test` |
 | `review-auto-apply-ceiling` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply ceiling — the maximum severity applied without asking (`medium` = Low and Medium auto-apply, High staged, Critical prompted); ceiling-conditional default at `unattended` — see `_shared/autonomy-ceiling.md` |
@@ -228,15 +229,15 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 
 ## Model profiles
 
-Registered by #219; the resolver that actually reads these four (`model-stance`/`frontier-run-cap`/`model-ceiling`/`model-profiles`) is `bin/lib/model-profiles/profiles.js` (`resolve()`), fed by `bin/lib/model-profiles/policy-fragment.js`'s dedicated nested-block reader — `bin/lib/policy-schema.js`'s `auditPolicy()` validates these four shallowly (key names / value types only; `model-profiles`' own row *fields* are never inspected here, since the resolver validates those deeply at resolve time and rejects an unknown one there). `research-mode` is unrelated to the resolver — it feeds `/claude-tweaks:research` directly.
+Registered by #219; the resolver that actually reads these five is `bin/lib/model-profiles/profiles.js` (`resolve()`). Full canonical-home/owner-skill/default/meaning table: `policy-schema-model-profiles.md` (split out per IL-70 — merged branch content pushed this file over its ceiling).
 
-| Key | Canonical home | Owner skill(s) | Default | Meaning |
-|---|---|---|---|---|
-| `model-stance` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js`, `/flow` Manifesto (lever 10) | `default` | `economy`/`default`/`max-rigor` — shifts a resolved profile's effort one notch on `EFFORT_SCALE` (`economy` also degrades a Frontier resolution to Capable); never promotes a profile's model upward |
-| `frontier-run-cap` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | `3` | Per-pipeline-run ceiling on Frontier (`fable`) dispatches; `0` disables Frontier entirely for the run |
-| `model-ceiling` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (no ceiling) | A profile name (`fast`/`standard`/`capable`/`frontier`) above which a resolved profile is clamped down to the ceiling's row; does not clamp an explicit CLI override — the ceiling defends against skill defaults, not against a human's typed choice |
-| `model-profiles` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (table defaults apply) | Per-profile `{model, effort}` override rows, keyed by profile name, as a nested block (not a flat `key: value` line — see `bin/lib/model-profiles/policy-fragment.js`'s reader for the shape). **Shallow schema validation**: `auditPolicy()` checks only that each row's key names a real profile; a row's own field shape is validated deeply by the resolver instead |
-| `research-mode` | `policy.yml` | `/claude-tweaks:research` | unset (falls through to `standard`) | `quick`/`standard`/`deep`/`ultradeep` — project-level default research depth tier, read when no `--mode=` flag or prompt answer is given. Vocabulary lifted from `/claude-tweaks:research`'s own `## Input` section (that file is authoritative, not this row — IL-24) |
+| Key |
+|---|
+| `model-stance` |
+| `frontier-run-cap` |
+| `model-ceiling` |
+| `model-profiles` |
+| `research-mode` |
 
 ## Additional levers
 
