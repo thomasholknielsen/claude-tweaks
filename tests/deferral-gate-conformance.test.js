@@ -297,3 +297,52 @@ test('a needs-you leftover payload composes Open Question with no ready and no s
   assert.ok(!p.body.includes('## Acceptance Criteria'));
   assert.deepEqual(p.labels, []);
 });
+
+// --- #625: capture's shaped-body branch ---
+
+test('capture/SKILL.md carries the Shaped-body branch, the flag, and still the 5-line cap', () => {
+  const c = read('skills/capture/SKILL.md');
+  assert.ok(c.includes('Shaped-body branch'));
+  assert.ok(c.includes('--defer-reason='));
+  assert.ok(c.includes('Hard cap: ~5 lines'));
+});
+
+test('both CLAUDE.md copies name the spec-shaped body in the no-implicit-deferrals bullet', () => {
+  for (const rel of ['skills/init/claude-md-template.md', 'CLAUDE.md']) {
+    const bullet = read(rel).split('\n').find((l) => l.includes('**No implicit deferrals.**'));
+    assert.ok(bullet, rel);
+    assert.ok(bullet.includes('spec-shaped body'), rel);
+    assert.ok(bullet.includes('Defer-reason'), rel);
+  }
+});
+
+test('no Capture pass-through still defers to a not-yet-landed #625 flag', () => {
+  const offenders = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.md')) {
+        const c = fs.readFileSync(p, 'utf8');
+        if (c.includes('arrives with #625') || c.includes("#625's flag arrives")) offenders.push(path.relative(REPO_ROOT, p));
+      }
+    }
+  };
+  walk(path.join(REPO_ROOT, 'skills'));
+  assert.deepEqual(offenders, []);
+});
+
+// AC 1's label/body shape, verified by composition probe (a live filing would
+// pollute the real tracker — deviation stated in the PR body).
+test('a shaped-branch born-ready filing composes the exact labels and body AC 1 names', () => {
+  const { specShapedBody: ssb, recordPayload: rp } = require('../bin/lib/issues/record.js');
+  const body = ssb({
+    header: '', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a',
+    filedBy: 'capture', provenance: { deferReason: 'tangential' },
+    footer: '_Filed by `capture` via specShapedBody._',
+  });
+  const p = rp({ title: 't', body, type: 'task', origin: 'capture', risk: 'low', size: 'medium', ready: true, deferReason: 'tangential' });
+  assert.deepEqual(p.labels, ['by:capture', 'risk:low', 'size:medium', 'ready']);
+  assert.strictEqual((p.body.match(/^Defer-reason: tangential$/gm) || []).length, 1);
+  assert.ok(p.body.includes('via specShapedBody'));
+});
