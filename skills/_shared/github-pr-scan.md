@@ -147,7 +147,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    "
    ```
 
-   Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). **The list-time snapshot above is never trusted for the actual write**: grant labels, `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
+   Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). **The list-time snapshot above is never trusted for the actual write**: grant labels, the `bot:blocked` exclusion (a record parked between the scan and the arm — or one whose labels the classifier's `gh issue view` loop failed to fetch and defaulted to `[]` — must still block the arm), `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
 
 10. **Unsettled run** — a claimed or `bot:in-progress`-labeled issue whose pipeline shows no evidence of progress since it was claimed, past a threshold. Detected purely GitHub-side, in three fetches:
 

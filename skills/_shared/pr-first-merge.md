@@ -65,6 +65,11 @@ overlay applied to another's merge.
 pr-first this is near-unreachable: no `gh` means no PR, so this procedure's own precondition
 already fails.
 
+`$MERGE_VERIFICATION` empty or not one of the three values (an invalid `policy.yml` value prints an
+empty `--values` line — `invalid: true`, never silently re-derived; or a resolver error) → treat it
+as `wait` for this merge and log `AUTO … Step 2.5: lever unresolved ("{raw}") — proceeding as wait`.
+Never as `off`: an unreadable lever must not become the one value that skips the wait.
+
 **Read state first — never parse stderr first.** Before any merge attempt, regardless of value:
 
 ```bash
@@ -73,6 +78,12 @@ gh pr view {pr-number} --repo {owner}/{repo} --json state,mergeStateStatus,headR
 
 Classify from the JSON, in this order:
 
+- The command failed, or its output is not parseable JSON with those four fields → report
+  (`pending-review`, reason `state-read-failed`) and stop — never merge on a state this gate could
+  not read (the same posture the bounded watch takes for an unknown `gh pr checks` exit). A read
+  failure is not "no CI".
+- `state` not `OPEN` → report (`pending-review`, reason `pr-not-open`) and stop; never merge — and
+  never *park* — a closed or already-merged PR, whatever stale conclusions its rollup still carries.
 - Any `statusCheckRollup[]` entry with `conclusion` in `FAILURE`, `TIMED_OUT`, `ERROR`, or `STARTUP_FAILURE`
   → **red** (the *PR being merged* has a failing check — distinct from #561's red *tip*, which is
   reconcile's concern). Take the **Red path** below now, before anything else. Under `off` this
@@ -80,8 +91,13 @@ Classify from the JSON, in this order:
   (today's behavior); the red classification is logged and shown, not acted on.
 - Any entry with `status` not `COMPLETED` (or `conclusion` null while `status: IN_PROGRESS`/`QUEUED`/`PENDING`)
   → **pending**.
-- Otherwise (every entry `SUCCESS`/`NEUTRAL`/`SKIPPED`, or an empty rollup — no CI) → **green**.
-- `state` not `OPEN` → report (`pending-review`, reason `pr-not-open`) and stop; never merge a closed or already-merged PR.
+- An **empty rollup** → depends on the lever: under `merge-when-green` or `wait` the repo has PR CI
+  by construction (`_shared/policy-schema.md`'s coverage block derives those values only when a
+  `pull_request`-triggered workflow exists, and an explicit value is a statement that CI is
+  expected), so an empty rollup means the checks have not *reported yet* — GitHub populates it
+  seconds after a push, not instantly — and reads as **pending**, never green; under `off` it is
+  simply "no CI" and proceeds as green.
+- Otherwise (every entry `SUCCESS`/`NEUTRAL`/`SKIPPED`) → **green**.
 
 Then, per resolved value:
 
@@ -98,7 +114,7 @@ must not lean on it. That is why the pending column below keys on `mergeStateSta
 | Value | Green | Pending | Red |
 |---|---|---|---|
 | `merge-when-green` | Step 3 as written — arm/merge (identical outcome when checks are already green) | `mergeStateStatus: BLOCKED` → Step 3 as written — arm `--auto` (the forge holds it; outcome `armed`). Any other value (`CLEAN`, `UNSTABLE`, `BEHIND`, `UNKNOWN`, …) → arming would merge immediately: **degrade to the `wait` row** — never to an immediate merge | Red path |
-| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`) and merge via Step 3's immediate `--merge` form | **Bounded watch** below | Red path |
+| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`); if `headRefOid` changed since the first read or `state` is no longer `OPEN`, re-enter this step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`) — never merge blind; otherwise merge via Step 3's immediate `--merge` form | **Bounded watch** below | Red path |
 | `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
 
 **Bounded watch (`wait`, and `merge-when-green` when arming would not hold) — 15 minutes, fixed.**
@@ -143,8 +159,23 @@ done
    untouched (parking surfaces via label + log, not run-state) — and post one comment naming the
    failing check(s), the PR, and the reason:
    `Parked by merge-verification ({value}): {failing check names — or "checks still pending after 15m" for checks-pending-timeout} on PR #{n}. Resume once green.`
+   Compose that body to a temp file and post it with `--body-file` — never inline the names into a
+   shell string. Check names come from the PR's own workflow YAML (third-party-controlled on a fork
+   PR), and every other comment site in this file already builds its body the same way:
+   ```bash
+   printf 'Parked by merge-verification (%s): %s on PR #%s. Resume once green.\n' "$VALUE" "$REASON" "$PR" > /tmp/park-comment-{n}.md
+   gh issue comment "$ISSUE" --repo {owner}/{repo} --body-file /tmp/park-comment-{n}.md
+   ```
+   (`$REASON` holds the check names read from `/tmp/pr-checks-{n}.txt`'s `fail` rows, or the
+   pending-timeout phrase — passed as a `printf` argument, never expanded inside the format string.)
+   **Verify the label landed** — re-read each record's labels (`gh issue view {n} --json labels`)
+   after the add; a missing `bot:blocked` is retried once. If it is still missing, the park has no
+   lock the `[pr-unarmed]` sweep (`_shared/github-pr-scan.md`) would honor, so fall back to the one
+   lock the sweep always honors: re-draft the PR (`gh pr ready {pr-number} --repo {owner}/{repo}
+   --undo` — the sole exception to item 1's never-re-draft, taken only because the label failed) and
+   say so in the log line below. Never report a park the label read did not confirm.
 3. Log to `decisions.md` per `_shared/auto-decision-log.md` (an action taken autonomously — parked, not asked):
-   `AUTO {HH:MM:SS} — Step 2.5 (merge-verification gate): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:blocked applied to #{issue-list}. Reversibility: high (label removal + resume). [lever: merge-verification={value} ({source})]`
+   `AUTO {HH:MM:SS} — Step 2.5 (merge-verification gate): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:blocked applied to #{issue-list} {— or: bot:blocked NOT applied to #{list} ({error}); PR re-drafted as the fallback lock}. Reversibility: high (label removal + resume). [lever: merge-verification={value} ({source})]`
 4. Report outcome `pending-review`. This is a HARD-GATE-class stop written as park-and-surface — the
    `_shared/auto-mode-contract.md` strict rule holds: never a mid-pipeline prompt here; the human-facing
    surface is dispatch's resume confirmation (`dispatch/SKILL.md`, "Confirm before resuming").
