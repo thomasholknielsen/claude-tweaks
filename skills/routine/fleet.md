@@ -161,7 +161,10 @@ invisible, by construction of that same naming rule.
 ### Step S1 — Routine table
 
 For each fleet-marked record, run `status.md` Steps 2-3.5 (parallel `RemoteTrigger get` calls,
-per that file's own parallel-execution note) and render:
+per that file's own parallel-execution note). Use the `--all` branch's non-interactive disposition
+throughout: a `get` call that fails outright records the **Stale** verdict in that row's Health
+cell (and `—` in its Last firing cell) — never the per-skill branch's interactive
+delete-and-recreate offer, which would break this section's read-only promise mid-render. Render:
 
 | Routine | Schedule | Last firing | Health |
 |---|---|---|---|
