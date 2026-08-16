@@ -3,10 +3,12 @@
 // Pins record #648's contract: a Frontier singleton call site must never
 // hard-code --unattended (the resolver reads it as "no human present" and
 // unconditionally degrades Frontier, making the singleton slot dead at its
-// call site). A literal is "guarded" when its surrounding text names the
-// headless-only condition. \s+ spans newlines deliberately — the original
-// offender in skills/feedback/session-evaluation.md wrapped mid-command
-// ("frontier\n--unattended"), which a plain single-line grep misses.
+// call site). The one legitimate written headless-context command lives on
+// an explicit allowlist below — never a proximity heuristic, whose
+// discrimination proved coincidental. \s+ spans newlines deliberately — the
+// original offender in skills/feedback/session-evaluation.md wrapped
+// mid-command ("frontier\n--unattended"), which a plain single-line grep
+// misses.
 
 const test = require('node:test');
 const assert = require('node:assert');
