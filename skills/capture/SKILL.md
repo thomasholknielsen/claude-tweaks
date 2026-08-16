@@ -52,9 +52,13 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated exception below.
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
-`producer:capture` class carries a `clean` trust verdict, a fresh capture files with `ready`
-already applied — see `_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of
-any repo that has not opted in, this never fires and the paragraph above holds unchanged.
+`producer:capture` class carries a `clean` trust verdict, a fresh capture is chained straight into
+`/claude-tweaks:specify` shaping immediately after filing (`Skill(skill: "claude-tweaks:specify",
+args: "#{n} --chained")` — headless, no Next Actions), so the record lands spec-shaped, scored,
+and `ready` under specify's own authority — able to pass `/claude-tweaks:backlog refine` Step
+3.5's spec-shape gate, which a bare `ready` stamp on a 5-line stub never could (#575). See
+`_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of any repo that has not
+opted in, this never fires and the paragraph above holds unchanged.
 
 **Skip entirely when this filing carries `needs:definition`** (`$NEEDS_DEFINITION` is `true` —
 see Judging Definition below). A record naming a genuine open choice cannot be born-ready by
@@ -113,12 +117,16 @@ node -e "
 " -- "{resolved-window}"
 ```
 
-Add `ready` to the label set below **only** when `bornReady` is `true`, and log one
-`decisions.md` line in `_shared/autonomy-ceiling.md`'s Logging shape when you do. Never infer the
-answer from the policy value alone — the class verdict is half the condition, and on a repo with
-no acceptance evidence `bornReady` is `false` at every ceiling. If the `gh` call or the node block
-fails for any reason, file without `ready`: this path fails toward the default, never toward the
-grant.
+Never add `ready` to the label set below — a capture files plain at every ceiling. When
+`bornReady` is `true`, complete the filing first, then invoke
+`Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")` in the same turn — shaping mode
+composes the spec-shaped body around the stub (preserved as its `## Original request`), stamps
+scoring and `ready` in its single compose-then-write-once call, and renders no interactive prompt
+— and log one `decisions.md` line in `_shared/autonomy-ceiling.md`'s Logging shape (the
+filed-then-shaped form). Never infer the answer from the policy value alone — the class verdict is
+half the condition, and on a repo with no acceptance evidence `bornReady` is `false` at every
+ceiling. If the `gh` call, the node block, or the chained shaping itself fails for any reason, the
+record simply stays a plain capture: this path fails toward the default, never toward the grant.
 
 **When `work-backend: github-issues`:**
 
