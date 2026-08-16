@@ -107,3 +107,18 @@ test('step-6-auto.md: the Hard gate accepts the digest in place of the whole rep
   const gate = section(STEP6, '#### Hard gate (report before question)');
   assert.match(gate, /when the digest rule fired, the digest/);
 });
+
+// --- Task 3: interactive mirror ---
+
+const INTERACTIVE = read('skills', 'tidy', 'step-6-interactive.md');
+
+test('step-6-interactive.md: template mirrors the fenced shape and still cites step-6-auto.md\'s rules instead of restating', () => {
+  assert.match(INTERACTIVE, /\*\*Applied automatically\*\*\n```text/);
+  assert.match(INTERACTIVE, /\*\*Approve \(\{N\}\)\*\*\n```text/);
+  assert.match(INTERACTIVE, /\*\*Yours \(\{N\}\)\*\*\n```text/);
+  assert.match(INTERACTIVE, /\*\*Clean:\*\*\n```text/);
+  assert.match(INTERACTIVE, /stated once there — not restated here/);
+  assert.match(INTERACTIVE, /Yours grouping/);
+  assert.match(INTERACTIVE, /when the digest rule fired, the digest/);
+  assert.doesNotMatch(INTERACTIVE, /\*\*Clean:\*\* \{comma list/);
+});
