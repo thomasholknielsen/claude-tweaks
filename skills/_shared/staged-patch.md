@@ -96,14 +96,14 @@ order the console lists them:
      (`_shared/autonomy-ceiling.md`), where the console's apply runs with no human approval.
    - If the invariant **already holds** in the current tree (a later phase fixed the same thing),
      make no edit and log `… already satisfied by {commit or phase}; dropped.`
-   - A `.patch` with no `Target:`/`Invariant:` preamble (staged by an older installed build that
-     predates this contract) that fails `git apply --check` has nothing to re-derive from — route
-     straight to step 4 rather than attempting the re-derivation above (expand-contract read-side
-     tolerance).
+   - A `.patch` missing either `Target:` or `Invariant:` (no preamble at all — staged by an older
+     installed build that predates this contract — or a partial one) that fails `git apply --check`
+     has nothing complete to re-derive from — route straight to step 4 rather than attempting the
+     re-derivation above (expand-contract read-side tolerance).
 3. **Description-only stage** — no diff to try; go straight to step 2's re-derivation.
 4. **Cannot re-derive** — the `Target:` file no longer exists, the `Invariant:` no longer names
    anything in it (the code the finding was about was removed), the edit fails the scope floor
-   above, or the staged `.patch` has no preamble to re-derive from. Do not guess and do not drop
+   above, or the staged `.patch` lacks a `Target:` or `Invariant:` to re-derive from. Do not guess and do not drop
    silently: leave the item's ledger entry `open`, render it in the console's "Not applied" footer
    with the reason, and log `STAGED {time} — Review Console apply: staged/{slug}-{n}.patch could not be re-derived ({reason}). Left open — see the console's "Not applied" footer.`
 
