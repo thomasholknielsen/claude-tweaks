@@ -307,6 +307,61 @@ never a reason to report anything other than `merged`. **No `git merge`, `git co
 `mirrorFastForward` is a strict `--ff-only`, never a merge that could conflict, so it needs no
 worktree, no branch guard, and no close-run relief.
 
+### Step 4.5: Which release carried this? (after reconcile, outcome `merged` only)
+
+A merge can land minutes before a sibling session's version bump and be swept into it with no
+CHANGELOG line of its own — three records shipped that way under v6.87.1 (#603, the incident
+behind #678). Reconcile says nothing about *where* the merge landed relative to the version
+history, so ask, once, right after it:
+
+```bash
+git fetch origin {integration-branch}
+node bin/release.js status --merge {merge-sha} --records {n}[,{m}...] --ref origin/{integration-branch} --json
+```
+
+`{merge-sha}` is the merge commit `gh pr view --json mergeCommit` reported for the confirmed
+merge; `{n},{m}` are the record numbers this run carried — the materialized header's `record:`
+(one per `spec-{N}/work/{N}-spec.md` for a bundle) or, identically, the PR body's `Fixes #{n}`
+lines. Pass them explicitly — the subcommand never guesses record numbers, and never calls `gh`
+(the same invocation applies under `local-merge` with the local merge commit and `--ref
+{integration-branch}`). Read the bump commit **after** the merge is confirmed and after the
+fetch above — the bump can land in a sibling session while this PR is being merged.
+
+Branch on the JSON:
+
+- `{"shipped": false}` — log `AUTO {time} — pr-first-merge Step 4.5: release status — not yet in
+  a release — bump pending. Reversibility: n/a.` and carry that human line into the closing
+  report (`flow/summary-template.md`'s `**Release status:**` line).
+- `{"shipped": true, "missing": []}` — every record is already named under `v{version}`; log
+  `AUTO {time} — pr-first-merge Step 4.5: release status — already carried by v{version} — every
+  record named in CHANGELOG. Reversibility: n/a.` Stage nothing.
+- `{"shipped": true, "missing": [...]}` — the backfill case. Generate the subsection text with
+  `node bin/release.js status --merge {merge-sha} --records {n},{m} --ref origin/{integration-branch} --backfill`
+  and **stage** it as a Review Console row at `{run-dir}/staged/release-backfill-v{version}.md`
+  (a `Pending review` row — `wrap-up/console-template.md`), with this shape:
+
+  ```markdown
+  Apply: append the section below to CHANGELOG.md's `## v{version}` entry (before the next `## v` heading), through the ordinary pr-first path — scratch worktree, `tests/changelog-coverage.test.js` green, PR, merge. Never inline in the main checkout.
+  Merge: {merge-sha}
+  Records: #{a}, #{b}
+
+  ### also carried in this build
+
+  {the --backfill output, verbatim}
+  ```
+
+  Log `STAGED {time} — pr-first-merge Step 4.5: release status — already carried by v{version} —
+  CHANGELOG backfill needed: #{a}, #{b}. Stage path: staged/release-backfill-v{version}.md.` and
+  carry the human line into the closing report. This step never edits `CHANGELOG.md` itself —
+  Step 4's rule stands: **no `git merge`, `git commit`, or `git push` in the main checkout**, so
+  the staged row is applied later by a worktree-based PR (`docs/releasing.md`'s "After the merge"
+  section), never here.
+
+Like reconcile, this is convergent bookkeeping, not owed: a `git fetch` failure or a non-zero
+exit from the subcommand is logged (`AUTO {time} — pr-first-merge Step 4.5: release status
+unavailable ({reason}). Reversibility: n/a.`) and the closing report's line reads `release status
+unavailable — {reason}`; it is never a reason to report anything other than `merged`.
+
 ## Conflict path
 
 Exactly **one** update-from-base attempt, from inside the run's own worktree — never inside the

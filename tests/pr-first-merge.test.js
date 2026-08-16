@@ -141,3 +141,26 @@ test('AC4: every remaining "ready-to-merge" mention across skills/ is local-merg
   walk(path.join(ROOT, 'skills'));
   assert.deepStrictEqual(offenders, [], `files mentioning ready-to-merge without local-merge scoping: ${offenders.join(', ')}`);
 });
+
+test('Step 4 runs the release-status check after reconcile and stages — never writes — the CHANGELOG backfill (#678)', () => {
+  const step4 = MERGE.indexOf('## Step 4: Post-merge reconcile');
+  const conflict = MERGE.indexOf('## Conflict path');
+  assert.ok(step4 > 0 && conflict > step4, 'Step 4 must precede the Conflict path');
+  const section = MERGE.slice(step4, conflict);
+  assert.match(section, /node bin\/release\.js status --merge/, 'Step 4 invokes the status subcommand');
+  assert.match(section, /--records/, 'record numbers are passed explicitly');
+  assert.match(section, /staged\/release-backfill-v\{version\}\.md/, 'the already-carried outcome stages a Review Console row');
+  assert.match(section, /STAGED \{time\}/, 'the staged row is auto-decision-logged');
+  assert.match(section, /never (edits|writes) `CHANGELOG\.md`/i, 'Step 4 never writes CHANGELOG.md directly');
+  const status = MERGE.indexOf('node bin/release.js status', step4);
+  const reconcile = MERGE.indexOf('bin/hooks.js" reconcile', step4);
+  assert.ok(reconcile > 0 && status > reconcile, 'the status check runs after the reconcile call');
+});
+
+test('/flow closing reports carry the release-status line verbatim (#678)', () => {
+  const summary = read('skills', 'flow', 'summary-template.md');
+  const multi = read('skills', 'flow', 'multi-spec.md');
+  assert.match(summary, /\*\*Release status:\*\* \{/, 'single-spec summary renders the release-status line');
+  assert.match(multi, /\*\*Release status:\*\* \{/, 'multi-spec summary renders the release-status line');
+  assert.match(summary, /not yet in a release — bump pending/, 'the human form is quoted verbatim');
+});

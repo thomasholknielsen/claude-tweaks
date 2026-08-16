@@ -18,6 +18,8 @@ On successful completion of all steps (`wrap-up` in the step list):
 | polish | {Invoked N commands ({list}); re-verify passed | Skipped — non-frontend | Skipped — no-polish | Skipped — Impeccable not installed | No changes to apply | re-verify failed (see failure card)} |
 | wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
 
+**Release status:** {the one-line human form from `_shared/pr-first-merge.md` Step 4.5, verbatim — `not yet in a release — bump pending` | `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` (a `staged/release-backfill-vX.Y.Z.md` row is waiting at the Review Console) | `already carried by vX.Y.Z — every record named in CHANGELOG` | `release status unavailable — {reason}` | `n/a — not merged in this run (outcome: {armed | pending-review})`}
+
 ### Key Outputs
 - {summary of what was built}
 - {summary of review findings, if any}
