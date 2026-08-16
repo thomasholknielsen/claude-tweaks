@@ -231,10 +231,13 @@ function funnelBuckets(records) {
 
 // ({ allRows, readyRows, priorityBudget, grantBudget }) -> the refine sweep's
 // mechanical prelude in one pass. allRows = the merged faceted open set;
-// readyRows = the grant fetch's rows, already origin-filtered by the caller.
-// prioritySlice keys on missingPriority — the population Step 2's sweep
-// actually stamps (refs #460); grantSlice keys on fresh, unchanged.
-function refineWorklist({ allRows, readyRows, priorityBudget, grantBudget }) {
+// readyRows = the grant fetch's rows, already origin-filtered by the caller —
+// defaults to [] for work-backend: local-files, where the grant fetch never
+// runs (Preflight skips it), so fresh/blocked/inProgress and grantSlice.selected
+// all come back empty while missingPriority/missingRiskSize/prioritySlice still
+// compute from allRows. prioritySlice keys on missingPriority — the population
+// Step 2's sweep actually stamps (refs #460); grantSlice keys on fresh, unchanged.
+function refineWorklist({ allRows, readyRows = [], priorityBudget, grantBudget }) {
   const worklist = readyRows.filter((r) => !r.facets.grants.build && !r.facets.grants.merge);
   const blocked = worklist.filter((r) => r.facets.bot.blocked);
   const inProgress = worklist.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);

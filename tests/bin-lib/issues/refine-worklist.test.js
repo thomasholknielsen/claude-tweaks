@@ -109,6 +109,21 @@ test('refineWorklist: prioritySlice/grantSlice remaining math matches selectBudg
   assert.strictEqual(result.grantSlice.remaining, 1);
 });
 
+test('refineWorklist: omitting readyRows (work-backend: local-files) defaults it to [] — fresh/blocked/inProgress and grantSlice.selected come back empty while missingPriority/prioritySlice still compute from allRows', () => {
+  const missingPrio = rec(1, { priority: null, risk: 'high', size: 'low' }, '2026-01-01T00:00:00Z');
+  const hasPrio = rec(2, { priority: 'high', risk: null, size: null }, '2026-01-02T00:00:00Z');
+  const allRows = [missingPrio, hasPrio];
+  const result = refineWorklist({ allRows, priorityBudget: 10, grantBudget: 10 });
+
+  assert.deepStrictEqual(result.fresh, []);
+  assert.deepStrictEqual(result.blocked, []);
+  assert.deepStrictEqual(result.inProgress, []);
+  assert.deepStrictEqual(result.grantSlice.selected, []);
+  assert.strictEqual(result.grantSlice.remaining, 0);
+  assert.deepStrictEqual(result.missingPriority.map((r) => r.number), [1]);
+  assert.deepStrictEqual(result.prioritySlice.selected.map((r) => r.number), [1]);
+});
+
 test('refineWorklist: counts has exactly the five expected keys, each equal to its array\'s length', () => {
   const readyRows = [
     rec(1),

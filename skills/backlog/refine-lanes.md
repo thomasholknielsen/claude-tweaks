@@ -7,14 +7,18 @@ line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` lin
 confirm gate.
 
 One lane per record, precedence: Re-authorize → Grant → Flag-back (populated during the run by
-Step 3.5 downgrades) → Priority → Dependency repair (annotation-line when the record is already
-laned) → Needs you (residual: `needs:definition` records, then judgment-required rows; interactive
-launchers, no paste block). A record that would otherwise qualify for more than one lane renders
-exactly once, in the earliest lane on this list it reaches — Flag-back rows are already flag-back
-before this step ever reads the worklist (Step 3's `flag back (needs scoring)` recommendation,
-Step 3.5's body-shape auto-downgrade), so they never also compete as Grant candidates. The lanes
-themselves now do the job the retired `Type` column did — keeping grant/priority/related/
-dependency-repair rows visually distinguishable within one report — without a dedicated column.
+Step 3.5 downgrades) → Priority (annotation-line when the record is already laned above) →
+Dependency repair (annotation-line when the record is already laned) → Needs you (residual:
+`needs:definition` records, then judgment-required rows; interactive launchers, no paste block). A
+record that would otherwise qualify for more than one lane renders exactly once, in the earliest
+lane on this list it reaches — Flag-back rows are already flag-back before this step ever reads the
+worklist (Step 3's `flag back (needs scoring)` recommendation, Step 3.5's body-shape auto-downgrade),
+so they never also compete as Grant candidates. A record already laned above (Re-authorize/Grant/
+Flag-back) keeps its priority/Related suggestion as an annotation line under its existing row rather
+than a full Priority-lane row — a suggestion is never silently dropped; see the Priority lane
+section below for the exact template. The lanes themselves now do the job the retired `Type` column
+did — keeping grant/priority/related/dependency-repair rows visually distinguishable within one
+report — without a dedicated column.
 
 Empty lanes render nothing this run: no heading, no table, no paste block. Lead with a one-line
 count summary naming only the lanes that do render (adapting the old 10+-rows count-summary rule
@@ -22,10 +26,10 @@ to always fire, since the lane split needs the overview up front regardless of c
 
 `23` suggestions across `6` lanes: `2` re-authorize, `7` grant, `3` flag-back, `8` priority,
 `1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh every run. A
-record carrying only a Dependency-repair *annotation* (below) is counted under its primary lane,
-never double-counted under Dependency-repair too.
+record carrying only a Priority or Dependency-repair *annotation* (below) is counted under its
+primary lane, never double-counted under Priority or Dependency-repair too.
 
-### Re-authorize
+## Re-authorize
 
 Population: `.blocked` from `/tmp/backlog-refine-worklist.json` — records that hit the retry
 ceiling (`bot:blocked`), unaffected by Step 3's grant-check budget. Every row recommends the same
@@ -50,7 +54,7 @@ gh issue edit 118 --remove-label bot:blocked --add-label auto:build
 Re-authorizing grants `auto:build` only, never `auto:merge` — restoring that too requires an
 explicit override in your next message.
 
-### Grant
+## Grant
 
 Population: `.grantSlice.selected` rows Step 3's `assess-agent-autonomy grant-check` returned
 `RECOMMEND_BUILD: true` for (append `+ auto:merge` when `RECOMMEND_MERGE` is also `true`). Rows
@@ -120,7 +124,7 @@ the row is in, is never gated behind its own confirm, and is never written by th
 row is not a reason to withhold a grant; it is a prompt to read the record's `## Gotchas` before
 approving one.
 
-### Flag-back
+## Flag-back
 
 Population: rows that reached this lane before Step 4 ever rendered — Step 3's
 `RECOMMEND_BUILD: false` recommendation (`flag back (needs scoring)`; the human may instead supply
@@ -143,11 +147,32 @@ gh issue edit 201 --remove-label ready
 gh issue comment 201 --body-file /tmp/backlog-refine-flagback-201.md
 ```
 
-### Priority
+## Priority
 
 Population: `.prioritySlice.selected` (Step 2's synthesis, bounded to `--budget`) — every
 missing-priority record's tier suggestion, plus any `**Related:**` cross-reference Step 2 detected
 among the same selected set.
+
+**Already-laned records get an annotation, never a dropped suggestion.** A selected record that
+already has a row in the Re-authorize, Grant, or Flag-back lane above does not get a second,
+full row here — the common case, since a record ready enough to be a grant/re-authorize candidate
+frequently also lacks a `priority:*` label. Instead it gets one annotation line under its existing
+row in that earlier lane, the literal template:
+
+```
+  ↳ priority: {suggested tier} — {one-line rationale}
+```
+
+and, when Step 2 also detected a `**Related:**` cross-reference for that same record:
+
+```
+  ↳ related: add **Related:** #{n}
+```
+
+The corresponding apply command (`gh issue edit … --add-label priority:{tier}` / the Related body
+rewrite) folds into that same earlier lane's paste block — Step 5 applies it together with whatever
+that lane already applies, in one edit per record where possible. Only records with no row in any
+lane above get a full Priority-lane row below.
 
 | # | Record | Current → Recommended | Evidence |
 |---|---|---|---|
@@ -172,7 +197,7 @@ verdict — informational only, never gated behind its own confirm, never itself
 If `.prioritySlice.remaining > 0`, Step 2 already states it plainly in the report — not repeated
 here.
 
-### Dependency repair
+## Dependency repair
 
 Population: `findUnresolvedDependencyProse`'s `{ flags }` output (Step 5's Dependency-repair-rows
 section names the detection and both `work-links` branches) — records whose prose names a blocker
@@ -203,7 +228,7 @@ A judgment-required repair — evidence too ambiguous for a mechanical wire (e.g
 multiply-mentioned prose match) — carries no paste-ready command and moves to the Needs-you lane
 instead.
 
-### Needs you
+## Needs you
 
 Population, in order: records carrying `needs:definition` in this run's fetch, then
 judgment-required rows with no batchable command anywhere above — `framing:baked` confirmations,

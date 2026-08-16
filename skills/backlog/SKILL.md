@@ -102,7 +102,7 @@ No "set up a routine" option yet — `skills/backlog/routine-template.yml` doesn
 | Granting from `grant` mode on any record whose gate chain hasn't fully cleared, or on a human-filed record regardless of other keys | `bin/lib/issues/grant-gate.js`'s chain is exhaustive and ordered; a human-filed record (no `by:*`) is refused unconditionally — see `grant-mode.md` |
 | Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action is the load-bearing security signature — never skip it, even for an all-recommended batch |
 | Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only *strips* `bot:blocked` on re-grant |
-| Reading every candidate record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |
+| Reading every candidate record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Steps 1-3 |
 | Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | `/claude-tweaks:tidy`'s job (Shape 3) — this skill tags them and in `refine` may apply `priority:*` via the local-files fallback, never mirroring to GitHub |
 | Claiming or building a record from this skill | Out of scope — `/claude-tweaks:dispatch`'s job |
 | Deriving a grant, priority bump, or "next step" from `overview` mode's Trust Table | Read-only reporting — `overview` writes nothing, and the `autonomy` ceiling's one effect on this skill is which records arrive born-`ready` (`refine-mode.md` Step 3.6), never what a verdict recommends for one already here |

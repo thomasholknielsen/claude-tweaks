@@ -76,8 +76,10 @@ Immediately after, compute the whole refine worklist in one pass — this is wha
 ```bash
 node -e "
   const { refineWorklist } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const fs = require('fs');
   const allRows = require('/tmp/backlog-refine-faceted.json');
-  const readyRows = require('/tmp/backlog-refine-ready-faceted.json');
+  const p = '/tmp/backlog-refine-ready-faceted.json';
+  const readyRows = fs.existsSync(p) ? require(p) : [];
   console.log(JSON.stringify(refineWorklist({
     allRows, readyRows,
     priorityBudget: Number(process.env.PRIORITY_BUDGET || 40),
@@ -86,7 +88,9 @@ node -e "
 " > /tmp/backlog-refine-worklist.json
 ```
 
-When `--budget <n>` was passed (see `SKILL.md`'s Input), export `PRIORITY_BUDGET=<n>` and `GRANT_BUDGET=<n>` before running the compute block above; omitted, both are unset and the block's own `|| 40` defaults apply — Step 2's priority/Related synthesis pass and Step 3's grant-check pass stay independently budgeted, exactly as before.
+Under `work-backend: local-files`, the grant fetch above never ran (Preflight skips it), so `/tmp/backlog-refine-ready-faceted.json` doesn't exist; `readyRows` defaults to `[]` and the compute block still produces every priority-path field (`missingPriority`, `missingRiskSize`, `prioritySlice`) from `allRows` — the grant lanes (`fresh`/`blocked`/`inProgress`/`grantSlice`) are simply empty.
+
+When `--budget <n>` was passed (see `SKILL.md`'s Input), set `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n>` in the **same Bash invocation** as the compute block above (e.g. `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n> node -e "..."`) — shell environment does not survive between separate Bash calls, so exporting them in an earlier call and relying on the compute block's later call to inherit them silently resolves both to the `|| 40` default instead. Omitted, both are unset and the block's own `|| 40` defaults apply — Step 2's priority/Related synthesis pass and Step 3's grant-check pass stay independently budgeted, exactly as before.
 
 When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
 
@@ -154,10 +158,8 @@ more ready records awaiting grant-check exist beyond this run's `--budget {N}` �
 continue."
 
 When Step 1's compute block's `.counts.inProgress` is non-zero (those records are excluded from
-the grant worklist entirely — see the split description in Step 1), state that once in the report
-too: "`{n}` in flight — excluded from grant checks; a grant changes nothing mid-run." Render
-nothing when the count is zero — the exclusion line exists so the drop is visible, never as a
-permanent fixture.
+the grant worklist entirely — see the split description in Step 1), the Grant lane (`refine-lanes.md`)
+states that plainly in the report — not repeated here.
 
 ### Trust signal (advisory, `github-issues` only)
 
@@ -166,7 +168,10 @@ table only when `{resolved-ceiling}` is `trusted` or higher, **or** `--trust` wa
 `SKILL.md`'s Input). Below `trusted` with no `--trust`, skip everything else in this section —
 `_shared/trust-table.md`'s Fetch section, including its per-parent branches and its `git log`
 read, never runs this session — Trust evidence is omitted from the report for this run, and Step
-4's footer renders the skip wording given there instead of the ceiling-description wording.
+4's footer renders the skip wording given there instead of the ceiling-description wording. On this
+skip path, delete or ignore any pre-existing `/tmp/backlog-refine-trust.json` left over from an
+earlier run in the same environment (`rm -f /tmp/backlog-refine-trust.json`, or simply never read
+it) — this run must never render a stale trust table left behind by a prior `--trust` invocation.
 
 When fetching: run `_shared/trust-table.md`'s Fetch section in full (including its
 `backlog-fetch-limit` resolution, its `work-links` resolution — which decides which of the two
@@ -277,7 +282,8 @@ born-`ready` by this path and this step does nothing.
 ## Step 4: Decision lanes
 
 One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
-Needs you.
+Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
+suggestion as an annotation line under its row — a suggestion is never silently dropped.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and framing annotation templates, the
@@ -316,7 +322,7 @@ A record carrying `facets.unsynced === true` (Step 1's local fallback fold-in) h
 
 For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files, and any `facets.unsynced === true` record regardless of driver: `writeRecord` with the updated body against the record's `.path`, followed by the same `git add`/`git commit` step).
 
-**Grant rows:** When Step 4 resolved to `"Grant auto:build only, hold merge"` (Option 3 above), skip every `auto:merge` grant below for the remainder of this session — apply `auto:build`/re-authorize exactly as the Grant lane recommended, but never the `gh issue edit "$ISSUE" --add-label auto:merge` line, regardless of what the row's own Recommended column said. This is a session-wide override, not a per-row judgment call — it doesn't change what Step 3 recommended or what the Grant lane displayed, only what Step 5 writes.
+**Grant rows:** When Step 4 resolved to `"Grant auto:build only, hold merge"` (Option 3 of the confirm gate, `refine-lanes.md`), skip every `auto:merge` grant below for the remainder of this session — apply `auto:build`/re-authorize exactly as the Grant lane recommended, but never the `gh issue edit "$ISSUE" --add-label auto:merge` line, regardless of what the row's own Recommended column said. This is a session-wide override, not a per-row judgment call — it doesn't change what Step 3 recommended or what the Grant lane displayed, only what Step 5 writes.
 
 For every row still marked for granting after Step 3.5:
 
