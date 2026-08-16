@@ -67,7 +67,7 @@ Wait for confirmation. The user may know things the code doesn't reveal (e.g., "
 
 ## Writing project-maturity to policy.yml
 
-Once classification is confirmed (either the auto-confirm path above or the interactive gate), write it as a durable config value — `project-maturity` is a project fact other skills (`/claude-tweaks:build`, `/claude-tweaks:specify`) read directly, not just Phase 5 Philosophy-prose input. Unlike `worktree.always` (see `SKILL.md`'s "Finalizing the worktree.always Decision"), this write has no self-lock risk — turning it on mid-run can't deny this same run's own remaining writes the way enabling worktree enforcement can — so it happens immediately here rather than being deferred to Phase 9.
+Once classification is confirmed (either the auto-confirm path above or the interactive gate), write it as a durable config value — `project-maturity` is a project fact other skills (`/claude-tweaks:build`, `/claude-tweaks:specify`) read directly, not just Phase 5 Philosophy-prose input. Unlike `worktree-always` (see `SKILL.md`'s "Finalizing the worktree-always Decision"), this write has no self-lock risk — turning it on mid-run can't deny this same run's own remaining writes the way enabling worktree enforcement can — so it happens immediately here rather than being deferred to Phase 9.
 
 Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `project-maturity:` line, replace that line, otherwise append a new `project-maturity: {value}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
 

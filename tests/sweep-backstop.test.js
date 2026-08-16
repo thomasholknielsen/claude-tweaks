@@ -220,7 +220,7 @@ test('tidy/SKILL.md registers Arm ready PR in the Action Vocabulary table', () =
 test('tidy/SKILL.md Step 7 documents the marker and grant, and states the marker is stamped under pr-first + worktree-always (#424)', () => {
   assert.match(TIDY_SKILL, /<!-- tidy-housekeeping-pr -->/);
   assert.match(TIDY_SKILL, /`housekeeping-auto-merge` set project-wide/);
-  assert.match(TIDY_SKILL, /this run's commit is pushed as a PR by the `worktree\.always` handling above/);
+  assert.match(TIDY_SKILL, /this run's commit is pushed as a PR by the `worktree-always` handling above/);
   assert.doesNotMatch(TIDY_SKILL, /As of this writing, Step 7 above does not itself open a PR/);
 });
 

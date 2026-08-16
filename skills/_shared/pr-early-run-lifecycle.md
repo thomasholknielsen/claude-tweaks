@@ -69,7 +69,7 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
 git -C "{worktree-path}" push origin {branch}
 ```
 
-Its own Bash call — never chained (the `worktree.always` gate denies a compound command whole,
+Its own Bash call — never chained (the `worktree-always` gate denies a compound command whole,
 same as every other push in this plugin).
 
 **On failure** (network, auth, no `origin` remote, rejected non-fast-forward): stop here. Log to

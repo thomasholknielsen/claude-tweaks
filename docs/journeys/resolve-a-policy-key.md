@@ -23,10 +23,10 @@ files:
 - **Red flags:** A stack trace (invocation failures are one stderr line + exit 1); an unknown key killing the whole call — `{"error":"unknown-key"}` must appear per key while siblings still resolve.
 
 ### 2. Read a configured value — `.claude-tweaks/policy.yml`
-- **URL:** `node bin/resolve-policy.js autonomy worktree.always` in a checkout that sets both keys
-- **Action:** Run against a project whose `policy.yml` sets `autonomy: unattended` and `worktree.always: true`.
+- **URL:** `node bin/resolve-policy.js autonomy worktree-always` in a checkout that sets both keys
+- **Action:** Run against a project whose `policy.yml` sets `autonomy: unattended` and `worktree-always: true`.
 - **Should feel:** Like one lookup replacing a grep pipeline — several keys per call, natively typed.
-- **Should understand:** `source: "policy"` names the layer that decided each value; `worktree.always` comes back as boolean `true`, not the string `"true"` — coercion happens in the resolver, so no read site re-implements it. A malformed value (e.g. `trust-revert-window-days: banana`) degrades to the schema default with `"invalid": true` rather than silently activating some other source's value.
+- **Should understand:** `source: "policy"` names the layer that decided each value; `worktree-always` comes back as boolean `true`, not the string `"true"` — coercion happens in the resolver, so no read site re-implements it. A malformed value (e.g. `trust-revert-window-days: banana`) degrades to the schema default with `"invalid": true` rather than silently activating some other source's value.
 - **Red flags:** String-typed integers or booleans in the JSON; a deprecated key name resolving nothing — `dispatch-pick-max-concurrent: 5` must answer a request for `dispatch-batch-size` with value `5` plus `"renamed-from"`, and a pre-#332 dotted line such as `project.maturity: established` must answer a request for `project-maturity` the same way (the seven #332 renames — `review-auto-apply-ceiling`, `auto-merge-max-lines`/`-files`, `project-maturity`, `harness-health-scoped-rule-budget`/`-always-loaded-budget`, `doc-convention-adr` — are all identity aliases; a user's un-migrated `policy.yml` never silently reverts to defaults, and `/claude-tweaks:init --update`'s policy drift check — `auditPolicy` in `bin/lib/policy-schema.js` — lists each stray line under `renamedKeys` with its replacement).
 
 ### 3. Overlay a pipeline run's config — `--run`

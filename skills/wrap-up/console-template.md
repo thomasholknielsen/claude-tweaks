@@ -166,7 +166,7 @@ terminal decision.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
-| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
+| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree-always | `staged/wrap-up-upstream-1.md` |
 
 > Filing publishes privately-derived content to a public repository. The body shown is already
 > scrubbed; a checked item files it via `/claude-tweaks:feedback --pre-confirmed`.
