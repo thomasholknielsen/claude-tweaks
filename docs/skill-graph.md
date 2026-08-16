@@ -79,15 +79,15 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — or, under `autonomy: trusted`+, born-`ready` when `producer:capture` carries a `clean` trust verdict; `overview` mode surveys and prioritizes them. |
-| `_shared/autonomy-ceiling.md` | The one actor the ceiling's born-`ready` tier covers. `/capture` resolves it through `permittedGrants` — never from the policy value alone, since the class verdict is half the condition — and files with `ready` already applied when both hold. Inert at `supervised`, the default. |
+| `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — human-invoked, or, under `autonomy: trusted`+ when `producer:capture` carries a `clean` trust verdict, machine-chained immediately after filing; `overview` mode surveys and prioritizes them. |
+| `_shared/autonomy-ceiling.md` | The one actor the ceiling's born-`ready` tier covers. `/capture` resolves it through `permittedGrants` — never from the policy value alone, since the class verdict is half the condition — and files plain, then chains into `/claude-tweaks:specify #{n} --chained` when both hold, which stamps `ready` under its own authority. Inert at `supervised`, the default. |
 | `/challenge` | Indirect only — `/challenge`'s `framing-check` mode judges the record `/capture` created, but it is invoked by `/specify` while shaping that record, not by `/capture` itself. See the `## challenge` and `## specify` sections. |
 | `/code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |
 | `/help` | Feeds items `/help` surfaces in the status dashboard / queue counts. |
 | `/init` | After bootstrap, `/init` suggests `/capture` as the entry point for ideas that surface during setup but aren't ready to specify. |
 | `/research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
-| `/specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path; also decomposes brainstormed design docs into ready sub-issue records. |
+| `/specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path, human-invoked or, under the born-`ready` condition, machine-chained via `Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")` immediately after filing; also decomposes brainstormed design docs into ready sub-issue records. |
 | `/wrap-up` | May file new backlog records for genuinely new ideas; leftover work becomes a `parked` record instead. |
 | `/superpowers:brainstorming` | Explores promoted backlog records — produces design docs. |
 
@@ -336,6 +336,18 @@ depends on them.
 | `skills/_shared/integration-branch.md` | Canonical resolution ladder for the branch this skill substitutes into `{{TARGET_BRANCH}}`. Shared with `/dispatch`, `/wrap-up`, `/build`, `/flow`, and `/assess-agent-autonomy` — this skill contributes ranks 1-2 (its `--branch` argument and the template's own `branch:` pin) and consumes the rest. Owns the `integration-branch` policy key, indexed in `_shared/policy-schema.md`. `fleet on` resolves the branch once per fleet run and reuses it across every composition-table row, rather than re-resolving per row. |
 | `skills/_shared/routine-diagnostic-probe.md` | Consumer, not a skill — references this skill's CREATE Step 4 environment-resolution procedure by name rather than duplicating it, for firing ad hoc diagnostics against an already-existing project environment. A future change to Step 4's resolution sources must consider this dependent. |
 | `skills/_shared/autonomy-ceiling.md` | `fleet.md`'s Step 3 (conditional grant-unit provisioning) is the contract's two-unattended-keys gate applied at provisioning time rather than at grant time — `autonomy: unattended` plus the reserved `grant-origination-enabled` opt-in this file names are the exact two keys, no third, no paraphrase. |
+| `skills/_shared/trust-table.md` | Fetch + Render supplies `fleet status`'s per-class trust table — same shared rendering `/backlog overview` and `/help` consume. |
+| `skills/routine/status.md` | Steps 2-3.5 supply the per-routine STATUS procedure `fleet status` loops over fleet-marked records. |
+| `bin/lib/issues/fleet-counters.js` | Pure module deriving `fleet status`'s weekly counters — fixtures pin AC1. |
+| `#213` | The pause verb `fleet off` depends on, open at ship time — pause path consumes whatever ships; until then the no-pause-verb fallback reports deletion-vs-keep and performs no destructive action. |
+
+## routine-kickoff
+
+| Target | Relationship |
+|---|---|
+| every routine kernel | Invoked by the kernel's closing line (`Then: /claude-tweaks:routine-kickoff {kickoff}`) assembled from `skills/_shared/routine-template-schema.md`'s Standard prompt kernel — the only intended caller; the kernel's frozen-catalog fallback (an unknown-/unrecognized-skill error from the Skill tool, after self-heal) also reads this SKILL.md directly as raw prose |
+| each routine-backed skill | Step 4 composes `/claude-tweaks:{first-token}` from the kickoff args and invokes it via the Skill tool; the manual-execution fallback (raw-prose read path) excludes `dispatch`/`tidy` (work-claiming/deleting skills) and any future skill that claims work or writes beyond report-only surfaces |
+| `bin/hooks.js reconcile` | Step 3 runs reconcile best-effort before the target invocation — full convergence under `pr-first`, worktree reap only under `local-merge` |
 
 ## simplify
 

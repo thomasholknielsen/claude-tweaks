@@ -74,7 +74,7 @@ test('a kind this module does not recognize is denied, not permitted', () => {
 });
 
 test('a human-filed class earns nothing, however clean and however high the ceiling', () => {
-  // Born-ready authorizes an AGENT's filing to skip /claude-tweaks:specify. A
+  // Born-ready authorizes an AGENT's filing to skip the human shaping round-trip. A
   // human-filed class has no agent filing to authorize, so its verdict — however
   // good — is evidence about the wrong thing. This is not hypothetical: on this
   // repo `human:human` is the largest provenance by a wide margin and the first

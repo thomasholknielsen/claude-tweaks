@@ -6,7 +6,9 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/grant-mode.md` (the machine-originated grant path —
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
-(Step 6.5's negative-evidence persist point — see Revocation below), and — for the
+(Step 6.5's negative-evidence persist point — see Revocation below), `flow/manifesto.md` and
+`review/step3-routing.md` (the review-auto-apply-ceiling ceiling-conditional default's two
+computation sites — see that section below), and — for the
 bookkeeping capabilities this file also documents — `_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
 route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve),
 `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge), and `_shared/console-execution.md`
@@ -85,7 +87,7 @@ their actual build history.
 | Ceiling | Unlocks — only for classes that have earned it |
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
-| `trusted` | Three things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). |
+| `trusted` | Three things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — the filing chains straight into `/claude-tweaks:specify --chained` shaping (headless), skipping the *human* shaping round-trip but never the shaping itself and never the human grant gate; the capture turn pays the shaping cost, only at this ceiling with a `clean` verdict. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). |
 | `unattended` | Everything `trusted` allows, plus the `unattended`-only rows of the Bookkeeping capabilities table below (`opsAckAutoAcknowledge`, `consoleAutoResolve`, `ledgerRouteRemainder`) and machine-originated `auto:build`. **The `auto:build` half is shut behind its own opt-in** — see below. |
 
 ## Bookkeeping capabilities
@@ -135,10 +137,13 @@ project-wide `low` (see `_shared/policy-schema.md`'s lever row). An explicit CLI
 project-policy value still wins under the standard precedence chain (`_shared/auto-mode-contract.md`)
 — the ceiling only moves the *default*, it never overrides a stated choice.
 
-This paragraph documents an intended future behavior, not a code change landed by this sub-issue: no
-file this sub-issue touches reads the ceiling to compute this default. The actual read/default site
-is `skills/review/step3-routing.md` (not `skills/review/SKILL.md`, which never mentions this lever) —
-wiring the ceiling into that resolution is a later sub-issue's scope.
+Two sites read the ceiling to compute this default, and they must stay in lockstep (refs #566):
+`skills/flow/manifesto.md`'s Recommendation-defaults row computes it into every piped run's
+`config.yml` (which resolves as `source: run-config` downstream), and
+`skills/review/step3-routing.md`'s `source: default` branch computes it for a run directory whose
+`config.yml` never set the lever (not `skills/review/SKILL.md`, which never mentions this lever). A
+flat value at either site silently defeats the other — the manifesto row's own rationale spells out
+the failure shape.
 
 ## Ceiling, not level
 
@@ -250,7 +255,7 @@ AUTO {time} — {what}. Reason: {policy-source}. Reversibility: high.
 Examples:
 
 ```
-AUTO 15:04:22 — Filed #212 born-ready (class producer:code-health/low, verdict clean, ceiling trusted). Reversibility: high.
+AUTO 15:04:22 — Filed #212 and chained /claude-tweaks:specify --chained shaping — born-ready (class producer:capture/elevated, verdict clean, ceiling trusted). Reversibility: high.
 AUTO 15:06:03 — Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
 AUTO 15:06:04 — Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
 AUTO 15:06:05 — Ops acknowledgment: 2 items auto-acknowledged, staged for filing. Reversibility: high.
