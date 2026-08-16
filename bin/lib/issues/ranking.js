@@ -97,6 +97,12 @@ function findUnresolvedDependencyProse(candidates) {
     const body = c.body || '';
     if (!PROSE_DEP_RE.test(body)) continue;
     if (blockersOf(c).length > 0) continue;
+    // An unsynced record's blockers resolve [] by the namespace rule above,
+    // not because nothing is wired — its own facets.blockedBy is the local
+    // ground truth. Wired-in-own-namespace suppresses the flag; only an
+    // unsynced record with prose and NO wired local blockers is a mismatch.
+    if (c.facets && c.facets.unsynced === true
+      && Array.isArray(c.facets.blockedBy) && c.facets.blockedBy.length > 0) continue;
     const line = body.split('\n').find((l) => PROSE_DEP_RE.test(l));
     hits.push({ id: c.id, mention: line.trim() });
   }

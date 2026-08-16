@@ -153,13 +153,19 @@ test('blockersOf: an unsynced candidate resolves [] even though facets.blockedBy
 });
 
 test("rankNextToBuild: an unsynced candidate's phantom blockedBy reference does not inflate another candidate's unblocks-count", () => {
-  const unsyncedCandidate = { id: 1, facets: { unsynced: true, blockedBy: [3], priority: 'high', size: null }, body: '', keyFiles: [], hasPlan: false };
+  const unsyncedWithBlockedBy = { id: 1, facets: { unsynced: true, blockedBy: [3], priority: 'high', size: null }, body: '', keyFiles: [], hasPlan: false };
+  const unsyncedWithoutBlockedBy = { id: 1, facets: { unsynced: true, priority: 'high', size: null }, body: '', keyFiles: [], hasPlan: false };
   const target = { id: 3, facets: { priority: 'high', size: null }, body: '', keyFiles: [], hasPlan: false };
   // Direct assertion is sufficient per #514's contract — id 3's unblocks-count
   // must not count the unsynced candidate's local-namespace reference to it.
-  assert.deepEqual(blockersOf(unsyncedCandidate), []);
-  const ranked = rankNextToBuild([unsyncedCandidate, target]);
-  assert.deepEqual(ranked.map((c) => c.id), [1, 3], 'both candidates tie on unblocks-count (0); array order is preserved by the stable sort');
+  assert.deepEqual(blockersOf(unsyncedWithBlockedBy), []);
+  // Comparative rather than a hardcoded tie-order: whether or not the phantom
+  // blockedBy reference is present, id 3's unblocks-count is unaffected, so
+  // the resulting order must be identical either way — this survives a
+  // future stable-sort/tie-break change instead of pinning to it.
+  const rankedWith = rankNextToBuild([unsyncedWithBlockedBy, target]).map((c) => c.id);
+  const rankedWithout = rankNextToBuild([unsyncedWithoutBlockedBy, target]).map((c) => c.id);
+  assert.deepEqual(rankedWith, rankedWithout, "the unsynced candidate's phantom blockedBy reference changes nothing about the ranked order");
 });
 
 test('blockersOf: facets.blockedBy [] (the local driver\'s default) is authoritative even with a canonical body line — the explicit empty tier short-circuits the body fallback', () => {
@@ -187,10 +193,28 @@ test('findUnresolvedDependencyProse: not flagged when a canonical line-start dec
 
 test('findUnresolvedDependencyProse: case-insensitive match', () => {
   const c = { id: 6, facets: {}, body: 'This is BLOCKED BY #7 in prose only' };
-  assert.equal(findUnresolvedDependencyProse([c]).length, 1);
+  assert.deepEqual(findUnresolvedDependencyProse([c]), [{ id: 6, mention: 'This is BLOCKED BY #7 in prose only' }]);
 });
 
 test('findUnresolvedDependencyProse: no prose mention, no flag (negative control)', () => {
   const c = { id: 8, facets: {}, body: 'No dependencies at all.' };
   assert.deepEqual(findUnresolvedDependencyProse([c]), []);
+});
+
+// --- unsynced + wired-local-blockers suppression (record #514) ---
+// blockersOf resolves [] for an unsynced record by the namespace rule, but
+// that [] means "cross-namespace blockers hidden", not "nothing wired" — an
+// unsynced record with its own facets.blockedBy populated must NOT be
+// false-flagged just because blockersOf's return value is empty.
+
+test('findUnresolvedDependencyProse: unsynced candidate with prose mention AND wired facets.blockedBy is NOT flagged', () => {
+  const c = { id: 30, facets: { unsynced: true, blockedBy: [3] }, body: 'Blocked by #3 in prose' };
+  assert.deepEqual(findUnresolvedDependencyProse([c]), []);
+});
+
+test('findUnresolvedDependencyProse: unsynced candidate with prose mention and NO wired local blockers IS flagged', () => {
+  const noBlockedBy = { id: 31, facets: { unsynced: true }, body: 'Blocked by #3 in prose' };
+  const emptyBlockedBy = { id: 32, facets: { unsynced: true, blockedBy: [] }, body: 'Blocked by #3 in prose' };
+  assert.deepEqual(findUnresolvedDependencyProse([noBlockedBy]), [{ id: 31, mention: 'Blocked by #3 in prose' }]);
+  assert.deepEqual(findUnresolvedDependencyProse([emptyBlockedBy]), [{ id: 32, mention: 'Blocked by #3 in prose' }]);
 });
