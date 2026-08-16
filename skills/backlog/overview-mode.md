@@ -72,16 +72,17 @@ node -e "
 " > /tmp/backlog-overview-views.json
 ```
 
-**`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`), capped at `--budget` rows (default 20) with an overflow note. Note the excluded unscored count from `.split.unscored.length` ("N unscored records not risk-assessed yet — run bare mode for a judgment pass"). Skip to Step 4.
+**`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`), capped at `--budget` rows (default 20) with an overflow note. Note the excluded unscored count from `.split.unscored.length` ("N unscored records not risk-assessed yet — run bare mode for a judgment pass"). Then stop — render Next Actions; lens runs never reach the batch emitter (Step 4 is bare-mode only).
 
-**`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group, same capping. Add a `Tier` column reading `facets.ceremony` directly (`fast-lane`/`standard`), `—` for records scored before ceremony-tiering shipped. Skip to Step 4.
+**`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group, same capping. Add a `Tier` column reading `facets.ceremony` directly (`fast-lane`/`standard`), `—` for records scored before ceremony-tiering shipped. Then stop — render Next Actions; lens runs never reach the batch emitter (Step 4 is bare-mode only).
 
-**`cleanup`** — render `.cleanup` as a table, grouped for a batch sweep, same capping. Skip to Step 4.
+**`cleanup`** — render `.cleanup` as a table, grouped for a batch sweep, same capping. Then stop — render Next Actions; lens runs never reach the batch emitter (Step 4 is bare-mode only).
 
 **`trust`** — renders the full trust table per `_shared/trust-table.md`'s Render section verbatim
 (uncapped — that contract's "never cap or truncate the row count" rule applies unchanged), using
-the computation Step 1.5 already ran. Skip to Step 4. Under `work-backend: local-files` the lens
-reports that the trust table is not applicable (same omission rationale as Step 1.5).
+the computation Step 1.5 already ran. Then stop — render Next Actions; lens runs never reach the
+batch emitter (Step 4 is bare-mode only). Under `work-backend: local-files` the lens reports that
+the trust table is not applicable (same omission rationale as Step 1.5).
 
 **Bare (no lens)** — render the funnel header from `.funnel` (`funnelBuckets` output), then
 continue to Step 3. The header is populations + verbs only — **no record ids, and no
@@ -156,6 +157,8 @@ Render the top result (and up to 2 runners-up) as a short "Recommended next" cal
 
 ## Step 4: Batch emitter (bare mode)
 
+Bare mode only — lens runs end at their own table (Step 2) and never reach this step.
+
 **Input precondition:** the dispatch-block candidate set is `funnelBuckets`'s `dispatchable` ∪
 `granted` (Step 2's `.funnel` — already filtered; `needs:definition` records structurally can't be
 in it since they never reach `ready`; the Shape block's own human-owed filtering belongs to the
@@ -163,7 +166,7 @@ needs-you sub-issue). The Shape block's population is the `scored` bucket (recor
 the Score line's count is the `captured` bucket.
 
 Compute the batch's graph structure, transitive payout, and file-overlap groups in one pass,
-extending Step 3's outputs:
+reusing Step 3's candidate set:
 
 ```bash
 node -e "
@@ -178,9 +181,16 @@ node -e "
 " > /tmp/backlog-overview-emitter.json
 ```
 
+Note: `payout` keys are strings after `Object.fromEntries` (plain JS object keys are always
+strings) while `graph`'s chain/independent/cycle ids stay numbers — coerce before comparing or
+joining the two.
+
 **Ordering rule:** one combined ranking over dependency components and independents alike — sort
-key: the component head's `transitiveUnblocksCount` (an independent is its own head; usually 0)
-descending, then priority, then size, ties by id. No chains-first-then-independents grouping.
+key: the component head's `transitiveUnblocksCount` descending, then the head's priority, then the
+head's size, ties by id. The component head is the linearized chain's first element (an
+independent is its own head, usually with `transitiveUnblocksCount` 0); residual ties among
+components resolve on the head's priority/size, never another member's. No
+chains-first-then-independents grouping.
 
 **Render:** one fenced paste block per funnel stage that has members, exactly these templates:
 
@@ -204,40 +214,73 @@ descending, then priority, then size, ties by id. No chains-first-then-independe
 /claude-tweaks:flow #A,#B,#C
 # Terminal 2 — independent
 /claude-tweaks:flow #D
+# Terminal {k} — serialized: #A, #B (file overlap: {files})
+/claude-tweaks:flow #A,#B
 ```
 
 Prose rules: the Score line's count is comment-only (`refine` has no count flag); Shape lines are
 priority-ordered, one record per terminal; a chain emits as **one** multi-ref
 `/claude-tweaks:flow #A,#B,#C` command listing every member in dependency order (one command per
 chain, never head-only — flow's multi-ref form runs them as a sequential pipeline); independents
-get their own terminals with plain `/claude-tweaks:flow #N`. All commands fully qualified.
+get their own terminals with plain `/claude-tweaks:flow #N`; a file-overlap group merged across
+components/independents (per the Overlap serialization integrity rule below) emits as the third
+comment form, `# Terminal {k} — serialized: #A, #B (file overlap: {files})`, with the members'
+internal order following the combined ranked order and the merged terminal's own rank key taken
+from its highest-ranked member. All commands fully qualified. The `─▶` arrows in a chain comment
+show execution order, not necessarily a direct dependency edge — a linearized diamond serializes
+siblings that have no edge between them.
 
-**Batch integrity rules:**
+**Batch integrity rules:** the emitter's exclusion rules operate on populations `funnelBuckets`
+already partitioned — the rules below name where each excluded population surfaces, they never
+re-derive membership.
 
-- **Overlap serialization** — records `groupByFileOverlap` groups together never appear in
-  different concurrent terminal blocks. Deciding criterion: members of the same dependency
-  component are already serialized in one terminal by construction; a file-overlap group spanning
-  different components/independents serializes them into one terminal when they are few (≤3
-  combined), otherwise excludes the lower-ranked with a `#`-comment naming the conflict. Group
-  membership is transitive — treat membership, not pairwise overlap, as the signal.
-- **Claim exclusion** — `bot:in-progress`/claimed records are excluded from every block, one
-  `#`-comment reason each (e.g. `# #472 skipped — bot:in-progress`), and counted in the funnel's
-  `in flight` stage. The claim snapshot is read-only and may go stale between render and paste;
-  that staleness is accepted risk, resolved downstream by `/claude-tweaks:dispatch`/
-  `/claude-tweaks:flow`'s own claim-taking at execution time — never read this scan as a
-  completeness guarantee, and never instruct taking a claim from this report.
-- **No silent caps** — anything excluded or truncated is named with a count.
-- **No terminal cap** — blocks emit in ranked order; the human takes the top *k*.
-- **Flagged records** — records flagged by the dependency-mismatch detection (Step 3's `flags`)
-  render as plain independents: no `─▶` arrows, own terminal, with a `#`-comment naming the
-  suppressed chain and pointing at `/claude-tweaks:backlog refine`'s dependency repair — never
-  silently dropped (dropping would violate the no-silent-caps rule above).
+- **(a) Overlap serialization** — scoped to the Dispatch block only (Shape-block records are
+  unshaped and carry no `### Key Files`, so file-overlap grouping doesn't apply there). Records
+  `groupByFileOverlap` groups together never appear in different concurrent terminal blocks.
+  Deciding criterion: members of the same dependency component are already serialized in one
+  terminal by construction; a file-overlap group spanning different components/independents
+  serializes them into one terminal when they are few (≤3 combined), otherwise excludes the
+  lower-ranked with a `#`-comment naming the conflict. Group membership is transitive — treat
+  membership, not pairwise overlap, as the signal.
+- **(b) Claim exclusion** — the excluded population is `.funnel.inFlight` (Step 2's
+  `/tmp/backlog-overview-views.json` output — the records `funnelBuckets` already partitioned out
+  of the buildable subset by the `bot:in-progress` facet; claim blobs on the claims-registry
+  branch are not read by this report). Each excluded record gets one `#`-comment reason (e.g.
+  `# #472 skipped — bot:in-progress`), already counted in the funnel's `in flight` stage. The
+  claim snapshot is read-only and may go stale between render and paste; that staleness is
+  accepted risk, resolved downstream by `/claude-tweaks:dispatch`/`/claude-tweaks:flow`'s own
+  claim-taking at execution time — never read this scan as a completeness guarantee, and never
+  instruct taking a claim from this report.
+- **(c) No silent caps** — anything excluded or truncated is named with a count.
+- **(d) No terminal cap** — blocks emit in ranked order; the human takes the top *k*.
+- **(e) Flagged records** — records flagged by the dependency-mismatch detection (Step 3's
+  `flags`) render as plain independents: no `─▶` arrows, own terminal, with a `#`-comment naming
+  the suppressed chain and pointing at `/claude-tweaks:backlog refine`'s dependency repair — never
+  silently dropped (dropping would violate rule (c) above).
+- **Out-of-set-blocked granted records** — a `granted`-bucket candidate whose `blockersOf`
+  resolution contains an id OUTSIDE the buildable subset (`dispatchable` ∪ `granted`) is
+  definitionally blocked — its blocker is unshaped or ungranted, not yet part of this batch. It
+  still renders in the Dispatch block, but as a `#`-comment naming the out-of-set blocker and its
+  funnel stage (e.g. `# #521 waiting — blocked by #518 (shaped, ungranted)`), never a bare
+  paste-ready command; counted under rule (c). This is what keeps #513's header promise (the
+  granted stage's "no pointer — waiting on blockers; the blocker itself appears in the dispatch
+  hand-off").
+- **Cyclic components** — a dependency component `buildChains` returns under `cycles` (never
+  partially placed in `chains`) renders as a named `#`-comment block listing every id in the
+  component, with a pointer to `/claude-tweaks:backlog refine`'s dependency repair; counted under
+  rule (c). A stalled component absorbs its acyclic members too — the whole component is named
+  there, never silently dropped into a working terminal.
+- **Unsynced records** — `unsynced: true` fallback records never render as `#N` paste commands
+  (their ids are local-namespace, not GitHub refs); they are excluded from every paste block with
+  one `#`-comment naming the sync gap, counted under rule (c).
 
 **Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
 only; the `AskUserQuestion` menu carries this-session moves only (run refine here, open a lens,
 dispatch the top chain here) and is never the delivery channel for other-terminal command lists —
 terminal-command lists inside `AskUserQuestion` options are forbidden. The report body ends with a
 single `Next:` line: one sentence naming the top-ranked action, always exactly one. Fallback ladder
-when `dispatchable` is empty: the top action of the highest-precedence non-empty stage (grant →
-specify → refine), ties broken by id; when every stage is empty, the literal `Next: backlog is empty`.
+when the Dispatch block is empty (`dispatchable` ∪ `granted` both empty): the top action of the
+highest-precedence non-empty stage (grant → specify → refine), ties broken by id — the `grant`
+rung's action is the funnel header's shaped-stage pointer (no Grant paste block exists by design);
+when every stage is empty, the literal `Next: backlog is empty`.
 The menu's `(Recommended)` option MUST match the `Next:` line — one source of truth.

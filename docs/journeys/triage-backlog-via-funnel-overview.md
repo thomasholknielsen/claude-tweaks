@@ -12,7 +12,7 @@ files:
 **Persona:** A maintainer with an open work-record queue who wants one glance to answer "where is everything, and what do I act on?" — without reading three lens tables or a full trust matrix.
 **Goal:** Read the bare-mode funnel header, understand each stage's population and its single next verb, and drill into a lens only when a specific population needs detail.
 **Entry point:** A Claude Code session in a project with `work-backend: github-issues` (or `local-files`); type `/claude-tweaks:backlog` with no arguments.
-**Success state:** A funnel header whose stage counts sum to the open queue, at most two annotation lines beneath it, a "Recommended next" callout, and a hand-off block — with no lens tables rendered and every record appearing exactly once.
+**Success state:** A funnel header whose stage counts sum to the open queue, at most two annotation lines beneath it, a "Recommended next" callout, and per-stage paste blocks with integrity rules and a closing `Next:` line — with no lens tables rendered and every record appearing exactly once.
 
 ## Steps
 

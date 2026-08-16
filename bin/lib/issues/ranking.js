@@ -151,7 +151,10 @@ function transitiveUnblocksCount(candidates) {
 // partially in chains, never an infinite loop. Singleton components are
 // independents. Precondition: candidates are the buildable subset
 // (funnelBuckets dispatchable ∪ granted) carrying whatever blockedBy the
-// caller attached; blocker precedence comes from blockersOf.
+// caller attached; blocker precedence comes from blockersOf. Candidate ids
+// must be unique and each candidate must carry `.facets` (same precondition
+// as rankNextToBuild) — duplicate ids are undefined behavior (last-write-wins
+// internally, since byId/adjacency/seen are all keyed by id).
 function buildChains(candidates) {
   const ids = new Set(candidates.map((c) => c.id));
   const byId = new Map(candidates.map((c) => [c.id, c]));
