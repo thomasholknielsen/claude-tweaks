@@ -15,17 +15,17 @@ The single, curated roster of project-local design critics that `/claude-tweaks:
 
 ## Trigger signals
 
-Exactly three inputs feed the Trigger column. None is defined here — each is cited to its one home:
+Exactly three signals feed the Trigger column, plus the `Design-intent:` record line defined below them. None is defined here — each is cited to its one home:
 
 - **Motion signal** — the motion signal defined in `skills/_shared/design-craft.md`'s **Relevance map** section (the `animate`/`animation-vocabulary` row's trigger). Cited by section name, never restated: it is an LLM judgment call there and stays one here.
-- **Decisions present** — Layer 0's `hasDesign` signal (`skills/design-wrapper/SKILL.md` Layer 0, `impeccable-plugin.md`'s `setup.hasDesign`). When Layer 0 is degraded (absent plugin, version mismatch, execution failure — no signals), fall back to a direct `DESIGN.md` existence check using `skills/_shared/visual-html-output.md`'s three-path lookup (project root, `docs/design/DESIGN.md`, `docs/DESIGN.md`).
+- **Decisions present** — Layer 0's `hasDesign` signal (`skills/design-wrapper/SKILL.md` Layer 0, `impeccable-plugin.md`'s `setup.hasDesign`). When Layer 0 is degraded (absent plugin, version mismatch, execution failure — no signals), fall back to a direct `DESIGN.md` existence check using `skills/_shared/visual-html-output.md`'s three-path lookup.
 - **Lever** — the resolved `design.critique` policy value: `off | auto | full` (schema entry owned by #595; read via `bin/resolve-policy.js` by the Step 3.8 procedure, #598). `full` and `off` are the two escape hatches; `auto` conditions on the other two signals as the table states per row.
 
 `Design-intent:` in the table is the record body-metadata line defined in `skills/specify/spec-template.md`'s metadata block.
 
 ## Resolution
 
-Every critic name in the table resolves through `skills/_shared/design-craft.md`'s **Emil skill resolution** lookup, per skill name — `review-animations` is an Emil skill from the same upstream set and resolves exactly the same way as `emil-design-eng`. A name resolving at neither path is absent, per that file's **Degradation posture**: never a gate, never a stop; the dispatch reports it as unavailable and continues.
+Every critic name in the table resolves through `skills/_shared/design-craft.md`'s **Emil skill resolution** lookup, per skill name — `review-animations` is an Emil skill from the same upstream set and resolves exactly the same way as `emil-design-eng`. A name resolving at neither path is absent — handled per that file's **Degradation posture** (never a gate, never a stop); how the Step 3.8 dispatch records an absent critic is defined by `modes/review.md` (#598), not here.
 
 ## Native row — unblocking condition
 
