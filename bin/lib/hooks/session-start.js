@@ -136,6 +136,15 @@ function run(ctx) {
     if (summary.length) {
       parts.push(`claude-tweaks: reconciled — ${summary.join('; ')}.`);
     }
+    // #561: an unconditional, inform-tier line when reconcile() detected a
+    // failing CI conclusion on the integration branch's tip — the only
+    // coverage for direct pushes (fast-lane commits, bookkeeping, releases)
+    // that no merge gate ever sees. Not gated on any policy value; silent
+    // when result.redTip is null (green, pending, no CI, gh absent, or any
+    // API error — red-tip.js's own degrade posture).
+    if (result.redTip) {
+      parts.push(`claude-tweaks: ${result.redTip.message}`);
+    }
     // #413: a console whose "Resolve console" box is already ticked on the
     // PR is answered-but-unexecuted work — surface it the same way an
     // unfinished pipeline run is surfaced above, pointing at the procedure
