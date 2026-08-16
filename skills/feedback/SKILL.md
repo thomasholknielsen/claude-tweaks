@@ -242,9 +242,11 @@ and including invocations that began inside a pipeline.
 — as **one** Task agent per invocation: the main thread hands it the drafted body from Step 5 and
 this step's removal criteria verbatim, and the agent returns the scrubbed body plus a one-line note
 of what it removed (or "nothing to remove"). Resolve the model via `node
-"${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable --unattended` (no `--run-dir` — `/feedback`
+"${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable` (no `--run-dir` — `/feedback`
 is typically invoked standalone with no run directory; one scrub dispatch per invocation,
-enforced here by this skill rather than by a run-dir tally). Record #221 originally granted
+enforced here by this skill rather than by a run-dir tally; append `--unattended` only when the
+invocation is genuinely headless — a scheduled Routine or a `claude -p` run — resolved from
+session state, never a hard-coded literal). Record #221 originally granted
 this scrub the skill's one Frontier singleton slot; this skill's Frontier singleton slot now
 belongs to the session-evaluation judge
 (`session-evaluation.md`, Step 0) instead, knowingly superseding #221's scrub entry — the scrub's

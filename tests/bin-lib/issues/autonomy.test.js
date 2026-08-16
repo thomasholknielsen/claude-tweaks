@@ -180,6 +180,59 @@ test('the second opt-in cannot raise a lower ceiling', () => {
   }
 });
 
+test('per-grant reasons: reason is non-empty exactly when that grant is withheld', () => {
+  const cases = [
+    permittedGrants({ ceiling: 'trusted', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow, grantOriginationEnabled: true }),
+    permittedGrants({ ceiling: 'supervised', row: cleanRow }),
+    permittedGrants({ ceiling: 'trusted', row: null }),
+  ];
+  for (const result of cases) {
+    for (const name of ['bornReady', 'bornAuthorized']) {
+      const g = result.grants[name];
+      if (g.granted) {
+        assert.equal(g.reason, '', `${name} granted must carry an empty reason`);
+      } else {
+        assert.ok(g.reason.length > 0, `${name} withheld must carry a non-empty reason`);
+      }
+    }
+  }
+});
+
+test('a granted bornReady never carries the withheld grant\'s opt-in denial', () => {
+  const result = permittedGrants({ ceiling: 'unattended', row: cleanRow });
+  assert.equal(result.grants.bornReady.granted, true);
+  assert.equal(result.grants.bornReady.reason, '');
+  assert.equal(result.grants.bornAuthorized.granted, false);
+  assert.match(result.grants.bornAuthorized.reason, /opt-in/i);
+  // The flat compat key keeps its historical single-string behavior unchanged.
+  assert.match(result.reason, /opt-in/i);
+});
+
+test('flat compat keys mirror grants.*.granted across every branch', () => {
+  const cases = [
+    permittedGrants({ ceiling: 'supervised', row: cleanRow }),
+    permittedGrants({ ceiling: 'trusted', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow, grantOriginationEnabled: true }),
+    permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'human' } }),
+    permittedGrants(null),
+  ];
+  for (const result of cases) {
+    assert.equal(result.bornReady, result.grants.bornReady.granted);
+    assert.equal(result.bornAuthorized, result.grants.bornAuthorized.granted);
+  }
+});
+
+test('a denial applies the same reason to both grants', () => {
+  const result = permittedGrants({ ceiling: 'supervised', row: cleanRow });
+  assert.equal(result.grants.bornReady.granted, false);
+  assert.equal(result.grants.bornAuthorized.granted, false);
+  assert.equal(result.grants.bornReady.reason, result.reason);
+  assert.equal(result.grants.bornAuthorized.reason, result.reason);
+});
+
 // clearsFloor -- moved verbatim from the retired unattended-tier.test.js.
 
 test('clearsFloor returns true for an external-state blocker', () => {
