@@ -13,7 +13,7 @@ files:
 **Persona:** claude-tweaks maintainer (or a scheduled tidy Routine firing) running periodic backlog hygiene on a `pr-first` project with `auto-mode: default-on`.
 **Goal:** One report that separates what tidy already did, what it will do on a click, and what only the human can do — with every actionable line ending in a paste-ready command, and mechanical cleanups (issue-closed claim releases, abandoned-branch archival) already converged by reconcile rather than staged for approval.
 **Entry point:** `/claude-tweaks:tidy` standalone in auto mode (no parent pipeline run dir), interactively or as the weekly scheduled Routine.
-**Success state:** The report renders the four literal sections — **Applied automatically**, **Approve ({N})**, **Yours ({N})**, **Clean:** — empty sections omitted (Clean always present); reconcile-converged outcomes (released claims on closed issues, archived/deleted abandoned branches) appear under Applied with their evidence reason; every Yours line carries its fully-qualified command; Next Actions derives from Approve/Yours (Apply-all-staged first when Approve is non-empty, capped at 4 options total).
+**Success state:** The report renders the four literal sections — **Applied automatically**, **Approve ({N})**, **Yours ({N})**, **Clean:** — empty sections omitted (Clean always present); reconcile-converged outcomes (released claims on closed issues, archived/deleted abandoned branches) appear under Applied with their evidence reason; every Yours line carries its fully-qualified command; Next Actions derives from Approve/Yours as plain markdown (Apply-all-staged line first when Approve is non-empty, total handoff capped at four lines).
 
 ## Steps
 
