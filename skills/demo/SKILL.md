@@ -10,8 +10,8 @@ argument-hint: "[#N[,#M...]]"
 Gives one built thing a real human verdict — approve or request changes: either this
 conversation's own unrecorded work, or a specific `#N` record. Sits after wrap-up when a record
 exists; independent of it entirely for conversation-based work with no record to wait on. This
-skill resolves one item per invocation — it never discovers or lists what's outstanding across
-the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list lives:
+skill resolves one item at a time — a bare `#N`, or a `#N[,#M...]` list taken in order, never
+combined — and it never discovers or lists what's outstanding across the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list lives:
 
 ```
 /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
@@ -289,7 +289,7 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 ## Next Actions
 
-Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — once per invocation, after the last item of a `#N[,#M...]` batch; each conditional line keys on the batch as a whole:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — exactly once, after the last item of a `#N[,#M...]` batch; each conditional line keys on the batch as a whole:
 
 **`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed for any item this run (recommended)
 `/claude-tweaks:help` — full pipeline status
@@ -317,7 +317,7 @@ always renders.
 | Debugging or fixing an application bug a Prepare/Validate check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
 | Leaving a live browser session open after Validate or Show finishes | Leaked sessions consume resources — Validate's own session must close before Show runs; Show's `open`/`xdg-open` hands the browser off to the human, it never holds a session open itself |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
-| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |
+| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item at a time — never a sweep; a `#N,#M` list is the human's own explicit list, never a backlog scan |
 | Summarizing, re-wording, or reordering the direction contract's five blocks | The blocks are the pre-build promise the human is checking the result against; a paraphrase is one more reading of the result, which is exactly the circularity this section exists to break |
 | Rendering the design-contract heading when no contract resolved, or with only the blocks that parsed | Most records have no contract — an empty section is noise on all of them, and a partial one is worse, because it reads as complete (`_shared/design-contract.md` collapses malformed into absent for this reason) |
 | Dropping a malformed contract silently because the section is omitted either way | Omitting the section is right; omitting the *trace* is not. `/demo` has no run dir to log to, so its one plain line is the only place an upstream block rename becomes visible instead of looking like a record that never had a contract |
