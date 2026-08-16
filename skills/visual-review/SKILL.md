@@ -198,14 +198,14 @@ When parent-invoked (`$PIPELINE_RUN_DIR` set, or an explicit `--source <parent-s
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Code review (Recommended)"`, `description`: `"/claude-tweaks:review {spec} — full code review"`
-- Option 2 — `label`: `"Walk a journey"`, `description`: `"/claude-tweaks:visual-review journey:{name} — walk a specific journey"`
-- Option 3 — `label`: `"Generate QA stories"`, `description`: `"/claude-tweaks:stories — generate QA stories from what was reviewed"`
-- Option 4 — `label`: `"Capture ideas"`, `description`: `"/claude-tweaks:capture {idea} — save ideas surfaced during the review"`
+**`/claude-tweaks:review {spec}`** — full code review (recommended)
+`/claude-tweaks:visual-review journey:{name}` — walk a specific journey
+`/claude-tweaks:stories` — generate QA stories from what was reviewed
+`/claude-tweaks:capture {idea}` — save ideas surfaced during the review
 
-This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they render their own independent `AskUserQuestion` call instead of this one, never merged with it. When invoked by a parent (`/claude-tweaks:review` or `/claude-tweaks:init`), omit Next Actions — the parent handles flow control and summary.
+This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they render their own independent markdown block instead of this one, never merged with it. When invoked by a parent (`/claude-tweaks:review` or `/claude-tweaks:init`), omit Next Actions — the parent handles flow control and summary.
 
 ## Component-Skill Contract
 

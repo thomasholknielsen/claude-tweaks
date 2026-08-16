@@ -236,11 +236,11 @@ Report-only, matching `/code-health`/`/harness-health` — every finding files a
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Bold the `/claude-tweaks:routine create docs-health` line and suffix it `(recommended)` once a first standalone run confirms the output looks right; before that, render all three lines unranked in the order below.
 
-- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create docs-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
-- Option 2 — `label`: `"Audit one doc"`, `description`: `"/claude-tweaks:docs-health --target <id> — audit one specific doc right now"`
-- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed docs-health issues into a backlog-hygiene pass"`
+**`/claude-tweaks:routine create docs-health`** — schedule this as a recurring Routine (recommended once a first standalone run confirms the output looks right)
+`/claude-tweaks:docs-health --target <id>` — audit one specific doc right now
+`/claude-tweaks:tidy` — fold any filed docs-health issues into a backlog-hygiene pass
 
 ## Component-Skill Contract
 

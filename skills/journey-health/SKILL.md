@@ -280,11 +280,11 @@ Report-only, matching `/code-health` and `/harness-health` — every finding fil
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Bold the `/claude-tweaks:routine create journey-health` line and suffix it `(recommended)` once a first standalone run confirms the output looks right; before that, render all three lines unranked in the order below.
 
-- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create journey-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
-- Option 2 — `label`: `"Audit one journey"`, `description`: `"/claude-tweaks:journey-health --target <name> — audit one specific journey right now"`
-- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed journey-health issues into a backlog-hygiene pass"`
+**`/claude-tweaks:routine create journey-health`** — schedule this as a recurring Routine (recommended once a first standalone run confirms the output looks right)
+`/claude-tweaks:journey-health --target <name>` — audit one specific journey right now
+`/claude-tweaks:tidy` — fold any filed journey-health issues into a backlog-hygiene pass
 
 ## Component-Skill Contract
 
