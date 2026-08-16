@@ -90,7 +90,7 @@ carries no block.
 
 ### Step 5: Suggestion-driven dispatch (only when the audit cache holds findings)
 
-Read the audit findings from Step 3. Every finding carries its own `suggestion` field naming the command that remediates it — `audit` writes one on each issue it reports. Dispatch what the finding names. Do not derive a command from the finding's `category`, `rule`, or `description` text; the wrapper does no keyword matching of any kind here.
+Read the audit findings from Step 3 — the cache entries with `source: "audit"` only; `source: "craft-critic"` entries are Step 4's context (three-way consumption table) and never enter this loop. Every finding carries its own `suggestion` field naming the command that remediates it — `audit` writes one on each issue it reports. Dispatch what the finding names. Do not derive a command from the finding's `category`, `rule`, or `description` text; the wrapper does no keyword matching of any kind here.
 
 For each finding, in cache order:
 
