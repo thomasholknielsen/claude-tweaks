@@ -12,7 +12,7 @@ const PROFILE_NAMES = Object.keys(PROFILES);
 const POLICY_CATEGORIES = ['autonomy-trust', 'pipeline-behavior', 'merge-safety', 'health-sweeps', 'models', 'housekeeping'];
 
 const POLICY_KEYS = [
-  { key: 'worktree.always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'worktree-always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
   // One key, two value classes since #331: plain 'subagent'/'batched' are
   // overridable defaults; the '-only' forms carry the full lock semantics the
   // retired execution.always key used to hold (a lock beats an explicit CLI
@@ -196,6 +196,12 @@ const RENAMED_KEYS = [
   { key: 'harness-health.scoped-rule-budget', replacedBy: 'harness-health-scoped-rule-budget', migrate: (value) => value },
   { key: 'harness-health.always-loaded-budget', replacedBy: 'harness-health-always-loaded-budget', migrate: (value) => value },
   { key: 'doc-convention.adr', replacedBy: 'doc-convention-adr', migrate: (value) => value },
+  // Renamed in #602 — the last dotted key, carved out of #332 because the
+  // hook reads it by literal (bin/lib/policy.js isWorktreeAlwaysOn), which
+  // this alias alone does not reach; policy.js consults this entry to honor
+  // the old spelling. Identity migrate; boolean semantics unchanged. Removal
+  // condition in skills/_shared/policy-deprecations.md.
+  { key: 'worktree.always', replacedBy: 'worktree-always', migrate: (value) => value },
 ];
 const RENAMED_KEY_NAMES = new Set(RENAMED_KEYS.map((entry) => entry.key));
 

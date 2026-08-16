@@ -14,18 +14,10 @@ const { POLICY_KEYS, RENAMED_KEYS } = require('../bin/lib/policy-schema');
 
 const KEY_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-// Keys still awaiting their rename record. #602 renames worktree.always ->
-// worktree-always (the hook's bespoke read path in bin/lib/policy.js needs
-// its own alias handling); it deletes this constant and the filter below —
-// it must not leave an empty array behind.
-const PENDING_RENAMES = ['worktree.always'];
-
 const MD_PATH = path.join(__dirname, '..', 'skills', '_shared', 'policy-schema.md');
 
 test('every POLICY_KEYS key is flat kebab-case — no dots, no uppercase, no underscores', () => {
-  const offenders = POLICY_KEYS.map((row) => row.key)
-    .filter((key) => !PENDING_RENAMES.includes(key))
-    .filter((key) => !KEY_NAME.test(key));
+  const offenders = POLICY_KEYS.map((row) => row.key).filter((key) => !KEY_NAME.test(key));
   assert.deepStrictEqual(offenders, [], `non-conforming key names (see policy-schema.md "## Key naming"): ${offenders.join(', ')}`);
 });
 
@@ -34,13 +26,6 @@ test('every RENAMED_KEYS replacement name is flat kebab-case (the retired names 
     .filter((name) => name !== null)
     .filter((name) => !KEY_NAME.test(name));
   assert.deepStrictEqual(offenders, [], `non-conforming replacement names: ${offenders.join(', ')}`);
-});
-
-test('PENDING_RENAMES only names keys that actually exist in POLICY_KEYS (a stale allowance is a bug)', () => {
-  const keys = new Set(POLICY_KEYS.map((row) => row.key));
-  for (const pending of PENDING_RENAMES) {
-    assert.ok(keys.has(pending), `${pending} is in PENDING_RENAMES but no longer in POLICY_KEYS — delete the allowance`);
-  }
 });
 
 test('policy-schema.md documents a "## Key naming" section and every POLICY_KEYS key has a table row there', () => {

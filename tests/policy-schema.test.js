@@ -213,6 +213,37 @@ test('#332 renames: a stray old-name line resolves under the new name with renam
   }
 });
 
+test('#602: worktree-always is the POLICY_KEYS row (boolean, default false); worktree.always lives only in RENAMED_KEYS', () => {
+  const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
+  assert.ok(!byKey.has('worktree.always'), 'worktree.always must not remain in POLICY_KEYS (renamed in #602)');
+  const row = byKey.get('worktree-always');
+  assert.ok(row, 'worktree-always missing from POLICY_KEYS');
+  assert.strictEqual(row.type, 'boolean');
+  assert.strictEqual(row.default, false);
+  assert.strictEqual(row.tier, 'core');
+  assert.strictEqual(typeof row.summary, 'string');
+});
+
+test('#602: a worktree.always line resolves under worktree-always with renamed-from; both set -> the new line wins; the stray line audits under renamedKeys', () => {
+  const oldOnly = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree.always: true\n' });
+  assert.strictEqual(oldOnly['worktree-always'].value, true);
+  assert.strictEqual(oldOnly['worktree-always']['renamed-from'], 'worktree.always');
+  const newOnly = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree-always: true\n' });
+  assert.strictEqual(newOnly['worktree-always'].value, true);
+  assert.strictEqual(newOnly['worktree-always']['renamed-from'], undefined);
+  const both = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree-always: false\nworktree.always: true\n' });
+  assert.strictEqual(both['worktree-always'].value, false, 'new key wins even when the old line says true');
+  const asked = resolvePolicyKeys(['worktree.always'], { policyRaw: 'worktree.always: true\n' });
+  assert.strictEqual(asked['worktree.always'].value, true, 'requesting the old name resolves the replacement (alias contract)');
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true\n');
+  const audit = auditPolicy(repo);
+  const hit = audit.renamedKeys.find((r) => r.key === 'worktree.always');
+  assert.ok(hit, 'audit lists the stray line under renamedKeys');
+  assert.strictEqual(hit.replacedBy, 'worktree-always');
+  assert.deepStrictEqual(audit.unrecognizedKeys, []);
+});
+
 test('a recognized key in CLAUDE.md is flagged for migration, not validated', () => {
   const repo = tmpRepo();
   writeClaudeMd(repo, 'tidy-aggressiveness: moderate\n');
@@ -314,7 +345,7 @@ test('RENAMED_KEYS names every alias and retirement, each with its migration', (
   // 2 -> 7, #331 (key collapse): execution.always -> execution-strategy
   // (lock-preserving migrate), merge-check -> branch-divergence-check
   // (identity migrate), plus three retirements with replacedBy: null.
-  assert.strictEqual(RENAMED_KEYS.length, 14);
+  assert.strictEqual(RENAMED_KEYS.length, 15);
   const byKey = new Map(RENAMED_KEYS.map((entry) => [entry.key, entry]));
   assert.strictEqual(byKey.get('unattended-tier').replacedBy, 'autonomy');
   assert.strictEqual(byKey.get('dispatch-pick-max-concurrent').replacedBy, 'dispatch-batch-size');
@@ -346,6 +377,13 @@ test('RENAMED_KEYS names every alias and retirement, each with its migration', (
     assert.strictEqual(entry.replacedBy, newKey);
     assert.strictEqual(entry.migrate('anything'), 'anything', `${oldKey}: identity migrate — value shape unchanged`);
   }
+
+  // 14 -> 15, #602: worktree.always -> worktree-always — the last dotted key,
+  // carved out of #332 because the hook reads it by literal (bin/lib/policy.js).
+  const wt = byKey.get('worktree.always');
+  assert.ok(wt, 'worktree.always missing from RENAMED_KEYS');
+  assert.strictEqual(wt.replacedBy, 'worktree-always');
+  assert.strictEqual(wt.migrate('true'), 'true', 'identity migrate — boolean semantics unchanged');
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {
@@ -374,10 +412,10 @@ test('recognized integer key with a non-integer value -> flagged', () => {
 
 test('recognized boolean key with a non-boolean value -> flagged', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always: yes\n');
+  writePolicy(repo, 'worktree-always: yes\n');
   const result = auditPolicy(repo);
   assert.strictEqual(result.invalidValues.length, 1);
-  assert.strictEqual(result.invalidValues[0].key, 'worktree.always');
+  assert.strictEqual(result.invalidValues[0].key, 'worktree-always');
 });
 
 test('AC 2: all three #331-retired keys audit under renamedKeys with replacedBy: null, never unrecognizedKeys', () => {
