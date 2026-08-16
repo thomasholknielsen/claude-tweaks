@@ -167,8 +167,9 @@ Render the top result (and up to 2 runners-up) as a short "Recommended next" cal
 Bare mode only — lens runs end at their own table (Step 2) and never reach this step.
 
 **Input precondition:** the dispatch-block candidate set is `funnelBuckets`'s `dispatchable` ∪
-`granted` (Step 2's `.funnel` — already filtered; `needs:definition` records structurally can't be
-in it since they never reach `ready`; the Shape block's own human-owed filtering is the
+`granted` (Step 2's `.funnel` — already filtered; `needs:definition` records are excluded here by
+rule (below) — until #471's redirect gate ships, `/claude-tweaks:specify` can still stamp `ready`
+on one, so the structural guarantee does not yet hold; the Shape block's own human-owed filtering is the
 Shape-block exclusion rule below). The Shape block's population is the `scored` bucket (records shaped next);
 the Score line's count is the `captured` bucket.
 
@@ -253,6 +254,13 @@ from its highest-ranked member. All commands fully qualified. The `─▶` arrow
 show execution order, not necessarily a direct dependency edge — a linearized diamond serializes
 siblings that have no edge between them.
 
+**Sanitize interpolated record text.** Every record-derived value rendered into a paste block
+(`{one-line hook}`, `{files}`, any future field) is flattened to a single line before rendering:
+strip newlines, carriage returns, and control characters, and truncate to one comment line — a
+`#`-comment never spans lines, so untrusted record content can never escape the comment into an
+executable line. Record ids and priority tiers are re-emitted from parsed facets (`#{number}`,
+`priority:{tier}`), never copied as raw text.
+
 **Batch integrity rules:** the emitter's exclusion rules operate on populations `funnelBuckets`
 already partitioned — the rules below name where each excluded population surfaces, they never
 re-derive membership.
@@ -315,6 +323,13 @@ re-derive membership.
 - **Unsynced records** — `unsynced: true` fallback records never render as `#N` paste commands
   (their ids are local-namespace, not GitHub refs); they are excluded from every paste block with
   one `#`-comment naming the sync gap, counted under rule (c).
+- **`needs:definition` records** — a candidate whose `facets.needsDefinition` is true never
+  renders an executable command in ANY paste block, whatever bucket it reached — until #471's
+  redirect gate ships, `/claude-tweaks:specify` can still stamp `ready` on one, so this
+  render-level exclusion is the guard. It renders one `#`-comment
+  (`# #{N} excluded — needs:definition: yours to decide (see Needs you below)`, the same format
+  the Shape block uses), is counted per rule (c), is skipped when determining the top-ranked
+  executable entry, and its Needs-you lane row is where it surfaces for action.
 
 ### Needs you (human lane)
 
