@@ -134,7 +134,7 @@ test('context.js documents the console-execution exemption to ctx.ownedRun write
 // --- reconcile/index.js wiring ---
 
 test('reconcile/index.js registers console in ALL_CHECKS and the pr-first dispatch, ordered before reap', () => {
-  assert.match(INDEX_JS, /const ALL_CHECKS = \['mirror', 'reap', 'release', 'archive', 'archive-branches', 'console'\];/);
+  assert.match(INDEX_JS, /const ALL_CHECKS = \['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'console'\];/);
   const consoleIdx = INDEX_JS.indexOf("checks.includes('console')");
   const reapIdx = INDEX_JS.lastIndexOf("checks.includes('reap')");
   assert.ok(consoleIdx > 0 && reapIdx > 0 && consoleIdx < reapIdx, 'console must dispatch before reap, same ordering constraint as release/archive');
