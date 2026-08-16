@@ -38,5 +38,9 @@
   "skill:build": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786865381718
+  },
+  "skill:dispatch": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786865387937
   }
 }
