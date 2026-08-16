@@ -14,10 +14,11 @@ description: >
   and fails the count; one that refused everything fails the file-exists
   pin. The refused proposals' staged files and REFUSED log lines live in the
   (possibly archived) run dir and are deliberately not asserted — the
-  specs/-level outcome is the load-bearing behavior. The prompt names the
-  seeded run dir explicitly (PIPELINE_RUN_DIR) so wrap-up adopts it rather
+  specs/-level outcome is the load-bearing behavior. The prompt directs
+  wrap-up, in plain instruction text, to adopt the seeded run dir rather
   than minting a fresh one — without this the staged proposals are never
-  read and the scenario false-fails.
+  read and the scenario false-fails; the first live run remains the probe
+  for whether adoption actually occurs.
 fixture:
   base: init-baseline
   seed:
@@ -64,7 +65,7 @@ fixture:
 
           Retry metrics would help diagnose flakes.
 skill_invocation:
-  prompt: "PIPELINE_RUN_DIR=.claude-tweaks/pipelines/2026-08-16T120000-record-7-standalone /claude-tweaks:wrap-up"
+  prompt: "/claude-tweaks:wrap-up — adopt the existing pipeline run directory at .claude-tweaks/pipelines/2026-08-16T120000-record-7-standalone (do not create a new run dir); its staged/ holds this run's queue-write proposals"
 assertions:
   # Exactly the VALID proposal became a record: its file exists...
   - type: file-exists

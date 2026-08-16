@@ -132,7 +132,7 @@ never as a percentage.
 
 Render in every mode whenever `ledgerRouteRemainder` (`unattended` only)
 auto-routed at least one item, OR this run filed at least one record (N > 0), OR
-refused at least one proposal (M > 0). Table rows come only from — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
+refused at least one proposal (M > 0). Table rows come only from route-remainder's own log lines — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
 `AUTO … auto-routed to backlog as {ref} (defer-reason: {value}) — "{description}"`
 log lines, one row per line:
 
