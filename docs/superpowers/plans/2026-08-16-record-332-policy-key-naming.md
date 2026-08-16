@@ -114,7 +114,8 @@ test('#332 renames: a stray old-name line resolves under the new name with renam
     assert.strictEqual(resolved[newKey].value, coerced, `${oldKey}: value migrates`);
     assert.strictEqual(resolved[newKey]['renamed-from'], oldKey, `${oldKey}: renamed-from attribution`);
     const asked = resolvePolicyKeys([oldKey], { policyRaw: `${oldKey}: ${raw}\n` });
-    assert.deepStrictEqual(asked[oldKey], { error: 'unknown-key' }, `${oldKey}: the retired name is unknown-key, never a silent alias resolve`);
+    assert.strictEqual(asked[oldKey].value, coerced, `${oldKey}: requesting the old name resolves the replacement key (established alias contract — tests/resolve-policy-lib.test.js), never unknown-key`);
+    assert.strictEqual(asked[oldKey].source, 'policy');
     const repo = tmpRepo();
     writePolicy(repo, `${oldKey}: ${raw}\n`);
     const audit = auditPolicy(repo);
@@ -473,5 +474,5 @@ git commit -m "Sweep live prose onto the #332 policy-key names — manifesto lev
 ## Self-review notes
 
 - Spec coverage: Deliverable 1 → Task 2 Step 4; 2 → Task 2 Steps 1/5; 3 → Task 1; 4 → Task 3 Step 1; 5 → Tasks 4-5; 6 → verified at plan time (none of the seven keys are set in `.claude-tweaks/policy.yml`; the controller re-verifies at Common Step 5); 7 → Task 2 Step 4.
-- Acceptance criteria: resolver/unknown-key → Task 1 Step 2 second test; alias resolution + audit → same; conformance test + discrimination → Task 2 Step 5; grep negative control → Task 5 Step 3; doc table + section → Task 2; deprecations entries → Task 3; `npm test` → controller after Task 5.
+- Acceptance criteria: resolver behavior → Task 1 Step 2 second test — note the spec's "old name returns unknown-key" criterion is wrong against the resolver's pinned alias contract (`tests/resolve-policy-lib.test.js:162`: an alias's old name resolves the replacement; `unknown-key` is retirements only), so the test pins the real contract; ruling in the SDD ledger; alias resolution + audit → same; conformance test + discrimination → Task 2 Step 5; grep negative control → Task 5 Step 3; doc table + section → Task 2; deprecations entries → Task 3; `npm test` → controller after Task 5.
 - The spec's claim that "the schema-doc parity test already pins" the per-key table was inaccurate at plan-authoring time — no such test existed; Task 2's doc-row assertion is what now pins it. Stated here so the review does not go looking for a pre-existing test.
