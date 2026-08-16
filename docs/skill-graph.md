@@ -235,6 +235,8 @@ depends on them.
 | `bin/lib/issues/trust.js` | Stage 4.8 dispatches a Task agent that renders `trustRows`' table via `skills/_shared/trust-table.md`'s Fetch/Render sections, inlined into the agent prompt since subagents cannot read that file directly. Display-only — Stage 7's Maintenance Signals derivation explicitly excludes it by name, and it feeds no recommendation. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to `/help` (e.g. if a future status scan ever auto-resolves recommendations). |
 | `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). `/help` has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
+| `bin/lib/policy-schema.js` | Policy mode calls `auditPolicy()` for its Issues section and `resolveValue()` to validate each approved edit before writing, and reads `POLICY_KEYS` live for enum values (same module harness-health and init call, a third slice of the result). |
+| `bin/resolve-policy.js` | Policy mode takes one `--all` snapshot per run; every section renders from it, including the apply path revert, which reads prior values from the snapshot, never by re-reading the file. |
 
 ## init
 
