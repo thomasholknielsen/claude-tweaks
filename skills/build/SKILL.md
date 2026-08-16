@@ -121,6 +121,8 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
 **Deictic-reference re-resolution check:** when a plan task instructs a text reorder — moving a paragraph relative to other text that cross-references it — re-resolve every deictic reference ("above", "below", "the following", "the preceding") in both the moved text and the text it moves past, and write the task's `replacing:`/`with:` blocks with the post-move direction already applied. A self-contradictory pair (one clause saying "above" and another "below" about the same paragraph) reads as correct inside each task's own diff, so a task-level review comparing plan text against implemented code has nothing to catch — only a whole-file read resolves the direction. Re-check the deictics as part of the reorder edit itself; a later fix round that corrects the ordering will not correct them, because the reorder is right in isolation. (Same check applies in Design Step 3 below.)
 
+**Degrade-clause convention check:** before a plan task writes a new "when X is unavailable, do Y" clause into a skill or `_shared/` contract, grep `skills/_shared/` for the same unavailability condition (`gh absent`, `no MCP fallback`, `MCP transport`, and the like) and cite whatever established convention already covers it, inline, rather than restating the behaviour uncited. An uncited degrade clause reads to a reviewer as a fresh, unsupported exception to the file's general transport policy, and the review cycle spent adjudicating that is pure waste — the convention already existed. (Same check applies in Design Step 3 below.)
+
 Proceed to **Common Step 2**.
 
 ---

@@ -21,9 +21,9 @@ files:
 - **Red flags:** The agent immediately re-invokes `/claude-tweaks:flow "{target}" wrap-up` (or the `wrap-up`-direct re-entry form) with no confirmation step in between.
 
 ### 2. Read the confirmation — `AskUserQuestion`
-- **URL:** rendered by the agent per `skills/dispatch/SKILL.md`'s "Confirm before resuming" — a single decision, one option marked Recommended.
+- **URL:** no page — an `AskUserQuestion` rendered by the agent per `skills/dispatch/SKILL.md`'s "Confirm before resuming": header `Resume run`, question opening `Resume {target} toward merge? PR #{number} …`, and exactly two options — `Resume (Recommended)` and `Cancel`.
 - **Action:** Read the question, which names the target, PR number and URL (or, under `integration-model: local-merge`, the branch/worktree), CI status, and files changed.
-- **Should feel:** Grounded in live evidence, not a rubber-stamp — the values are sourced fresh (`gh pr view`/`gh pr checks`/`gh pr diff`, or `run-state.json`'s `pr` field and `git diff --stat` when `gh` is absent), never a stale cached report.
+- **Should feel:** Grounded in live evidence, not a rubber-stamp — the values are sourced fresh (`gh pr view`/`gh pr checks`/`gh pr diff`; falling back to `run-state.json`'s `pr` field for the PR reference and `unavailable — gh absent` for CI status/files-changed when `gh` isn't installed), never a stale cached report.
 - **Should understand:** Declining stops here — nothing below runs and the run stays parked exactly as it was; this is the one path where "resuming" doesn't proceed toward the console at all.
 - **Red flags:** CI status or files-changed silently absent with no `unavailable — gh absent` label when `gh` isn't installed; the question naming a PR number that doesn't match the actual parked run.
 
