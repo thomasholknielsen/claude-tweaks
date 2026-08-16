@@ -12,9 +12,7 @@
 // per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` shape — the
 // flat single `reason` could pair a granted bornReady with the other grant's
 // denial text, which is the bug the per-grant shape fixes. Removal condition:
-// delete the flat keys once the installed build's plugin.json version >= the
-// release that ships #647 and `grep -rn "permittedGrants" skills/ bin/` shows
-// every consumer reading `grants.*`.
+// delete the flat keys at the first release on or after 2026-11-16 (ship date + 3 months, policy-deprecations.md's dated-backstop shape), re-running `grep -rn "permittedGrants" skills/ bin/` first to confirm every consumer still reads `grants.*`.
 
 // Ordered least to most permissive. Index comparison is the tier test, so the
 // order is load-bearing, not cosmetic.
@@ -127,7 +125,7 @@ function permittedGrants(input) {
       bornAuthorized: false,
       reason,
       grants: {
-        bornReady: { granted: true, reason: '' },
+        bornReady: { granted: bornReady, reason: '' },
         bornAuthorized: { granted: false, reason },
       },
     };
@@ -139,7 +137,7 @@ function permittedGrants(input) {
       bornAuthorized: false,
       reason,
       grants: {
-        bornReady: { granted: true, reason: '' },
+        bornReady: { granted: bornReady, reason: '' },
         bornAuthorized: { granted: false, reason },
       },
     };
@@ -149,7 +147,7 @@ function permittedGrants(input) {
     bornAuthorized: true,
     reason: 'class is clean, ceiling is unattended, grant origination opted in',
     grants: {
-      bornReady: { granted: true, reason: '' },
+      bornReady: { granted: bornReady, reason: '' },
       bornAuthorized: { granted: true, reason: '' },
     },
   };
