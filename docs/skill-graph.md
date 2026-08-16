@@ -138,6 +138,7 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
+| `_shared/terminal-ux.md` | `pre-build` mode's terminal-track always-load set and `review` mode Step 3.8's terminal critic both inline it whole (plugin-authored principles source; resolution and outcomes in `terminal-routing.md`). |
 | `/build` | Invokes `pre-build` mode before implementation (Common Step 1.7) to lazy-load Impeccable references and project design context into the build subagent's context. |
 | `/demo` | Reciprocal of `/demo`'s own `/design-wrapper` row. `review` mode Step 3.6 is the one point where a built artifact and its work record are both in hand, which is why the seed key is recorded there and not at acceptance time — Impeccable 4.x is non-deterministic by dice, and nothing recovers the seed later. The write is provenance capture only: it never gates, never changes `result`, and degrades to "no seed recorded" on any failure. |
 | `/flow` | Invokes `polish` mode in the polish phase between review and wrap-up (refinement set + suggestion-driven + intent-driven). The polish phase modifies code; flow's re-verify gate runs `/test skip-qa` afterward. Flow's pipeline summary also invokes `survey` mode against the full diff to render the Creative Opportunities block. Flow handles decline detection by comparing the recommendations cache from the previous run against the new diff. |
@@ -212,6 +213,7 @@ depends on them.
 | `_shared/upstream-feedback-batch.md` | `flow/multispec-review-console.md`'s Upstream feedback section calls into this shared batch contract instead of restating the chunking/rendering rules inline — the same contract `wrap-up/review-console.md` uses for a single-spec run. |
 | `_shared/design-craft.md` | `polish-execution.md`'s composition procedure assembles craft context per this contract at runtime and inlines the result into what the executing agent receives — the pipeline's only code-modifying wrapper dispatch. Motion-scoped Emil skills ride along when the materialized header's `Design-intent:` includes `delightful`. |
 | `_shared/console-on-pr.md` | `multispec-review-console.md`'s new Console-on-PR section renders the consolidated console as a bundle-PR checkbox comment under `integration-model: pr-first`, in place of the blocking `AskUserQuestion` gate. Shared with `/wrap-up` (`review-console.md`'s single-spec Console-on-PR section, same renderer) — owned here as the alphabetically-first of the two citing skills. |
+| `_shared/terminal-ux.md` | `polish-execution.md`'s craft-context assembly carries it (with `_shared/design-craft.md`) on the terminal track — no Emil skills, no motion add-on. |
 
 ## harness-health
 

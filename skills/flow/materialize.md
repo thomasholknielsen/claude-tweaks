@@ -46,7 +46,7 @@ ceremony: {fast-lane|standard}      # always present — see ceremony-check mode
 grants: [build, merge]             # as held at materialization time; may be [build] or []
 fingerprint: {fp}                  # omitted when none
 blocked-by: [n1, n2]               # omitted when none — see Populating the header
-surface: {web|mobile|desktop|backend|infra}
+surface: {web|mobile|desktop|backend|infra|terminal}
 design-intent: {value}             # omitted for backend/infra
 design-seed: {opaque token}        # omitted unless the body already carries Design-seed:
 parked-at-shaping: true            # omitted unless the record was parked when shaped
@@ -93,7 +93,7 @@ Every field except `surface`/`design-intent`/`design-seed` (next section) and `b
 `/specify`'s Metadata block (`spec-template.md`) writes plain body-metadata lines at the very top of every shaped record body:
 
 ```
-Surface: {web | mobile | desktop | backend | infra}
+Surface: {web | mobile | desktop | backend | infra | terminal}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 Design-seed: {opaque token — never written by /specify; see below}
 ```

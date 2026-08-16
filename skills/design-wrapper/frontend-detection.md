@@ -96,6 +96,7 @@ Surface: body-metadata line (Layer 2, only if spec input)
     │
     ├─ backend / infra        → skip
     ├─ web / mobile / desktop → continue
+    ├─ terminal               → track terminal (declared only; no sniff)
     └─ missing                → continue (fall through)
     │
     ▼

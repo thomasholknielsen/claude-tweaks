@@ -54,6 +54,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | **Review auto-apply ceiling** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
 | **Merge verification** (11) | `/wrap-up` not in the step list (the merge step never runs, so nothing reads it this run) |
+| **Design critique** (12) | Every record in the run is non-frontend (materialized `surface:` header is `backend`/`infra` on all of them — the same input Design intent (4) reads; critics never dispatch on a non-frontend diff). Still written to `config.yml` per the "suppression is a UI affordance" rule below |
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9), **Model stance** (10) — they affect every pipeline.
 
@@ -78,7 +79,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 |---|---|---|---|---|---|
 | 157 | infra | skip (design-intent:none) | skip (no UI) | skip (no stories) | — |
 | 159 | infra | skip | skip | skip | — |
-| 160 | infra | skip | skip | skip | — |
+| 160 | web | run (design-intent:quiet) | auto-detect | skip (no stories) | — |
 
 **Expected friction under these defaults:** {one of:
   - "none — auto runs end-to-end."
@@ -88,7 +89,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
-**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review auto-apply ceiling, 8=Tidy aggressiveness, 9=Ceremony profile, 10=Model stance, 11=Merge verification. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review auto-apply ceiling, 8=Tidy aggressiveness, 9=Ceremony profile, 10=Model stance, 11=Merge verification, 12=Design critique. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
 
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
@@ -100,8 +101,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
 | 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge into the integration branch waits for — derived per `_shared/policy-schema.md`'s `merge-verification` coverage block (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification`); explicit `policy.yml` value wins. Merge sites act on it from #560 onward |
+| 12 | Design critique | **{resolved}** | off / **auto** / full | `off (never) / auto (critics when DESIGN.md exists or the record asks) / full (always)` — governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` (the JSON envelope, so `source` is available for the log line); Recommended = the resolved `value`; log its resolution to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records: none/none/quiet), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11, 12.
 
 #### Override semantics (read before overriding)
 
@@ -124,6 +126,8 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Merge verification | `merge-when-green` | Merge sites arm `--auto` and let the forge merge once checks are green (the derived recommendation on a default-branch pr-first repo with PR CI) |
 | Merge verification | `wait` | Merge sites block on the checks before merging — explicit-config-only, never derived |
 | Merge verification | `off` | Merge sites merge without consulting CI (the derived value for local-merge, no-PR-CI, or non-default-integration-branch repos) |
+| Design critique | `full` | Every web-track UI diff gets the full critic roster at review time regardless of `DESIGN.md` presence |
+| Design critique | `off` | No project-local critics run at review time; Impeccable's own `critique`/`audit` and the finish reviewer are unaffected |
 ```
 
 Immediately after presenting the Manifesto table above, call `AskUserQuestion` with:
@@ -164,6 +168,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
 | Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
 | Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | The ladder in `_shared/policy-schema.md`'s coverage block already encodes the safe answer per repo shape; no hardcoded literal |
+| Design critique | `auto` | Critics run when the project shows design investment (`DESIGN.md`) or the record asks (`Design-intent:`); `full`/`off` are explicit opt-in/opt-out |
 
 `ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
 `ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
@@ -190,6 +195,7 @@ tidy-aggressiveness: moderate
 ceremony-profile: fast-lane
 model-stance: default
 merge-verification: merge-when-green
+design-critique: auto
 spec: 42
 created: 2026-05-15T143207
 ```
