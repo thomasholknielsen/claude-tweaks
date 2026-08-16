@@ -8,7 +8,7 @@ const {
 // Fake runners are lazy functions inspecting `args` only when called (CLAUDE.md's eager-IIFE ban).
 const isGraphQL = (args) => args[0] === 'api' && args[1] === 'graphql';
 const isPost = (args, path) => args[0] === 'api' && args[1] === '-X' && args[2] === 'POST' && args[3] === path;
-const fieldOf = (args, name) => { const i = args.indexOf('-F'); const all = []; for (let k = 0; k < args.length; k++) if (args[k] === '-F') all.push(args[k + 1]); const hit = all.find((v) => v.startsWith(name + '=')); return hit ? hit.slice(name.length + 1) : undefined; };
+const fieldOf = (args, name) => { const all = []; for (let k = 0; k < args.length; k++) if (args[k] === '-F') all.push(args[k + 1]); const hit = all.find((v) => v.startsWith(name + '=')); return hit ? hit.slice(name.length + 1) : undefined; };
 
 function graphqlJSON(map) {
   const repository = {};
