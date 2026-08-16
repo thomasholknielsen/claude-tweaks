@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING,
+  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
 } = require('../../../bin/lib/issues/record');
@@ -210,7 +210,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null, isParentIssue: false,
+    acceptance: null, isParentIssue: false, notPlanned: false,
   });
 });
 
@@ -236,7 +236,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null, isParentIssue: false,
+    acceptance: null, isParentIssue: false, notPlanned: false,
   });
 });
 
@@ -252,7 +252,7 @@ test('parseRecordFacets: a null or undefined entry in the labels array is skippe
   assert.strictEqual(result.risk, 'high');
 });
 
-test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched wontfix ignored', () => {
+test('parseRecordFacets: {name} label objects for risk/size/priority; wontfix sets notPlanned, not stage', () => {
   const result = parseRecordFacets([
     { name: 'risk:high' }, { name: 'size:low' }, { name: 'priority:medium' }, { name: 'wontfix' },
   ]);
@@ -260,6 +260,17 @@ test('parseRecordFacets: {name} label objects for risk/size/priority, unmatched 
   assert.strictEqual(result.size, 'low');
   assert.strictEqual(result.priority, 'medium');
   assert.strictEqual(result.stage, 'backlog');
+  assert.strictEqual(result.notPlanned, true);
+});
+
+test('parseRecordFacets: wontfix label sets notPlanned', () => {
+  const facets = parseRecordFacets(['wontfix']);
+  assert.equal(facets.notPlanned, true);
+});
+
+test('parseRecordFacets: notPlanned defaults to false', () => {
+  const facets = parseRecordFacets(['ready']);
+  assert.equal(facets.notPlanned, false);
 });
 
 // AC — the size facet, and its permanent effort:* read-side fallback
@@ -326,7 +337,6 @@ test('parseRecordFacets: acceptance defaults to null when no demo:* label is pre
 });
 
 test('parseRecordFacets: LABELS exposes the three demo:* acceptance label strings', () => {
-  const { LABELS } = require('../../../bin/lib/issues/record');
   assert.strictEqual(LABELS.DEMO_PENDING, 'demo:pending');
   assert.strictEqual(LABELS.DEMO_APPROVED, 'demo:approved');
   assert.strictEqual(LABELS.DEMO_CHANGES_REQUESTED, 'demo:changes-requested');

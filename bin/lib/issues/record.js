@@ -239,6 +239,10 @@ function parseRecordFacets(labels) {
       facets.bot.blocked = true;
       continue;
     }
+    if (name === LABELS.WONTFIX) {
+      facets.notPlanned = true;
+      continue;
+    }
     if (name === LABELS.DEMO_PENDING) {
       facets.acceptance = 'pending';
       continue;
