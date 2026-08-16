@@ -122,3 +122,15 @@ test('step-6-interactive.md: template mirrors the fenced shape and still cites s
   assert.match(INTERACTIVE, /when the digest rule fired, the digest/);
   assert.doesNotMatch(INTERACTIVE, /\*\*Clean:\*\* \{comma list/);
 });
+
+// --- Task 4: SKILL.md Next Actions derives from Yours groups, under the ceiling ---
+
+const TIDY_SKILL = read('skills', 'tidy', 'SKILL.md');
+
+test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays under the 40 KB ceiling', () => {
+  const na = section(TIDY_SKILL, '## Next Actions', '## Component-Skill Contract');
+  assert.match(na, /Then take Yours \*\*groups\*\* \(`step-6-auto\.md`'s Yours grouping\)/);
+  assert.match(na, /one per Yours group as derived above/);
+  assert.doesNotMatch(na, /one per Yours item/);
+  assert.ok(Buffer.byteLength(TIDY_SKILL, 'utf8') <= 40 * 1024, `tidy/SKILL.md is ${Buffer.byteLength(TIDY_SKILL, 'utf8')} bytes — over the 40 KB ceiling`);
+});

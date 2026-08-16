@@ -224,13 +224,13 @@ This resolves the account- and project-specific values a portable template can't
 
 ## Next Actions
 
-Derive the options from the report's **Approve ({N})** and **Yours ({N})** sections: when **Approve ({N})** is non-empty, prepend an `"Approve ({N})"` option FIRST — `description`: `"Execute Step 7 over the {N} staged items in the report's Approve ({N}) section"` — suffixed `(Recommended)` when present. Then take Yours items, in report order, one option each — `label` naming the item's action (≤5 words), `description` carrying the item's own paste-ready command verbatim (fully-qualified `/claude-tweaks:{skill}` form): up to three when the Approve option is absent, capped at **two** when it is present, so the total never exceeds `AskUserQuestion`'s 4-option cap (1 Approve + 2 Yours + 1 dashboard = 4). The final option is always the help dashboard. When both **Approve** and **Yours** are empty, render the fixed menu below unchanged.
+Derive the options from the report's **Approve ({N})** and **Yours ({N})** sections: when **Approve ({N})** is non-empty, prepend an `"Approve ({N})"` option FIRST — `description`: `"Execute Step 7 over the {N} staged items in the report's Approve ({N}) section"` — suffixed `(Recommended)` when present. Then take Yours **groups** (`step-6-auto.md`'s Yours grouping), in report order, one option each — `label` naming the group's command (≤5 words), `description` carrying the group's batch command verbatim, or a paste-block group's first line verbatim (the report holds the rest): up to three when the Approve option is absent, capped at **two** when it is present, so the total never exceeds `AskUserQuestion`'s 4-option cap (1 Approve + 2 Yours + 1 dashboard = 4). The final option is always the help dashboard. When both **Approve** and **Yours** are empty, render the fixed menu below unchanged.
 
 Call `AskUserQuestion`:
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 (when Approve is non-empty) — `"Approve ({N})"` as derived above, suffixed `(Recommended)`; first option overall when present
-- Up to 3 more options (when Yours items exist and the Approve option is absent) or up to 2 more options (when Yours items exist and the Approve option is present) — one per Yours item as derived above, first option overall suffixed `(Recommended)` only when the "Approve ({N})" option is absent
+- Up to 3 more options (Approve absent) or 2 (Approve present) — one per Yours group as derived above; the first option overall is suffixed `(Recommended)` only when the Approve option is absent
 - Final option (whenever Approve or Yours items exist; the empty-fallback below already carries it) — `label`: `"Help dashboard"`, `description`: `"/claude-tweaks:help — full pipeline status with refreshed counts after the cleanup"`
 
 Empty fallback — Approve and Yours both empty (the fixed menu, unchanged from before this derivation rule existed):
