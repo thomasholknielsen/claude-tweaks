@@ -78,7 +78,7 @@ Close the template's fence above, then render the applicable lines as plain mark
 `/claude-tweaks:{step} {spec}` — run {failed step} manually for more control
 `/claude-tweaks:test` — re-verify after fixes — when test failed
 
-When issue claims are held, additionally call `AskUserQuestion` (single decision — release the claim(s) or keep them held; the skill executes the release itself; kept-vs-released changes what other dispatchers may do, which is why this is a blocking decision under docs/skill-authoring.md's reservation, not navigation).
+When issue claims are held, additionally call `AskUserQuestion` (single decision — release the claim(s) or keep them held; the skill executes the release itself; kept-vs-released changes what other dispatchers may do, which is why this is a decision that blocks the skill from finishing (docs/skill-authoring.md's Skill handoffs convention), not navigation).
 
 A re-verify failure after polish (the "polish broke verification" shape) never reaches this template — per the routing table above, it always routes to the "Polish broke verification" template below, which owns the dedicated `git diff` / `git revert` conversion for that shape. That branch is dropped here rather than duplicated.
 
@@ -114,6 +114,6 @@ Close the template's fence above, then render the lines in the same order below 
 `git revert {polish-commit}` then `/claude-tweaks:flow {spec} no-polish wrap-up` — revert the polish commit and resume without polish
 Fix the verification failure manually, then resume: `/claude-tweaks:flow {spec} polish`
 
-When issue claims are held, additionally call `AskUserQuestion` (single decision — release the claim(s) or keep them held; the skill executes the release itself; kept-vs-released changes what other dispatchers may do, which is why this is a blocking decision under docs/skill-authoring.md's reservation, not navigation).
+When issue claims are held, additionally call `AskUserQuestion` (single decision — release the claim(s) or keep them held; the skill executes the release itself; kept-vs-released changes what other dispatchers may do, which is why this is a decision that blocks the skill from finishing (docs/skill-authoring.md's Skill handoffs convention), not navigation).
 
 > The re-verify cycle cap is 1 per flow run. Resuming with `/claude-tweaks:flow {spec} polish` starts a fresh cycle.
