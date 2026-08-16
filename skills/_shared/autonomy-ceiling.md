@@ -20,7 +20,7 @@ capability `wrap-up/review-console.md`'s own short-circuit uses from the live-se
 **Exactly one actor acts on the ceiling-gated born-`ready` tier today: `/claude-tweaks:capture`.**
 That sentence is about this lever's trust-gated tier only — it is not a statement about everything
 the ceiling authorizes, and not the only road to born-`ready`: since #623, `/claude-tweaks:wrap-up`,
-`/claude-tweaks:reflect`, and `/claude-tweaks:review` file born-ready **by construction**
+`/claude-tweaks:reflect`, `/claude-tweaks:review`, `/claude-tweaks:visual-review`, and (on its Shaped-body branch, #625) `/claude-tweaks:capture` file born-ready **by construction**
 (`specShapedBody` composition — see `_shared/work-record.md`'s born-shaped rows), ceiling-independent
 the same way health-skill filings are. The in-run initiative budget rides the same `trusted` value
 with a different actor set and a different gate entirely (`_shared/initiative-budget.md`).

@@ -75,6 +75,7 @@ test('deferral-gate.md names its consumers, the hard gate, re-verification, and 
   for (const consumer of [
     'skills/review/step3-routing.md', 'skills/reflect/full-mode.md', 'skills/reflect/hindsight-mode.md',
     'skills/wrap-up/residue-sweep.md', 'skills/wrap-up/leftover-routing.md', 'skills/_shared/ledger-format.md',
+    'skills/capture/SKILL.md',
   ]) assert.ok(GATE.includes(consumer), consumer);
   assert.ok(GATE.includes('## The hard gate'));
   assert.ok(GATE.includes('## Re-verification'));
@@ -126,6 +127,7 @@ const CONSUMER_FILES = [
   'skills/wrap-up/residue-sweep.md',
   'skills/wrap-up/leftover-routing.md',
   'skills/visual-review/browser-review.md',
+  'skills/capture/SKILL.md',
 ];
 
 for (const rel of CONSUMER_FILES) {

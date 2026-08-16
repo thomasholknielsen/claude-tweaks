@@ -299,6 +299,7 @@ depends on them.
 | `_shared/learning-routing.md` | Routes every insight/finding through this contract's classifier instead of reflect's own destination table; hindsight mode additionally tags a D4/D5 ledger entry `[route: D4]`/`[route: D5]` for `/wrap-up`'s Skills curation row to pick up and hand on. |
 | `bin/resolve-profile.js` | Step 2's lens procedure dispatches as one `[Use: Frontier]` singleton Task agent when this run is standalone (component-invoked ⇒ no dispatch, per the Component-Skill Contract) — record #221. |
 | `bin/lib/hooks/pre-tool-use.js`, `bin/lib/hooks/post-tool-use.js`, and `bin/lib/hooks/subagent-stop.js` | The Friction lens (`full-mode.md`/`light-mode.md`) reads denial events (`wd-deny`, `gate-denial`) logged by the first, the `ask-user-question` event logged by the second, and the `contract-violation` event logged by the third as its input source. |
+| `/capture` | Reflect's Capture recommendation routes a tangential insight to `/capture`, which files it as a fresh backlog work record — invoked with the shaped body and `--defer-reason={value} --source reflect` (capture's Shaped-body branch). |
 
 ## research
 

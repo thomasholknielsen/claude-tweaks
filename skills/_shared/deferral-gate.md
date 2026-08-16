@@ -1,6 +1,6 @@
 # Deferral Gate — fix-now criteria, bad reasons, and the `Defer-reason:` vocabulary
 
-The single home of the rule every exhaust channel applies before anything becomes a work-record proposal: *fix it now unless one of a closed set of reasons says why not.* Consumers cite this file instead of carrying their own defer wording (`_shared/ledger-format.md` does today; the rest migrate with #621):
+The single home of the rule every exhaust channel applies before anything becomes a work-record proposal: *fix it now unless one of a closed set of reasons says why not.* Consumers cite this file instead of carrying their own defer wording (all consumers below cite it — migrated across #621/#624/#625):
 
 - `skills/review/step3-routing.md` (Step 3 routing — Defer / Capture branches)
 - `skills/reflect/full-mode.md` and `skills/reflect/hindsight-mode.md` (Defer / Capture recommendation rules)
@@ -64,7 +64,7 @@ blocked-dependency — the fix waits on functionality not yet built
 
 ## The hard gate
 
-No record proposal — staged in a run directory or created directly — without a valid `Defer-reason:`. An item that fails fix-now and has no valid reason stays `open` for the human drill; it is never filed. There is no advisory mode. This is contract text: enforcement lands with #621 (producers stamp the reason) and #622 (the Review Console refuses reason-less proposals).
+No record proposal — staged in a run directory or created directly — without a valid `Defer-reason:`. An item that fails fix-now and has no valid reason stays `open` for the human drill; it is never filed. There is no advisory mode. This is enforced contract text: producers stamp the reason (#621/#624), and the console refuses reason-less proposals (#622, `wrap-up/refused-proposals.md`).
 
 ## Re-verification
 

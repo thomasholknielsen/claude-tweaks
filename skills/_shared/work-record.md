@@ -123,7 +123,7 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 
 **Every row is exhaustive for its actor.** There is no general "agent path" row that widens the
 specific ones — each actor's born-`ready` conditions are documented on its own row directly:
-`/capture`'s (the `/claude-tweaks:specify --chained` chain its Never column describes) and, since
+`/capture`'s (the ceiling-gated `--chained` shaping its Never column describes, and — since #625 — the Shaped-body branch its Adds column authorizes) and, since
 #623, the `side-effect:*` residue producers' — `/wrap-up` (leftover, ledger, and residue-sweep
 routing), `/reflect`, `/review`, and `/visual-review` — whose rows below state the `specShapedBody` composition
 their `ready` is conditional on. Extending born-`ready` to any further actor (`/demo` follow-ups)
