@@ -306,6 +306,8 @@ Reached only when the Auto-resolution short-circuit above did not already resolv
 
 Read `console-template.md` in this skill's directory and render that exact shape — every section's column layout, the engine-vs-prose-fallback distinction (engine output is plainer: one uniform four-column table per section, not the richer per-section shapes shown there), and the `[adr-convention]` row's three-way prompt. The worked example rows there are fictional; substitute this run's own `decisions.md`/`staged/` content.
 
+**Lever attribution suffix.** When a `decisions.md` entry carries the optional `[lever: …]` field (`_shared/auto-decision-log.md`'s Lever attribution section), append it to that row's existing detail-bearing cell (`What`/`Detail` in the prose-fallback shapes, `Change` in the engine's uniform table) as an inline code span — no new column; `console-template.md`'s section shapes are unchanged. With the field: `Auto-fixed 4 lint failures` becomes `Auto-fixed 4 lint failures — ` `` `[lever: auto-fix-threshold=lint+type (default)]` ``. Without the field, the cell renders exactly as today — absence is valid and never annotated.
+
 **Hard gate (restated):** the tables must be literal rendered markdown in THIS response, above this tool call — see the top-of-file gate.
 
 Immediately after presenting the console tables above, call `AskUserQuestion` with:
