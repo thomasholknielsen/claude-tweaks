@@ -151,7 +151,7 @@ test('commit shapes that must stay denied: -a, --amend, compound, -C', () => {
   // parser predating #537, not something the allowlist could close even in
   // principle (POLICY_COMMIT_ALLOWLIST itself correctly rejects both — see
   // the regex unit test above). Denying is asserted at the allowlist level;
-  // closing the parser gap is out of #537's scope.
+  // closing the parser gap is out of #537's scope — tracked as #590.
   const repo = gitRepoWithCommit();
   withPolicy(repo, 'worktree.always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
