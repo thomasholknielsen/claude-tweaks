@@ -25,13 +25,17 @@ function defaultRunner(args) {
 
 function errorText(err) {
   const parts = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).map(String);
-  return parts.join(' ');
+  // A runner may throw a non-Error (string, object, undefined) — never let the
+  // envelope's failed[].error come back as '' with the reason swallowed.
+  return parts.length ? parts.join(' ') : String(err);
 }
 
 // A 422 whose message says the relationship already exists — a re-run, not a failure.
-// Heuristic: matches "422" and "already" anywhere across message/stderr/stdout; not yet
-// confirmed against GitHub's live 422 bodies for these two endpoints. Fails safe: a false
-// negative reports a real duplicate under `failed` (visible, harmless on re-run).
+// Heuristic: matches "422" and "already" anywhere across message/stderr/stdout. Confirmed
+// against a live duplicate blocked_by POST (2026-08-16): GitHub answers HTTP 422 with
+// "Validation failed: Target issue has already been taken" — both regexes match. Fails
+// safe either way: a false negative reports a real duplicate under `failed` (visible,
+// harmless on re-run).
 function isAlreadyLinkedError(err) {
   const text = errorText(err);
   return /\b422\b/.test(text) && /already/i.test(text);

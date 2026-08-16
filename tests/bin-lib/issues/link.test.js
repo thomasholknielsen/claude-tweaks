@@ -209,3 +209,41 @@ test('resolveDatabaseIds: GraphQL errors[] surface in the missing-id message', (
     /missing databaseId for #595 \(GraphQL: Could not resolve to a Repository\)/,
   );
 });
+
+test('link-records CLI: a throwing remoteUrl (outside a git repo) is the friendly exit 2, not a crash', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  deps.remoteUrl = () => { throw new Error('fatal: not a git repository'); };
+  const code = run(['--parent', '592', '--subs', '595'], deps);
+  assert.equal(code, 2);
+  assert.match(err.join(''), /could not resolve owner\/repo — pass --repo/);
+});
+
+test('errorText fallback: a runner throwing a non-Error still yields a non-empty failed[].error', () => {
+  const ids = new Map([[595, 111]]);
+  // eslint-disable-next-line no-throw-literal
+  const runner = () => { throw 'socket hang up'; };
+  const r = linkSubIssues({ owner: 'a', repo: 'b', parent: 592, subs: [595], ids, runner });
+  assert.equal(r.failed.length, 1);
+  assert.equal(r.failed[0].error, 'socket hang up');
+});
+
+test('resolveDatabaseIds: non-JSON runner output throws a parse error (surfaced by the CLI as exit 1)', () => {
+  const runner = () => 'gh: not logged in';
+  assert.throws(() => resolveDatabaseIds({ owner: 'a', repo: 'b', numbers: [595], runner }), SyntaxError);
+});
+
+test('resolveDatabaseIds: repository null with no errors[] throws the plain missing-id message', () => {
+  const runner = (args) => (isGraphQL(args) ? JSON.stringify({ data: { repository: null } }) : '{}');
+  assert.throws(
+    () => resolveDatabaseIds({ owner: 'a', repo: 'b', numbers: [595], runner }),
+    (e) => /missing databaseId for #595$/.test(e.message),
+  );
+});
+
+test('linkBlockedBy: a blocker absent from the ids map lands in failed, no POST attempted', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return '{}'; };
+  const r = linkBlockedBy({ owner: 'a', repo: 'b', edges: [{ dependent: 610, blocker: 999 }], ids: new Map(), runner });
+  assert.equal(calls.length, 0);
+  assert.deepEqual(r.failed, [{ dependent: 610, blocker: 999, error: 'no databaseId resolved' }]);
+});

@@ -71,7 +71,12 @@ function run(argv, deps = realDeps) {
     deps.stderr('link-records.js: `gh` is required — the sub_issues and dependencies/blocked_by endpoints have no GitHub MCP equivalent. Fall back to work-links: body-text (record-creation.md Step 4).\n');
     return 2;
   }
-  const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(deps.remoteUrl());
+  // remoteUrl() throws outside a git repo or without an `origin` remote — treat that
+  // exactly like an unparseable remote so the friendly exit-2 message below fires
+  // instead of an uncaught stack trace colliding with the exit-1 contract.
+  let remote = null;
+  if (!opts.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
+  const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
   if (!repoSpec) { deps.stderr('link-records.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
   const numbers = [...(hasSubs ? [opts.parent, ...opts.subs] : []), ...opts.blockedBy.flatMap((e) => [e.dependent, e.blocker])];
