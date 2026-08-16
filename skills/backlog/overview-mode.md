@@ -167,7 +167,7 @@ node -e "
 - **Headline-replacement rule:** when detection fires, the flagged candidates get no mechanical recommendation. Either (a) the output cites explicit dependency evidence it holds — native links on other candidates, the flagged records' own prose — as a **corrected** "Recommended next" with the citation inline, in which case the corrected pick IS the headline and the raw ranker pick demotes to a one-line footnote (never render a recommendation the same output retracts); or (b) when no such evidence resolves an order, the output states plainly that ranking is unreliable for the flagged set and points at `/claude-tweaks:backlog refine`'s dependency repair.
 - A worked example tracing the observed #418/#419/#420 failure: three records wired `#420 blocked-by #419 blocked-by #418` in the native graph, bodies carrying only prose mentions ("Hard prerequisites, wired as Blocked by links: …"). Pre-#514: bodies parse as zero-dependency, `rankNextToBuild` recommends #420 (the chain's *last* record) first. Post-#514: the native fetch attaches `#420→blockedBy:[419]`, `#419→blockedBy:[418]`, `#418→blockedBy:[]`; `computeUnblocksCount` then yields `418→1, 419→1, 420→0`, so #420 — the record the old path recommended first — drops to last, while #418 and #419 tie at 1. That residual tie (including the fact that a blocked candidate is not demoted by ranking — #419 is itself blocked by #418, yet ties with it) is left to the batch-emitter sub-issue's chain-aware ordering. Had the fetch failed instead, `findUnresolvedDependencyProse` flags all three (prose mention, empty resolution) and case (b) replaces the headline with the unreliable-ranking statement.
 
-Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the menu's `(Recommended)` option deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
+Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the Next Actions block's recommended line deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
 
 ## Step 4: Batch emitter (bare mode)
 
@@ -221,7 +221,7 @@ chains-first-then-independents grouping.
 
 ```
 ── Score the rest ──
-# {captured-count} unscored records
+# {captured-count} records missing risk/size
 /claude-tweaks:backlog refine
 ```
 
@@ -359,9 +359,9 @@ document-level, not a continuation of this lane.
 ### Two-channel contract and the Next: line
 
 **Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
-only; the `AskUserQuestion` menu carries this-session moves only (run refine here, open a lens,
-dispatch the top chain here) and is never the delivery channel for other-terminal command lists —
-terminal-command lists inside `AskUserQuestion` options are forbidden. The report body ends with a
+only; the Next Actions close-out block carries this-session moves only (run refine here, open a
+lens, dispatch the top chain here) and is never the delivery channel for other-terminal command
+lists — terminal-command lists inside the close-out block are forbidden. The report body ends with a
 single `Next:` line: one sentence naming the top-ranked action, always exactly one.
 
 **Precedence (3-level):**
@@ -369,4 +369,4 @@ single `Next:` line: one sentence naming the top-ranked action, always exactly o
 2. Otherwise → the top-ranked **executable** Dispatch entry — comment-only entries (out-of-set-blocked, cyclic, unsynced, flagged, overlap-excluded) are skipped when determining it (promise F2).
 3. When the Dispatch block contains **no executable entry** (empty, or comment-only entries throughout) → the existing fallback ladder (grant → specify → refine, ties by id; `Next: backlog is empty` terminal case).
 
-The menu's `(Recommended)` option MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level.
+The close-out block's recommended line MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level.

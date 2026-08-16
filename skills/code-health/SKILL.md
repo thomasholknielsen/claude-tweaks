@@ -4,7 +4,7 @@ description: Use for a proactive, report-only repo sweep that files deduplicated
 argument-hint: "[--area <path>] [focus=<vertical>] [--budget <n>] [--min-risk low|medium|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Code-Health — LLM-as-Code-Judge, Proactive Repo Improvement
 
@@ -348,12 +348,12 @@ Use in post-run validation or a weekly cron step to catch accidental anchor or c
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). When high-severity issues were filed, bold the `/claude-tweaks:specify` line and suffix it `(recommended)`; otherwise render all four lines unranked in the order below.
 
-- Option 1 — `label`: `"Promote to a spec"`, `description`: `"/claude-tweaks:specify <issue-url-or-title> — promote a filed code-health issue into an agent-sized spec"`. Suffix the label `(Recommended)` when high-severity issues were filed.
-- Option 2 — `label`: `"Capture"`, `description`: `"/claude-tweaks:capture <finding> — park a fuzzy or below-threshold finding in the backlog for later triage"`
-- Option 3 — `label`: `"Re-run elsewhere"`, `description`: `"/claude-tweaks:code-health --area <other-path> — re-run on a different directory slice"`
-- Option 4 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold the new issues into a backlog-hygiene pass alongside captured and deferred items"`
+**`/claude-tweaks:specify <issue-url-or-title>`** — promote a filed code-health issue into an agent-sized spec (recommended when high-severity issues were filed)
+`/claude-tweaks:capture <finding>` — park a fuzzy or below-threshold finding in the backlog for later triage
+`/claude-tweaks:code-health --area <other-path>` — re-run on a different directory slice
+`/claude-tweaks:tidy` — fold the new issues into a backlog-hygiene pass alongside captured and deferred items
 
 ## Component-Skill Contract
 

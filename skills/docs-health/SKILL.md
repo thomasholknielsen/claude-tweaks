@@ -4,7 +4,7 @@ description: Use for docs/** audits: Diátaxis drift, depth-mismatch, findabilit
 argument-hint: "[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low|med|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Docs Health — Diátaxis Genre-Drift + Depth-Mismatch + Findability + Staleness Sweep for docs/**
 
@@ -236,11 +236,11 @@ Report-only, matching `/code-health`/`/harness-health` — every finding files a
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Bold the `/claude-tweaks:routine create docs-health` line and suffix it `(recommended)` once a first standalone run confirms the output looks right; before that, render all three lines unranked in the order below.
 
-- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create docs-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
-- Option 2 — `label`: `"Audit one doc"`, `description`: `"/claude-tweaks:docs-health --target <id> — audit one specific doc right now"`
-- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed docs-health issues into a backlog-hygiene pass"`
+**`/claude-tweaks:routine create docs-health`** — schedule this as a recurring Routine (recommended once a first standalone run confirms the output looks right)
+`/claude-tweaks:docs-health --target <id>` — audit one specific doc right now
+`/claude-tweaks:tidy` — fold any filed docs-health issues into a backlog-hygiene pass
 
 ## Component-Skill Contract
 
