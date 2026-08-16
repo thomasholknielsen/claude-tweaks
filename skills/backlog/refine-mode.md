@@ -570,7 +570,7 @@ gh issue edit "$ISSUE" --add-label auto:merge
 # supplied risk:$RISK_TIER / size:$SIZE_TIER for directly, rather than flagging back or accepting the
 # default "needs scoring" recommendation) — persist the human-supplied scoring as labels too,
 # not just the grant, so the record doesn't re-enter later batch views (e.g.
-# /claude-tweaks:backlog overview risk-value's ranked table) still showing as unscored:
+# /claude-tweaks:backlog overview risk-value's ranked table) still showing as missing risk/size:
 gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "size:$SIZE_TIER"
 ```
 
