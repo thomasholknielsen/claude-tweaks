@@ -66,6 +66,12 @@ assertions:
   # (a) The fixes are real: the seeded tests only pass post-fix.
   - type: test-passes
     command: "node --test test/"
+  # Defects 3-4 are test-invisible (a stray console.log, a wrong comment) —
+  # pin their fixes directly in the source, which also keeps file-contains
+  # exercised by a real scenario.
+  - type: file-contains
+    path: "src/greet.js"
+    absent: ["console.log", "whispers"]
   # (b) The ledger is gone: wrap-up deletes it only after the resolve gate
   # confirms zero open items; a run that left items open (or never ran the
   # gate) leaves this file behind.
