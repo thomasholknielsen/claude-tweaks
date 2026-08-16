@@ -263,9 +263,9 @@ born-`ready` by this path and this step does nothing.
 ```markdown
 ### Backlog Refine — {N} suggested label changes
 
-| # | Record | Type | Origin | Current | Recommended | Trust | Suggested Tier | Framing | Rationale |
+| # | Record | Type | Origin | Current | Recommended | Trust | Suggested Tier | Solution | Rationale |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | — | quick? (guess) | baked | {synthesis rationale} |
+| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | — | quick? (guess) | unjustified | {synthesis rationale} |
 | 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | — | — | {synthesis rationale} |
 | 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | producer:capture / low — clean, 62% coverage | — | — | {grant-check RATIONALE} |
 | 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | producer:harness-health / elevated — insufficient-evidence | — | — | Prior failure — human judgment required, not a mechanical replay |
@@ -310,7 +310,7 @@ The `Type` column (`priority`/`related`/`grant`/`dependency-repair`) is what kee
 
 The `Suggested Tier` column is populated only for `priority`-type rows — a byproduct of Step 2's per-record LLM read, which runs only over unscored records; `related` and `grant` rows always render `—`. Render the two sources distinguishably — a real `ceremony:*` label (already-scored records, per Step 1's mechanical display) plainly (`fast-lane`/`standard`); this step's own LLM guess suffixed (`quick? (guess)`/`full? (guess)`) — so a human scanning the batch never mistakes an unscored guess for `/specify`'s authoritative verdict. The `Suggested Tier` column is informational only — it rides along with the unified table, never gated behind its own `AskUserQuestion`, and is never itself written anywhere.
 
-The `Framing` column reads the baked framing verdict stamped by `/claude-tweaks:specify` (via `/claude-tweaks:challenge`'s `framing-check`) — under `work-backend: github-issues` the `framing:baked` label, under `work-backend: local-files` `facets.framing === true`. Like `Suggested Tier` it is informational only — it rides along with the unified table, is never gated behind its own `AskUserQuestion`, and is never written by this skill. A `baked` row is not a reason to withhold a grant; it is a prompt to read the record's `## Gotchas` before approving one.
+The `Solution` column reads the `solution:unjustified` verdict stamped by `/claude-tweaks:specify` (via `/claude-tweaks:challenge`'s `framing-check`) — under `work-backend: github-issues` the `solution:unjustified` label (or its pre-rename spelling `framing:baked`, still read), under `work-backend: local-files` `facets.solutionUnjustified === true`. Like `Suggested Tier` it is informational only — it rides along with the unified table, is never gated behind its own `AskUserQuestion`, and is never written by this skill. An `unjustified` row is not a reason to withhold a grant; it is a prompt to read the record's `## Gotchas` before approving one — approving is the "accept the risk" half of the label's one-line remedy.
 
 Then one `AskUserQuestion`:
 
