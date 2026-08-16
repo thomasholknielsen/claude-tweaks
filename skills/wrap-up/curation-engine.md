@@ -98,7 +98,7 @@ One payload per open row, on stdin:
 | `read` | no | Array of `{ path, mode }`, `mode` being `full` or `bounded`. Omitted reads as `[]` and renders as `read 0 (none)`. Send it even when the row found nothing — it is the evidence that the row was actually looked at. |
 | `findings` | when `result` is `findings` | Non-empty array. Every entry is validated: `action` is `applied` or `staged`, `kind` is a non-empty string, `summary` is a non-empty string. |
 | `findings[].targetPath` | in practice | The file the finding is about. Not validated, but rendered into the console table — omit it and the cell prints `undefined`. |
-| `findings[].stagePath` | staged findings | Path of the `staged/` file holding the proposal. Same rendering caveat. |
+| `findings[].stagePath` | staged findings | The **absolute** anchored path of the `staged/` file holding the proposal — under `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}/…/staged/` per `_shared/pipeline-run-dir.md`'s Anchoring section, exactly as the judge verified it with `test -f` (section 4). A relative value is a contract violation the controller rejects before `record` — see section 4. Same rendering caveat. |
 | `findings[].commit` | applied findings | Short hash of the finding's own commit. Same rendering caveat. |
 | `gapDetection` | yes | `run` or `not-run` — did this row run its missing-artifact detection, as opposed to only judging what already exists. |
 | `detail` | no | One short reader-facing phrase for the trace's Detail column. Subject to section 5. |
@@ -127,6 +127,28 @@ SCANNED {ISO-time} — {target}: gate {open|closed} ({gateReason}); read {N} ({p
 > **Parallel execution (conditional):** When the worklist has 3+ open fact-gated rows, dispatch each row's judgment as a parallel Task agent per skills/_shared/subagent-output-contract.md, at `[Use: Capable]` — the dispatch prompt inlines the row's worklist entry, the judge file's full text, and the literal payload JSON template; the agent returns the payload as its Template output. Signal-gated rows (Memory, Upstream feedback) always run after the fan-out completes, in the main thread. This branch is a genuine fan-out (N parallel agents) and stays Capable unconditionally — Frontier is singleton-only and structurally forbidden in a parallel fan-out (`_shared/subagent-output-contract.md`'s Model Selection section).
 
 **Fewer than 3 open rows — `[Use: Frontier]` singleton.** This is wrap-up's self-improvement judgment site (record #221): the main thread assembles one artifact bundle — every still-open row's worklist entry and judge-file text, the run dir's `decisions.md` and `events.jsonl`, the ledger file, and `git log` for this run's commits — and dispatches **one** Task agent (never a loop, never a parallel batch) to judge all of them in a single pass. Resolve the model via `node bin/resolve-profile.js frontier --run-dir "$PIPELINE_RUN_DIR"` (degrades to Capable per the resolver's own preconditions — cap exhausted, non-interactive, or stance below `default` — logged in its `source`; this file never re-enumerates those preconditions). The dispatch structure is identical regardless of which model the resolver returns — only the model differs, never the shape of the call. The singleton returns one payload JSON per row it judged (section 3's contract, one object per open row, in worklist order); the main thread pipes each through `record` in the main thread exactly as in the fan-out branch. This is the same "learning capture and skill updates" surface `/claude-tweaks:wrap-up`'s own description names — output that compounds across every future session, which is what justifies Frontier's premium over Capable's here.
+
+**Judge self-verification of `stagePath` (both branches).** A judge that stages a finding runs inside the worktree by necessity — it reads and edits repo files there — so a run-dir path resolved relatively from that cwd lands in the worktree's *shadow* of `.claude-tweaks/pipelines/…`, not in the anchored run directory (`_shared/pipeline-run-dir.md`'s Anchoring section). That is the default failure mode, not agent carelessness, so the guard is structural. Every dispatch prompt — the fan-out and the singleton alike — inlines this instruction verbatim: *after writing a staged file, run `test -f "$ABS_STAGE_PATH"` where `$ABS_STAGE_PATH` is the absolute path under `$PIPELINE_RUN_DIR/staged/` you were given, and echo that absolute path as the finding's `stagePath`; if the test fails, move the file there and re-run it before reporting.* On the controller side, before piping a payload to `record`: a `stagePath` that is not absolute, or does not start with the anchored `$PIPELINE_RUN_DIR`, is a payload violation — re-prompt once (that judge, with the absolute path spelled out); if the second payload still carries a relative or unanchored value, treat the finding as **unstaged**: do not `record` it as `staged`, log `STAGED {time} — {row}: judge returned an unanchored stagePath twice ({value}); finding surfaced unstaged. Reversibility: high.` to `decisions.md`, and surface it in the console's row for that target with the judge's summary so nothing is silently dropped.
+
+**Post-fan-out shadow sweep (routine, after every judged fan-out or singleton).** Independently of what the payloads claim, sweep the current worktree's shadow of the run-dir path for stray staged files and relocate them to the anchored run directory — from the worktree, with `PIPELINE_RUN_DIR` set to the anchored run dir and `WORKTREE` to the worktree root:
+
+```bash
+RUN_ROOT=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd)
+REL="${PIPELINE_RUN_DIR#"$RUN_ROOT"/}"           # e.g. .claude-tweaks/pipelines/{run-id}[/spec-{N}]
+SHADOW="$WORKTREE/$REL"
+if [ "$SHADOW" != "$PIPELINE_RUN_DIR" ] && [ -d "$SHADOW/staged" ]; then
+  for f in "$SHADOW"/staged/*; do
+    [ -e "$f" ] || continue
+    mv -n "$f" "$PIPELINE_RUN_DIR/staged/" && echo "relocated: $(basename "$f")"
+  done
+  rmdir "$SHADOW/staged" 2>/dev/null || true
+fi
+if [ "$SHADOW" != "$PIPELINE_RUN_DIR" ] && [ -f "$SHADOW/decisions.md" ]; then
+  cat "$SHADOW/decisions.md" >> "$PIPELINE_RUN_DIR/decisions.md" && rm "$SHADOW/decisions.md" && echo "relocated: decisions.md (appended)"
+fi
+```
+
+The sweep targets `staged/` and a stray shadow `decisions.md` only — never `work/`, whose materialized `{n}-spec.md` legitimately lives in the worktree and reaches the main checkout by merge. Log one line per relocated file to the anchored `decisions.md` — `AUTO {time} — Shadow sweep: relocated staged/{name} from the worktree shadow to the anchored run dir. Reversibility: high.` — and, when a relocated file's name matches a payload's `stagePath` basename, treat that payload's `stagePath` as the anchored path from then on. The same-path guard makes the sweep a no-op when it runs from the main checkout (`$SHADOW` is then the anchored dir itself). `mv -n` never overwrites an anchored file of the same name; a collision stays in the shadow and is logged as `KEPT-PROMPT` for the console. In a multi-spec run the sweep runs once per `spec-{N}/` run dir the fan-out wrote to, plus the parent (`multispec-batch-curation.md`'s registry pass). A no-op sweep writes nothing.
 
 The `record` calls stay in the main thread regardless of which branch ran — agents return payloads, they do not pipe them. That keeps the ordering rule in section 2 intact and keeps one writer on `engine-state.json`.
 
