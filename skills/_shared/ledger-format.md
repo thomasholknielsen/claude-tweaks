@@ -120,7 +120,7 @@ parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch 
 update ledger status to `deferred` (note `→ backlog`), and log:
 
 ```
-AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (blocker: {category}). Reversibility: high.
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (defer-reason: {value}). Reversibility: high.
 ```
 
 **Standalone run (no pipeline run directory resolves — see `_shared/pipeline-run-dir.md`):**
@@ -157,7 +157,7 @@ the record proposal exactly as Phase 3's `Keep` branch does, update status to `d
 short description to render a row from:
 
 ```
-AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog as {ref} (blocker: {category}) — "{one-line description}". Reversibility: high.
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog as {ref} (defer-reason: {value}) — "{one-line description}". Reversibility: high.
 ```
 
 At `supervised`/`trusted` (this capability locked), and for any item whose blocker reason still

@@ -50,7 +50,7 @@ Pipeline config snapshot:
 - AUTO 14:52:08 — Step 6: applied 2 journey link suggestions (mechanical mapping). Files: stories/login.yml, stories/logout.yml.
 
 ## /wrap-up
-- AUTO 15:02:18 — Leftover routing: 2 sections routed to `defer` per policy. Detail: error-handling-edge-cases (cannot finish — external API spec), localization-pass (deferred to spec 45).
+- AUTO 15:02:18 — Leftover routing: 2 sections routed to `defer` per policy (defer-reason: blocked-external, blocked-dependency). Detail: error-handling-edge-cases (cannot finish — external API spec), localization-pass (deferred to spec 45).
 - AUTO 15:02:24 — Skills row: applied 1 additive change (new anti-pattern in `auth/SKILL.md`). Restructure to `session-management/SKILL.md` staged at `staged/wrap-up-skill-restructure.md` for review.
 ```
 
@@ -64,7 +64,7 @@ Each entry follows this shape:
 
 | Field | Required | Format |
 |---|---|---|
-| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found) |
+| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`) |
 | `HH:MM:SS` | yes | Local time of the decision |
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
@@ -109,6 +109,7 @@ The third example is a decision whose outcome was driven by the findings' own se
 |---|---|---|
 | `AUTO` | Skill auto-applied the decision per policy. Action complete. | Shown in "Auto-applied" section. Override = revert commit or undo edit. |
 | `STAGED` | Skill detected a decision-worthy item but did not act. Patch / proposal is written to the run's `staged/` directory. | Shown in "Pending Review" section. User chooses Apply / Skip / Modify per item. |
+| `REFUSED` | Console blocked a reason-less queue-write proposal at creation; kept staged (or flipped its ledger item back to `open`). | Shown under "Refused — no defer reason". No default; human edits the staged header or drops via Override → Skip. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
 | `SCANNED` | Skill ran its independent scan/gap-detection and is reporting the scan's scope and outcome — emitted on every run of a scanning step, whether or not the scan found anything actionable. Not itself a decision — the decision, if any, is a separate AUTO/STAGED entry. | Shown in "Auto-applied" section as an informational line (no action to override). |
 
