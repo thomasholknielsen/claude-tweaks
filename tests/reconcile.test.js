@@ -433,7 +433,7 @@ test('reconcile: local-merge project falls back to the legacy ancestry reap, ski
   const r = reconcile({ cwd: dir });
   assert.strictEqual(r.mirror, null);
   assert.deepStrictEqual(r.worktrees, []); // legacy reap ran, found zero worktrees to consider
-  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,console', reason: 'local-merge-model' }]);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });
 
 test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', () => {
@@ -473,7 +473,7 @@ test('reconcile: checks filter excludes reap -> local-merge project runs nothing
   const r = reconcile({ cwd: dir, checks: ['mirror'] });
   // 'mirror' was requested but has no local-merge equivalent — nothing runs.
   assert.strictEqual(r.worktrees, null);
-  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,console', reason: 'local-merge-model' }]);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });
 
 test('reconcile: reap dispatches strictly after release and archive in source order (load-bearing, not incidental — #408)', () => {

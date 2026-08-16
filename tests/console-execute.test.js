@@ -295,5 +295,5 @@ test('reconcile(): local-merge skips the console check under the same combined s
 
   const r = reconcile({ cwd: dir });
   assert.strictEqual(r.console, null);
-  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,console', reason: 'local-merge-model' }]);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });

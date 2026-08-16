@@ -204,7 +204,7 @@ function main(argv) {
     try {
       out = require('./lib/reconcile').reconcile(opts);
     } catch {
-      out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
+      out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
     process.stdout.write(JSON.stringify(out) + '\n');
     return 0;

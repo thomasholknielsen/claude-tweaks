@@ -134,12 +134,12 @@ test('context.js documents the console-execution exemption to ctx.ownedRun write
 // --- reconcile/index.js wiring ---
 
 test('reconcile/index.js registers console in ALL_CHECKS and the pr-first dispatch, ordered before reap', () => {
-  assert.match(INDEX_JS, /const ALL_CHECKS = \['mirror', 'reap', 'release', 'archive', 'archive-branches', 'console'\];/);
+  assert.match(INDEX_JS, /const ALL_CHECKS = \['mirror', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'\];/);
   const consoleIdx = INDEX_JS.indexOf("checks.includes('console')");
   const reapIdx = INDEX_JS.lastIndexOf("checks.includes('reap')");
   assert.ok(consoleIdx > 0 && reapIdx > 0 && consoleIdx < reapIdx, 'console must dispatch before reap, same ordering constraint as release/archive');
 });
 
 test('reconcile/index.js\'s local-merge skip line includes console alongside mirror/release/archive', () => {
-  assert.match(INDEX_JS, /check: 'mirror,release,archive,archive-branches,console'/);
+  assert.match(INDEX_JS, /check: 'mirror,release,archive,archive-branches,remote-prune,console'/);
 });

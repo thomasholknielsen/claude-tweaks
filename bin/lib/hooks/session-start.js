@@ -133,6 +133,8 @@ function run(ctx) {
     if (archived.length) summary.push(`${archived.length} pipeline run(s) archived`);
     const archivedBranches = (result.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete'));
     if (archivedBranches.length) summary.push(`${archivedBranches.length} local branch(es) archived/deleted`);
+    const prunedRemote = (result.remoteBranches || []).filter((b) => b.action === 'delete');
+    if (prunedRemote.length) summary.push(`${prunedRemote.length} merged remote branch(es) deleted on origin`);
     if (summary.length) {
       parts.push(`claude-tweaks: reconciled — ${summary.join('; ')}.`);
     }

@@ -153,3 +153,26 @@ test('pruneRemote: branch attached to a live worktree is silently out of scope',
   assert.strictEqual(r.entries.find((e) => e.name === 'build/wt'), undefined);
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/wt'), /build\/wt/);
 });
+
+const { reconcile, ALL_CHECKS } = require('../../../bin/lib/reconcile');
+
+test("index: ALL_CHECKS includes 'remote-prune'; dispatch sits between 'archive-branches' and 'reap'; result gains remoteBranches slot", () => {
+  assert.ok(ALL_CHECKS.includes('remote-prune'));
+  const src = fs.readFileSync(path.join(__dirname, '../../../bin/lib/reconcile/index.js'), 'utf8');
+  const iBranches = src.indexOf("checks.includes('archive-branches')");
+  const iRemote = src.indexOf("checks.includes('remote-prune')");
+  const iReap = src.indexOf("checks.includes('reap')", iBranches);
+  assert.ok(iBranches > -1 && iRemote > iBranches && iReap > iRemote, 'dispatch order: archive-branches < remote-prune < reap');
+});
+
+test('index: no-remote repo never dispatches remote-prune; result.remoteBranches stays null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-norepo-'));
+  git(dir, 'init', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'user.name', 't');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'a\n');
+  git(dir, 'add', 'a.txt');
+  git(dir, 'commit', '-m', 'init');
+  const r = reconcile({ cwd: dir, checks: ['remote-prune'] });
+  assert.strictEqual(r.remoteBranches, null);
+});
