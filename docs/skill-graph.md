@@ -237,13 +237,15 @@ depends on them.
 | `bin/lib/issues/trust.js` | Stage 4.8 dispatches a Task agent that renders `trustRows`' table via `skills/_shared/trust-table.md`'s Fetch/Render sections, inlined into the agent prompt since subagents cannot read that file directly. Display-only — Stage 7's Maintenance Signals derivation explicitly excludes it by name, and it feeds no recommendation. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to `/help` (e.g. if a future status scan ever auto-resolves recommendations). |
 | `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). `/help` has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
+| `bin/lib/policy-schema.js` | Policy mode calls `auditPolicy()` for its Issues section and `resolveValue()` to validate each approved edit before writing, and reads `POLICY_KEYS` live for enum values (same module harness-health and init call, a third slice of the result). |
+| `bin/resolve-policy.js` | Policy mode takes one `--all` snapshot per run; every section renders from it, including the apply path revert, which reads prior values from the snapshot, never by re-reading the file. |
 
 ## init
 
 | Target | Relationship |
 |---|---|
 | `/build` | `/init` creates `docs/REGISTRY.md` (Phase 8.5) that `/build` consumes in Step 6.5 for documentation sync. Phase 3 also writes `project.maturity` to `.claude-tweaks/policy.yml`, which `/build` Common Step 2 reads to scale its test-discipline instruction on early-production/established projects. |
-| `/help` | `/init` configures the workflow system `/help` reports on — `/help` reads the same artifact paths `/init` bootstraps (the work-record queue, plans, docs registry) and surfaces doc staleness signals from the registry. Running `/help` is the quick way to verify `/init` worked. |
+| `/help` | `/init` configures the workflow system `/help` reports on — `/help` reads the same artifact paths `/init` bootstraps (the work-record queue, plans, docs registry) and surfaces doc staleness signals from the registry. Running `/help` is the quick way to verify `/init` worked. Update Mode's Policy Configuration Review (policy-review.md) delegates its "Show details" render to skills/help/policy.md's Render contract — one renderer, two entrances; init's entrance is read-only and points at /claude-tweaks:help policy for edits. |
 | `/review` | `/init` creates the doc registry `/review` lens 3i uses for documentation-freshness checks. |
 | `/specify` | Phase 3 writes `project.maturity` to `.claude-tweaks/policy.yml`; `/specify` Step 2 reads it to bias decomposition toward strangler-fig-shaped sub-issues on early-production/established projects when a design doc proposes replacing an existing subsystem. |
 | `/stories` | `/init` Phase 8 (journey discovery) feeds `/stories` — discovered journeys become story-generation input. `/init` also detects `agent-browser` availability during setup; without it `/stories`' browse-exploration and refinement steps cannot run (degrades gracefully — generates from journey/source-analysis data only). |

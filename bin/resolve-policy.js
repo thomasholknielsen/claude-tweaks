@@ -8,11 +8,13 @@
 // bin/lib/model-profiles/policy-fragment.js#parsePolicyModelConfig (the one
 // nested-block key). No resolution logic lives here. Zero runtime npm deps.
 //
-// Usage: resolve-policy.js [--values] [--run <dir>] <key> [<key>…]
+// Usage: resolve-policy.js [--values | --all] [--run <dir>] <key> [<key>…]
 // Output: one JSON object on stdout keyed by requested name — or, with
 // --values, one plain value per line in request order (scalar mode for shell
 // captures; empty line for unset-no-default and error entries; not valid for
-// model-profiles). Per-key errors
+// model-profiles). --all emits every POLICY_KEYS entry, each decorated with
+// its schema metadata (summary/category/tier/type/default); mutually
+// exclusive with --values and takes no key arguments. Per-key errors
 // ({"error": "unknown-key"}) are data (exit 0). Invocation failures — zero
 // keys, or a --run dir that does not exist — exit 1 with a stderr message
 // and no JSON. Repo root comes from `git rev-parse --show-toplevel` at the
@@ -23,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolvePolicyKeys, detectIntegrationModel } = require('./lib/policy-schema');
+const { resolvePolicyKeys, detectIntegrationModel, POLICY_KEYS } = require('./lib/policy-schema');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 
 function fail(msg) {
@@ -54,6 +56,7 @@ function main(argv) {
   const args = argv.slice(2);
   let runDir = null;
   let valuesMode = false;
+  let allMode = false;
   const keys = [];
   while (args.length) {
     const arg = args.shift();
@@ -66,12 +69,23 @@ function main(argv) {
       runDir = value;
     } else if (arg === '--values') {
       valuesMode = true;
+    } else if (arg === '--all') {
+      allMode = true;
     } else {
       keys.push(arg);
     }
   }
+  if (allMode && valuesMode) {
+    fail('--all and --values are mutually exclusive — --all always emits the JSON object');
+    return;
+  }
+  if (allMode && keys.length > 0) {
+    fail('--all takes no key arguments — it already emits every schema key');
+    return;
+  }
+  if (allMode) keys.push(...POLICY_KEYS.map((row) => row.key));
   if (keys.length === 0) {
-    fail('usage: resolve-policy.js [--values] [--run <dir>] <key> [<key>…]');
+    fail('usage: resolve-policy.js [--values | --all] [--run <dir>] <key> [<key>…]');
     return;
   }
   if (valuesMode && keys.includes('model-profiles')) {
@@ -142,6 +156,22 @@ function main(argv) {
       return String(entry.value);
     });
     process.stdout.write(`${lines.join('\n')}\n`);
+    return;
+  }
+
+  if (allMode) {
+    const decorated = {};
+    for (const row of POLICY_KEYS) {
+      decorated[row.key] = {
+        ...result[row.key],
+        summary: row.summary,
+        category: row.category,
+        tier: row.tier,
+        type: row.type,
+        default: row.default ?? null,
+      };
+    }
+    process.stdout.write(`${JSON.stringify(decorated)}\n`);
     return;
   }
 
