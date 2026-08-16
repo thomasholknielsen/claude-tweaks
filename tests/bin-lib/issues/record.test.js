@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS,
+  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
 } = require('../../../bin/lib/issues/record');
@@ -555,4 +555,63 @@ test('parseRecordFacets sets isParentIssue from the legacy family:parent label',
 test('parseRecordFacets defaults isParentIssue to false', () => {
   assert.strictEqual(parseRecordFacets([]).isParentIssue, false);
   assert.strictEqual(parseRecordFacets([{ name: 'ready' }]).isParentIssue, false);
+});
+
+// --- Defer-reason vocabulary (_shared/deferral-gate.md, #620) ---
+
+test('DEFER_REASONS is the frozen six-value closed vocabulary, in contract order', () => {
+  assert.deepStrictEqual([...DEFER_REASONS], [
+    'tangential', 'needs-human-decision', 'pre-existing-outside-diff',
+    'genuinely-larger', 'blocked-external', 'blocked-dependency',
+  ]);
+  assert.ok(Object.isFrozen(DEFER_REASONS));
+});
+
+test('recordPayload: an unknown deferReason throws naming the field', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', deferReason: 'minor' }),
+    /deferReason/,
+  );
+});
+
+test('recordPayload: a valid deferReason renders as the first body line for a body starting at ## Current State', () => {
+  const p = recordPayload({ title: 't', body: '## Current State\nx', type: 'task', deferReason: 'tangential' });
+  assert.ok(p.body.startsWith('Defer-reason: tangential\n\n## Current State\nx'));
+});
+
+test('recordPayload: a valid deferReason renders as the first body line ahead of pre-heading prose', () => {
+  const p = recordPayload({ title: 't', body: 'Intro paragraph.\n\n## Current State\nx', type: 'task', deferReason: 'tangential' });
+  assert.ok(p.body.startsWith('Defer-reason: tangential\n\nIntro paragraph.'));
+});
+
+test('recordPayload: a body already carrying a matching Defer-reason: line is left unchanged (exactly one line)', () => {
+  const body = 'Defer-reason: tangential\n\n## Current State\nx';
+  const p = recordPayload({ title: 't', body, type: 'task', deferReason: 'tangential' });
+  assert.strictEqual(p.body, body);
+  assert.strictEqual((p.body.match(/^Defer-reason: /gm) || []).length, 1);
+});
+
+test('recordPayload: a body carrying a mismatching Defer-reason: line throws', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'Defer-reason: genuinely-larger\n\n## Current State\nx', type: 'task', deferReason: 'tangential' }),
+    /Defer-reason/,
+  );
+});
+
+test('recordPayload: omitting deferReason leaves the body byte-identical and adds no label', () => {
+  const body = 'Intro.\n\n## Current State\nx';
+  const p = recordPayload({ title: 't', body, type: 'task' });
+  assert.strictEqual(p.body, body);
+  assert.deepStrictEqual(p.labels, []);
+});
+
+test('recordPayload: deferReason never becomes a label and leaves label order unchanged', () => {
+  const p = recordPayload({ title: 't', body: 'b', type: 'task', origin: 'capture', risk: 'low', ready: true, deferReason: 'blocked-external' });
+  assert.deepStrictEqual(p.labels, ['by:capture', 'risk:low', 'ready']);
+});
+
+test('recordPayload: deferReason and fingerprint compose — reason first line, fingerprint marker last', () => {
+  const p = recordPayload({ title: 't', body: 'b', type: 'task', deferReason: 'tangential', fingerprint: 'fp-1' });
+  assert.ok(p.body.startsWith('Defer-reason: tangential\n\nb'));
+  assert.ok(p.body.endsWith('<!-- work-fingerprint: fp-1 -->'));
 });

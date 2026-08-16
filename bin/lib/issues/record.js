@@ -13,6 +13,23 @@ const TIERS = ['low', 'medium', 'high'];
 const PRIORITIES = ['high', 'medium', 'low'];
 const CEREMONY_TIERS = ['fast-lane', 'standard'];
 
+// The closed Defer-reason: vocabulary — the code twin of
+// skills/_shared/deferral-gate.md's "Defer-reason: vocabulary" section
+// (tests/deferral-gate-conformance.test.js pins the two lists equal). Order is
+// the contract's order. Frozen: consumers compare against it, never extend it.
+const DEFER_REASONS = Object.freeze([
+  'tangential',
+  'needs-human-decision',
+  'pre-existing-outside-diff',
+  'genuinely-larger',
+  'blocked-external',
+  'blocked-dependency',
+]);
+
+// The one body line a directly-created record's Defer-reason: lives on (first
+// line of the body, blank line after — deferral-gate.md's "Where the reason lives").
+const DEFER_REASON_LINE_RE = /^Defer-reason: (\S+)$/m;
+
 const LABELS = {
   READY: 'ready',
   PARKED: 'parked',
@@ -117,7 +134,7 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, size?, ceremony?, framing?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, size?, ceremony?, framing?, ready?, parked?, priority?, fingerprint?, deferReason? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
 // The emit side is size-only: `effort` is accepted only to throw on it (below) —
@@ -125,7 +142,7 @@ function fencedBlock(text) {
 // of silently dropping the scoring label. No code path here writes an effort:*
 // label. The read side's effort:* fallback (parseRecordFacets below) is
 // deliberately one-directional.
-function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint, effort } = {}) {
+function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint, effort, deferReason } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -140,6 +157,25 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, framin
 
   if (ready && parked) {
     throw new Error('a record cannot be both ready and parked');
+  }
+
+  // deferReason is validation-plus-body-line, never a label: an unknown value
+  // throws naming the field (same posture as the effort rejection above); a valid
+  // one is inserted as the body's first line unless the body already carries a
+  // matching Defer-reason: line (a specShapedBody-composed body, #623), in which
+  // case nothing is inserted; a body carrying a *different* value is a caller
+  // contradiction and throws.
+  let reasonBody = body;
+  if (deferReason !== undefined) {
+    oneOf('deferReason', deferReason, DEFER_REASONS);
+    const existing = DEFER_REASON_LINE_RE.exec(body);
+    if (existing) {
+      if (existing[1] !== deferReason) {
+        throw new Error(`body already carries "Defer-reason: ${existing[1]}" but deferReason is "${deferReason}"`);
+      }
+    } else {
+      reasonBody = `Defer-reason: ${deferReason}\n\n${body}`;
+    }
   }
 
   // Deterministic emission order: by:*, risk:*, size:*, ceremony:*, framing:baked, ready, parked, priority:*.
@@ -170,8 +206,8 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, framin
   }
 
   const finalBody = fingerprint
-    ? `${body}\n\n<!-- work-fingerprint: ${fingerprint} -->`
-    : body;
+    ? `${reasonBody}\n\n<!-- work-fingerprint: ${fingerprint} -->`
+    : reasonBody;
 
   return { title, body: finalBody, labels, type };
 }
@@ -404,7 +440,7 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
 }
 
 module.exports = {
-  ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
+  ORIGINS, TYPES, TIERS, PRIORITIES, DEFER_REASONS, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
