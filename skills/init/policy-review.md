@@ -35,16 +35,18 @@ requires (one click, never "type no"):
   `header`: `"Policy review"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Skip (Recommended if you already know your config)"`, `description`:
   `"Keep the one-line count above; move on to the rest of Update Mode"`
-- Option 2 — `label`: `"Show details"`, `description`: `"Render every set lever with its value
-  and what it does, plus a table of the {N} issue(s) found"`
+- Option 2 — `label`: `"Show details"`, `description`: `"Render the policy configuration per skills/help/policy.md's Render contract (read-only), plus the {N} issue(s) found"`
 
-On **Show details**: render `invalidValues`/`unrecognizedKeys` as batch tables (Key | Current
-value | Expected/Note), then for every recognized key present in `.claude-tweaks/policy.yml`
-(from the Phase 1u inventory), look up its row in `_shared/policy-schema.md`'s lever tables and
-render Key | Current value | Meaning — reusing that file's own Meaning column rather than
-re-authoring lever descriptions here, so the two never drift apart. A project with no recognized
-keys set at all still gets the table, sourced from `POLICY_KEYS`'s own `default` field instead,
-so the walkthrough functions as onboarding even on a from-scratch `policy.yml`.
+On **Show details**: read `skills/help/policy.md` (an explicit cross-skill path read — never a
+`Skill`-tool invocation of `/claude-tweaks:help`, which would run the whole mode, gather
+included) and produce its Render contract's four sections in order — Set levers, Issues, Notable
+defaults, Advanced tier — from that file's own Gather commands. This entrance is **read-only**:
+render the sections, then close with one line — "To change any of these, run
+`/claude-tweaks:help policy` — its Next Actions apply edits with validation." — and never run the
+contract's apply path from here. When zero recognized keys are set (a from-scratch
+`policy.yml`), additionally trigger the contract's own "show advanced" expansion so the
+walkthrough still functions as onboarding — the defaults render grouped by category with each
+lever's summary, via the contract's affordance rather than a local table.
 
 This check never writes to `policy.yml` — a malformed or unrecognized line needs a human's actual
 intended value, not a guessed one. Record the outcome in Phase 9's Actions Performed table as an
