@@ -227,7 +227,7 @@ One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guaran
 Log to `{run-dir}/decisions.md`:
 `AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert). [lever: automerge-max-lines={value} ({source}); automerge-max-files={value} ({source}); merge-sensitive-paths={value} ({source})]`
 
-The trailing `[lever: …]` field follows `_shared/auto-decision-log.md`'s Lever attribution section — these are the levers the gate's `merge-check` invocation reads (`skills/assess-agent-autonomy/merge-check.md`); `{value}`/`{source}` come from that invocation's own resolver call.
+The trailing `[lever: …]` field follows `_shared/auto-decision-log.md`'s Lever attribution section — these are the levers the gate's `merge-check` invocation reads (`skills/assess-agent-autonomy/merge-check.md`); `{value}` comes from that invocation's own resolver call; `{source}` needs the envelope form — re-resolve with `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-sensitive-paths automerge-max-lines automerge-max-files` (no `--values`) when writing the line.
 
 Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced and reported) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
 

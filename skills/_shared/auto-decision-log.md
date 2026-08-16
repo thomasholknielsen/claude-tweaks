@@ -82,7 +82,7 @@ A decision that consulted a policy/config lever may name it at the end of its en
 
 The bracketed field is **always last** — after the existing optional `{; commit ref or stage path}` element when that is present. Multiple levers are semicolon-separated inside one bracket pair. The lever field is optional; absence is valid and no reader may require its presence. Absence means "not lever-governed or not yet adopted" — never an error.
 
-**"Consulted" means every lever whose value the logging site's own procedure read to make this decision** — a weighted or advisory input counts; a lever the procedure never read does not. The field cites levers consulted, not which one alone decided.
+**"Consulted" means every lever whose value the logging site's own procedure read to make this decision — including levers read by a sub-skill this procedure invokes on this path** — a weighted or advisory input counts; a lever the procedure never read does not. The field cites levers consulted, not which one alone decided.
 
 - **Source words:** `run-config | policy | default` (matching `resolve-policy.js`'s envelope `source`), plus `arg` for a value set by an explicit CLI/skill argument override. No other source words.
 - **Statuses:** any status (`AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`) whose decision consulted a lever carries the field; HARD-GATE stops and other non-policy decisions never carry it — attribution on a non-policy decision is noise that erodes the signal.
