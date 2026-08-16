@@ -22,6 +22,7 @@ const LABELS = {
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
   FRAMING_BAKED: 'framing:baked',
+  NEEDS_DEFINITION: 'needs:definition',
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
@@ -252,6 +253,10 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.FRAMING_BAKED) {
       facets.framing = true;
+      continue;
+    }
+    if (name === LABELS.NEEDS_DEFINITION) {
+      facets.needsDefinition = true;
       continue;
     }
     if (name === LABELS.PARENT_ISSUE) {
