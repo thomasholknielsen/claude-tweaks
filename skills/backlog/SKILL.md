@@ -71,7 +71,7 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 - Option 2 — `label`: `"Dispatch just the next one"`, `description`: `"/claude-tweaks:dispatch next — claim and build the single highest-priority authorized record"`
 - Option 3 — `label`: `"Refine again"`, `description`: `"/claude-tweaks:backlog refine — review anything still left needing labels"`
 
-**After `overview`:** call `AskUserQuestion`:
+**After `overview`:** The menu's `(Recommended)` option MUST match the report's closing `Next:` line (Step 4's two-channel contract — the menu carries this-session moves only, never other-terminal command lists). Call `AskUserQuestion`:
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Refine the labels (Recommended)"`, `description`: `"/claude-tweaks:backlog refine — apply the priority/Related/grant suggestions this overview surfaced"` — omit when nothing surfaced needs refining
 - Option 2 — `label`: `"Shape the top priority record"`, `description`: `"/claude-tweaks:specify #{n} — shape the single highest-priority backlog record this run surfaced"`

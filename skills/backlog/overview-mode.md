@@ -154,16 +154,90 @@ node -e "
 
 Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role.
 
-## Step 4: Hand-off block (contextual)
+## Step 4: Batch emitter (bare mode)
 
-When a lens's output has a natural actionable batch, offer a stage-aware hand-off block as part of Next Actions rather than always rendering one:
+**Input precondition:** the dispatch-block candidate set is `funnelBuckets`'s `dispatchable` ∪
+`granted` (Step 2's `.funnel` — already filtered; `needs:definition` records structurally can't be
+in it since they never reach `ready`; the Shape block's own human-owed filtering belongs to the
+needs-you sub-issue). The Shape block's population is the `scored` bucket (records shaped next);
+the Score line's count is the `captured` bucket.
 
-- `ready` + `auto:build`-granted records → `/claude-tweaks:dispatch #N,#M,...`
-- `backlog`-stage records to parallelize shaping on → a multi-terminal block, one `/claude-tweaks:specify #N` per column:
+Compute the batch's graph structure, transitive payout, and file-overlap groups in one pass,
+extending Step 3's outputs:
+
+```bash
+node -e "
+  const { buildChains, transitiveUnblocksCount } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
+  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const candidates = require('/tmp/backlog-overview-candidates.json');
+  console.log(JSON.stringify({
+    graph: buildChains(candidates),
+    payout: Object.fromEntries(transitiveUnblocksCount(candidates)),
+    overlapGroups: groupByFileOverlap(candidates.map((c) => ({ id: c.id, keyFiles: c.keyFiles || [] }))),
+  }));
+" > /tmp/backlog-overview-emitter.json
+```
+
+**Ordering rule:** one combined ranking over dependency components and independents alike — sort
+key: the component head's `transitiveUnblocksCount` (an independent is its own head; usually 0)
+descending, then priority, then size, ties by id. No chains-first-then-independents grouping.
+
+**Render:** one fenced paste block per funnel stage that has members, exactly these templates:
 
 ```
-# Terminal 1                          # Terminal 2                          # Terminal 3
-/claude-tweaks:specify #201           /claude-tweaks:specify #205           /claude-tweaks:specify #210
+── Score the rest ──
+# {captured-count} unscored records
+/claude-tweaks:backlog refine
 ```
 
-- A selection spanning both stages — split it by stage and render **both** blocks in the same Next Actions turn, never picking only one and silently dropping the other subset's records.
+```
+── Shape next ──
+# Terminal 1 — priority:{tier} — {one-line hook}
+/claude-tweaks:specify #{N}
+# Terminal 2 — priority:{tier} — {one-line hook}
+/claude-tweaks:specify #{M}
+```
+
+```
+── Dispatch now ──
+# Terminal 1 — chain: #A ─▶ #B ─▶ #C (head unblocks {n})
+/claude-tweaks:flow #A,#B,#C
+# Terminal 2 — independent
+/claude-tweaks:flow #D
+```
+
+Prose rules: the Score line's count is comment-only (`refine` has no count flag); Shape lines are
+priority-ordered, one record per terminal; a chain emits as **one** multi-ref
+`/claude-tweaks:flow #A,#B,#C` command listing every member in dependency order (one command per
+chain, never head-only — flow's multi-ref form runs them as a sequential pipeline); independents
+get their own terminals with plain `/claude-tweaks:flow #N`. All commands fully qualified.
+
+**Batch integrity rules:**
+
+- **Overlap serialization** — records `groupByFileOverlap` groups together never appear in
+  different concurrent terminal blocks. Deciding criterion: members of the same dependency
+  component are already serialized in one terminal by construction; a file-overlap group spanning
+  different components/independents serializes them into one terminal when they are few (≤3
+  combined), otherwise excludes the lower-ranked with a `#`-comment naming the conflict. Group
+  membership is transitive — treat membership, not pairwise overlap, as the signal.
+- **Claim exclusion** — `bot:in-progress`/claimed records are excluded from every block, one
+  `#`-comment reason each (e.g. `# #472 skipped — bot:in-progress`), and counted in the funnel's
+  `in flight` stage. The claim snapshot is read-only and may go stale between render and paste;
+  that staleness is accepted risk, resolved downstream by `/claude-tweaks:dispatch`/
+  `/claude-tweaks:flow`'s own claim-taking at execution time — never read this scan as a
+  completeness guarantee, and never instruct taking a claim from this report.
+- **No silent caps** — anything excluded or truncated is named with a count.
+- **No terminal cap** — blocks emit in ranked order; the human takes the top *k*.
+- **Flagged records** — records flagged by the dependency-mismatch detection (Step 3's `flags`)
+  render as plain independents: no `─▶` arrows, own terminal, with a `#`-comment naming the
+  suppressed chain and pointing at `/claude-tweaks:backlog refine`'s dependency repair — never
+  silently dropped (dropping would violate the no-silent-caps rule above).
+
+**Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
+only; the `AskUserQuestion` menu carries this-session moves only (run refine here, open a lens,
+dispatch the top chain here) and is never the delivery channel for other-terminal command lists —
+terminal-command lists inside `AskUserQuestion` options are forbidden. The report body ends with a
+single `Next:` line: one sentence naming the top-ranked action, always exactly one. Fallback ladder
+when `dispatchable` is empty: the top action of the highest-precedence non-empty stage (grant →
+specify → refine), ties broken by id; when every stage is empty, the literal `Next: backlog is empty`.
+The menu's `(Recommended)` option MUST match the `Next:` line — one source of truth.
