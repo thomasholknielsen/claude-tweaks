@@ -22,5 +22,7 @@ Note: auto-filing a narrowed item here therefore produces two `AUTO` log entries
 narrowing step's own entry plus this step's own entry for the same item. This is expected,
 not a bug; it is just undocumented elsewhere.
 
-If record creation fails for one proposal, leave that one staged and let it render normally in
-Queue writes below — do not drop it.
+Before auto-filing any proposal, run `refused-proposals.md`'s check (in this skill's directory) —
+a refused proposal is never auto-filed; it renders under the refused row, not under Queue writes.
+A *failed* create on a valid proposal is different: leave that one staged and let it render
+normally in Queue writes below — do not drop it. Two different outcomes.

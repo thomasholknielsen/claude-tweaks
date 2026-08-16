@@ -226,14 +226,14 @@ The **Source** column traces each finding to its origin step (Health, Performanc
 
 **Recommendation rules for Issues:**
 - **All severities** — default "Fix now." Close the gap now.
-- **Defer** (new work record, `parked`) — the fix is understood but bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`).
-- **Capture** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Defer** (new work record — born-ready, or `parked` on a concrete wake condition) — the fix is understood but bigger and not relevant to the current work. Gated by `_shared/deferral-gate.md` (fix-now first; a valid `Defer-reason:` or the item stays open). Compose via `specShapedBody` exactly as review Step 3's Defer does (`review/step3-routing.md`), with `filedBy: 'visual review'`, `provenance: { origin: 'visual review', deferReason }` and footer `_Filed by \`visual review\` via specShapedBody._`, then create it via the unified record contract (`_shared/work-record.md`).
+- **Capture** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source visual-review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when it names an open choice.
 - **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or route it.
 
 **Recommendation rules for Ideas:**
 - **Fix now** — the strong default. If the idea can be implemented in the current session, do it. Add to the current spec scope if applicable.
-- **Defer** (new work record, `parked`) — the idea is clear but bigger and not relevant to the current work. Compose the body with a `Trigger:` line, then create it directly via the unified record contract (`_shared/work-record.md`).
-- **Capture** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Defer** (new work record, `parked`) — the idea is clear but bigger and not relevant to the current work. Same gate and composition as the Issues Defer above (`_shared/deferral-gate.md`; an idea is by nature `tangential` unless it blocks on something concrete — a concrete wake condition makes it `parked` with a `Trigger:` header).
+- **Capture** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source visual-review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when it names an open choice (an idea's usual reason is `tangential`).
 
 > **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture when the issue/idea needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
 
