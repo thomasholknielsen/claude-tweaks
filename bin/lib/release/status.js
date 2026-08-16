@@ -9,12 +9,20 @@ function manifestVersionAt(deps, spec) {
 }
 
 // ref -> every commit reachable from it that changed the manifest's `version`,
-// newest first. A manifest edit that leaves `version` alone (description, keywords)
+// newest first, lazily. A manifest edit that leaves `version` alone (description, keywords)
 // shows up in the path log but is not a bump — hence the parent comparison. A root
-// commit (no parent) that carries a version counts as the first bump.
-function findBumpCommits(deps, ref) {
-  const shas = deps.git(['log', '--format=%H', ref, '--', MANIFEST]).split('\n').map((s) => s.trim()).filter(Boolean);
-  const bumps = [];
+// commit (no parent) that carries a version counts as the first bump. `--topo-order`
+// guarantees parent-before-child ordering, which `carryingBump`'s `break` relies on.
+function* iterBumpCommits(deps, ref) {
+  // A ref with no plugin manifest at all has no release model to judge against — an empty
+  // `git log` for it would otherwise read as "not yet in a release," which is a different
+  // claim than "this isn't a plugin repo."
+  try {
+    deps.git(['cat-file', '-e', `${ref}:${MANIFEST}`]);
+  } catch {
+    throw new Error(`no plugin manifest at ${ref} — nothing to judge`);
+  }
+  const shas = deps.git(['log', '--format=%H', '--topo-order', ref, '--', MANIFEST]).split('\n').map((s) => s.trim()).filter(Boolean);
   for (const sha of shas) {
     const version = manifestVersionAt(deps, sha);
     let parentVersion = null;
@@ -29,10 +37,11 @@ function findBumpCommits(deps, ref) {
         throw new Error(`could not read ${sha}^'s manifest: ${err.message}`);
       }
     }
-    if (version !== parentVersion) bumps.push({ sha, version });
+    if (version !== parentVersion) yield { sha, version };
   }
-  return bumps;
 }
+
+const findBumpCommits = (deps, ref) => [...iterBumpCommits(deps, ref)];
 
 function isAncestor(deps, ancestor, descendant) {
   try {
@@ -54,15 +63,34 @@ function carryingBump(deps, mergeSha, bumps) {
   return carrying;
 }
 
+// This repo's CHANGELOG names records as ranges as often as it names them individually
+// (`#620-#625`, `#528-530`). Collect every range's member numbers into a Set before the
+// per-record test so a record documented only as part of a range still counts as named.
+// Cap the expansion at 500 members so a typo'd range (`#1-#99999`) can't blow up the loop.
+function rangeMembers(haystack) {
+  const members = new Set();
+  const re = /(?<![0-9])#(\d+)\s*[-–]\s*#?(\d+)(?![0-9])/g;
+  let m;
+  while ((m = re.exec(haystack))) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (a <= b && (b - a) <= 500) {
+      for (let n = a; n <= b; n++) members.add(n);
+    }
+  }
+  return members;
+}
+
 function changelogCoverage(changelogText, version, records) {
   const entry = parseChangelogVersions(changelogText).find((e) => e.version === version);
   if (!entry) return { entryFound: false, named: [], missing: [...records] };
   const haystack = `${entry.title}\n${entry.body}`;
+  const ranges = rangeMembers(haystack);
   const named = [];
   const missing = [];
   for (const n of records) {
     const re = new RegExp(`(?<![0-9])#${n}(?![0-9])`);
-    (re.test(haystack) ? named : missing).push(n);
+    (re.test(haystack) || ranges.has(n) ? named : missing).push(n);
   }
   return { entryFound: true, named, missing };
 }
@@ -72,8 +100,7 @@ function releaseStatus(deps, { ref = 'HEAD', merge, records } = {}) {
   if (!Array.isArray(records) || records.length === 0 || !records.every((n) => Number.isInteger(n) && n > 0)) {
     throw new Error('at least one record number is required (--records 603,604)');
   }
-  const bumps = findBumpCommits(deps, ref);
-  const bump = carryingBump(deps, merge, bumps);
+  const bump = carryingBump(deps, merge, iterBumpCommits(deps, ref));
   if (!bump) return { shipped: false };
   const coverage = changelogCoverage(deps.readFile(CHANGELOG), bump.version, records);
   return { shipped: true, version: bump.version, bumpCommit: bump.sha, ...coverage };
@@ -81,6 +108,9 @@ function releaseStatus(deps, { ref = 'HEAD', merge, records } = {}) {
 
 function formatStatusLine(result) {
   if (!result.shipped) return 'not yet in a release — bump pending';
+  if (!result.entryFound) {
+    return `already carried by v${result.version} — CHANGELOG has no v${result.version} entry; backfill needed: ${result.missing.map((n) => `#${n}`).join(', ')}`;
+  }
   if (result.missing.length === 0) return `already carried by v${result.version} — every record named in CHANGELOG`;
   return `already carried by v${result.version} — CHANGELOG backfill needed: ${result.missing.map((n) => `#${n}`).join(', ')}`;
 }
@@ -97,13 +127,12 @@ function formatBackfillSection(result, { merge } = {}) {
     '',
     `Records ${list}${at} reached \`main\` under v${result.version} without a bump of their own — the`,
     'release step that would have written them up never ran, so the build that first carried them',
-    'is numbered for other work. Detected by `node bin/release.js status` at pr-first merge and',
-    'backfilled after the fact (see `docs/releasing.md`).',
+    'is numbered for other work. Backfilled after the fact.',
     '',
   ].join('\n');
 }
 
 module.exports = {
-  findBumpCommits, carryingBump, changelogCoverage, releaseStatus,
+  iterBumpCommits, findBumpCommits, carryingBump, changelogCoverage, releaseStatus,
   formatStatusLine, formatBackfillSection, MANIFEST, CHANGELOG,
 };

@@ -46,8 +46,10 @@ function status(args) {
   const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
   const git = (a) => execFileSync('git', a, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   try {
-    // Validate that the merge commit exists before proceeding
-    git(['rev-parse', opts.merge]);
+    // Validate that the merge commit exists before proceeding. Plain `git rev-parse <sha>`
+    // echoes any syntactically valid 40-hex string and exits 0 even when the object doesn't
+    // exist — `--verify --quiet <sha>^{commit}` is the form that actually fails on a bad sha.
+    git(['rev-parse', '--verify', '--quiet', `${opts.merge}^{commit}`]);
     const deps = {
       git,
       // Read the CHANGELOG at the ref being judged, not the working tree — a backfill

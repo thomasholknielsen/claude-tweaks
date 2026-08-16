@@ -109,3 +109,20 @@ test('status: usage errors exit 2; a bad sha exits 1', () => {
   const bad = run(cwd, ['status', '--merge', 'deadbeefdeadbeef', '--records', '603']);
   assert.equal(bad.code, 1);
 });
+
+test('status: a nonexistent 40-hex sha exits 1 — plain `git rev-parse` echoes it without checking it exists', () => {
+  const { cwd } = buildFixture();
+  const bad = run(cwd, ['status', '--merge', '0123456789abcdef0123456789abcdef01234567', '--records', '1']);
+  assert.equal(bad.code, 1, bad.stdout);
+});
+
+test('status: a ref with no plugin manifest hard-fails rather than reporting "not yet in a release"', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'release-status-nomanifest-'));
+  git(cwd, ['init', '-q', '-b', 'main']);
+  write(cwd, 'README.md', 'no plugin manifest in this repo\n');
+  git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Initial']);
+  const merge = git(cwd, ['rev-parse', 'HEAD']);
+  const res = run(cwd, ['status', '--merge', merge, '--records', '1']);
+  assert.equal(res.code, 1);
+  assert.match(res.stderr, /no plugin manifest/);
+});
