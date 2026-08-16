@@ -1,7 +1,7 @@
 {
+  "released": true,
   "runId": "2026-08-16T172502-record-418",
-  "sessionId": "5ee75717-65d4-4586-b96e-fe3d08180e36",
-  "claimedAt": "2026-08-16T17:26:36.107Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: build-gate-task-plugin-root-premise-falsified",
+  "releasedAt": "2026-08-16T17:45:21.322Z",
+  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/665"
 }
