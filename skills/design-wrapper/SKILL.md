@@ -117,6 +117,7 @@ When the mode received a spec number or path, read the record's `Surface:` body-
 |-------|----------|
 | `web`, `mobile`, `desktop` | Continue to track resolution (legacy `frontend` reads as `web`) |
 | `backend`, `infra` | Return `{skipped: "non-frontend spec (surface declared)"}` |
+| `terminal` | Continue to track resolution (declared-only — Layer 3 never implies it) |
 | *(missing)* | Continue to track resolution |
 
 `/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new sub-issue record. Pre-v4.5 specs lack the field; absent values are normal and are handled by track resolution and Layer 3 below.
@@ -131,10 +132,13 @@ Layers 1-3 answer *whether* to dispatch; this answers *which track*. It is **one
 | `ios` / `android` / `adaptive` | any | **native** | that value |
 | `null` | `web`, `desktop`, *(missing)* | web | — |
 | `null` | `mobile` | **native** | `adaptive`, **inferred** |
+| any | `terminal` | **terminal** | — |
 
 `setup.platform`'s value domain is closed to those four values plus `null` by `extractPlatform`'s own implementation (see `impeccable-plugin.md`), and Layer 2 has already returned a skip for `backend` / `infra`, so every reachable combination has a row. There is no "otherwise" case to write. `null` + `mobile` infers `adaptive` because upstream has no unnamed-native track; `desktop` takes the web path because upstream's enum has no desktop value. Both are reasoned resolutions rather than placeholders — the arguments are in `native-routing.md`.
 
-**Disagreement is recorded, never silent.** When `setup.platform` is non-null and `Surface:` implies the other track — `platform: web` against an explicit `Surface: mobile` is the case that matters — `setup.platform` wins per the table, and the return carries `surface_track_override` naming both values and which won. A stale or wrong `PRODUCT.md` must not quietly overrule a record's own declaration without leaving a trace. When `$PIPELINE_RUN_DIR` is set, write the same one-liner to the run's `decisions.md` per `_shared/auto-decision-log.md`.
+**Disagreement is recorded, never silent.** When `setup.platform` is non-null and `Surface:` implies the other track — `platform: web` against an explicit `Surface: mobile` is the case that matters — `setup.platform` wins per the table, and the return carries `surface_track_override` naming both values and which won. A stale or wrong `PRODUCT.md` must not quietly overrule a record's own declaration without leaving a trace. When `$PIPELINE_RUN_DIR` is set, write the same one-liner to the run's `decisions.md` per `_shared/auto-decision-log.md`. On the `terminal` row `Surface:` wins — `setup.platform` describes Impeccable's rendered-product platform, whose value domain has no terminal value; a non-null `platform` against `Surface: terminal` is still recorded in `surface_track_override` and `decisions.md`, with `Surface:` named as the winner.
+
+When the track resolves `terminal`, read `terminal-routing.md` — every terminal-track outcome (honest Impeccable skips, `pre-build`'s principles-only load) lives there.
 
 **Two modes are web-only and skip on the native track.** The constraint is upstream's own, stated in its `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only."*
 
@@ -158,6 +162,7 @@ Layer 3's trigger table is web-only by construction — no native extension appe
 | web | any | Runs, exactly as it always has |
 | native | declared | **Skipped** — a web-only sniff cannot rule on native code, and running it would return `non-frontend (sniff)` on exactly the records native routing exists to serve |
 | native | *(missing)* | Runs. A match admits; zero matches skips as today, so a native project's backend-only diff is not widened onto the design path |
+| terminal | declared | **Skipped** — declared-only; no terminal trigger exists in the sniff table by design |
 
 ### Step 2: Availability check
 
@@ -247,6 +252,7 @@ Lazy-load these only when needed for the active mode:
 - `command-map.md` — Single source of truth for dispatch: the per-command categorization (phase-fixed / refinement set / suggestion-driven / intent-driven / manual-only / never) covering every Impeccable command the wrapper knows about, plus the survey "would help" criteria → command mapping. Its Full command map table is the count — do not restate one here.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `native-routing.md` — Everything downstream of a **native** track result: the platform → upstream-reference mapping, the dispatch rule, the reasoning behind the track table's two inferred rows (`null` + `mobile` → `adaptive`; `desktop` → web), and the four-row routing walkthrough. Loaded only when track resolution returns `ios` / `android` / `adaptive` — a web-track run never needs it.
+- `terminal-routing.md` — Everything downstream of a **terminal** track result: the outcomes table (Impeccable skips with reasons, `pre-build`'s principles-only load), the `Surface:`-wins reasoning, the revisit condition. Loaded only when track resolution returns `terminal`.
 - `critics.md` — track-keyed roster of project-local craft critics; read only by `review` mode Step 3.8.
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules. Pins the **CLI**.
 - `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (one resolver for every consumer in its script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
