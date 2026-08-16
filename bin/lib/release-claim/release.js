@@ -66,9 +66,14 @@ function removeLabel({ owner, repo, issueNumber, label, runner = defaultRunner }
   }
 }
 
-// -> { outcome, holder?, calls, commentPosted, labelsRemoved, labelsFailed, error? }
+// -> { outcome, holder?, calls, commentPosted, labelsRemoved, labelsFailed, error?, note? }
+// `error` is set only when outcome === 'failed' (a read failure, or a PUT
+// failure that isn't already-released). Non-fatal diagnostics — the
+// 404/409/422 PUT error text on the already-released path, and any
+// comment-post failure — go into `note` instead (joined with '; ' if both
+// occur).
 function releaseClaim({ owner, repo, issueNumber, runId, reason, link, removeGrants = false, removeInProgress = false, runner = defaultRunner, now = Date.now() }) {
-  const result = { outcome: 'failed', calls: [], commentPosted: false, labelsRemoved: [], labelsFailed: [] };
+  const result = { outcome: 'failed', calls: [], commentPosted: false, labelsRemoved: [], labelsFailed: [], note: null };
   let blob;
   try { blob = readClaimBlob({ owner, repo, issueNumber, runner }); } catch (err) { result.error = errorText(err); return result; }
   result.calls.push('read');
@@ -87,12 +92,22 @@ function releaseClaim({ owner, repo, issueNumber, runId, reason, link, removeGra
     } catch (err) {
       if (!isAlreadyReleasedError(err)) { result.error = errorText(err); return result; }
       result.outcome = 'already-released';
-      result.error = errorText(err);
+      result.note = errorText(err);
     }
   } else {
-    result.outcome = 'already-released'; // absent or tombstone — nothing to overwrite
+    // absent, or a tombstone (own or foreign) — nothing to overwrite. A
+    // tombstone is not a held lock, so the ownership rule above (which
+    // guards only a live/stale lock held by another run) deliberately does
+    // not apply here: the comment and label removals still run.
+    result.outcome = 'already-released';
   }
-  try { postReleaseComment({ owner, repo, issueNumber, body: payload.commentBody, runner }); result.calls.push('comment'); result.commentPosted = true; } catch (err) { result.error = errorText(err); }
+  try {
+    postReleaseComment({ owner, repo, issueNumber, body: payload.commentBody, runner });
+    result.calls.push('comment');
+    result.commentPosted = true;
+  } catch (err) {
+    result.note = result.note ? `${result.note}; ${errorText(err)}` : errorText(err);
+  }
   const labels = [...(removeGrants ? GRANT_LABELS : []), ...(removeInProgress ? [IN_PROGRESS_LABEL] : [])];
   for (const label of labels) {
     const r = removeLabel({ owner, repo, issueNumber, label, runner });

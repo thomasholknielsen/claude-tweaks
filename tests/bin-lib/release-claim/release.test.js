@@ -89,6 +89,26 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(f.calls.filter(isPut).length, 0);
   assert.equal(f.calls.filter(isComment).length, 1);
   assert.equal(f.calls.filter(isEdit).length, 2);
+
+  const ownTombstone = JSON.stringify({ released: true, runId: OWN, reason: 'merged: spec 999', releasedAt: '2026-08-16T11:30:00.000Z' });
+  const t1 = fakeRunner({ content: ownTombstone, sha: 'tomb1' });
+  const r1 = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, runner: t1.runner, now: NOW });
+  assert.equal(r1.outcome, 'already-released');
+  assert.equal(t1.calls.filter(isPut).length, 0);
+  assert.equal(t1.calls.filter(isComment).length, 1);
+  assert.equal(t1.calls.filter(isEdit).length, 2);
+
+  // A tombstone is not a held lock, so the ownership rule doesn't apply here
+  // (see skills/_shared/issue-claims.md's Release triggers "Ownership rule" —
+  // it's scoped to a successor that *holds* the lock) — a FOREIGN tombstone
+  // gets the same outcome and calls.
+  const foreignTombstone = JSON.stringify({ released: true, runId: '2026-08-16T110000-spec-999', reason: 'merged: spec 999', releasedAt: '2026-08-16T11:30:00.000Z' });
+  const t2 = fakeRunner({ content: foreignTombstone, sha: 'tomb1' });
+  const r2 = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, runner: t2.runner, now: NOW });
+  assert.equal(r2.outcome, 'already-released');
+  assert.equal(t2.calls.filter(isPut).length, 0);
+  assert.equal(t2.calls.filter(isComment).length, 1);
+  assert.equal(t2.calls.filter(isEdit).length, 2);
 });
 
 test('a blob owned by another run exits skipped-not-owner and writes nothing', () => {
@@ -114,6 +134,8 @@ test('comment failure never changes the outcome; removeLabel never throws', () =
   const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: f.runner, now: NOW });
   assert.equal(r.outcome, 'released');
   assert.equal(r.commentPosted, false);
+  assert.match(r.note, /502/);
+  assert.ok(r.error === undefined || r.error === null);
   const e = fakeRunner({ content: live(OWN), editThrows: 'HTTP 404' });
   assert.equal(removeLabel({ owner: 'acme', repo: 'w', issueNumber: 999, label: 'auto:build', runner: e.runner }).ok, false);
 });
