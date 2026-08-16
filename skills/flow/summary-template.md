@@ -18,7 +18,8 @@ On successful completion of all steps (`wrap-up` in the step list):
 | polish | {Invoked N commands ({list}); re-verify passed | Skipped — non-frontend | Skipped — no-polish | Skipped — Impeccable not installed | No changes to apply | re-verify failed (see failure card)} |
 | wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
 
-**Release status:** {the one-line human form from `_shared/pr-first-merge.md` Step 4.5, verbatim — `not yet in a release — bump pending` | `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` (a `staged/release-backfill-vX.Y.Z.md` row is waiting at the Review Console) | `already carried by vX.Y.Z — every record named in CHANGELOG` | `release status unavailable — {reason}` | `n/a — not merged in this run (outcome: {armed | pending-review})`}
+**Release status:** {the one-line human form from `_shared/pr-first-merge.md` Step 4.1, verbatim — `not yet in a release — bump pending` | `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` | `already carried by vX.Y.Z — CHANGELOG has no vX.Y.Z entry; backfill needed: #A, #B` | `already carried by vX.Y.Z — every record named in CHANGELOG` | `n/a — no plugin manifest at {ref}` | `release status unavailable — {reason}` | `n/a — not merged in this run (outcome: {armed | pending-review})`}
+{On either backfill form, one more line: **Backfill:** staged at `staged/release-backfill-vX.Y.Z.md` (archived with the run); posted as PR #{n}'s `release-status` comment — drop the PR clause under local-merge.}
 
 ### Key Outputs
 - {summary of what was built}
