@@ -1,7 +1,7 @@
 ---
 name: backlog
 description: Use for backlog labels (refine), a next-build pick (overview), or headless grants (github-issues). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next, unattended, headless, autonomy ceiling.
-argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]"
+argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup|trust] [--budget <n>] [--origin <origin>]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -29,7 +29,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 
 - You want to sweep the backlog and make sure `priority:*`, `**Related:**`, and grants (`auto:build`/`auto:merge`) are all correctly set — `refine` mode.
 - A record hit its retry ceiling (`bot:blocked`) and needs a human's renewed judgment before it can re-enter the autonomous queue — `refine` mode.
-- You want a synthesized read of what's in the backlog — narrative + thematic clusters, a critical/risk-value/cleanup view, or a recommendation for what to build next — `overview` mode.
+- You want a synthesized read of what's in the backlog — narrative + thematic clusters, a critical/risk-value/cleanup/trust view, or a recommendation for what to build next — `overview` mode.
 - You want a copy-pasteable hand-off block to parallelize shaping or building a chosen batch across terminals — `overview` mode.
 - A scheduled Routine (or a human standing in for one) needs to sweep the `ready` queue and machine-grant every record whose gate chain fully clears, with no per-record decision to answer — `grant` mode, `github-issues` only, and only once a project has deliberately opted into the `autonomy: unattended` ceiling plus its `grant-origination-enabled` policy key.
 
@@ -37,13 +37,13 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 
 ## Input
 
-`$ARGUMENTS` = `[refine|overview|grant] [critical|risk-value|cleanup] [--budget <n>] [--origin <origin>]`
+`$ARGUMENTS` = `[refine|overview|grant] [critical|risk-value|cleanup|trust] [--budget <n>] [--origin <origin>]`
 
 - No mode (bare) → `overview` — the safer, non-mutating default.
 - `refine` → the write/labeling-sweep mode. Read `refine-mode.md` in this skill's directory for the full procedure.
 - `overview` → the read-only distribution + recommendation mode. Read `overview-mode.md` in this skill's directory for the full procedure.
 - `grant` → the headless machine-grant mode. Read `grant-mode.md` in this skill's directory for the full procedure. This is `/dispatch next`'s headless-unit shape applied to granting: no `AskUserQuestion` decides any individual grant — the gate chain (`bin/lib/issues/grant-gate.js`) decides, mechanically, per record.
-- `critical` / `risk-value` / `cleanup` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
+- `critical` / `risk-value` / `cleanup` / `trust` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
 - `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20).
 - `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`) or on `refine`'s priority/Related sweep.
 
@@ -71,14 +71,15 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 - Option 2 — `label`: `"Dispatch just the next one"`, `description`: `"/claude-tweaks:dispatch next — claim and build the single highest-priority authorized record"`
 - Option 3 — `label`: `"Refine again"`, `description`: `"/claude-tweaks:backlog refine — review anything still left needing labels"`
 
-**After `overview`:** call `AskUserQuestion`:
+**After `overview`:** The menu's `(Recommended)` label is never a static tag on one option — it is computed fresh each run and MUST be attached to exactly the option whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the menu carries this-session moves only, never other-terminal command lists), resolving through the three-level precedence (needs-you first, then executable Dispatch entry, then fallback ladder). (Known gap: at the fallback ladder's grant rung and the `backlog is empty` terminal case, no dedicated menu option exists yet — tracked as a follow-up record; the options below don't change until that lands.) Call `AskUserQuestion`:
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Refine the labels (Recommended)"`, `description`: `"/claude-tweaks:backlog refine — apply the priority/Related/grant suggestions this overview surfaced"` — omit when nothing surfaced needs refining
-- Option 2 — `label`: `"Shape the top priority record"`, `description`: `"/claude-tweaks:specify #{n} — shape the single highest-priority backlog record this run surfaced"`
-- Option 3 — `label`: `"Generate a hand-off block"`, `description`: `"Parallelize shaping or dispatching across terminals for the batch this run surfaced"` — omit when no natural batch was produced this run
-- Option 4 (only after a named-lens run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:backlog overview {other-mode} — {one-line description of that mode}"`, naming exactly one of the two named lenses not yet run this session.
+- Option 1 — `label`: `"Decide the top Needs-you item"`, `description`: `"{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge #N} — the one move only the human can make"` — omit when `needsYou` is empty
+- Option 2 — `label`: `"Dispatch the top chain here"`, `description`: `"/claude-tweaks:flow {top-ranked executable Dispatch entry's refs, comma-joined} — run the report's top Dispatch terminal in this session"` — omit when the Dispatch block contains no executable entry
+- Option 3 — `label`: `"Refine the labels"`, `description`: `"/claude-tweaks:backlog refine — apply the priority/Related/grant suggestions this overview surfaced"` — omit when nothing surfaced needs refining
+- Option 4 — `label`: `"Shape the top priority record"`, `description`: `"/claude-tweaks:specify #{n} — shape the single highest-priority backlog record this run surfaced"`
+- Option 5 (only after a named-lens run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:backlog overview {other-mode} — {one-line description of that mode}"`, naming exactly one of the named lenses not yet run this session.
 
-If situational filtering leaves only one option (a bare run that surfaced nothing needing refinement, produced no natural batch, and is this session's first lens run leaves Option 2 alone), state or execute it directly instead of calling `AskUserQuestion` — per this project's own convention, a lone option isn't a decision. The same rule applies to the `refine` block above.
+If situational filtering leaves only one option (a bare run with no needs-you, whose Dispatch block contains no executable entry, that surfaced nothing needing refinement, and is this session's first lens run leaves Option 4 alone), state or execute it directly instead of calling `AskUserQuestion` — per this project's own convention, a lone option isn't a decision. The same rule applies to the `refine` block above.
 
 **After `grant`:** render only when a human is present to answer — mirrors `/claude-tweaks:dispatch`'s own `next` form rule (`dispatch/SKILL.md`'s Next Actions) exactly, since `grant` mode is the same headless-unit shape: a human typed `/claude-tweaks:backlog grant` directly, or a prior skill invoked it on a human's behalf → render; a scheduled Routine fired it → never render (nobody is present to answer, and an unanswered question at the end of a headless run is noise — the durable trace is the label state, the audit comments, and `decisions.md`, per `_shared/pipeline-run-dir.md`'s standalone-auto allowlist). When rendering, call `AskUserQuestion`:
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`

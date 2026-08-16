@@ -1,9 +1,10 @@
 // bin/lib/issues/backlog.js
 // Mechanical filter/sort/split/merge logic for /claude-tweaks:backlog's
 // overview mode (scored records, unlimited scale — critical/risk-value/cleanup
-// lenses) and refine mode's bounded LLM synthesis pass over unscored records.
-// `selectBudgetSlice` also bounds refine mode's grant-check pass over
-// ready+ungranted records — it's population-agnostic, just an oldest-first
+// lenses, plus funnelBuckets powering overview's bare-mode funnel decision
+// surface over the whole open queue) and refine mode's bounded LLM synthesis
+// pass over unscored records. `selectBudgetSlice` also bounds refine mode's
+// grant-check pass over ready+ungranted records — it's population-agnostic, just an oldest-first
 // slice with a `remaining` count. Records are expected to already carry
 // `.facets` (via record.js's parseRecordFacets or local-store.js's
 // readRecord/queryRecords) and, where sorting depends on it, a `.createdAt` ISO
@@ -16,6 +17,7 @@
 
 const { execSync } = require('child_process');
 const { PRIORITIES, TIERS } = require('./record');
+const { blockersOf } = require('./ranking');
 
 // Urgency order shared by both bands (high first). Values are validated
 // against record.js's canonical PRIORITIES/TIERS vocabulary before this
@@ -144,6 +146,79 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
   return records.map((r) => ({ ...r, createdAt: dateByPath[r.path] || new Date().toISOString() }));
 }
 
+// records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
+// parked, notPlanned, needsYou }. The eight stage keys (captured..notPlanned)
+// are mutually exclusive buckets over the post-merge faceted set (github +
+// unsynced); needsYou is a separate overlay, not a bucket — see the overlay
+// loop's comment below. Together they form the funnel decision surface
+// /claude-tweaks:backlog overview's bare mode renders. First match wins, in
+// this order for the eight stage keys; the precedence
+// rationale: bot-state outranks stage labels because live work reflects current
+// reality (a record simultaneously bot:in-progress and parked/ready resolves
+// toward what is actually happening right now), and granted is checked before
+// dispatchable so a blocked grant can never render as go-now. Blocker
+// resolution — including the unsynced-namespace short-circuit (parent #512
+// promise F1) — is delegated to ranking.js's `blockersOf`, the single owner
+// of precedence (unsynced → top-level `r.blockedBy` → `facets.blockedBy` →
+// body-text `parseDependencies` fallback), shared with rankNextToBuild so
+// both consumers agree on the same blocker for the same record (refs #514).
+// Only ids within the open input set count as blockers, since an out-of-set
+// blocker cannot be acted on from this report. Note `scored` here is a
+// different definition from splitScoredUnscored's: this funnel's scored
+// means ANY scoring signal has been applied (priority, risk, or size), where
+// splitScoredUnscored's scored means FULLY scored — both risk and size — for
+// the lens views. Deliberate, not drift: the funnel tracks "has triage
+// started?" while the lenses need "is there enough signal to rank on?".
+// needsYou is an overlay, not a bucket — see the overlay loop's comment.
+function funnelBuckets(records) {
+  const buckets = {
+    captured: [], scored: [], shaped: [], granted: [],
+    dispatchable: [], inFlight: [], parked: [], notPlanned: [],
+  };
+  const openIds = new Set(records.map((r) => r.number ?? r.id).filter((n) => n != null));
+  for (const r of records) {
+    const f = r.facets;
+    const granted = f.grants.build || f.grants.merge;
+    // Blocker precedence, INCLUDING the unsynced-namespace short-circuit, is
+    // owned by ranking.js's blockersOf — one decision, shared with
+    // rankNextToBuild (refs #514).
+    const inSetBlockers = blockersOf(r).filter((id) => openIds.has(id));
+    if (f.bot.inProgress) buckets.inFlight.push(r);
+    else if (f.stage === 'parked') buckets.parked.push(r);
+    else if (f.notPlanned) buckets.notPlanned.push(r);
+    else if (f.stage === 'ready' && granted && inSetBlockers.length > 0) buckets.granted.push(r);
+    else if (f.stage === 'ready' && granted) buckets.dispatchable.push(r);
+    else if (f.stage === 'ready') buckets.shaped.push(r);
+    else if (f.priority || f.risk || f.size) buckets.scored.push(r);
+    else buckets.captured.push(r);
+  }
+  // needsYou is an OVERLAY, never a ninth stage: every record above keeps its
+  // one primary bucket (exclusivity and sum-to-total invariants untouched).
+  // needsDefinition is LIVE — both drivers (record.js for github-issues,
+  // local-store.js for local-files) parse it since the needs:definition
+  // taxonomy shipped. solutionUnjustified is still the EXPECTED post-#471
+  // name (#471's framing:baked rename) — it does not exist on this repo yet,
+  // so that half of the list stays empty (dormant) until #471 lands; if #471
+  // ships a different key, this comment and the #471-citing tests are the
+  // reconciliation tripwire. A record carrying both facets yields one
+  // entry with kind 'definition' — the hard gate dominates. needs:definition
+  // exclusion from the Shape paste block happens at RENDER, never here.
+  const needsYou = [];
+  for (const r of records) {
+    const f = r.facets;
+    // The human lane covers records still in play — a bot is actively
+    // building an inFlight record, and parked/not-planned records are
+    // /tidy's domain; surfacing them as the session's recommended move would
+    // invert the lane's premise. Skip before the facet checks below.
+    if (f.bot.inProgress || f.stage === 'parked' || f.notPlanned === true) continue;
+    const id = r.number ?? r.id;
+    if (f.needsDefinition === true) needsYou.push({ id, kind: 'definition' });
+    else if (f.solutionUnjustified === true) needsYou.push({ id, kind: 'unjustified' });
+  }
+  buckets.needsYou = needsYou;
+  return buckets;
+}
+
 module.exports = {
   splitScoredUnscored,
   filterCritical,
@@ -152,4 +227,5 @@ module.exports = {
   selectBudgetSlice,
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
+  funnelBuckets,
 };

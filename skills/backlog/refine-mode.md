@@ -254,6 +254,7 @@ born-`ready` by this path and this step does nothing.
 | 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | — | — | {synthesis rationale} |
 | 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | producer:capture / low — clean, 62% coverage | — | — | {grant-check RATIONALE} |
 | 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | producer:harness-health / elevated — insufficient-evidence | — | — | Prior failure — human judgment required, not a mechanical replay |
+| 5 | #420: {title} | dependency-repair | — | (none) | Wire blocked-by #419 | — | — | — | Flagged by this run's dependency-mismatch detection — prose cites #418 but resolved blockers were empty |
 ```
 
 The `Trust` column renders `{provenance} / {band} — {verdict}` from
@@ -290,7 +291,7 @@ read of *this record*. A class with no evidence is the normal state, not a warni
 has not been running `/claude-tweaks:demo`, every cell reads `insufficient evidence`, and the
 column's only job there is to make that visible at the moment a human is granting anyway.
 
-The `Type` column (`priority`/`related`/`grant`) is what keeps grant rows visually distinguishable within the single table — a human scanning it can still see at a glance which rows are security-relevant, even though there is only one confirm gate for the whole batch. For 10 or more rows, lead with a one-line count summary before the table (e.g. "18 suggestions: 6 priority, 3 related, 7 grants, 2 re-authorizations") so the human sees the batch's shape before the row detail.
+The `Type` column (`priority`/`related`/`grant`/`dependency-repair`) is what keeps grant rows visually distinguishable within the single table — a human scanning it can still see at a glance which rows are security-relevant, even though there is only one confirm gate for the whole batch. For 10 or more rows, lead with a one-line count summary before the table (e.g. "18 suggestions: 6 priority, 3 related, 7 grants, 2 re-authorizations") so the human sees the batch's shape before the row detail.
 
 The `Suggested Tier` column is populated only for `priority`-type rows — a byproduct of Step 2's per-record LLM read, which runs only over unscored records; `related` and `grant` rows always render `—`. Render the two sources distinguishably — a real `ceremony:*` label (already-scored records, per Step 1's mechanical display) plainly (`fast-lane`/`standard`); this step's own LLM guess suffixed (`quick? (guess)`/`full? (guess)`) — so a human scanning the batch never mistakes an unscored guess for `/specify`'s authoritative verdict. The `Suggested Tier` column is informational only — it rides along with the unified table, never gated behind its own `AskUserQuestion`, and is never itself written anywhere.
 
@@ -365,6 +366,13 @@ gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "size:$SIZE_TIE
 ```
 
 Stripping `bot:blocked` in the same edit as the grant matters: without it, the record carries both `bot:blocked` and a fresh `auto:build`, and `/claude-tweaks:dispatch`'s skip rule ignores anything `bot:blocked` forever regardless of the new grant.
+
+**Dependency-repair rows:**
+
+- Refine runs the detection itself — it does not consume overview's output. After Step 1's fetch (which already carries `,body`), and after performing the same `work-links: native` blocked-by attachment overview's Step 3 specifies (one aliased `buildNativeDependencyQuery` call over the fetched candidates; per-node failures attach nothing), run `findUnresolvedDependencyProse` via the same `{ flags }` output shape. Attaching native blockers first means already-natively-wired records resolve non-empty and are never flagged for re-wiring. The same per-node failure narration line applies here — when any alias in an otherwise-successful batch failed, render one failure-only narration line naming exactly those ids (e.g. `blocker data incomplete for #12, #40 — node fetch failed; they rank on body-text fallback this run`) — and probe unavailability or whole-fetch failure degrades to the body-text fallback with one failure-only narration line, never a hard stop (restated here at point of use rather than left to the cross-reference). Under `work-links: body-text`, no attachment is needed — the body fallback resolves canonical lines on its own. Offer the mode-aware repair as a new confirmable item type in the existing Step 4 unified table + confirm gate — surfaced and applied exactly like every other write in this step, never bypassing or altering when the gate fires or that it blocks until confirmed.
+- **`work-links: native`**: wire the native blocked-by link via the same dependency API `/claude-tweaks:specify`'s Step 4 linking uses.
+- **`work-links: body-text`**: append a canonical line-start `Blocked by #N` line to the record body (`gh issue edit --body-file` under `github-issues`; `writeRecord` + `git add`/`git commit` under `local-files`, same as the Related-line path above).
+- **Never write both representations for one edge.**
 
 **Flag-back rows:** For every row flagged back — Step 3.5's auto-downgrade, an unscored row accepted as recommended, or a human override in Step 4 — remove `ready` and post a comment. Step 3.5's downgrade always uses its exact wording above; every other flag-back uses a shorter comment: `Flagged back by /claude-tweaks:backlog refine: {reason}. Re-add 'ready' once addressed.`, where `{reason}` is `needs scoring` for the recommended case or the human's own free-text reason for an explicit override.
 

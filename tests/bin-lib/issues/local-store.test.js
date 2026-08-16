@@ -24,7 +24,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const facets = {
     type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', framing: true, needsDefinition: false, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: 12, isParentIssue: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
+    parent: 12, isParentIssue: false, notPlanned: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
 
   writeRecord(filePath, { title: 'Bar', body: 'Current State…', facets });
@@ -374,6 +374,25 @@ test('writeRecord writes framing: true, readRecord reads it back, and a false fr
   const rawWithout = fs.readFileSync(withoutFraming, 'utf8');
   assert.ok(!/^framing:/m.test(rawWithout));
   assert.strictEqual(readRecord(withoutFraming).facets.framing, false);
+});
+
+// notPlanned mirrors framing's presence-only convention exactly — written only
+// when true, absent-on-read falls back to sharedFacetDefaults()' false. Added
+// alongside the wontfix-label parse in record.js (refs #513) so both drivers
+// carry the shared facet symmetrically.
+test('writeRecord writes not-planned: true, readRecord reads it back, and a false notPlanned writes no line', (t) => {
+  const dir = tmp(t);
+  const withNotPlanned = path.join(dir, '3-c.md');
+  writeRecord(withNotPlanned, { title: 'C', body: 'b', facets: baseFacets({ notPlanned: true }) });
+  const rawWith = fs.readFileSync(withNotPlanned, 'utf8');
+  assert.ok(/^not-planned: true$/m.test(rawWith));
+  assert.strictEqual(readRecord(withNotPlanned).facets.notPlanned, true);
+
+  const withoutNotPlanned = path.join(dir, '4-d.md');
+  writeRecord(withoutNotPlanned, { title: 'D', body: 'b', facets: baseFacets() });
+  const rawWithout = fs.readFileSync(withoutNotPlanned, 'utf8');
+  assert.ok(!/^not-planned:/m.test(rawWithout));
+  assert.strictEqual(readRecord(withoutNotPlanned).facets.notPlanned, false);
 });
 
 // --- malformed file (AC 5) ---
