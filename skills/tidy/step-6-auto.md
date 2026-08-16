@@ -72,27 +72,48 @@ Skipped staged items inside a compacted run are preserved verbatim in the archiv
 
 #### The report template (standalone auto)
 
-Four verb-grouped sections, these exact literal headers, in this order — what tidy **did**, what it **will do on a click**, what **only the human can do**, and what came back clean:
+Four verb-grouped sections, these exact literal headers, in this order — what tidy **did**, what it **will do on a click**, what **only the human can do**, and what came back clean. Every section's rows render inside a fenced ```` ```text ```` block as whitespace-aligned columns — `_shared/terminal-ux.md`'s Output formatting ("align columns so the eye can scan one"; one record per line) applied to a chat-rendered report. The fence is what makes the alignment survive Claude Code's terminal renderer; the accepted cost is that `#N` and path text inside it stops being clickable:
 
-```markdown
+````markdown
 ## Tidy Report — {date}
 
 **Applied automatically**
-- {what was done}: #{N} "{title}" — {one-line outcome} ({reversibility: commit {hash} | reconcile-converged})
-- …
+```text
+{verb}       #{N}  {title ≤50, …-truncated}                        {commit abc1234 | reconcile-converged}
+{verb}       #{M}  {title}                                          {commit def5678 | reconcile-converged}
+```
 
 **Approve ({N})**
-1. [{tag}] #{N} "{title}" — {staged action, one line}. Approve applies:
-   `{the exact command or mutation}`
-2. …
+```text
+1  [{tag}]  #{N}  {title ≤50}
+   {staged action, one line}
+   {the exact command or mutation}
+2  …
+```
 
 **Yours ({N})**
-- #{N} "{title}" — {why it needs the human}
-  `{paste-ready command}`
-- …
-
-**Clean:** {comma list of scans with nothing to report, each with its count — e.g. "parked (3 checked), worktrees (2), doc registry"}
+```text
+{command} ({k})
+   #{N}  {title ≤50}                                                {why it needs the human}
+   #{M}  {title ≤50}                                                {why it needs the human}
+   {batch command covering every row above}
+{command} ({k})
+   #{N}  {title ≤50}                                                {why it needs the human}
+   #{M}  {title ≤50}                                                {why it needs the human}
+   {single command for #{N}}
+   {single command for #{M}}
 ```
+
+**Clean:**
+```text
+{scan}             {count} checked
+{scan}             {count} checked
+```
+
+Full decision log: {run-dir}/decisions.md
+````
+
+Column shape, stated once: rows are indented three spaces under a group head or numbered item; the record column is `#{N}` padded to six characters; the title column is padded to 50 (truncated with a trailing `…` when longer); the trailing column starts at a fixed offset and fills to the 100-character line cap (Report rules below). Applied rows lead with a verb column padded to 12 (`deleted`, `released`, `archived`, `reaped`, …) — the verb *is* the outcome, so the only trailing column is the reversibility token. Approve items take three lines: number + tag + record + title, then the staged action, then the command or mutation. Yours groups follow the Yours grouping rule below — a group head `{command} ({k})`, its rows, then either one batch line or a paste block. Clean is one `{scan}  {count} checked` line per scan (`—` in the count column for a scan that reports no count).
 
 How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Approve ({N})" option — named for this section — that executes Step 7 over exactly those items. Nothing applies without that click.
 
@@ -105,9 +126,19 @@ A finding's section is a function of its routing outcome from the table above �
 | Auto-applied (executed this run) or reconcile-converged | **Applied automatically** |
 | Staged with an executable action (awaiting approval) | **Approve ({N})** |
 | Auto (no-op, always surfaced) — a finding recommending a command the human runs (needs-scoring, re-triage, acceptance gaps, parked triggers, unsettled runs, ungranted PRs, patterns, drift — every `Auto (no-op, always surfaced)` row in the routing table) | **Yours ({N})** |
-| Keep / nothing-to-report scans | **Clean:** (counted in the comma list, never itemized) |
+| Keep / nothing-to-report scans | **Clean:** (one `{scan}  {count} checked` line per scan in the Clean fence — counts only, never per-record rows) |
 
 No finding may be presented information-only: anything actionable carries its paste-ready command in **Yours** or lands in **Approve**.
+
+#### Yours grouping (by the command the human runs)
+
+**Yours ({N})** groups its rows by the command the human will run — never by scan step, Shape number, or finding tag. The group key is the leading command of the row's paste-ready command: the skill for a `/claude-tweaks:{skill}` invocation, plus its mode word when it has one (`backlog refine` is one key, `backlog grant` another), or the bare executable otherwise (`gh`, `git`, `node`); an env-var prefix (`PIPELINE_RUN_DIR="…" /claude-tweaks:flow …`) is stripped before keying. Group order is fixed — `specify`, `demo`, `git`, `capture`, `backlog refine`, then every remaining key alphabetically — so two renders of the same findings always read the same. Each group renders as a head line `{command} ({k})`, its record rows beneath, then the command line(s):
+
+- **Batchable target** — the skill's `argument-hint` (its `SKILL.md` frontmatter) accepts multiple record refs: one batch line closes the group, `{command} #{N},#{M},…`, and covers every row above it. Today that is `/claude-tweaks:flow` (`<#n>[,#m,#o]`) and `/claude-tweaks:dispatch` (`#N[,#M...]`). Read the hint at render time rather than memorizing this list — when a skill gains a batch form, this rule needs no edit and the render simply gets shorter.
+- **Single-ref target** (`/claude-tweaks:specify` — `<#N|…>`, `/claude-tweaks:demo` — `[#N]`, `gh …`, `git …`): a consecutive paste block closes the group — one command line per row, in row order — so one paste runs them all.
+- **Ref-less command** (`/claude-tweaks:backlog refine` covers the whole queue; the line is identical for every row): rendered once, as the group's single closing command line.
+
+`(likewise #41 #113 …)`, `(and N more)`, `et al.` and every other multi-record shorthand are never acceptable, in any section — one row per record, and one command line per row (or one batch / ref-less line per group). The conformance scan below rejects a render that carries any of them.
 
 ### Report rules
 
