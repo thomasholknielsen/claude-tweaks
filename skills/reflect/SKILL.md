@@ -103,7 +103,7 @@ When a pipeline run directory exists, route findings by category without prompti
 |---|---|---|
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |
 | Convention drift, code smell, simplification opportunity | STAGED — write to `staged/reflect-{n}.md`. Surface at Wrap-Up Review Console. | `STAGED {time} — Step 3: convention finding "{summary}". Stage path: staged/reflect-{n}.md.` |
-| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. Surfaces at the Wrap-Up Review Console's Queue writes section, following `_shared/auto-mode-contract.md`'s tiered stance — folded into the batch "Approve all" at `supervised`/`trusted`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended`. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate. Surface at the Queue writes gate.` |
+| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. Surfaces at the Wrap-Up Review Console's Queue writes section, following `_shared/auto-mode-contract.md`'s tiered stance — folded into the batch "Approve all" at `supervised`/`trusted`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended`. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate (defer-reason: tangential). Surface at the Queue writes gate.` |
 | Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled by `/claude-tweaks:wrap-up`'s Skills curation row. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
@@ -136,7 +136,7 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 For a **tangential** finding specifically — the one category that becomes a Queue-writes record
 proposal (see `review-console.md`'s "On approval" step 5 and `flow/multispec-review-console.md`,
 both of which read a `Title:`/`Type:`/`Labels:` header off the staged file to create the record) —
-prepend a 3-line header above the `# Reflect —` line, the same shape `wrap-up/leftover-routing.md`
+prepend a 4-line header above the `# Reflect —` line, the same shape `wrap-up/leftover-routing.md`
 step 3 writes for `leftover-{slug}.md`. The body below the header is identical to the format above
 (with `**Category:** tangential`):
 
@@ -144,6 +144,7 @@ step 3 writes for `leftover-{slug}.md`. The body below the header is identical t
 Title: {short work-record title}
 Type: {bug | feature | task}
 Labels: {comma-separated labels or "none"}
+Defer-reason: tangential
 
 # Reflect — staged finding {n}
 {...same body as the format above...}
@@ -151,7 +152,7 @@ Labels: {comma-separated labels or "none"}
 
 Without this header the Console's record-creation step has nothing to read a title, type, or
 labels from — it is required whenever `**Category:** tangential`, and omitted for `convention`/
-`observation` findings (those are never Queue writes).
+`observation` findings (those are never Queue writes). The `Defer-reason: tangential` line is category-first by rule (`_shared/deferral-gate.md`): a tangential finding is by definition not a fix to the current work, so its reason is its category; the other five vocabulary values apply only to non-tangential findings.
 
 Number `{n}` is a per-run sequence counter — increment as each staged file is written so multiple stages in one run never collide.
 
