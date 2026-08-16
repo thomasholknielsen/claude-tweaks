@@ -65,6 +65,19 @@ Every `POLICY_KEYS` row carries three human-facing fields alongside its shape: `
 | Model profiles | `models` |
 | Additional levers | `housekeeping` |
 
+## Key naming
+
+Every key in `POLICY_KEYS` (and every `RENAMED_KEYS` replacement name) is a **flat kebab-case identifier**: `^[a-z0-9]+(-[a-z0-9]+)*$`. Pinned by `tests/policy-key-naming.test.js`, which also checks that every key has a row in this file.
+
+- **No dots.** `policy.yml` is read by a flat-line parser (`parseFlatLines`) — a dotted key reads to a human as a nested-YAML path, and a user who writes it nested (`worktree:` / `  always: true`) is silently defaulted; neither `auditPolicy` nor the hook can tell that from "unset". Grouping is the `category` metadata field, never the key: a key is an identity, not a classification.
+- **Suffix vocabulary.** `-floor` = the minimum a value may fall to (`review-effort-floor`, `risk-floor`, `size-floor`); `-ceiling` = the maximum permitted (`model-ceiling`, `dispatch-retry-ceiling`, `review-auto-apply-ceiling`); `-cap` = a count limit (`health-open-cap`, `fleet-daily-grant-cap`). Name the direction the value bounds, not the concept it configures.
+- **One spelling per concept.** `auto-merge` (matching the `auto:merge` label and `housekeeping-auto-merge`), never `automerge`.
+- **Renames go through `RENAMED_KEYS`** with a `migrate` function and an entry in `_shared/policy-deprecations.md` carrying the shared removal predicate — never a bare rename. A `policy.yml` still using the old name resolves under the new one with `"renamed-from"` attribution and is reported by `auditPolicy` / `/claude-tweaks:init --update` until the alias's removal condition is met.
+
+**Deliberately not renamed — `auto-mode`.** It reads as a sibling of `autonomy`, but the two are orthogonal axes (interaction stops vs. authority) and the confusion is conceptual, not spelling — any name containing "auto" stays proximate, and a key not named after the `auto-mode` contract it toggles (`_shared/auto-mode-contract.md`) would be worse. Their `category` values (`pipeline-behavior` / `autonomy-trust`) are the disambiguation surface. Judged 2026-08-16 (#332); do not re-open without new evidence.
+
+**Pending:** `worktree.always` — renamed to `worktree-always` by #602 (the hook's read path in `bin/lib/policy.js` needs its own alias handling); until then it is the one allowed exception, listed in the test's `PENDING_RENAMES`.
+
 ## Worktree & execution
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
@@ -126,7 +139,7 @@ The second (#537): an `Edit`/`Write`/`NotebookEdit` — the three file tools onl
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
-| `project.maturity` | `policy.yml` (the machine flag; CLAUDE.md's Philosophy section holds a separate narrative description, not this flag) | `/claude-tweaks:init` Phase 3, `/claude-tweaks:build`, `/claude-tweaks:specify` | `greenfield` (absent or invalid value) | `greenfield`/`pre-launch`/`early-production`/`established` — scales `/build`'s test-discipline instruction and `/specify`'s decomposition strategy |
+| `project-maturity` | `policy.yml` (the machine flag; CLAUDE.md's Philosophy section holds a separate narrative description, not this flag) | `/claude-tweaks:init` Phase 3, `/claude-tweaks:build`, `/claude-tweaks:specify` | `greenfield` (absent or invalid value) | `greenfield`/`pre-launch`/`early-production`/`established` — scales `/build`'s test-discipline instruction and `/specify`'s decomposition strategy |
 | `auto-mode` | `policy.yml` | `/claude-tweaks:flow`, `/claude-tweaks:tidy`, `/claude-tweaks:build` standalone | unset (`/flow` still defaults to `auto`) | `default-on`/`default-off` — whether standalone `/build` and unattended `/tidy` firings default to auto mode |
 | `integration-branch` | `policy.yml` only | `/claude-tweaks:routine`, `/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, `/claude-tweaks:build`, `/claude-tweaks:flow`, `/claude-tweaks:assess-agent-autonomy`, plus the `SessionStart` worktree reaper (`bin/lib/hooks/worktree-reap.js` — the one non-skill consumer) — all via `_shared/integration-branch.md` | unset (each consumer keeps its own fallback; for the reaper that fallback is to reap nothing) | The branch where finished work lands and new work starts. Set it on any repo whose active development branch isn't its GitHub default — a `dev` → `staging` → `main` model — where the default is the one branch nothing should be measured against |
 | `autonomy` | `policy.yml` | `/claude-tweaks:capture` (born-`ready` filing), `/claude-tweaks:backlog refine` (`refine-mode.md` Step 3's advisory Trust column and Step 3.6), `/claude-tweaks:backlog grant` (headless machine-grant mode), `/claude-tweaks:ledger`, `/claude-tweaks:wrap-up` (the bookkeeping capabilities below) — all via `_shared/autonomy-ceiling.md` | `supervised` | `supervised`/`trusted`/`unattended` — a **ceiling on autonomous action, not a level**. `bin/lib/issues/trust.js`'s per-class evidence (rendered read-only by `/claude-tweaks:help` and `/claude-tweaks:backlog overview`) moves the level; this lever only ever caps it — a class that has earned trust still cannot exceed the configured ceiling, and lowering the ceiling revokes immediately without destroying the evidence history. Resolved by `bin/lib/issues/autonomy.js` — `resolveCeiling` picks the tier by precedence, `permittedGrants` maps `(ceiling, trust row)` to a concrete permission set, and `bookkeepingPermissions(ceiling)` maps the ceiling alone (no trust row needed) to the bookkeeping capabilities `_shared/autonomy-ceiling.md`'s own table enumerates. `_shared/autonomy-ceiling.md` is the contract for all of this. `trusted` also unlocks born-`ready` filing for classes whose verdict is `clean`; `unattended` additionally unlocks machine-originated grants, gated behind the `grant-origination-enabled` opt-in below — `/claude-tweaks:backlog grant` is the one path that acts on it. At `supervised` — the default — trust is computed and displayed and never acted on, and none of the bookkeeping capabilities are unlocked |
@@ -145,8 +158,8 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `dispatch-retry-ceiling` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Consecutive autonomous build failures before `bot:blocked` + `auto:*` removal |
 | `dispatch-batch-size` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Max groups one `/dispatch` firing processes **sequentially**, one after another (never concurrently — see #155); remaining picks stay unclaimed in the queue for a later firing to select |
 | `dispatch-pick-max-concurrent` | `policy.yml` | `/claude-tweaks:dispatch` | `3` | Deprecated alias for `dispatch-batch-size` — still resolves, emits one warn-tier notice per invocation. Removal condition: `skills/dispatch/deprecated-aliases.md` |
-| `automerge-max-lines` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff |
-| `automerge-max-files` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
+| `auto-merge-max-lines` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff |
+| `auto-merge-max-files` | `policy.yml` | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
 | `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in the `merge-check` verdict, and feeding `/review`'s diff-heuristic risk proxy |
 | `work-links` | `policy.yml` | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
 | `pr-unarmed-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a green, gate-passed, granted PR may sit with `--auto` unarmed before the sweep surfaces `[pr-unarmed]` |
@@ -163,14 +176,14 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
-| `doc-convention.adr` | `policy.yml` | `/claude-tweaks:wrap-up`'s Decision records curation row, via `_shared/existing-convention-detection.md` | unset (detect and ask on conflict) | Which convention wins when this repo's existing decision records disagree with the plugin's. `plugin` conforms forward, `project` resolves form from the corpus and any project skill. Written *by* the plugin after the user answers once at the Review Console — never a key a project fills in up front. Records **which source wins**, not a grammar, which is what keeps it flat-encodable |
+| `doc-convention-adr` | `policy.yml` | `/claude-tweaks:wrap-up`'s Decision records curation row, via `_shared/existing-convention-detection.md` | unset (detect and ask on conflict) | Which convention wins when this repo's existing decision records disagree with the plugin's. `plugin` conforms forward, `project` resolves form from the corpus and any project skill. Written *by* the plugin after the user answers once at the Review Console — never a key a project fills in up front. Records **which source wins**, not a grammar, which is what keeps it flat-encodable |
 
 ## Harness-health budgets
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
-| `harness-health.scoped-rule-budget` | `policy.yml` | `/claude-tweaks:harness-health` | `30` | Line-count budget for path-scoped `.claude/rules/*.md` files |
-| `harness-health.always-loaded-budget` | `policy.yml` | `/claude-tweaks:harness-health` | `150` | Line-count budget for CLAUDE.md and unscoped rule files |
+| `harness-health-scoped-rule-budget` | `policy.yml` | `/claude-tweaks:harness-health` | `30` | Line-count budget for path-scoped `.claude/rules/*.md` files |
+| `harness-health-always-loaded-budget` | `policy.yml` | `/claude-tweaks:harness-health` | `150` | Line-count budget for CLAUDE.md and unscoped rule files |
 
 ## Health-sweep filing
 
@@ -196,7 +209,7 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 | `design-intent` | `policy.yml` (via `/flow` Manifesto/`config.yml`; a standalone invocation with no pipeline run dir asks the user inline instead of reading CLAUDE.md) | `/claude-tweaks:specify` | `none` | `none`/`bold`/`quiet`/`minimal`/`delightful`/`onboarding` |
 | `leftover-default` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — leftover routing is inherently pipeline-scoped, no standalone site exists) | `/claude-tweaks:wrap-up` | `defer` | `defer`/`backlog`/`drop` |
 | `auto-fix-threshold` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:test` | `lint+type` | `lint-only`/`lint+type`/`lint+type+test` |
-| `review-severity-floor` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply cutoff; ceiling-conditional default at `unattended` — see `_shared/autonomy-ceiling.md` |
+| `review-auto-apply-ceiling` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply ceiling — the maximum severity applied without asking (`medium` = Low and Medium auto-apply, High staged, Critical prompted); ceiling-conditional default at `unattended` — see `_shared/autonomy-ceiling.md` |
 | `tidy-aggressiveness` | `policy.yml` | `/claude-tweaks:tidy` | `moderate` | `conservative`/`moderate`/`aggressive` |
 | `superpowers-plans-retention` | `policy.yml` | `/claude-tweaks:wrap-up`'s cleanup-planning item 1 (`cleanup-procedures.md`) | `keep-forever` | `keep-forever` (never delete `docs/superpowers/plans/*.md` — this plugin's own ADR-0007 convention) / `prune-after-wrapup` (delete this spec's own plan/spec file(s) as part of cleanup) / `ask` (stage the decision for the Wrap-Up Review Console) |
 
