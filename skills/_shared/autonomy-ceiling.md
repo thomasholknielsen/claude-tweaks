@@ -6,7 +6,9 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/grant-mode.md` (the machine-originated grant path —
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
-(Step 6.5's negative-evidence persist point — see Revocation below), and — for the
+(Step 6.5's negative-evidence persist point — see Revocation below), `flow/manifesto.md` and
+`review/step3-routing.md` (the review-auto-apply-ceiling ceiling-conditional default's two
+computation sites — see that section below), and — for the
 bookkeeping capabilities this file also documents — `_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
 route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve),
 `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge), and `_shared/console-execution.md`
@@ -135,10 +137,13 @@ project-wide `low` (see `_shared/policy-schema.md`'s lever row). An explicit CLI
 project-policy value still wins under the standard precedence chain (`_shared/auto-mode-contract.md`)
 — the ceiling only moves the *default*, it never overrides a stated choice.
 
-This paragraph documents an intended future behavior, not a code change landed by this sub-issue: no
-file this sub-issue touches reads the ceiling to compute this default. The actual read/default site
-is `skills/review/step3-routing.md` (not `skills/review/SKILL.md`, which never mentions this lever) —
-wiring the ceiling into that resolution is a later sub-issue's scope.
+Two sites read the ceiling to compute this default, and they must stay in lockstep (refs #566):
+`skills/flow/manifesto.md`'s Recommendation-defaults row computes it into every piped run's
+`config.yml` (which resolves as `source: run-config` downstream), and
+`skills/review/step3-routing.md`'s `source: default` branch computes it for a run directory whose
+`config.yml` never set the lever (not `skills/review/SKILL.md`, which never mentions this lever). A
+flat value at either site silently defeats the other — the manifesto row's own rationale spells out
+the failure shape.
 
 ## Ceiling, not level
 
