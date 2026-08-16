@@ -98,6 +98,7 @@ shaped        {n} → /claude-tweaks:backlog grant (or dispatch here with the hu
 granted       {n}   (no pointer — waiting on blockers; the blocker itself appears in the dispatch hand-off)
 dispatchable  {n} → /claude-tweaks:dispatch / /claude-tweaks:flow #N
 in flight     {n}   (no pointer — informational; claims honored)
+└─ needs you: {n}  (human-owed lane — fed from needsYou overlay; omitted at zero)
 ```
 
 The header ends at `in flight` deliberately even though it is not the most actionable stage: the
@@ -216,6 +217,7 @@ chains-first-then-independents grouping.
 /claude-tweaks:specify #{N}
 # Terminal 2 — priority:{tier} — {one-line hook}
 /claude-tweaks:specify #{M}
+# #N excluded — needs:definition: yours to decide (see Needs you below)
 ```
 
 ```
@@ -224,6 +226,7 @@ chains-first-then-independents grouping.
 /claude-tweaks:flow #A,#B,#C
 # Terminal 2 — independent
 /claude-tweaks:flow #D
+# ⚠ solution:unjustified — one-line evidence call pending
 # Terminal {k} — serialized: #A, #B (file overlap: {files})
 /claude-tweaks:flow #A,#B
 ```
@@ -296,13 +299,27 @@ re-derive membership.
   (their ids are local-namespace, not GitHub refs); they are excluded from every paste block with
   one `#`-comment naming the sync gap, counted under rule (c).
 
+### Needs you (human lane)
+
+Rendered **last before Next Actions**, only when `funnelBuckets`' `needsYou` is non-empty. These are records the batch emitter structurally cannot schedule — the funnel's bottleneck; paste blocks send agents to work, this lane is work only the human can do.
+
+One line per record with an interactive launcher, fully qualified:
+- `kind: 'definition'` → `/claude-tweaks:specify #{N}` with a `#`-comment naming the label, waiting-age, and what deciding it releases (e.g. `# needs:definition — waiting {age}; deciding releases {k} records`)
+- `kind: 'unjustified'` → `/claude-tweaks:challenge #{N}` with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call`)
+
+**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch), and reads releases-count from `transitiveUnblocksCount` (computed over the union of the emitter candidates and the joined needs-you records) — sort by releases desc, then priority, then age (oldest first).
+
+**Cap + pointer:** at most 3 rows named; beyond that, one pointer line: `{M} more human-owed records → /claude-tweaks:backlog attention (when available)` — advisory until that mode ships (#471's decomposition), count always shown. Interim-launcher honesty note, citing #471: until #471's redirect gate ships, `/claude-tweaks:specify #{N}` on a `needs:definition` record still lands in ordinary shaping mode — acceptable interim (the human is present either way); this caveat is removed by #471's own landing.
+
 **Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
 only; the `AskUserQuestion` menu carries this-session moves only (run refine here, open a lens,
 dispatch the top chain here) and is never the delivery channel for other-terminal command lists —
 terminal-command lists inside `AskUserQuestion` options are forbidden. The report body ends with a
-single `Next:` line: one sentence naming the top-ranked action, always exactly one. Fallback ladder
-when the Dispatch block is empty (`dispatchable` ∪ `granted` both empty): the top action of the
-highest-precedence non-empty stage (grant → specify → refine), ties broken by id — the `grant`
-rung's action is the funnel header's shaped-stage pointer (no Grant paste block exists by design);
-when every stage is empty, the literal `Next: backlog is empty`.
-The menu's `(Recommended)` option MUST match the `Next:` line — one source of truth.
+single `Next:` line: one sentence naming the top-ranked action, always exactly one.
+
+**Precedence (3-level):**
+1. When `needsYou` is non-empty → the `Next:` line names the top Needs-you item (per the section's ordering), recomputed fresh every run — no session state, no stored binding.
+2. Otherwise → the top-ranked **executable** Dispatch entry — comment-only entries (out-of-set-blocked, cyclic, unsynced, flagged, overlap-excluded) are skipped when determining it (promise F2).
+3. When the Dispatch block contains **no executable entry** (empty, or comment-only entries throughout) → the existing fallback ladder (grant → specify → refine, ties by id; `Next: backlog is empty` terminal case).
+
+The menu's `(Recommended)` option MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level.
