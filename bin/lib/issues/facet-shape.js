@@ -22,6 +22,7 @@ function sharedFacetDefaults() {
     size: null,
     ceremony: null,
     framing: false,
+    needsDefinition: false,
     priority: null,
     stage: 'backlog',
     grants: { build: false, merge: false },

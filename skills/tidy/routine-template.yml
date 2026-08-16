@@ -104,10 +104,9 @@ default_schedule:
   description: "off-peak anchor, UTC, weekly on Sunday — confirm against your local timezone at creation time"
 notes: >
   Tidy already has first-class standalone-auto support: Step 6's aggressiveness
-  routing (conservative by default) stages judgment-requiring items to
-  decisions.md rather than blocking on interactive input, and auto-applies only
-  the safe, atomic actions (stale deletes, cleanly-merged worktree/branch
-  removals). This only takes effect when the target project's own CLAUDE.md
+  routing (moderate by default) auto-applies reversible git-tracked cleanups
+  and stages outward-facing GitHub writes to decisions.md rather than blocking
+  on interactive input. This only takes effect when the target project's own CLAUDE.md
   already sets `auto-mode: default-on` — a bare scheduled firing has no other
   way to supply an auto-mode signal, and without that project policy the
   routine will block on an interactive prompt that never gets answered. `Task`

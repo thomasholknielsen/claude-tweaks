@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.85.0 — Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup
+
+Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup.
+
 ## v6.84.0 — Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec
 
 Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec.

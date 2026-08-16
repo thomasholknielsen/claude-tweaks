@@ -2,6 +2,7 @@
 files:
   - skills/_shared/upstream-feedback-batch.md
   - skills/feedback/SKILL.md
+  - skills/feedback/session-evaluation.md
   - skills/wrap-up/review-console.md
   - skills/wrap-up/upstream-feedback.md
 ---
@@ -17,7 +18,7 @@ files:
 
 ### 1. Gather the local queue — terminal
 - **URL:** `/claude-tweaks:feedback --queue`
-- **Action:** Invoke the skill bare (or with `--queue`); it lists every open `upstream-candidate` issue and, for each, runs Steps 1-6 (gather, classify, self-reference check, dedup search, draft, scrub) non-interactively before rendering anything.
+- **Action:** Invoke the skill bare (or with `--queue`); it lists every open `upstream-candidate` issue and, for each, runs Steps 1-6 (gather, classify, self-reference check, dedup search, draft, scrub) non-interactively before rendering anything. A bare invocation now also runs the session evaluation (`session-evaluation.md` — see the `evaluate-a-session-for-upstream-feedback` journey) and concatenates its findings into this same batch, so the confirmation in Step 2 covers both gathers in one stop.
 - **Should feel:** Like triage, not paperwork — the maintainer reads finished drafts, not raw issue bodies they'd have to interpret themselves.
 - **Should understand:** Each candidate's fully scrubbed draft renders as literal text above the confirmation call, including a `**possible duplicate:** #{N}` flag inline wherever the dedup search found a plausible match — a duplicate never gets its own separate prompt.
 - **Red flags:** A candidate's draft missing from the rendered text before the confirmation call; a dedup match silently omitted instead of flagged.
@@ -47,3 +48,4 @@ files:
 - Created during build of #294 (batch upstream-feedback filing into one multiSelect decision, collapse /feedback's double-ask)
 - Steps 1-3 built in this session
 - Related specs: #290 (sibling — batches Q#/M# the same way, U# carved out to this sub-issue)
+- Updated during build of #509 (bare invocation now also runs the session evaluation; both gathers feed the one batch)

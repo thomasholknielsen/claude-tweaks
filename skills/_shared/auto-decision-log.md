@@ -72,6 +72,37 @@ Each entry follows this shape:
 | Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
+## Lever attribution (optional trailing field)
+
+A decision that consulted a policy/config lever may name it at the end of its entry:
+
+```
+- {STATUS} {HH:MM:SS} — {step or location}: {short action}. {detail line if needed}. Reversibility: {high|med|low}{; commit ref or stage path}. [lever: {key}={value} ({source})]
+```
+
+The bracketed field is **always last** — after the existing optional `{; commit ref or stage path}` element when that is present. Multiple levers are semicolon-separated inside one bracket pair. The lever field is optional; absence is valid and no reader may require its presence. Absence means "not lever-governed or not yet adopted" — never an error.
+
+**"Consulted" means every lever whose value the logging site's own procedure read to make this decision — including levers read by a sub-skill this procedure invokes on this path** — a weighted or advisory input counts; a lever the procedure never read does not. The field cites levers consulted, not which one alone decided.
+
+- **Source words:** `run-config | policy | default` (matching `resolve-policy.js`'s envelope `source`), plus `arg` for a value set by an explicit CLI/skill argument override. No other source words.
+- **Statuses:** any status (`AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`) whose decision consulted a lever carries the field; HARD-GATE stops and other non-policy decisions never carry it — attribution on a non-policy decision is noise that erodes the signal.
+- **Keys are literal:** copy lever names from `POLICY_KEYS` (`bin/lib/policy-schema.js`) verbatim; never paraphrase.
+- **List-valued levers** render the configured comma-joined string truncated at 60 chars with `…`; an unset list renders `[]`.
+- **Table-cell rendering:** inside any markdown table cell the field renders as an inline code span (backticks), which neutralizes `|` and brackets — e.g. `` `[lever: scope-creep=add-to-plan (policy)]` `` as a suffix in the cell that carries the entry's detail.
+
+Worked examples:
+
+```
+- AUTO 14:32:14 — Step 1.5: scope-creep — added 2 files to plan (src/utils/cache.ts, src/utils/keys.ts). Reversibility: high (commit abc1234). [lever: scope-creep=add-to-plan (policy)]
+- AUTO 15:41:09 — Auto-merge: group [42], assess-agent-autonomy verdict auto-merge for every member. Merge commit: def5678. Reversibility: high (git revert). [lever: automerge-max-lines=40 (default); automerge-max-files=2 (policy)]
+- STAGED 14:41:15 — Step 3 Routing: 2 severity:medium findings staged. Surface at Review Console. [lever: review-severity-floor=low (default)]
+- KEPT-PROMPT 14:12:40 — Step 2.6 shape check: cross-task dependency chain > 3 deep. Surfaced inline.
+```
+
+The third example is a decision whose outcome was driven by the findings' own severity, not by the floor alone — the floor was still consulted, so it is still cited. The fourth is a non-policy decision (a HARD-GATE surface): no field.
+
+**Adoption:** sites not yet writing the field adopt it when next touched — no compatibility shim, no deadline.
+
 ## Status semantics
 
 | Status | Meaning | Review Console treatment |

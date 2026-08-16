@@ -118,6 +118,7 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^ceremony:\s*(.+)$/.exec(line))) { facets.ceremony = m[1].trim(); continue; }
     if ((m = /^framing:\s*(true|false)$/.exec(line))) { facets.framing = m[1] === 'true'; continue; }
     if ((m = /^not-planned:\s*(true|false)$/.exec(line))) { facets.notPlanned = m[1] === 'true'; continue; }
+    if ((m = /^needs-definition:\s*(true|false)$/.exec(line))) { facets.needsDefinition = m[1] === 'true'; continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
     if ((m = /^stage:\s*(.+)$/.exec(line))) { facets.stage = m[1].trim(); continue; }
     if ((m = /^closed:\s*(true|false)$/.exec(line))) { facets.closed = m[1] === 'true'; continue; }
@@ -199,6 +200,7 @@ function serializeFrontmatter(facets) {
   if (facets.ceremony) lines.push(`ceremony: ${facets.ceremony}`);
   if (facets.framing) lines.push('framing: true');
   if (facets.notPlanned) lines.push('not-planned: true');
+  if (facets.needsDefinition) lines.push('needs-definition: true');
   if (facets.priority) lines.push(`priority: ${facets.priority}`);
   if (facets.stage && facets.stage !== 'backlog') lines.push(`stage: ${facets.stage}`);
   if (facets.closed) lines.push('closed: true');

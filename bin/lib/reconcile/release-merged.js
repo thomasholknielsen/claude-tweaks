@@ -17,21 +17,41 @@ const { resolvePrState } = require('./pr-state');
 
 const GH_TIMEOUT_MS = 5000;
 
-// One claim's classified state + the branch's PR state -> what to do.
-// Pure — no I/O — so the whole decision table is unit-testable without a
-// real gh call. `classifiedState` is `classifyClaimBlob(content, now).state`.
+// One claim's classified state + the branch's PR state (+ optionally the
+// issue's own state) -> what to do. Pure — no I/O — so the whole decision
+// table is unit-testable without a real gh call. `classifiedState` is
+// `classifyClaimBlob(content, now).state`. `issueState` is `'OPEN' | 'CLOSED'
+// | undefined` — when the PR join alone can't release (no-pr or
+// pr-closed-unmerged), a closed issue is independent release evidence: a
+// closed record cannot legitimately still be in progress.
 //   { action: 'release', reason } | { action: 'skip', reason }
-function decideRelease(classifiedState, prState) {
+function decideRelease(classifiedState, prState, issueState) {
   if (classifiedState !== 'live' && classifiedState !== 'stale') {
     return { action: 'skip', reason: classifiedState }; // absent/tombstone/unreadable — nothing to release
   }
   if (prState === 'gh-absent') return { action: 'skip', reason: 'gh-absent' };
   if (prState === 'network-failure') return { action: 'skip', reason: 'network-failure' };
-  if (!prState) return { action: 'skip', reason: 'no-pr' };
-  if (prState.state !== 'MERGED') {
-    return { action: 'skip', reason: prState.state === 'OPEN' ? 'pr-open' : 'pr-closed-unmerged' };
+  if (prState && prState.state === 'MERGED') {
+    return { action: 'release', reason: `merged: reconciled from PR #${prState.number}` };
   }
-  return { action: 'release', reason: `merged: reconciled from PR #${prState.number}` };
+  if (prState && prState.state === 'OPEN') {
+    return { action: 'skip', reason: 'pr-open' }; // open PR means work may be landing — issue-closed evidence never overrides
+  }
+  // Join yielded no-pr (null) or pr-closed-unmerged: issue-closed evidence applies.
+  // A closed record cannot legitimately be in progress, whatever the close reason.
+  if (issueState === 'CLOSED') {
+    return { action: 'release', reason: 'issue-closed' }; // caller appends ": reconciled from #{n}" — the blob's own issue number is not in this signature
+  }
+  return { action: 'skip', reason: prState ? 'pr-closed-unmerged' : 'no-pr' };
+}
+
+// The two joins `decideRelease` cannot settle from PR evidence alone — no PR at
+// all, or a PR closed unmerged. Everything else (MERGED, OPEN, gh-absent,
+// network-failure) is decided without an issue lookup, so this is what gates the
+// extra gh api call at the call site.
+function needsIssueEvidence(prState) {
+  if (prState === null) return true;
+  return typeof prState === 'object' && prState.state === 'CLOSED';
 }
 
 function ghApi(args) {
@@ -70,16 +90,32 @@ function readClaim(repoSlug, name) {
   }
 }
 
+// Issue-state lookup — same ghApi pattern (5s timeout). Unknown/errored
+// state returns undefined: fail closed, never releases on missing evidence.
+function readIssueState(repoSlug, issueNumber) {
+  const r = ghApi([`repos/${repoSlug}/issues/${issueNumber}`, '-q', '.state']);
+  if (r.failure || !r.stdout) return undefined;
+  const s = r.stdout.trim().toUpperCase();
+  return s === 'OPEN' || s === 'CLOSED' ? s : undefined;
+}
+
+// Pure seam for the released.push shape — the issue-closed path releases with a
+// null/non-merged prState, so an unconditional prState.number dereference would
+// throw on exactly that path.
+function releasedEntry(issueNumber, runId, prState) {
+  return { issueNumber, runId, prNumber: prState && typeof prState === 'object' ? prState.number : null };
+}
+
 // Conditional-update — sha = the target file's current blob sha from the
 // fresh read above, per `_shared/issue-claims.md`'s "The lock" step 4/5. A
 // sha mismatch (someone else already broke/re-claimed it) surfaces as an
 // ordinary write failure here; the caller logs it as a release race, exactly
 // the posture that file's Failure posture table documents.
-function writeTombstone(repoSlug, name, sha, tombstoneContent) {
+function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
   const encoded = Buffer.from(tombstoneContent, 'utf8').toString('base64');
   const r = ghApi([
     '--method', 'PUT', `repos/${repoSlug}/contents/claims/${name}`,
-    '-f', `message=Release claim ${name} — reconciled (PR merged)`,
+    '-f', `message=Release claim ${name} — ${reason}`,
     '-f', `content=${encoded}`,
     '-f', `branch=${CLAIMS_BRANCH}`,
     '-f', `sha=${sha}`,
@@ -126,6 +162,7 @@ function releaseMerged({ cwd } = {}) {
     }
 
     let prState = null;
+    let joinFailure = null; // 'no-run-state' | 'no-branch' — preserved as the skip reason when no evidence releases
     if (runId) {
       const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
       const runState = readRunState(runDir);
@@ -133,31 +170,44 @@ function releaseMerged({ cwd } = {}) {
         ? worktrees.find((w) => path.resolve(w.path) === path.resolve(runState.worktree))
         : null;
       const branch = wtEntry ? wtEntry.branch : null;
-      if (runState && runState.worktree && !branch) {
-        skipped.push({ issueNumber, runId, reason: 'no-branch' });
-        continue;
-      }
       if (!runState || !runState.worktree) {
-        skipped.push({ issueNumber, runId, reason: 'no-run-state' });
-        continue;
+        joinFailure = 'no-run-state'; // archived/gone run dir — issue-closed evidence below may still release
+      } else if (!branch) {
+        joinFailure = 'no-branch';
+      } else {
+        prState = resolvePrState(root, branch);
       }
-      prState = resolvePrState(root, branch);
     }
 
-    const decision = decideRelease(classified.state, prState);
+    // Fetch issue state only for release candidates where PR evidence alone
+    // cannot release: the no-pr and pr-closed-unmerged join results (incl.
+    // join failures above). Gated on live/stale first — tombstones persist
+    // forever (overwrites, not deletions), so an ungated fetch here would be
+    // a growing per-pass gh api cost with zero effect on non-candidates.
+    let issueState;
+    if ((classified.state === 'live' || classified.state === 'stale') && needsIssueEvidence(prState)) {
+      // One gh api call per candidate, per pass — intentional; bounded by the
+      // open claim count (typically small), not by repo or issue history size.
+      issueState = readIssueState(repoSlug, issueNumber);
+    }
+
+    const decision = decideRelease(classified.state, prState, issueState);
     if (decision.action === 'skip') {
       if (classified.state !== 'live' && classified.state !== 'stale') continue; // absent/tombstone/unreadable — not worth logging as a skip
-      skipped.push({ issueNumber, runId, reason: decision.reason });
+      skipped.push({ issueNumber, runId, reason: joinFailure || decision.reason });
       continue;
     }
 
-    const payload = releasePayload({ issueNumber, runId, reason: decision.reason, now: Date.now() });
-    const ok = writeTombstone(repoSlug, name, claim.sha, payload.tombstoneContent);
+    const reason = decision.reason === 'issue-closed'
+      ? `issue-closed: reconciled from #${issueNumber}`
+      : decision.reason;
+    const payload = releasePayload({ issueNumber, runId, reason, now: Date.now() });
+    const ok = writeTombstone(repoSlug, name, claim.sha, payload.tombstoneContent, reason);
     if (!ok) { skipped.push({ issueNumber, runId, reason: 'release-write-failed' }); continue; }
     removeInProgressLabel(repoSlug, issueNumber); // best-effort, never gates the release
-    released.push({ issueNumber, runId, prNumber: prState.number });
+    released.push(releasedEntry(issueNumber, runId, prState));
   }
   return { released, skipped };
 }
 
-module.exports = { releaseMerged, decideRelease, repoSlugOf };
+module.exports = { releaseMerged, decideRelease, releasedEntry, repoSlugOf };

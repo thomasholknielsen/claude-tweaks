@@ -15,16 +15,18 @@ const { mirrorFastForward } = require('./mirror-ff');
 const { reapMerged } = require('./reap-merged');
 const { releaseMerged } = require('./release-merged');
 const { archiveMerged } = require('./archive-merged');
+const { archiveBranches } = require('./archive-branches');
 const { consoleExecuteDetect } = require('./console-execute');
 
-// Execution order (mirror, console, release, archive, reap) is significant —
-// see the ordering comment above the release/archive/reap dispatch below.
-// This array is the requested-subset default only; it is never iterated to
-// determine dispatch order.
-const ALL_CHECKS = ['mirror', 'reap', 'release', 'archive', 'console'];
+// Execution order (mirror, console, release, archive, archive-branches,
+// reap) is significant — see the ordering comment above the
+// release/archive/archive-branches/reap dispatch below. This array is the
+// requested-subset default only; it is never iterated to determine dispatch
+// order.
+const ALL_CHECKS = ['mirror', 'reap', 'release', 'archive', 'archive-branches', 'console'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
-// -> { mirror, worktrees, claims, runs, console, skipped }
+// -> { mirror, worktrees, claims, runs, branches, console, skipped }
 // This module is gh-CLI-only by design (a Node subprocess cannot reach an
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
@@ -33,7 +35,7 @@ function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
-  const result = { mirror: null, worktrees: null, claims: null, runs: null, console: null, skipped: [] };
+  const result = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, console: null, skipped: [] };
 
   const root = mainCheckoutRoot(cwd);
   if (!root) {
@@ -67,7 +69,7 @@ function reconcile(opts = {}) {
         result.skipped.push({ check: 'reap', reason: 'deferred', count: legacy.deferred });
       }
     }
-    result.skipped.push({ check: 'mirror,release,archive,console', reason: 'local-merge-model' });
+    result.skipped.push({ check: 'mirror,release,archive,archive-branches,console', reason: 'local-merge-model' });
     return result;
   }
 
@@ -83,17 +85,18 @@ function reconcile(opts = {}) {
     result.console = consoleExecuteDetect({ cwd: root });
   }
 
-  // Ordering is load-bearing, not incidental: release and archive both
-  // derive a run's branch from a live `git worktree list` (matched by the
-  // worktree path run-state.json recorded). `reap` PHYSICALLY REMOVES
-  // worktrees — running it first would make every subsequent check's branch
-  // derivation fail for exactly the runs `reap` just finished with,
-  // silently starving `release`/`archive` of the runs most likely to
-  // qualify (a just-reaped worktree's PR is, by construction, merged — the
-  // same evidence `release`/`archive` are looking for). `reap` runs LAST
-  // among the four for this reason — the same class of hazard
-  // `bin/lib/hooks/session-start.js` already documents for its own
-  // stale-run-scan-before-reap ordering.
+  // Ordering is load-bearing, not incidental: release, archive, and
+  // archive-branches all derive a run's branch from a live `git worktree
+  // list` (matched by the worktree path run-state.json recorded, or, for
+  // archive-branches, by branch attachment directly). `reap` PHYSICALLY
+  // REMOVES worktrees — running it first would make every subsequent
+  // check's branch derivation fail for exactly the runs `reap` just
+  // finished with, silently starving `release`/`archive`/`archive-branches`
+  // of the runs most likely to qualify (a just-reaped worktree's PR is, by
+  // construction, merged — the same evidence those checks are looking
+  // for). `reap` runs LAST among the five for this reason — the same class
+  // of hazard `bin/lib/hooks/session-start.js` already documents for its
+  // own stale-run-scan-before-reap ordering.
   if (checks.includes('release')) {
     // Release performs one write kind (a conditional-overwrite of the claim
     // blob) with no meaningful "preview" — unlike ff/reap/archive, there is
@@ -116,6 +119,18 @@ function reconcile(opts = {}) {
     const r = archiveMerged({ cwd: root, dryRun });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
       .concat(r.skipped.map((s) => ({ runDir: s.runDir, action: 'skipped', reason: s.reason })));
+  }
+
+  // Same live-ref dependency as release/archive: derives branch state from
+  // refs reap may remove. Runs after archive (run-dir archival may release
+  // branch attachments), before reap (which stays last — see above).
+  if (checks.includes('archive-branches')) {
+    const r = archiveBranches({ cwd: root, integration, dryRun });
+    if (r.failure) {
+      result.skipped.push({ check: 'archive-branches', reason: r.failure });
+    } else {
+      result.branches = r.entries;
+    }
   }
 
   if (checks.includes('reap')) {

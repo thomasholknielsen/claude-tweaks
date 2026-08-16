@@ -341,7 +341,7 @@ This ordering puts `auto` above `mention`, inverting upstream's `route`/`mention
 
 These rows are **surface-or-suppress**, not apply-or-skip. This step edits no project file under any condition: `route` and `mention` findings have no mechanical fix by construction, and `auto` findings are staged proposals carrying their own `fix` text — applying them means `doctor.mjs --fix`, which rewrites `PRODUCT.md` and is the user's call, per `_shared/auto-mode-contract.md`'s staging model. The Step 6 decision is only whether the row is worth showing.
 
-That is why `[doctor]` routes to its own report section and **not** the Actions table: every row in the Actions table carries a recommendation from the Action Vocabulary, and every one of those mutates something.
+That is why `[doctor]` routes to **Yours ({N})** and **never** **Approve ({N})**: every entry in Approve carries a recommendation from the Action Vocabulary, and every one of those mutates something.
 
 → Collect each as: `[doctor] {id} ({severity}) — {summary} — {fix}`
 
@@ -388,15 +388,17 @@ When 3+ specs have shipped (`git log --all --oneline --grep="wrap-up" --since="8
 
 → Collect each as: `[health] {observation} — {recommendation}`
 
-Patterns and health observations are informational — they surface systemic issues the user may want to address. They appear in the tidy report alongside actionable items but don't require immediate action.
+Patterns and health observations are informational — they surface systemic issues the user may want to address. They render in **Yours ({N})**, each with its own follow-up command; informational never means silently dropped.
 
 ---
 
 ## Collection routing
 
-| Collection prefix | Renders in Step 6 table | Notes |
+| Collection prefix | Renders in Step 6 report | Notes |
 |---|---|---|
-| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[parent-gate]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
-| `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
-| `[doctor]` | Design Record Drift table | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** the Actions table, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
-| `[health]` | Summary section | Project-level observations. |
+| `[backlog]`, `[parked]`, `[unsynced]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[pr]`, `[gh-issue]`, `[parent-gate]`, `[claim]` | **Approve ({N})** (or **Applied automatically** when the tier auto-applied it) | Each row gets a pre-filled recommendation carrying its exact executable action. Some of these tags also emit non-mutating outcomes on individual findings — `[backlog]`/`[parked]`/`[plan]` Keep rows land in **Clean:** instead; `[backlog]`/`[parked]` Promote and `[doc]`'s "Run `/claude-tweaks:specify`" outcome land in **Yours ({N})**; `[pr]` awaiting-review and unarmed-ungranted outcomes land in **Yours ({N})**; `[claim]` Release and both missed-restoration backstops (`parked` / `bot:in-progress`) are staged, executable actions here, but `[claim]` Manual review outcomes (unreadable/unparseable blobs, empty-`decisions.md` backstop) land in **Yours ({N})** and Keep (live claim, issue open) lands in **Clean:** — the destination follows the actual routing outcome (`step-6-auto.md`'s Bucket mapping), never the tag alone. |
+| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
+| `[pattern]` | **Yours ({N})** | Informational; presented as items in Yours. |
+| `[doctor]` | **Yours ({N})** | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** **Approve ({N})**, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
+| `[health]` | **Yours ({N})** — each line carries the finding's own follow-up command (e.g. the matching `/claude-tweaks:*-health` skill or the file to review) | Project-level observations. |
+| Keep / nothing-to-report scans (any tag above) | **Clean:** (counted) | Never itemized rows. |

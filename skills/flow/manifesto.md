@@ -156,7 +156,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Leftover routing | `defer` | Reversible; user reviews at Wrap-Up Review Console |
 | Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
 | Review severity floor | `low` | Auto LOW (nits), stage MED, prompt HIGH |
-| Tidy aggressiveness | `conservative` | Keep + unambiguous Delete only |
+| Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
 | Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
 
 `ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
@@ -180,7 +180,7 @@ design-intent: none
 leftover-default: defer
 auto-fix-threshold: lint+type
 review-severity-floor: low
-tidy-aggressiveness: conservative
+tidy-aggressiveness: moderate
 ceremony-profile: fast-lane
 model-stance: default
 spec: 42

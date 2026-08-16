@@ -59,7 +59,7 @@ const POLICY_KEYS = [
   { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer' },
   { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type' },
   { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low' },
-  { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'conservative' },
+  { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate' },
   { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'] },
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000 },
   { key: 'depth-survey', type: 'enum', values: ['off'] },

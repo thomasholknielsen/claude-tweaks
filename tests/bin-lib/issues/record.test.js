@@ -208,7 +208,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false, notPlanned: false,
   });
@@ -234,7 +234,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, size: null, ceremony: null, framing: false, priority: null, stage: 'backlog',
+    origin: null, risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false, notPlanned: false,
   });
@@ -363,6 +363,17 @@ test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
 test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
   assert.strictEqual(parseRecordFacets([]).framing, false);
   assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
+});
+
+// AC 2 (record #472) — needs:definition axis (presence-only label, /capture + /feedback)
+
+test('parseRecordFacets: needs:definition sets facets.needsDefinition to true', () => {
+  assert.strictEqual(parseRecordFacets(['needs:definition']).needsDefinition, true);
+});
+
+test('parseRecordFacets: needsDefinition defaults to false when needs:definition is absent', () => {
+  assert.strictEqual(parseRecordFacets([]).needsDefinition, false);
+  assert.strictEqual(parseRecordFacets(['by:capture']).needsDefinition, false);
 });
 
 // AC 5 — dependencies
