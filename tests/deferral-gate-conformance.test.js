@@ -125,6 +125,7 @@ const CONSUMER_FILES = [
   'skills/reflect/SKILL.md',
   'skills/wrap-up/residue-sweep.md',
   'skills/wrap-up/leftover-routing.md',
+  'skills/visual-review/browser-review.md',
 ];
 
 for (const rel of CONSUMER_FILES) {
@@ -223,4 +224,76 @@ test('autonomy-ceiling.md notes queueWriteAutoFile proposals are born-shaped via
   const ac = read('skills/_shared/autonomy-ceiling.md');
   const row = ac.split('\n').find((l) => l.startsWith('| `queueWriteAutoFile` |'));
   assert.ok(row && row.includes('specShapedBody'));
+});
+
+// --- #624: producers compose via specShapedBody, both landing states named ---
+
+const PRODUCER_FILES_624 = [
+  'skills/wrap-up/leftover-routing.md',
+  'skills/_shared/ledger-format.md',
+  'skills/reflect/SKILL.md',
+  'skills/wrap-up/residue-sweep.md',
+  'skills/review/step3-routing.md',
+];
+
+for (const rel of PRODUCER_FILES_624) {
+  test(`${rel} names specShapedBody and both landing states`, () => {
+    const c = read(rel);
+    assert.ok(c.includes('specShapedBody'), 'specShapedBody');
+    assert.ok(c.includes('born-ready'), 'born-ready');
+    assert.ok(c.includes('needs:definition'), 'needs:definition');
+  });
+}
+
+test('the retired stub-composition wordings appear nowhere under skills/', () => {
+  const offenders = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.md')) {
+        const c = fs.readFileSync(p, 'utf8');
+        if (c.includes('Compose the body with a `Trigger:` line')) offenders.push(path.relative(REPO_ROOT, p));
+        if (c.includes("no `risk`/`size`/`ready` (scoring and promotion")) offenders.push(path.relative(REPO_ROOT, p));
+      }
+    }
+  };
+  walk(path.join(REPO_ROOT, 'skills'));
+  assert.deepEqual(offenders, []);
+});
+
+// Composition probe — the mechanical stand-in for the spec's dry-run-preview AC:
+// compose the exact payloads the producer prose specifies and validate the
+// artifact against the staged-file contract and the spec-shaped structural check.
+test('a born-ready leftover payload composes with all contract elements and passes the structural check', () => {
+  const { specShapedBody: ssb, recordPayload: rp } = require('../bin/lib/issues/record.js');
+  const body = ssb({
+    header: '', currentState: 'The retry helper exists; cleanup path unfinished (src/retry.js).',
+    deliverables: '- [ ] finish the cleanup path', acceptanceCriteria: 'node --test test/retry.test.js passes',
+    filedBy: 'wrap-up leftover routing',
+    provenance: { origin: 'wrap-up leftover from #42', deferReason: 'genuinely-larger' },
+    footer: '_Filed by `wrap-up leftover routing` via specShapedBody._',
+  });
+  const p = rp({ title: 't', body, type: 'task', risk: 'low', size: 'low', ready: true });
+  for (const needle of ['## Current State', '## Deliverables', '## Acceptance Criteria', 'Origin: wrap-up leftover from #42', 'Defer-reason: genuinely-larger', 'via specShapedBody']) {
+    assert.ok(p.body.includes(needle), needle);
+  }
+  assert.deepEqual(p.labels, ['risk:low', 'size:low', 'ready']);
+  for (const marker of ['TBD', 'TODO', '<!-- ambiguity:']) assert.ok(!p.body.includes(marker), marker);
+  assert.strictEqual((p.body.match(/^Defer-reason: /gm) || []).length, 1);
+});
+
+test('a needs-you leftover payload composes Open Question with no ready and no scoring', () => {
+  const { specShapedBody: ssb, recordPayload: rp } = require('../bin/lib/issues/record.js');
+  const body = ssb({
+    header: '', currentState: 'Two mutually exclusive designs are on the table.',
+    deliverables: '- [ ] settle the choice', openQuestion: 'open choice: project-local skill vs docs subsection',
+    filedBy: 'wrap-up leftover routing',
+    provenance: { origin: 'wrap-up leftover from #42', deferReason: 'needs-human-decision' },
+    footer: '_Filed by `wrap-up leftover routing` via specShapedBody._',
+  });
+  const p = rp({ title: 't', body, type: 'task' });
+  assert.ok(p.body.includes('## Open Question'));
+  assert.ok(!p.body.includes('## Acceptance Criteria'));
+  assert.deepEqual(p.labels, []);
 });
