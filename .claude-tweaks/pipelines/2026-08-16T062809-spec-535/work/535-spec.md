@@ -85,4 +85,9 @@ Line grammar addition (canonical home `_shared/auto-decision-log.md`):
 
 See parent #532 — push-over-pull for behavior→lever lookup, and the optional-field/expand-only shape chosen so a contract consumed by many skills never breaks mid-migration.
 
+## Build Deviations (recorded at build time, 2026-08-16)
+
+- **AC 3/5 file target:** the dispatch auto-merge gate's logged decision-line template lives in `skills/dispatch/settle-and-merge.md:228`, not `skills/dispatch/SKILL.md` (which carries only a lever-description table, no log-line template — grep-verified; the spec's own "verified against the surrounding prose, not assumed" clause governs). The adoption landed in `settle-and-merge.md`; the AC's file list should read that file.
+- **AC 4 renderings:** `review-console.md` states both renderings in prose (with-field: inline-code suffix in the detail cell; without-field: cell unchanged, absence never annotated) and cites the contract's worked example rather than carrying its own — the file sat 349 bytes under the 40KB sub-file test ceiling at base, leaving no headroom for an in-file example (final review Critical finding, fixed in 8048cfb9).
+
 <!-- work-fingerprint: policy-comprehension:lever-attribution-field-in-the-auto-decision-log-and-review -->
