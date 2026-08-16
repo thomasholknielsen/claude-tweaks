@@ -248,9 +248,11 @@ Branches on driver, then — for `github-issues` — on `work-links`.
   SUB_ISSUE_DB_ID=$(jq -r '.data.repository.i{N1}.databaseId' /tmp/specify-database-ids.json)
   ```
 
-  If any alias reads back `null` (a GraphQL error still writes `{"data":{"repository":null},…}` to
-  the file), stop before writing — treat every edge that needed that id as a failed link per
-  Write-path resilience above, never POST `sub_issue_id=null`.
+  If any alias reads back `null` **or empty** — a GraphQL error still writes
+  `{"data":{"repository":null},…}` to the file, while a failed `gh` call (auth, network, non-2xx)
+  writes nothing at all and `jq -r` on an empty file prints nothing with exit 0 — stop before
+  writing: treat every edge that needed that id as a failed link per Write-path resilience above,
+  never POST `sub_issue_id=null` or `sub_issue_id=` (empty).
 
 - Parent ↔ sub-issue — a sub-issue link, once per sub-issue, sending the sub-issue's database ID
   (`-F`, typed, so it lands as an integer):

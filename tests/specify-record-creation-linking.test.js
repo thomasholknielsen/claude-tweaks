@@ -49,8 +49,23 @@ test('a databaseId resolution precedes both write calls', () => {
     idx > -1,
     'record-creation.md must resolve databaseId via a gh api graphql lookup before linking',
   );
+  assert.ok(subIdx > -1, 'the sub_issues write snippet is missing — cannot check ordering');
+  assert.ok(depIdx > -1, 'the blocked_by write snippet is missing — cannot check ordering');
   assert.ok(subIdx > idx, 'the databaseId lookup must appear before the sub_issues write');
   assert.ok(depIdx > idx, 'the databaseId lookup must appear before the blocked_by write');
+});
+
+test('the lookup carries a null-or-empty guard before any write', () => {
+  assert.match(
+    text,
+    /reads back `null` \*\*or empty\*\*/,
+    'record-creation.md must tell the operator to stop when an alias reads back null or empty',
+  );
+  assert.match(
+    text,
+    /never POST `sub_issue_id=null` or `sub_issue_id=` \(empty\)/,
+    'the null-or-empty guard must name both failure values it prevents',
+  );
 });
 
 test('the databaseId lookup passes {owner}/{repo} with -F, never -f', () => {
