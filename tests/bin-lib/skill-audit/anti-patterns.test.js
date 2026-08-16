@@ -455,6 +455,18 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   arithmetic happens to agree here (375 - 4 - 6 = 365) — the same
   //   `[IL-99]` pattern recorded above.
   //
+  //   365 -> 368, design-wrapper review Step 3.8 critic dispatch (#598).
+  //   Three rows appended to design-wrapper/SKILL.md's Anti-Patterns table
+  //   (treating a craft critic as a third-party agent; dispatching one on the
+  //   native track; inferring the motion signal from file content). No other
+  //   file's table changed in that diff. Measured by running this test's own
+  //   parser against the working tree (actual 368), not by adding 3 to 365.
+  //
+  //   368 -> 369, decisions pushback routing (#599). One row appended to
+  //   design-wrapper/SKILL.md's Anti-Patterns table (writing a decisions
+  //   finding into the polish cache). Measured by running this test's parser
+  //   against the working tree (actual 369), not by adding 1 to 368.
+  //
   //   365 -> 369, addition of `skills/routine-kickoff/SKILL.md` (#528). A
   //   wholly new skill, not a compression pass — its Anti-Patterns table
   //   contributes 4 rows ("Deriving the plugin root from step 2's
@@ -481,5 +493,12 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   exactly one `-` line and one `+` line, both from the same table
   //   position. Re-run of the parser against the working tree confirms 369,
   //   unchanged.
-  assert.strictEqual(total, 369);
+  //
+  //   -> MEASURED, merge of origin/main (#528/#530 routine-kickoff) into the
+  //   #597-601 branch. Both sides independently reached 369 from 365 — ours
+  //   via design-wrapper (+3 #598, +1 #599), theirs via routine-kickoff (+4
+  //   #528). Neither side's 369 covers the other's rows, so the value below
+  //   was re-derived by RUNNING the parser on the merged tree — the same
+  //   [IL-99] rule the 365 entry above records.
+  assert.strictEqual(total, 373);
 });

@@ -1,5 +1,7 @@
 # Dispatch + Tidy: GitHub MCP Bridge (closing #60, #61)
 
+> **Status:** specified — derived work complete (#60 and #61 both closed; Slice 1 plan executed and archived). Marked by /claude-tweaks:tidy 2026-08-16.
+
 ## Context
 
 `/claude-tweaks:dispatch` and `/claude-tweaks:tidy`'s `--scope=github` repo-wide scan both hard-gate on the `gh` CLI being present. Claude Code cloud Routine sandboxes have no `gh` CLI on PATH — only GitHub MCP tools (confirmed directly from a live cloud firing's own self-report, filed as issue #1201 in `memenu-io/memenu-app`: *"You do NOT have access to the `gh` CLI... use the GitHub MCP server tools... for ALL GitHub interactions"*). Net effect: `dispatch`'s scheduled Routine has never once reached its actual queue/build logic, and `tidy`'s GitHub-triage scan silently no-ops on every cloud firing.
