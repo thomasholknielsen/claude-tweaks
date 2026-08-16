@@ -221,7 +221,7 @@ chains-first-then-independents grouping.
 
 ```
 ── Score the rest ──
-# {captured-count} unscored records
+# {captured-count} records missing risk/size
 /claude-tweaks:backlog refine
 ```
 
