@@ -42,6 +42,10 @@ function inWindow(iso, w) {
   return Number.isFinite(ms) && ms >= w.startMs && ms <= w.endMs;
 }
 
+function isMachineGrant(grant) {
+  return (grant.commentBodies || []).some((body) => GRANT_AUDIT_RE.test(body || ''));
+}
+
 // input:
 //   routines:  [{ name, lastFiringIso|null }]           — from per-routine STATUS
 //   findings:  [{ number, createdAtIso }]               — health-swept records created in-window
@@ -55,13 +59,9 @@ function deriveFleetCounters(input, nowMs) {
   const fired = routines.filter((r) => inWindow(r.lastFiringIso, w)).length;
   const findings = (input.findings || []).filter((f) => inWindow(f.createdAtIso, w)).length;
 
-  let machine = 0;
-  let human = 0;
-  for (const g of input.grants || []) {
-    if (!inWindow(g.grantedAtIso, w)) continue;
-    const isMachine = (g.commentBodies || []).some((b) => GRANT_AUDIT_RE.test(b || ''));
-    if (isMachine) machine += 1; else human += 1;
-  }
+  const grantsInWindow = (input.grants || []).filter((g) => inWindow(g.grantedAtIso, w));
+  const machine = grantsInWindow.filter(isMachineGrant).length;
+  const human = grantsInWindow.length - machine;
 
   const merges = (input.merges || [])
     .filter((m) => m.viaMergeCommit && inWindow(m.closedAtIso, w)).length;
