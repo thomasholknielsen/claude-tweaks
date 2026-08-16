@@ -42,6 +42,8 @@ Row form, one per key, all values verbatim from the `--all` snapshot:
 `{key}` — {value} ({source}) · default: {default}
 ```
 
+**Null-default keys:** when a key's envelope carries `default: null`, render its default cell as `default: no default` — consumers read a `null` default as "this key has no default", not literal `null`. `integration-model` keeps its own special case below instead of this rule.
+
 **`integration-model` special case:** when it appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders `computed (forge detection)` instead of the schema's literal `default` — the real default is `detectIntegrationModel()`'s forge-detection result, not a static value. (See `_shared/integration-model.md` for the resolution ladder.)
 
 ### 2. Issues
@@ -57,13 +59,16 @@ When ALL four lists are empty, render exactly one line: `Policy config issues: n
 
 ### 3. Notable defaults
 
-Core-tier keys still on `source: default` where an available probe signal (Gather, above) argues otherwise. Advanced-tier keys are never "notable" — this section is core-tier only.
+Core-tier keys still on `source: default` where an available probe signal (Gather, above) argues otherwise. Advanced-tier keys are never "notable" — this section is core-tier only. A key whose envelope carries `invalid: true` is excluded from candidacy here regardless of tier — it's section 2's business (the file holds a bad line for that key), not a notable default.
 
 One line per finding: lever + proposed value + why. For example: an unset `integration-model` plus a GitHub remote → propose `pr-first`; `autonomy: supervised` plus standing `auto:*` grants → propose reviewing the ceiling; `project.maturity: greenfield` plus a populated pipelines directory → propose a later stage.
 
-Each finding's summary text comes from the key's own `summary` field in the snapshot — never re-derived or paraphrased.
+Each finding line carries two distinct text sources, in this order: the "why" clause (what the probe observed — e.g. "a GitHub remote") comes from the probe signal itself; the lever's meaning text (what the key does) comes from the key's own `summary` field in the snapshot — never re-derived or paraphrased.
 
-Zero available signals (every probe skipped or none argued against a default) → render `No notable defaults — no project signals available.` — never silently skipped.
+Two zero-finding cases, each rendering its own line — never silently skipped:
+
+- At least one probe ran but none argued against a default → render `No notable defaults.`
+- Every probe was skipped (per Gather's skip-on-absence rules) → render `No notable defaults — no project signals available.`
 
 ### 4. Advanced tier
 
@@ -81,6 +86,8 @@ On the user saying "show advanced": render the advanced-tier keys still on `sour
 
 ## Next Actions (apply path)
 
+This section replaces SKILL.md's own `## Next Actions` block for the `policy` mode — the two never both fire in the same run.
+
 **#537 pre-check fallback (run BEFORE offering apply options at all):** check the held snapshot's `worktree.always` value and the session's checkout:
 
 ```bash
@@ -88,13 +95,17 @@ git rev-parse --git-dir
 git rev-parse --git-common-dir
 ```
 
-When `worktree.always` is `true` AND the two paths are equal (a main checkout, not a linked worktree), the write path is gate-denied — this is a pre-check, not a try/catch around a failed write. In that case, skip the `AskUserQuestion` below entirely and instead render each of section 3's recommendations as a paste-ready command:
+When `worktree.always` is `true` AND the two paths are equal (a main checkout, not a linked worktree), the write path is gate-denied — this is a pre-check, not a try/catch around a failed write. In that case, skip the `AskUserQuestion` below entirely — deliberately: nothing in this branch is agent-decidable, since the agent cannot legally write the file itself. Instead render each of section 3's recommendations as a paste-ready command block for THE USER to run themselves, outside this session — the agent never executes these commands (the write gate denies agent file-writes in a main checkout under `worktree.always`, and a bare-shell workaround is not a supported bypass):
 
-```bash
-printf '%s\n' "{key}: {value}" >> .claude-tweaks/policy.yml
+```
+Run this yourself, from the repo root, to apply the recommended change:
+
+printf '%s\n' "{key}: {value}" >> "$(git rev-parse --show-toplevel)/.claude-tweaks/policy.yml"
 ```
 
 This fallback's removal condition is #537 — once that lands, re-check whether the gate still blocks a main-checkout write before keeping this branch.
+
+**If section 3 yielded zero recommendations** (either zero-finding case above): render all four render-contract sections as usual, then end with the single line `Nothing to change — configuration looks healthy; say "show advanced" to inspect defaults.` and skip the `AskUserQuestion` entirely. With a "No changes" option and no real recommendations, fewer than 2 real options exist for the call — per `docs/skill-authoring.md`'s lone-option rule, that means no call, not a call offering one meaningful option plus a no-op.
 
 **Otherwise**, the mode's ONE `AskUserQuestion` call (`multiSelect: true`):
 
@@ -102,6 +113,7 @@ This fallback's removal condition is #537 — once that lands, re-check whether 
 - Each option's `description` carries the exact `key: value` line that would be written. For an enum key, also list every legal value — read live from `POLICY_KEYS` in `bin/lib/policy-schema.js` (the pinned source of truth; never a hardcoded list in this file or the rendered option).
 - Recommendations beyond the cap of 3 are never dropped — they stay visible in section 3's rendered list, tagged with an "ask to apply" note.
 - "Show advanced" is section 4's own in-conversation affordance, not an option here — it never appears in this question.
+- If "No changes" is checked, it wins outright — any other checked options in the same `multiSelect` batch are ignored, and nothing is written.
 
 **Apply semantics**, once options are approved:
 
@@ -111,9 +123,9 @@ This fallback's removal condition is #537 — once that lands, re-check whether 
    node -e "const {resolveValue}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(resolveValue(process.argv[1], process.argv[2])))" "{key}" "{raw-value}"
    ```
 
-   `resolveValue` coerces silently to the schema default on an invalid value — parse the output and compare its parsed value against `{raw-value}`: a mismatch means the value was rejected. (JSON.stringify quotes string/enum values while booleans/integers are unquoted, so parse before comparing.) A rejected key is reported (key + rejected value) and its line is never written; continue validating and writing the rest of the batch.
+   `resolveValue` coerces silently to the schema default on an invalid value — parse the output and compare `String(parsedValue)` against the raw `{raw-value}` string: a mismatch means the value was rejected. (`resolveValue` returns numbers and booleans already coerced to their real type, not strings — comparing the parsed value directly against the raw string, without the `String()` wrap, inverts the check for every integer or boolean key.) A rejected key is reported (key + rejected value) and its line is never written; continue validating and writing the rest of the batch.
 
-2. After the whole batch has been written: re-run the exact `auditPolicy()` call from Gather, ONCE. Any issue that is NEW relative to the Gather-time snapshot names the offending key, reverts that key's line in `.claude-tweaks/policy.yml` to its prior value **from the Gather snapshot** (never by re-reading the file), and reports the revert. No edit is described as confirmed to the user until this re-audit comes back clean.
+2. After the whole batch has been written: re-run the exact `auditPolicy()` call from Gather, ONCE. Any issue that is NEW relative to the Gather-time snapshot names the offending key and reverts it: a key whose pre-apply `source` (read from the Gather snapshot) was `default` — no line existed before this apply — reverts by DELETING the line this apply added; a key that already had a `.claude-tweaks/policy.yml` line before this apply reverts by restoring that line to its Gather-snapshot value (never by re-reading the file). `integration-model`'s computed default (`detectIntegrationModel()`'s forge-detection result) is never written back as a "revert" value — deleting its line is the only valid revert for that key. Report the revert either way. No edit is described as confirmed to the user until this re-audit comes back clean.
 
 ## Anti-Patterns
 

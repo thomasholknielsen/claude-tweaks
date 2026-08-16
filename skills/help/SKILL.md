@@ -34,7 +34,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 | *(none)* | Cheat sheet + status scan + recommendation |
 | `status` | Pipeline status scan + recommendation (skips Section 1's cheat sheet) |
 | `commands` | Quick reference cheat sheet only — read `reference-card.md` in this skill's directory and present its contents |
-| `policy` | Policy configuration review — skips Section 1's cheat sheet and Section 2's status scan; read `policy.md` in this skill's directory and follow it (gather, render contract, apply path) |
+| `policy` | Policy configuration review — skips Section 1's cheat sheet and Section 2's status scan; read `policy.md` in this skill's directory and follow it (gather, render contract, apply path) — `policy.md` owns this run's `## Next Actions`; SKILL.md's own Next Actions block does not fire for `policy` |
 | *spec number or topic* | Same as *(none)* — full cheat sheet + status scan + recommendation. No per-spec/topic filtering is implemented; none of the three sections' skip conditions below match a bare spec number or topic string. |
 | `--budget <n>` | Caps rows rendered in the Ready-to-Build and Needs-Attention dashboard tables (default: 10). Combine with any other argument, e.g. `status --budget 5`. See `status-scan.md`'s Present Dashboard section for truncation and overflow-note behavior. |
 
