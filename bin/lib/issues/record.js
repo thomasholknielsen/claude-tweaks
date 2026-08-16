@@ -406,21 +406,33 @@ function parseDependencyAssumptions(body) {
   return result;
 }
 
-// Compose the spec-shaped body the gate's structural check re-verifies
-// (skills/_shared/work-record.md: Current State / Deliverables / Acceptance Criteria
-// present and non-empty). Owning the skeleton here means the health-suite
-// issue-payload builders (see bin/lib/*/issue-payload.js) cannot drift a section
-// heading or the footer sentence independently. Sections accept a string or an
-// array of strings (arrays render as blank-line-separated blocks).
-// recordPayload still appends the work-fingerprint marker afterward, as before.
-function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, filedBy }) {
+// { header?, currentState, deliverables, acceptanceCriteria?, openQuestion?, filedBy,
+//   provenance?: { origin?, deferReason? }, footer?: string | null } -> body string.
+// Additive over the original shape: a call passing none of provenance/footer/openQuestion
+// (and a non-empty header) composes byte-identical output — the four health-suite
+// builders are the regression oracle (tests/health-filing-parity.test.js). Exactly one
+// of acceptanceCriteria/openQuestion must be supplied: openQuestion is the composer's
+// needs:definition variant, rendering `## Open Question` in place of Acceptance
+// Criteria so a needs-you record never carries placeholder AC. Provenance lines
+// (Origin:, then Defer-reason: — validated against DEFER_REASONS) render between
+// header and `## Current State`, where provenance.js's line-anchored Origin: parse
+// reads them. footer: a string replaces the default health-suite sentence, null omits
+// it; exhaust producers pass `_Filed by \`{producer}\` via specShapedBody._` — the
+// machine-visible marker _shared/work-record.md's born-shaped matrix rows key on.
+// header is the slot for producer-specific leading lines (e.g. `Trigger: {condition}`)
+// and may be empty/omitted — the one relaxation from the original, needed because the
+// openQuestion variant's canonical call carries no header.
+function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, openQuestion, filedBy, provenance, footer } = {}) {
   const isEmpty = (value) => value === undefined || value === null || value === ''
     || (Array.isArray(value) && value.length === 0);
+  const hasAC = !isEmpty(acceptanceCriteria);
+  const hasOQ = !isEmpty(openQuestion);
+  if (hasAC === hasOQ) {
+    throw new Error('specShapedBody: exactly one of acceptanceCriteria/openQuestion is required');
+  }
   const sections = [
-    ['header', header],
     ['currentState', currentState],
     ['deliverables', deliverables],
-    ['acceptanceCriteria', acceptanceCriteria],
     ['filedBy', filedBy],
   ];
   for (const [name, value] of sections) {
@@ -428,17 +440,22 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
       throw new Error(`specShapedBody: ${name} is required and must be non-empty`);
     }
   }
+  const { origin, deferReason } = provenance || {};
+  if (deferReason !== undefined) oneOf('deferReason', deferReason, DEFER_REASONS);
   const block = (v) => (Array.isArray(v) ? v.join('\n\n') : v);
-  return [
-    header,
-    '## Current State',
-    block(currentState),
-    '## Deliverables',
-    block(deliverables),
-    '## Acceptance Criteria',
-    block(acceptanceCriteria),
-    `_Filed by \`${filedBy}\`. Close to resolve; label \`wontfix\` to suppress future reports of this finding._`,
-  ].join('\n\n');
+  const parts = [];
+  if (!isEmpty(header)) parts.push(header);
+  if (!isEmpty(origin)) parts.push(`Origin: ${origin}`);
+  if (deferReason !== undefined) parts.push(`Defer-reason: ${deferReason}`);
+  parts.push('## Current State', block(currentState), '## Deliverables', block(deliverables));
+  if (hasOQ) parts.push('## Open Question', block(openQuestion));
+  else parts.push('## Acceptance Criteria', block(acceptanceCriteria));
+  if (footer === undefined) {
+    parts.push(`_Filed by \`${filedBy}\`. Close to resolve; label \`wontfix\` to suppress future reports of this finding._`);
+  } else if (footer !== null && !isEmpty(footer)) {
+    parts.push(footer);
+  }
+  return parts.join('\n\n');
 }
 
 module.exports = {

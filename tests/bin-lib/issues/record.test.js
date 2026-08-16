@@ -621,3 +621,66 @@ test('recordPayload: deferReason and fingerprint compose — reason first line, 
   assert.ok(p.body.startsWith('Defer-reason: tangential\n\nb'));
   assert.ok(p.body.endsWith('<!-- work-fingerprint: fp-1 -->'));
 });
+
+// --- specShapedBody provenance / footer / openQuestion (#623) ---
+
+const BASE = { currentState: 'c', deliverables: 'd', filedBy: 'x' };
+
+test('specShapedBody: no new args is byte-identical to the pre-change composition (health parity)', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a' });
+  assert.strictEqual(body, [
+    'H', '## Current State', 'c', '## Deliverables', 'd', '## Acceptance Criteria', 'a',
+    '_Filed by `x`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n\n'));
+});
+
+test('specShapedBody: provenance origin renders between header and Current State', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'wrap-up leftover from #42' } });
+  assert.ok(body.startsWith('H\n\nOrigin: wrap-up leftover from #42\n\n## Current State'));
+});
+
+test('specShapedBody: provenance deferReason renders after origin, validated against DEFER_REASONS', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'o', deferReason: 'tangential' } });
+  assert.ok(body.includes('Origin: o\n\nDefer-reason: tangential\n\n## Current State'));
+  assert.throws(
+    () => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { deferReason: 'minor' } }),
+    /deferReason/,
+  );
+});
+
+test('specShapedBody: deferReason alone renders with no Origin line and no stray blanks', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { deferReason: 'genuinely-larger' } });
+  assert.ok(body.startsWith('H\n\nDefer-reason: genuinely-larger\n\n## Current State'));
+  assert.ok(!body.includes('Origin:'));
+});
+
+test('specShapedBody: custom footer replaces the default; null omits it entirely', () => {
+  const custom = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', footer: '_Filed by `wrap-up leftover routing` via specShapedBody._' });
+  assert.ok(custom.endsWith('via specShapedBody._'));
+  assert.ok(!custom.includes('wontfix'));
+  const none = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', footer: null });
+  assert.ok(none.endsWith('\n\na'));
+});
+
+test('specShapedBody: openQuestion renders in place of Acceptance Criteria; empty header renders nothing', () => {
+  const body = specShapedBody({ header: '', ...BASE, openQuestion: 'which store?', footer: null });
+  assert.ok(body.startsWith('## Current State'));
+  assert.ok(body.includes('## Open Question\n\nwhich store?'));
+  assert.ok(!body.includes('## Acceptance Criteria'));
+});
+
+test('specShapedBody: acceptanceCriteria and openQuestion are mutually exclusive — both or neither throws', () => {
+  assert.throws(() => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', openQuestion: 'q' }), /exactly one/);
+  assert.throws(() => specShapedBody({ header: 'H', ...BASE }), /exactly one/);
+});
+
+test('specShapedBody: the required sections still throw when empty, naming the section', () => {
+  assert.throws(() => specShapedBody({ header: 'H', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'x' }), /currentState/);
+  assert.throws(() => specShapedBody({ header: 'H', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
+  assert.throws(() => specShapedBody({ header: 'H', currentState: 'c', deliverables: 'd', openQuestion: '' , filedBy: 'x'}), /exactly one|openQuestion/);
+});
+
+test('specShapedBody: header plus Trigger line renders first, before provenance', () => {
+  const body = specShapedBody({ header: 'Trigger: after #42 lands', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'wrap-up leftover from #42', deferReason: 'tangential' }, footer: '_Filed by `wrap-up leftover routing` via specShapedBody._' });
+  assert.ok(body.startsWith('Trigger: after #42 lands\n\nOrigin: wrap-up leftover from #42\n\nDefer-reason: tangential\n\n## Current State'));
+});
