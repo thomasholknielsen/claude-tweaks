@@ -9,7 +9,7 @@ The single, curated roster of project-local design critics that `/claude-tweaks:
 | `web` | `emil-design-eng` | Lever `full` → every web-track UI diff; `auto` → decisions present, or motion signal, or `Design-intent:` set on the record; `off` → never |
 | `web` | `review-animations` | Motion signal, lever ≠ `off`. Deliberately not forced by `full` — the skill is motion-scoped; without a motion signal there is nothing for it to review |
 | `ios` / `android` / `adaptive` | *none* | Deliberate: Impeccable's `critique`/`audit` already run natively with the platform named (`native-routing.md`); Emil is web-only (`design-craft.md` Gating). No decisions pushback on native until a row exists — a stated gap, not a hole; see the unblocking condition below the table |
-| `terminal` | *pending* | Filled by #601 (edits this row in place) |
+| `terminal` | `_shared/terminal-ux.md` | Lever `full` → every terminal-track diff; `auto` → the record's spec/description names CLI/TTY UX work — help/usage text, CLI output formatting or `--json`/quiet/verbose modes, progress/spinner output, error messages or exit codes, interactive prompts — or carries a `Design-intent:` line (value other than `none`); consumer judgment, the same posture as `design-craft.md`'s motion signal; `off` → never. No decisions layer on this track — the critic emits `code` rows only |
 
 `Track` values come from `SKILL.md`'s track-resolution table plus `terminal`. `Critic` is an upstream skill name resolvable via the lookup cited under Resolution below, or the literal `none` / `pending`. `Trigger` prose references only the three signals defined next, plus the `Design-intent:` record line cited below them.
 
@@ -25,7 +25,7 @@ Exactly three signals feed the Trigger column, plus the `Design-intent:` record 
 
 ## Resolution
 
-Every critic name in the table resolves through `skills/_shared/design-craft.md`'s **Emil skill resolution** lookup, per skill name — `review-animations` is an Emil skill from the same upstream set and resolves exactly the same way as `emil-design-eng`. A name resolving at neither path is absent — handled per that file's **Degradation posture** (never a gate, never a stop); how the Step 3.8 dispatch records an absent critic is defined by `modes/review.md` (#598), not here.
+Every critic name in the table resolves through `skills/_shared/design-craft.md`'s **Emil skill resolution** lookup, per skill name — `review-animations` is an Emil skill from the same upstream set and resolves exactly the same way as `emil-design-eng`. A name resolving at neither path is absent — handled per that file's **Degradation posture** (never a gate, never a stop); how the Step 3.8 dispatch records an absent critic is defined by `modes/review.md` (#598), not here. The one exception is the `terminal` row: `_shared/terminal-ux.md` is plugin-authored and resolves at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/terminal-ux.md` — no two-path lookup, never absent.
 
 ## Native row — unblocking condition
 

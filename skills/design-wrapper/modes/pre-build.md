@@ -24,6 +24,11 @@ When `<spec>` is a record reference, resolve via the run's materialized file (`{
 
 > **Parallel execution:** Use parallel tool calls aggressively — Steps 3-5 together read a set of independent files (every Impeccable reference doc the selection rules below resolve to, plus `PRODUCT.md`/`DESIGN.md` or their fallback globs, the `.impeccable/design.json` sidecar, and the Emil skill files Step 5 resolves); none depends on another's content, so batch every Read once the file list is decided.
 
+**Terminal track (`surface_track === "terminal"` — see `../terminal-routing.md`):** the always-load
+set is `_shared/terminal-ux.md` plus `_shared/design-craft.md` only — no Impeccable references, no
+Emil skills, no `PRODUCT.md`/`DESIGN.md`/sidecar read; `missed` stays empty (nothing on this track
+has an install to miss). Skip the keyword rules and Steps 4–5 below for this track.
+
 Reference selection rules (inspect the spec body):
 
 - **Always load** when frontend: `typography.md`, `color-and-contrast.md`, `spatial-design.md`, `motion-design.md`, `interaction-design.md`, `new-work.md`

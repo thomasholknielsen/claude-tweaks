@@ -179,7 +179,7 @@ Availability is per critic; one missing critic never skips the others.
 
 **(d) Decisions layer.** Resolve `DESIGN.md` (three-path lookup, as in (b)) and the root sidecar
 `.impeccable/design.json` per `../../_shared/design-craft.md`'s **The two source classes** (its Decisions row). Read both
-verbatim when present — they are inlined into every critic's prompt in (e). When neither exists, note
+verbatim when present — they are inlined into every critic's prompt in (e). On `surface_track === "terminal"`, skip this resolution — no decisions layer is inlined; (e) item 3 sends the literal absence sentence, and the critic resolves at the plugin path per `../terminal-routing.md`. When neither exists, note
 it: (e) sends the literal absence sentence instead, and Step 4's absence-nudge conditions read this
 result.
 
