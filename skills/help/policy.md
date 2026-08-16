@@ -34,17 +34,19 @@ The four numbered sections below — their headings, order, and data sources —
 
 ### 1. Set levers
 
-Only keys with `source ≠ default`, grouped by `category` (render only categories that have at least one such key). A fully-default config renders the single line `No levers diverge from defaults.` instead of any table.
+Only keys with `source ≠ default`, grouped by `category` (render only categories that have at least one such key).
 
-Row form, one per key, all values verbatim from the `--all` snapshot:
+Row form, one per key, all values verbatim from the `--all` snapshot — the trailing `{summary}` carries the key's meaning so the row is legible without a lookup:
 
 ```
-`{key}` — {value} ({source}) · default: {default}
+`{key}` — {value} ({source}) · default: {default} — {summary}
 ```
 
 **Null-default keys:** when a key's envelope carries `default: null`, render its default cell as `default: no default` — consumers read a `null` default as "this key has no default", not literal `null`. `integration-model` keeps its own special case below instead of this rule.
 
 **`integration-model` special case:** when it appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders `computed (forge detection)` instead of the schema's literal `default` — the real default is `detectIntegrationModel()`'s forge-detection result, not a static value. (See `_shared/integration-model.md` for the resolution ladder.)
+
+**Zero set keys:** when no levers diverge from defaults, render the single line `No levers diverge from defaults.`, then — since the levers that govern what the pipeline may do without a human are exactly what a fresh project's owner needs to see — render the core-tier levers still on `source: default`, grouped by `category`, each row `` `{key}` — {default} — {summary} `` (advanced-tier defaults stay section 4's business).
 
 ### 2. Issues
 

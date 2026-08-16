@@ -142,10 +142,10 @@ Everything below was checked against the current codebase and found accurate. Su
 ### Rules
 - {N} updated, {N} created, {N} to remove
 
+Policy review any time: `/claude-tweaks:help policy` — the standing config review surface outside init.
+
 Ready to apply these changes?
 ```
-
-Include one standing-surface pointer line: `Policy review any time: /claude-tweaks:help policy` — the standing config review surface outside init.
 
 Execute only after user confirmation.
 

@@ -35,18 +35,23 @@ requires (one click, never "type no"):
   `header`: `"Policy review"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Skip (Recommended if you already know your config)"`, `description`:
   `"Keep the one-line count above; move on to the rest of Update Mode"`
-- Option 2 — `label`: `"Show details"`, `description`: `"Render the policy configuration per skills/help/policy.md's Render contract (read-only), plus the {N} issue(s) found"`
+- Option 2 — `label`: `"Show details"`, `description`:
+  `"Render the policy configuration per skills/help/policy.md's Render contract (read-only), plus
+  the {N} issue(s) found"`
 
-On **Show details**: read `skills/help/policy.md` (an explicit cross-skill path read — never a
-`Skill`-tool invocation of `/claude-tweaks:help`, which would run the whole mode, gather
-included) and produce its Render contract's four sections in order — Set levers, Issues, Notable
-defaults, Advanced tier — from that file's own Gather commands. This entrance is **read-only**:
-render the sections, then close with one line — "To change any of these, run
-`/claude-tweaks:help policy` — its Next Actions apply edits with validation." — and never run the
-contract's apply path from here. When zero recognized keys are set (a from-scratch
-`policy.yml`), additionally trigger the contract's own "show advanced" expansion so the
-walkthrough still functions as onboarding — the defaults render grouped by category with each
-lever's summary, via the contract's affordance rather than a local table.
+On **Show details**: read `${CLAUDE_PLUGIN_ROOT}/skills/help/policy.md` (an explicit cross-skill
+path read — never a `Skill`-tool invocation of `/claude-tweaks:help`, which would run the whole
+mode, gather included) and produce its Render contract's four sections in order — Set levers,
+Issues, Notable defaults, Advanced tier — from that file's own Gather commands. Section 2's
+citation is scoped here to `invalidValues` and `unrecognizedKeys` only: `migratableKeys` and
+`renamedKeys` are Config Home Drift's and Renamed key drift's business earlier in this same
+Phase 1u.5 pass, so rendering them again here would repeat prompts the user just answered and
+diverge from those checks' own `{N}` counts. This entrance is **read-only**: render the sections,
+then close with one line — "To change any of these, run `/claude-tweaks:help policy` — its Next
+Actions apply edits with validation." — and never run the contract's apply path from here. When
+zero recognized keys are set (a from-scratch `policy.yml`), no extra step is needed here — the
+contract's own section 1 zero-set-keys render already covers onboarding by rendering the
+core-tier levers at their defaults, grouped by category with each lever's summary.
 
 This check never writes to `policy.yml` — a malformed or unrecognized line needs a human's actual
 intended value, not a guessed one. Record the outcome in Phase 9's Actions Performed table as an
