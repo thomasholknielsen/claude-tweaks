@@ -13,6 +13,25 @@ const TIERS = ['low', 'medium', 'high'];
 const PRIORITIES = ['high', 'medium', 'low'];
 const CEREMONY_TIERS = ['fast-lane', 'standard'];
 
+// The closed Defer-reason: vocabulary — the code twin of
+// skills/_shared/deferral-gate.md's "Defer-reason: vocabulary" section
+// (tests/deferral-gate-conformance.test.js pins the two lists equal). Order is
+// the contract's order. Frozen: consumers compare against it, never extend it.
+const DEFER_REASONS = Object.freeze([
+  'tangential',
+  'needs-human-decision',
+  'pre-existing-outside-diff',
+  'genuinely-larger',
+  'blocked-external',
+  'blocked-dependency',
+]);
+
+// Matches a Defer-reason: line on ANY line of the body (the /m flag) — the
+// suppression check is "no line matching", per deferral-gate.md's hard gate;
+// the first line of the body is where the insert path and producers put it
+// (deferral-gate.md's "Where the reason lives").
+const DEFER_REASON_LINE_RE = /^Defer-reason: (\S+)[ \t]*$/m;
+
 const LABELS = {
   READY: 'ready',
   PARKED: 'parked',
@@ -119,7 +138,7 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, size?, ceremony?, solutionUnjustified?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, size?, ceremony?, solutionUnjustified?, ready?, parked?, priority?, fingerprint?, deferReason? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
 // The emit side is size-only: `effort` is accepted only to throw on it (below) —
@@ -127,7 +146,7 @@ function fencedBlock(text) {
 // of silently dropping the scoring label. No code path here writes an effort:*
 // label. The read side's effort:* fallback (parseRecordFacets below) is
 // deliberately one-directional.
-function recordPayload({ title, body, type, origin, risk, size, ceremony, solutionUnjustified, ready, parked, priority, fingerprint, effort } = {}) {
+function recordPayload({ title, body, type, origin, risk, size, ceremony, solutionUnjustified, ready, parked, priority, fingerprint, effort, deferReason } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -142,6 +161,25 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, soluti
 
   if (ready && parked) {
     throw new Error('a record cannot be both ready and parked');
+  }
+
+  // deferReason is validation-plus-body-line, never a label: an unknown value
+  // throws naming the field (same posture as the effort rejection above); a valid
+  // one is inserted as the body's first line unless the body already carries a
+  // matching Defer-reason: line (a specShapedBody-composed body, #623), in which
+  // case nothing is inserted; a body carrying a *different* value is a caller
+  // contradiction and throws.
+  let reasonBody = body;
+  if (deferReason !== undefined) {
+    oneOf('deferReason', deferReason, DEFER_REASONS);
+    const existing = DEFER_REASON_LINE_RE.exec(body);
+    if (existing) {
+      if (existing[1] !== deferReason) {
+        throw new Error(`body already carries "Defer-reason: ${existing[1]}" but deferReason is "${deferReason}"`);
+      }
+    } else {
+      reasonBody = `Defer-reason: ${deferReason}\n\n${body}`;
+    }
   }
 
   // Deterministic emission order: by:*, risk:*, size:*, ceremony:*, solution:unjustified, ready, parked, priority:*.
@@ -172,8 +210,8 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, soluti
   }
 
   const finalBody = fingerprint
-    ? `${body}\n\n<!-- work-fingerprint: ${fingerprint} -->`
-    : body;
+    ? `${reasonBody}\n\n<!-- work-fingerprint: ${fingerprint} -->`
+    : reasonBody;
 
   return { title, body: finalBody, labels, type };
 }
@@ -371,21 +409,33 @@ function parseDependencyAssumptions(body) {
   return result;
 }
 
-// Compose the spec-shaped body the gate's structural check re-verifies
-// (skills/_shared/work-record.md: Current State / Deliverables / Acceptance Criteria
-// present and non-empty). Owning the skeleton here means the health-suite
-// issue-payload builders (see bin/lib/*/issue-payload.js) cannot drift a section
-// heading or the footer sentence independently. Sections accept a string or an
-// array of strings (arrays render as blank-line-separated blocks).
-// recordPayload still appends the work-fingerprint marker afterward, as before.
-function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, filedBy }) {
+// { header?, currentState, deliverables, acceptanceCriteria?, openQuestion?, filedBy,
+//   provenance?: { origin?, deferReason? }, footer?: string | null } -> body string.
+// Additive over the original shape: a call passing none of provenance/footer/openQuestion
+// (and a non-empty header) composes byte-identical output — the four health-suite
+// builders are the regression oracle (tests/health-filing-parity.test.js). Exactly one
+// of acceptanceCriteria/openQuestion must be supplied: openQuestion is the composer's
+// needs:definition variant, rendering `## Open Question` in place of Acceptance
+// Criteria so a needs-you record never carries placeholder AC. Provenance lines
+// (Origin:, then Defer-reason: — validated against DEFER_REASONS) render between
+// header and `## Current State`, where provenance.js's line-anchored Origin: parse
+// reads them. footer: a string replaces the default health-suite sentence, null omits
+// it; exhaust producers pass `_Filed by \`{producer}\` via specShapedBody._` — the
+// machine-visible marker _shared/work-record.md's born-shaped matrix rows key on.
+// header is the slot for producer-specific leading lines (e.g. `Trigger: {condition}`)
+// and may be empty/omitted — the one relaxation from the original, needed because the
+// openQuestion variant's canonical call carries no header.
+function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, openQuestion, filedBy, provenance, footer } = {}) {
   const isEmpty = (value) => value === undefined || value === null || value === ''
     || (Array.isArray(value) && value.length === 0);
+  const hasAC = !isEmpty(acceptanceCriteria);
+  const hasOQ = !isEmpty(openQuestion);
+  if (hasAC === hasOQ) {
+    throw new Error('specShapedBody: exactly one of acceptanceCriteria/openQuestion is required');
+  }
   const sections = [
-    ['header', header],
     ['currentState', currentState],
     ['deliverables', deliverables],
-    ['acceptanceCriteria', acceptanceCriteria],
     ['filedBy', filedBy],
   ];
   for (const [name, value] of sections) {
@@ -393,21 +443,26 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
       throw new Error(`specShapedBody: ${name} is required and must be non-empty`);
     }
   }
+  const { origin, deferReason } = provenance || {};
+  if (deferReason !== undefined) oneOf('deferReason', deferReason, DEFER_REASONS);
   const block = (v) => (Array.isArray(v) ? v.join('\n\n') : v);
-  return [
-    header,
-    '## Current State',
-    block(currentState),
-    '## Deliverables',
-    block(deliverables),
-    '## Acceptance Criteria',
-    block(acceptanceCriteria),
-    `_Filed by \`${filedBy}\`. Close to resolve; label \`wontfix\` to suppress future reports of this finding._`,
-  ].join('\n\n');
+  const parts = [];
+  if (!isEmpty(header)) parts.push(header);
+  if (!isEmpty(origin)) parts.push(`Origin: ${origin}`);
+  if (deferReason !== undefined) parts.push(`Defer-reason: ${deferReason}`);
+  parts.push('## Current State', block(currentState), '## Deliverables', block(deliverables));
+  if (hasOQ) parts.push('## Open Question', block(openQuestion));
+  else parts.push('## Acceptance Criteria', block(acceptanceCriteria));
+  if (footer === undefined) {
+    parts.push(`_Filed by \`${filedBy}\`. Close to resolve; label \`wontfix\` to suppress future reports of this finding._`);
+  } else if (footer !== null && !isEmpty(footer)) {
+    parts.push(footer);
+  }
+  return parts.join('\n\n');
 }
 
 module.exports = {
-  ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
+  ORIGINS, TYPES, TIERS, PRIORITIES, DEFER_REASONS, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,

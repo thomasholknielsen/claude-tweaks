@@ -431,3 +431,43 @@ test('reverting bookkeepingPermissions\' new-key tier thresholds fails the trust
   };
   assert.notDeepEqual(wronglyGated('trusted'), bookkeepingPermissions('trusted'));
 });
+
+// --- structured Defer-reason: path (_shared/deferral-gate.md floor mapping, #620) ---
+
+test('clearsFloor: the four floor-clearing structured Defer-reason values return true', () => {
+  for (const r of ['needs-human-decision', 'genuinely-larger', 'blocked-external', 'blocked-dependency']) {
+    assert.strictEqual(clearsFloor(r), true, r);
+  }
+});
+
+test('clearsFloor: tangential and pre-existing-outside-diff do not clear the floor', () => {
+  assert.strictEqual(clearsFloor('tangential'), false);
+  assert.strictEqual(clearsFloor('pre-existing-outside-diff'), false);
+});
+
+test('clearsFloor: the documented verdict vector for the whole vocabulary, in contract order', () => {
+  const vocab = ['tangential', 'needs-human-decision', 'pre-existing-outside-diff', 'genuinely-larger', 'blocked-external', 'blocked-dependency'];
+  assert.deepStrictEqual(vocab.map(clearsFloor), [false, true, false, true, true, true]);
+});
+
+test('clearsFloor: a free-prose reason still resolves via the regex path', () => {
+  assert.strictEqual(clearsFloor('requires a product decision from the owner'), true);
+  assert.strictEqual(clearsFloor('Not sure if this is even still relevant'), false);
+});
+
+test('clearsFloor: a free-prose reason that merely contains a vocabulary word takes the regex path, not the structured one', () => {
+  // "tangential" is a structured false, but the surrounding prose names external state -> regex true.
+  assert.strictEqual(clearsFloor('tangential to the diff and blocked on external state'), true);
+  // exact-match only: whitespace or case variants are not structured values.
+  assert.strictEqual(clearsFloor(' blocked-external '), false);
+  assert.strictEqual(clearsFloor('Blocked-External'), false);
+});
+
+test('clearsFloor: an unknown string returns false', () => {
+  assert.strictEqual(clearsFloor('minor'), false);
+});
+
+test('autonomy.js source carries the regex fallback removal condition verbatim', () => {
+  const src = require('fs').readFileSync(require.resolve('../../../bin/lib/issues/autonomy.js'), 'utf8');
+  assert.ok(src.includes('Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.'));
+});
