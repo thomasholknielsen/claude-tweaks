@@ -18,9 +18,11 @@
 
    | State found | Behavior |
    |---|---|
-   | No `worktree-always:` line at all (no file, or file present without the key) | Ask the question below |
+   | `worktree.always: true` (pre-#602 spelling, no `worktree-always:` line) | No-op — already enabled through the RENAMED_KEYS alias; do not re-ask. The Renamed key drift check (`update-mode.md`) offers the spelling migration separately. |
+   | No `worktree-always:` line AND no `worktree.always:` line (no file, or file present without either key) | Ask the question below |
    | `worktree-always: true` | No-op — already enabled, skip silently |
    | `worktree-always: false` | Ask the question below (re-offer — matches Step 11/12/13's re-offer-on-decline convention) |
+   | `worktree.always: false` (pre-#602 spelling, no `worktree-always:` line) | Ask the question below (re-offer — matches Step 11/12/13's re-offer-on-decline convention) |
 
    When asking, call `AskUserQuestion`:
    - `question`: `"Require an isolated git worktree for every file edit in this project?"`, `header`: `"Worktree policy"`, `multiSelect`: `false`
