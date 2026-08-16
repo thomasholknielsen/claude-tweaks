@@ -11,7 +11,7 @@ files:
 **Persona:** claude-tweaks skill author (or a maintainer of a project using the plugin) who wants proof that policy resolution honors the documented precedence chain — run config, then `policy.yml`, then schema default — rather than trusting each skill's prose to have re-implemented it correctly.
 **Goal:** Watch one key resolve under three configurations and confirm the returned `{value, source}` envelope changes exactly as `skills/_shared/policy-schema.md` §Canonical read path says it will.
 **Entry point:** A terminal at a project checkout root (any repo with — or even without — a `.claude-tweaks/policy.yml`).
-**Success state:** Three JSON objects whose `source` fields read `default`, `policy`, and `run-config` respectively, plus one `renamed-from` resolution proving the alias table is live, plus one `--all` snapshot whose every row carries `{value, source}` decorated with schema metadata.
+**Success state:** Three JSON objects whose `source` fields read `default`, `policy`, and `run-config` respectively, plus one `renamed-from` resolution proving the alias table is live, plus one `--all` snapshot whose every row carries `{value, source}` decorated with schema metadata, plus one direct-from-`policy.yml` read proving the enforcement hook honors the same alias table the CLI does.
 
 ## Steps
 
@@ -43,6 +43,13 @@ files:
 - **Should understand:** Every schema key returns its `{value, source}` envelope decorated with `summary`/`category`/`tier`/`type`/`default` — a JSON `null` default means no default. `--all` composes with `--run`. `--all --values` and `--all <key>` are invocation errors.
 - **Red flags:** A registered key missing from the output; a row missing `summary`/`category`/`tier`; `--all` accepting key arguments.
 
+### 5. Confirm the enforcement hook honors the same alias — `bin/lib/policy.js`
+- **URL:** `node -e "console.log(require('./bin/lib/policy.js').isWorktreeAlwaysOn(process.cwd()))"`
+- **Action:** Run it in a scratch checkout whose `.claude-tweaks/policy.yml` carries only the pre-#602 line `worktree.always: true`; then again with only `worktree-always: true`; then with both present and disagreeing.
+- **Should feel:** The same answer every time the intent is the same — how the line is spelled is not a behavioral lever.
+- **Should understand:** The PreToolUse worktree gate never calls `bin/resolve-policy.js` — it reads `policy.yml` directly through `rawValue`, which consults the same `RENAMED_KEYS` table the CLI does. The current name wins whenever it is present, in any file order; the retired spelling contributes only when the current one is absent. That precedence is what lets a `policy.yml` carry both lines during a migration without ambiguity.
+- **Red flags:** `worktree.always: true` on its own reading as policy-OFF — an un-migrated project would silently lose worktree enforcement with no error anywhere; the retired spelling winning over the current one when both are set.
+
 ## Origin
-- Created during build of #329 (policy resolver CLI); step 3 and the alias red-flag in step 2 updated during build of #332 (policy-key naming convention + rename program — `review-severity-floor` → `review-auto-apply-ceiling`, seven identity aliases)
+- Created during build of #329 (policy resolver CLI); step 3 and the alias red-flag in step 2 updated during build of #332 (policy-key naming convention + rename program — `review-severity-floor` → `review-auto-apply-ceiling`, seven identity aliases); step 5 added during build of #602, when the hook's own read path (`isWorktreeAlwaysOn`/`rawValue` in `bin/lib/policy.js`) became alias-aware
 - Related specs: #328 (parent — policy read-path family), #602 (`worktree.always` → `worktree-always`, hook read path), #334 (run-config direct reads onto `--run`)
