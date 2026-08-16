@@ -19,7 +19,7 @@ Exactly three signals feed the Trigger column, plus the `Design-intent:` record 
 
 - **Motion signal** — the motion signal defined in `skills/_shared/design-craft.md`'s **Relevance map** section (the `animate`/`animation-vocabulary` row's trigger). Cited by section name, never restated: it is an LLM judgment call there and stays one here.
 - **Decisions present** — Layer 0's `hasDesign` signal (`skills/design-wrapper/SKILL.md` Layer 0, `impeccable-plugin.md`'s `setup.hasDesign`). When Layer 0 is degraded (absent plugin, version mismatch, execution failure — no signals), fall back to a direct `DESIGN.md` existence check using `skills/_shared/visual-html-output.md`'s three-path lookup.
-- **Lever** — the resolved `design.critique` policy value: `off | auto | full` (schema entry owned by #595; read via `bin/resolve-policy.js` by the Step 3.8 procedure, #598). `full` and `off` are the two escape hatches; `auto` conditions on the other two signals as the table states per row.
+- **Lever** — the resolved `design-critique` policy value: `off | auto | full` (schema entry owned by #595; read via `bin/resolve-policy.js` by the Step 3.8 procedure, #598). `full` and `off` are the two escape hatches; `auto` conditions on the other two signals as the table states per row.
 
 `Design-intent:` in the table is the record body-metadata line defined in `skills/specify/spec-template.md`'s metadata block.
 
