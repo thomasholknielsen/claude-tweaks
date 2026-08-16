@@ -84,9 +84,9 @@ An `[adr-convention]` row renders inside this section but carries its own three-
      found (16)   : ADR-016-slack-integration-strategy.md
      project skill: .claude/skills/architecture-decision/SKILL.md
 
-     1  Conform forward   — new files use the plugin's form   -> doc-convention.adr: plugin
+     1  Conform forward   — new files use the plugin's form   -> doc-convention-adr: plugin
      2  Migrate           — rename all 16, fix REGISTRY rows and inbound links
-     3  Keep project form — resolve from this repo             -> doc-convention.adr: project
+     3  Keep project form — resolve from this repo             -> doc-convention-adr: project
 ```
 
 Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
@@ -166,7 +166,7 @@ terminal decision.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
-| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
+| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree-always | `staged/wrap-up-upstream-1.md` |
 
 > Filing publishes privately-derived content to a public repository. The body shown is already
 > scrubbed; a checked item files it via `/claude-tweaks:feedback --pre-confirmed`.

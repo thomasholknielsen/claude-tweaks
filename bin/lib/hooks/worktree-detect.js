@@ -100,7 +100,7 @@ function mainCheckoutRoot(p) {
 // answer is: not a git repo" (permanent, knowable) and "git never answered"
 // (transient — a timeout under load, a refused fork). Callers gating on
 // `!repoRoot` therefore treated a load spike identically to a definitive
-// negative, which is how the worktree.always gate came to stop enforcing while
+// negative, which is how the worktree-always gate came to stop enforcing while
 // the machine was busy.
 //
 //   indeterminate: false -> repoRoot is trustworthy (a path, or null meaning
