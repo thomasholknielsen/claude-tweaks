@@ -6,7 +6,7 @@ target — there is nothing to decompose, and none of decomposition mode's Steps
 (`decomposition-mode.md` in this skill's directory) ever run here.
 
 This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
-block. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
+block — except under `--chained`, which returns to the caller instead. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
 the primary input) and it has no use for decomposition mode's much larger body.
 
 ---

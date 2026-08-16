@@ -79,15 +79,15 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — or, under `autonomy: trusted`+, born-`ready` when `producer:capture` carries a `clean` trust verdict; `overview` mode surveys and prioritizes them. |
-| `_shared/autonomy-ceiling.md` | The one actor the ceiling's born-`ready` tier covers. `/capture` resolves it through `permittedGrants` — never from the policy value alone, since the class verdict is half the condition — and files with `ready` already applied when both hold. Inert at `supervised`, the default. |
+| `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — human-invoked, or, under `autonomy: trusted`+ when `producer:capture` carries a `clean` trust verdict, machine-chained immediately after filing; `overview` mode surveys and prioritizes them. |
+| `_shared/autonomy-ceiling.md` | The one actor the ceiling's born-`ready` tier covers. `/capture` resolves it through `permittedGrants` — never from the policy value alone, since the class verdict is half the condition — and files plain, then chains into `/claude-tweaks:specify #{n} --chained` when both hold, which stamps `ready` under its own authority. Inert at `supervised`, the default. |
 | `/challenge` | Indirect only — `/challenge`'s `framing-check` mode judges the record `/capture` created, but it is invoked by `/specify` while shaping that record, not by `/capture` itself. See the `## challenge` and `## specify` sections. |
 | `/code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |
 | `/help` | Feeds items `/help` surfaces in the status dashboard / queue counts. |
 | `/init` | After bootstrap, `/init` suggests `/capture` as the entry point for ideas that surface during setup but aren't ready to specify. |
 | `/research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
-| `/specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path; also decomposes brainstormed design docs into ready sub-issue records. |
+| `/specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path, human-invoked or, under the born-`ready` condition, machine-chained via `Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")` immediately after filing; also decomposes brainstormed design docs into ready sub-issue records. |
 | `/wrap-up` | May file new backlog records for genuinely new ideas; leftover work becomes a `parked` record instead. |
 | `/superpowers:brainstorming` | Explores promoted backlog records — produces design docs. |
 

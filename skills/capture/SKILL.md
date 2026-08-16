@@ -39,7 +39,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
 | Step | What |
 |------|------|
-| 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below. |
+| 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below; under the born-ready condition, chains `/claude-tweaks:specify #{n} --chained` immediately after the record exists — see Backend Selection. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
 | 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
 
@@ -49,7 +49,7 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
-Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated exception below.
+Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated chained-shaping exception below.
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
 `producer:capture` class carries a `clean` trust verdict, a fresh capture is chained straight into
@@ -65,7 +65,7 @@ see Judging Definition below). A record naming a genuine open choice cannot be b
 construction: `ready` means agent-sized and unambiguous, and an undecided record is neither. Skip
 before the `gh issue list`/git-log round-trip below, not just its conclusion — spending that
 round-trip on a record that structurally cannot be born-ready is wasted work, not just a display
-bug. File without `ready` and proceed straight to Backend Selection's filing step.
+bug. File plain (no chain) and proceed straight to Backend Selection's filing step.
 
 Resolve it as a **single decision, before filing**, and only under `work-backend: github-issues`
 (the trust table reads `demo:*` labels, which do not exist on the `local-files` driver). Resolve
@@ -76,8 +76,8 @@ this block entirely rather than fetching anything.
 
 Substitute the second line's literal value (the resolved `trust-revert-window-days`) for
 `{resolved-window}` below. If the `gh` call, the `git log`
-call, or the node block fails for any reason, file without `ready`: this path fails toward the
-default, never toward the grant (unchanged from before this sub-issue). `{resolved-window}` reaches the
+call, or the node block fails for any reason, skip the chain — the record stays a plain capture:
+this path fails toward the default, never toward the grant (unchanged from before this sub-issue). `{resolved-window}` reaches the
 script as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a
 quote character would otherwise break out of the string literal, the same reason
 `code-health/focus-mode.md`'s F1 block passes its own values that way.
@@ -125,8 +125,9 @@ scoring and `ready` in its single compose-then-write-once call, and renders no i
 — and log one `decisions.md` line in `_shared/autonomy-ceiling.md`'s Logging shape (the
 filed-then-shaped form). Never infer the answer from the policy value alone — the class verdict is
 half the condition, and on a repo with no acceptance evidence `bornReady` is `false` at every
-ceiling. If the `gh` call, the node block, or the chained shaping itself fails for any reason, the
-record simply stays a plain capture: this path fails toward the default, never toward the grant.
+ceiling. If the `gh` call, the `git log` call, the node block, or the chained shaping itself fails
+for any reason, the record simply stays a plain capture: this path fails toward the default, never
+toward the grant.
 
 **When `work-backend: github-issues`:**
 
@@ -334,7 +335,7 @@ When invoked by a parent skill, omit this block — the parent owns the handoff.
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
 - Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage backlog records (promote, absorb, or drop stale items)"`
-- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this record straight to a spec ({ref} is '#{n}' under work-backend: github-issues, or the record id under work-backend: local-files)"`
+- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this record straight to a spec ({ref} is '#{n}' under work-backend: github-issues, or the record id under work-backend: local-files)"` — omit this option when the born-ready chain already shaped the record earlier this turn; there is nothing left to promote
 
 ## Component-Skill Contract
 

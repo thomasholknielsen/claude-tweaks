@@ -84,7 +84,7 @@ This explicit disambiguation prevents the silent wrong-path failure flagged by p
 
 Entered from Resolve-the-input case 1 (work record reference) or case 5 (backlog reference with no matching design doc). The record already exists and IS the target — there is nothing to decompose.
 
-Read `shaping-mode.md` in this skill's directory for the full procedure: editing the body into spec shape, preserving the original request, the `Surface:`/`Design-intent:` metadata block, stamping scoring and stage labels, and the compose-then-write-once write call per driver. That procedure is fully self-contained — when it completes, continue at `## Next Actions` below. Decomposition mode's Steps 1-9 never run on this path.
+Read `shaping-mode.md` in this skill's directory for the full procedure: editing the body into spec shape, preserving the original request, the `Surface:`/`Design-intent:` metadata block, stamping scoring and stage labels, and the compose-then-write-once write call per driver. That procedure is fully self-contained — when it completes, continue at `## Next Actions` below, except under `--chained`, which returns to the caller instead. Decomposition mode's Steps 1-9 never run on this path.
 
 ## Decomposition mode (design doc into parent + sub-issues)
 
