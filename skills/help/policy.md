@@ -73,7 +73,7 @@ One collapsed line, `{N}` computed from the snapshot at render time:
 {N} advanced levers on defaults — say "show advanced" to expand.
 ```
 
-On the user saying "show advanced": render the advanced-tier keys grouped by `category`, in-conversation, no new `AskUserQuestion`:
+On the user saying "show advanced": render the advanced-tier keys still on `source: default`, grouped by `category`, in-conversation, no new `AskUserQuestion`:
 
 ```
 `{key}` — {value} ({source}) — {summary}
@@ -111,7 +111,7 @@ This fallback's removal condition is #537 — once that lands, re-check whether 
    node -e "const {resolveValue}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(resolveValue(process.argv[1], process.argv[2])))" "{key}" "{raw-value}"
    ```
 
-   `resolveValue` coerces silently to the schema default on an invalid value — compare its output against `{raw-value}`: a mismatch means the value was rejected. A rejected key is reported (key + rejected value) and its line is never written; continue validating and writing the rest of the batch.
+   `resolveValue` coerces silently to the schema default on an invalid value — parse the output and compare its parsed value against `{raw-value}`: a mismatch means the value was rejected. (JSON.stringify quotes string/enum values while booleans/integers are unquoted, so parse before comparing.) A rejected key is reported (key + rejected value) and its line is never written; continue validating and writing the rest of the batch.
 
 2. After the whole batch has been written: re-run the exact `auditPolicy()` call from Gather, ONCE. Any issue that is NEW relative to the Gather-time snapshot names the offending key, reverts that key's line in `.claude-tweaks/policy.yml` to its prior value **from the Gather snapshot** (never by re-reading the file), and reports the revert. No edit is described as confirmed to the user until this re-audit comes back clean.
 
