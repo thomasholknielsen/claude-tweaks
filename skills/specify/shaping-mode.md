@@ -132,6 +132,6 @@ Nothing to commit on the `github-issues` driver — the edit above already lande
 |--------|--------|-----|
 | Operational | Shaped record {ref} into spec shape — stamped `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` and Type where each was absent, added `ready`, removed `parked` if present | `{hash}` (local-files) / `—` (github-issues — edit already landed via API, no commit) |
 
-Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block (the "Shaping mode — one record shaped in place" row of its Situation table).
+Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block (the "Shaping mode — one record shaped in place" row of its Situation table). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
 
 `/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
