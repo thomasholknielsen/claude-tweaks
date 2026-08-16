@@ -11,7 +11,7 @@ The single, curated roster of project-local design critics that `/claude-tweaks:
 | `ios` / `android` / `adaptive` | *none* | Deliberate: Impeccable's `critique`/`audit` already run natively with the platform named (`native-routing.md`); Emil is web-only (`design-craft.md` Gating). No decisions pushback on native until a row exists — a stated gap, not a hole; see the unblocking condition below the table |
 | `terminal` | *pending* | Filled by #601 (edits this row in place) |
 
-`Track` values come from `SKILL.md`'s track-resolution table plus `terminal`. `Critic` is an upstream skill name resolvable via the lookup cited under Resolution below, or the literal `none` / `pending`. `Trigger` prose references only the three signals defined next.
+`Track` values come from `SKILL.md`'s track-resolution table plus `terminal`. `Critic` is an upstream skill name resolvable via the lookup cited under Resolution below, or the literal `none` / `pending`. `Trigger` prose references only the three signals defined next, plus the `Design-intent:` record line cited below them.
 
 ## Trigger signals
 
