@@ -3,6 +3,8 @@
 Design doc. Written 2026-08-07. Supersedes and absorbs
 `2026-08-07-adr-convention-precedence-design.md`, which becomes Phase 1 (#187).
 
+Status: specified — Phase 1 shipped (#187, v6.62.0); later phases unscheduled.
+
 > **Naming note (6.64.3).** This document, and the plan it feeds, call the contract
 > `_shared/prior-art-detection.md` and use "prior art" for the concept. Both were renamed
 > shortly after shipping — the file is `_shared/existing-convention-detection.md`, and the
