@@ -133,3 +133,28 @@ for (const name of skills) {
     assert.ok(!hit, `skills/${name}/SKILL.md contains an emoji: ${hit && hit[0]}`);
   });
 }
+
+// #646: terminal `## Next Actions` renders as plain markdown, never an
+// `AskUserQuestion` menu (docs/skill-authoring.md's Skill handoffs convention).
+// A skill's Next Actions section may mention AskUserQuestion only for a
+// documented machine-consumed terminal decision, listed here with its
+// justification. Empty today — the reservation exists in the convention;
+// no current skill uses it. (flow/failure-cards.md's claims-release decision
+// is a sub-file, outside this SKILL.md-scoped pin.)
+const TERMINAL_ASK_EXCEPTIONS = new Set([]);
+
+test('no SKILL.md instructs a terminal-menu AskUserQuestion outside the documented reservation', () => {
+  for (const name of skills) {
+    if (NO_NEXT_ACTIONS.has(name) || TERMINAL_ASK_EXCEPTIONS.has(name)) continue;
+    const body = readSkill(name);
+    const start = sectionIndex(body, '## Next Actions');
+    if (start === -1) continue; // absence is the house-order test's concern
+    const rest = body.slice(start + '## Next Actions'.length);
+    const end = rest.search(/^## /m);
+    const section = end === -1 ? rest : rest.slice(0, end);
+    assert.ok(
+      !section.includes('AskUserQuestion'),
+      `skills/${name}/SKILL.md's Next Actions section still instructs an AskUserQuestion terminal menu`,
+    );
+  }
+});
