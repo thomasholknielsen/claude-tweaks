@@ -8,6 +8,7 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 
 - Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `## Next Actions` blocks with pre-filled commands
 - Don't add per-item decision prompts for lists — use batch tables with "apply all / override"
+- Don't hand the user a runnable `/claude-tweaks:{skill}` command whose argument form you haven't checked against that skill's `argument-hint` (or its `## Input` section) in the same turn — a confidently-worded invocation in an unsupported grammar fails at the user's prompt, after they've pasted it (#702: a comma-list `/specify` call asserted from memory when only `/flow` documented that form)
 - Don't create skills without the standard structure (frontmatter, interaction directive, anti-patterns table) — and don't add a relationship table back; its edges belong in `docs/skill-graph.md`
 - Don't add one-directional cross-references — always update both sides
 - Don't silently skip or drop findings — every surfaced item must be explicitly resolved (fix now, defer, accept with reason)
