@@ -103,7 +103,7 @@ When a pipeline run directory exists, route findings by category without prompti
 |---|---|---|
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |
 | Convention drift, code smell, simplification opportunity | STAGED — write to `staged/reflect-{n}.md`. Surface at Wrap-Up Review Console. | `STAGED {time} — Step 3: convention finding "{summary}". Stage path: staged/reflect-{n}.md.` |
-| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. Surfaces at the Wrap-Up Review Console's Queue writes section, following `_shared/auto-mode-contract.md`'s tiered stance — folded into the batch "Approve all" at `supervised`/`trusted`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended`. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate (defer-reason: tangential). Surface at the Queue writes gate.` |
+| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. Surfaces at the Wrap-Up Review Console's Queue writes section, following `_shared/auto-mode-contract.md`'s tiered stance — folded into the batch "Approve all" at `supervised`/`trusted`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended`. | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate — landing: {born-ready|needs:definition} (defer-reason: tangential). Surface at the Queue writes gate.` |
 | Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled by `/claude-tweaks:wrap-up`'s Skills curation row. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
@@ -137,8 +137,14 @@ For a **tangential** finding specifically — the one category that becomes a Qu
 proposal (see `review-console.md`'s "On approval" step 5 and `flow/multispec-review-console.md`,
 both of which read a `Title:`/`Type:`/`Labels:` header off the staged file to create the record) —
 prepend a 4-line header above the `# Reflect —` line, the same shape `wrap-up/leftover-routing.md`
-step 3 writes for `leftover-{slug}.md`. The body below the header is identical to the format above
-(with `**Category:** tangential`):
+step 3 writes for `leftover-{slug}.md`. The body below the header is composed via `specShapedBody`
+(the finding → Current State, the proposed change → Deliverables, the observable outcome →
+Acceptance Criteria; `header: ''`; `provenance: { origin: 'reflect {mode} from #{n}', deferReason:
+'tangential' }`; footer `_Filed by \`reflect\` via specShapedBody._`) — with the `# Reflect —
+staged finding {n}` title line and `**Category:**` line kept above it; a finding whose own text
+names an open choice uses the composer's `openQuestion` variant and lands `needs:definition` (no
+`ready`, no scoring). Labels: scored + `ready` (born-ready) on the AC path, per
+`_shared/work-record.md`'s `/reflect` row:
 
 ```markdown
 Title: {short work-record title}

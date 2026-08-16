@@ -76,7 +76,10 @@ field is a hint for that drill, not a rule the gate is bound to follow. `_shared
 governs the routing: a proposal routed from here carries a `Defer-reason:` per this mapping — a
 locked worktree a live session holds → `blocked-external`; an open PR outside this run's blast
 radius → `blocked-external`; a red suite this run cannot fix → `genuinely-larger`; anything else
-stays `open` for Phase 2's drill, where the human picks the value.
+stays `open` for Phase 2's drill, where the human picks the value. A `remedy: record` item Phase 2
+routes to a record composes exactly as ledger Phase 3's branches do (`_shared/ledger-format.md`) —
+`specShapedBody`, the #621 mapping above supplying its `Defer-reason:`, landing born-ready, parked,
+or `needs:definition` by the same rules.
 
 ## The judgment class — named triggers
 
