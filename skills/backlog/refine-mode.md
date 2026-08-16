@@ -125,12 +125,12 @@ Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "grant-check #{n}")
 ```
 
 Each invocation returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (see
-`skills/assess-agent-autonomy/grant-check.md`). Derive the unified table's
-Recommended column directly from this output, and carry `RATIONALE` through to the table's own
-Rationale column (Step 4) and the `decisions.md` log line (Step 5) — a content-aware judgment the
+`skills/assess-agent-autonomy/grant-check.md`). Derive the Grant lane's Recommended value for
+grant rows directly from this output, and carry `RATIONALE` through to the lane's own Evidence
+column (Step 4) and the `decisions.md` log line (Step 5) — a content-aware judgment the
 human is about to act on must stay visible at decision time and stay in the audit trail
 afterward, not be computed and then silently discarded. `blocked` rows (below) have no
-`assess-agent-autonomy` call to draw a rationale from — their Rationale column reads a fixed
+`assess-agent-autonomy` call to draw a rationale from — their Evidence column reads a fixed
 string instead, per Step 4.
 
 - **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
@@ -432,7 +432,7 @@ gh issue edit 123 --add-label priority:high
 Rows also carry Step 2's non-binding tier guess in the Evidence column — the old `Suggested Tier`
 column is retired in favor of this one sentence: render a real `ceremony:*` label plainly
 (`fast-lane`/`standard`), and this pass's own LLM guess suffixed (`quick? (guess)`/`full? (guess)`),
-so a human scanning the batch never mistakes an unscored guess for `/specify`'s authoritative
+so a human scanning the batch never mistakes the guess for `/specify`'s authoritative
 verdict — informational only, never gated behind its own confirm, never itself written anywhere.
 
 If `.prioritySlice.remaining > 0`, Step 2 already states it plainly in the report — not repeated
@@ -514,7 +514,7 @@ Then one `AskUserQuestion`:
 - Option 3 — `label`: `"Grant auto:build only, hold merge"`, `description`: `"Apply every non-grant suggestion normally, and apply auto:build/re-authorize to every grant row, but withhold auto:merge session-wide — even rows recommended for it. Useful for a first supervised run."`
 - Option 4 — `label`: `"Skip all suggestions"`, `description`: `"Leave every record untouched for now"`
 
-Overrides (including inline scoring for an unscored grant row) are ordinary free-text in the user's next message, not the `Other` field.
+Overrides (including inline scoring for a grant row missing risk/size) are ordinary free-text in the user's next message, not the `Other` field.
 
 ## Step 5: Apply
 
@@ -548,7 +548,7 @@ A record carrying `facets.unsynced === true` (Step 1's local fallback fold-in) h
 
 For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files, and any `facets.unsynced === true` record regardless of driver: `writeRecord` with the updated body against the record's `.path`, followed by the same `git add`/`git commit` step).
 
-**Grant rows:** When Step 4 resolved to `"Grant auto:build only, hold merge"` (Option 3 above), skip every `auto:merge` grant below for the remainder of this session — apply `auto:build`/re-authorize exactly as the table recommended, but never the `gh issue edit "$ISSUE" --add-label auto:merge` line, regardless of what the row's own Recommended column said. This is a session-wide override, not a per-row judgment call — it doesn't change what Step 3 recommended or what the unified table displayed, only what Step 5 writes.
+**Grant rows:** When Step 4 resolved to `"Grant auto:build only, hold merge"` (Option 3 above), skip every `auto:merge` grant below for the remainder of this session — apply `auto:build`/re-authorize exactly as the Grant lane recommended, but never the `gh issue edit "$ISSUE" --add-label auto:merge` line, regardless of what the row's own Recommended column said. This is a session-wide override, not a per-row judgment call — it doesn't change what Step 3 recommended or what the Grant lane displayed, only what Step 5 writes.
 
 For every row still marked for granting after Step 3.5:
 
@@ -566,8 +566,8 @@ else
 fi
 # Row also grants auto:merge:
 gh issue edit "$ISSUE" --add-label auto:merge
-# Row's scoring came from an inline override in Step 4 (an unscored "—" row the human supplied
-# risk:$RISK_TIER / size:$SIZE_TIER for directly, rather than flagging back or accepting the
+# Row's scoring came from an inline override in Step 4 (a grant row missing risk/size the human
+# supplied risk:$RISK_TIER / size:$SIZE_TIER for directly, rather than flagging back or accepting the
 # default "needs scoring" recommendation) — persist the human-supplied scoring as labels too,
 # not just the grant, so the record doesn't re-enter later batch views (e.g.
 # /claude-tweaks:backlog overview risk-value's ranked table) still showing as unscored:
@@ -578,12 +578,12 @@ Stripping `bot:blocked` in the same edit as the grant matters: without it, the r
 
 **Dependency-repair rows:**
 
-- Refine runs the detection itself — it does not consume overview's output. After Step 1's fetch (which already carries `,body`), and after performing the same `work-links: native` blocked-by attachment overview's Step 3 specifies (one aliased `buildNativeDependencyQuery` call over the fetched candidates; per-node failures attach nothing), run `findUnresolvedDependencyProse` via the same `{ flags }` output shape. Attaching native blockers first means already-natively-wired records resolve non-empty and are never flagged for re-wiring. The same per-node failure narration line applies here — when any alias in an otherwise-successful batch failed, render one failure-only narration line naming exactly those ids (e.g. `blocker data incomplete for #12, #40 — node fetch failed; they rank on body-text fallback this run`) — and probe unavailability or whole-fetch failure degrades to the body-text fallback with one failure-only narration line, never a hard stop (restated here at point of use rather than left to the cross-reference). Under `work-links: body-text`, no attachment is needed — the body fallback resolves canonical lines on its own. Offer the mode-aware repair as a new confirmable item type in the existing Step 4 unified table + confirm gate — surfaced and applied exactly like every other write in this step, never bypassing or altering when the gate fires or that it blocks until confirmed.
+- Refine runs the detection itself — it does not consume overview's output. After Step 1's fetch (which already carries `,body`), and after performing the same `work-links: native` blocked-by attachment overview's Step 3 specifies (one aliased `buildNativeDependencyQuery` call over the fetched candidates; per-node failures attach nothing), run `findUnresolvedDependencyProse` via the same `{ flags }` output shape. Attaching native blockers first means already-natively-wired records resolve non-empty and are never flagged for re-wiring. The same per-node failure narration line applies here — when any alias in an otherwise-successful batch failed, render one failure-only narration line naming exactly those ids (e.g. `blocker data incomplete for #12, #40 — node fetch failed; they rank on body-text fallback this run`) — and probe unavailability or whole-fetch failure degrades to the body-text fallback with one failure-only narration line, never a hard stop (restated here at point of use rather than left to the cross-reference). Under `work-links: body-text`, no attachment is needed — the body fallback resolves canonical lines on its own. Offer the mode-aware repair as a new confirmable item type in the existing Step 4 lanes + confirm gate — surfaced and applied exactly like every other write in this step, never bypassing or altering when the gate fires or that it blocks until confirmed.
 - **`work-links: native`**: wire the native blocked-by link via the same dependency API `/claude-tweaks:specify`'s Step 4 linking uses.
 - **`work-links: body-text`**: append a canonical line-start `Blocked by #N` line to the record body (`gh issue edit --body-file` under `github-issues`; `writeRecord` + `git add`/`git commit` under `local-files`, same as the Related-line path above).
 - **Never write both representations for one edge.**
 
-**Flag-back rows:** For every row flagged back — Step 3.5's auto-downgrade, an unscored row accepted as recommended, or a human override in Step 4 — remove `ready` and post a comment. Step 3.5's downgrade always uses its exact wording above; every other flag-back uses a shorter comment: `Flagged back by /claude-tweaks:backlog refine: {reason}. Re-add 'ready' once addressed.`, where `{reason}` is `needs scoring` for the recommended case or the human's own free-text reason for an explicit override.
+**Flag-back rows:** For every row flagged back — Step 3.5's auto-downgrade, a row missing risk/size accepted as recommended, or a human override in Step 4 — remove `ready` and post a comment. Step 3.5's downgrade always uses its exact wording above; every other flag-back uses a shorter comment: `Flagged back by /claude-tweaks:backlog refine: {reason}. Re-add 'ready' once addressed.`, where `{reason}` is `needs scoring` for the recommended case or the human's own free-text reason for an explicit override.
 
 ```bash
 gh issue edit "$ISSUE" --remove-label ready
