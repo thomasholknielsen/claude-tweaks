@@ -61,6 +61,10 @@ test('workflowHasPullRequestTrigger: every legal on: shape that names pull_reque
     // depth-1 key still counts alongside a nested value under a different trigger
     'name: a\non: { push: { branches: [main] }, pull_request: {} }\n',
     'name: a\n\n# comment\non:\n  # leading comment inside the block\n  pull_request_target:\n',
+    // leading UTF-8 BOM must not shift the on: line-anchor regex off col 0
+    '﻿name: a\non: pull_request\n',
+    // a tab (not just a literal space) before the comment marker still counts as a comment start
+    'name: a\non: pull_request\t# ci\n',
   ];
   for (const text of yes) assert.equal(mv.workflowHasPullRequestTrigger(text), true, JSON.stringify(text));
 });
@@ -238,7 +242,12 @@ function fixtureRepo({ policy = 'integration-model: pr-first\n', workflow = null
 }
 
 function cli(args, cwd) {
-  const r = spawnSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+  // The fixture repos above rely on `gh repo view` FAILING (no configured
+  // remote) so branch (4)'s local origin/HEAD fallback is what answers — a
+  // sandbox that exports GH_REPO/GH_HOST would make `gh` resolve a different,
+  // real repo instead and silently break the fixture's assumption.
+  const env = { ...process.env, GH_REPO: '', GH_HOST: '' };
+  const r = spawnSync('node', [CLI, ...args], { cwd, env, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   return r.stdout;
 }
@@ -288,4 +297,22 @@ test('CLI JSON mode: derived value carries source "default"; explicit carries "p
 test('CLI live smoke on this repo resolves a valid enum value (drift-sensitive by nature — the fixtures above are the durable check)', () => {
   const out = cli(['--values', 'merge-verification'], REPO_ROOT).trim();
   assert.ok(VALUES.includes(out), `got ${JSON.stringify(out)}`);
+});
+
+test('CLI: requesting integration-model and merge-verification together reuses the already-computed integration-model instead of re-detecting it (#559 M1)', () => {
+  const dir = fixtureRepo({ workflow: 'name: ci\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n' });
+  const out = cli(['--values', 'integration-model', 'merge-verification'], dir);
+  assert.equal(out, 'pr-first\nmerge-when-green\n');
+});
+
+test('CLI --run precedence: a run-dir config.yml override wins over the derived AC1 default, and JSON mode reports source "run-config" (#559 M5)', () => {
+  const dir = fixtureRepo({ workflow: 'name: ci\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n' });
+  // Sanity: without --run, this fixture derives merge-when-green (AC1).
+  assert.equal(cli(['--values', 'merge-verification'], dir).trim(), 'merge-when-green');
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-rundir-'));
+  tempDirs.push(runDir);
+  fs.writeFileSync(path.join(runDir, 'config.yml'), 'merge-verification: wait\n');
+  assert.equal(cli(['--run', runDir, '--values', 'merge-verification'], dir).trim(), 'wait');
+  const json = JSON.parse(cli(['--run', runDir, 'merge-verification'], dir));
+  assert.deepEqual(json['merge-verification'], { value: 'wait', source: 'run-config' });
 });

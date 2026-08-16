@@ -29,8 +29,8 @@ function stripQuotes(s) {
 }
 
 function stripComment(s) {
-  const idx = s.indexOf(' #');
-  return (idx === -1 ? s : s.slice(0, idx)).trim();
+  const m = /\s#/.exec(s);
+  return (m === null ? s : s.slice(0, m.index)).trim();
 }
 
 // Depth-aware key scan for a flow mapping like `{ push: { branches: [x] },
@@ -73,6 +73,9 @@ function flowMappingKeysAtDepth1(s) {
 // verification is requested" — enforcement (branch protection) is out of scope.
 function workflowHasPullRequestTrigger(text) {
   if (typeof text !== 'string' || !text) return false;
+  // Strip a leading UTF-8 BOM (some editors/tools save workflow YAML with
+  // one) so the on: line-anchor regex below still matches at col 0.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const m = /^(?:on|'on'|"on")\s*:(.*)$/.exec(lines[i]);
@@ -138,6 +141,13 @@ function hasPullRequestCi(repoRoot, { readWorkflows = readWorkflowFiles } = {}) 
 // The repository's default branch — skills/_shared/integration-branch.md's
 // rank-5 GitHub-default half, in code: gh's defaultBranchRef, else the local
 // origin/HEAD symref (what a clone records), else null. Never throws.
+//
+// Accepted asymmetry (branch (3)/(4) below): resolveIntegrationBranch answers
+// from policy.yml, else the local origin/HEAD symref; this function prefers
+// gh's live defaultBranchRef first, THEN the same local origin/HEAD fallback.
+// A stale local origin/HEAD (e.g. after a remote default-branch rename) can
+// therefore make the two disagree online vs. offline — the mismatch fails
+// toward `off`, never toward the stricter `merge-when-green`.
 function readDefaultBranch(repoRoot) {
   const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8' };
   try {

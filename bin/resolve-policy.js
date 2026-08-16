@@ -133,7 +133,15 @@ function main(argv) {
   if (keys.includes('merge-verification')) {
     const entry = result['merge-verification'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      result['merge-verification'] = { value: deriveMergeVerification(root), source: 'default' };
+      // Reuse this call's own integration-model result (already computed
+      // above) instead of letting deriveMergeVerification's internal
+      // resolveIntegrationModel()->detectIntegrationModel() redo forge
+      // detection from scratch — avoids running it twice per invocation.
+      const modelEntry = result['integration-model'];
+      const deps = keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
+        ? { integrationModel: () => modelEntry.value }
+        : {};
+      result['merge-verification'] = { value: deriveMergeVerification(root, deps), source: 'default' };
     }
   }
 
