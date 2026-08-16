@@ -52,7 +52,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 ## Recommended Companion Tools
 
-External tools claude-tweaks integrates with — Claude Code plugins and standalone CLIs alike. `/claude-tweaks:init`'s Optional Enhancement steps (9-17) offer to install these, most of them also writing a flag to CLAUDE.md (Step 9's `gh` CLI install is the one exception — no flag, since a git remote's existence is already observable at runtime).
+External tools claude-tweaks integrates with — Claude Code plugins and standalone CLIs alike. `/claude-tweaks:init`'s Optional Enhancement steps offer to install these, most of them also writing a flag to CLAUDE.md (Step 9's `gh` CLI install is the one exception — no flag, since a git remote's existence is already observable at runtime).
 
 | Tool | What it adds | Set up by |
 |--------|-------------|-----------|

@@ -7,7 +7,7 @@ common case and always apply. Section names referenced below are sections of `SK
 
 ## Enhancement filter tokens
 
-**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-17) get offered. With none present, Phase 0 offers every step in the table below (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
+**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9 onward) get offered. With none present, Phase 0 offers every step in the table below (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
 
 | Token | Runs |
 |---|---|
