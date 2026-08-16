@@ -6,6 +6,7 @@ The single home of the rule every exhaust channel applies before anything become
 - `skills/reflect/full-mode.md` and `skills/reflect/hindsight-mode.md` (Defer / Capture recommendation rules)
 - `skills/wrap-up/residue-sweep.md` (`remedy: record` findings)
 - `skills/wrap-up/leftover-routing.md` (unfinished spec sections)
+- `skills/visual-review/browser-review.md` (Findings & Ideas Defer routing)
 - `skills/_shared/ledger-format.md` (the ledger resolve gate's Phase 1 / 2 / 3)
 
 The code twins are `clearsFloor` (`bin/lib/issues/autonomy.js`) and `recordPayload`'s `deferReason` option (`bin/lib/issues/record.js`); `DEFER_REASONS` in `record.js` is the vocabulary's only code home, and `tests/deferral-gate-conformance.test.js` pins this file and that export equal.
