@@ -4,6 +4,24 @@ The comprehensive "ensure every issue has the right labels" sweep: `priority:*`/
 
 ## Step 1: Fetch
 
+Resolve the `autonomy` ceiling and `trust-revert-window-days` once, before any fetch below — the
+same canonical read the Trust signal section further down and Step 3.6's born-ready check both
+need, so resolving it here means neither has to run its own `resolve-policy.js` call:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy trust-revert-window-days
+# line 1: autonomy -> {resolved-ceiling}; line 2: trust-revert-window-days -> {resolved-window}
+```
+
+**Substitute the literal values** for `{resolved-ceiling}` and `{resolved-window}` everywhere
+below in this file. Do **not** `export` them in an earlier Bash call and read `process.env` in a
+later one: shell environment does not survive between Bash calls and never reaches a subagent, so
+that expansion always resolves empty and a later block would report `supervised` on a repo
+configured for `trusted`. Resolving `trust-revert-window-days` even when the Trust signal section's
+fetch ends up skipped (ceiling below `trusted` and no `--trust`) is accepted overhead — one
+canonical read is simpler than conditioning the resolve call itself on the value it exists to
+produce.
+
 **Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`, `{EXTRA_FIELDS}` = `,body` — this pass needs bodies for synthesis). Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
 
 ```bash
@@ -49,31 +67,40 @@ node -e "
   if (originFilter) {
     rows = rows.filter((r) => (originFilter === 'human' ? r.facets.origin === null : r.facets.origin === originFilter));
   }
-  const worklist = rows.filter((r) => !r.facets.grants.build && !r.facets.grants.merge);
-  const blocked = worklist.filter((r) => r.facets.bot.blocked);
-  const inProgress = worklist.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
-  const fresh = worklist.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress);
-  console.log(JSON.stringify({ fresh, blocked, inProgress }));
+  console.log(JSON.stringify(rows));
+" > /tmp/backlog-refine-ready-faceted.json
+```
+
+Immediately after, compute the whole refine worklist in one pass — this is what Step 2 and Step 3 below both read, in place of their own inline split/slice scripts:
+
+```bash
+node -e "
+  const { refineWorklist } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const allRows = require('/tmp/backlog-refine-faceted.json');
+  const readyRows = require('/tmp/backlog-refine-ready-faceted.json');
+  console.log(JSON.stringify(refineWorklist({
+    allRows, readyRows,
+    priorityBudget: Number(process.env.PRIORITY_BUDGET || 40),
+    grantBudget: Number(process.env.GRANT_BUDGET || 40),
+  })));
 " > /tmp/backlog-refine-worklist.json
 ```
 
-When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the split is three-way: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
+When `--budget <n>` was passed (see `SKILL.md`'s Input), export `PRIORITY_BUDGET=<n>` and `GRANT_BUDGET=<n>` before running the compute block above; omitted, both are unset and the block's own `|| 40` defaults apply — Step 2's priority/Related synthesis pass and Step 3's grant-check pass stay independently budgeted, exactly as before.
+
+When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
 
 **These are two separate fetches, not one.** The priority/Related fetch is unfiltered (needs the whole backlog); the grant fetch is server-side filtered to `--label ready` (preserves today's exact starvation-avoidance guarantee — an unfiltered pull risks pushing older `ready`-labeled issues out of a shared result window on a large backlog). Both route through the same `backlog-fetch-limit` config key and truncation-warning pattern, just as two independent invocations of it.
 
 ## Step 2: Priority/Related synthesis (bounded)
 
-Over the priority/Related fetch's `unscored` split (`bin/lib/issues/backlog.js`'s `splitScoredUnscored`), bound the LLM read to `--budget` (default 40, independent of the grant pass's own budget in Step 3). When `--budget <n>` was passed (see `SKILL.md`'s Input), export `PRIORITY_BUDGET=<n>` before running the script below; omitted, it's unset and the script's own `:-40` default applies:
-
-```bash
-node -e "
-  const bl = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
-  const all = require('/tmp/backlog-refine-faceted.json');
-  const { unscored } = bl.splitScoredUnscored(all);
-  const { selected, remaining } = bl.selectBudgetSlice(unscored, ${PRIORITY_BUDGET:-40});
-  console.log(JSON.stringify({ selected, remaining }));
-" > /tmp/backlog-refine-priority-budget.json
-```
+Over the **missing-priority** population — records carrying no `priority:*` label at all, the
+population Step 1's compute block actually keys on via `refineWorklist`'s `missingPriority` (refs
+#460: the old split kept scored-on-any-facet records out of this pass even when they still lacked
+a `priority:*` label; keying on the label directly is the fix) — read `.prioritySlice.selected` and
+`.prioritySlice.remaining` from `/tmp/backlog-refine-worklist.json`, already bounded to `--budget`
+(default 40, independent of the grant pass's own budget in Step 3) by Step 1's compute block. No
+separate script runs here.
 
 Read every selected body in one pass and produce:
 
@@ -82,20 +109,14 @@ Read every selected body in one pass and produce:
 - A per-record, **non-binding** tier guess (`quick`/`full`) — purely to help a human eyeball a batch before deciding what to send to `/specify` next. This is never written as a label; only `/specify`'s own `ceremony-check` (a separate, authoritative computation with deeper context — the record's fully shaped Deliverables/Acceptance Criteria, not this pass's rougher read) writes `ceremony:*`. Rationale was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
 - Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line; nothing else reads or maintains it — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix).
 
-If `remaining > 0`, state it plainly in the report: "`{remaining}` more unscored records exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
+If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}` more records missing priority exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
 
 ## Step 3: Grant-check (bounded, `work-backend: github-issues` only)
 
-Bound the grant-check LLM pass independently of Step 2's budget. When `--budget <n>` was passed (see `SKILL.md`'s Input), export `GRANT_BUDGET=<n>` before running the script below; omitted, it's unset and the script's own `:-40` default applies:
-
-```bash
-node -e "
-  const bl = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
-  const data = require('/tmp/backlog-refine-worklist.json');
-  const { selected, remaining } = bl.selectBudgetSlice(data.fresh || [], ${GRANT_BUDGET:-40});
-  console.log(JSON.stringify({ selected, remaining, blocked: data.blocked || [] }));
-" > /tmp/backlog-refine-grant-budget.json
-```
+Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
+`.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
+`.blocked` from `/tmp/backlog-refine-worklist.json` — no separate script runs here. Below, `selected`
+and `blocked` refer to these two fields.
 
 For every record in `selected`, invoke `/claude-tweaks:assess-agent-autonomy` in `grant-check` mode, once per record, every backlog refine session — never pre-filtered to "borderline" records:
 
@@ -128,43 +149,38 @@ whose grants are still intact was parked by the merge-verification gate (checks 
 its PR — `_shared/pr-first-merge.md`'s Step 2.5), not failed; re-triage there means checking the
 PR's checks, not re-authorizing a build.
 
-If `remaining > 0` (from the `fresh` budget slice), state it plainly in the report: "`{remaining}`
+If `.grantSlice.remaining > 0`, state it plainly in the report: "`{remaining}`
 more ready records awaiting grant-check exist beyond this run's `--budget {N}` — re-run to
 continue."
 
-When Step 1's worklist split excluded in-progress records (`inProgress` non-empty in
-`/tmp/backlog-refine-worklist.json`), state that once in the report too: "`{n}` in flight —
-excluded from grant checks; a grant changes nothing mid-run." Render nothing when the count is
-zero — the exclusion line exists so the drop is visible, never as a permanent fixture.
+When Step 1's compute block's `.counts.inProgress` is non-zero (those records are excluded from
+the grant worklist entirely — see the split description in Step 1), state that once in the report
+too: "`{n}` in flight — excluded from grant checks; a grant changes nothing mid-run." Render
+nothing when the count is zero — the exclusion line exists so the drop is visible, never as a
+permanent fixture.
 
 ### Trust signal (advisory, `github-issues` only)
 
-Resolve the `autonomy` ceiling and this run's trust table once, before rendering Step 4's table.
-Fetch the records per `_shared/trust-table.md`'s Fetch section (including its
+Gate on the `{resolved-ceiling}` value Step 1 already resolved: fetch and render this run's trust
+table only when `{resolved-ceiling}` is `trusted` or higher, **or** `--trust` was passed (see
+`SKILL.md`'s Input). Below `trusted` with no `--trust`, skip everything else in this section —
+`_shared/trust-table.md`'s Fetch section, including its per-parent branches and its `git log`
+read, never runs this session — Trust evidence is omitted from the report for this run, and Step
+4's footer renders the skip wording given there instead of the ceiling-description wording.
+
+When fetching: run `_shared/trust-table.md`'s Fetch section in full (including its
 `backlog-fetch-limit` resolution, its `work-links` resolution — which decides which of the two
 parent-issue branches to run — and its truncation warning), then look up each worklist record's
-class.
+class. `{resolved-ceiling}` and `{resolved-window}` below are the literal values Step 1 already
+resolved — do not re-run `resolve-policy.js` here, and do not `export` them in an earlier Bash call
+and read `process.env` here: shell environment does not survive between Bash calls and never
+reaches a subagent, so that expansion always resolves empty and this block would report
+`supervised` on a repo configured for `trusted`. It is the same hazard, and the same fix, as the
+`backlog-fetch-limit` substitution in the Fetch section this step already cites. The failure is
+quiet and in the safe direction, which is exactly why it needs stating: nothing errors, the console
+simply renders a false claim about live policy.
 
-Resolve `autonomy` and `trust-revert-window-days` in one canonical read (the resolver applies
-each key's schema default when it is absent):
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy trust-revert-window-days
-# line 1: autonomy -> {resolved-ceiling}; line 2: trust-revert-window-days -> {resolved-window}
-```
-
-**Substitute the literal values** for `{resolved-ceiling}` and `{resolved-window}` below. Do
-**not** `export` them in an
-earlier Bash call and read `process.env` here: shell environment does not survive between Bash
-calls and never reaches a subagent, so that expansion always resolves empty and this block would
-report `supervised` on a repo configured for `trusted`. It is the same hazard, and the same fix,
-as the `backlog-fetch-limit` substitution in the Fetch section this step already cites. The
-failure is quiet and in the safe direction, which is exactly why it needs stating: nothing errors,
-the console simply renders a false claim about live policy.
-
-This block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section
-above — it must never shell its own separate `git log` call, or its verdicts could silently
-disagree with the trust table this same run just rendered from the identical underlying evidence.
+This trust block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section above — it must never shell its own separate `git log` call, or its verdicts could silently disagree with the trust table this same run just rendered from the identical underlying evidence.
 `{resolved-window}` reaches the script as a `process.argv` arg after `--`, never spliced into the
 JS source — a value containing a quote character would otherwise break out of the string literal,
 the same reason `code-health/focus-mode.md`'s F1 block passes its own values that way.
@@ -292,6 +308,12 @@ one record's kind or verdict — and printing one under the whole table states a
 disposition as if it were the ceiling's. At `supervised`, the only value this footer will report
 on a repo that has not opted in, it reads "trust is recorded and displayed, never acted on", which
 is the honest description of what every verdict above is doing.
+
+**Skip case:** when the Trust signal section's gate skipped the fetch (ceiling below `trusted`, no
+`--trust`), omit the `Trust` column from the table entirely rather than filling it with
+`not fetched`, and render this exact footer instead of the ceiling-description footer above:
+
+"Autonomy ceiling: `supervised` — trust not fetched this run (recorded, never acted on; pass `--trust` to render it)."
 
 Populate the column for `grant`-type rows only; `priority` and `related` rows render `—`. Omit it
 entirely under `work-backend: local-files`, where the grant sub-stage does not run.

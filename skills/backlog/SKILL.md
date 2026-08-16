@@ -46,6 +46,7 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 - `critical` / `risk-value` / `cleanup` / `trust` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
 - `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20).
 - `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`) or on `refine`'s priority/Related sweep.
+- `--trust` → boolean presence flag, `refine` mode only — forces the trust-table fetch (and its Trust evidence rendering) at any ceiling; without it, `refine` fetches trust only when the `autonomy` ceiling resolves `trusted` or higher.
 
 ## Preflight
 
