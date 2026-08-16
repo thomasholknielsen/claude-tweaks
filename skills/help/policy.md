@@ -108,7 +108,7 @@ Run this yourself, from the repo root, to apply the recommended change:
 printf '%s\n' "{key}: {value}" >> "$(git rev-parse --show-toplevel)/.claude-tweaks/policy.yml"
 ```
 
-**If section 3 yielded zero recommendations** (either zero-finding case above): render all four render-contract sections as usual, then end with the single line `Nothing to change — configuration looks healthy; say "show advanced" to inspect defaults.` and skip the `AskUserQuestion` entirely. With a "No changes" option and no real recommendations, fewer than 2 real options exist for the call — per `docs/skill-authoring.md`'s lone-option rule, that means no call, not a call offering one meaningful option plus a no-op.
+**If section 3 yielded zero recommendations** (either zero-finding case above): render all four render-contract sections as usual, then end with the single line `Nothing to change — configuration looks healthy; say "show advanced" to inspect defaults.` and skip the `AskUserQuestion` entirely. With a "No changes" option and no real recommendations, fewer than 2 real options exist for the call — a lone real choice needs no question: state the outcome directly rather than asking the user to pick between one meaningful option and a no-op.
 
 **Otherwise**, the mode's ONE `AskUserQuestion` call (`multiSelect: true`):
 

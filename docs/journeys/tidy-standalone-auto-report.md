@@ -30,5 +30,5 @@ files:
 - **Expect:** No box-drawing tables; records as `#{N} "{title}"` (titles from the scan agents' own findings — no per-row `gh issue view`); `{run-dir}/decisions.md` referenced by path exactly once.
 
 ### 4. Next Actions close the loop
-- **Action:** The closing question derives from the report: "Apply all staged ({N})" first when Approve is non-empty, then up to Yours items (capped so the total never exceeds 4 options), then the help dashboard.
+- **Action:** The plain-markdown `## Next Actions` block derives from the report: an "Approve ({N})" line first (bolded, recommended) when Approve is non-empty, then Yours items as paste-ready commands in report order (total handoff capped at four lines), then the help dashboard — no closing question, no option cap.
 - **Expect:** A finding class that keeps staging run after run reads as a missing routing rule (the principle stated once in `step-6-auto.md`'s preamble) — the Approve bucket should trend empty as routing rows (or reconcile checks) absorb recurring classes; the durable exception is outward-facing GitHub writes, forbidden at every tier by the auto-mode contract.

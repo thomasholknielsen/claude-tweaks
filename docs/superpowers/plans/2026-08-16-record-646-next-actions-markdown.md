@@ -144,8 +144,8 @@ Expected: PASS.
 
 - [ ] **Step 5: Verify the retired line is gone (whitespace-tolerant regex — never type the literal sentence)**
 
-Run: `grep -rEn "End with .## Next Actions. via" skills/ docs/`
-Expected: zero hits (test files under `tests/` are not in scope of this grep and were rewritten anyway; this plan file deliberately contains neither the sentence nor this pattern's match).
+Run: `grep -rEn "En[d] with .## Next Actions. via" skills/ docs/`
+Expected: zero hits (test files under `tests/` are not in scope of this grep and were rewritten anyway).
 
 - [ ] **Step 6: Commit**
 
