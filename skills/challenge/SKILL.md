@@ -70,12 +70,11 @@ Multiple lenses (`--lens=3,5`) run in sequence and are returned as separate labe
 
 ## Next Actions
 
-Rendered only for `--lens` invocations (see Component-Skill Contract). Call `AskUserQuestion`:
+Rendered only for `--lens` invocations (see Component-Skill Contract). Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Brainstorm (Recommended)"`, `description`: `"/superpowers:brainstorming — explore solutions for the reframed problem, then /claude-tweaks:specify to decompose the resulting design doc"`
-- Option 2 — `label`: `"Another lens"`, `description`: `"/claude-tweaks:challenge --lens=<n[,n...]> {topic|#N} — apply a different lens to the same problem"`
-- Option 3 — `label`: `"Specify now"`, `description`: `"/claude-tweaks:specify {ref} — shape this record into spec shape; framing-check runs automatically as part of it"`
+**`/superpowers:brainstorming`** — explore solutions for the reframed problem, then `/claude-tweaks:specify` to decompose the resulting design doc (recommended)
+`/claude-tweaks:challenge --lens=<n[,n...]> {topic|#N}` — apply a different lens to the same problem
+`/claude-tweaks:specify {ref}` — shape this record into spec shape; framing-check runs automatically as part of it
 
 ## Component-Skill Contract
 

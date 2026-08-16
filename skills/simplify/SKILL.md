@@ -149,11 +149,10 @@ No simplifications needed — code is already clean.
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion`:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Full review (Recommended)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
-- Option 2 — `label`: `"Verify changes"`, `description`: `"/claude-tweaks:test — verify changes"`
+**`/claude-tweaks:review {spec}`** — code review quality gate (recommended)
+`/claude-tweaks:test` — verify changes
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 

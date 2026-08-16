@@ -334,12 +334,11 @@ Periodically (or when the backlog gets long), use `/claude-tweaks:tidy` to batch
 
 ## Next Actions
 
-When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, call `AskUserQuestion`:
+When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
-- Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage backlog records (promote, absorb, or drop stale items)"`
-- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this record straight to a spec ({ref} is '#{n}' under work-backend: github-issues, or the record id under work-backend: local-files)"` — omit this option when the born-ready chain already shaped the record earlier this turn; there is nothing left to promote
+**`/claude-tweaks:capture {next idea}`** — capture another idea while you're in brainstorming flow (recommended)
+`/claude-tweaks:tidy` — review and triage backlog records (promote, absorb, or drop stale items)
+`/claude-tweaks:specify {ref}` — promote this record straight to a spec ({ref} is `#{n}` under `work-backend: github-issues`, or the record id under `work-backend: local-files`); omit this line when the born-ready chain already shaped the record earlier this turn — there is nothing left to promote
 
 ## Component-Skill Contract
 

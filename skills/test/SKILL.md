@@ -217,15 +217,12 @@ Pick the row matching the mode just completed:
 | Verification failed (types/lint/tests) | Fix the failures, then re-run `/claude-tweaks:test` |
 | QA failed | Investigate failures (Fix Mode option 1), then `/claude-tweaks:test qa retry={RUN_DIR}` |
 
-**On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Call `AskUserQuestion` with exactly 2 options:
+**On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), bolding whichever matches the current run's actual signal and suffixing it `(recommended)` — UI files changed AND browser available → the full-review line; otherwise → the plain-review line:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Code review"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
-- Option 2 — `label`: `"Code + visual review"`, `description`: `"/claude-tweaks:review {spec} full — code + visual review"`
+`/claude-tweaks:review {spec}` — code review quality gate
+`/claude-tweaks:review {spec} full` — code + visual review
 
-Whichever matches the current run's actual signal gets `(Recommended)` on its label — UI files changed AND browser available → Option 2; otherwise → Option 1.
-
-**The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions; do not force them into a one-option `AskUserQuestion` call.
+**The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions in the table above; they do not render as markdown command lines.
 
 ## Component-Skill Contract
 

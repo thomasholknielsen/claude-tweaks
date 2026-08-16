@@ -174,11 +174,11 @@ git commit -m "Add/update {journey name} journey"
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Generate QA stories (Recommended)"`, `description`: `"/claude-tweaks:stories — generate QA stories from journeys"`
-- Option 2 — `label`: `"Visual review"`, `description`: `"/claude-tweaks:visual-review journey:{name} — visual review of a journey"`
-- Option 3 — `label`: `"Verify"`, `description`: `"/claude-tweaks:test {spec} — verify implementation"`
+**`/claude-tweaks:stories`** — generate QA stories from journeys (recommended)
+`/claude-tweaks:visual-review journey:{name}` — visual review of a journey
+`/claude-tweaks:test {spec}` — verify implementation
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 
