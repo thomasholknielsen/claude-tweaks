@@ -147,9 +147,12 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 }
 
 // records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
-// parked, notPlanned, needsYou }. Mutually exclusive buckets over the post-merge
-// faceted set (github + unsynced) — the funnel decision surface /claude-tweaks:backlog
-// overview's bare mode renders. First match wins, in this order; the precedence
+// parked, notPlanned, needsYou }. The eight stage keys (captured..notPlanned)
+// are mutually exclusive buckets over the post-merge faceted set (github +
+// unsynced); needsYou is a separate overlay, not a bucket — see the overlay
+// loop's comment below. Together they form the funnel decision surface
+// /claude-tweaks:backlog overview's bare mode renders. First match wins, in
+// this order for the eight stage keys; the precedence
 // rationale: bot-state outranks stage labels because live work reflects current
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
 // toward what is actually happening right now), and granted is checked before
@@ -166,8 +169,7 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // splitScoredUnscored's scored means FULLY scored — both risk and size — for
 // the lens views. Deliberate, not drift: the funnel tracks "has triage
 // started?" while the lenses need "is there enough signal to rank on?".
-// needsYou is an OVERLAY, never a ninth stage: every record above keeps its
-// one primary bucket (exclusivity and sum-to-total invariants untouched).
+// needsYou is an overlay, not a bucket — see the overlay loop's comment.
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
@@ -202,6 +204,11 @@ function funnelBuckets(records) {
   const needsYou = [];
   for (const r of records) {
     const f = r.facets;
+    // The human lane covers records still in play — a bot is actively
+    // building an inFlight record, and parked/not-planned records are
+    // /tidy's domain; surfacing them as the session's recommended move would
+    // invert the lane's premise. Skip before the facet checks below.
+    if (f.bot.inProgress || f.stage === 'parked' || f.notPlanned === true) continue;
     if (f.needsDefinition === true) needsYou.push({ id: r.number ?? r.id, kind: 'definition' });
     else if (f.solutionUnjustified === true) needsYou.push({ id: r.number ?? r.id, kind: 'unjustified' });
   }

@@ -98,14 +98,18 @@ shaped        {n} → /claude-tweaks:backlog grant (or dispatch here with the hu
 granted       {n}   (no pointer — waiting on blockers; the blocker itself appears in the dispatch hand-off)
 dispatchable  {n} → /claude-tweaks:dispatch / /claude-tweaks:flow #N
 in flight     {n}   (no pointer — informational; claims honored)
-└─ needs you: {n}  (human-owed lane — fed from needsYou overlay; omitted at zero)
+└─ needs you: {n}   (human-owed — the one lane no agent can drain)
 ```
+
+The branch line is fed from `funnelBuckets`' `needsYou` overlay; rendered only when non-zero
+(dormant repos never render it).
 
 The header ends at `in flight` deliberately even though it is not the most actionable stage: the
 header is the process axis read left-to-right; the terminal-tail actionability principle is
 satisfied by the report's *body* ending in the hand-off and Next sections, not by the header's last
 column. The header replaces the summary counts too — do not re-add a prose counts paragraph above
-it; the header *is* the counts.
+it; the header *is* the counts. The branch line below the header is a lane annotation, not a
+seventh stage column.
 
 Then at most **two annotation lines total**:
 
@@ -116,7 +120,9 @@ Then at most **two annotation lines total**:
   `.funnel.parked.length` / `.funnel.notPlanned.length`, only when either count is non-zero.
 
 Every record appears exactly once across the header's populations (`funnelBuckets` is mutually
-exclusive by construction) — never re-list a record in a second stage or an extra summary.
+exclusive by construction) — never re-list a record in a second stage or an extra summary — the
+`needs you` branch line is the deliberate exception: an overlay over the stages above, its members
+counted twice by design.
 
 ## Step 3 (bare only): Recommend what to build next
 
@@ -154,7 +160,7 @@ node -e "
 - **Headline-replacement rule:** when detection fires, the flagged candidates get no mechanical recommendation. Either (a) the output cites explicit dependency evidence it holds — native links on other candidates, the flagged records' own prose — as a **corrected** "Recommended next" with the citation inline, in which case the corrected pick IS the headline and the raw ranker pick demotes to a one-line footnote (never render a recommendation the same output retracts); or (b) when no such evidence resolves an order, the output states plainly that ranking is unreliable for the flagged set and points at `/claude-tweaks:backlog refine`'s dependency repair.
 - A worked example tracing the observed #418/#419/#420 failure: three records wired `#420 blocked-by #419 blocked-by #418` in the native graph, bodies carrying only prose mentions ("Hard prerequisites, wired as Blocked by links: …"). Pre-#514: bodies parse as zero-dependency, `rankNextToBuild` recommends #420 (the chain's *last* record) first. Post-#514: the native fetch attaches `#420→blockedBy:[419]`, `#419→blockedBy:[418]`, `#418→blockedBy:[]`; `computeUnblocksCount` then yields `418→1, 419→1, 420→0`, so #420 — the record the old path recommended first — drops to last, while #418 and #419 tie at 1. That residual tie (including the fact that a blocked candidate is not demoted by ranking — #419 is itself blocked by #418, yet ties with it) is left to the batch-emitter sub-issue's chain-aware ordering. Had the fetch failed instead, `findUnresolvedDependencyProse` flags all three (prose mention, empty resolution) and case (b) replaces the headline with the unreliable-ranking statement.
 
-Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role.
+Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the menu's `(Recommended)` option deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
 
 ## Step 4: Batch emitter (bare mode)
 
@@ -162,8 +168,8 @@ Bare mode only — lens runs end at their own table (Step 2) and never reach thi
 
 **Input precondition:** the dispatch-block candidate set is `funnelBuckets`'s `dispatchable` ∪
 `granted` (Step 2's `.funnel` — already filtered; `needs:definition` records structurally can't be
-in it since they never reach `ready`; the Shape block's own human-owed filtering belongs to the
-needs-you sub-issue). The Shape block's population is the `scored` bucket (records shaped next);
+in it since they never reach `ready`; the Shape block's own human-owed filtering is the
+Shape-block exclusion rule below). The Shape block's population is the `scored` bucket (records shaped next);
 the Score line's count is the `captured` bucket.
 
 Compute the batch's graph structure, transitive payout, and file-overlap groups in one pass,
@@ -217,8 +223,10 @@ chains-first-then-independents grouping.
 /claude-tweaks:specify #{N}
 # Terminal 2 — priority:{tier} — {one-line hook}
 /claude-tweaks:specify #{M}
-# #N excluded — needs:definition: yours to decide (see Needs you below)
+# #{N} excluded — needs:definition: yours to decide (see Needs you below)
 ```
+
+The exclusion line is one line per matching record — absent entirely when none (dormant repos render neither this line nor the unjustified one below). It attaches immediately above the Shape block's command lines and applies in ANY paste block a matching record appears in.
 
 ```
 ── Dispatch now ──
@@ -226,10 +234,12 @@ chains-first-then-independents grouping.
 /claude-tweaks:flow #A,#B,#C
 # Terminal 2 — independent
 /claude-tweaks:flow #D
-# ⚠ solution:unjustified — one-line evidence call pending
+# ⚠ #{N} solution:unjustified — one-line evidence call pending
 # Terminal {k} — serialized: #A, #B (file overlap: {files})
 /claude-tweaks:flow #A,#B
 ```
+
+The unjustified-annotation line is likewise one line per matching record, absent entirely when none (dormant repos render neither this line nor the exclusion line above) — it attaches immediately above the command line it annotates, and applies in ANY paste block a matching record appears in (a `solutionUnjustified` record keeps its primary funnel bucket, so it can surface in Shape or Dispatch alike).
 
 Prose rules: the Score line's count is comment-only (`refine` has no count flag); Shape lines are
 priority-ordered, one record per terminal; a chain emits as **one** multi-ref
@@ -247,6 +257,13 @@ siblings that have no edge between them.
 already partitioned — the rules below name where each excluded population surfaces, they never
 re-derive membership.
 
+- **Shape-block exclusion** — the excluded population is the `scored`-bucket records carrying
+  `needsDefinition === true` (`funnelBuckets`'s `needsYou` overlay, kind `definition`). Each is
+  excluded from the Shape block's terminals with the `# #{N} excluded — needs:definition: yours to
+  decide (see Needs you below)` comment line (Step 4's Shape template above) — never a bare
+  `/claude-tweaks:specify #{N}` command, since deciding whether the record needs definition is the
+  human's call, not the agent's; counted under rule (c) and surfaced again, with fuller context, in
+  the Needs you lane below.
 - **(a) Overlap serialization** — scoped to the Dispatch block only (Shape-block records are
   unshaped and carry no `### Key Files`, so file-overlap grouping doesn't apply there). Records
   `groupByFileOverlap` groups together never appear in different concurrent terminal blocks.
@@ -306,10 +323,18 @@ Rendered **last before Next Actions**, only when `funnelBuckets`' `needsYou` is 
 One line per record with an interactive launcher, fully qualified:
 - `kind: 'definition'` → `/claude-tweaks:specify #{N}` with a `#`-comment naming the label, waiting-age, and what deciding it releases (e.g. `# needs:definition — waiting {age}; deciding releases {k} records`)
 - `kind: 'unjustified'` → `/claude-tweaks:challenge #{N}` with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call`)
+- `unsynced: true` needs-you records never render a `#{N}` launcher (local-namespace ids) — they render one `#`-comment naming the sync gap and pointing at `/claude-tweaks:tidy`, still counted in the branch-line total.
 
-**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch), and reads releases-count from `transitiveUnblocksCount` (computed over the union of the emitter candidates and the joined needs-you records) — sort by releases desc, then priority, then age (oldest first).
+**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count — from `transitiveUnblocksCount` (#515's pinned helper) over the emitter candidates — is an **advisory annotation** on each row, not a sort key, because needs-you records get no blocker attachment and their dependents are mostly outside the buildable set, so the count structurally undercounts (stated limitation, same shape as the funnel header's native-blocker limitation).
 
 **Cap + pointer:** at most 3 rows named; beyond that, one pointer line: `{M} more human-owed records → /claude-tweaks:backlog attention (when available)` — advisory until that mode ships (#471's decomposition), count always shown. Interim-launcher honesty note, citing #471: until #471's redirect gate ships, `/claude-tweaks:specify #{N}` on a `needs:definition` record still lands in ordinary shaping mode — acceptable interim (the human is present either way); this caveat is removed by #471's own landing.
+
+The same interim caveat covers the `kind: 'unjustified'` launcher: the bare-ref `/claude-tweaks:challenge #{N}` form arrives with #471's challenge changes — today the skill accepts only `framing-check` (/specify-invoked) or `--lens=<n> <target>`, neither of which is a bare `#{N}` ref. This half of the lane is dormant until #471's facet exists, so the line cannot render before the form becomes valid — #471's landing removes this caveat too.
+
+Needs you stays the last **rendered** section of the report body — the section below is
+document-level, not a continuation of this lane.
+
+### Two-channel contract and the Next: line
 
 **Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
 only; the `AskUserQuestion` menu carries this-session moves only (run refine here, open a lens,

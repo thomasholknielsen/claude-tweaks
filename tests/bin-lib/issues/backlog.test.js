@@ -228,7 +228,11 @@ test('a pre-rename effort:* label reaches both gates through the parser permanen
 // --- funnelBuckets (record #513) ---
 
 // Minimal faceted-record builder for funnelBuckets cases. Mirrors
-// sharedFacetDefaults()'s shape — keys funnelBuckets reads are explicit.
+// sharedFacetDefaults()'s shape — keys funnelBuckets reads are explicit,
+// except the two needs-facets (needsDefinition, solutionUnjustified), which
+// are deliberately absent from these defaults: their dormancy (see the
+// needsYou overlay's header comment) means a fixture that wants one must
+// opt in via facetOverrides rather than inherit a stamped-false default.
 function rec(number, facetOverrides = {}, extra = {}) {
   return {
     number,
@@ -269,11 +273,12 @@ test('funnelBuckets: every open record lands in exactly one bucket and sizes sum
   assert.deepEqual(b.captured.map((r) => r.number), [8]);
 });
 
-test('funnelBuckets: empty input yields eight empty buckets', () => {
+test('funnelBuckets: empty input yields empty buckets and overlay', () => {
   const b = funnelBuckets([]);
   for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned']) {
     assert.deepEqual(b[key], []);
   }
+  assert.deepEqual(b.needsYou, []);
 });
 
 // Adjacent-precedence pins (spec Deliverables): bot-state outranks stage labels;
@@ -401,4 +406,20 @@ test('funnelBuckets: solutionUnjustified facet (expected #471 key) joins needsYo
 test('funnelBuckets: both needs-facets yield exactly one needsYou entry with kind definition (#471 precedence)', () => {
   const b = funnelBuckets([rec(1, { needsDefinition: true, solutionUnjustified: true })]);
   assert.deepEqual(b.needsYou, [{ id: 1, kind: 'definition' }]);
+});
+
+// Overlay bucket filter (spec #516, Imp 6): a record whose primary bucket is
+// inFlight, parked, or notPlanned never joins needsYou even when it also
+// carries a needs-facet — a bot is already building it, or it's /tidy's
+// domain, not the session's recommended move.
+test('funnelBuckets: bot:in-progress record with needsDefinition does NOT appear in needsYou', () => {
+  const b = funnelBuckets([rec(1, { bot: { inProgress: true, blocked: false }, needsDefinition: true })]);
+  assert.deepEqual(b.needsYou, []);
+  assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
+});
+
+test('funnelBuckets: notPlanned record with solutionUnjustified does NOT appear in needsYou', () => {
+  const b = funnelBuckets([rec(1, { notPlanned: true, solutionUnjustified: true })]);
+  assert.deepEqual(b.needsYou, []);
+  assert.deepEqual(b.notPlanned.map((r) => r.number), [1]);
 });
