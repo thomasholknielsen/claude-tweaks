@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue } = require('../bin/lib/policy-schema');
+const { POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, resolvePolicyKeys } = require('../bin/lib/policy-schema');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-policy-schema-'));
@@ -161,6 +161,56 @@ test('the three #331-retired keys are gone from POLICY_KEYS', () => {
   }
 });
 
+test('#332 renames: seven new names are in POLICY_KEYS with unchanged shape; old names live only in RENAMED_KEYS', () => {
+  const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
+  const expect = [
+    ['review-severity-floor', 'review-auto-apply-ceiling', { type: 'enum', values: ['none', 'low', 'medium'], default: 'low' }],
+    ['automerge-max-lines', 'auto-merge-max-lines', { type: 'integer', default: 40 }],
+    ['automerge-max-files', 'auto-merge-max-files', { type: 'integer', default: 2 }],
+    ['project.maturity', 'project-maturity', { type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' }],
+    ['harness-health.scoped-rule-budget', 'harness-health-scoped-rule-budget', { type: 'integer', default: 30 }],
+    ['harness-health.always-loaded-budget', 'harness-health-always-loaded-budget', { type: 'integer', default: 150 }],
+    ['doc-convention.adr', 'doc-convention-adr', { type: 'enum', values: ['plugin', 'project'] }],
+  ];
+  for (const [oldKey, newKey, shape] of expect) {
+    assert.ok(!byKey.has(oldKey), `${oldKey} must not remain in POLICY_KEYS (renamed in #332)`);
+    const row = byKey.get(newKey);
+    assert.ok(row, `${newKey} missing from POLICY_KEYS`);
+    assert.strictEqual(row.type, shape.type, `${newKey}: type`);
+    if ('values' in shape) assert.deepStrictEqual(row.values, shape.values, `${newKey}: values`);
+    if ('default' in shape) assert.strictEqual(row.default, shape.default, `${newKey}: default`);
+    else assert.strictEqual(row.default, undefined, `${newKey}: must stay default-less`);
+    assert.strictEqual(typeof row.summary, 'string', `${newKey}: metadata carried across`);
+  }
+});
+
+test('#332 renames: a stray old-name line resolves under the new name with renamed-from attribution, resolves when asked by its old name, and audits under renamedKeys', () => {
+  const pairs = [
+    ['review-severity-floor', 'review-auto-apply-ceiling', 'medium', 'medium'],
+    ['automerge-max-lines', 'auto-merge-max-lines', '55', 55],
+    ['automerge-max-files', 'auto-merge-max-files', '4', 4],
+    ['project.maturity', 'project-maturity', 'established', 'established'],
+    ['harness-health.scoped-rule-budget', 'harness-health-scoped-rule-budget', '12', 12],
+    ['harness-health.always-loaded-budget', 'harness-health-always-loaded-budget', '99', 99],
+    ['doc-convention.adr', 'doc-convention-adr', 'project', 'project'],
+  ];
+  for (const [oldKey, newKey, raw, coerced] of pairs) {
+    const resolved = resolvePolicyKeys([newKey], { policyRaw: `${oldKey}: ${raw}\n` });
+    assert.strictEqual(resolved[newKey].value, coerced, `${oldKey}: value migrates`);
+    assert.strictEqual(resolved[newKey]['renamed-from'], oldKey, `${oldKey}: renamed-from attribution`);
+    const asked = resolvePolicyKeys([oldKey], { policyRaw: `${oldKey}: ${raw}\n` });
+    assert.strictEqual(asked[oldKey].value, coerced, `${oldKey}: requesting the old name resolves the replacement key (established alias contract — tests/resolve-policy-lib.test.js), never unknown-key`);
+    assert.strictEqual(asked[oldKey].source, 'policy');
+    const repo = tmpRepo();
+    writePolicy(repo, `${oldKey}: ${raw}\n`);
+    const audit = auditPolicy(repo);
+    const hit = audit.renamedKeys.find((r) => r.key === oldKey);
+    assert.ok(hit, `${oldKey}: audit lists it under renamedKeys`);
+    assert.strictEqual(hit.replacedBy, newKey);
+    assert.deepStrictEqual(audit.unrecognizedKeys, [], `${oldKey}: never also unrecognized`);
+  }
+});
+
 test('a recognized key in CLAUDE.md is flagged for migration, not validated', () => {
   const repo = tmpRepo();
   writeClaudeMd(repo, 'tidy-aggressiveness: moderate\n');
@@ -262,7 +312,7 @@ test('RENAMED_KEYS names every alias and retirement, each with its migration', (
   // 2 -> 7, #331 (key collapse): execution.always -> execution-strategy
   // (lock-preserving migrate), merge-check -> branch-divergence-check
   // (identity migrate), plus three retirements with replacedBy: null.
-  assert.strictEqual(RENAMED_KEYS.length, 7);
+  assert.strictEqual(RENAMED_KEYS.length, 14);
   const byKey = new Map(RENAMED_KEYS.map((entry) => [entry.key, entry]));
   assert.strictEqual(byKey.get('unattended-tier').replacedBy, 'autonomy');
   assert.strictEqual(byKey.get('dispatch-pick-max-concurrent').replacedBy, 'dispatch-batch-size');
@@ -284,6 +334,26 @@ test('RENAMED_KEYS names every alias and retirement, each with its migration', (
     assert.strictEqual(entry.replacedBy, null, 'retired outright — no replacement key');
     assert.strictEqual(entry.migrate('anything'), null, 'nothing carries forward from a retirement');
   }
+
+  // 7 -> 14, #332 (naming convention + rename program): seven identity
+  // renames — one misnomer (review-severity-floor is a max, so -ceiling),
+  // two spelling fixes (automerge -> auto-merge), four dot -> dash. Every
+  // one carries the value across unchanged; only the name moved.
+  const RENAMES_332 = {
+    'review-severity-floor': 'review-auto-apply-ceiling',
+    'automerge-max-lines': 'auto-merge-max-lines',
+    'automerge-max-files': 'auto-merge-max-files',
+    'project.maturity': 'project-maturity',
+    'harness-health.scoped-rule-budget': 'harness-health-scoped-rule-budget',
+    'harness-health.always-loaded-budget': 'harness-health-always-loaded-budget',
+    'doc-convention.adr': 'doc-convention-adr',
+  };
+  for (const [oldKey, newKey] of Object.entries(RENAMES_332)) {
+    const entry = byKey.get(oldKey);
+    assert.ok(entry, `${oldKey} missing from RENAMED_KEYS`);
+    assert.strictEqual(entry.replacedBy, newKey);
+    assert.strictEqual(entry.migrate('anything'), 'anything', `${oldKey}: identity migrate — value shape unchanged`);
+  }
 });
 
 test('recognized key with a valid value -> no invalidValues entry', () => {
@@ -304,10 +374,10 @@ test('recognized enum key with an invalid value -> flagged', () => {
 
 test('recognized integer key with a non-integer value -> flagged', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'automerge-max-lines: forty\n');
+  writePolicy(repo, 'auto-merge-max-lines: forty\n');
   const result = auditPolicy(repo);
   assert.strictEqual(result.invalidValues.length, 1);
-  assert.strictEqual(result.invalidValues[0].key, 'automerge-max-lines');
+  assert.strictEqual(result.invalidValues[0].key, 'auto-merge-max-lines');
 });
 
 test('recognized boolean key with a non-boolean value -> flagged', () => {
@@ -372,24 +442,24 @@ test('malformed policy.yml (unparseable) is treated as absent, not thrown', () =
   assert.doesNotThrow(() => auditPolicy(repo));
 });
 
-test('doc-convention.adr is an enum with no default — unset means "detect and ask"', () => {
-  const key = POLICY_KEYS.find((k) => k.key === 'doc-convention.adr');
-  assert.ok(key, 'doc-convention.adr missing from POLICY_KEYS');
+test('doc-convention-adr is an enum with no default — unset means "detect and ask"', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'doc-convention-adr');
+  assert.ok(key, 'doc-convention-adr missing from POLICY_KEYS');
   assert.strictEqual(key.type, 'enum');
   assert.deepStrictEqual(key.values, ['plugin', 'project']);
   assert.strictEqual(key.default, undefined, 'unset is a meaningful third state: the question has not been asked yet');
 
   const repo = tmpRepo();
-  writePolicy(repo, 'doc-convention.adr: project\n');
+  writePolicy(repo, 'doc-convention-adr: project\n');
   const ok = auditPolicy(repo);
   assert.deepStrictEqual(ok.invalidValues, []);
   assert.deepStrictEqual(ok.unrecognizedKeys, []);
 
   const bad = tmpRepo();
-  writePolicy(bad, 'doc-convention.adr: whatever-the-repo-does\n');
+  writePolicy(bad, 'doc-convention-adr: whatever-the-repo-does\n');
   const result = auditPolicy(bad);
   assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
-  assert.strictEqual(result.invalidValues[0].key, 'doc-convention.adr');
+  assert.strictEqual(result.invalidValues[0].key, 'doc-convention-adr');
 });
 
 test('superpowers-plans-retention is an enum defaulting to keep-forever', () => {
