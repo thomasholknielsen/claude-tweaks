@@ -122,8 +122,9 @@ actual reader rather than by deleting the write.
 Who may add / remove which labels. "Machinery" = any headless or autonomous path.
 
 **Every row is exhaustive for its actor.** There is no general "agent path" row that widens the
-specific ones — the `autonomy` ceiling's born-`ready` tier is written into `/capture`'s row
-directly, because that is the only actor it currently covers. Extending it to another residue
+specific ones — the `autonomy` ceiling's born-`ready` tier is documented on `/capture`'s row
+directly — as the `/claude-tweaks:specify --chained` chain its Never column describes,
+`/capture` being the only actor it currently covers. Extending it to another residue
 producer (`/wrap-up` leftovers, `/reflect` routing, `/demo` follow-ups — the `side-effect:*`
 classes) means editing that actor's own row, deliberately, and until then their `Never` columns
 hold as written whatever the ceiling says.
@@ -259,12 +260,15 @@ Deliverables / Acceptance Criteria bodies with scoring. They therefore file with
 already applied and appear directly in the gate's worklist, skipping maturation. Captured
 and human-filed records start in backlog state and reach `ready` through `/specify`.
 
-Under `autonomy: trusted` or higher, `/capture` files born-`ready` too when the
+Under `autonomy: trusted` or higher, a `/capture` filing reaches born-`ready` too when the
 `producer:capture` class carries a `clean` trust verdict — the same reasoning reached a different
-way, the class having *demonstrated* its output is spec-shaped rather than being so by
-construction. `/capture` is the only actor this covers; every other agent path keeps the `Never`
-column its own matrix row states. See `_shared/autonomy-ceiling.md`. At `supervised`, the default,
-`/specify` remains the only road to `ready` for a captured record.
+way, the class having *demonstrated* it earns the skip. The mechanism differs from the
+by-construction case: `/capture` itself files plain and chains into `/claude-tweaks:specify
+--chained` shaping in the same turn, so the body is spec-shaped and `ready` is stamped under
+`/specify`'s own authority, never `/capture`'s. `/capture` is the only actor this covers; every
+other agent path keeps the `Never` column its own matrix row states. See
+`_shared/autonomy-ceiling.md`. At `supervised`, the default, a human-invoked `/specify` remains
+the only road to `ready` for a captured record.
 
 ## Decomposition rules
 
