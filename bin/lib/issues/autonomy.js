@@ -82,7 +82,7 @@ function permittedGrants(input) {
   }
 
   // At `trusted`, a class that has earned it may file spec-shaped work directly
-  // as `ready`. That skips /claude-tweaks:specify, not the grant: `ready` asserts
+  // as `ready`. That skips the human shaping round-trip, not the grant: `ready` asserts
   // shape, and _shared/work-record.md's human gate at /claude-tweaks:backlog
   // refine still stands between `ready` and any autonomous build. Agent-filed
   // classes only — see AGENT_FILED_KINDS.
