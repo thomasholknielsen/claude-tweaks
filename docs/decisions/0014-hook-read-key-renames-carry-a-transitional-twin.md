@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-08-16
-- **Context:** #602, applying #332's `## Key naming` rule (`skills/_shared/policy-schema.md`) to `worktree.always`, the last dotted key
+- **Context:** #602, applying #332's naming rule (`skills/_shared/policy-key-naming.md`) to `worktree.always`, the last dotted key
 
 ## Context
 

@@ -54,7 +54,7 @@ Removal condition: the shared predicate above, with `{key}` = `automerge-max-fil
 
 ## `project.maturity` (renamed to `project-maturity`, #332)
 
-Now: migrates at read — identity `migrate`, enum semantics unchanged, `renamed-from` attribution. Dot → dash per `policy-schema.md`'s `## Key naming` rule. `/claude-tweaks:init` writes the new name into generated `policy.yml` files; a pre-#332 project's dotted line keeps resolving until the removal condition is met.
+Now: migrates at read — identity `migrate`, enum semantics unchanged, `renamed-from` attribution. Dot → dash per `_shared/policy-key-naming.md`. `/claude-tweaks:init` writes the new name into generated `policy.yml` files; a pre-#332 project's dotted line keeps resolving until the removal condition is met.
 
 Removal condition: the shared predicate above, with `{key}` = `project.maturity`.
 

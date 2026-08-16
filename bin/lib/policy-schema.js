@@ -232,7 +232,7 @@ function parseFlatLines(raw) {
     // Every top-level key starts in column 0 — nesting is never expressed by
     // indentation. Dotted names still parse (the RENAMED_KEYS aliases such as
     // harness-health.scoped-rule-budget are dotted inputs), but new keys are
-    // flat kebab-case per skills/_shared/policy-schema.md's `## Key naming`.
+    // flat kebab-case per skills/_shared/policy-key-naming.md.
     // An indented line belongs to a nested block's own field (today, only
     // model-profiles' rows) and must never be read as a flat key in its own
     // right.

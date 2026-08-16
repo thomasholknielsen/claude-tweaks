@@ -182,7 +182,7 @@ under `docs/guides/` or `docs/how-to/`, and whether its files are named
 ## The record
 
 Flat kebab-case enum keys, matching `harness-health-scoped-rule-budget` and the naming
-convention in `skills/_shared/policy-schema.md`'s `## Key naming` (no dots) and the
+convention in `skills/_shared/policy-key-naming.md` (no dots) and the
 `execution.always` precedent for an enum with **no default** — unset is a meaningful third
 state:
 

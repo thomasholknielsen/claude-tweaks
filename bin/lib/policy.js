@@ -1,9 +1,9 @@
 // bin/lib/policy.js — reads flat kebab-case project policy from
-// .claude-tweaks/policy.yml (skills/_shared/policy-schema.md `## Key
-// naming`); dotted names still parse — they are the RENAMED_KEYS aliases.
+// .claude-tweaks/policy.yml (skills/_shared/policy-key-naming.md); dotted
+// names still parse — they are the RENAMED_KEYS aliases.
 // No YAML dependency: the plugin ships zero runtime deps, and the only
 // supported shape is a top-level `key: value` line, in the flat kebab-case
-// convention the `## Key naming` section above documents.
+// convention that file documents.
 // Parsing is delegated to bin/lib/policy-schema.js's parseFlatLines, so one
 // flat-line parser implementation remains; this module only does the fs read
 // plus each reader's own value interpretation.
