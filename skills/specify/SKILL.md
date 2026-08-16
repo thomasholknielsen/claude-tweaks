@@ -1,7 +1,7 @@
 ---
 name: specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
-argument-hint: "<#N|record-id|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra|terminal>] [--granularity <fine|standard|coarse>] [--chained]"
+argument-hint: "<#N[,#M...]|record-id[,id...]|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra|terminal>] [--granularity <fine|standard|coarse>] [--chained]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -35,9 +35,11 @@ The plugin enforces a 2-tier artifact taxonomy:
 
 ## Input
 
-`$ARGUMENTS` = `<record-ref-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
+`$ARGUMENTS` = `<record-ref[,record-ref...]-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
 
 The first argument is a work record reference (`#N`, an issue URL, or a bare local record id), a path to a design doc, a topic name, or a backlog reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel. `phase-N` only applies when the input resolves to a design doc (decomposition mode); a work record reference resolves to shaping mode and ignores it.
+
+**Comma-list batch form (`#N[,#M...]` — shaping-mode-only).** Several record references may be given as one comma-joined, no-spaces token — `#701,#702` under `work-backend: github-issues`, or `record-id[,id...]` (e.g. `701,702`) under `work-backend: local-files` — mirroring `/claude-tweaks:flow`'s `#42,#45,#48` convention. Every element must be a record reference; a comma list containing a design-doc path or a topic is rejected with a one-line error naming the offending element (`"'{element}' is not a record reference — a comma list shapes records only; give a design doc or topic on its own"`), since decomposition and topic resolution stay single-input. Each element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does), every unresolvable element is reported in one message before any record is shaped, and the whole set then enters shaping mode together — `shaping-mode.md`'s per-record loop. `phase-N` and `--granularity` are ignored on a comma list exactly as they already are for a single record reference; `--surface` applies to every record in the batch (the "every record this run produces" semantics below); `--chained` on a comma list is rejected with a one-line notice — `/claude-tweaks:capture`'s born-ready chain shapes exactly one record per invocation, and that contract does not change here.
 
 Three optional flags may appear anywhere after the first argument (the first two in either mode; `--chained` in shaping mode only):
 
@@ -56,6 +58,7 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 /claude-tweaks:specify food graph phase-3                        → resolve to design doc, decompose phase 3 only
 /claude-tweaks:specify #142                                      → shape record #142 in place
 /claude-tweaks:specify #142 --surface backend                    → shape record #142, forcing Surface: backend regardless of the sniff
+/claude-tweaks:specify #142,#143,#150                            → shape records #142, #143, #150 in place, one after another (comma-list batch, shaping mode only)
 /claude-tweaks:specify docs/superpowers/specs/food-graph-design.md --granularity fine   → decompose all phases with finer (smaller, more numerous) sub-issues
 ```
 
@@ -63,7 +66,7 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 
 ### Resolve the input:
 
-1. **Work record reference** — a URL matching `https://github.com/{owner}/{repo}/issues/{n}`, or a shorthand like `#123` / `issue 123` / `gh-123`, or a bare local record id (e.g. `42`). Checked *before* case 2's path/topic disambiguation, since an issue URL contains `/` and would otherwise misparse as a design-doc path. Fetch it directly: `gh issue view {n} --json number,title,body,url,labels` (GitHub driver) or glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`; local-files driver). Enter **shaping mode** (below) — the record IS the target, not a source to translate; there is no source-extraction step. Scoring is read from the fetched labels via `parseRecordFacets` (`bin/lib/issues/record.js`) or the record's `facets` (local) only to decide which of `risk:*`/`size:*` shaping mode still needs to stamp — never to gate whether shaping runs.
+1. **Work record reference** — a URL matching `https://github.com/{owner}/{repo}/issues/{n}`, or a shorthand like `#123` / `issue 123` / `gh-123`, or a bare local record id (e.g. `42`). Checked *before* case 2's path/topic disambiguation, since an issue URL contains `/` and would otherwise misparse as a design-doc path. Fetch it directly: `gh issue view {n} --json number,title,body,url,labels` (GitHub driver) or glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`; local-files driver). Enter **shaping mode** (below) — the record IS the target, not a source to translate; there is no source-extraction step. Scoring is read from the fetched labels via `parseRecordFacets` (`bin/lib/issues/record.js`) or the record's `facets` (local) only to decide which of `risk:*`/`size:*` shaping mode still needs to stamp — never to gate whether shaping runs. **Batch branch:** when the first argument is a comma-joined list of record references (the `#N[,#M...]` form in `## Input`), split on `,`, resolve every element through this same case independently (parallel fetches), report every unresolvable element in one message before shaping any of them, and enter shaping mode with the full set — `shaping-mode.md` loops its procedure once per record. An element that is not a record reference fails the whole invocation with the one-line error `## Input` states; nothing is shaped.
 2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) — read it directly. Disambiguation rule: a string containing `/` or ending in `.md`, that didn't match case 1 above, is treated as a path. Enter **decomposition mode** (Step 1 onward).
 
 **Execution order for cases 3-5:** these three cases all apply to input that is neither a record reference (case 1) nor a path (case 2) — free text. They are listed below grouped by resolution outcome, not by execution order. Try case 5's record search first: does an open record's title match these keywords? Only when that search finds nothing, fall through to case 3's design-doc search; only when that also finds nothing, fall through to case 4's brainstorming invocation. A reader implementing cases 3-5 in list order instead (design doc before backlog record) resolves free text differently than intended.
@@ -80,9 +83,9 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 
 This explicit disambiguation prevents the silent wrong-path failure flagged by past polymorphic-input edge cases.
 
-## Shaping mode (single record)
+## Shaping mode (one or more records)
 
-Entered from Resolve-the-input case 1 (work record reference) or case 5 (backlog reference with no matching design doc). The record already exists and IS the target — there is nothing to decompose.
+Entered from Resolve-the-input case 1 (a work record reference, or a comma-joined batch of them) or case 5 (backlog reference with no matching design doc). Each record already exists and IS the target — there is nothing to decompose; a batch runs the same procedure once per record.
 
 Read `shaping-mode.md` in this skill's directory for the full procedure: editing the body into spec shape, preserving the original request, the `Surface:`/`Design-intent:` metadata block, stamping scoring and stage labels, and the compose-then-write-once write call per driver. That procedure is fully self-contained — when it completes, continue at `## Next Actions` below, except under `--chained`, which returns to the caller instead. Decomposition mode's Steps 1-9 never run on this path.
 
@@ -103,6 +106,7 @@ This "Situation → options" table is the assistant's own lookup logic to pick w
 | Situation | Options |
 |---|---|
 | Shaping mode — one record shaped in place | 1. `/claude-tweaks:flow #{N}` — automated pipeline for record #{N}: "{title}" **(Recommended)**<br>2. `/claude-tweaks:build #{N}` — build only (no test/review/wrap-up)<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| Shaping mode — multiple records shaped in place | 1. `/claude-tweaks:flow #{N1},#{N2},...,#{Nk}` — sequential pipeline, all shaped records **(Recommended)**<br>2. `/claude-tweaks:flow #{N1}` — pipeline just the first record<br>3. `/claude-tweaks:help` — pipeline dashboard |
 | Decomposition mode — single sub-issue record produced | 1. `/claude-tweaks:flow #{N}` — automated pipeline for record #{N}: "{title}" **(Recommended)**<br>2. `/claude-tweaks:build #{N}` — build only (no test/review/wrap-up)<br>3. `/claude-tweaks:help` — pipeline dashboard |
 | Multiple sub-issue records produced from a single phase / single-phase doc | 1. `/claude-tweaks:flow #{N1},#{N2},...,#{Nk}` — sequential pipeline, all sub-issues **(Recommended)**<br>2. `/claude-tweaks:flow #{N1}` — pipeline just the highest-priority sub-issue<br>3. `/claude-tweaks:help` — pipeline dashboard |
 | Phase-N decomposition with remaining phases in design doc | 1. `/claude-tweaks:flow #{N1},#{N2},...` — pipeline this phase's sub-issues **(Recommended)**<br>2. `/claude-tweaks:specify {doc} phase-{N+1}` — decompose next phase<br>3. `/claude-tweaks:help` — pipeline dashboard |
