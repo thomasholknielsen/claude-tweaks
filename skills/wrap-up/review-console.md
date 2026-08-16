@@ -335,7 +335,7 @@ Applied to this example's two queue writes (one chunk, both pre-checked):
 
 ## On approval (option 1)
 
-1. Apply all staged patches in `staged/` for items 5–7 per `_shared/staged-patch.md`: `git apply` while the diff still fits; a stale diff — expected once `/simplify`, polish, or a fix wave moved the target — is re-derived from its `Target:`/`Invariant:` preamble, never dropped silently
+1. Apply all staged items in `staged/` for items 5–7 per `_shared/staged-patch.md`: `git apply` while the diff still fits; a stale diff — expected once `/simplify`, polish, or a fix wave moved the target — is re-derived from its `Target:`/`Invariant:` preamble, never dropped silently
 2. Apply skill updates and create new skills (items 11–12, from the Skills curation row)
 3. Apply documentation updates (item 13, from the Docs curation row) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
 4. Apply journey updates (item 14, from the Journeys curation row) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
@@ -350,7 +350,7 @@ Applied to this example's two queue writes (one chunk, both pre-checked):
 ## On override (option 2)
 
 1. Parse the user's overrides across every numbered item in the console
-2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
+2. For each item: apply (per step 1), skip (delete from staged/), or modify (re-edit the staged patch then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
 5. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`) resolve via their own multiSelect chunking (`_shared/batched-item-drill.md` for `Q#`/`M#`; `_shared/upstream-feedback-batch.md` for `U#`) — override is the one path where they resolve individually instead of by their Approve-all default; no per-item gate can be bulk-resolved by a shared toggle even here (Hard requirements below)

@@ -284,7 +284,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 ## On override (option 2)
 
 1. Parse the user's overrides — `#`s map to consolidated table rows; resolve back to the originating spec's subdirectory for each
-2. Apply, skip, or modify per item
+2. Apply (per step 1), skip, or modify per item
 3. **If the branch-finish row (Cleanup actions) is skipped or reverted:** auto-skip every per-spec claim-release/grant-removal/label-cleanup row for this run — render each as "skipped — depends on branch-finish" rather than executing it against a branch-finish outcome that never happened, and rather than leaving it pending or orphaned. Log the auto-skip to the parent run dir's `decisions.md`. Dev-server teardown is unaffected — it has no dependency on branch-finish and executes (or is skipped) per the user's own choice for that row alone.
 4. Queue writes (`Q#`) and Memory updates (`M#`) resolve via a per-item prompt under override — the one path where they resolve individually instead of by their Approve-all default; Upstream feedback (`U#`) resolves via the shared batch contract under override, the same way — see "Present the consolidated console" above; the user can Skip or Edit any of them, but none of the three can be bulk-resolved across specs either
 5. For items the user wants reverted: `git revert {commit}` (one revert commit per item)

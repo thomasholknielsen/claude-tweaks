@@ -47,7 +47,11 @@ path — cumulative drift stays resolvable only when the fallback knows which fi
 ## Staging-time gate
 
 Immediately after composing the file, and before logging it as staged, run — from the worktree,
-the same tree the diff was composed against:
+the same tree the diff was composed against. `$STAGE_PATH` is the staged file's **absolute**
+path under the run directory resolved per `_shared/pipeline-run-dir.md`'s Anchoring section
+(`$RUN_ROOT/.claude-tweaks/pipelines/{run-id}/staged/…` — the main checkout, never a
+worktree-relative shadow); the command runs with cwd = the **worktree root** the diff was
+composed against — `git -C "$WORKTREE" apply --check "$STAGE_PATH"` is the safe form:
 
 ```bash
 git apply --check "$STAGE_PATH"
@@ -55,12 +59,17 @@ git apply --check "$STAGE_PATH"
 
 - **Exit 0** — the artifact is well-formed and applies to the tree it was written against. Keep
   it; write the site's normal `STAGED {time} — … Stage path: staged/{slug}-{n}.patch.` entry.
-- **Non-zero** — the diff is malformed (`patch with only garbage`, `No valid patches in input`,
-  `corrupt patch`) or already doesn't apply to the tree it was just composed against. **Do not
-  keep the `.patch`.** Recompose the diff once from the current tree and re-check. If it fails
-  again, delete the `.patch`, write the description alone to `staged/{slug}-{n}.md` (the same
-  `Target:`/`Invariant:`/`Finding:`/`Staged-at:` block, no diff), and log the composition error
-  where it happened rather than at the console:
+- **Non-zero, tooling error** (`error: can't open patch`, `No such file`) — the check could not
+  run at all: a path or anchoring problem, not a composition error. Surface it — log
+  `STAGED {time} — {step}: {finding} — gate could not run: {first stderr line} — path/anchoring
+  problem, not a composition error.` — and keep the `.patch` as written, unvalidated. Never treat
+  this as malformed and never delete the artifact.
+- **Non-zero, malformed or doesn't apply** — the diff is malformed (`patch with only garbage`,
+  `No valid patches in input`, `corrupt patch`) or already doesn't apply to the tree it was just
+  composed against. **Do not keep the `.patch`.** Recompose the diff once from the current tree
+  and re-check. If it fails again, delete the `.patch`, write the description alone to
+  `staged/{slug}-{n}.md` (the same `Target:`/`Invariant:`/`Finding:`/`Staged-at:` block, no diff),
+  and log the composition error where it happened rather than at the console:
 
   `STAGED {time} — {step}: {finding} — patch failed \`git apply --check\` at staging ({first stderr line}); staged description-only at staged/{slug}-{n}.md. Reversibility: high.`
 
@@ -80,16 +89,27 @@ order the console lists them:
    *current* tree, and establish the invariant with a direct edit — the same Edit-based path the
    console already uses for `.md` proposals. Then re-read the target to confirm the invariant
    holds. Log `AUTO {time} — Review Console apply: staged/{slug}-{n}.patch stale ({first stderr line}; target moved since {Staged-at}: {git diff --stat summary}); re-derived from Invariant via direct edit. Reversibility: high (commit).`
+   - **Scope floor:** the re-derivation establishes the stated `Invariant:` and nothing else — if
+     the edit required is materially larger than the staged diff's own hunk(s), or the
+     `Invariant:` admits more than one reading in the current tree, do NOT compose; route to step
+     4 instead. This matters most under `autonomy: unattended` + `consoleAutoResolve`
+     (`_shared/autonomy-ceiling.md`), where the console's apply runs with no human approval.
    - If the invariant **already holds** in the current tree (a later phase fixed the same thing),
      make no edit and log `… already satisfied by {commit or phase}; dropped.`
+   - A `.patch` with no `Target:`/`Invariant:` preamble (staged by an older installed build that
+     predates this contract) that fails `git apply --check` has nothing to re-derive from — route
+     straight to step 4 rather than attempting the re-derivation above (expand-contract read-side
+     tolerance).
 3. **Description-only stage** — no diff to try; go straight to step 2's re-derivation.
-4. **Cannot re-derive** — the `Target:` file no longer exists, or the `Invariant:` no longer
-   names anything in it (the code the finding was about was removed). Do not guess and do not
-   drop silently: leave the item's ledger entry `open`, render it in the console's "Not applied"
-   footer with the reason, and log `KEPT-PROMPT {time} — Review Console apply: staged/{slug}-{n}.patch could not be re-derived ({reason}). Surfaced for human decision.`
+4. **Cannot re-derive** — the `Target:` file no longer exists, the `Invariant:` no longer names
+   anything in it (the code the finding was about was removed), the edit fails the scope floor
+   above, or the staged `.patch` has no preamble to re-derive from. Do not guess and do not drop
+   silently: leave the item's ledger entry `open`, render it in the console's "Not applied" footer
+   with the reason, and log `STAGED {time} — Review Console apply: staged/{slug}-{n}.patch could not be re-derived ({reason}). Left open — see the console's "Not applied" footer.`
 
-`--dry-run` consoles (`wrap-up/review-console.md`) print each of these outcomes as a preview line
-instead of executing the apply or the edit; the `--check` itself is read-only and still runs.
+Both consoles' `--dry-run` modes (`wrap-up/review-console.md`, `flow/multispec-review-console.md`)
+print each of these outcomes as a preview line and execute nothing — no `git apply`, no `--check`,
+no edit — consistent with the consoles' own dry-run bullets.
 
 ## Anti-patterns
 
@@ -99,4 +119,4 @@ instead of executing the apply or the edit; the `--check` itself is read-only an
 | Staging only the diff, no `Invariant:` | Later phases legitimately move the target; with no description the console can only error out or hand-derive the fix from the finding text |
 | Treating a stale diff as a failure | Staleness is the expected end state of a diff written mid-pipeline; the description is the durable intent, the diff bytes are a cache |
 | Silently dropping an item that can't be re-derived | The finding was real when staged; a vanished target is a human decision, not a no-op |
-| Restating this procedure at a staging site or console | The two consoles and three staging sites drifted apart once already — cite this file |
+| Restating this procedure at a staging site or console | The two consoles and three staging sites drifted apart once already — cite this file. A citing site may restate the four preamble field names, the gate command, and its own `staged/…-{n}.patch` filename as anchors (what the conformance test pins) — never the branch logic (what happens on a failed check, the fallback steps) |

@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { FIXTURE_TIMEOUT_MS } = require('./helpers/git-fixtures');
 
 const SKILLS = path.join(__dirname, '..', 'skills');
 const CONTRACT = path.join(SKILLS, '_shared', 'staged-patch.md');
@@ -72,15 +73,24 @@ test('the fallback procedure heading is stated once — only in the contract', (
 });
 
 // ---- Live discrimination probe: the mechanism the contract's prose relies on ----
-function gitFixture() {
+// Spawn env hardened against a global commit.gpgsign=true or template hook affecting the
+// fixture; every spawn (setup and probes) is bounded so a hang fails fast and names itself.
+const FIXTURE_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+function gitFixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'staged-patch-probe-'));
-  const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
-  git('init', '-q');
-  git('config', 'user.email', 'probe@example.invalid');
-  git('config', 'user.name', 'probe');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', timeout: FIXTURE_TIMEOUT_MS, env: FIXTURE_ENV });
+  let r = git('init', '-q');
+  assert.equal(r.status, 0, r.stderr);
+  r = git('config', 'user.email', 'probe@example.invalid');
+  assert.equal(r.status, 0, r.stderr);
+  r = git('config', 'user.name', 'probe');
+  assert.equal(r.status, 0, r.stderr);
   fs.writeFileSync(path.join(dir, 'a.txt'), 'line1\nline2\nline3\n');
-  git('add', 'a.txt');
-  git('commit', '-q', '-m', 'base');
+  r = git('add', 'a.txt');
+  assert.equal(r.status, 0, r.stderr);
+  r = git('commit', '-q', '-m', 'base');
+  assert.equal(r.status, 0, r.stderr);
   return { dir, git };
 }
 
@@ -101,15 +111,15 @@ const PREAMBLE_PATCH = [
   '',
 ].join('\n');
 
-test('probe: git apply --check accepts a patch carrying the Target:/Invariant: preamble', () => {
-  const { dir, git } = gitFixture();
+test('probe: git apply --check accepts a patch carrying the Target:/Invariant: preamble', (t) => {
+  const { dir, git } = gitFixture(t);
   fs.writeFileSync(path.join(dir, 'p.patch'), PREAMBLE_PATCH);
   const r = git('apply', '--check', 'p.patch');
   assert.equal(r.status, 0, r.stderr);
 });
 
-test('probe: git apply --check rejects a malformed hunk and a description-only file (no diff)', () => {
-  const { dir, git } = gitFixture();
+test('probe: git apply --check rejects a malformed hunk and a description-only file (no diff)', (t) => {
+  const { dir, git } = gitFixture(t);
   fs.writeFileSync(path.join(dir, 'bad.patch'), PREAMBLE_PATCH.replace('@@ -1,3 +1,3 @@', '@@ broken @@'));
   const bad = git('apply', '--check', 'bad.patch');
   assert.notEqual(bad.status, 0, 'malformed hunk must be rejected');
@@ -119,8 +129,8 @@ test('probe: git apply --check rejects a malformed hunk and a description-only f
   assert.match(nodiff.stderr, /No valid patches in input/);
 });
 
-test('probe: a patch staged before the target moved is rejected as stale, distinguishable from malformed', () => {
-  const { dir, git } = gitFixture();
+test('probe: a patch staged before the target moved is rejected as stale, distinguishable from malformed', (t) => {
+  const { dir, git } = gitFixture(t);
   fs.writeFileSync(path.join(dir, 'p.patch'), PREAMBLE_PATCH);
   assert.equal(git('apply', '--check', 'p.patch').status, 0);
   fs.writeFileSync(path.join(dir, 'a.txt'), 'line0\nline1\nlineX\nline2\nline3\n');
