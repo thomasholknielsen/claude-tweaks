@@ -34,7 +34,7 @@ test('no unguarded "frontier --unattended" literal in skills/ (whitespace-spanni
   const root = path.join(__dirname, '..', 'skills');
   const offenders = [];
   for (const file of mdFilesUnder(root)) {
-    const rel = path.relative(path.join(__dirname, '..'), file);
+    const rel = path.relative(path.join(__dirname, '..'), file).split(path.sep).join('/');
     if (ALLOWED.has(rel)) continue;
 
     const text = fs.readFileSync(file, 'utf8');
