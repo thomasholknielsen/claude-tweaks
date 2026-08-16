@@ -213,3 +213,79 @@ test('resolveMergeVerification: absent or invalid policy value falls through to 
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'merge-verification: sideways\n');
   assert.equal(mv.resolveMergeVerification(dir, deps), 'merge-when-green', 'invalid -> derived, not null');
 });
+
+// --- CLI (bin/resolve-policy.js) ---
+
+// A fixture repo with one commit, an origin/HEAD symref (what a clone records,
+// set locally so no network is needed), and optional policy + workflow files.
+// integration-model is set EXPLICITLY in policy.yml so branch (1) never shells
+// out to gh from a fixture.
+function fixtureRepo({ policy = 'integration-model: pr-first\n', workflow = null, workflowName = 'ci.yml', defaultBranch = 'main' } = {}) {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-cli-')));
+  tempDirs.push(dir);
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' });
+  git('init', '-q', '-b', defaultBranch);
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init');
+  git('update-ref', `refs/remotes/origin/${defaultBranch}`, 'HEAD');
+  git('symbolic-ref', 'refs/remotes/origin/HEAD', `refs/remotes/origin/${defaultBranch}`);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'));
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), policy);
+  if (workflow !== null) {
+    fs.mkdirSync(path.join(dir, '.github', 'workflows'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.github', 'workflows', workflowName), workflow);
+  }
+  return dir;
+}
+
+function cli(args, cwd) {
+  const r = spawnSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout;
+}
+
+test('CLI AC1 fixture: pull_request-triggered workflow + integration branch == default -> merge-when-green', () => {
+  const dir = fixtureRepo({ workflow: 'name: ci\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n' });
+  assert.equal(cli(['--values', 'merge-verification'], dir).trim(), 'merge-when-green');
+});
+
+test('CLI AC2: explicit merge-verification: off wins over the derivation', () => {
+  const dir = fixtureRepo({ policy: 'integration-model: pr-first\nmerge-verification: off\n', workflow: 'on: pull_request\n' });
+  assert.equal(cli(['--values', 'merge-verification'], dir).trim(), 'off');
+});
+
+test('CLI AC3: integration-model local-merge -> off even with a PR workflow present', () => {
+  const dir = fixtureRepo({ policy: 'integration-model: local-merge\n', workflow: 'on: pull_request\n' });
+  assert.equal(cli(['--values', 'merge-verification'], dir).trim(), 'off');
+});
+
+test('CLI AC4: workflows without a pull_request trigger -> off; array form on: [push, pull_request] -> merge-when-green', () => {
+  const none = fixtureRepo({ workflow: 'name: ci\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\njobs: {}\n' });
+  assert.equal(cli(['--values', 'merge-verification'], none).trim(), 'off');
+  const arr = fixtureRepo({ workflow: 'name: ci\non: [push, pull_request]\njobs: {}\n', workflowName: 'ci.yaml' });
+  assert.equal(cli(['--values', 'merge-verification'], arr).trim(), 'merge-when-green');
+});
+
+test('CLI branch (4): explicit non-default integration-branch -> off', () => {
+  const dir = fixtureRepo({ policy: 'integration-model: pr-first\nintegration-branch: dev\n', workflow: 'on: pull_request\n' });
+  assert.equal(cli(['--values', 'merge-verification'], dir).trim(), 'off');
+});
+
+test('CLI: no repo, no workflows -> off (fail toward the default, never toward stricter)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-bare-'));
+  tempDirs.push(dir);
+  assert.equal(cli(['--values', 'merge-verification'], dir).trim(), 'off');
+});
+
+test('CLI JSON mode: derived value carries source "default"; explicit carries "policy"; invalid keeps invalid: true, not overwritten', () => {
+  const derived = JSON.parse(cli(['merge-verification'], fixtureRepo({ workflow: 'on: pull_request\n' })));
+  assert.deepEqual(derived['merge-verification'], { value: 'merge-when-green', source: 'default' });
+  const explicit = JSON.parse(cli(['merge-verification'], fixtureRepo({ policy: 'integration-model: pr-first\nmerge-verification: wait\n' })));
+  assert.deepEqual(explicit['merge-verification'], { value: 'wait', source: 'policy' });
+  const invalid = JSON.parse(cli(['merge-verification'], fixtureRepo({ policy: 'integration-model: pr-first\nmerge-verification: sideways\n' })));
+  assert.deepEqual(invalid['merge-verification'], { value: null, source: 'default', invalid: true });
+});
+
+test('CLI live smoke on this repo resolves a valid enum value (drift-sensitive by nature — the fixtures above are the durable check)', () => {
+  const out = cli(['--values', 'merge-verification'], REPO_ROOT).trim();
+  assert.ok(VALUES.includes(out), `got ${JSON.stringify(out)}`);
+});

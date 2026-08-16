@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { resolvePolicyKeys, detectIntegrationModel, POLICY_KEYS } = require('./lib/policy-schema');
+const { deriveMergeVerification } = require('./lib/merge-verification');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 
 function fail(msg) {
@@ -122,6 +123,17 @@ function main(argv) {
     const entry = result['integration-model'];
     if (entry && entry.source === 'default' && !entry.invalid) {
       result['integration-model'] = { value: detectIntegrationModel(root), source: 'default' };
+    }
+  }
+
+  // merge-verification (#559) has no static schema default either — an absent
+  // value (never an invalid one; `invalid: true` stays visible) is derived by
+  // bin/lib/merge-verification.js's four-branch ladder, whose prose statement
+  // of record is skills/_shared/policy-schema.md's coverage block.
+  if (keys.includes('merge-verification')) {
+    const entry = result['merge-verification'];
+    if (entry && entry.source === 'default' && !entry.invalid) {
+      result['merge-verification'] = { value: deriveMergeVerification(root), source: 'default' };
     }
   }
 
