@@ -27,7 +27,7 @@ files:
 - **Action:** Run against a project whose `policy.yml` sets `autonomy: unattended` and `worktree.always: true`.
 - **Should feel:** Like one lookup replacing a grep pipeline — several keys per call, natively typed.
 - **Should understand:** `source: "policy"` names the layer that decided each value; `worktree.always` comes back as boolean `true`, not the string `"true"` — coercion happens in the resolver, so no read site re-implements it. A malformed value (e.g. `trust-revert-window-days: banana`) degrades to the schema default with `"invalid": true` rather than silently activating some other source's value.
-- **Red flags:** String-typed integers or booleans in the JSON; a deprecated key name resolving nothing — `dispatch-pick-max-concurrent: 5` must answer a request for `dispatch-batch-size` with value `5` plus `"renamed-from"`.
+- **Red flags:** String-typed integers or booleans in the JSON; a deprecated key name resolving nothing — `dispatch-pick-max-concurrent: 5` must answer a request for `dispatch-batch-size` with value `5` plus `"renamed-from"`, and a pre-#332 dotted line such as `project.maturity: established` must answer a request for `project-maturity` the same way (the seven #332 renames — `review-auto-apply-ceiling`, `auto-merge-max-lines`/`-files`, `project-maturity`, `harness-health-scoped-rule-budget`/`-always-loaded-budget`, `doc-convention-adr` — are all identity aliases; a user's un-migrated `policy.yml` never silently reverts to defaults, and `/claude-tweaks:init --update`'s policy drift check — `auditPolicy` in `bin/lib/policy-schema.js` — lists each stray line under `renamedKeys` with its replacement).
 
 ### 3. Overlay a pipeline run's config — `--run`
 - **URL:** `node bin/resolve-policy.js --run "$PIPELINE_RUN_DIR" review-auto-apply-ceiling`
@@ -42,3 +42,7 @@ files:
 - **Should feel:** One call replacing key-by-key enumeration — the whole config, self-describing.
 - **Should understand:** Every schema key returns its `{value, source}` envelope decorated with `summary`/`category`/`tier`/`type`/`default` — a JSON `null` default means no default. `--all` composes with `--run`. `--all --values` and `--all <key>` are invocation errors.
 - **Red flags:** A registered key missing from the output; a row missing `summary`/`category`/`tier`; `--all` accepting key arguments.
+
+## Origin
+- Created during build of #329 (policy resolver CLI); step 3 and the alias red-flag in step 2 updated during build of #332 (policy-key naming convention + rename program — `review-severity-floor` → `review-auto-apply-ceiling`, seven identity aliases)
+- Related specs: #328 (parent — policy read-path family), #602 (`worktree.always` → `worktree-always`, hook read path), #334 (run-config direct reads onto `--run`)
