@@ -116,7 +116,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 **`/claude-tweaks:design-wrapper`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Modes include:
 
 - **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)
-- **`review`** — invoked by `/review` for LLM `critique` + `audit` (advisory findings; writes audit cache for `polish`)
+- **`review`** — invoked by `/review` for LLM `critique` + `audit`, plus project-local craft critics from `critics.md` under the `design-critique` lever (Step 3.8; advisory findings; writes audit cache for `polish`)
 - **`shape`** — invoked by `/specify` on frontend design docs (runs `/impeccable shape`, output appended to design doc)
 - **`pre-build`** — invoked by `/build` to lazy-load Impeccable references + project design context (`docs/design/PRODUCT.md`, `DESIGN.md` from `/impeccable init`) into the implementer subagent
 - **`polish`** — invoked by `/flow`'s polish phase to dispatch the refinement set (`polish` / `clarify` / `harden`) + suggestion-driven (`typeset` / `layout` / `adapt` / `optimize`, each dispatched only when an `audit` finding's own `suggestion` names it) + intent-driven (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard` per spec's `design-intent:` frontmatter) commands. **First wrapper mode that modifies code** — `/flow` follows up with the re-verify gate.
