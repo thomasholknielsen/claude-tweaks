@@ -211,6 +211,23 @@ one `git revert`. Those caps are the gate. **Do not "fix" this by adding a trust
 requirement** — no cell would ever satisfy it, since an unfiled repair generates no record and
 therefore no verdict, and the budget would ship permanently inert.
 
+### Reading the result
+
+`permittedGrants` returns one `{ granted, reason }` object per grant, under `grants.bornReady` and
+`grants.bornAuthorized` — read those, never the flat top-level `bornReady` / `bornAuthorized` /
+`reason` keys beside them. The flat `reason` is a single string covering both decisions, so a
+*granted* `bornReady` could carry the withheld `bornAuthorized`'s denial text; the per-grant pair is
+what fixes that (refs #647). A granted decision's `reason` is the empty string — render nothing
+rather than a placeholder.
+
+The flat keys stay on as a dated transitional twin, because a skill's `node -e` block loads
+`$CLAUDE_PLUGIN_ROOT`'s modules — the *installed* build — while the skill text around it is the
+checkout's, so repo-HEAD prose can meet an older `autonomy.js` that has no `grants` key yet. That is
+why `capture/SKILL.md` and `backlog/refine-mode.md` each guard the read with a
+`(permitted.grants || {})` fallback. Removal condition: delete the flat keys, and those fallbacks
+with them, at the first release on or after **2026-11-16** — `bin/lib/issues/autonomy.js`'s module
+header carries the same condition.
+
 ## Why born-authorized is gated separately
 
 `trusted`'s born-`ready` and `unattended`'s born-authorized differ in kind, not degree.
