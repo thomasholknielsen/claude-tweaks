@@ -14,6 +14,8 @@ const link = require('./lib/issues/link');
 
 const USAGE = 'usage: link-records.js --parent <n> --subs <n,n,...> [--blocked-by "<dependent:blocker>,..."] [--repo owner/name] [--help]\n';
 
+const isPos = (n) => Number.isInteger(n) && n > 0;
+
 function parseArgs(argv) {
   const opts = { parent: null, subs: [], blockedBy: [], repo: null, help: false };
   for (let i = 0; i < argv.length; i++) {
@@ -22,10 +24,19 @@ function parseArgs(argv) {
     if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--parent') opts.parent = Number(next());
     else if (a === '--subs') opts.subs = String(next() || '').split(',').filter(Boolean).map(Number);
-    else if (a === '--blocked-by') opts.blockedBy = String(next() || '').split(',').filter(Boolean).map((pair) => {
-      const [dependent, blocker] = pair.split(':').map(Number);
-      return { dependent, blocker };
-    });
+    else if (a === '--blocked-by') {
+      const pairs = String(next() || '').split(',').filter(Boolean);
+      const blockedBy = [];
+      for (const pair of pairs) {
+        const halves = pair.split(':');
+        if (halves.length !== 2 || halves[0] === '' || halves[1] === '') {
+          return { error: 'malformed --blocked-by pair: ' + pair };
+        }
+        const [dependent, blocker] = halves.map(Number);
+        blockedBy.push({ dependent, blocker });
+      }
+      opts.blockedBy = blockedBy;
+    }
     else if (a === '--repo') opts.repo = next();
     else return { error: `unknown argument: ${a}` };
   }
@@ -33,7 +44,7 @@ function parseArgs(argv) {
 }
 
 function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
+  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
   return m ? { owner: m[1], repo: m[2] } : null;
 }
 
@@ -50,8 +61,8 @@ function run(argv, deps = realDeps) {
   const opts = parseArgs(argv);
   if (opts.error) { deps.stderr(opts.error + '\n' + USAGE); return 2; }
   if (opts.help) { deps.stdout(USAGE); return 0; }
-  const bad = !Number.isInteger(opts.parent) || opts.subs.length === 0 || opts.subs.some((n) => !Number.isInteger(n))
-    || opts.blockedBy.some((e) => !Number.isInteger(e.dependent) || !Number.isInteger(e.blocker));
+  const bad = !isPos(opts.parent) || opts.subs.length === 0 || opts.subs.some((n) => !isPos(n))
+    || opts.blockedBy.some((e) => !isPos(e.dependent) || !isPos(e.blocker));
   if (bad) { deps.stderr(USAGE); return 2; }
   if (!deps.ghAvailable()) {
     deps.stderr('link-records.js: `gh` is required — the sub_issues and dependencies/blocked_by endpoints have no GitHub MCP equivalent. Fall back to work-links: body-text (record-creation.md Step 4).\n');

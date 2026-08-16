@@ -148,3 +148,25 @@ test('link-records CLI: partial write failure still exits 0 with failed populate
   assert.equal(env.subIssues.failed.length, 1);
   assert.equal(env.subIssues.failed[0].number, 597);
 });
+
+test('link-records CLI: negative or zero numbers are a malformed invocation (exit 2)', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  assert.equal(run(['--parent', '-5', '--subs', '595'], deps), 2);
+  assert.equal(run(['--parent', '592', '--subs', '0'], deps), 2);
+  assert.match(err.join(''), /usage:/);
+});
+
+test('link-records CLI: a blocked-by pair with a missing side is a malformed invocation (exit 2)', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  assert.equal(run(['--parent', '592', '--subs', '595', '--blocked-by', '598:'], deps), 2);
+  assert.match(err.join(''), /malformed --blocked-by pair/);
+});
+
+test('parseRepo: dotted repo names survive; only a trailing .git is stripped', () => {
+  const { parseRepo } = require('../../../bin/link-records');
+  assert.deepEqual(parseRepo('https://github.com/owner/my.repo.git'), { owner: 'owner', repo: 'my.repo' });
+  assert.deepEqual(parseRepo('https://github.com/owner/my.repo'), { owner: 'owner', repo: 'my.repo' });
+  assert.deepEqual(parseRepo('git@github.com:owner/repo.git'), { owner: 'owner', repo: 'repo' });
+  assert.deepEqual(parseRepo('https://github.com/owner/repo/'), { owner: 'owner', repo: 'repo' });
+  assert.equal(parseRepo('https://gitlab.com/owner/repo'), null);
+});
