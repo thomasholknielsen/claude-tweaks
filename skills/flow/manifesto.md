@@ -53,6 +53,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review auto-apply ceiling** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
+| **Merge verification** (11) | `/wrap-up` not in the step list (the merge step never runs, so nothing reads it this run) |
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9), **Model stance** (10) — they affect every pipeline.
 
@@ -87,7 +88,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
-**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review auto-apply ceiling, 8=Tidy aggressiveness, 9=Ceremony profile, 10=Model stance. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review auto-apply ceiling, 8=Tidy aggressiveness, 9=Ceremony profile, 10=Model stance, 11=Merge verification. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
 
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
@@ -98,8 +99,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 7 | Review auto-apply ceiling | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
 | 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
+| 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge into the integration branch waits for — derived per `_shared/policy-schema.md`'s `merge-verification` coverage block (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification`); explicit `policy.yml` value wins. Merge sites act on it from #560 onward |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11.
 
 #### Override semantics (read before overriding)
 
@@ -119,6 +121,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Ceremony profile | `fast-lane` | Forces the fast-lane shape even if a record's `ceremony:` header was `standard` (or one member of a bundle was) — an active, informed human override, not the automated default |
 | Model stance | `economy` | Every profile's resolved effort drops one notch on `EFFORT_SCALE`; a Frontier resolution additionally degrades to Capable — lower cost, lower rigor |
 | Model stance | `max-rigor` | Every profile's resolved effort rises one notch, capped at `max`; never promotes a profile's model upward |
+| Merge verification | `merge-when-green` | Merge sites arm `--auto` and let the forge merge once checks are green (the derived recommendation on a default-branch pr-first repo with PR CI) |
+| Merge verification | `wait` | Merge sites block on the checks before merging — explicit-config-only, never derived |
+| Merge verification | `off` | Merge sites merge without consulting CI (the derived value for local-merge, no-PR-CI, or non-default-integration-branch repos) |
 ```
 
 Immediately after presenting the Manifesto table above, call `AskUserQuestion` with:
@@ -158,6 +163,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Review auto-apply ceiling | `low` | Auto LOW (nits), stage MED, prompt HIGH |
 | Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
 | Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
+| Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | The ladder in `_shared/policy-schema.md`'s coverage block already encodes the safe answer per repo shape; no hardcoded literal |
 
 `ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
 `ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
@@ -183,6 +189,7 @@ review-auto-apply-ceiling: low
 tidy-aggressiveness: moderate
 ceremony-profile: fast-lane
 model-stance: default
+merge-verification: merge-when-green
 spec: 42
 created: 2026-05-15T143207
 ```

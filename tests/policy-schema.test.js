@@ -65,8 +65,10 @@ test('POLICY_KEYS entries are unique', () => {
   // 47 -> 48, #363 (plans-retention policy): superpowers-plans-retention —
   // configurable docs/superpowers/plans/*.md retention at wrap-up cleanup
   // item 1, default keep-forever preserves today's unconditional behavior.
-  assert.strictEqual(POLICY_KEYS.length, 48);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 48);
+  // 48 -> 49, #559 (merge-verification): CI-verification lever for merges
+  // into the integration branch, default derived by bin/lib/merge-verification.js.
+  assert.strictEqual(POLICY_KEYS.length, 49);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 49);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

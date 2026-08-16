@@ -28,7 +28,9 @@ After all terminals complete, merge the feature branches back.
 **`integration-model: pr-first` (`_shared/integration-model.md`):** each terminal's run already
 opened its own draft PR at run start (`_shared/pr-early-run-lifecycle.md`) — reconcile by
 readying and merging each one via `_shared/pr-first-merge.md`'s procedure (`tag: fast-lane`,
-`issue-list` that run's own record(s)), sequentially in **Merge Order** below. No checkout is
+`issue-list` that run's own record(s), and its Step 2.5 Merge-verification gate included — a red PR
+in the sequence parks and reports pending-review while the remaining branches still merge in
+order), sequentially in **Merge Order** below. No checkout is
 needed for the merge itself, so none of the rest of this section's worktree-assignment
 clearing, `close-run`, or gate-coverage prose applies — skip straight to **Merge Order**, run
 each branch's merge via that shared procedure instead of this file's own `git merge`, and use its

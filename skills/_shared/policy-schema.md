@@ -27,6 +27,8 @@ Two carve-outs:
 - The PreToolUse hook's `worktree-always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
 - `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
 
+**Derived-default keys** (`integration-model`, `merge-verification`) share one shape, stated once here so a third key follows it rather than rediscovering the pieces: the `POLICY_KEYS` row carries no static `default` (a literal would bypass the derivation); the derivation's single prose statement lives in this file (`_shared/integration-model.md`'s ladder via forge detection; the `merge-verification` coverage block below) with a code twin in `bin/lib/` (`policy-schema.js`'s `detectIntegrationModel`; `merge-verification.js`'s `deriveMergeVerification`); `bin/resolve-policy.js` computes the value only for an *absent* key (`source: "default"`, no `invalid` flag) and never overwrites an `invalid: true` envelope; and `/claude-tweaks:help`'s policy mode renders the default as `computed (…)` rather than `no default`. Adding a lever of this shape also walks `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist when it is Manifesto-visible.
+
 `--all` emits the whole resolved config in one call: every schema key mapped to its `{value, source}` envelope plus its metadata fields and shape (`summary`, `category`, `tier`, `type`, `default` — `default` is JSON `null` when the row has none, which consumers read as "no default"). It composes with `--run`, takes no key arguments, and is mutually exclusive with `--values`. Renderers (the `/claude-tweaks:help` policy mode, init's policy review) consume this instead of enumerating key names by hand.
 
 ## `resolveValue` — canonical coercion contract
@@ -132,6 +134,20 @@ The second (#537): an `Edit`/`Write`/`NotebookEdit` — the three file tools onl
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `integration-model` | `policy.yml` | `/claude-tweaks:init` (Step 20 offer) | unset — computed at resolve time by `bin/resolve-policy.js`'s `detectIntegrationModel` (forge detection), never a schema literal | `pr-first`/`local-merge` — which backend a project integrates through. Explicit value validates and wins outright (ordinary enum validation, unconditional); detection runs only when the key is absent. See `_shared/integration-model.md` for the full resolution ladder, run-scoped pinning, and consumer table |
+| `merge-verification` | `policy.yml` (per-run override via the Manifesto's `config.yml`, lever 11) | `/claude-tweaks:flow` Manifesto (lever row); merge-site consumers land in #560 | unset — derived at resolve time by `bin/lib/merge-verification.js` (wired through `bin/resolve-policy.js`), never a schema literal; see the coverage block below | `merge-when-green`/`wait`/`off` — how much CI verification a merge into the integration branch requires. Explicit value validates and wins outright; derivation runs only when the key is absent — an invalid value surfaces as `invalid: true` (an empty `--values` line), never silently overwritten by derivation, exactly as `integration-model` above. `bin/resolve-policy.js` is the only resolution path — there is deliberately no in-process resolver twin (the merge sites read the lever through the CLI, `_shared/pr-first-merge.md` Step 2.5), so no second contract exists to diverge from it. `wait` is explicit-config-only (the ladder never derives it) — it is the runtime fallback merge sites degrade to when `--auto` arming is unavailable, not a default. Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification` |
+
+### `merge-verification` derivation — canonical
+
+<!-- merge-verification-derivation:start -->
+The single prose statement of the derived default (code twin: `bin/lib/merge-verification.js`'s `deriveMergeVerification`; every other file cites this block rather than restating it). Four branches, first match wins, no fall-through:
+
+1. `integration-model` (`_shared/integration-model.md`) resolves `local-merge` → `off`. Short-circuits before any workflow read.
+2. No PR-triggered CI → `off`. Detection reads only `{root}/.github/workflows/*.yml|*.yaml` and looks for a top-level `on:` naming `pull_request` or `pull_request_target` in any legal shape — bare string, flow array, block list, or mapping key. Trigger *presence* is a deliberate proxy for "CI verification is requested"; enforcement (branch protection) is out of scope. GitHub Actions-only by intent — a repo on another CI system derives `off` and opts in with the one-line explicit value.
+3. Integration branch is the repository default branch → `merge-when-green`.
+4. Any other (non-default) integration branch → `off`.
+
+Branches 3–4 obtain both branches through the canonical resolution in `_shared/integration-branch.md` (its rank 3 `integration-branch:` policy key, else the rank-5 GitHub-default half) via the shared code resolver, never a hand-rolled detection. Every failed lookup — no `gh`, API error, no upstream, unreadable workflow file — resolves toward `off`, the permissive default, never toward the stricter value.
+<!-- merge-verification-derivation:end -->
 
 ## Project facts
 
