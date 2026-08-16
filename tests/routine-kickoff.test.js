@@ -12,15 +12,23 @@ const path = require('node:path');
 const skill = fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'routine-kickoff', 'SKILL.md'), 'utf8');
 
-test('names dispatch and tidy as manual-execution exclusions, with the principle', () => {
-  assert.ok(skill.includes('the target is `dispatch` or `tidy`'));
+test('names dispatch, tidy, and backlog as manual-execution exclusions, with the principle', () => {
+  assert.ok(skill.includes('the target is `dispatch`, `tidy`, or `backlog`'));
   assert.ok(skill.includes('report the degraded sandbox and stop'));
   assert.ok(skill.includes(
-    'Dispatch claims queue records and triggers builds and merges, and tidy\'s '
+    'Dispatch claims queue records and triggers builds and merges, tidy\'s '
     + 'standalone-auto mode applies deletions'));
+  assert.ok(skill.includes(
+    'backlog\'s headless grant mode applies `auto:build`/`auto:merge` labels — '
+    + 'machine-granted authorization is the same class of standing effect'));
   assert.ok(skill.includes(
     'any future routine whose skill claims work or writes beyond report-only '
     + 'surfaces gets the same exclusion'));
+});
+
+test('has a failure branch for a stale/renamed target skill on the manual-execution path', () => {
+  assert.ok(skill.includes('If that file does not exist'));
+  assert.ok(skill.includes('never guess at a similarly-named skill'));
 });
 
 test('states the hand-maintenance rule for the exclusion list', () => {
