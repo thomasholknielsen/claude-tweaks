@@ -13,17 +13,17 @@ Present all collected findings as a single report. Every item has a pre-filled r
 - …
 
 **Approve ({N})**
-- [{tag}] #{N} "{title}" — {recommended action, one line} → apply-all executes: `{the exact command or mutation}`
-- …
+1. [{tag}] #{N} "{title}" — {recommended action, one line} → apply-all executes: `{the exact command or mutation}`
+2. …
 
 **Yours ({N})**
 - #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
 - …
 
-**Clean:** {comma list of scans with nothing to report, each with its count} — or `nothing — every scan surfaced findings`
+**Clean:** {comma list of scans with nothing to report, each with its count}
 ```
 
-Section semantics follow `step-6-auto.md`'s Bucket mapping and are bound by its "Report rules" section (stated once there — not restated here): in interactive mode, **Applied automatically** carries only what already executed without a decision (reconcile-converged outcomes and `--dry-run`-exempt no-ops); every active recommendation from the scans (delete, defer, absorb, promote, sync, fix, close, resolve, capture, open parent gate — every mutating entry in `SKILL.md`'s Action Vocabulary table) renders as a numbered line in **Approve ({N})**, which is the set "Apply all" applies; findings that only a human can act on (needs-scoring, re-triage, acceptance gaps, trigger-met parked records, unsettled runs, ungranted PRs, cross-spec patterns, design-record drift) render in **Yours ({N})** with their paste-ready command; Keep rows and clean scans are counted in **Clean:** — kept visible as counts, never itemized rows.
+Section semantics follow `step-6-auto.md`'s Bucket mapping and are bound by its "Report rules" section (stated once there — not restated here): in interactive mode, **Applied automatically** carries only what already executed without a decision (reconcile-converged outcomes only); every active recommendation from the scans (delete, defer, absorb, promote, sync, fix, close, resolve, capture, open parent gate — every mutating entry in `SKILL.md`'s Action Vocabulary table) renders as a numbered row (1..N) in **Approve ({N})**, which is the set "Apply all" applies; findings that only a human can act on (needs-scoring, re-triage, acceptance gaps, trigger-met parked records, unsettled runs, ungranted PRs, cross-spec patterns, design-record drift) render in **Yours ({N})** with their paste-ready command; Keep rows and clean scans are counted in **Clean:** — kept visible as counts, never itemized rows.
 
 Immediately after presenting the report above, call `AskUserQuestion`:
 
