@@ -85,3 +85,66 @@ test('isAlreadyLinkedError: only a 422 whose message mentions already', () => {
   assert.equal(isAlreadyLinkedError(e2), false);
   assert.equal(isAlreadyLinkedError(e3), false);
 });
+
+const { run } = require('../../../bin/link-records');
+
+function cliDeps({ runner, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git' } = {}) {
+  const out = []; const err = [];
+  return { deps: { runner, ghAvailable: () => ghAvailable, remoteUrl: () => remoteUrl, stdout: (s) => out.push(s), stderr: (s) => err.push(s) }, out, err };
+}
+
+test('link-records CLI: --help exits 0 and prints usage', () => {
+  const { deps, out } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  const code = run(['--help'], deps);
+  assert.equal(code, 0);
+  assert.match(out.join(''), /--parent <n> --subs <n,n,\.\.\.>/);
+});
+
+test('link-records CLI: gh absent exits 2 and names the body-text fallback', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); }, ghAvailable: false });
+  const code = run(['--parent', '592', '--subs', '595'], deps);
+  assert.equal(code, 2);
+  assert.match(err.join(''), /work-links: body-text/);
+});
+
+test('link-records CLI: happy path — 1 GraphQL + 1 sub_issues + 1 blocked_by, numeric ids in bodies, envelope printed', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    if (isGraphQL(args)) return graphqlJSON({ 592: 1, 595: 2, 598: 3 });
+    if (isPost(args, 'repos/acme/w/issues/592/sub_issues')) { assert.equal(fieldOf(args, 'sub_issue_id'), '2'); return '{}'; }
+    if (isPost(args, 'repos/acme/w/issues/598/dependencies/blocked_by')) { assert.equal(fieldOf(args, 'issue_id'), '2'); return '{}'; }
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const { deps, out } = cliDeps({ runner });
+  const code = run(['--parent', '592', '--subs', '595', '--blocked-by', '598:595'], deps);
+  assert.equal(code, 0);
+  assert.equal(calls.filter(isGraphQL).length, 1);
+  assert.equal(calls.filter((a) => a[1] === '-X').length, 2);
+  const env = JSON.parse(out.join(''));
+  assert.equal(env.repo, 'acme/w');
+  assert.deepEqual(env.subIssues.ok.map((o) => o.number), [595]);
+  assert.deepEqual(env.blockedBy.ok.map((o) => o.dependent), [598]);
+});
+
+test('link-records CLI: id resolution failure exits 1', () => {
+  const runner = (args) => (isGraphQL(args) ? graphqlJSON({ 592: 1, 595: null }) : '{}');
+  const { deps, err } = cliDeps({ runner });
+  const code = run(['--parent', '592', '--subs', '595'], deps);
+  assert.equal(code, 1);
+  assert.match(err.join(''), /missing databaseId for #595/);
+});
+
+test('link-records CLI: partial write failure still exits 0 with failed populated', () => {
+  const runner = (args) => {
+    if (isGraphQL(args)) return graphqlJSON({ 592: 1, 595: 2, 597: 3 });
+    if (isPost(args, 'repos/acme/w/issues/592/sub_issues') && fieldOf(args, 'sub_issue_id') === '3') throw new Error('HTTP 500');
+    return '{}';
+  };
+  const { deps, out } = cliDeps({ runner });
+  const code = run(['--parent', '592', '--subs', '595,597'], deps);
+  assert.equal(code, 0);
+  const env = JSON.parse(out.join(''));
+  assert.equal(env.subIssues.failed.length, 1);
+  assert.equal(env.subIssues.failed[0].number, 597);
+});
