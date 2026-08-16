@@ -204,7 +204,10 @@ function deriveMergeVerification(repoRoot, deps = {}) {
 // merge-verification`, _shared/pr-first-merge.md Step 2.5), so a second
 // resolver would carry a second contract with no consumer.
 
+// readDefaultBranch stays internal: deriveMergeVerification's callers inject
+// `deps.defaultBranch` when they need a stand-in, and nothing imports the
+// real lookup on its own.
 module.exports = {
   workflowHasPullRequestTrigger, readWorkflowFiles, hasPullRequestCi,
-  readDefaultBranch, deriveMergeVerification,
+  deriveMergeVerification,
 };
