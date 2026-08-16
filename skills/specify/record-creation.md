@@ -229,13 +229,41 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 
 **`work-backend: github-issues`, `work-links: native`:**
 
-- Parent ↔ sub-issue — a sub-issue link, once per sub-issue:
+- **Resolve database IDs first, once for the whole batch.** Both native write endpoints below take
+  the target issue's integer database ID (`databaseId` — the REST `id`), **not** its issue number;
+  passing `$SUB_ISSUE_NUM` fails. One aliased GraphQL call resolves every number this pass will
+  link — the parent, every sub-issue, and any pre-existing blocking record from Step 1's companion
+  overlaps or Step 2's implicit-dependency notes (`{owner}`/`{repo}` as in the surrounding calls;
+  add one `iN:` alias per number). Ask for `databaseId`, never the node `id`:
 
   ```bash
-  gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$SUB_ISSUE_NUM
+  gh api graphql -f query='query($owner:String!,$repo:String!){ repository(owner:$owner,name:$repo){
+    iPARENT: issue(number:'"$PARENT_NUM"'){ databaseId }
+    i595: issue(number:595){ databaseId }
+    i597: issue(number:597){ databaseId }
+  } }' -f owner={owner} -f repo={repo} > /tmp/specify-database-ids.json
+  # SUB_ISSUE_DB_ID / BLOCKER_DB_ID below are read from this file by alias, e.g.:
+  SUB_ISSUE_DB_ID=$(jq -r '.data.repository.i595.databaseId' /tmp/specify-database-ids.json)
   ```
 
-- Sub-issue ↔ sub-issue, and sub-issue ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's header comment). Call it once per dependency edge, dependent sub-issue pointing at blocking record.
+- Parent ↔ sub-issue — a sub-issue link, once per sub-issue, sending the sub-issue's database ID
+  (`-F`, typed, so it lands as an integer):
+
+  ```bash
+  gh api -X POST repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -F sub_issue_id=$SUB_ISSUE_DB_ID
+  ```
+
+- Sub-issue ↔ sub-issue, and sub-issue ↔ any pre-existing open record from Step 1's companion
+  overlaps or Step 2's implicit-dependency notes — the issue-dependencies endpoint (the same GitHub
+  feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field —
+  the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's
+  header comment). Call it once per dependency edge, **on the dependent** sub-issue, naming the
+  **blocking** record's database ID:
+
+  ```bash
+  gh api -X POST repos/{owner}/{repo}/issues/$DEPENDENT_NUM/dependencies/blocked_by -F issue_id=$BLOCKER_DB_ID
+  ```
+
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
 **`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):
