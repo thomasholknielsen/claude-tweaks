@@ -16,23 +16,27 @@ const FILE = path.join(__dirname, '..', 'skills', 'specify', 'record-creation.md
 const text = fs.readFileSync(FILE, 'utf8');
 
 test('sub_issues write sends the database ID, never the issue number', () => {
-  assert.ok(
-    !/sub_issue_id=\$SUB_ISSUE_NUM\b/.test(text),
+  assert.doesNotMatch(
+    text,
+    /sub_issue_id=\$SUB_ISSUE_NUM\b/,
     'record-creation.md still passes $SUB_ISSUE_NUM to sub_issues — the endpoint takes the database ID',
   );
-  assert.ok(
-    /sub_issue_id=\$SUB_ISSUE_DB_ID\b/.test(text),
+  assert.match(
+    text,
+    /sub_issue_id=\$SUB_ISSUE_DB_ID\b/,
     'record-creation.md must show the sub_issues write with sub_issue_id=$SUB_ISSUE_DB_ID',
   );
 });
 
 test('blocked_by dependency endpoint is named, with a database-ID identifier', () => {
-  assert.ok(
-    /dependencies\/blocked_by/.test(text),
+  assert.match(
+    text,
+    /dependencies\/blocked_by/,
     'record-creation.md must name the POST issues/{n}/dependencies/blocked_by endpoint',
   );
-  assert.ok(
-    /-F issue_id=\$BLOCKER_DB_ID\b/.test(text),
+  assert.match(
+    text,
+    /-F issue_id=\$BLOCKER_DB_ID\b/,
     'the blocked_by write must send -F issue_id=$BLOCKER_DB_ID',
   );
 });
@@ -50,12 +54,14 @@ test('a databaseId resolution precedes both write calls', () => {
 });
 
 test('the databaseId lookup passes {owner}/{repo} with -F, never -f', () => {
-  assert.ok(
-    /-F owner=\{owner\} -F repo=\{repo\}/.test(text),
+  assert.match(
+    text,
+    /-F owner=\{owner\} -F repo=\{repo\}/,
     'the graphql lookup must use -F for {owner}/{repo} — -f sends the literal braces',
   );
-  assert.ok(
-    !/-f owner=\{owner\}/.test(text),
+  assert.doesNotMatch(
+    text,
+    /-f owner=\{owner\}/,
     'record-creation.md must not pass {owner} with -f (static string, no substitution)',
   );
 });
