@@ -6,7 +6,7 @@ target — there is nothing to decompose, and none of decomposition mode's Steps
 (`decomposition-mode.md` in this skill's directory) ever run here.
 
 This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
-block. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
+block — except under `--chained`, which returns to the caller instead. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
 the primary input) and it has no use for decomposition mode's much larger body.
 
 ---
@@ -37,7 +37,7 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 
 ### Metadata block
 
-Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:`. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
 Surface: web
@@ -132,6 +132,6 @@ Nothing to commit on the `github-issues` driver — the edit above already lande
 |--------|--------|-----|
 | Operational | Shaped record {ref} into spec shape — stamped `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` and Type where each was absent, added `ready`, removed `parked` if present | `{hash}` (local-files) / `—` (github-issues — edit already landed via API, no commit) |
 
-Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block (the "Shaping mode — one record shaped in place" row of its Situation table).
+Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block (the "Shaping mode — one record shaped in place" row of its Situation table). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
 
 `/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.

@@ -1,7 +1,7 @@
 ---
 name: specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
-argument-hint: "<#N|record-id|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra>] [--granularity <fine|standard|coarse>]"
+argument-hint: "<#N|record-id|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra>] [--granularity <fine|standard|coarse>] [--chained]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
 
@@ -35,14 +35,15 @@ The plugin enforces a 2-tier artifact taxonomy:
 
 ## Input
 
-`$ARGUMENTS` = `<record-ref-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>]`
+`$ARGUMENTS` = `<record-ref-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
 
 The first argument is a work record reference (`#N`, an issue URL, or a bare local record id), a path to a design doc, a topic name, or a backlog reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel. `phase-N` only applies when the input resolves to a design doc (decomposition mode); a work record reference resolves to shaping mode and ignores it.
 
-Two optional flags may appear anywhere after the first argument, in either mode:
+Three optional flags may appear anywhere after the first argument (the first two in either mode; `--chained` in shaping mode only):
 
 - `--surface <web|mobile|desktop|backend|infra>` — bypasses Step 2.5a's frontend-detection sniff entirely and uses the given value directly as `Surface:` for every record this run produces (the single record in shaping mode, or the parent and every sub-issue in decomposition mode). Step 2.5c's design-intent question still runs when the given value is a frontend surface (`web`/`mobile`/`desktop`); it's skipped, as usual, for `backend`/`infra`. Use this to correct a sniff that would misfire — e.g. a backend batch job whose description happens to mention "dashboard."
 - `--granularity <fine|standard|coarse>` — tunes Step 2's Sizing Guidelines for this run only; default `standard` (today's targets, unchanged). `fine` produces smaller, more numerous sub-issues; `coarse` produces fewer, larger sub-issues. Decomposition mode only — shaping mode has nothing to decompose, so this flag is ignored there.
+- `--chained` — component-mode invocation for this skill's one skill caller: `/claude-tweaks:capture`'s born-ready chain (see the Component-Skill Contract below). Shaping mode on a record reference only — on any other input shape (design doc, topic, decomposition), ignore the flag and surface a one-line notice rather than erroring. Headless: `## Next Actions` is not rendered, and the one decision shaping mode would otherwise raise interactively — Step 2.5c's design-intent question, when Step 2.5a's sniff detects a frontend surface — resolves to `Design-intent: none` without prompting, logged per `_shared/auto-decision-log.md` when a run directory resolves per `_shared/pipeline-run-dir.md`, otherwise noted in the returned output only.
 
 Input is polymorphic — see the canonical definition in the Granularity Contract section above. The resolution steps below handle each input shape.
 
@@ -83,7 +84,7 @@ This explicit disambiguation prevents the silent wrong-path failure flagged by p
 
 Entered from Resolve-the-input case 1 (work record reference) or case 5 (backlog reference with no matching design doc). The record already exists and IS the target — there is nothing to decompose.
 
-Read `shaping-mode.md` in this skill's directory for the full procedure: editing the body into spec shape, preserving the original request, the `Surface:`/`Design-intent:` metadata block, stamping scoring and stage labels, and the compose-then-write-once write call per driver. That procedure is fully self-contained — when it completes, continue at `## Next Actions` below. Decomposition mode's Steps 1-9 never run on this path.
+Read `shaping-mode.md` in this skill's directory for the full procedure: editing the body into spec shape, preserving the original request, the `Surface:`/`Design-intent:` metadata block, stamping scoring and stage labels, and the compose-then-write-once write call per driver. That procedure is fully self-contained — when it completes, continue at `## Next Actions` below, except under `--chained`, which returns to the caller instead. Decomposition mode's Steps 1-9 never run on this path.
 
 ## Decomposition mode (design doc into parent + sub-issues)
 
@@ -113,7 +114,7 @@ Always recommend `/claude-tweaks:flow` over `/claude-tweaks:build` — `/claude-
 
 ## Component-Skill Contract
 
-`/specify` is always user-facing — it does not detect `$PIPELINE_RUN_DIR` because it dispatches `/superpowers:brainstorming` polymorphically rather than being invoked by a pipeline parent. Always renders Next Actions.
+`/specify` is user-facing in every invocation except one: `/claude-tweaks:capture`'s born-ready chain (`_shared/autonomy-ceiling.md`, trusted row capability (a)) invokes shaping mode as `Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")`. The explicit `--chained` flag is the component-mode detection signal — `$PIPELINE_RUN_DIR` is still never consulted, because this skill dispatches `/superpowers:brainstorming` polymorphically rather than being invoked by a pipeline parent. Under `--chained`, `## Next Actions` is not rendered and no `AskUserQuestion` fires (see the flag's Input bullet for the design-intent headless default). Every other invocation renders Next Actions unchanged.
 
 ## Anti-Patterns
 

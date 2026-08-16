@@ -170,6 +170,16 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // the lens views. Deliberate, not drift: the funnel tracks "has triage
 // started?" while the lenses need "is there enough signal to rank on?".
 // needsYou is an overlay, not a bucket — see the overlay loop's comment.
+// records[] -> the ready+granted subset only — the exact candidate set
+// overview-mode.md Step 2's native blockedBy pre-attach fetch must target
+// (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
+// granted) — this runs BEFORE funnelBuckets has produced those buckets, so
+// "granted" here is computed independently of the in-set-blockers split
+// that native resolution is meant to correct.
+function readyGrantedSubset(records) {
+  return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+}
+
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
@@ -228,4 +238,5 @@ module.exports = {
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
   funnelBuckets,
+  readyGrantedSubset,
 };

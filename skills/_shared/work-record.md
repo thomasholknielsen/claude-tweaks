@@ -122,8 +122,9 @@ actual reader rather than by deleting the write.
 Who may add / remove which labels. "Machinery" = any headless or autonomous path.
 
 **Every row is exhaustive for its actor.** There is no general "agent path" row that widens the
-specific ones — the `autonomy` ceiling's born-`ready` tier is written into `/capture`'s row
-directly, because that is the only actor it currently covers. Extending it to another residue
+specific ones — the `autonomy` ceiling's born-`ready` tier is documented on `/capture`'s row
+directly — as the `/claude-tweaks:specify --chained` chain its Never column describes,
+`/capture` being the only actor it currently covers. Extending it to another residue
 producer (`/wrap-up` leftovers, `/reflect` routing, `/demo` follow-ups — the `side-effect:*`
 classes) means editing that actor's own row, deliberately, and until then their `Never` columns
 hold as written whatever the ceiling says.
@@ -132,7 +133,7 @@ hold as written whatever the ceiling says.
 |---|---|---|---|
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
 | **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `size:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`size:*` | nothing | `auto:*`, `bot:*`, `parked` |
-| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`), `needs:definition` (content judgment at filing time — see Judging Definition in `capture/SKILL.md`); `ready` **only** under `autonomy: trusted`+ when `producer:capture`'s trust verdict is `clean` (see `_shared/autonomy-ceiling.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`; `ready` whenever either half of that condition fails — at `supervised` (the default), or on any verdict but `clean`; `ready` is also never applied alongside `needs:definition` — an undecided record cannot be born-ready |
+| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`), `needs:definition` (content judgment at filing time — see Judging Definition in `capture/SKILL.md`) | nothing | scoring, `parked`, `auto:*`, `bot:*`, and `ready` — always, at every ceiling. Under `autonomy: trusted`+ with a `clean` `producer:capture` verdict the filing chains into `/claude-tweaks:specify --chained`, and *specify* stamps scoring and `ready` under its own row's authority (see `_shared/autonomy-ceiling.md`); the chain never fires alongside `needs:definition` — an undecided record cannot be born-ready |
 | **`/feedback`** | `needs:definition` (content judgment at filing time, same posture as `/capture`'s), `bug`/`enhancement` **only** when `gh label list` confirms the label exists on `thomasholknielsen/claude-tweaks` | nothing | every other label in this repository's own internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `size:*`, `ready`, `ceremony:*`, `auto:*`, `bot:*`, `parked`) — `needs:definition` is the single named exception |
 | **`/specify`** (shaper) | `ready`, `risk:*`/`size:*` when unstamped, `ceremony:*` (always — no unscored state), `framing:baked` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `parent-issue` (decomposition parents only, never sub-issues) | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`size:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
@@ -259,12 +260,15 @@ Deliverables / Acceptance Criteria bodies with scoring. They therefore file with
 already applied and appear directly in the gate's worklist, skipping maturation. Captured
 and human-filed records start in backlog state and reach `ready` through `/specify`.
 
-Under `autonomy: trusted` or higher, `/capture` files born-`ready` too when the
+Under `autonomy: trusted` or higher, a `/capture` filing reaches born-`ready` too when the
 `producer:capture` class carries a `clean` trust verdict — the same reasoning reached a different
-way, the class having *demonstrated* its output is spec-shaped rather than being so by
-construction. `/capture` is the only actor this covers; every other agent path keeps the `Never`
-column its own matrix row states. See `_shared/autonomy-ceiling.md`. At `supervised`, the default,
-`/specify` remains the only road to `ready` for a captured record.
+way, the class having *demonstrated* it earns the skip. The mechanism differs from the
+by-construction case: `/capture` itself files plain and chains into `/claude-tweaks:specify
+--chained` shaping in the same turn, so the body is spec-shaped and `ready` is stamped under
+`/specify`'s own authority, never `/capture`'s. `/capture` is the only actor this covers; every
+other agent path keeps the `Never` column its own matrix row states. See
+`_shared/autonomy-ceiling.md`. At `supervised`, the default, a human-invoked `/specify` remains
+the only road to `ready` for a captured record.
 
 ## Decomposition rules
 

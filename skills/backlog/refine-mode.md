@@ -50,13 +50,14 @@ node -e "
     rows = rows.filter((r) => (originFilter === 'human' ? r.facets.origin === null : r.facets.origin === originFilter));
   }
   const worklist = rows.filter((r) => !r.facets.grants.build && !r.facets.grants.merge);
-  const fresh = worklist.filter((r) => !r.facets.bot.blocked);
   const blocked = worklist.filter((r) => r.facets.bot.blocked);
-  console.log(JSON.stringify({ fresh, blocked }));
+  const inProgress = worklist.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
+  const fresh = worklist.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress);
+  console.log(JSON.stringify({ fresh, blocked, inProgress }));
 " > /tmp/backlog-refine-worklist.json
 ```
 
-When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the script above; omitted, it's unset and the script runs unfiltered. This mirrors the retired `/claude-tweaks:triage` skill's old Step 1 exactly, including the origin-agnostic default and the fresh/blocked split (`blocked` = hit the retry ceiling, `bot:blocked`, a re-authorization candidate).
+When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the split is three-way: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
 
 **These are two separate fetches, not one.** The priority/Related fetch is unfiltered (needs the whole backlog); the grant fetch is server-side filtered to `--label ready` (preserves today's exact starvation-avoidance guarantee — an unfiltered pull risks pushing older `ready`-labeled issues out of a shared result window on a large backlog). Both route through the same `backlog-fetch-limit` config key and truncation-warning pattern, just as two independent invocations of it.
 
@@ -130,6 +131,11 @@ PR's checks, not re-authorizing a build.
 If `remaining > 0` (from the `fresh` budget slice), state it plainly in the report: "`{remaining}`
 more ready records awaiting grant-check exist beyond this run's `--budget {N}` — re-run to
 continue."
+
+When Step 1's worklist split excluded in-progress records (`inProgress` non-empty in
+`/tmp/backlog-refine-worklist.json`), state that once in the report too: "`{n}` in flight —
+excluded from grant checks; a grant changes nothing mid-run." Render nothing when the count is
+zero — the exclusion line exists so the drop is visible, never as a permanent fixture.
 
 ### Trust signal (advisory, `github-issues` only)
 
@@ -233,9 +239,11 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 
 The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
 on what is recommended for them once here. At `trusted` or higher, a record `/claude-tweaks:capture`
-filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied (see
+filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied by
+the `/claude-tweaks:specify --chained` shaping pass its filing triggered (see
 `_shared/autonomy-ceiling.md`, which names `/claude-tweaks:capture` as the only actor this covers
-today), so it appears in Step 1's fetch without having passed `/claude-tweaks:specify`.
+today), so it appears in Step 1's fetch shaped by machinery rather than by a human-invoked
+`/claude-tweaks:specify` session.
 
 Those records are not exempt from anything here. Step 3.5's body-shape re-verification is exactly
 the check that catches a born-`ready` record whose body is not actually spec-shaped, and it runs on

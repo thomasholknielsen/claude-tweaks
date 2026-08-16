@@ -60,12 +60,13 @@ file — Step 4 only sets the deferred-invocation flag, it does not call this pr
 Takes: `project_slug`, `repo_url`, `routine_name` (the caller's already-derived `PREFIXED_NAME`),
 `cron_expression` (the caller's already-resolved schedule, e.g. from CREATE Step 5's cadence
 picker — always a raw 5-field UTC cron string, never a natural-language description), `instructions`
-(the routine's prompt text — the caller's `RESOLVED_PROMPT`, i.e. `template.prompt` with its
-`{{TARGET_BRANCH}}` placeholder already substituted per CREATE Step 6; this procedure submits
-`instructions` verbatim and does no substitution of its own, so a caller passing raw `template.prompt`
-creates a routine that tries to check out a branch literally named `{{TARGET_BRANCH}}`), and
-`connectors` (optional — `template.mcp_connections` names, if any; see the connectors caveat in
-step 6 below).
+(the routine's prompt text — the caller's `RESOLVED_PROMPT`, i.e. the schema's canonical kernel
+block (`_shared/routine-template-schema.md`'s `## Standard prompt kernel`) with its
+`{{TARGET_BRANCH}}` placeholder already substituted and `{kickoff}` already spliced, both per CREATE
+Step 6; this procedure submits `instructions` verbatim and does no substitution of its own, so a
+caller passing raw kernel text creates a routine that tries to check out a branch literally named
+`{{TARGET_BRANCH}}`), and `connectors` (optional — `template.mcp_connections` names, if any; see the
+connectors caveat in step 6 below).
 
 1. Dispatch `/claude-tweaks:browse backend=chrome` with the instruction: navigate to
    `claude.ai/code`, open the Routines sidebar entry, then click the "+ New routine" button —

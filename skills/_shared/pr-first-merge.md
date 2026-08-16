@@ -289,7 +289,7 @@ the result:
      worktree removal, no claim release, no run-dir archival) — those wait for `merged` evidence,
      whether this same session later observes it (unlikely — sessions don't poll) or the
      reconciler does at its next trigger point (`_shared/pr-run-comments.md`'s consumer table;
-     session-start, dispatch queue-pull, routine preambles, tidy, all converge on this
+     session-start, dispatch queue-pull, routine kickoffs, tidy, all converge on this
      eventually).
 
 ## Step 4: Post-merge reconcile (outcome `merged` only)
