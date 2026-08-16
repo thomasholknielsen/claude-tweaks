@@ -108,5 +108,5 @@ For each completed branch (in order):
 
 Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-`/claude-tweaks:flow {spec} worktree {remaining steps}` — re-run for any failed specs
+**`/claude-tweaks:flow {spec} worktree {remaining steps}`** — re-run for any failed specs (recommended)
 `/claude-tweaks:help` — full pipeline status
