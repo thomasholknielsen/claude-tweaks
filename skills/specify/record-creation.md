@@ -230,21 +230,27 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 **`work-backend: github-issues`, `work-links: native`:**
 
 - **Resolve database IDs first, once for the whole batch.** Both native write endpoints below take
-  the target issue's integer database ID (`databaseId` — the REST `id`), **not** its issue number;
-  passing `$SUB_ISSUE_NUM` fails. One aliased GraphQL call resolves every number this pass will
-  link — the parent, every sub-issue, and any pre-existing blocking record from Step 1's companion
-  overlaps or Step 2's implicit-dependency notes (`{owner}`/`{repo}` as in the surrounding calls;
-  add one `iN:` alias per number). Ask for `databaseId`, never the node `id`:
+  the target issue's integer database ID (`databaseId` — the REST `id`) **in the request body**,
+  **not** its issue number; passing `$SUB_ISSUE_NUM` fails. The parent and the dependent appear
+  only as numbers, in the URL path — they need no lookup. One aliased GraphQL call resolves every
+  sub-issue plus any pre-existing blocking record from Step 1's companion overlaps or Step 2's
+  implicit-dependency notes (one `i{N}:` alias per number). Two things the surrounding REST calls
+  do not teach: pass `{owner}`/`{repo}` with `-F` — `-f` sends the literal braces (only `-F`
+  substitutes placeholders in a *field* value; the path placeholders in the REST calls below are a
+  different mechanism) — and ask for `databaseId`, never the node `id`:
 
   ```bash
   gh api graphql -f query='query($owner:String!,$repo:String!){ repository(owner:$owner,name:$repo){
-    iPARENT: issue(number:'"$PARENT_NUM"'){ databaseId }
-    i595: issue(number:595){ databaseId }
-    i597: issue(number:597){ databaseId }
-  } }' -f owner={owner} -f repo={repo} > /tmp/specify-database-ids.json
+    i{N1}: issue(number:{N1}){ databaseId }
+    i{N2}: issue(number:{N2}){ databaseId }
+  } }' -F owner={owner} -F repo={repo} > /tmp/specify-database-ids.json
   # SUB_ISSUE_DB_ID / BLOCKER_DB_ID below are read from this file by alias, e.g.:
-  SUB_ISSUE_DB_ID=$(jq -r '.data.repository.i595.databaseId' /tmp/specify-database-ids.json)
+  SUB_ISSUE_DB_ID=$(jq -r '.data.repository.i{N1}.databaseId' /tmp/specify-database-ids.json)
   ```
+
+  If any alias reads back `null` (a GraphQL error still writes `{"data":{"repository":null},…}` to
+  the file), stop before writing — treat every edge that needed that id as a failed link per
+  Write-path resilience above, never POST `sub_issue_id=null`.
 
 - Parent ↔ sub-issue — a sub-issue link, once per sub-issue, sending the sub-issue's database ID
   (`-F`, typed, so it lands as an integer):

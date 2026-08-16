@@ -38,10 +38,24 @@ test('blocked_by dependency endpoint is named, with a database-ID identifier', (
 });
 
 test('a databaseId resolution precedes both write calls', () => {
-  const idx = text.indexOf('databaseId');
+  const idx = text.indexOf('gh api graphql');
   const subIdx = text.indexOf('sub_issue_id=$SUB_ISSUE_DB_ID');
   const depIdx = text.indexOf('dependencies/blocked_by');
-  assert.ok(idx > -1, 'record-creation.md must resolve databaseId via GraphQL before linking');
+  assert.ok(
+    idx > -1,
+    'record-creation.md must resolve databaseId via a gh api graphql lookup before linking',
+  );
   assert.ok(subIdx > idx, 'the databaseId lookup must appear before the sub_issues write');
   assert.ok(depIdx > idx, 'the databaseId lookup must appear before the blocked_by write');
+});
+
+test('the databaseId lookup passes {owner}/{repo} with -F, never -f', () => {
+  assert.ok(
+    /-F owner=\{owner\} -F repo=\{repo\}/.test(text),
+    'the graphql lookup must use -F for {owner}/{repo} — -f sends the literal braces',
+  );
+  assert.ok(
+    !/-f owner=\{owner\}/.test(text),
+    'record-creation.md must not pass {owner} with -f (static string, no substitution)',
+  );
 });
