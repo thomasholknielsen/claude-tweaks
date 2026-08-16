@@ -94,7 +94,7 @@ Four verb-grouped sections, these exact literal headers, in this order — what 
 **Clean:** {comma list of scans with nothing to report, each with its count — e.g. "parked (3 checked), worktrees (2), doc registry"}
 ```
 
-How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Apply all staged ({N})" option that executes Step 7 over exactly those items. Nothing applies without that click.
+How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Approve ({N})" option — named for this section — that executes Step 7 over exactly those items. Nothing applies without that click.
 
 #### Bucket mapping (which section a finding lands in)
 
