@@ -258,9 +258,9 @@ See `SKILL.md` Step 4 for the exact template, return-shape handling, and the sup
 
 #### Next Actions
 
-This mode-specific table supplements the canonical handoff in SKILL.md `## Next Actions` — "supplements" here means *substitutes when more specific*, not *merges option sets*. This section is its own independent `AskUserQuestion` call, resolved dynamically from the signal table below exactly as `design/SKILL.md`'s Return-shape table resolves — render it (with its own options, including `/claude-tweaks:wrap-up {N}`, which is not one of SKILL.md's 4 static options) when the review-source signals (full review mode, missing code review, "fix now" items, standalone) usefully refine the standalone block. It renders *instead of* SKILL.md's canonical Next Actions call, never alongside or merged with it. When in doubt, defer to SKILL.md `## Next Actions`.
+This mode-specific table supplements the canonical handoff in SKILL.md `## Next Actions` — "supplements" here means *substitutes when more specific*, not *merges line sets*. This section renders its own independent markdown block, resolved dynamically from the signal table below exactly as `design/SKILL.md`'s Return-shape table resolves — render it (with its own lines, including `/claude-tweaks:wrap-up {N}`, which is not one of SKILL.md's 4 static lines) when the review-source signals (full review mode, missing code review, "fix now" items, standalone) usefully refine the standalone block. It renders *instead of* SKILL.md's canonical Next Actions block, never alongside or merged with it. When in doubt, defer to SKILL.md `## Next Actions`.
 
-The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply this run, never itself shown to the user or converted into an `AskUserQuestion` option:
+The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply this run, never itself shown to the user:
 
 | Signal | Option |
 |--------|--------|
@@ -269,12 +269,12 @@ The signal-to-option lookup table below stays as-is — the assistant's own logi
 | "Fix now" items exist | Address fixes first, then re-run this review |
 | Standalone | `/claude-tweaks:capture` — save ideas surfaced during the session |
 
-Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 (when coming from full review mode) — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {N} — capture learnings and clean up"`
-- Option 2 (when not yet code-reviewed) — `label`: `"Code review"`, `description`: `"/claude-tweaks:review {N} — run code review before wrapping up"`
-- Option 3 (when "fix now" items exist) — `label`: `"Fix first"`, `description`: `"Address fixes first, then re-run this review"`
-- Option 4 (standalone) — `label`: `"Capture ideas"`, `description`: `"/claude-tweaks:capture — save ideas surfaced during the session"`
+**`/claude-tweaks:wrap-up {N}`** — capture learnings and clean up (recommended) — when coming from full review mode
+`/claude-tweaks:review {N}` — run code review before wrapping up — when not yet code-reviewed
+Address fixes first, then re-run this review — when "fix now" items exist
+`/claude-tweaks:capture` — save ideas surfaced during the session — standalone
 
 ---
 

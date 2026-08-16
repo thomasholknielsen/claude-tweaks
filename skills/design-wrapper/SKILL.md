@@ -3,7 +3,7 @@ name: design-wrapper
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify, /tidy) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
 argument-hint: "<shape|pre-build|test|review|polish|survey|doctor|reset-recommendations|live|explore> [target] [<surface-topic>] [--screenshots <paths>] [--source <parent-skill>] [--description <text>] [--dry-run] [--limit <n>] [--scope <identity|layout>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Design — Impeccable Integration Wrapper
@@ -259,7 +259,7 @@ Lazy-load these only when needed for the active mode:
 
 ## Next Actions
 
-When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then resolve the matching options. When invoked from a caller skill, omit this block — callers consume the return value themselves.
+When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then render the matching line as plain markdown (docs/skill-authoring.md's Skill handoffs convention). When invoked from a caller skill, omit this block — callers consume the return value themselves.
 
 | Return | Recommended follow-up |
 |--------|----------------------|
@@ -281,13 +281,13 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
 
-The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+The table above stays as-is — it's the assistant's own resolution logic for picking which line applies to the current return shape, never itself shown to the user or rendered directly. Once resolved (matched by return shape from the table above), render the matching line:
 
-- Option 1 (after `polish ok + commands_invoked` or `test fail`) — `label`: `"Re-verify (Recommended after polish or test fail)"`, `description`: `"/claude-tweaks:test {spec} — re-verify"`
-- Option 2 (after `test pass` or `review advisory`) — `label`: `"Code review (Recommended after test pass or review advisory)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
-- Option 3 (after `review advisory` with nothing to fix, or `polish` no-op) — `label`: `"Wrap up"`, `description`: `"/claude-tweaks:wrap-up {spec} — close out the spec"`
-- Option 4 (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`) — `label`: `"Configure design integration"`, `description`: `"/claude-tweaks:init — configure or re-enable design integration"`
-- Option 5 (after `explore` ok, either scope) — `label`: `"Specify (Recommended after explore)"`, `description`: `"/claude-tweaks:specify — brainstorm or decompose against the locked direction or winning layout"`
+**`/claude-tweaks:test {spec}`** — re-verify (recommended after `polish ok + commands_invoked` or `test fail`)
+**`/claude-tweaks:review {spec}`** — code review quality gate (recommended after `test pass` or `review advisory`)
+`/claude-tweaks:wrap-up {spec}` — close out the spec — after `review advisory` with nothing to fix, or `polish` no-op
+`/claude-tweaks:init` — configure or re-enable design integration — only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`
+**`/claude-tweaks:specify`** — brainstorm or decompose against the locked direction or winning layout (recommended after `explore` ok, either scope)
 
 ## Component-Skill Contract
 

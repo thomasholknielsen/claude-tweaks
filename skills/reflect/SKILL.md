@@ -3,7 +3,7 @@ name: reflect
 description: Use when you want to step back and evaluate recent work through structured lenses — approach correctness, structural debt, surprises, near-misses. Works standalone or as a step within /claude-tweaks:review and /claude-tweaks:wrap-up.
 argument-hint: "[hindsight|full|light] [<spec-number>|<file-path>...]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Reflect — Structured Evaluation of Recent Work
@@ -190,12 +190,11 @@ When invoked directly (not by a parent skill), present findings and end with the
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion`:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Full review (Recommended)"`, `description`: `"/claude-tweaks:review {spec} — full code review"`
-- Option 2 — `label`: `"Verify changes"`, `description`: `"/claude-tweaks:test {spec} — verify changes from reflection"`
-- Option 3 — `label`: `"Capture + clean up"`, `description`: `"/claude-tweaks:wrap-up {spec} — capture learnings and clean up"`
+**`/claude-tweaks:review {spec}`** — full code review (recommended)
+`/claude-tweaks:test {spec}` — verify changes from reflection
+`/claude-tweaks:wrap-up {spec}` — capture learnings and clean up
 
 ## Component-Skill Contract
 
