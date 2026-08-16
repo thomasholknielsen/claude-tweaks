@@ -305,7 +305,9 @@ Parse each output into a normalized findings list:
 
 ```json
 {
-  "source": "critique" | "audit" | "finish-review",
+  "source": "critique" | "audit" | "finish-review" | "craft-critic",
+  "provider": "<critic name>" | "wrapper",   // craft-critic rows only; "wrapper" is reserved for the absence-nudge
+  "target": "code" | "decisions",            // craft-critic rows only
   "file": "...",
   "category": "...",
   "severity": "info" | "warning" | "error",
@@ -346,6 +348,37 @@ Quality section renders it above the findings it qualifies.
 
 `result` stays `advisory` whatever comes back. An `error`-severity persistence finding is advisory like
 every other design finding — this mode gates nothing, exactly as Step 3.6 does not.
+
+**Adapting the craft critics (Step 3.8).** Each surviving table row from a parsed critic becomes one
+finding:
+
+```json
+{ "source": "craft-critic", "provider": "<critic name>", "target": "code" | "decisions", "file": "<Path from Path:Line>", "category": "craft", "severity": "info" | "warning" | "error", "message": "<Finding> — <Evidence>", "suggestion": null }
+```
+
+- **`severity` is assigned at the boundary**, exactly as for the finishing review: the table's
+  critical/high → `error`, medium → `warning`, low/info → `info` — the same three values `/review`
+  already maps (`info` → low, `warning` → medium, `error` → high), so no `/review`-side change.
+- **`target`** is copied verbatim (`code` | `decisions`); a `decisions` row keeps `DESIGN.md` or the
+  sidecar path as `file`.
+- **`suggestion` is `null`** (not omitted), per Step 5's rule — a critic names no Impeccable command.
+- These findings join the same `findings` array as critique / audit / finish-review. Step 5's cache
+  filter is unchanged (`source === "audit"`); where `code` and `decisions` findings go next is #599's.
+
+**Absence-nudge (wrapper-emitted).** When **all** of: the lever from Step 3.8 (a) is `auto`;
+`surface_track === "web"`; Step 2 resolved ≥ 1 file; and decisions are absent (Step 3.8 (b)/(d)) —
+append exactly one finding:
+
+```json
+{ "source": "craft-critic", "provider": "wrapper", "target": "decisions", "file": "DESIGN.md", "category": "craft", "severity": "info", "message": "UI shipping without a locked direction — run /claude-tweaks:design-wrapper explore to lock one", "suggestion": null }
+```
+
+`provider: "wrapper"` is a reserved value — no skill of that name is ever dispatched, and the nudge
+never gets a `craft_critics` entry (it is not a critic). It never fires on the native track (this
+design expects no `DESIGN.md` there), never when Step 2 resolved zero files (no UI is shipping), and
+never under `full` or `off`. De-duplication is by construction, not by cache: it is emitted once per
+review invocation, #599 stages it under a fixed filename that is overwritten on re-review, and a
+project that does not want it says so once with `design-critique: off`.
 
 Also extract each command's Total score from its report text, independently of findings parsing:
 
@@ -412,7 +445,8 @@ If the cache write fails (disk full, permission denied), surface the failure as 
   },
   "prior_critique": { "slug": "dashboard", "score": 78, "p0": 1, "p1": 4, "timestamp": "...", "file": ".impeccable/critique/..." },
   "design_contract": { "found": true, "file": "src/routes/+page.svelte", "seed": "a1b2c3d4", "recorded_on": 152 },
-  "finish_review": { "ran": true, "parsed": true, "keep": "The masthead's asymmetry — do not centre it while fixing spacing." }
+  "finish_review": { "ran": true, "parsed": true, "keep": "The masthead's asymmetry — do not centre it while fixing spacing." },
+  "craft_critics": [ { "provider": "emil-design-eng", "ran": true, "parsed": true }, { "provider": "review-animations", "ran": false, "missed": "not installed at either path" } ]
 }
 ```
 
@@ -423,6 +457,15 @@ Unparseable outcomes, where `parsed: false` and a `reason` carry why. That is th
 to learn that an absence of contract findings is an absence of *evidence* rather than a clean bill;
 without it, the two are indistinguishable in `findings`. `keep` is present only on a parsed reply that
 carried the section.
+
+`craft_critics` is built from Step 3.8 and is **omitted entirely** when that step did not dispatch —
+lever `off`, or the roster selected zero critics for the resolved track — the same omission
+convention `finish_review` uses. When it *did* select critics it is always present, with one entry
+per selected critic (unavailable ones included: `ran: false, missed`), and on the Failed, Refused and
+Unparseable outcomes `parsed: false` and a `reason` carry why; `dropped_rows` counts mis-targeted rows
+on a parsed reply. That is the field a caller reads to learn that an absence of craft findings is an
+absence of *evidence* rather than a clean bill; without it, the two are indistinguishable in
+`findings`. The wrapper's absence-nudge is a finding, never an entry here.
 
 `design_contract` is built from Step 3.6 and is **omitted entirely** whenever that step's parse
 returned No-contract or Malformed — the two cases are one absence to a caller, and neither is an
