@@ -165,14 +165,25 @@ test("index: ALL_CHECKS includes 'remote-prune'; dispatch sits between 'archive-
   assert.ok(iBranches > -1 && iRemote > iBranches && iReap > iRemote, 'dispatch order: archive-branches < remote-prune < reap');
 });
 
-test('index: no-remote repo never dispatches remote-prune; result.remoteBranches stays null', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-norepo-'));
-  git(dir, 'init', '-b', 'main');
-  git(dir, 'config', 'user.email', 't@t');
-  git(dir, 'config', 'user.name', 't');
-  fs.writeFileSync(path.join(dir, 'a.txt'), 'a\n');
-  git(dir, 'add', 'a.txt');
-  git(dir, 'commit', '-m', 'init');
-  const r = reconcile({ cwd: dir, checks: ['remote-prune'] });
-  assert.strictEqual(r.remoteBranches, null);
+test('index: pr-first repo with a working remote actually reaches the remote-prune dispatch; requesting a different check leaves remoteBranches null', () => {
+  // A no-remote fixture never reaches the dispatch at all (it short-circuits
+  // at the earlier `if (!integration)` guard) — that would pass even with
+  // the dispatch block deleted, so it doesn't discriminate. This fixture has
+  // a real working origin and forces pr-first (integration-model detection
+  // shells to `gh repo view`, which has no real GitHub repo to find here),
+  // so `checks: ['remote-prune']` must actually run pruneRemote() and land
+  // an array (even an empty one — no in-namespace remote branches exist) in
+  // result.remoteBranches. Deleting the dispatch block makes this fail.
+  const dir = makeRepoWithOrigin();
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, '.claude-tweaks', 'policy.yml'),
+    'integration-model: pr-first\nintegration-branch: main\n',
+  );
+
+  const withDispatch = reconcile({ cwd: dir, checks: ['remote-prune'] });
+  assert.ok(Array.isArray(withDispatch.remoteBranches), 'remote-prune requested under pr-first must set remoteBranches to an array, not stay null');
+
+  const withoutDispatch = reconcile({ cwd: dir, checks: ['mirror'] });
+  assert.strictEqual(withoutDispatch.remoteBranches, null, 'remote-prune not requested must leave remoteBranches null');
 });

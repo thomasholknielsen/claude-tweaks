@@ -20,7 +20,7 @@ const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 
 // Execution order (mirror, console, release, archive, archive-branches,
-// reap) is significant — see the ordering comment above the
+// remote-prune, reap) is significant — see the ordering comment above the
 // release/archive/archive-branches/reap dispatch below. This array is the
 // requested-subset default only; it is never iterated to determine dispatch
 // order.
