@@ -6,9 +6,10 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/grant-mode.md` (the machine-originated grant path —
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
-(Step 6.5's negative-evidence persist point — see Revocation below), `bin/lib/policy-schema.js` (the `housekeeping-auto-merge` derived default — unset resolves `true` at `trusted`/`unattended`, #580),
-and — for the
-bookkeeping capabilities this file also documents — `_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
+(Step 6.5's negative-evidence persist point — see Revocation below), `bin/lib/policy-schema.js`
+(the `housekeeping-auto-merge` derived default — unset resolves `true` at `trusted`/`unattended`,
+#580), and — for the bookkeeping capabilities this file also documents —
+`_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
 route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve),
 `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge), and `_shared/console-execution.md`
 (the reconciler-side `consoleAutoResolve` caller — a second, later trigger point for the same
