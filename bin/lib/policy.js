@@ -33,6 +33,10 @@ function parsePolicy(repoRoot) {
 // present, in any file order; the old name contributes only when the new one
 // is absent. This is a raw-string read — no type coercion — so each reader
 // below still applies its own literal interpretation, exactly as before.
+// Assumes the alias's `migrate` is string-preserving (identity), which every
+// alias a hook reads is today; a null-migrating alias would read as unset
+// here — i.e. gate OFF — so a future non-identity alias for a hook-read key
+// must extend this helper rather than rely on it.
 function rawValue(parsed, key) {
   if (Object.prototype.hasOwnProperty.call(parsed, key)) return parsed[key];
   const alias = RENAMED_KEYS.find((entry) => entry.replacedBy === key);
