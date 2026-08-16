@@ -13,11 +13,13 @@ Present all collected findings as a single report. Every item has a pre-filled r
 - …
 
 **Approve ({N})**
-1. [{tag}] #{N} "{title}" — {recommended action, one line} → apply-all executes: `{the exact command or mutation}`
+1. [{tag}] #{N} "{title}" — {recommended action, one line}. Apply-all executes:
+   `{the exact command or mutation}`
 2. …
 
 **Yours ({N})**
-- #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
+- #{N} "{title}" — {why it needs the human}
+  `{paste-ready command}`
 - …
 
 **Clean:** {comma list of scans with nothing to report, each with its count}

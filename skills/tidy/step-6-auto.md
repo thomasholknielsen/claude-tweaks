@@ -82,11 +82,13 @@ Four verb-grouped sections, these exact literal headers, in this order — what 
 - …
 
 **Approve ({N})**
-1. [{tag}] #{N} "{title}" — {staged action, one line} → approve applies: `{the exact command or mutation}`
+1. [{tag}] #{N} "{title}" — {staged action, one line}. Approve applies:
+   `{the exact command or mutation}`
 2. …
 
 **Yours ({N})**
-- #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
+- #{N} "{title}" — {why it needs the human}
+  `{paste-ready command}`
 - …
 
 **Clean:** {comma list of scans with nothing to report, each with its count — e.g. "parked (3 checked), worktrees (2), doc registry"}
@@ -113,6 +115,7 @@ Binding rules for every rendering of this template, on both surfaces (`step-6-in
 
 - No box-drawing tables anywhere in the report — sections are markdown lists and plain tables only.
 - Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**.
+- Commands render on their own line: a row's paste-ready command (and an Approve row's applied mutation) sits alone on its own line, with the annotation — tag, record ref, rationale — on the adjacent line above. A command never shares a line with prose, and no annotation trails a command on its line.
 - Records render as `#{N} "{title}"` — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
 - `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
 - Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as the comma list, or as **Clean:** nothing — every scan surfaced findings.
