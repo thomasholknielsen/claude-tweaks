@@ -80,17 +80,17 @@ function gitFixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'staged-patch-probe-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', timeout: FIXTURE_TIMEOUT_MS, env: FIXTURE_ENV });
-  let r = git('init', '-q');
-  assert.equal(r.status, 0, r.stderr);
-  r = git('config', 'user.email', 'probe@example.invalid');
-  assert.equal(r.status, 0, r.stderr);
-  r = git('config', 'user.name', 'probe');
-  assert.equal(r.status, 0, r.stderr);
+  const runOk = (...args) => {
+    const r = git(...args);
+    assert.equal(r.status, 0, r.stderr);
+    return r;
+  };
+  runOk('init', '-q');
+  runOk('config', 'user.email', 'probe@example.invalid');
+  runOk('config', 'user.name', 'probe');
   fs.writeFileSync(path.join(dir, 'a.txt'), 'line1\nline2\nline3\n');
-  r = git('add', 'a.txt');
-  assert.equal(r.status, 0, r.stderr);
-  r = git('commit', '-q', '-m', 'base');
-  assert.equal(r.status, 0, r.stderr);
+  runOk('add', 'a.txt');
+  runOk('commit', '-q', '-m', 'base');
   return { dir, git };
 }
 
