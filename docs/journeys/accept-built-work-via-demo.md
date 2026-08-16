@@ -20,7 +20,7 @@ files:
 - **Action:** Invoke against a record whose wrap-up posted a Verification Brief.
 - **Should feel:** Zero re-derivation — the brief `/claude-tweaks:wrap-up` wrote at build time renders immediately, `### The ask` through `### Observation plan`.
 - **Should understand:** The `### Observation plan` section is builder-authored at wrap-up time (kinds: `rendered-page | app-route | cli | flow | diff` — schema in `skills/_shared/observation-plan.md`); demo executes it mechanically rather than classifying paths itself.
-- **Red flags:** A backlog sweep (demo resolves exactly one item); a "See it yourself"/"Verify it yourself" option in the verdict question (that flow is retired — only briefs posted before the schema shipped walk it, via `legacy-brief-compatibility.md`).
+- **Red flags:** A backlog sweep (demo resolves exactly the item(s) you named — `#N`, or a `#N,#M` list one at a time — never a scan for what's outstanding); a "See it yourself"/"Verify it yourself" option in the verdict question (that flow is retired — only briefs posted before the schema shipped walk it, via `legacy-brief-compatibility.md`).
 
 ### 2. Watch the plan execute — Prepare → Validate → Show
 - **URL:** *(no command — demo drives)*

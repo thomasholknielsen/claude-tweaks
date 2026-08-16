@@ -38,3 +38,14 @@ test('shaping-mode Actions Performed documents the per-element outcome vocabular
     assert.ok(src.includes(token), `outcome token ${token} missing from shaping-mode.md Actions Performed`);
   }
 });
+
+test('demo argument-hint accepts a comma-separated record-ref list', () => {
+  const hint = extractArgumentHint(read('skills/demo/SKILL.md'));
+  assert.strictEqual(hint, '[#N[,#M...]]');
+});
+
+test('demo Input states per-item completion before the next ref and never-a-sweep', () => {
+  const src = read('skills/demo/SKILL.md');
+  assert.ok(src.includes('Step 1 → Step 2 → Step 3 to completion before the next ref begins'), 'per-item completion rule missing from demo Input');
+  assert.ok(src.includes("A batch is the human's own list — never a sweep"), 'never-a-sweep restatement missing from demo Input');
+});

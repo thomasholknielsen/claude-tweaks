@@ -1,7 +1,7 @@
 ---
 name: demo
 description: Use for a human verdict on one built thing: this conversation's unrecorded work, or a specific `#N` record. Distinct from /test and /review. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
-argument-hint: "[#N]"
+argument-hint: "[#N[,#M...]]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -51,14 +51,21 @@ Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help
 `$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
 `#N` resolves that single record's Verification Brief, falling back — when no `demo:pending`
 label exists on it — first to the record's closing commit in git history, then to session-recall
-scoped to that `#N` (Step 1). Never sweeps the backlog — `/claude-tweaks:help` (Stage 4.7) is
-where the full outstanding list lives.
+scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record refs, no spaces —
+is an explicit human-supplied batch: each ref runs the `#N` path in list order,
+Step 1 → Step 2 → Step 3 to completion before the next ref begins, so a batch aborted part-way
+has already applied every verdict given so far and lost nothing. One verdict question per item —
+never a combined verdict, never cross-item merging, never a Task fan-out.
+A batch is the human's own list — never a sweep: `/demo` still never scans the backlog for what
+to include, and the no-argument session-recall path cannot be combined with refs. Never sweeps
+the backlog — `/claude-tweaks:help` (Stage 4.7) is where the full outstanding list lives.
 
 ## Step 1: Resolve the one item
 
-`/claude-tweaks:demo` resolves one item at a time — never a sweep. `$ARGUMENTS` selects which path
+`/claude-tweaks:demo` resolves one item at a time — never a sweep; a `#N[,#M...]` list is still
+one item at a time, repeated in list order (`## Input`). `$ARGUMENTS` selects which path
 runs — read only the matching branch in `entry-paths.md` in this skill's directory: no arguments
-(session-recall) or `#N` given (single-record lookup).
+(session-recall) or `#N` given (single-record lookup — entered once per ref for a list).
 
 ## Step 2: Per-item walkthrough
 
@@ -226,6 +233,10 @@ record left mid-decision and unmentioned.
 
 ## Step 3: Apply verdicts
 
+For a `#N[,#M...]` batch this step runs per item, immediately after that item's verdict — never
+batched across items — so the next ref's Step 1 starts only once this ref's label swap (or
+follow-up filing) has landed.
+
 **Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved` and
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
 the first swap this run.
@@ -278,11 +289,11 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 ## Next Actions
 
-Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — once per invocation, after the last item of a `#N[,#M...]` batch; each conditional line keys on the batch as a whole:
 
-**`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed (recommended)
+**`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed for any item this run (recommended)
 `/claude-tweaks:help` — full pipeline status
-`/claude-tweaks:help` — lists every #N still awaiting sign-off (Stage 4.7); renders only when this record remains `demo:pending` after Skip
+`/claude-tweaks:help` — lists every #N still awaiting sign-off (Stage 4.7); renders only when any item this run remains `demo:pending` after Skip
 
 ## Component-Skill Contract
 
