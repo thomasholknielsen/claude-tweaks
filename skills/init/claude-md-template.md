@@ -194,7 +194,7 @@ Two rules of thumb:
 
 - **How to work here, not what's missing** — every entry should help someone working in the codebase right now. Improvements belong in the backlog.
 - **Observed, not aspirational** — document what the codebase actually does, not what it should do
-- **Under 150 lines (default; override via `harness-health.always-loaded-budget` in `.claude-tweaks/policy.yml`)** — if it doesn't fit, it belongs in a skill or rule
+- **Under 150 lines (default; override via `harness-health-always-loaded-budget` in `.claude-tweaks/policy.yml`)** — if it doesn't fit, it belongs in a skill or rule
 - **Commands must work** — verify scripts exist before listing them
 - **Don'ts are guardrails, not wishes** — they describe existing patterns that should not be violated, never infrastructure that doesn't exist yet
 - **Philosophy adapts to maturity** — the same principle stated differently for greenfield vs established projects prevents both reckless breaking changes and unnecessary conservatism

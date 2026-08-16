@@ -53,7 +53,7 @@ For each major section/feature in the design doc, classify coverage against the 
 
 ### Auto mode (policy lookup)
 
-When a pipeline run directory exists, read `overlap` from `config.yml` (default `companion`). Apply per policy:
+When a pipeline run directory exists, resolve `overlap` — `OVERLAP=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" overlap)`. Apply per policy:
 
 | Policy | Action | Log entry |
 |---|---|---|
@@ -107,7 +107,7 @@ Defaults below apply under `--granularity standard` (the default when the flag i
 
 ### Decomposition Heuristics
 
-**Check first — rewrite-signal against an existing subsystem.** Resolve `project.maturity` — `MATURITY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values project.maturity)`. The resolver's schema default is `greenfield`, and a value outside the four-item enum also resolves to `greenfield`; at `greenfield`/`pre-launch`, skip this check entirely. When `early-production` or `established`, scan the design doc's Deliverables/Overview for rewrite-shaped language ("replace," "rewrite," "rebuild," "migrate off," "delete and rebuild") naming a target that appears to already exist in the codebase (per Step 1's file/git-log reads) — not something this same design doc introduces fresh. Step 1's Landscape scan does not itself compute an outside-reference count, so before deciding, run one targeted grep for the named target's identifier across the codebase (excluding its own file) to confirm at least one reference from outside the file itself. When matched, decompose along a strangler-fig boundary instead of the standard five below:
+**Check first — rewrite-signal against an existing subsystem.** Resolve `project-maturity` — `MATURITY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values project-maturity)`. The resolver's schema default is `greenfield`, and a value outside the four-item enum also resolves to `greenfield`; at `greenfield`/`pre-launch`, skip this check entirely. When `early-production` or `established`, scan the design doc's Deliverables/Overview for rewrite-shaped language ("replace," "rewrite," "rebuild," "migrate off," "delete and rebuild") naming a target that appears to already exist in the codebase (per Step 1's file/git-log reads) — not something this same design doc introduces fresh. Step 1's Landscape scan does not itself compute an outside-reference count, so before deciding, run one targeted grep for the named target's identifier across the codebase (excluding its own file) to confirm at least one reference from outside the file itself. When matched, decompose along a strangler-fig boundary instead of the standard five below:
 
 | Maturity | Decomposition shape |
 |---|---|

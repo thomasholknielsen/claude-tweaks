@@ -454,5 +454,32 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   merged tree, not by subtracting both deltas from 375, though the
   //   arithmetic happens to agree here (375 - 4 - 6 = 365) — the same
   //   `[IL-99]` pattern recorded above.
-  assert.strictEqual(total, 365);
+  //
+  //   365 -> 369, addition of `skills/routine-kickoff/SKILL.md` (#528). A
+  //   wholly new skill, not a compression pass — its Anti-Patterns table
+  //   contributes 4 rows ("Deriving the plugin root from step 2's
+  //   plugin-list output", "Falling back to manual execution on any
+  //   invocation failure", "Executing `dispatch` or `tidy` manually on the
+  //   fallback path", "Restating the kernel's contents ... here") and
+  //   nothing elsewhere in the corpus lost a row. Verified:
+  //   `git diff origin/main...HEAD -- 'skills/*/SKILL.md' | grep -E '^-\|'`
+  //   returns only two rows from `routine`/SKILL.md's `fleet` sub-table
+  //   (not an Anti-Patterns table — this parser only reads the section
+  //   between `## Anti-Patterns` and the next `## ` heading, so those rows
+  //   are outside its scope regardless). Measured by running the parser
+  //   against the working tree, not derived by adding 4 to 365 — the
+  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  //
+  //   369 -> 369, routine-kickoff cross-reference cleanup (#530). One row
+  //   in `routine/SKILL.md`'s Anti-Patterns table was reworded ("Editing the
+  //   canonical preamble in `_shared/routine-template-schema.md`..." became
+  //   "Editing the kernel ... without bumping `kernel_version`...") to match
+  //   the post-#529 kernel/kickoff split; no row was added or removed.
+  //   Verified: `git diff <pre-#530-commit> -- 'skills/*/SKILL.md' | grep -E
+  //   '^[-+]\|'` (the #530 change in isolation, not the whole branch since
+  //   origin/main, which also carries #528/#529's own row deltas) returns
+  //   exactly one `-` line and one `+` line, both from the same table
+  //   position. Re-run of the parser against the working tree confirms 369,
+  //   unchanged.
+  assert.strictEqual(total, 369);
 });

@@ -74,6 +74,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
                             sub-issue closes; record mode only)
      │
   ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per invocation: a specific #N, or this session's own unrecorded work via session-recall) ┈┈
+     │
+  ┈┈ /claude-tweaks:routine fleet status aggregates routine health + weekly counters, fleet off pauses (utility skill, no fixed position — run anytime) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
@@ -175,7 +177,7 @@ The harness **default is `fresh`**, which branches from `origin/<default-branch>
 
 ### Worktree sessions and `claude --resume`
 
-Because `worktree.always` forces nearly every session to enter a worktree on its first edit, this is worth knowing up front: entering a worktree mid-session (via `EnterWorktree`, or `Agent` with `isolation: "worktree"`) pivots that session's own storage into a project bucket keyed by the worktree's path, not the parent project's. `claude --resume` run from the parent project directory no longer lists it.
+Because `worktree-always` forces nearly every session to enter a worktree on its first edit, this is worth knowing up front: entering a worktree mid-session (via `EnterWorktree`, or `Agent` with `isolation: "worktree"`) pivots that session's own storage into a project bucket keyed by the worktree's path, not the parent project's. `claude --resume` run from the parent project directory no longer lists it.
 
 This is a known, accepted limitation in Claude Code itself — not something claude-tweaks controls or can work around. Anthropic has closed it as duplicate/not-planned: [#30906](https://github.com/anthropics/claude-code/issues/30906) ("Worktree cwd is not restored on session resume"), [#42596](https://github.com/anthropics/claude-code/issues/42596) ("Worktree sessions are transient and cannot be resumed"), [#48835](https://github.com/anthropics/claude-code/issues/48835) (silent `--resume` failure). Related open feature requests: #28019, #58591, #61366.
 

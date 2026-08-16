@@ -68,7 +68,7 @@ test('findPolicyFile: no policy file anywhere in the ancestor chain returns null
 test('findPolicyFile: policy file present at the target\'s own directory returns that directory', () => {
   const dir = gitRepo();
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   assert.strictEqual(findPolicyFile(path.join(dir, 'a.txt')), dir);
 });
 
@@ -110,7 +110,7 @@ test('repoInfo: the same directory answers definitively when given a normal budg
 test('findPolicyFile: policy file present several directories up returns that ancestor directory', () => {
   const dir = gitRepo();
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const nested = path.join(dir, 'a', 'b', 'c');
   fs.mkdirSync(nested, { recursive: true });
   const target = path.join(nested, 'file.txt');
