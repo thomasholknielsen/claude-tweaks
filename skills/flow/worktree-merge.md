@@ -68,7 +68,7 @@ For each completed branch (in order):
 
    Otherwise a plain `git merge {branch}` is fine. The issues close when the user pushes the
    base branch to the default remote branch.
-2. **If merge succeeds** — continue to the next branch
+2. **If merge succeeds** — continue to the next branch. After the push, run `_shared/pr-first-merge.md` Step 4.1 against the local merge commit (`git rev-parse {integration-branch}` immediately after the merge) with `--ref {integration-branch}` — same outcomes and staged file, closing-report line only (no PR to comment on).
 3. **If merge conflicts** — present the conflicts:
    ```
    Merge conflict merging {branch}:

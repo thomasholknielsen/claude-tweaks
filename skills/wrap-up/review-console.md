@@ -191,7 +191,11 @@ keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still generate
 this console's full content (Auto-applied / Skill updates / Configuration
 updates sections, per "Present the console" below) and attach it to a
 `PushNotification` as a non-blocking FYI. Nothing this console would have
-shown is discarded — only the wait for a live approval is skipped.
+shown is discarded — only the wait for a live approval is skipped. After the
+push, run `_shared/pr-first-merge.md` Step 4.1 against the local merge commit
+(`git rev-parse {integration-branch}` immediately after the merge) with
+`--ref {integration-branch}` — same outcomes and staged file, closing-report
+line only (no PR to comment on).
 
 **That sentence is about console content, and console content is not all of Phase 4's execution
 step.** It was accurate when written and stayed accurate while going incomplete: acceptance

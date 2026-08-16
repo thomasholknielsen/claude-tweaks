@@ -159,6 +159,12 @@ test('Step 4 runs the release-status check before reconcile and stages — never
   assert.ok(status > 0 && reconcile > 0 && status < reconcile, 'the status check now runs before the reconcile call');
 });
 
+test('the three local-merge fallback sections route the post-merge release-status check to Step 4.1 (#678)', () => {
+  assert.match(SETTLE, /pr-first-merge\.md` Step 4\.1/);
+  assert.match(WORKTREE_MERGE, /pr-first-merge\.md` Step 4\.1/);
+  assert.match(CONSOLE, /pr-first-merge\.md` Step 4\.1/);
+});
+
 test('/flow closing reports carry the release-status line verbatim (#678)', () => {
   const summary = read('skills', 'flow', 'summary-template.md');
   const multi = read('skills', 'flow', 'multi-spec.md');
