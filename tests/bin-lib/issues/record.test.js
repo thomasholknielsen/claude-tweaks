@@ -598,6 +598,12 @@ test('recordPayload: a body carrying a mismatching Defer-reason: line throws', (
   );
 });
 
+test('recordPayload: a body-carried Defer-reason: line with trailing whitespace still suppresses insertion', () => {
+  const body = 'Defer-reason: tangential \n\n## Current State\nx';
+  const p = recordPayload({ title: 't', body, type: 'task', deferReason: 'tangential' });
+  assert.strictEqual((p.body.match(/^Defer-reason: /gm) || []).length, 1);
+});
+
 test('recordPayload: omitting deferReason leaves the body byte-identical and adds no label', () => {
   const body = 'Intro.\n\n## Current State\nx';
   const p = recordPayload({ title: 't', body, type: 'task' });

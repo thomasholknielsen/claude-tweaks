@@ -26,9 +26,11 @@ const DEFER_REASONS = Object.freeze([
   'blocked-dependency',
 ]);
 
-// The one body line a directly-created record's Defer-reason: lives on (first
-// line of the body, blank line after — deferral-gate.md's "Where the reason lives").
-const DEFER_REASON_LINE_RE = /^Defer-reason: (\S+)$/m;
+// Matches a Defer-reason: line on ANY line of the body (the /m flag) — the
+// suppression check is "no line matching", per deferral-gate.md's hard gate;
+// the first line of the body is where the insert path and producers put it
+// (deferral-gate.md's "Where the reason lives").
+const DEFER_REASON_LINE_RE = /^Defer-reason: (\S+)[ \t]*$/m;
 
 const LABELS = {
   READY: 'ready',

@@ -89,6 +89,18 @@ test('deferral-gate.md and autonomy.js carry the removal condition in the same w
   assert.ok(AUTONOMY_SRC.includes(REMOVAL_CONDITION), 'autonomy.js');
 });
 
+// --- STRUCTURED_FLOOR covers the whole vocabulary (a gap would fail silently to false) ---
+
+test('autonomy.js STRUCTURED_FLOOR has exactly one entry per DEFER_REASONS member', () => {
+  const start = AUTONOMY_SRC.indexOf('const STRUCTURED_FLOOR = Object.freeze({');
+  assert.ok(start >= 0, 'STRUCTURED_FLOOR literal must exist');
+  const end = AUTONOMY_SRC.indexOf('});', start);
+  const literal = AUTONOMY_SRC.slice(start, end);
+  const keys = [...literal.matchAll(/'([a-z-]+)':\s*(?:true|false)/g)].map((m) => m[1]);
+  assert.deepEqual(new Set(keys), new Set(DEFER_REASONS));
+  assert.equal(keys.length, DEFER_REASONS.length, 'no duplicate keys');
+});
+
 // --- ledger-format.md cites the gate instead of owning the criteria ---
 
 test('ledger-format.md cites _shared/deferral-gate.md and no longer restates the bad-reasons list', () => {

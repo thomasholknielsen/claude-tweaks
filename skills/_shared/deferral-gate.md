@@ -1,6 +1,6 @@
 # Deferral Gate — fix-now criteria, bad reasons, and the `Defer-reason:` vocabulary
 
-The single home of the rule every exhaust channel applies before anything becomes a work-record proposal: *fix it now unless one of a closed set of reasons says why not.* Consumers cite this file instead of carrying their own defer wording:
+The single home of the rule every exhaust channel applies before anything becomes a work-record proposal: *fix it now unless one of a closed set of reasons says why not.* Consumers cite this file instead of carrying their own defer wording (`_shared/ledger-format.md` does today; the rest migrate with #621):
 
 - `skills/review/step3-routing.md` (Step 3 routing — Defer / Capture branches)
 - `skills/reflect/full-mode.md` and `skills/reflect/hindsight-mode.md` (Defer / Capture recommendation rules)
