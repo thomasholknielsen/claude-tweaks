@@ -98,3 +98,11 @@ Mirror `integration-model`'s computed-default implementation shape: schema entry
 See parent #558's Decision Rationale (scalar-not-map, detect-don't-install, rejected alternatives). Subsequent sub-issues in this decomposition reference it there.
 
 <!-- work-fingerprint: merge-verification:merge-verification-policy-key-derivation-ladder-and-manifest -->
+
+## Architecture Deviations (build — /claude-tweaks:build Common Step 4.5)
+
+| # | What the spec said | What was built | Classification |
+|---|---|---|---|
+| 1 | Derivation ladder in `bin/resolve-policy.js` "and/or its lib module, matching where `integration-model`'s ladder lives" (`bin/lib/policy-schema.js`) | New flat sibling `bin/lib/merge-verification.js`; `resolve-policy.js` wires it like `integration-model` | Beneficial — the ladder reuses `bin/lib/hooks/worktree-reap.js`'s `resolveIntegrationBranch` (the shared `_shared/integration-branch.md` resolver, per this spec's own Deliverable 3), and `worktree-reap.js → bin/lib/policy.js → policy-schema.js` makes that a require cycle inside `policy-schema.js`. Recorded in the module header. |
+| 2 | Deliverables named only `skills/flow/manifesto.md`'s lever row | Also `skills/_shared/auto-mode-contract.md`, `skills/flow/SKILL.md`, `skills/help/reference-card.md`, `skills/help/context-flow.md`, `skills/help/policy.md` | Beneficial — required by `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist, which the spec did not cite (learning staged for `/claude-tweaks:specify`). |
+| 3 | "include #533's new per-key metadata fields on this key" (tier unspecified) | `tier: 'advanced'` | Update the spec (note only) — the core tier is at its enforced cap of 12 (`tests/policy-schema-metadata.test.js`); by the decision rule the key is core-shaped. Recorded in the schema comment. |
