@@ -17,14 +17,16 @@ route remainder), `wrap-up/review-console.md` (queue-write auto-file, console au
 (the reconciler-side `consoleAutoResolve` caller — a second, later trigger point for the same
 capability `wrap-up/review-console.md`'s own short-circuit uses from the live-session side).
 
-**Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
-is about the born-`ready` tier only — it is not a statement about everything the ceiling
-authorizes. The in-run initiative budget rides the same `trusted` value with a different actor set
-and a different gate entirely (`_shared/initiative-budget.md`). The other
-residue producers — `/claude-tweaks:wrap-up` leftovers, `/claude-tweaks:reflect` routing,
-`/claude-tweaks:demo` follow-ups, all of which resolve to `side-effect:*` classes — keep the
-`Never` columns their own permission-matrix rows state, whatever this lever is set to. Widening it
-to one of them means editing that actor's row deliberately. `/claude-tweaks:backlog refine`
+**Exactly one actor acts on the ceiling-gated born-`ready` tier today: `/claude-tweaks:capture`.**
+That sentence is about this lever's trust-gated tier only — it is not a statement about everything
+the ceiling authorizes, and not the only road to born-`ready`: since #623, `/claude-tweaks:wrap-up`,
+`/claude-tweaks:reflect`, and `/claude-tweaks:review` file born-ready **by construction**
+(`specShapedBody` composition — see `_shared/work-record.md`'s born-shaped rows), ceiling-independent
+the same way health-skill filings are. The in-run initiative budget rides the same `trusted` value
+with a different actor set and a different gate entirely (`_shared/initiative-budget.md`).
+`/claude-tweaks:demo` follow-ups keep the `Never` column their own permission-matrix row states,
+whatever this lever is set to; widening born-`ready` to a further actor means editing that actor's
+row deliberately. `/claude-tweaks:backlog refine`
 consumes the ceiling but grants nothing from it: it renders an advisory column and inherits
 whichever records arrived born-`ready`.
 

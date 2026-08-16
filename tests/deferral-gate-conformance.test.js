@@ -203,3 +203,24 @@ test('the audit trail renders (defer-reason: {value}) — (blocker: {category}) 
 test('auto-decision-log.md defines the REFUSED entry kind', () => {
   assert.ok(read('skills/_shared/auto-decision-log.md').includes('REFUSED'));
 });
+
+// --- #623: born-shaped matrix rows + composer provenance ---
+
+test('work-record.md carries the born-shaped rows for /wrap-up, /reflect, /review', () => {
+  const wr = read('skills/_shared/work-record.md');
+  for (const actor of ['/wrap-up', '/reflect', '/review']) {
+    const row = wr.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
+    assert.ok(row, `${actor} row`);
+    assert.ok(row.includes('ready'), `${actor} Adds ready`);
+    assert.ok(row.includes('specShapedBody'), `${actor} conditions on specShapedBody`);
+  }
+  assert.ok(!wr.includes('is the only actor this covers'));
+  const bornReady = wr.slice(wr.indexOf('## Born-ready rule'));
+  assert.ok(bornReady.includes('side-effect'));
+});
+
+test('autonomy-ceiling.md notes queueWriteAutoFile proposals are born-shaped via specShapedBody', () => {
+  const ac = read('skills/_shared/autonomy-ceiling.md');
+  const row = ac.split('\n').find((l) => l.startsWith('| `queueWriteAutoFile` |'));
+  assert.ok(row && row.includes('specShapedBody'));
+});
