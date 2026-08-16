@@ -123,7 +123,10 @@ typically small and its re-authorization recommendation needs no `grant-check` c
 `grant-check` and recommend **`re-authorize (bot:blocked)`** directly, regardless of content — a
 prior failure means the human's renewed judgment is the point, not a mechanical (or
 judgment-driven) replay: applying this row grants `auto:build` only, never bundling `auto:merge`
-automatically. Restoring `auto:merge` too requires an explicit override.
+automatically. Restoring `auto:merge` too requires an explicit override. A `bot:blocked` record
+whose grants are still intact was parked by the merge-verification gate (checks red or timed out on
+its PR — `_shared/pr-first-merge.md`'s Step 2.5), not failed; re-triage there means checking the
+PR's checks, not re-authorizing a build.
 
 If `remaining > 0` (from the `fresh` budget slice), state it plainly in the report: "`{remaining}`
 more ready records awaiting grant-check exist beyond this run's `--budget {N}` — re-run to

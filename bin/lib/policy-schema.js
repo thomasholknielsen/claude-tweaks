@@ -27,6 +27,16 @@ const POLICY_KEYS = [
   // computed by bin/resolve-policy.js's detectIntegrationModel (forge
   // detection), not a schema literal — see skills/_shared/integration-model.md.
   { key: 'integration-model', type: 'enum', values: ['pr-first', 'local-merge'], summary: "Whether finished work lands through GitHub pull requests or by local merges into the integration branch.", category: 'merge-safety', tier: 'core' },
+  // merge-verification (#559): how much CI verification a merge into the
+  // integration branch requires. Like integration-model, deliberately no
+  // static `default` — an absent value is derived by
+  // bin/lib/merge-verification.js's four-branch ladder (stated once in
+  // skills/_shared/policy-schema.md's coverage block), wired through
+  // bin/resolve-policy.js. `wait` is explicit-config-only: the ladder never
+  // derives it. Tier is `advanced` only because the core tier sits at its
+  // enforced cap of 12 (tests/policy-schema-metadata.test.js); by the decision
+  // rule it is core-shaped (a merge default).
+  { key: 'merge-verification', type: 'enum', values: ['merge-when-green', 'wait', 'off'], summary: "Sets how much CI verification a merge into the integration branch waits for — merge once green, wait for checks, or none.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3, summary: "Sets how many consecutive autonomous build failures a record tolerates before it is flagged blocked and pulled from auto-pilot.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-batch-size', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence before leaving the rest for next time.", category: 'merge-safety', tier: 'advanced' },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
