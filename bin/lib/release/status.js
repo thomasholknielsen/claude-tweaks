@@ -20,8 +20,14 @@ function findBumpCommits(deps, ref) {
     let parentVersion = null;
     try {
       parentVersion = manifestVersionAt(deps, `${sha}^`);
-    } catch {
-      parentVersion = null; // root commit — nothing to compare against
+    } catch (err) {
+      // Only a genuinely absent parent is "root commit" — any other failure
+      // (git error, malformed manifest JSON) aborts rather than silently treating it as a root.
+      if (/does not exist|exists on disk, but not in|invalid object name/i.test(String(err.message))) {
+        parentVersion = null; // root commit — nothing to compare against
+      } else {
+        throw new Error(`could not read ${sha}^'s manifest: ${err.message}`);
+      }
     }
     if (version !== parentVersion) bumps.push({ sha, version });
   }

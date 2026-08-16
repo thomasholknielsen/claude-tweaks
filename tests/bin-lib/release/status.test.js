@@ -60,6 +60,12 @@ test('findBumpCommits scopes the log to the ref it was given', () => {
   assert.ok(calls.includes('log --format=%H origin/main -- .claude-plugin/plugin.json'), calls.join('\n'));
 });
 
+test('findBumpCommits rethrows git errors that are not "no parent"', () => {
+  const git = () => { throw new Error('fatal: unable to read tree object'); };
+  const deps = { git, readFile: () => '' };
+  assert.throws(() => findBumpCommits(deps, 'main'), /unable to read tree/);
+});
+
 test('carryingBump returns the OLDEST bump that still contains the merge, not the newest', () => {
   // M merged before B1: both B1 and B2 contain it → B1 carried it first.
   const { deps } = makeDeps({ contains: { B2: ['M'], B1: ['M'] } });
@@ -83,6 +89,8 @@ test('changelogCoverage is digit-boundary safe and reports named vs missing', ()
   });
   // '#6030' in the v1.1.0 body must not satisfy #603.
   assert.deepEqual(changelogCoverage(CHANGELOG_MISSING_603, '1.1.0', [603]).missing, [603]);
+  // Leading direction: '#60' in the body must not satisfy '#603'.
+  assert.deepEqual(changelogCoverage('# Changelog\n\n## v1.0.0 — X\n\nfixes #60.\n', '1.0.0', [603]).missing, [603]);
 });
 
 test('changelogCoverage with no entry for the version marks every record missing', () => {
