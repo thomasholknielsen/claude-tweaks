@@ -256,7 +256,7 @@ Examples:
 
 ```
 AUTO 15:04:22 — Filed #212 and chained /claude-tweaks:specify --chained shaping — born-ready (class producer:capture/elevated, verdict clean, ceiling trusted). Reversibility: high.
-AUTO 15:06:03 — Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
+AUTO 15:06:03 — Ledger Phase 2: item #3 auto-routed to backlog (defer-reason: needs-human-decision). Reversibility: high.
 AUTO 15:06:04 — Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
 AUTO 15:06:05 — Ops acknowledgment: 2 items auto-acknowledged, staged for filing. Reversibility: high.
 ```

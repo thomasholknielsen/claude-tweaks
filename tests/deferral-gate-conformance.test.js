@@ -191,7 +191,7 @@ test('the audit trail renders (defer-reason: {value}) — (blocker: {category}) 
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith('.md') && fs.readFileSync(p, 'utf8').includes('(blocker: {category})')) {
+      else if (e.name.endsWith('.md') && /\(blocker: /.test(fs.readFileSync(p, 'utf8'))) {
         offenders.push(path.relative(REPO_ROOT, p));
       }
     }

@@ -54,6 +54,8 @@ Pipeline config snapshot:
 - AUTO 15:02:24 — Skills row: applied 1 additive change (new anti-pattern in `auth/SKILL.md`). Restructure to `session-management/SKILL.md` staged at `staged/wrap-up-skill-restructure.md` for review.
 ```
 
+An aggregate line lists one `defer-reason` value per item, comma-separated in item order; single-item lines carry exactly one value — the shape `summary-template.md` parses.
+
 ## Entry schema
 
 Each entry follows this shape:
@@ -69,7 +71,7 @@ Each entry follows this shape:
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
 | Detail line | optional | Wraps to second line if needed; explain rationale |
-| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED entries: N/A — nothing to revert) |
+| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED and REFUSED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
 ## Lever attribution (optional trailing field)
