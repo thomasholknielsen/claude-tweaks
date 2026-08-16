@@ -1,7 +1,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { rankNextToBuild, blockersOf, findUnresolvedDependencyProse } = require('../../../bin/lib/issues/ranking');
+const {
+  rankNextToBuild, blockersOf, findUnresolvedDependencyProse, transitiveUnblocksCount, buildChains,
+} = require('../../../bin/lib/issues/ranking');
 const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
 function candidate(overrides) {
@@ -217,4 +219,72 @@ test('findUnresolvedDependencyProse: unsynced candidate with prose mention and N
   const emptyBlockedBy = { id: 32, facets: { unsynced: true, blockedBy: [] }, body: 'Blocked by #3 in prose' };
   assert.deepEqual(findUnresolvedDependencyProse([noBlockedBy]), [{ id: 31, mention: 'Blocked by #3 in prose' }]);
   assert.deepEqual(findUnresolvedDependencyProse([emptyBlockedBy]), [{ id: 32, mention: 'Blocked by #3 in prose' }]);
+});
+
+// --- transitiveUnblocksCount + buildChains (#515) ---
+
+const chainFixture = [
+  { id: 418, blockedBy: [], facets: {} },
+  { id: 419, blockedBy: [418], facets: {} },
+  { id: 420, blockedBy: [419], facets: {} },
+];
+
+test('transitiveUnblocksCount: linear chain head counts every transitively blocked candidate', () => {
+  const counts = transitiveUnblocksCount(chainFixture);
+  assert.equal(counts.get(418), 2);
+  assert.equal(counts.get(419), 1);
+  assert.equal(counts.get(420), 0);
+});
+
+test('buildChains: linear chain linearizes head-first as one chain', () => {
+  const result = buildChains(chainFixture);
+  assert.deepEqual(result, { chains: [[418, 419, 420]], independents: [], cycles: [] });
+});
+
+test('buildChains: diamond linearizes as one component without duplicating any record', () => {
+  const diamond = [
+    { id: 1, blockedBy: [], facets: {} },
+    { id: 2, blockedBy: [1], facets: {} },
+    { id: 3, blockedBy: [1], facets: {} },
+    { id: 4, blockedBy: [2, 3], facets: {} },
+  ];
+  const result = buildChains(diamond);
+  assert.deepEqual(result.chains, [[1, 2, 3, 4]]);
+  assert.deepEqual(result.independents, []);
+  assert.deepEqual(result.cycles, []);
+});
+
+test('cycle fixture: both helpers terminate; buildChains routes the component to cycles', () => {
+  const cyclic = [
+    { id: 7, blockedBy: [8], facets: {} },
+    { id: 8, blockedBy: [7], facets: {} },
+    { id: 9, blockedBy: [], facets: {} },
+  ];
+  const counts = transitiveUnblocksCount(cyclic);
+  assert.ok(Number.isFinite(counts.get(7)));
+  assert.ok(Number.isFinite(counts.get(8)));
+  const result = buildChains(cyclic);
+  assert.deepEqual(result.chains, []);
+  assert.deepEqual(result.independents, [9]);
+  assert.deepEqual(result.cycles, [{ ids: [7, 8] }]);
+});
+
+test('buildChains: singletons pass through as independents', () => {
+  const singles = [
+    { id: 5, blockedBy: [], facets: {} },
+    { id: 6, facets: {} },
+  ];
+  assert.deepEqual(buildChains(singles), { chains: [], independents: [5, 6], cycles: [] });
+});
+
+test('out-of-set blockers contribute nothing to either helper', () => {
+  const set = [
+    { id: 10, blockedBy: [999], facets: {} },
+    { id: 11, blockedBy: [10], facets: {} },
+  ];
+  assert.equal(transitiveUnblocksCount(set).get(10), 1);
+  assert.equal(transitiveUnblocksCount(set).has(999), false);
+  const result = buildChains(set);
+  assert.deepEqual(result.chains, [[10, 11]]);
+  assert.deepEqual(result.cycles, []);
 });
