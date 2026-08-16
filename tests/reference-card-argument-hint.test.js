@@ -19,14 +19,25 @@ const ALLOWLIST = [];
 
 // Parse only the three `| Command | What it does | Takes |` tables --
 // the file's fourth table ("Artifact Lifecycle") has different columns
-// (Skill | Produces | Consumes) and must never be treated as a Takes-table.
+// (Skill | Creates | Deletes) and must never be treated as a Takes-table.
+//
+// Row shape is asserted, not best-effort: a 3-column table row splits into
+// exactly 5 cells (leading '', 3 content cells, trailing ''). A row that
+// doesn't match this shape -- a missing trailing pipe, a stray unescaped
+// `|` shifting columns -- throws immediately instead of being silently
+// dropped from `rows`, which would otherwise let that row's drift go
+// completely unchecked (refs #564 review finding: reproduced by stripping
+// a row's trailing cell and confirming it vanished from the parse with no
+// signal, while the old `rows.length > 10` sanity check kept passing).
 function parseTakesRows(content) {
   const lines = content.split('\n');
   const rows = [];
   let inTakesTable = false;
+  let takesTableCount = 0;
   for (const line of lines) {
     if (line.startsWith('| Command | What it does | Takes |')) {
       inTakesTable = true;
+      takesTableCount += 1;
       continue;
     }
     if (inTakesTable && line.startsWith('|---')) continue; // separator row
@@ -40,9 +51,14 @@ function parseTakesRows(content) {
       // cell content, not a table-column delimiter. A plain split('|')
       // truncates every multi-alternative Takes cell at its first `\|`.
       const cells = line.split(/(?<!\\)\|/).map((c) => c.trim());
-      // cells[0] is '' (leading pipe), cells[1]=Command, cells[2]=What it does, cells[3]=Takes
-      if (cells.length >= 4 && cells[1]) rows.push({ command: cells[1], takes: cells[3] });
+      if (cells.length !== 5 || cells[0] !== '' || cells[4] !== '') {
+        throw new Error(`Malformed Takes-table row (expected 5 cells, got ${cells.length}): ${line}`);
+      }
+      rows.push({ command: cells[1], takes: cells[3] });
     }
+  }
+  if (takesTableCount !== 3) {
+    throw new Error(`Expected exactly 3 "| Command | What it does | Takes |" tables, found ${takesTableCount}`);
   }
   return rows;
 }
