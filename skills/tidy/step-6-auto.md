@@ -44,7 +44,57 @@ STAGED 11:14:35 — Step 6: absorb proposal for backlog record "{title}" into #4
 
 Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up`'s Phase 4) when `/tidy` runs as part of a pipeline.
 
-**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply the resolved `tidy-aggressiveness` value — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values tidy-aggressiveness)` (see `_shared/policy-schema.md`) — as the routing key. Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
+**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply the resolved `tidy-aggressiveness` value — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values tidy-aggressiveness)` (see `_shared/policy-schema.md`) — as the routing key. Render the report per the template below (this is the bookend-end for the standalone run; no separate Review Console).
+
+#### The report template (standalone auto)
+
+Four verb-grouped sections, these exact literal headers, in this order — what tidy **did**, what it **will do on a click**, what **only the human can do**, and what came back clean:
+
+```markdown
+## Tidy Report — {date}
+
+**Applied automatically**
+- {what was done}: #{N} "{title}" — {one-line outcome} ({reversibility: commit {hash} | reconcile-converged})
+- …
+
+**Approve ({N})**
+- [{tag}] #{N} "{title}" — {staged action, one line} → approve applies: `{the exact command or mutation}`
+- …
+
+**Yours ({N})**
+- #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
+- …
+
+**Clean:** {comma list of scans with nothing to report, each with its count — e.g. "parked (3 checked), worktrees (2), doc registry"}
+```
+
+Empty-state rule: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty. **Clean:** always renders — as the comma list above, or as `**Clean:** nothing — every scan surfaced findings`.
+
+#### Bucket mapping (which section a finding lands in)
+
+A finding's section is a function of its routing outcome from the table above — never per-run judgment:
+
+| Routing outcome | Section |
+|---|---|
+| Auto-applied (executed this run) or reconcile-converged | **Applied automatically** |
+| Staged with an executable action (awaiting approval) | **Approve ({N})** |
+| Auto (no-op, always surfaced) — a finding recommending a command the human runs (needs-scoring, re-triage, acceptance gaps, parked triggers, unsettled runs, ungranted PRs, patterns, drift) | **Yours ({N})** |
+| Keep / nothing-to-report scans | **Clean:** (counted in the comma list, never itemized) |
+
+No finding may be presented information-only: anything actionable carries its paste-ready command in **Yours** or lands in **Approve**.
+
+#### Report rules
+
+Binding rules for every rendering of this template, on both surfaces (`step-6-interactive.md` cross-references this heading rather than restating):
+
+- No box-drawing tables anywhere in the report — sections are markdown lists and plain tables only.
+- Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**.
+- Records render as `#{N} "{title}"` — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
+- `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
+
+#### Hard gate (report before question)
+
+Check the response you are about to send: does it already contain the report above as literal rendered markdown — every non-empty section of **Applied automatically**, **Approve ({N})**, **Yours ({N})**, and the **Clean:** line? If not, render it now, in this response, before any `AskUserQuestion` call. `AskUserQuestion` cannot carry the report itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with a question but no report above it has asked for a decision with nothing to decide on.
 
 #### Archival compaction (every Standalone-auto firing, any scope)
 
