@@ -42,5 +42,9 @@
   "bin/lib/dispatch": {
     "lastSweptMs": 1786849776248,
     "lastHash": "24be2a45c492ad5f86525ac9b1e7dc0392d85c8e"
+  },
+  "bin/lib/docs-health": {
+    "lastSweptMs": 1786849977878,
+    "lastHash": "bab16cd8fd04f48a962052fe5ea19f5ebf88627c"
   }
 }
