@@ -19,7 +19,7 @@ const POLICY_KEYS = [
   // argument). RENAMED_KEYS migrates stray execution.always lines.
   { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched', 'subagent-only', 'batched-only'], default: 'subagent', summary: "Sets the default split between subagent and batched execution for build work, and can lock that choice against override.", category: 'pipeline-behavior', tier: 'core' },
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree', summary: "Sets whether new work defaults to an isolated branch or continues on the branch already checked out.", category: 'pipeline-behavior', tier: 'core' },
-  { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield', summary: "Scales how strict test discipline and task breakdown are, from a from-scratch project up to an established one.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield', summary: "Scales how strict test discipline and task breakdown are, from a greenfield project up to an established one.", category: 'pipeline-behavior', tier: 'core' },
   { key: 'integration-branch', type: 'string', summary: "Names the branch where finished work lands and new work starts, for a repo whose active branch is not its default.", category: 'merge-safety', tier: 'advanced' },
   // pr-first (origin is truth, GitHub PR integration) vs local-merge (today's
   // local merge into the integration branch — the permanent no-forge
@@ -33,7 +33,7 @@ const POLICY_KEYS = [
   // sequential batch count, never a concurrency slot count). Still recognized so a
   // project's existing policy.yml validates; removal condition in
   // skills/dispatch/deprecated-aliases.md.
-  { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3, summary: "A retired name for the sequential batch-size cap, still honored today but flagged for migration to its replacement.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence — an older name for the same cap, kept for migration.", category: 'merge-safety', tier: 'advanced' },
   { key: 'automerge-max-lines', type: 'integer', default: 40, summary: "Bounds how large a diff an unattended merge will accept before a human is required — a weighted guideline, not a hard cutoff.", category: 'merge-safety', tier: 'core' },
   { key: 'automerge-max-files', type: 'integer', default: 2, summary: "Bounds how many changed files an unattended merge will accept before a human is required — the same weighted guideline, by file count.", category: 'merge-safety', tier: 'core' },
   { key: 'merge-sensitive-paths', type: 'list', default: [], summary: "Lists path patterns that always require a human to sign off on a merge, no matter how small the change looks.", category: 'merge-safety', tier: 'advanced' },
@@ -60,12 +60,12 @@ const POLICY_KEYS = [
   { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none', summary: "Sets the visual and UX ambition a build aims for — bold, quiet, minimal, delightful, onboarding-focused, or none at all.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer', summary: "Decides what happens to loose ends found at the end of a run: leave them for later, file them as backlog, or drop them.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type', summary: "Sets how much a test pass auto-fixes before stopping — lint alone, lint and types, or lint, types, and tests.", category: 'pipeline-behavior', tier: 'advanced' },
-  { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the minimum issue severity a review will fix automatically, without asking a person first.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate', summary: "Sets how boldly cleanup sweeps act on what they find — from keep-unless-certain to delete-unless-doubtful.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'], summary: "Sets whether a standalone build or an unattended cleanup run starts hands-off by default, without being asked each time.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000, summary: "Caps how many backlog issues one scan pulls before warning that the list was truncated.", category: 'housekeeping', tier: 'advanced' },
-  { key: 'depth-survey', type: 'enum', values: ['off'], summary: "Turns off the end-of-run prompt asking whether recently changed code deserves a deeper architectural pass.", category: 'pipeline-behavior', tier: 'advanced' },
-  { key: 'creative-survey', type: 'enum', values: ['off'], summary: "Turns off the end-of-run prompt suggesting creative or UX improvement ideas for what was just built.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'depth-survey', type: 'enum', values: ['off'], summary: "Turns off the end-of-run prompt asking whether recently changed code deserves a deeper architectural pass.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'creative-survey', type: 'enum', values: ['off'], summary: "Turns off the end-of-run prompt suggesting creative or UX improvement ideas for what was just built.", category: 'housekeeping', tier: 'advanced' },
   { key: 'scope-keywords-required', type: 'boolean', default: false, summary: "When on, a build refuses to start over files outside its plan unless the plan names its intended scope; otherwise it is only a warning.", category: 'pipeline-behavior', tier: 'advanced' },
   // Renamed from merge-check in #331 (default-parity: that key also defaulted
   // true) — the old name collided with assess-agent-autonomy's merge-check
