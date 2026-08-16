@@ -142,11 +142,11 @@ Only delete when the resolve gate has passed — all items must have terminal st
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {spec} — wrap up the current work once all items are resolved"`
-- Option 2 — `label`: `"Re-run resolve gate"`, `description`: `"/claude-tweaks:ledger resolve — re-run the nothing-left-behind gate if items remain open"`
-- Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — check overall pipeline status"`
+**`/claude-tweaks:wrap-up {spec}`** — wrap up the current work once all items are resolved (recommended)
+`/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain open
+`/claude-tweaks:help` — check overall pipeline status
 
 ## Invocation Model
 
