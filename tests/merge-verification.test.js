@@ -58,6 +58,8 @@ test('workflowHasPullRequestTrigger: every legal on: shape that names pull_reque
     'name: a\non:\n  pull_request:\n    types: [opened]\n',
     'name: a\non:\n  - push\n  - pull_request\n',
     'name: a\non: { pull_request: { branches: [main] } }\n',
+    // depth-1 key still counts alongside a nested value under a different trigger
+    'name: a\non: { push: { branches: [main] }, pull_request: {} }\n',
     'name: a\n\n# comment\non:\n  # leading comment inside the block\n  pull_request_target:\n',
   ];
   for (const text of yes) assert.equal(mv.workflowHasPullRequestTrigger(text), true, JSON.stringify(text));
@@ -70,6 +72,8 @@ test('workflowHasPullRequestTrigger: push-only, nested-only, and no on: block do
     'name: a\non:\n  push:\n    branches: [main]\n  schedule:\n    - cron: "0 0 * * *"\n',
     // pull_request appearing only as a NESTED key (deeper than the trigger level) is not a trigger
     'name: a\non:\n  push:\n    pull_request: nonsense\n',
+    // same nesting rule inside a flow mapping: pull_request is nested inside push's value, not depth 1
+    'name: a\non: { push: { pull_request: true } }\n',
     // a job step mentioning pull_request is not a trigger
     'name: a\non: push\njobs:\n  x:\n    steps:\n      - run: echo pull_request\n',
     'name: a\njobs: {}\n',

@@ -33,6 +33,37 @@ function stripComment(s) {
   return (idx === -1 ? s : s.slice(0, idx)).trim();
 }
 
+// Depth-aware key scan for a flow mapping like `{ push: { branches: [x] },
+// pull_request: {} }`: returns the identifiers that sit immediately before a
+// `:` while brace depth is 1 (directly inside the outer `{ }`). A key nested
+// inside another trigger's value sits at depth 2+ and is never returned.
+// Quoted spans are tracked so a colon inside a quoted value can't be mistaken
+// for a key separator.
+function flowMappingKeysAtDepth1(s) {
+  const keys = [];
+  let depth = 0;
+  let quote = null;
+  let token = '';
+  for (const ch of s) {
+    if (quote) {
+      if (ch === quote) quote = null;
+      else token += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; continue; }
+    if (ch === '{') { depth++; token = ''; continue; }
+    if (ch === '}') { depth--; token = ''; continue; }
+    if (ch === ',') { token = ''; continue; }
+    if (ch === ':') {
+      if (depth === 1) keys.push(token.trim());
+      token = '';
+      continue;
+    }
+    token += ch;
+  }
+  return keys;
+}
+
 // True iff the workflow's top-level `on:` (col 0; `on`, 'on', or "on") names
 // pull_request or pull_request_target — as a bare scalar, inside a flow array
 // [a, b], as a flow-mapping key { pull_request: … }, as a block-list item
@@ -52,7 +83,7 @@ function workflowHasPullRequestTrigger(text) {
         return rest.replace(/^\[|\]$/g, '').split(',').map(stripQuotes).some((k) => PR_TRIGGERS.has(k));
       }
       if (rest.startsWith('{')) {
-        return [...rest.matchAll(/(['"]?)([A-Za-z_]+)\1\s*:/g)].some((x) => PR_TRIGGERS.has(x[2]));
+        return flowMappingKeysAtDepth1(rest).some((k) => PR_TRIGGERS.has(k));
       }
       return PR_TRIGGERS.has(stripQuotes(rest));
     }
