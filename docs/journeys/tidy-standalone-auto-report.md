@@ -14,7 +14,7 @@ files:
 **Persona:** claude-tweaks maintainer (or a scheduled tidy Routine firing) running periodic backlog hygiene on a `pr-first` project with `auto-mode: default-on`.
 **Goal:** One report that separates what tidy already did, what it will do on a click, and what only the human can do — with every actionable line ending in a paste-ready command, and mechanical cleanups (issue-closed claim releases, abandoned-branch archival) already converged by reconcile rather than staged for approval.
 **Entry point:** `/claude-tweaks:tidy` standalone in auto mode (no parent pipeline run dir), interactively or as the weekly scheduled Routine.
-**Success state:** The report renders the four literal sections — **Applied automatically**, **Approve ({N})**, **Yours ({N})**, **Clean:** — empty sections omitted (Clean always present), each section's rows as aligned columns inside ```text fences, no line over 100 characters; reconcile-converged outcomes (released claims on closed issues, archived/deleted abandoned branches) appear under Applied with their reversibility token; Yours is grouped by the command the human runs and every group closes with a batch line or a paste block (one command per row); a report over 40 lines arrives as a digest with the full report at `{run-dir}/report.md`; Next Actions derives from Approve/Yours groups as plain markdown (Approve line first when non-empty, one line per Yours group carrying its batch line or first paste line, total handoff capped at four lines).
+**Success state:** The report renders the four literal sections — **Applied automatically**, **Approve ({N})**, **Yours ({N})**, **Clean:** — empty sections omitted (Clean always present), each section's rows as aligned columns inside ```text fences, no line over 100 characters; reconcile-converged outcomes (released claims on closed issues, archived/deleted abandoned branches) appear under Applied with their reversibility token; Yours is grouped by the command the human runs and every group closes with a batch line, a paste block (one command per row), or a ref-less line; a report over 40 lines arrives as a digest with the full report at `{run-dir}/report.md`; Next Actions derives from Approve/Yours groups as plain markdown (Approve line first when non-empty, one line per Yours group carrying its batch line or first paste line, total handoff capped at four lines).
 
 ## Steps
 
@@ -28,10 +28,10 @@ files:
 
 ### 3. The report renders before any question
 - **Action:** The hard gate requires the rendered report in the same response, above any `AskUserQuestion`.
-- **Expect:** The conformance scan ran first — no `┌─┐` box art, but aligned columns inside ```text fences (the "no box-drawing tables" rule bans drawn borders, not alignment); no line over 100 characters, titles truncated to 50 with `…`; records as `#{N}` plus a title column (titles from the scan agents' own findings — no per-row `gh issue view`); Yours grouped by the command the human runs in the fixed order `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical, one row per record and no `(likewise …)` shorthand, each group closing with one batch line (`flow`/`dispatch` — multi-ref `argument-hint`) or a paste block of single commands; Clean as one `{scan}  {count} checked` line per scan; `{run-dir}/decisions.md` referenced by path exactly once.
+- **Expect:** The conformance scan ran first — no `┌─┐` box art, but aligned columns inside ```text fences (the "no box-drawing tables" rule bans drawn borders, not alignment); no line over 100 characters, titles truncated to 50 with `…`; records as `#{N}` plus a title column (titles from the scan agents' own findings — no per-row `gh issue view`); Yours grouped by the command the human runs in the fixed order `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical, one row per record and no `(likewise …)` shorthand, each group closing with one batch line (`flow`/`dispatch` — multi-ref `argument-hint`) or a paste block of single commands, or one ref-less line when the command takes no record (`/claude-tweaks:backlog refine`); Clean as one `{scan}  {count} checked` line per scan; `{run-dir}/decisions.md` referenced by path exactly once.
 
 ### 4. Next Actions close the loop
-- **Action:** The plain-markdown `## Next Actions` block derives from the report: an "Approve ({N})" line first (bolded, recommended) when Approve is non-empty, then Yours *groups* — one line per group in report order, carrying the group's batch line or the first line of its paste block (total handoff capped at four lines) — then the help dashboard — no closing question.
+- **Action:** The plain-markdown `## Next Actions` block derives from the report: an "Approve ({N})" line first (bolded, recommended) when Approve is non-empty, then Yours *groups* — one line per group in report order, carrying the group's batch line, the first line of its paste block, or its ref-less line (total handoff capped at four lines) — then the help dashboard — no closing question.
 - **Expect:** A finding class that keeps staging run after run reads as a missing routing rule (the principle stated once in `step-6-auto.md`'s preamble) — the Approve bucket should trend empty as routing rows (or reconcile checks) absorb recurring classes; the durable exception is outward-facing GitHub writes, forbidden at every tier by the auto-mode contract.
 
 ### 5. A wide sweep digests instead of flooding the chat
@@ -47,9 +47,9 @@ An example of the post-#685 shape for a sweep with 3 auto-applied cleanups, no s
 
 **Applied automatically**
 ```text
-released     #612  Reclaim net-empty branches after merge — reconci…    reconcile-converged
-archived     #588  Retire the legacy effort:* label family                 reconcile-converged
-deleted      #601  Terminal track for design-wrapper — plan file          commit 3f9c1a2
+released     #612  Reclaim net-empty branches after merge — reconci…   reconcile-converged
+archived     #588  Retire the legacy effort:* label family             reconcile-converged
+deleted      #601  Terminal track for design-wrapper — plan file       commit 3f9c1a2
 ```
 
 **Yours (16)**

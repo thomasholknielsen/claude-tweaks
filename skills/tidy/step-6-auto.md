@@ -80,7 +80,7 @@ Four verb-grouped sections, these exact literal headers, in this order — what 
 **Applied automatically**
 ```text
 {verb}       #{N}  {title ≤50, …-truncated}                        {commit abc1234 | reconcile-converged}
-{verb}       #{M}  {title}                                          {commit def5678 | reconcile-converged}
+{verb}       #{M}  {title}                                         {commit def5678 | reconcile-converged}
 ```
 
 **Approve ({N})**
@@ -113,7 +113,7 @@ Four verb-grouped sections, these exact literal headers, in this order — what 
 Full decision log: {run-dir}/decisions.md
 ````
 
-Column shape, stated once: rows are indented three spaces under a group head or numbered item; the record column is `#{N}` padded to six characters; the title column is padded to 50 (truncated with a trailing `…` when longer); the trailing column starts at a fixed offset and fills to the 100-character line cap (Report rules below). Applied rows lead with a verb column padded to 12 (`deleted`, `released`, `archived`, `reaped`, …) — the verb *is* the outcome, so the only trailing column is the reversibility token. Approve items take three lines: number + tag + record + title, then the staged action, then the command or mutation. Yours groups follow the Yours grouping rule below — a group head `{command} ({k})`, its rows, then either one batch line or a paste block. Clean is one `{scan}  {count} checked` line per scan (`—` in the count column for a scan that reports no count).
+Column shape, stated once: rows are indented three spaces under a group head or numbered item; the record column is `#{N}` padded to six characters; the title column is padded to one width shared by every row in the section — at least 50, and titles themselves are truncated to 50 with a trailing `…` when longer — so the trailing column starts at one shared offset per section and fills to the 100-character line cap (Report rules below). A record-less finding (`[health]`, `[doctor]`, `[pattern]` — see `scan-procedures.md`'s routing table) puts `—` in the record column and its `[tag] {summary}` in the title column, same width rules. Applied rows lead with a verb column padded to 13 (`deleted`, `released`, `archived`, `reaped`, …) — the verb *is* the outcome, so the only trailing column is the reversibility token. Approve items take three lines: number + tag + record + title, then the staged action, then the command or mutation. Yours groups follow the Yours grouping rule below — a group head `{command} ({k})`, its rows, then either one batch line or a paste block. Clean is one `{scan}  {count} checked` line per scan (`—` in the count column for a scan that reports no count).
 
 How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Approve ({N})" option — named for this section — that executes Step 7 over exactly those items. Nothing applies without that click.
 
@@ -148,20 +148,21 @@ Binding rules for every rendering of this template, on both surfaces (`step-6-in
 - Width: no rendered line exceeds **100 characters**. Titles are truncated to **50 characters** with a trailing `…`; every row states one fact — the record, its title, one short trailing column — and never wraps onto a second line.
 - Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**. In **Yours ({N})** that command is the group's batch line or its paste block (Yours grouping above) — one command line per row, or one batch / ref-less line per group; multi-record shorthand (`(likewise …)`, `(and N more)`) never substitutes for it.
 - Commands render on their own line: a command line holds only the command — no annotation, no rationale, no leading `—`/`→`, nothing trailing. The annotation (tag, record ref, why) lives on the row line(s) above it.
-- Records render as `#{N}` in the record column followed by the title column — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
+- Records render as `#{N}` in the record column followed by the title column — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`. A record-less finding renders `—` there instead (column shape above).
 - `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
 - Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as its fence, or as the single line **Clean:** nothing — every scan surfaced findings.
 - Digest: when the rendered report exceeds **40 lines** (fences, headers and footer all counted), do not send it whole. Write the full report to `{run-dir}/report.md` (Bash append — the same write path as `decisions.md`; the run dir lives under the main checkout) and send a digest of at most ~20 lines instead: the `## Tidy Report` line; **Applied automatically** collapsed to one line with its count; **Approve ({N})** in full — it is the click surface, and nothing is approved unseen; **Yours ({N})** as group heads with counts, each followed by its batch or ref-less line when the group has one (paste blocks stay in `report.md`); **Clean:** collapsed to `{n} scans clean`; and a footer `Full report: {run-dir}/report.md` in place of the decisions.md line (the full report carries that one). Below 40 lines nothing extra is written and the report is sent whole.
 
 #### Conformance scan (before the hard gate)
 
-Run this scan over the literal markdown about to be sent — the whole report, or the digest plus `report.md` when the digest rule fired — before the hard gate below. Every row is a check and a remedy; a failing row is fixed and the scan re-run. A non-conformant render is never shipped as-is, and a clean pass logs nothing (mirrors `multi-spec.md`'s pre-flight verify sweep, which stays silent on a clean sweep).
+Run this scan over the literal markdown about to be sent — the whole report, or the digest plus `report.md` when the digest rule fired — before the hard gate below. Every row is a check and a remedy; a failing row is fixed and the scan re-run. A non-conformant render is never shipped as-is, and a clean pass logs nothing (mirrors `flow/multi-spec.md`'s pre-flight verify sweep, which stays silent on a clean sweep). Against a digest, only the Width, Titles, No shorthand, Command alone, Batch only where allowed, Aligned and Digest rows apply; the section-shape rows (One record per row, Every Yours row covered, Fenced, Group order, Clean shape, Footer once) are checked against the full report in `report.md`.
 
 | Rule | Check | Remedy on failure |
 |---|---|---|
 | Width | no line longer than 100 characters | truncate the title to 50 + `…`; shorten the trailing column; never wrap a row |
 | Titles | every title column ≤ 50 characters, `…` when truncated | truncate |
-| One record per row | every Applied / Approve / Yours row carries exactly one `#{N}` | split into one row per record |
+| Aligned | every row in a section starts its trailing column at one shared offset | re-pad the section's rows |
+| One record per row | every row naming records carries exactly one `#{N}`; a record-less finding (`[health]`, `[doctor]`, `[pattern]`) renders `—` in the record column and its tag where the title goes | split into one row per record |
 | No shorthand | none of `(likewise`, `(also`, `(and {n} more`, `(+{n}`, `et al` appear anywhere | expand into one row per record and one command line per row |
 | Command alone | a command line holds only the command — no leading `—`/`→`, no trailing prose | move the annotation to the row line above |
 | Every Yours row covered | each Yours group closes with one batch or ref-less line, or a paste block with exactly one line per row | add the missing command line(s) |

@@ -97,8 +97,15 @@ test('step-6-auto.md: a conformance scan sits between Report rules and the Hard 
   assert.ok(rulesAt > 0 && scanAt > rulesAt && gateAt > scanAt, 'order must be Report rules → Conformance scan → Hard gate');
   const scan = STEP6.slice(scanAt, gateAt);
   assert.match(scan, /\| Rule \| Check \| Remedy on failure \|/);
-  for (const rule of ['Width', 'Titles', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Digest']) {
-    assert.match(scan, new RegExp(`^\\| ${rule} \\|`, 'm'), `conformance scan lacks a "${rule}" row`);
+  const ruleOrder = ['Width', 'Titles', 'Aligned', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Digest'];
+  const indexes = [];
+  for (const rule of ruleOrder) {
+    const re = new RegExp(`^\\| ${rule} \\|`, 'm');
+    assert.match(scan, re, `conformance scan lacks a "${rule}" row`);
+    indexes.push(scan.search(re));
+  }
+  for (let i = 1; i < indexes.length; i++) {
+    assert.ok(indexes[i] > indexes[i - 1], `conformance scan rows out of order: "${ruleOrder[i - 1]}" (${indexes[i - 1]}) should precede "${ruleOrder[i]}" (${indexes[i]})`);
   }
   assert.match(scan, /never shipped as-is/);
 });
@@ -131,7 +138,7 @@ test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays u
   const na = section(TIDY_SKILL, '## Next Actions', '## Component-Skill Contract');
   assert.match(na, /Then take Yours \*\*groups\*\* \(`step-6-auto\.md`'s Yours grouping\)/);
   assert.match(na, /the group's batch command verbatim, or a paste-block group's first line verbatim/);
-  assert.match(na, /\{Yours group's batch command, or its first paste line\}/);
+  assert.match(na, /\{Yours group's batch command, first paste line, or ref-less line\}/);
   assert.doesNotMatch(na, /one per Yours item/);
   assert.ok(Buffer.byteLength(TIDY_SKILL, 'utf8') <= 40 * 1024, `tidy/SKILL.md is ${Buffer.byteLength(TIDY_SKILL, 'utf8')} bytes — over the 40 KB ceiling`);
 });
