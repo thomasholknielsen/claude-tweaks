@@ -18,6 +18,23 @@ function writeClaudeMd(repo, content) {
   fs.writeFileSync(path.join(repo, 'CLAUDE.md'), content);
 }
 
+// The seven #332 identity renames (naming convention + rename program): one
+// misnomer (review-severity-floor is a max, so -ceiling), two spelling fixes
+// (automerge -> auto-merge), four dot -> dash. One fixture, three consumers
+// below — the schema-shape check, the resolve/audit round-trip, and the
+// RENAMED_KEYS enumeration — so a rename table edited in one place cannot
+// drift from the others. `shape` is the unchanged POLICY_KEYS row shape;
+// `raw`/`coerced`/`other` are policy.yml inputs and their resolved values.
+const RENAMES_332 = [
+  { oldKey: 'review-severity-floor', newKey: 'review-auto-apply-ceiling', shape: { type: 'enum', values: ['none', 'low', 'medium'], default: 'low' }, raw: 'medium', coerced: 'medium', other: 'none', otherCoerced: 'none' },
+  { oldKey: 'automerge-max-lines', newKey: 'auto-merge-max-lines', shape: { type: 'integer', default: 40 }, raw: '55', coerced: 55, other: '7', otherCoerced: 7 },
+  { oldKey: 'automerge-max-files', newKey: 'auto-merge-max-files', shape: { type: 'integer', default: 2 }, raw: '4', coerced: 4, other: '9', otherCoerced: 9 },
+  { oldKey: 'project.maturity', newKey: 'project-maturity', shape: { type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' }, raw: 'established', coerced: 'established', other: 'pre-launch', otherCoerced: 'pre-launch' },
+  { oldKey: 'harness-health.scoped-rule-budget', newKey: 'harness-health-scoped-rule-budget', shape: { type: 'integer', default: 30 }, raw: '12', coerced: 12, other: '13', otherCoerced: 13 },
+  { oldKey: 'harness-health.always-loaded-budget', newKey: 'harness-health-always-loaded-budget', shape: { type: 'integer', default: 150 }, raw: '99', coerced: 99, other: '98', otherCoerced: 98 },
+  { oldKey: 'doc-convention.adr', newKey: 'doc-convention-adr', shape: { type: 'enum', values: ['plugin', 'project'] }, raw: 'project', coerced: 'project', other: 'plugin', otherCoerced: 'plugin' },
+];
+
 test('POLICY_KEYS entries are unique', () => {
   // 35 -> 37, #269 (backlog grant mode): grant-origination-enabled and
   // fleet-daily-grant-cap, the reserved opt-in + the mode's own soft cap.
@@ -163,16 +180,7 @@ test('the three #331-retired keys are gone from POLICY_KEYS', () => {
 
 test('#332 renames: seven new names are in POLICY_KEYS with unchanged shape; old names live only in RENAMED_KEYS', () => {
   const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
-  const expect = [
-    ['review-severity-floor', 'review-auto-apply-ceiling', { type: 'enum', values: ['none', 'low', 'medium'], default: 'low' }],
-    ['automerge-max-lines', 'auto-merge-max-lines', { type: 'integer', default: 40 }],
-    ['automerge-max-files', 'auto-merge-max-files', { type: 'integer', default: 2 }],
-    ['project.maturity', 'project-maturity', { type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' }],
-    ['harness-health.scoped-rule-budget', 'harness-health-scoped-rule-budget', { type: 'integer', default: 30 }],
-    ['harness-health.always-loaded-budget', 'harness-health-always-loaded-budget', { type: 'integer', default: 150 }],
-    ['doc-convention.adr', 'doc-convention-adr', { type: 'enum', values: ['plugin', 'project'] }],
-  ];
-  for (const [oldKey, newKey, shape] of expect) {
+  for (const { oldKey, newKey, shape } of RENAMES_332) {
     assert.ok(!byKey.has(oldKey), `${oldKey} must not remain in POLICY_KEYS (renamed in #332)`);
     const row = byKey.get(newKey);
     assert.ok(row, `${newKey} missing from POLICY_KEYS`);
@@ -184,23 +192,17 @@ test('#332 renames: seven new names are in POLICY_KEYS with unchanged shape; old
   }
 });
 
-test('#332 renames: a stray old-name line resolves under the new name with renamed-from attribution, resolves when asked by its old name, and audits under renamedKeys', () => {
-  const pairs = [
-    ['review-severity-floor', 'review-auto-apply-ceiling', 'medium', 'medium'],
-    ['automerge-max-lines', 'auto-merge-max-lines', '55', 55],
-    ['automerge-max-files', 'auto-merge-max-files', '4', 4],
-    ['project.maturity', 'project-maturity', 'established', 'established'],
-    ['harness-health.scoped-rule-budget', 'harness-health-scoped-rule-budget', '12', 12],
-    ['harness-health.always-loaded-budget', 'harness-health-always-loaded-budget', '99', 99],
-    ['doc-convention.adr', 'doc-convention-adr', 'project', 'project'],
-  ];
-  for (const [oldKey, newKey, raw, coerced] of pairs) {
+test('#332 renames: a stray old-name line resolves under the new name with renamed-from attribution, resolves when asked by its old name, loses to an explicit new-name line, and audits under renamedKeys', () => {
+  for (const { oldKey, newKey, raw, coerced, other, otherCoerced } of RENAMES_332) {
     const resolved = resolvePolicyKeys([newKey], { policyRaw: `${oldKey}: ${raw}\n` });
     assert.strictEqual(resolved[newKey].value, coerced, `${oldKey}: value migrates`);
     assert.strictEqual(resolved[newKey]['renamed-from'], oldKey, `${oldKey}: renamed-from attribution`);
     const asked = resolvePolicyKeys([oldKey], { policyRaw: `${oldKey}: ${raw}\n` });
     assert.strictEqual(asked[oldKey].value, coerced, `${oldKey}: requesting the old name resolves the replacement key (established alias contract — tests/resolve-policy-lib.test.js), never unknown-key`);
     assert.strictEqual(asked[oldKey].source, 'policy');
+    const both = resolvePolicyKeys([newKey], { policyRaw: `${oldKey}: ${raw}\n${newKey}: ${other}\n` });
+    assert.strictEqual(both[newKey].value, otherCoerced, `${oldKey}: when both names are set, the new name wins`);
+    assert.strictEqual(both[newKey]['renamed-from'], undefined, `${oldKey}: no renamed-from tag when the new name supplied the value`);
     const repo = tmpRepo();
     writePolicy(repo, `${oldKey}: ${raw}\n`);
     const audit = auditPolicy(repo);
@@ -335,20 +337,10 @@ test('RENAMED_KEYS names every alias and retirement, each with its migration', (
     assert.strictEqual(entry.migrate('anything'), null, 'nothing carries forward from a retirement');
   }
 
-  // 7 -> 14, #332 (naming convention + rename program): seven identity
-  // renames — one misnomer (review-severity-floor is a max, so -ceiling),
-  // two spelling fixes (automerge -> auto-merge), four dot -> dash. Every
-  // one carries the value across unchanged; only the name moved.
-  const RENAMES_332 = {
-    'review-severity-floor': 'review-auto-apply-ceiling',
-    'automerge-max-lines': 'auto-merge-max-lines',
-    'automerge-max-files': 'auto-merge-max-files',
-    'project.maturity': 'project-maturity',
-    'harness-health.scoped-rule-budget': 'harness-health-scoped-rule-budget',
-    'harness-health.always-loaded-budget': 'harness-health-always-loaded-budget',
-    'doc-convention.adr': 'doc-convention-adr',
-  };
-  for (const [oldKey, newKey] of Object.entries(RENAMES_332)) {
+  // 7 -> 14, #332 (naming convention + rename program): the seven identity
+  // renames in RENAMES_332 (top of file). Every one carries the value across
+  // unchanged; only the name moved.
+  for (const { oldKey, newKey } of RENAMES_332) {
     const entry = byKey.get(oldKey);
     assert.ok(entry, `${oldKey} missing from RENAMED_KEYS`);
     assert.strictEqual(entry.replacedBy, newKey);
