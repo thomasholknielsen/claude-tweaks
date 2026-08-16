@@ -8,5 +8,5 @@
 | 4 | review/hindsight | review-console.md sits 61 bytes under the 40KB sub-file ceiling — next edit fails tests; blocks item #3's deferred adoptions | deferred | Filed as record #552 (review-console split) at console auto-resolution |
 | 5 | review/hindsight | plan-audit Check A has no byte-headroom warning — #535's ceiling collision reached final review before being caught | deferred | Filed as record #553 (plan-audit byte-headroom warning) at console auto-resolution |
 | 6 | wrap-up | branch — origin/worktree-feedback-session-evaluation — residue probe reported merged-not-deleted (remedy auto) | fixed | Remote ref already absent at fix time (deleted by another session); pruned stale remote-tracking ref via git fetch --prune |
-| 7 | wrap-up | pr — PR #541 — open, head worktree-policy-comprehension-design (this run's own deliverable, remedy record) | open | — |
+| 7 | wrap-up | pr — PR #541 — open, head worktree-policy-comprehension-design (this run's own deliverable, remedy record) | fixed | User-directed merge ("Merge PR #541 now" at the ledger drill); executed in Phase 4 — PR #541 marked ready and merged, closing #535 |
 | 8 | wrap-up | suite probe skipped via --no-suite — full suite already ran this run (3630/3630 pass at test step) | observation | Evidence: npm-test-535-teststep.log; not a skipped check, a deduplicated one |
