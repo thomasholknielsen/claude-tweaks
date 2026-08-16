@@ -236,9 +236,11 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 
 The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
 on what is recommended for them once here. At `trusted` or higher, a record `/claude-tweaks:capture`
-filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied (see
+filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied by
+the `/claude-tweaks:specify --chained` shaping pass its filing triggered (see
 `_shared/autonomy-ceiling.md`, which names `/claude-tweaks:capture` as the only actor this covers
-today), so it appears in Step 1's fetch without having passed `/claude-tweaks:specify`.
+today), so it appears in Step 1's fetch shaped by machinery rather than by a human-invoked
+`/claude-tweaks:specify` session.
 
 Those records are not exempt from anything here. Step 3.5's body-shape re-verification is exactly
 the check that catches a born-`ready` record whose body is not actually spec-shaped, and it runs on
