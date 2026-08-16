@@ -232,8 +232,10 @@ a skill is untouched by construction.
    routine byte-identical in state. Include both lists in the report.
 6. **Round-trip note (AC4):** a paused fleet is resumed by re-running `fleet on` — Step 4's
    reconcile detects the existing records and updates/resumes rather than duplicating. The
-   marker + paused-state semantics both verbs consume are this file's own composition-table
-   `PREFIXED_NAME` rule (Step 4.2) — one home, both consumers.
+   marker semantics both verbs consume are this file's own composition-table `PREFIXED_NAME`
+   rule (Step 4.2) — one home, both consumers. Paused-state semantics do not exist yet; they
+   will be defined by whatever pause mechanism #213 lands, at which point the pause path
+   (Step 3 above) consumes them.
 
 ## Anti-Patterns
 
