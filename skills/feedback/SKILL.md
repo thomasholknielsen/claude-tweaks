@@ -360,8 +360,11 @@ Nothing further is needed.
 
 ## Next Actions
 
-Render one `AskUserQuestion` with options drawn from context: continue the
-parent workflow, file a second related learning, or open the created issue.
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), lines drawn from context — include only the lines that apply:
+
+**{the parent workflow's next command, fully qualified, e.g. `/claude-tweaks:wrap-up {spec}`}** — continue the parent workflow (recommended)
+`/claude-tweaks:feedback {second learning}` — file another related learning while it's fresh
+{created issue URL} — the filed issue, for reading or follow-up
 
 ## Component-Skill Contract
 
