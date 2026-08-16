@@ -157,27 +157,41 @@ Classify from the JSON, in this order:
 
 Then, per resolved value:
 
+**Why `--auto` alone is not a wait (Task 0, captured on this repo).** On a repository with no
+required status checks, `gh pr merge --auto --merge` **merges immediately** — exit `0`, empty stdout
+and stderr, `autoMergeRequest: null`, the PR `MERGED` while its `test` check was still `pending`.
+There is no distinguishing signature: `--auto`'s success looks identical whether it armed or merged.
+That is the #540 mechanism itself. So "arm `--auto`" is a genuine wait **only when the state read
+shows the forge would hold the merge** — `mergeStateStatus: BLOCKED` while checks are pending
+(required checks / rulesets configured); anywhere else, arming *is* an immediate merge and this gate
+must not lean on it. That is why the pending column below keys on `mergeStateStatus`, not on
+`--auto`'s exit code.
+
 | Value | Green | Pending | Red |
 |---|---|---|---|
-| `merge-when-green` | Step 3 as written — arm `--auto` (it merges immediately when checks are already green) | Step 3 as written — arm `--auto`; **arming rejected** (Task 0 signature (a), below) → degrade to the `wait` row, not to an immediate merge | Red path |
+| `merge-when-green` | Step 3 as written — arm/merge (identical outcome when checks are already green) | `mergeStateStatus: BLOCKED` → Step 3 as written — arm `--auto` (the forge holds it; outcome `armed`). Any other value (`CLEAN`, `UNSTABLE`, `BEHIND`, `UNKNOWN`, …) → arming would merge immediately: **degrade to the `wait` row** — never to an immediate merge | Red path |
 | `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`) and merge with the run's configured method — Step 3's immediate-merge form | **Bounded watch** below | Red path |
 | `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
 
-**Bounded watch (`wait`, and `merge-when-green` after a rejected arm) — 15 minutes, fixed.** Not a
-policy key: `merge-when-green` (arming) is the no-wait path, `wait` is its fallback, and a repo
-where 15 minutes is chronically wrong should enable auto-merge rather than tune a knob (parent
-#558's one-lever decision; this paragraph is the timeout's own rationale). Poll — `gh pr checks`
-itself exits early on completion, so a red result at any minute takes the Red path immediately:
+**Bounded watch (`wait`, and `merge-when-green` when arming would not hold) — 15 minutes, fixed.**
+Not a policy key: `merge-when-green` (arming) is the no-wait path, `wait` is its fallback, and a
+repo where 15 minutes is chronically wrong should enable required checks/auto-merge rather than
+tune a knob (parent #558's one-lever decision; this paragraph is the timeout's own rationale). Poll
+`gh pr checks` and key on its exit code — captured (Task 0): `0` all green, `8` at least one check
+still pending, `1` at least one check failed — so a red result at any minute takes the Red path
+immediately:
 
 ```bash
 DEADLINE=$(( $(date +%s) + 900 ))
 while :; do
   gh pr checks {pr-number} --repo {owner}/{repo} > /tmp/pr-checks-{n}.txt 2>&1; RC=$?
-  # RC semantics (Task 0 capture (c)/(c2)): {LITERAL — filled from task0-captures.md}
-  [ "$RC" -eq 0 ] && break                                   # all green
-  grep -qE '\b(fail|failed|failure|X\s)\b' /tmp/pr-checks-{n}.txt && RC=1 && break   # red — stop watching
-  [ "$(date +%s)" -ge "$DEADLINE" ] && RC=124 && break        # still pending at the bound
-  sleep 30
+  case "$RC" in
+    0) break ;;                                              # all green
+    1) break ;;                                              # a check failed — red, stop watching
+    8) [ "$(date +%s)" -ge "$DEADLINE" ] && RC=124 && break  # still pending at the bound
+       sleep 30 ;;
+    *) RC=2; break ;;                                        # gh/network error — do not merge on unknown state
+  esac
 done
 ```
 
@@ -186,9 +200,12 @@ done
   step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`)
   — never merge blind; otherwise merge with the run's configured method (Step 3's immediate-merge
   form, outcome `merged`, then Step 4).
-- `RC=1` (a check failed during the watch) → **Red path**.
+- `RC=1` (a check failed during the watch) → **Red path**, reason `check-failed:{names}` (names from
+  the `fail` rows of `/tmp/pr-checks-{n}.txt`).
 - `RC=124` (still pending at the bound) → **Red path** with reason `checks-pending-timeout` —
   reserved strictly for checks still running at the bound, never for a check that failed.
+- `RC=2` (unknown `gh` exit) → report `pending-review`, reason `checks-read-failed`; never merge on
+  a state this gate could not read.
 
 **Red path — never merge; park.**
 
@@ -201,23 +218,23 @@ done
 3. Log to `decisions.md` per `_shared/auto-decision-log.md` (an action taken autonomously — parked, not asked):
    `AUTO {HH:MM:SS} — merge-verification ({value}): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:blocked applied to #{issue-list}. Reversibility: high (label removal + resume).`
 4. Report outcome `pending-review`. This is a HARD-GATE-class stop written as park-and-surface — the
-   `_shared/auto-mode-contract.md` strict rule holds: never an `AskUserQuestion` here; the human-facing
+   `_shared/auto-mode-contract.md` strict rule holds: never a mid-pipeline prompt here; the human-facing
    surface is dispatch's resume confirmation (`dispatch/SKILL.md`, "Confirm before resuming").
 
 **Forge-cooperation path.** A merge attempt rejected by *org-owned required checks* — the state read
 shows `mergeStateStatus: BLOCKED` with every rollup entry green, or Step 3's call fails with the
-required-status-check signature (Task 0 capture (b): {LITERAL or "not captured — this repo has no
-branch protection; classification rests on the state read"}) — is the forge enforcing a stricter
-policy than the lever. Report it as such, arm `--auto` (Step 3's own call — the merge lands when the
+required-status-check signature (Task 0 capture (b): not captured — this repo has no branch
+protection or rulesets, so classification rests on the state read, never on a stderr string) — is
+the forge enforcing a stricter policy than the lever. Report it as such, arm `--auto` (Step 3's own call — the merge lands when the
 forge is satisfied), and stop: never retry-loop, never suggest bypassing protection.
 
-**Signatures (Task 0, captured on this repo — literal):**
+**Signatures (Task 0, captured on this repo — literal, 2026-08-16, probe PR #591 against a throwaway base):**
 
-- (a) `gh pr merge --auto` with repository auto-merge disabled: {LITERAL stderr + exit from task0-captures.md}.
-- (b) merge rejected by required checks: {LITERAL, or "not captured — …"}.
-- (c) `gh pr checks --watch --fail-fast` on a failing check: {LITERAL last lines + exit}; (c2) `gh pr checks` while pending: {LITERAL + exit}.
-- (d) `mergeStateStatus`/`statusCheckRollup` shapes — pending: {LITERAL}; failing: {LITERAL}; green: {LITERAL}.
-- Also captured: an unprotected repo's plain `gh pr merge` on a red PR: {LITERAL} — the #540 mechanism itself.
+- (a) `gh pr merge {n} --auto --merge -t … -b …` on this repo (`allow_auto_merge: false`, no branch protection, no rulesets): stdout empty, stderr empty, `exit=0` — and the PR **merged immediately** (`gh pr view … --json state,mergedAt,autoMergeRequest` → `{"autoMergeRequest":null,"mergedAt":"2026-08-16T11:40:57Z","state":"MERGED"}`) while its `test` check was still `pending`. No signature distinguishes "armed" from "merged" — only the follow-up `gh pr view` does (Step 3.6).
+- (b) merge rejected by required checks: not captured — this repo has no branch protection or rulesets (`gh api repos/{owner}/{repo}/branches/main/protection` → HTTP 404 "Branch not protected"; `…/rules/branches/main` → `[]`); classification for this path rests on the state read (`mergeStateStatus: BLOCKED` with a green rollup), never on a stderr string.
+- (c) `gh pr checks {n} --watch --fail-fast` on a failing check: rows like `test	fail	35s	https://github.com/…/actions/runs/…` (each check name / `pass`|`fail`|`pending`|`skipping` / duration / URL), `exit=1`. (c2) `gh pr checks {n}` while a check is still running: `test	pending	0	https://…`, `exit=8`.
+- (d) `gh pr view {n} --json state,mergeStateStatus,statusCheckRollup` — green (open draft PR #588, read-only): `{"mergeStateStatus":"CLEAN","rollup":[{"conclusion":"SUCCESS","name":"label-fix-branch","status":"COMPLETED"},{"conclusion":"SUCCESS","name":"test","status":"COMPLETED"},{"conclusion":"SKIPPED","name":"cleanup-fix-labels","status":"COMPLETED"}],"state":"OPEN"}`; failing rollup entry: `{"conclusion":"FAILURE","name":"test","status":"COMPLETED"}` (observed on #591 after merge, `mergeStateStatus: UNKNOWN` — the value GitHub reports once a PR is `MERGED`); the `mergeStateStatus` value of an *open* PR with failing checks was not captured (the probe merged via (a) before its checks failed) — which is why red is classified from `statusCheckRollup[].conclusion`, not from `mergeStateStatus`.
+- Also captured: `gh pr merge` against an already-merged PR: stderr `! Pull request {owner}/{repo}#{n} was already merged`, `exit=0` — a no-op, not an error; the state read (`state: MERGED`) catches it first.
 
 **Resume-to-merge is one-shot.** `dispatch/SKILL.md`'s "Confirm before resuming" confirmation applies
 this same lever as a single read-then-decide (green → proceed; red → surface in the confirmation;
@@ -225,7 +242,7 @@ pending → arm `--auto` where available, else offer the choice in that same con
 present on resume, so it never runs the bounded watch.
 ```
 
-Replace every `{LITERAL …}` placeholder with the verbatim capture from `task0-captures.md` (exit codes as numbers, stderr as inline code). Where a capture is `not captured — {reason}`, write exactly that.
+The signature bullets above are already filled from Task 0's `task0-captures.md` (the plan was amended after Task 0 ran) — insert them verbatim; do not re-run any `gh pr merge`.
 
 - [ ] **Step 2: Amend Step 3.1's degrade branch** — the sentence "degrade to an **immediate** merge, no `--auto`" becomes conditional: `under merge-verification: off — degrade to an immediate merge, no --auto (today's behavior); under merge-when-green — do NOT merge immediately: degrade to Step 2.5's wait row instead (the immediate merge is exactly the race the lever closes)`. Keep the code block.
 
