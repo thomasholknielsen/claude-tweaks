@@ -237,3 +237,10 @@ test('a retired key\'s line is inert: deleted from the source\'s flat view, no r
   assert.deepStrictEqual(result.autonomy, { value: 'trusted', source: 'policy' });
   assert.deepStrictEqual(result['branch-divergence-check'], { value: true, source: 'default' }, 'a retired line contributes no value and no renamed-from tag to any canonical key');
 });
+
+test('design-critique resolves to the schema default auto with source: "default" when unset (#595)', () => {
+  const result = resolvePolicyKeys(['design-critique'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['design-critique'], { value: 'auto', source: 'default' });
+  const set = resolvePolicyKeys(['design-critique'], { policyRaw: 'design-critique: full\n' });
+  assert.deepStrictEqual(set['design-critique'], { value: 'full', source: 'policy' });
+});
