@@ -3,7 +3,7 @@ name: init
 description: Use when initializing the workflow system for a project — bootstraps structure, analyzes the codebase, generates CLAUDE.md with adaptive philosophy, skills, and rules. Re-run to find drift, gaps, and stale configuration.
 argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs|github-remote|issue-form|design-integration|diagram-suggestions|shadcn-integration|cloud-parity|routines|branch-tracking|work-backend|autonomy|emil-skills|integration-model]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Init — Project Bootstrap + Intelligent Configuration
@@ -374,7 +374,7 @@ If Step 6 queued a `worktree-always` decision, write it now, bundled into "Isola
 
 ## Next Actions
 
-Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option. Resolve signals top-to-bottom; the first matching row is the recommendation. The last row is also the catch-all: the signal rows above it are not exhaustive over every possible post-init state (e.g. Update Mode completing a full pass with zero drift and no backlog writes matches none of them), so anything that doesn't match falls through to it, guaranteeing there is always a defined recommendation.
+Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or rendered as one of the markdown lines below. Resolve signals top-to-bottom; the first matching row is the recommendation. The last row is also the catch-all: the signal rows above it are not exhaustive over every possible post-init state (e.g. Update Mode completing a full pass with zero drift and no backlog writes matches none of them), so anything that doesn't match falls through to it, guaranteeing there is always a defined recommendation.
 
 | Signal | Recommended Next Action |
 |--------|------------------------|
@@ -383,14 +383,13 @@ Resolve the recommended action from the signals that fired during this run. This
 | Initial Mode ran AND backlog is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into the backlog for triage |
 | Everything is clean (Update Mode early-exit or a full pass ending with zero drift, OR Initial Mode with nothing routed to the backlog), or no row above matches | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
 
-Once resolved to a single recommended row, call `AskUserQuestion` with exactly 3 options — the resolved recommendation, plus the two "Always" actions below:
+Once resolved to a single recommended row, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — the resolved recommendation first, bolded, with `(recommended)`, plus the two "Always" lines below:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — the resolved recommendation from the table above, `label`: a short one-line summary of it suffixed `(Recommended)`, `description`: the full command text from the matched row
-- Option 2 — `label`: `"Specify next feature"`, `description`: `"/claude-tweaks:specify {first feature topic} — jump straight to specifying the first lifecycle feature"`
-- Option 3 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review backlog entries"`
+**{the resolved recommendation's full command text from the matched row}** — {short one-line summary of it} (recommended)
+`/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
+`/claude-tweaks:tidy` — review backlog entries
 
-If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and Option 3 refer to the same command — collapse them into a single `(Recommended)` option rather than presenting `/claude-tweaks:tidy` twice, leaving 2 options for that call instead of 3.
+If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and the last line refer to the same command — collapse them into a single `(recommended)` line rather than repeating `/claude-tweaks:tidy` twice, leaving 2 lines for that render instead of 3.
 
 ## Anti-Patterns
 

@@ -106,8 +106,7 @@ For each completed branch (in order):
 
 ## Next Actions
 
-Call `AskUserQuestion`:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Fix + resume"`, `description`: `"re-run /claude-tweaks:flow {spec} worktree {remaining steps} for any failed specs"`
-- Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help for full pipeline status"`
+`/claude-tweaks:flow {spec} worktree {remaining steps}` — re-run for any failed specs
+`/claude-tweaks:help` — full pipeline status

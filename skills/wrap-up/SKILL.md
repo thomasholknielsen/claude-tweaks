@@ -3,7 +3,7 @@ name: wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Wrap-Up — Capture learnings, clean up, and close the lifecycle
@@ -291,7 +291,7 @@ Execute the cleanup planned above (canonical list in `cleanup-procedures.md`, fi
 
 When this run **inherited** its run directory (see the Component-Skill Contract below), omit this block — the parent `/claude-tweaks:flow` renders its own Pipeline Summary + Next Actions after the report.
 
-When invoked directly by a user (standalone wrap-up), resolve 2-4 options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/claude-tweaks:help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply, never itself shown to the user or converted into an `AskUserQuestion` option:
+When invoked directly by a user (standalone wrap-up), resolve 2-4 lines based on context signals; always include the "next unblocked spec" line when one exists so the user doesn't have to run `/claude-tweaks:help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which lines apply, never itself shown to the user:
 
 | Signal | Option |
 |--------|--------|
@@ -299,11 +299,11 @@ When invoked directly by a user (standalone wrap-up), resolve 2-4 options based 
 | Newly unblocked records (Phase 3's dependent check — `/tmp/wrapup-unblocked.json`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
 | Always | `/claude-tweaks:help` — full pipeline status |
 
-Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — when a next spec exists, its line renders first, bolded, suffixed `(recommended)`; otherwise the lines render in the table's order with no line marked recommended:
 
-- Option 1 (when a next spec exists) — `label`: `"Full pipeline (Recommended)"`, `description`: `"/claude-tweaks:flow {N} — full pipeline on spec {N}: \"{title}\""`
-- Option 2 (one per entry in `/tmp/wrapup-unblocked.json`, up to the tool's option cap) — `label`: `"Pipeline #{N}"`, `description`: `"/claude-tweaks:flow #{N} — record #{N} \"{title}\" now unblocked by this closure"`
-- Option 3 (always) — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
+**`/claude-tweaks:flow {N}`** — full pipeline on spec {N}: "{title}" (recommended, when a next spec exists)
+`/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (one line per entry in `/tmp/wrapup-unblocked.json`, up to the tool's option cap; bare `{N}` under `work-backend: local-files`)
+`/claude-tweaks:help` — full pipeline status
 
 ## Component-Skill Contract
 

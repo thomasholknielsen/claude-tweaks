@@ -142,6 +142,15 @@ picked up without editing this file.
 | Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Phase 3 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
 | Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
+#### Refused — no defer reason (no default — never resolved by Approve all or `consoleAutoResolve`)
+
+Renders only when non-empty (`refused-proposals.md`). Rows reuse the item's own `Q#` — no sequence of their own:
+
+| # | Proposal | Staged path | Defer-reason |
+|---|---|---|---|
+| Q2 | "Track retry metrics dashboard" | `staged/reflect-staged-2.md` | `bogus` (invalid) |
+| Q3 | "Clean up the retry helper loop" | `staged/leftover-retry-cleanup.md` | absent |
+
 #### Memory updates (Approve all applies the default; Override drills each item)
 
 Render this section only when the Memory curation row staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.

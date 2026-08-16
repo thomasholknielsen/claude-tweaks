@@ -1,4 +1,6 @@
 import { fileExists } from './file-exists.js';
+import { fileContains } from './file-contains.js';
+import { dirFileCount } from './dir-file-count.js';
 import { testPasses } from './test-passes.js';
 import { decisionsLogHas } from './decisions-log-has.js';
 import { toolCalled } from './tool-called.js';
@@ -21,6 +23,8 @@ import { filterOutcomeMatches } from './filter-outcome-matches.js';
 // toolInputs, scenarioName, tokens, history}.
 const ASSERTIONS = {
   'file-exists': (ctx, params) => fileExists(ctx.repoDir, params),
+  'file-contains': (ctx, params) => fileContains(ctx.repoDir, params),
+  'dir-file-count': (ctx, params) => dirFileCount(ctx.repoDir, params),
   'test-passes': (ctx, params) => testPasses(ctx.repoDir, params),
   'decisions-log-has': (ctx, params) => decisionsLogHas(ctx.repoDir, params),
   'tool-called': (ctx, params) => toolCalled(ctx.toolCalls, params),

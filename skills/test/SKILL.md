@@ -3,7 +3,7 @@ name: test
 description: Use when you need to run verification checks (types, lint, tests) or validate QA stories — the mechanical "does it work?" gate.
 argument-hint: "[types|lint|unit|integration|e2e|affected|qa|all|skip-qa|<path>] [tag=<tag>] [story=<name>] [retry=<path>] [journey=<name>] [dir=<path>] [priority=<level>] [max_parallel=N] [timeout=<ms>] [headless]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Test — Verification Gate
@@ -217,15 +217,12 @@ Pick the row matching the mode just completed:
 | Verification failed (types/lint/tests) | Fix the failures, then re-run `/claude-tweaks:test` |
 | QA failed | Investigate failures (Fix Mode option 1), then `/claude-tweaks:test qa retry={RUN_DIR}` |
 
-**On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Call `AskUserQuestion` with exactly 2 options:
+**On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), bolding whichever matches the current run's actual signal and suffixing it `(recommended)` — UI files changed AND browser available → the full-review line; otherwise → the plain-review line:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Code review"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
-- Option 2 — `label`: `"Code + visual review"`, `description`: `"/claude-tweaks:review {spec} full — code + visual review"`
+`/claude-tweaks:review {spec}` — code review quality gate
+`/claude-tweaks:review {spec} full` — code + visual review
 
-Whichever matches the current run's actual signal gets `(Recommended)` on its label — UI files changed AND browser available → Option 2; otherwise → Option 1.
-
-**The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions; do not force them into a one-option `AskUserQuestion` call.
+**The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions in the table above; they do not render as markdown command lines.
 
 ## Component-Skill Contract
 
