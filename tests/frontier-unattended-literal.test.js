@@ -24,17 +24,24 @@ function mdFilesUnder(dir) {
 }
 
 test('no unguarded "frontier --unattended" literal in skills/ (whitespace-spanning)', () => {
+  // Explicit allowlist of the one legitimate written headless-context command
+  // (skills/init/claude-md-template.md), because proximity heuristic's discrimination
+  // was coincidental (measured margin: 72 chars at the protected site).
+  const ALLOWED = new Set(['skills/init/claude-md-template.md']);
+
   const root = path.join(__dirname, '..', 'skills');
   const offenders = [];
   for (const file of mdFilesUnder(root)) {
     const text = fs.readFileSync(file, 'utf8');
+    const rel = path.relative(path.join(__dirname, '..'), file);
     const re = /frontier\s+--unattended/gi;
     let m;
     while ((m = re.exec(text)) !== null) {
-      const context = text.slice(Math.max(0, m.index - 300), m.index + 300);
-      if (!/headless/i.test(context)) {
-        offenders.push(`${file}: index ${m.index}`);
+      if (ALLOWED.has(rel)) {
+        continue;
       }
+      const lineNum = text.slice(0, m.index).split('\n').length;
+      offenders.push(`${rel}:${lineNum}`);
     }
   }
   assert.deepEqual(offenders, [], `Unguarded frontier --unattended literal(s): ${offenders.join('; ')}`);
