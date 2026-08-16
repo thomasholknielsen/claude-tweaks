@@ -27,7 +27,7 @@ files:
 - **URL:** no command — the agent's rendered response
 - **Action:** Read Set levers (grouped by category, each row `` `{key}` — {value} ({source}) · default: {default} — {summary} ``), Issues (each non-empty list, or the literal `Policy config issues: none` line), Notable defaults (core-tier keys still on default where a project signal argues otherwise, or one of the two zero-finding lines), and Advanced tier (one collapsed `{N} advanced levers on defaults` line).
 - **Should feel:** Complete in one read — every set lever's value, source, and meaning, without a second lookup.
-- **Should understand:** All four sections render from the single `--all` snapshot taken at Gather time; a `null` default renders as `default: no default`, not literal `null`, except `integration-model`'s own `computed (forge detection)` special case.
+- **Should understand:** All four sections render from the single `--all` snapshot taken at Gather time; a `null` default renders as `default: no default`, not literal `null`, except the two derived-default keys' own special case — `integration-model` renders `computed (forge detection)`, `merge-verification` renders `computed (derivation ladder)`.
 - **Red flags:** A section silently skipped instead of rendering its own zero-finding line; a hand-typed default value instead of one read from the snapshot.
 
 ### 3. Expand the advanced tier — chat
