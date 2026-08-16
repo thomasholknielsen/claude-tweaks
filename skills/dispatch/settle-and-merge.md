@@ -139,13 +139,17 @@ Order is load-bearing: the merge carries one `Fixes #{issue}` line per record, s
 `auto:merge` governs merge timing only and has no bearing on whether a record gets `demo:pending` — `_shared/work-record.md` states that an `auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and this gate is the only place on the group path that can honor it.
 
 **Both layers pass — merge (`integration-model: pr-first`, `_shared/integration-model.md`):**
-run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — `tag: auto-merge`,
-`issue-list` the group's full record set, `summary` the lowest-numbered record's title for a
-singleton or a semicolon-joined list of every member's title for a bundle. `gh pr merge` needs no
-checkout, so this same cwd-pinned call performs the merge itself; there is no second thread, no
-`OUTCOME: ready-to-merge` relay, and no `close-run`/branch-guard/push-from-worktree dance —
-those existed only for a *local* merge. Report the outcome that procedure returned
-(`merged` / `armed` / `pending-review`) per `task-prompt.md`'s updated second-call template. On
+run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — its Step 2.5
+(Merge-verification gate) applies the resolved merge-verification lever before any merge attempt:
+green arms or merges, pending waits or arms, red parks the group with bot:blocked and reports
+pending-review, never merges (this is where a #540-shaped red merge is stopped) —
+`tag: auto-merge`, `issue-list` the group's full record set, `summary` the lowest-numbered
+record's title for a singleton or a semicolon-joined list of every member's title for a bundle.
+`gh pr merge` needs no checkout, so this same cwd-pinned call performs the merge itself; there is
+no second thread, no `OUTCOME: ready-to-merge` relay, and no `close-run`/branch-guard/push-from-worktree
+dance — those existed only for a *local* merge. Report the outcome that procedure returned
+(`merged` / `armed` / `pending-review`) (pending-review now also covers a red or timed-out check
+per that gate) per `task-prompt.md`'s updated second-call template. On
 `merged`, this call also owes the cleanup a merge unlocks — worktree removal, claim release,
 run-dir archival (wrap-up's Items 4, 7, 8) — run them directly, citing the same canonical
 procedures Settle already cites for claim release: `wrap-up/cleanup-procedures.md` Section C
