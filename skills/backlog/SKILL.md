@@ -46,6 +46,7 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 - `critical` / `risk-value` / `cleanup` / `trust` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
 - `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20).
 - `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`) or on `refine`'s priority/Related sweep.
+- `--trust` → boolean presence flag, `refine` mode only — forces the trust-table fetch (and its Trust evidence rendering) at any ceiling; without it, `refine` fetches trust only when the `autonomy` ceiling resolves `trusted` or higher.
 
 ## Preflight
 
@@ -101,7 +102,7 @@ No "set up a routine" line yet — `skills/backlog/routine-template.yml` doesn't
 | Granting from `grant` mode on any record whose gate chain hasn't fully cleared, or on a human-filed record regardless of other keys | `bin/lib/issues/grant-gate.js`'s chain is exhaustive and ordered; a human-filed record (no `by:*`) is refused unconditionally — see `grant-mode.md` |
 | Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action is the load-bearing security signature — never skip it, even for an all-recommended batch |
 | Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only *strips* `bot:blocked` on re-grant |
-| Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |
+| Reading every candidate record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Steps 1-3 |
 | Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | `/claude-tweaks:tidy`'s job (Shape 3) — this skill tags them and in `refine` may apply `priority:*` via the local-files fallback, never mirroring to GitHub |
 | Claiming or building a record from this skill | Out of scope — `/claude-tweaks:dispatch`'s job |
 | Deriving a grant, priority bump, or "next step" from `overview` mode's Trust Table | Read-only reporting — `overview` writes nothing, and the `autonomy` ceiling's one effect on this skill is which records arrive born-`ready` (`refine-mode.md` Step 3.6), never what a verdict recommends for one already here |
