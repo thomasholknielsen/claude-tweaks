@@ -1,6 +1,7 @@
 {
   "released": true,
   "runId": "2026-08-16T091924-spec-563-564-565-566",
-  "reason": "merged: reconciled from PR #583",
-  "releasedAt": "2026-08-16T16:37:19.538Z"
+  "reason": "merged via PR #583",
+  "releasedAt": "2026-08-16T16:38:21.300Z",
+  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/583"
 }
