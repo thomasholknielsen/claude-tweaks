@@ -1,7 +1,6 @@
 ---
 files:
   - skills/tidy/step-6-auto.md
-  - skills/tidy/step-6-interactive.md
   - skills/tidy/SKILL.md
   - skills/tidy/scan-procedures.md
   - bin/lib/reconcile/release-merged.js
