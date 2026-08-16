@@ -336,6 +336,13 @@ depends on them.
 | `bin/lib/issues/fleet-counters.js` | Pure module deriving `fleet status`'s weekly counters — fixtures pin AC1. |
 | `#213` | The pause verb `fleet off` depends on, open at ship time — pause path consumes whatever ships; until then the no-pause-verb fallback reports deletion-vs-keep and performs no destructive action. |
 
+## routine-kickoff
+
+| Target | Relationship |
+|---|---|
+| (inert at landing) | Machine-invoked firing-lifecycle wrapper — shipped by #528 with no live consumer; the kernel migration (#529) wires routine kernels to invoke it, and #530 verifies these edges against the merged implementation |
+| `bin/hooks.js reconcile` | Step 3 runs reconcile best-effort before the target-skill invocation |
+
 ## simplify
 
 | Target | Relationship |
