@@ -13,6 +13,7 @@
 | docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `skills/**`, `bin/**` |
 | docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `skills/**/SKILL.md` |
 | docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
+| docs/hooks.md | Hook dispatcher contract — tiered posture, run-dir resolution and ownership, never-break-a-session invariant, consumers (extracted from CLAUDE.md's `### Hooks`, which now holds only a pointer) | `bin/hooks.js`, `bin/lib/hooks/**`, `hooks/hooks.json` |
 | docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts`, docs/donts.md |
 | docs/shipped-versions.tsv | Authoritative record of every shipped version + date | `.claude-plugin/plugin.json`, `CHANGELOG.md` |
 | docs/decisions/*.md | Architecture Decision Records — hard-to-reverse, surprising trade-offs | *(no auto-detect — written deliberately by /wrap-up's ADR gate)* |
