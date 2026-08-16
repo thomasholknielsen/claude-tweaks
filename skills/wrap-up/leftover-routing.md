@@ -4,12 +4,11 @@ Spec-based only. Same fix-exhaust-first discipline as Phase 3's ledger gate: att
 
 ## Fix-exhaust first
 
-A section qualifies for "finish now" if **all** of these hold:
-- Localized changes (typically ≤5 files)
-- No dependency on functionality not yet built in this pipeline
-- No required user product/design decisions
-- No required external state
-- Does not materially expand pipeline scope (does not trigger long rebuilds, does not break >10 unrelated tests)
+Run `_shared/deferral-gate.md`'s fix-now criteria on every unfinished section, first — a section
+that fails fix-now with no valid `Defer-reason:` from that file's vocabulary is not a leftover; it
+becomes an `open` ledger item for Phase 2's drill instead of a routed proposal. A genuine
+leftover's reason derives from *why* it cannot finish now, using the same mapping as review Step
+3's (`review/step3-routing.md`) — most leftovers are `genuinely-larger` or `blocked-dependency`.
 
 Finish qualifying sections silently, commit, then present only the residue.
 
@@ -19,7 +18,7 @@ Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the re
 
 1. **Compose the body.** Start with a provenance line — `Origin: wrap-up leftover from #{n}` when this run's materialized header exists (`{n}` = its `record:` field) — then a blank line, then the section's own unfinished-work description (what's left, why it can't finish now). When the recommended destination is `parked` (a concrete trigger exists — a date, a watched path, another spec landing), append a `Trigger: {condition}` line. When no specific trigger exists (a captured idea worth keeping but nothing concrete to wake it), the body ends after the description and the record stays plain backlog — the unified taxonomy's equivalent of the pre-migration "inbox" destination, minus a separate stage label (`_shared/work-record.md`'s Stage axis has exactly three values: backlog/parked/ready; there is no fourth "inbox" state).
 
-2. **Build the payload** via `recordPayload` (`bin/lib/issues/record.js`) — no `origin` param (a wrap-up leftover carries no `by:*` label: origin here is the filing skill, not one of the four health-skill producers, and `_shared/work-record.md`'s origin axis records that case as the body's `Origin:` line instead, e.g. `Origin: wrap-up leftover from #42`); no `risk`/`size`/`ready` (scoring and promotion to `ready` are `/specify`'s job, not wrap-up's — a leftover record starts exactly where a captured idea starts):
+2. **Build the payload** via `recordPayload` (`bin/lib/issues/record.js`) — no `origin` param (a wrap-up leftover carries no `by:*` label: origin here is the filing skill, not one of the four health-skill producers, and `_shared/work-record.md`'s origin axis records that case as the body's `Origin:` line instead, e.g. `Origin: wrap-up leftover from #42`); no `risk`/`size`/`ready` (scoring and promotion to `ready` are `/specify`'s job, not wrap-up's — #624 rewrites this composition onto `specShapedBody`):
 
    ```bash
    node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
@@ -35,13 +34,15 @@ Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the re
    ```bash
    node -e "const p=require('/tmp/wrap-up-leftover-payload.json');
      require('fs').writeFileSync(process.argv[1],
-       'Title: ' + p.title + '\nType: ' + p.type + '\nLabels: ' + (p.labels.join(', ') || 'none') + '\n\n' + p.body)" \
-     "${RUN_DIR}/staged/leftover-${SLUG}.md"
+       'Title: ' + p.title + '\nType: ' + p.type + '\nLabels: ' + (p.labels.join(', ') || 'none') + '\nDefer-reason: ' + process.argv[2] + '\n\n' + p.body)" \
+     "${RUN_DIR}/staged/leftover-${SLUG}.md" "$DEFER_REASON"
    ```
+
+   `$DEFER_REASON` is the section's vocabulary value from the fix-exhaust gate above (`_shared/deferral-gate.md`'s "Where the reason lives" — a keyed header line, located by key, never by position).
 
 4. **Log entry** to `decisions.md`:
    ```
-   STAGED 15:02:18 — Leftover routing: section "{name}" cannot finish now ({blocker}). Recommended: {leftover-default} → {parked|backlog}. Stage path: staged/leftover-{slug}.md.
+   STAGED 15:02:18 — Leftover routing: section "{name}" cannot finish now ({blocker}). Recommended: {leftover-default} → {parked|backlog} (defer-reason: {value}). Stage path: staged/leftover-{slug}.md.
    ```
 5. Do NOT create the record autonomously. The Wrap-Up Review Console presents each staged leftover in its Queue writes section for approval — folded into the batch "Approve all" at `supervised`/`trusted`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` at `unattended`, per `_shared/auto-mode-card.md`'s tiered work-record-creation row — unless `bookkeepingPermissions(ceiling).queueWriteAutoFile === true` (`trusted`+), in which case the console's auto-file step (see `review-console.md`) creates it directly before rendering, per `_shared/autonomy-ceiling.md`. Either way, the disposition (`backlog` vs. `parked`) chosen by `leftover-default` above is unchanged; this only affects whether creating the record needs a click. On approval (or auto-file), the record is created via: `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading the `Title:`/`Type:`/`Labels:` header and the body back out of the staged file. See `review-console.md`'s Queue writes section in this skill's directory.
 

@@ -72,7 +72,11 @@ A finding the CLI marked `remedy: record` (an open PR outside this run's own bla
 suite, a locked worktree a live session still holds) is not Phase 1's to fix. Its `Item`
 description should say so plainly, so Phase 1 correctly leaves it `open` for Phase 2's per-item
 drill, where "Route to a record" or "Close out" is the natural landing choice — the CLI's `remedy`
-field is a hint for that drill, not a rule the gate is bound to follow.
+field is a hint for that drill, not a rule the gate is bound to follow. `_shared/deferral-gate.md`
+governs the routing: a proposal routed from here carries a `Defer-reason:` per this mapping — a
+locked worktree a live session holds → `blocked-external`; an open PR outside this run's blast
+radius → `blocked-external`; a red suite this run cannot fix → `genuinely-larger`; anything else
+stays `open` for Phase 2's drill, where the human picks the value.
 
 ## The judgment class — named triggers
 

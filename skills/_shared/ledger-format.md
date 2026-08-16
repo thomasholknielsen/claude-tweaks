@@ -116,7 +116,7 @@ building the table below, check each remaining `open` item's Phase 1 blocker rea
 `bin/lib/issues/autonomy.js`'s `clearsFloor(blockerReason)`. For every item where it
 returns `true`: auto-select `Route to a record → Keep (backlog)` — the only disposition this
 capability ever authorizes from this drill; never `Fix anyway`, `Accept`, `Drop`, or `Defer →
-parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch below already does,
+parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch below already does — the staged header's `Defer-reason:` value is the structured twin of whichever regex group cleared the floor, per `_shared/deferral-gate.md`'s floor-mapping table —,
 update ledger status to `deferred` (note `→ backlog`), and log:
 
 ```
