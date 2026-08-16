@@ -146,6 +146,13 @@ test('recordPayload places solution:unjustified between ceremony:* and ready in 
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'solution:unjustified', 'ready', 'priority:high']);
 });
 
+test('recordPayload throws on the pre-rename framing parameter, naming the field (mirrors the effort rejection)', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', framing: true }),
+    /framing/,
+  );
+});
+
 // The classification -> scoring-axis fold the health issue-payload builders read:
 // its second axis is the size facet, so its key is `size`, not `effort`.
 test('CLASSIFICATION_SCORING folds each classification onto a risk/size pair', () => {

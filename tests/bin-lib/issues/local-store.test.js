@@ -384,6 +384,13 @@ test('readRecord: legacy framing: true line reads as solutionUnjustified true (p
   fs.writeFileSync(legacy, '---\ntype: task\nframing: true\n---\n# Legacy\n\nb\n');
   assert.strictEqual(readRecord(legacy).facets.solutionUnjustified, true);
   assert.ok(!('framing' in readRecord(legacy).facets), 'no framing key on the read record');
+
+  // Migrate-on-write: rewriting the record emits the new line and drops the legacy one.
+  const migrated = readRecord(legacy);
+  writeRecord(legacy, { title: migrated.title, body: migrated.body, facets: migrated.facets });
+  const rewritten = fs.readFileSync(legacy, 'utf8');
+  assert.ok(/^solution-unjustified: true$/m.test(rewritten));
+  assert.ok(!/^framing:/m.test(rewritten), 'rewrite must not carry the legacy framing: line forward');
 });
 
 test('readRecord: an explicit solution-unjustified: line wins over a legacy framing: line in either order', (t) => {
@@ -396,7 +403,7 @@ test('readRecord: an explicit solution-unjustified: line wins over a legacy fram
   assert.strictEqual(readRecord(legacyFirst).facets.solutionUnjustified, false);
 });
 
-// notPlanned mirrors framing's presence-only convention exactly — written only
+// notPlanned mirrors solutionUnjustified's presence-only convention exactly — written only
 // when true, absent-on-read falls back to sharedFacetDefaults()' false. Added
 // alongside the wontfix-label parse in record.js (refs #513) so both drivers
 // carry the shared facet symmetrically.

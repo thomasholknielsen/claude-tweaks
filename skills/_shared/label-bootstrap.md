@@ -104,7 +104,7 @@ one-time provision-now offer, which uses this list whole):
   ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
   ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
   ["parent-issue",      "Structure: parent issue — carries the acceptance gate for its sub-issues"],
-  ["solution:unjustified", "Solution: named without being traded off against alternatives — add evidence or accept the risk"],
+  ["solution:unjustified",   "Solution: named without being traded off against alternatives — add evidence or accept the risk"],
   ["needs:definition",  "Undecided idea — must go through /specify's brainstorm redirect before reaching ready"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],

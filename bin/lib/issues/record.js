@@ -145,8 +145,9 @@ function fencedBlock(text) {
 // a caller composing a payload inline from pre-rename facets fails loud instead
 // of silently dropping the scoring label. No code path here writes an effort:*
 // label. The read side's effort:* fallback (parseRecordFacets below) is
-// deliberately one-directional.
-function recordPayload({ title, body, type, origin, risk, size, ceremony, solutionUnjustified, ready, parked, priority, fingerprint, effort, deferReason } = {}) {
+// deliberately one-directional. `framing` is rejected the same way — the
+// pre-rename name of `solutionUnjustified` (#677).
+function recordPayload({ title, body, type, origin, risk, size, ceremony, solutionUnjustified, ready, parked, priority, fingerprint, effort, framing, deferReason } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -157,6 +158,10 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, soluti
 
   if (effort !== undefined) {
     throw new Error('recordPayload has no effort parameter — the record facet is size (#217); effort means reasoning depth');
+  }
+
+  if (framing !== undefined) {
+    throw new Error('recordPayload has no framing parameter — the facet is solutionUnjustified (#677); framing:baked was renamed solution:unjustified');
   }
 
   if (ready && parked) {
