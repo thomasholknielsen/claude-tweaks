@@ -1,6 +1,7 @@
 ---
 files:
   - skills/tidy/step-6-auto.md
+  - skills/tidy/step-6-interactive.md
   - skills/tidy/SKILL.md
   - skills/tidy/scan-procedures.md
   - bin/lib/reconcile/release-merged.js
@@ -13,7 +14,7 @@ files:
 **Persona:** claude-tweaks maintainer (or a scheduled tidy Routine firing) running periodic backlog hygiene on a `pr-first` project with `auto-mode: default-on`.
 **Goal:** One report that separates what tidy already did, what it will do on a click, and what only the human can do — with every actionable line ending in a paste-ready command, and mechanical cleanups (issue-closed claim releases, abandoned-branch archival) already converged by reconcile rather than staged for approval.
 **Entry point:** `/claude-tweaks:tidy` standalone in auto mode (no parent pipeline run dir), interactively or as the weekly scheduled Routine.
-**Success state:** The report renders the four literal sections — **Applied automatically**, **Approve ({N})**, **Yours ({N})**, **Clean:** — empty sections omitted (Clean always present); reconcile-converged outcomes (released claims on closed issues, archived/deleted abandoned branches) appear under Applied with their evidence reason; every Yours line carries its fully-qualified command; Next Actions derives from Approve/Yours (Apply-all-staged first when Approve is non-empty, capped at 4 options total).
+**Success state:** The report renders the four literal sections — **Applied automatically**, **Approve ({N})**, **Yours ({N})**, **Clean:** — empty sections omitted (Clean always present), each section's rows as aligned columns inside ```text fences, no line over 100 characters; reconcile-converged outcomes (released claims on closed issues, archived/deleted abandoned branches) appear under Applied with their reversibility token; Yours is grouped by the command the human runs and every group closes with a batch line or a paste block (one command per row); a report over 40 lines arrives as a digest with the full report at `{run-dir}/report.md`; Next Actions derives from Approve/Yours groups (Approve first when non-empty, capped at 4 options total).
 
 ## Steps
 
@@ -27,8 +28,77 @@ files:
 
 ### 3. The report renders before any question
 - **Action:** The hard gate requires the rendered report in the same response, above any `AskUserQuestion`.
-- **Expect:** No box-drawing tables; records as `#{N} "{title}"` (titles from the scan agents' own findings — no per-row `gh issue view`); `{run-dir}/decisions.md` referenced by path exactly once.
+- **Expect:** The conformance scan ran first — no `┌─┐` box art, but aligned columns inside ```text fences (the "no box-drawing tables" rule bans drawn borders, not alignment); no line over 100 characters, titles truncated to 50 with `…`; records as `#{N}` plus a title column (titles from the scan agents' own findings — no per-row `gh issue view`); Yours grouped by the command the human runs in the fixed order `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical, one row per record and no `(likewise …)` shorthand, each group closing with one batch line (`flow`/`dispatch` — multi-ref `argument-hint`) or a paste block of single commands; Clean as one `{scan}  {count} checked` line per scan; `{run-dir}/decisions.md` referenced by path exactly once.
 
 ### 4. Next Actions close the loop
-- **Action:** The closing question derives from the report: "Apply all staged ({N})" first when Approve is non-empty, then up to Yours items (capped so the total never exceeds 4 options), then the help dashboard.
+- **Action:** The closing question derives from the report: "Approve ({N})" first when Approve is non-empty, then up to Yours *groups* — one option per group, its description the group's batch line or the first line of its paste block (capped so the total never exceeds 4 options) — then the help dashboard.
 - **Expect:** A finding class that keeps staging run after run reads as a missing routing rule (the principle stated once in `step-6-auto.md`'s preamble) — the Approve bucket should trend empty as routing rows (or reconcile checks) absorb recurring classes; the durable exception is outward-facing GitHub writes, forbidden at every tier by the auto-mode contract.
+
+### 5. A wide sweep digests instead of flooding the chat
+- **Action:** A full sweep whose report would exceed 40 lines (a dozen-plus Yours records across several groups is enough — every single-ref record costs a row plus a paste line) writes the whole report to `{run-dir}/report.md` and sends a ~20-line digest: Approve in full, Yours as group heads with counts (plus batch lines), Applied and Clean collapsed to counts, and a `Full report:` footer.
+- **Expect:** Nothing is lost — every row and every paste block is in `report.md`; the digest is what the hard gate checks for, and Next Actions still derives from the groups. Below 40 lines no `report.md` is written and the report arrives whole.
+
+## Example render
+
+An example of the post-#685 shape for a sweep with 3 auto-applied cleanups, no staged items, 16 Yours records across four groups, and six clean scans (fictional records). The 16 Yours records fit in 37 lines; the whole report is 58, so this render ships as a digest with this full form in `report.md`:
+
+````markdown
+## Tidy Report — 2026-08-16
+
+**Applied automatically**
+```text
+released     #612  Reclaim net-empty branches after merge — reconci…    reconcile-converged
+archived     #588  Retire the legacy effort:* label family                 reconcile-converged
+deleted      #601  Terminal track for design-wrapper — plan file          commit 3f9c1a2
+```
+
+**Yours (16)**
+```text
+/claude-tweaks:specify (6)
+   #640  Backlog overview funnel: stage counts per lane                  ready, missing risk/size
+   #652  Reconcile red-tip detection for stale mirror refs               ready, missing risk/size
+   #655  Routine kickoff kernel self-heal fallback                       ready, missing risk/size
+   #661  Dispatch two-call gate: settle before teardown                  ready, missing risk/size
+   #663  Help dashboard trust table render                               ready, missing risk/size
+   #670  Capture born-ready chain: --chained shaping                     ready, missing risk/size
+   /claude-tweaks:specify #640
+   /claude-tweaks:specify #652
+   /claude-tweaks:specify #655
+   /claude-tweaks:specify #661
+   /claude-tweaks:specify #663
+   /claude-tweaks:specify #670
+/claude-tweaks:demo (5)
+   #598  Merge verification policy key                                   closed, no acceptance
+   #599  Reference card argument-hint pin                                closed, no acceptance
+   #608  Specify native sub_issues linking                               closed, no acceptance
+   #610  Specify native blocked_by linking                               closed, no acceptance
+   #647  permittedGrants per-grant reasons                               closed, no acceptance
+   /claude-tweaks:demo #598
+   /claude-tweaks:demo #599
+   /claude-tweaks:demo #608
+   /claude-tweaks:demo #610
+   /claude-tweaks:demo #647
+git (2)
+   #617  Design exhaust deferral gate                                    PR closed unmerged, wt kept
+   #620  Revive needs-definition sweep                                   PR closed unmerged, wt kept
+   git -C .claude/worktrees/design-exhaust-deferral-gate log --oneline -5
+   git -C .claude/worktrees/revive-needs-definition log --oneline -5
+/claude-tweaks:backlog refine (3)
+   #571  Tidy reconcile routing for build+ worktrees                     bot:blocked, retry ceiling
+   #574  Sweep backstop unarmed PR grant                                 bot:blocked, retry ceiling
+   #589  Docs-health depth mismatch judge                                bot:blocked, retry ceiling
+   /claude-tweaks:backlog refine
+```
+
+**Clean:**
+```text
+parked             3 checked
+worktrees          9 checked
+doc registry       —
+design docs        2 checked
+plans              4 checked
+issue claims       12 checked
+```
+
+Full decision log: .claude-tweaks/pipelines/2026-08-16T203000-tidy-standalone/decisions.md
+````

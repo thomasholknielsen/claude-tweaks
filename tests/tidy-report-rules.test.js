@@ -134,3 +134,21 @@ test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays u
   assert.doesNotMatch(na, /one per Yours item/);
   assert.ok(Buffer.byteLength(TIDY_SKILL, 'utf8') <= 40 * 1024, `tidy/SKILL.md is ${Buffer.byteLength(TIDY_SKILL, 'utf8')} bytes — over the 40 KB ceiling`);
 });
+
+// --- Task 5: journey doc pins the new shape ---
+
+const JOURNEY = read('docs', 'journeys', 'tidy-standalone-auto-report.md');
+
+test('journey doc: Step 3 expects fenced aligned columns, grouped Yours, no shorthand; Step 5 covers the digest', () => {
+  assert.match(JOURNEY, /skills\/tidy\/step-6-interactive\.md/);
+  assert.match(JOURNEY, /aligned columns inside ```text fences/);
+  assert.match(JOURNEY, /grouped by the command the human runs/);
+  assert.match(JOURNEY, /no `\(likewise …\)` shorthand/);
+  assert.match(JOURNEY, /### 5\. A wide sweep digests/);
+  assert.match(JOURNEY, /\{run-dir\}\/report\.md/);
+  assert.match(JOURNEY, /## Example render/);
+  // The example render itself must obey the width rule it demonstrates.
+  const example = JOURNEY.slice(JOURNEY.indexOf('## Example render'));
+  const fenced = example.split('\n').filter((l) => !l.startsWith('#') && !l.startsWith('**') && !l.startsWith('```') && !l.startsWith('Full ') && l.trim() !== '' && !l.startsWith('An example') && !l.startsWith('The 16 Yours'));
+  for (const line of fenced) assert.ok(line.length <= 100, `example line over 100 chars: ${line}`);
+});
