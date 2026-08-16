@@ -57,7 +57,7 @@ function run(argv, deps = realDeps) {
     return 3;
   }
   const entry = formatEntry({ status: o.status, now: deps.now(), step: o.step, spec: o.spec, text: o.text, reversibility: o.reversibility, lever: o.lever });
-  appendEntry({ runDir: o.run, section: o.section, entry });
+  try { appendEntry({ runDir: o.run, section: o.section, entry }); } catch (err) { deps.stderr(`log-decision.js: could not write decisions.md (${err && err.message})\n`); return 3; }
   deps.stdout(entry + '\n');
   return 0;
 }

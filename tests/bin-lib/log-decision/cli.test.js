@@ -59,6 +59,17 @@ test('a --run inside a linked-worktree path is rejected non-zero and names the s
   assert.equal(fs.existsSync(path.join(shadow, 'decisions.md')), false, 'nothing written to the shadow');
 });
 
+test("appendEntry write failure maps to exit 3 (decisions.md is a directory, not a file)", () => {
+  const { main, run: runDir } = fixture();
+  fs.mkdirSync(path.join(runDir, 'decisions.md'));
+  const out = [];
+  const code = run(['--run', runDir, '--status', 'AUTO', '--text', 'x'], deps(main, out));
+  assert.equal(code, 3);
+  const err = out.filter((o) => o[0] === 'err').map((o) => o[1]).join('');
+  assert.match(err, /could not write decisions\.md/);
+  assert.equal(out.filter((o) => o[0] === 'out').length, 0, 'nothing printed to stdout');
+});
+
 test('malformed invocations exit 2: missing --run, bad status, empty text, missing dir exits 3', () => {
   const { main, run: runDir } = fixture();
   assert.equal(run(['--status', 'AUTO', '--text', 'x'], deps(main, [])), 2);
