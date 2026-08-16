@@ -454,5 +454,12 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   merged tree, not by subtracting both deltas from 375, though the
   //   arithmetic happens to agree here (375 - 4 - 6 = 365) — the same
   //   `[IL-99]` pattern recorded above.
-  assert.strictEqual(total, 365);
+  //
+  //   365 -> 368, design-wrapper review Step 3.8 critic dispatch (#598).
+  //   Three rows appended to design-wrapper/SKILL.md's Anti-Patterns table
+  //   (treating a craft critic as a third-party agent; dispatching one on the
+  //   native track; inferring the motion signal from file content). No other
+  //   file's table changed in that diff. Measured by running this test's own
+  //   parser against the working tree (actual 368), not by adding 3 to 365.
+  assert.strictEqual(total, 368);
 });
