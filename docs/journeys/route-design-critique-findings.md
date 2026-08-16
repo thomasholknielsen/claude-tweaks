@@ -21,7 +21,7 @@ files:
 - **Action:** Confirm the roster selection matched expectations: `critics.md`'s worked-example table says which critics fire for your lever × decisions-present × motion combination (e.g. `auto` + `DESIGN.md` present + no motion → `emil-design-eng` only).
 - **Should feel:** Deterministic — the same three signals always select the same rows; no critic appears that the roster doesn't list.
 - **Should understand:** `craft_critics` is the evidence ledger, not the findings: an entry with `ran: false, missed` or `parsed: false, reason` means absence of evidence, never a clean bill. A clean critic reply is `parsed: true` with the literal "No findings.".
-- **Red flags:** A critic dispatched on a non-web track (the roster has no native or terminal critic yet); findings from a critic whose `craft_critics` entry says `parsed: false` (unparseable replies are never mined for findings).
+- **Red flags:** A critic dispatched on a non-web, non-terminal track (the roster has no native critic yet); findings from a critic whose `craft_critics` entry says `parsed: false` (unparseable replies are never mined for findings).
 
 ### 2. Confirm `code` findings became polish context — `decisions.md` + polish output
 - **URL:** `{run-dir}/decisions.md` and the polish phase's logged `decision_summary` (pipeline runs only).
