@@ -114,8 +114,9 @@ trace of it.
 6. **If `ceilingHit` was `true`:** bootstrap `bot:blocked` if it doesn't already exist:
 
    ```bash
-   # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-   # [['bot:blocked', 'Bot state: retry ceiling or merge-verification park - needs human re-triage before autonomous retry']]
+   # Bootstrap per _shared/label-bootstrap.md — LABELS_JSON is the single ['bot:blocked', <description>]
+   # pair, with <description> read from that file's canonical LABELS_JSON fence (the one source
+   # tests/bin-lib/issues/labels.test.js pins); never restate the description text here.
    ```
 
    Then remove `auto:build` and, if still present (a `transient`-classified attempt preserves it per step 3 above, so it can still be there at the ceiling), `auto:merge` too — per `_shared/issue-claims.md`'s canonical rule, the retry ceiling removes **all** `auto:*` labels, not just whichever one step 3 didn't already strip. Add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
