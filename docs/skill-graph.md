@@ -331,10 +331,10 @@ depends on them.
 | `skills/_shared/integration-branch.md` | Canonical resolution ladder for the branch this skill substitutes into `{{TARGET_BRANCH}}`. Shared with `/dispatch`, `/wrap-up`, `/build`, `/flow`, and `/assess-agent-autonomy` — this skill contributes ranks 1-2 (its `--branch` argument and the template's own `branch:` pin) and consumes the rest. Owns the `integration-branch` policy key, indexed in `_shared/policy-schema.md`. `fleet on` resolves the branch once per fleet run and reuses it across every composition-table row, rather than re-resolving per row. |
 | `skills/_shared/routine-diagnostic-probe.md` | Consumer, not a skill — references this skill's CREATE Step 4 environment-resolution procedure by name rather than duplicating it, for firing ad hoc diagnostics against an already-existing project environment. A future change to Step 4's resolution sources must consider this dependent. |
 | `skills/_shared/autonomy-ceiling.md` | `fleet.md`'s Step 3 (conditional grant-unit provisioning) is the contract's two-unattended-keys gate applied at provisioning time rather than at grant time — `autonomy: unattended` plus the reserved `grant-origination-enabled` opt-in this file names are the exact two keys, no third, no paraphrase. |
-| `skills/routine/status.md` | `fleet status` → `skills/routine/status.md` Steps 2-3.5 — aggregation loops the per-routine STATUS procedure over fleet-marked records |
-| `_shared/trust-table.md` | `fleet status` → `_shared/trust-table.md` Fetch + Render — same shared rendering `/backlog overview` and `/help` consume |
-| `bin/lib/issues/fleet-counters.js` | `fleet status` → `bin/lib/issues/fleet-counters.js` — weekly counter derivation (pure module; fixtures pin AC1) |
-| `#213` | `fleet off` → #213 (pause verb, open at ship time) — pause path consumes whatever ships; until then the no-pause-verb fallback reports deletion-vs-keep and performs no destructive action |
+| `skills/_shared/trust-table.md` | Fetch + Render supplies `fleet status`'s per-class trust table — same shared rendering `/backlog overview` and `/help` consume. |
+| `skills/routine/status.md` | Steps 2-3.5 supply the per-routine STATUS procedure `fleet status` loops over fleet-marked records. |
+| `bin/lib/issues/fleet-counters.js` | Pure module deriving `fleet status`'s weekly counters — fixtures pin AC1. |
+| `#213` | The pause verb `fleet off` depends on, open at ship time — pause path consumes whatever ships; until then the no-pause-verb fallback reports deletion-vs-keep and performs no destructive action. |
 
 ## simplify
 

@@ -25,9 +25,13 @@ function weeklyWindow(nowMs) {
 
 // 'unattended' posture = grant unit provisioned AND both unattended keys set;
 // anything else is 'supervised'. Same two-key rule as fleet.md Step 3 — no
-// third key, no paraphrase.
+// third key, no paraphrase. grantOriginationEnabled accepts either the JS
+// boolean true or the string 'true' — fleet.md S3 sources it from
+// resolve-policy.js --values, which emits plain-text scalars, never JSON
+// booleans (#276 final review F1).
 function fleetPosture({ grantUnitProvisioned, autonomy, grantOriginationEnabled }) {
-  return grantUnitProvisioned && autonomy === 'unattended' && grantOriginationEnabled === true
+  const originationEnabled = grantOriginationEnabled === true || grantOriginationEnabled === 'true';
+  return grantUnitProvisioned && autonomy === 'unattended' && originationEnabled
     ? 'unattended'
     : 'supervised';
 }

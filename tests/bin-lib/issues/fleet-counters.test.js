@@ -6,7 +6,6 @@ const {
 } = require('../../../bin/lib/issues/fleet-counters.js');
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
-const days = (n) => n * 24 * 60 * 60 * 1000;
 
 test('weeklyWindow is a rolling 7x24h window ending at now, full ISO boundaries', () => {
   const w = weeklyWindow(NOW);
@@ -29,6 +28,11 @@ test('fleetPosture: unattended requires grant unit + both unattended keys', () =
   assert.strictEqual(fleetPosture({ grantUnitProvisioned: false, autonomy: 'unattended', grantOriginationEnabled: true }), 'supervised');
   assert.strictEqual(fleetPosture({ grantUnitProvisioned: true, autonomy: 'supervised', grantOriginationEnabled: true }), 'supervised');
   assert.strictEqual(fleetPosture({ grantUnitProvisioned: true, autonomy: 'unattended', grantOriginationEnabled: false }), 'supervised');
+});
+
+test('fleetPosture: accepts the string-scalar shape resolve-policy.js --values emits', () => {
+  assert.strictEqual(fleetPosture({ grantUnitProvisioned: true, autonomy: 'unattended', grantOriginationEnabled: 'true' }), 'unattended');
+  assert.strictEqual(fleetPosture({ grantUnitProvisioned: true, autonomy: 'unattended', grantOriginationEnabled: 'false' }), 'supervised');
 });
 
 // AC1 fixture: two fleet routines, one machine grant, one human grant, one revocation.

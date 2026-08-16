@@ -1,6 +1,7 @@
 # Routine — Fleet Mode (`fleet on` / `fleet status` / `fleet off`)
 
-Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb). `fleet status` and `fleet off` live in their own sections below (#276).
+Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`,
+`fleet status`, or `fleet off`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb). `fleet status` and `fleet off` live in their own sections below (#276).
 
 This mode is a loop over the existing CREATE/UPDATE procedure (`create-and-update.md` in this skill's directory), parameterized by the composition table below — never a reimplementation of `RemoteTrigger` handling. Read `create-and-update.md` and `schedule-resolution.md` first; this file states only what fleet mode does differently (per-entry naming, fleet-resolved cron instead of the interactive picker, the reconcile marker rule, and the Manifesto/conditional-provisioning wrapper around the loop).
 
@@ -148,7 +149,12 @@ rows render as absent, never as errors.
 records enumerated by `record-freshness.md` Steps F1-F2 (`compareRoutineRecords`' `records[]`,
 authority copy — never a bare directory listing). A record whose filename matches no
 composition-table `PREFIXED_NAME` is **not** fleet-marked and is excluded from every table and
-counter below; a hand-created routine sharing a skill is invisible here by construction.
+counter below; a hand-created routine sharing a skill under a name outside the composition table
+is invisible here by construction. The deliberate exception is row 5: a pre-existing
+`{REPO_SLUG}-code-health-daily` created by standalone `/claude-tweaks:routine create code-health`
+matches that row's standard-derivation name exactly, so it **is** fleet-marked and gets adopted
+into the fleet on first reconcile (Naming deviates from `create-and-update.md`, above) — not
+invisible, by construction of that same naming rule.
 
 ### Step S1 — Routine table
 
@@ -175,6 +181,11 @@ Posture first — compute via `fleetPosture` (`bin/lib/issues/fleet-counters.js`
 `grantUnitProvisioned` = the grant unit's `{REPO_SLUG}-backlog-grant-weekdays.yml` record is
 fleet-marked present; `autonomy` / `grantOriginationEnabled` from
 `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled`.
+`--values` mode emits plain-text scalars, not JSON booleans, so `grant-origination-enabled`
+arrives as the string `"true"`/`"false"`; `fleetPosture` accepts `'true'` verbatim (same
+string-vs-boolean coercion `skills/backlog/grant-mode.md`'s Phase A script performs explicitly
+for its own `$OPT_IN` shell variable), so pass the resolver's output straight through with no
+extra coercion here.
 A **supervised** posture renders no grant counters and states why: "supervised fleet — no grant
 unit provisioned (or unattended keys unset); grant counters not applicable."
 
@@ -186,10 +197,10 @@ the header line: `Week of {startIso} → {endIso}`.
 | Counter | Value | Source (stated inline in the render) | Blind spot (stated inline) |
 |---|---|---|---|
 | Firings | {fired}/{total} routines fired | per-routine STATUS `RemoteTrigger get` last-run field | only the *last* firing is visible — a routine that fired 7× counts once; a get response with no last-run field counts as not fired |
-| Findings filed | {n} | records created in-window carrying a `by:*` origin label (`gh issue list` REST, `createdAt` in-window) | pre-dates nothing: only tracker-visible records; a finder whose filing failed is invisible |
+| Findings filed | {n} | records created in-window carrying a `by:*` origin label (`gh issue list` REST, `createdAt` in-window) | only tracker-visible records are counted — a finder whose filing failed is invisible, and records predating the tracker are out of scope |
 | Grants issued | {machine} machine / {human} human | in-window `auto:build`/`auto:merge` label events; machine identified by the `<!-- grant-mode-audit: ... -->` comment marker (#269), human by its absence | grants counted from audit comments cannot see pre-feature history; a human grant's timestamp comes from the label-add event, which GitHub's timeline may paginate |
 | Merges | {n} | closed records whose closing event carries a merge commit, `closedAt` in-window | records closed by hand (wontfix/duplicate) are excluded; squash-merges closed without a closing keyword are invisible |
-| Revocations | {n} | trust reads — negative-evidence outcomes (failure-classification markers, `bin/lib/issues/retry.js`'s shape, and detected reverts) whose evidence entered the window, counted per class-downgrade event, not per marker | evidence is read from issue comments and git history; a revert pushed without landing on the integration branch is invisible |
+| Revocations | {n} | trust reads — negative-evidence outcomes (failure-classification markers, `bin/lib/issues/retry.js`'s shape, and detected reverts) whose evidence entered the window, counted per class-downgrade event, not per marker | evidence is read from issue comments and git history; a revert pushed without landing on the integration branch is invisible; a class downgraded more than once in the window counts once, and in-window evidence does not prove a downgrade actually occurred |
 
 Counter honesty is structural: each cell's Source and Blind spot columns render in the output —
 never a bare total over a domain the lookup can't enumerate (IL-110, IL-67).
@@ -204,7 +215,9 @@ Pause-based shutdown that preserves all durable state — rotation cursors, wont
 suppressions, trust history, and every instantiated record survive. `fleet off`
 **never deletes anything** (`RemoteTrigger` has no delete API to call in the first place)
 and **never touches a routine that is not fleet-marked** — a hand-created routine sharing
-a skill is untouched by construction.
+a skill under a name outside the composition table is untouched by construction. (Row 5's
+adoption exception applies here too — an adopted `{REPO_SLUG}-code-health-daily` is
+fleet-marked and *is* in scope for pausing, same as any other fleet member.)
 
 1. **Enumerate** fleet-marked routines exactly as Fleet status resolves membership
    (composition-table `PREFIXED_NAME`s ∩ `record-freshness.md`'s `records[]`). Capture the
@@ -249,5 +262,5 @@ a skill is untouched by construction.
 | Re-prompting per row for schedule/environment/confirm | Fleet mode's whole point is one deliberate action — the Manifesto (Step 1) and the batch preview (Step 4.3) are the only confirmation points; 11 separate `AskUserQuestion` calls would defeat "one-action provisioning" |
 | Treating a missing template as a fleet-wide failure | Composition, not exhaustiveness — provision what exists, name what's missing, never refuse the whole fleet over one absent template |
 | Deleting (or offering to delete) routines from `fleet off` | Deletion has no API and no undo — `fleet off` is pause-based precisely so durable state survives; deletion is a human act at claude.ai/code/routines (IL-69) |
-| Pausing a routine that is not fleet-marked | A hand-created routine sharing a skill is someone else's infrastructure — membership is the composition-table `PREFIXED_NAME` intersection, never a skill-name match |
+| Pausing a routine that is not fleet-marked | A hand-created routine sharing a skill under a name outside the composition table is someone else's infrastructure — membership is the composition-table `PREFIXED_NAME` intersection, never a skill-name match. (Row 5's standard-derivation name is the one deliberate exception — adopted, not treated as someone else's.) |
 | Rendering grant counters on a supervised fleet | No grant unit exists to count — state the posture and why grant counters are absent instead of rendering zeros that imply a grant unit ran |
