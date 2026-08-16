@@ -135,10 +135,15 @@ test('the kernel block carries its four parts in order', () => {
   const block = rawBlock.replace(/\s+/g, ' ');
   const posBranch = block.indexOf('git merge --ff-only');
   const posLadder = block.indexOf('cache-scan-highest-of-N');
+  // The empty-cache self-heal is the [IL-117] mitigation: without an anchor here,
+  // deleting the whole paragraph would leave this test green while its name still
+  // promised four parts.
+  const posSelfHeal = block.indexOf('bash scripts/claude-cloud-setup.sh');
   const posFallback = block.indexOf('follow its instructions directly as written');
   const posClosing = block.indexOf('Then: /claude-tweaks:routine-kickoff {kickoff}');
-  assert.ok(posBranch > -1 && posLadder > posBranch && posFallback > posLadder && posClosing > posFallback,
-    `kernel parts out of order: branch-sync@${posBranch} ladder@${posLadder} fallback@${posFallback} closing@${posClosing}`);
+  assert.ok(
+    posBranch > -1 && posLadder > posBranch && posSelfHeal > posLadder && posFallback > posSelfHeal && posClosing > posFallback,
+    `kernel parts out of order: branch-sync@${posBranch} ladder@${posLadder} self-heal@${posSelfHeal} fallback@${posFallback} closing@${posClosing}`);
   assert.ok(block.includes('{{TARGET_BRANCH}}'));
   assert.ok(block.includes('If it has diverged rather than just fallen behind, stop'));
   assert.ok(block.includes('claude-tweaks v{version} @ {path} (resolved via:'));
