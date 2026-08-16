@@ -160,7 +160,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Design intent | `none` | No creative direction unless user opts in |
 | Leftover routing | `defer` | Reversible; user reviews at Wrap-Up Review Console |
 | Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
-| Review auto-apply ceiling | `low` | Auto LOW (nits), stage MED, prompt HIGH |
+| Review auto-apply ceiling | ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise (`_shared/autonomy-ceiling.md`) | Auto LOW (nits), stage MED, prompt HIGH — but an unattended run has nobody present to answer staged MED items, so the ceiling raises the default there. Computing it here, not only in `step3-routing.md`, is load-bearing: the Manifesto writes this lever into `config.yml`, which resolves as `source: run-config` downstream — a flat `low` written here would make step3's own ceiling-conditional branch (which fires only on `source: default`) unreachable on exactly the runs it was designed for |
 | Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
 | Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
 | Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | The ladder in `_shared/policy-schema.md`'s coverage block already encodes the safe answer per repo shape; no hardcoded literal |
