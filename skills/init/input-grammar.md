@@ -20,6 +20,9 @@ common case and always apply. Section names referenced below are sections of `SK
 | `routines` | Step 15 — Routine installation. Hard-depends on Step 14 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 14 first anyway, matching the unfiltered flow's existing 14-before-15 ordering |
 | `branch-tracking` | Step 16 — Non-default-branch issue tracking. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `branch-tracking` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
 | `work-backend` | Step 17 — Work-record backend. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `work-backend` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
+| `autonomy` | Step 18 — Autonomy level |
+| `emil-skills` | Step 19 — Emil design-engineering skills. The step's own frontend gate still applies — with no frontend signals detected, it skips itself, same as in the unfiltered flow |
+| `integration-model` | Step 20 — Integration-model pin (`_shared/integration-model.md`). Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `integration-model` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
 
 Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 14+15, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 14+15, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 13 and 16, then stops.
 

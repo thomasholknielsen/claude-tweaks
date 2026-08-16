@@ -29,7 +29,7 @@ step.
 | 17 | `step-17-work-record-backend.md` | `work-backend` decision, capability probes, label bootstrap. |
 | 18 | `step-18-autonomy-level.md` | Degree-of-autonomy question and the `autonomy` policy.yml value. |
 | 19 | `step-19-emil-skills.md` | Emil design-engineering skills install offer (frontend-gated; presence-based, no flag). |
-| 20 | `step-20-integration-model.md` | `integration-model: pr-first` policy.yml pin offer (remote-gated). |
+| 20 | `step-20-integration-model.md` | `integration-model: pr-first` policy.yml pin offer (`_shared/integration-model.md`; remote-gated). |
 
 ## Core Bootstrap Steps (1-8)
 
