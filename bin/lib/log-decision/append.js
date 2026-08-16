@@ -6,14 +6,24 @@
 // The run dir must resolve under the main checkout ($RUN_ROOT — see
 // _shared/pipeline-run-dir.md's Anchoring section): a worktree-local shadow
 // copy is refused, never silently written ([IL-127]).
+//
+// Anchoring is a structural .git check, not a domain-name check: ADR-0004
+// (docs/decisions/0004-worktree-two-domain-convention.md) documents
+// `.claude/worktrees/` and `.worktrees/` as two permanently separate,
+// equally live linked-worktree domains, so a substring match on one name
+// misses the other. Instead we walk up from the run dir to the nearest
+// ancestor holding a `.git` entry: a FILE there means a linked worktree
+// (either domain) — refused; a DIRECTORY means a real checkout root, which
+// must match the resolved mainRoot. No `.git` found anywhere above the run
+// dir also refuses — this predicate fails CLOSED on the unknown case, same
+// as bin/lib/hooks/worktree-reap.js.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const { mainCheckoutRoot } = require('../hooks/worktree-detect');
+const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 
 const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED'];
-const WORKTREE_ADMIN = `${path.sep}.claude${path.sep}worktrees${path.sep}`;
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -38,21 +48,38 @@ function formatEntry({ status, now, step, spec, text, reversibility = 'n/a', lev
   return line;
 }
 
-function realpathOrNull(p) {
-  try { return fs.realpathSync.native(p); } catch { return null; }
+// Walk up from `startDir` for the nearest ancestor containing a `.git` entry.
+// Returns { dir, isFile } for the first hit, or null if none exists above the
+// filesystem root.
+function findGitRoot(startDir) {
+  let dir = startDir;
+  for (;;) {
+    let st;
+    try { st = fs.statSync(path.join(dir, '.git')); } catch { st = null; }
+    if (st) return { dir, isFile: st.isFile() };
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 // { runDir, cwd?, mainRoot? } -> { ok, file } | { ok:false, reason:'missing'|'not-anchored' }
 function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
-  const real = realpathOrNull(runDir);
+  const real = safeReal(runDir);
   let isDir = false;
   try { isDir = !!real && fs.statSync(real).isDirectory(); } catch { isDir = false; }
   if (!isDir) return { ok: false, reason: 'missing' };
+
+  const found = findGitRoot(real);
+  if (!found || found.isFile) return { ok: false, reason: 'not-anchored' };
+  const gitRoot = found.dir;
+
   const root = mainRoot === undefined ? mainCheckoutRoot(cwd) : mainRoot;
   if (root) {
-    const rootReal = realpathOrNull(root) || root;
+    const rootReal = safeReal(root) || root;
+    if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
     const inRoot = real === rootReal || real.startsWith(rootReal + path.sep);
-    if (!inRoot || real.includes(WORKTREE_ADMIN)) return { ok: false, reason: 'not-anchored' };
+    if (!inRoot) return { ok: false, reason: 'not-anchored' };
   }
   return { ok: true, file: path.join(real, 'decisions.md') };
 }

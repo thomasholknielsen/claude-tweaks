@@ -30,20 +30,39 @@ test('formatEntry: no step/spec falls back to log-decision; rejects unknown stat
   assert.deepEqual(STATUSES, ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED']);
 });
 
-test('resolveTarget: run dir under mainRoot ok; under a linked worktree not-anchored; missing dir', () => {
+test('resolveTarget: run dir under mainRoot ok; under either linked-worktree domain not-anchored; no .git above fails closed; missing dir', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-'));
   const main = path.join(root, 'main');
-  const wt = path.join(root, 'main', '.claude', 'worktrees', 'wt');
+  const wt = path.join(main, '.claude', 'worktrees', 'wt');
+  const wt2 = path.join(main, '.worktrees', 'wt2');
   const good = path.join(main, '.claude-tweaks', 'pipelines', 'run-a');
   const shadow = path.join(wt, '.claude-tweaks', 'pipelines', 'run-a');
+  const shadow2 = path.join(wt2, '.claude-tweaks', 'pipelines', 'run-a');
   fs.mkdirSync(good, { recursive: true });
   fs.mkdirSync(shadow, { recursive: true });
-  // mainRoot injected: the shadow lives *under* main on disk, so anchoring must
+  fs.mkdirSync(shadow2, { recursive: true });
+  // main is a real checkout root: .git is a DIRECTORY.
+  fs.mkdirSync(path.join(main, '.git'));
+  // Both linked-worktree domains (ADR-0004) point .git at a FILE (a gitdir:
+  // pointer) — either domain must be refused by the structural check, not
+  // just the one whose directory name the old substring guard happened to know.
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../../../.git/worktrees/wt\n');
+  fs.writeFileSync(path.join(wt2, '.git'), 'gitdir: ../../.git/worktrees/wt2\n');
+  // mainRoot injected: the shadows live *under* main on disk, so anchoring must
   // compare against the main root AND reject the worktree admin subtree.
   assert.deepEqual(resolveTarget({ runDir: good, mainRoot: main }).ok, true);
   const bad = resolveTarget({ runDir: shadow, mainRoot: main });
   assert.equal(bad.ok, false);
   assert.equal(bad.reason, 'not-anchored');
+  const bad2 = resolveTarget({ runDir: shadow2, mainRoot: main });
+  assert.equal(bad2.ok, false);
+  assert.equal(bad2.reason, 'not-anchored');
+  // A run dir with no .git anywhere above it fails closed even when mainRoot
+  // is injected as its own parent — unknown must refuse, not default-accept.
+  const orphanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-orphan-'));
+  const orphanRun = path.join(orphanRoot, 'run-a');
+  fs.mkdirSync(orphanRun, { recursive: true });
+  assert.deepEqual(resolveTarget({ runDir: orphanRun, mainRoot: orphanRoot }), { ok: false, reason: 'not-anchored' });
   assert.deepEqual(resolveTarget({ runDir: path.join(main, 'nope'), mainRoot: main }), { ok: false, reason: 'missing' });
 });
 
