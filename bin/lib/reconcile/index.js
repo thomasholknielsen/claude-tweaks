@@ -86,7 +86,9 @@ function reconcile(opts = {}) {
   // reason; unconditional under pr-first, no local-merge equivalent (the
   // model !== 'pr-first' early-return above already exits before this line).
   if (checks.includes('red-tip')) {
-    result.redTip = redTipCheck(root, integration);
+    result.redTip = redTipCheck(root, integration, {
+      onSkip: (reason) => result.skipped.push({ check: 'red-tip', reason }),
+    });
   }
 
   // Detection only — never mutates repo/run state, so its position relative
