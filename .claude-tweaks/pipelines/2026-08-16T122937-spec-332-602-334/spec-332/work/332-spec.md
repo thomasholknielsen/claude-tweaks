@@ -46,7 +46,7 @@ The policy read-path family (#328: #329 resolver, #330 prose migration, #331 col
 
 ## Acceptance Criteria
 
-- `node bin/resolve-policy.js --values review-auto-apply-ceiling auto-merge-max-lines auto-merge-max-files project-maturity harness-health-scoped-rule-budget harness-health-always-loaded-budget doc-convention-adr` resolves all seven with schema defaults; requesting any old name returns `{ error: "unknown-key" }` (the retired-name contract already established for `merge-check`).
+- `node bin/resolve-policy.js --values review-auto-apply-ceiling auto-merge-max-lines auto-merge-max-files project-maturity harness-health-scoped-rule-budget harness-health-always-loaded-budget doc-convention-adr` resolves all seven with schema defaults; requesting any old name resolves the replacement key's value (the alias contract pinned by `tests/resolve-policy-lib.test.js` — `unknown-key` is reserved for retirements with `replacedBy: null`).
 - A `policy.yml` line using each old name resolves under the new name with `"renamed-from"` attribution and `auditPolicy` lists it under `renamedKeys` with the suggested replacement — one test per rename, or one table-driven test over the seven.
 - The naming-conformance test exists, passes on the new schema, and was shown to fail when a dotted or non-kebab key is temporarily added (state the discrimination check's output in the change).
 - `grep -rnE "review-severity-floor|automerge-max-(lines|files)|project\.maturity|harness-health\.(scoped-rule|always-loaded)-budget|doc-convention\.adr" skills bin tests docs README.md agents hooks` returns only the tombstone sites named in Deliverable 5 (list them in the change).

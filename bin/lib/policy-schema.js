@@ -213,11 +213,13 @@ function parseFlatLines(raw) {
   const result = {};
   if (!raw) return result;
   for (const rawLine of raw.split('\n')) {
-    // Every top-level key in this file's flat convention starts in column 0
-    // (dot-notation namespacing, e.g. harness-health.scoped-rule-budget, is
-    // how nesting is expressed — never indentation). An indented line belongs
-    // to a nested block's own field (today, only model-profiles' rows) and
-    // must never be read as a flat key in its own right.
+    // Every top-level key starts in column 0 — nesting is never expressed by
+    // indentation. Dotted names still parse (the RENAMED_KEYS aliases such as
+    // harness-health.scoped-rule-budget are dotted inputs), but new keys are
+    // flat kebab-case per skills/_shared/policy-schema.md's `## Key naming`.
+    // An indented line belongs to a nested block's own field (today, only
+    // model-profiles' rows) and must never be read as a flat key in its own
+    // right.
     if (/^\s/.test(rawLine)) continue;
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;

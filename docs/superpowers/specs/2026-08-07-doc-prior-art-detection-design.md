@@ -181,17 +181,18 @@ under `docs/guides/` or `docs/how-to/`, and whether its files are named
 
 ## The record
 
-Flat dotted enum keys, matching the existing `harness-health-scoped-rule-budget` precedent
-for dotted names and the `execution.always` precedent for an enum with **no default** —
-unset is a meaningful third state:
+Flat kebab-case enum keys, matching `harness-health-scoped-rule-budget` and the naming
+convention in `skills/_shared/policy-schema.md`'s `## Key naming` (no dots) and the
+`execution.always` precedent for an enum with **no default** — unset is a meaningful third
+state:
 
 ```js
 { key: 'doc-convention-adr', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.journey', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.howto', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.reference', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.explanation', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.tutorial', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-journey', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-howto', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-reference', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-explanation', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-tutorial', type: 'enum', values: ['plugin', 'project'] },
 ```
 
 | Value | Meaning |
@@ -248,7 +249,7 @@ with. Depends on Phase 1's contract existing; nothing in Phase 1 depends on it.
 | `wrap-up/execution-and-verification.md` | Write the resolved path; migration procedure |
 | `wrap-up/review-console.md` | Conflict-row rendering |
 | `wrap-up/SKILL.md` | Step 6 gate line |
-| `_shared/policy-schema.md`, `bin/lib/policy-schema.js` | `doc-convention.*` |
+| `_shared/policy-schema.md`, `bin/lib/policy-schema.js` | `doc-convention-*` |
 | `tests/policy-schema.test.js` | Key coverage |
 | `docs/skill-graph.md` | Edges for the new `_shared` contract |
 | `docs/decisions/0013-*.md` | This decision, in our own form |
