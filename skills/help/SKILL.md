@@ -62,7 +62,7 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 
 ## Section 3: Recommendation
 
-*(Always included unless `$ARGUMENTS` = `commands`)*
+*(Always included unless `$ARGUMENTS` = `commands` or `policy`)*
 
 ### Priority Order
 
