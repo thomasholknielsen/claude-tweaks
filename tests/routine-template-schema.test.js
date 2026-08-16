@@ -60,6 +60,10 @@ for (const templatePath of findTemplates()) {
       `kickoff's first token must equal the owning skill directory (got '${kickoffFirst}')`
     );
     assert.ok(
+      !tpl.kickoff.includes('\n'),
+      'kickoff is a single line — the whitespace-token grammar has no multi-line form'
+    );
+    assert.ok(
       !/\bBefore anything else\b/.test(text),
       'no template may contain kernel text'
     );

@@ -30,7 +30,7 @@ Every live routine's prompt is assembled at instantiation from the canonical ker
 
 kernel_version: 1
 
-The line above is the kernel's own version, machine-greppable via `grep -m1 '^kernel_version:' skills/_shared/routine-template-schema.md` (this file is markdown; `bin/lib/routine-template-parser.js` stays uninvolved). **Any edit to the kernel block text below requires `kernel_version` += 1.** Enforcement is review discipline — the schema test asserts the field is a positive integer, never that it incremented; the structural mitigation is that the kernel is one file, so a bump is one edit, not seven. `template_version` now means only "this template's own fields changed."
+The line above is the kernel's own version, machine-greppable via `grep -m1 '^kernel_version:' "${CLAUDE_PLUGIN_ROOT}/skills/_shared/routine-template-schema.md"` (this file is markdown; `bin/lib/routine-template-parser.js` stays uninvolved). `${CLAUDE_PLUGIN_ROOT}` is a model-resolved placeholder, not a shell contract — see `docs/skill-authoring.md`'s Plugin-root references section. **Any edit to the kernel block text below requires `kernel_version` += 1.** Enforcement is review discipline — the schema test asserts the field is a positive integer, never that it incremented; the structural mitigation is that the kernel is one file, so a bump is one edit, not seven. `template_version` now means only "this template's own fields changed."
 
 ```
 Before anything else, fetch origin and confirm this checkout is on {{TARGET_BRANCH}}

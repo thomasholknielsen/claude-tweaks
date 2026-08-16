@@ -397,7 +397,9 @@ function freshnessNote(result) {
 // Kernel staleness verdict for STATUS Step 3's dual-drift check (#529): a record
 // with no recorded kernel_version predates the kernel split and always reads stale.
 // Ahead-of-schema reads 'fresh' deliberately: a stale checkout can under-read a
-// record that is actually current.
+// record that is actually current. Same rationale covers the cross-machine case:
+// a record written by a newer plugin elsewhere may legitimately be ahead of this
+// checkout's own schema — telling an older plugin to "update" it would regress it.
 function kernelFreshness(recordKernelVersion, currentKernelVersion) {
   if (recordKernelVersion == null) return 'kernel-stale';
   const recorded = Number(recordKernelVersion);

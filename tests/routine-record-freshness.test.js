@@ -351,8 +351,9 @@ test('kernelFreshness: missing kernel_version is kernel-stale', () => {
 test('kernelFreshness: behind the schema literal is kernel-stale', () => {
   assert.equal(kernelFreshness(1, 2), 'kernel-stale');
 });
-test('kernelFreshness: equal is fresh', () => {
+test('kernelFreshness: equal or ahead is fresh', () => {
   assert.equal(kernelFreshness(2, 2), 'fresh');
+  assert.equal(kernelFreshness(3, 2), 'fresh');
 });
 test('kernel_version is a significant field for record comparison', () => {
   assert.ok(SIGNIFICANT_FIELDS.includes('kernel_version'));

@@ -13,7 +13,7 @@ files:
 ## Steps
 
 1. **Invoke the fleet-wide status check** — Type `/claude-tweaks:routine status --all`.
-   - **Action:** STATUS resolves every instantiated record under `.claude-tweaks/routines/`, reads the schema's current `kernel_version` once via `grep -m1 '^kernel_version:' skills/_shared/routine-template-schema.md` (Step 1), then for each record that resolves a live template compares that single value against the record's own `kernel_version` via `kernelFreshness` (`bin/lib/routine-template-parser.js`, Step 3).
+   - **Action:** STATUS resolves every instantiated record under `.claude-tweaks/routines/`, reads the schema's current `kernel_version` once via `grep -m1 '^kernel_version:' "${CLAUDE_PLUGIN_ROOT}/skills/_shared/routine-template-schema.md"` (Step 1), then for each record that resolves a live template compares that single value against the record's own `kernel_version` via `kernelFreshness` (`bin/lib/routine-template-parser.js`, Step 3).
    - **Check:** Every routine record written before this migration carries no `kernel_version` field, and `kernelFreshness` returns `'kernel-stale'` whenever `recordKernelVersion` is `null`/`undefined` (`tests/routine-record-freshness.test.js`'s "missing kernel_version is kernel-stale" case). Every such record's Verdict column reads **Drifted** — on the very first `status --all` run after the merge, this is the entire pre-existing fleet, not a handful of rows.
 
 2. **Read the kernel-stale detail** — Look at the Detail column of each Drifted row.
