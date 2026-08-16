@@ -167,6 +167,53 @@ test('commit shapes that must stay denied: -a, --amend, compound, -C', () => {
   }
 });
 
+// ─── review findings: shapes the first cut allowed and must not ─────────────
+
+test('a Bash WRITE SHAPE (tee/cp) targeting policy.yml stays denied — the exemption is file-tool only', () => {
+  // Spec #537 Non-Goals: a shell rewrite of an enforcement-relevant file stays
+  // gated. writeTargetPaths are exemptible for the pipelines/ PREFIX rule, so
+  // keying the policy.yml exemption on that same flag let `tee` through
+  // (review finding). It keys on fileTool now — this test discriminates.
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const abs = path.join(repo, '.claude-tweaks', 'policy.yml');
+  assertDenied(pre.run({ input: bashInput('tee ' + abs, repo), runDir: null, runState: null, cwd: repo }));
+  assertDenied(pre.run({ input: bashInput('cp /tmp/x ' + abs, repo), runDir: null, runState: null, cwd: repo }));
+  // The file-tool form of the same target is the exemption's whole point:
+  assertAllowed(pre.run({ input: editInput(abs), runDir: null, runState: null, cwd: repo }));
+});
+
+test('a staged rename INTO policy.yml is denied even though --name-only would show one path', () => {
+  // With policy.yml absent from HEAD, `git mv <tracked> .claude-tweaks/policy.yml`
+  // is a clean rename: --name-only collapses it to the single destination line,
+  // which the first cut read as "exactly policy.yml staged" and would have let
+  // arbitrary tracked content land in the enforcement file (review finding).
+  // --name-status renders it R100<TAB>old<TAB>new and the status letter rejects.
+  const repo = gitRepoWithCommit();
+  fs.writeFileSync(path.join(repo, 'payload.yml'), 'worktree.always: false\n');
+  execFileSync('git', ['-C', repo, 'add', 'payload.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'payload', '-q']);
+  withPolicy(repo, 'worktree.always: true\n'); // on disk only, never committed
+  execFileSync('git', ['-C', repo, 'mv', '-f', 'payload.yml', '.claude-tweaks/policy.yml']);
+  const nameOnly = execFileSync('git', ['-C', repo, 'diff', '--cached', '--name-only'], { encoding: 'utf8' }).trim();
+  assert.strictEqual(nameOnly, '.claude-tweaks/policy.yml', 'precondition: --name-only really does collapse the rename to one line');
+  assert.strictEqual(isPolicyOnlyCommit('git commit -m x', repo), false);
+});
+
+test('a staged Add, Modify, and Delete of policy.yml each still qualify (the three admitted statuses)', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'a: b\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  assert.strictEqual(isPolicyOnlyCommit('git commit -m x', repo), true, 'Add');
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'add', '-q']);
+  withPolicy(repo, 'a: c\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  assert.strictEqual(isPolicyOnlyCommit('git commit -m x', repo), true, 'Modify');
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'mod', '-q']);
+  execFileSync('git', ['-C', repo, 'rm', '-q', '.claude-tweaks/policy.yml']);
+  assert.strictEqual(isPolicyOnlyCommit('git commit -m x', repo), true, 'Delete');
+});
+
 // ─── allowlist regex unit cases (pure — no spawn) ──────────────────────────
 
 test('POLICY_COMMIT_ALLOWLIST matches exactly the admitted shapes', () => {

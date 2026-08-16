@@ -186,16 +186,30 @@ const POLICY_COMMIT_ALLOWLIST = Object.freeze(new RegExp(
 
 // Allowlist-match first (pure regex, no spawn); only a match pays for a git
 // query, and only that query's result decides the exemption — a staged set
-// of exactly [".claude-tweaks/policy.yml"]. Wrapped so any exception from
-// the git spawn can never propagate out of this hook (this file's header:
-// never throw) — it falls through to "not exempt" instead.
+// of exactly one entry, .claude-tweaks/policy.yml, whose status is an Add,
+// Modify, or Delete. `--name-status` rather than `--name-only`, deliberately:
+// `--name-only` collapses a rename to its single destination line, so
+// `git mv <tracked-file> .claude-tweaks/policy.yml` (ungated — neither a
+// commit/push nor a WRITE_SHAPE) on a repo where policy.yml is not yet in
+// HEAD reads as "exactly policy.yml staged" and smuggles arbitrary tracked
+// content into the enforcement file (review finding). A rename renders as
+// `R<score>\told\tnew` under --name-status and is rejected on its status
+// letter; likewise Copy (C) and type-change (T). Wrapped so any exception
+// from the git spawn can never propagate out of this hook (this file's
+// header: never throw) — it falls through to "not exempt" instead.
+const POLICY_COMMIT_STATUSES = new Set(['A', 'M', 'D']);
 function isPolicyOnlyCommit(command, cwd) {
   if (typeof command !== 'string' || !POLICY_COMMIT_ALLOWLIST.test(command)) return false;
   try {
-    const { stdout, failure } = runGit(['diff', '--cached', '--name-only'], cwd);
+    const { stdout, failure } = runGit(['diff', '--cached', '--name-status'], cwd);
     if (failure !== null || typeof stdout !== 'string') return false;
-    const staged = stdout.split('\n').filter(Boolean);
-    return staged.length === 1 && staged[0] === toPosix(POLICY_FILE);
+    const rows = stdout.split('\n').filter(Boolean);
+    if (rows.length !== 1) return false;
+    const cols = rows[0].split('\t');
+    // Exactly two columns — status + one path. A rename/copy row carries three.
+    if (cols.length !== 2) return false;
+    const [status, file] = cols;
+    return POLICY_COMMIT_STATUSES.has(status) && file === toPosix(POLICY_FILE);
   } catch {
     return false;
   }
@@ -372,16 +386,20 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
 function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets = []) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
-  // Each entry is { path, exemptible, action }. `exemptible` marks a target
-  // that names a FILE being written, which is the only kind the
-  // .claude-tweaks/pipelines/ and .claude-tweaks/policy.yml exemptions may
-  // apply to. A git commit/push target is the command's working DIRECTORY,
-  // not a file — exempting those by prefix would allow any commit merely
-  // ISSUED from inside .claude-tweaks/pipelines/, which is precisely the
-  // isolation this gate enforces. `action` ('commit'/'push', only set for git
+  // Each entry is { path, exemptible, fileTool, action }. `exemptible` marks a
+  // target that names a FILE being written, which is the only kind the
+  // .claude-tweaks/pipelines/ exemption may apply to. A git commit/push target
+  // is the command's working DIRECTORY, not a file — exempting those by prefix
+  // would allow any commit merely ISSUED from inside .claude-tweaks/pipelines/,
+  // which is precisely the isolation this gate enforces. `fileTool` is
+  // narrower still: set ONLY for an Edit/Write/NotebookEdit target, never for a
+  // Bash write shape (tee/cp/sed -i/…) — the .claude-tweaks/policy.yml
+  // exemption is scoped to the three file tools by spec #537's Non-Goals (a
+  // shell rewrite of an enforcement-relevant file stays gated), so it keys on
+  // this flag, not on `exemptible`. `action` ('commit'/'push', only set for git
   // targets) is what lets the commit exemption below apply ONLY to a commit
-  // target, never a push one. Both distinctions have to be carried from where
-  // each target is resolved; neither can be recovered later.
+  // target, never a push one. All three distinctions have to be carried from
+  // where each target is resolved; none can be recovered later.
   let targetPaths = [];
   // The raw Bash command string, hoisted out of the branch below so the
   // per-target loop can reach it for the commit exemption's allowlist check
@@ -395,7 +413,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   if (GATE_COVERAGE.tools.includes(toolName)) {
     const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
     if (toolInput && typeof toolInput[field] === 'string') {
-      targetPaths = [{ path: toolInput[field], exemptible: true }];
+      targetPaths = [{ path: toolInput[field], exemptible: true, fileTool: true }];
     }
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
@@ -423,7 +441,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   }
   if (!targetPaths.length) return {};
 
-  for (const { path: targetPath, exemptible, action } of targetPaths) {
+  for (const { path: targetPath, exemptible, fileTool, action } of targetPaths) {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
     // ancestor chain, there is definitely nothing to enforce for THIS
     // target — skip forking git entirely for the overwhelming majority of
@@ -460,9 +478,13 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // claim a path this was meant to exempt — the ordering defect [IL-83]
     // records. Only file-write targets are eligible; see `exemptible` above.
     if (exemptible && isPipelineBookkeeping(repoRoot, targetPath)) continue;
-    // The second path exemption (#537): a file-tool write whose fully-resolved
-    // real path IS the repo's own .claude-tweaks/policy.yml — see isPolicyFile.
-    if (exemptible && isPolicyFile(repoRoot, targetPath)) continue;
+    // The second path exemption (#537): an Edit/Write/NotebookEdit write whose
+    // fully-resolved real path IS the repo's own .claude-tweaks/policy.yml —
+    // see isPolicyFile. Keyed on `fileTool`, NOT `exemptible`: a Bash write
+    // shape (tee/cp/sed -i/…) targeting policy.yml is exemptible for the
+    // pipelines/ prefix rule above but must stay gated here (spec #537
+    // Non-Goals; review finding — a shell rewrite of the enforcement file).
+    if (fileTool && isPolicyFile(repoRoot, targetPath)) continue;
     // The commit exemption (#537): ONLY for a target this loop resolved from a
     // 'commit' action (never 'push' — see the field comment above), and only
     // when the allowlist-matched command's staged set is provably nothing but
