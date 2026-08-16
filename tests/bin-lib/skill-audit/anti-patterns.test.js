@@ -461,5 +461,10 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   native track; inferring the motion signal from file content). No other
   //   file's table changed in that diff. Measured by running this test's own
   //   parser against the working tree (actual 368), not by adding 3 to 365.
-  assert.strictEqual(total, 368);
+  //
+  //   368 -> 369, decisions pushback routing (#599). One row appended to
+  //   design-wrapper/SKILL.md's Anti-Patterns table (writing a decisions
+  //   finding into the polish cache). Measured by running this test's parser
+  //   against the working tree (actual 369), not by adding 1 to 368.
+  assert.strictEqual(total, 369);
 });

@@ -322,3 +322,4 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Treating a craft critic as a third-party agent | It is a contract subagent — status line, Template A + `Target`, Standard profile all apply; Step 3.7's exemption covers `impeccable-finish-reviewer` only. |
 | Dispatching a craft critic on the native track | Emil is web-only (`design-craft.md` Gating) and `critics.md` has no native row — nothing to dispatch. |
 | Inferring the motion signal from file content | It comes from the spec/`Design-intent:` (consumer judgment) — inference from code removes user agency, same rule as intent-driven dispatch. |
+| Writing a `decisions` finding into the polish cache, or letting polish act on one | `DESIGN.md` is upstream-owned — a `decisions` finding stages for a human at the Console (`review.md` Step 5.5); polish consumes `code` findings only, as context. |

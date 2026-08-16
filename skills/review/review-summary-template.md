@@ -68,9 +68,19 @@ Possible QA statuses (the four canonical values from qa-reporting.md's Status de
 
 | File | Source | Severity | Category | Finding | Suggestion |
 |------|--------|----------|----------|---------|------------|
-| {file} | {critique/audit} | {info/warning/error} | {category} | {message} | {suggestion if present} |
+| {file} | {critique/audit/finish-review/critic:{provider}} | {info/warning/error} | {category} | {message} | {suggestion if present} |
 
 > Findings are advisory — they inform the verdict but were not auto-applied. To action them inline, route through Step 3 Routing's resolution flow with category `Design Quality`. The Phase 1 design wrapper is read-only by design — code-modifying behavior ships in Phase 2's polish phase.
+
+#### Decisions
+
+{Include only when the wrapper returned `target: "decisions"` findings that were **not** staged (`decisions_staged` absent — standalone review). Omit this sub-heading entirely when there are none, or when they were staged for the Review Console.}
+
+These challenge the project's DESIGN.md, not the diff — the wrapper never edits DESIGN.md; act on the remedy or decline.
+
+| Provider | File | Severity | Finding | Remedy |
+|----------|------|----------|---------|--------|
+| {provider} | {DESIGN.md or .impeccable/design.json} | {info/warning/error} | {message} | {`/claude-tweaks:design-wrapper explore` for `wrapper`; `/impeccable:impeccable document` for any critic} |
 
 (or, when skipped: "Design Quality skipped — {skip reason from wrapper}.")
 
