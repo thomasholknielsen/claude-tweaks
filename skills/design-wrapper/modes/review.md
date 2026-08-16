@@ -171,6 +171,69 @@ A parsed reply with an empty `material_fixes` list is a real, clean result and i
 that is the only case that may say the render met its contract. Absence of output is not absence of
 findings, and the distinction lives in `parsed`, never in the finding count.
 
+### Step 3.8: Dispatch project-local craft critics
+
+The finishing review above judges the render against Impeccable's own direction contract. This step
+asks a different question of a different reviewer: do the changed files meet the *project-local craft
+principles* the record's track has wired — the curated roster in `../critics.md` — and does the
+project's decisions layer (`DESIGN.md` + `.impeccable/design.json`) hold up against those principles?
+Each critic is an upstream skill dispatched as an ordinary contract subagent, **not** a third-party
+agent: the full Subagent Contract applies (status line, Template A, Standard profile), and nothing
+here is modelled on Step 3.7's exemption. Routing of what comes back — polish, `staged/`, the review
+summary — is deliberately not this step's concern; it produces findings and a return field, and #599
+routes them.
+
+**(a) Lever.** Resolve the `design-critique` policy value —
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values design-critique`
+(omit `--run "$PIPELINE_RUN_DIR"` when it is unset). Log one line per `../../_shared/auto-decision-log.md`:
+`AUTO {time} — review Step 3.8: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read).`
+`off` → skip the whole step: no roster read, no dispatch, no nudge, and `craft_critics` is **omitted**
+from the return. `auto` and `full` continue.
+
+**(b) Roster selection.** Read `../critics.md` and select every row whose `Track` equals the resolved
+`surface_track` and whose `Trigger` holds given the four inputs that file defines and cites:
+
+- **Lever** — the value from (a).
+- **Motion signal** — consumer judgment per `../../_shared/design-craft.md`'s Relevance map, applied to
+  the record's spec/description (does it name motion work, or is `Design-intent: delightful`?) — never
+  inferred from file content.
+- **Decisions present** — `hasDesign` from the preconditions' Layer 0 signals object; when Layer 0
+  degraded (empty object), fall back to a direct `DESIGN.md` existence check via
+  `../../_shared/visual-html-output.md`'s three-path lookup.
+- **`Design-intent:` set** — the record body-metadata line is present with a value other than `none`
+  (`none` is unset for this purpose).
+
+The roster's `terminal` row is `*pending*` and its native row is `*none*` until their own records
+land — a `*pending*`/`*none*` cell selects nothing, and this step never invents a critic for a track
+the roster leaves empty. Worked example, web track:
+
+| Lever | Decisions present | Motion signal | `Design-intent:` | Selected |
+|---|---|---|---|---|
+| `auto` | yes | no | unset | `emil-design-eng` |
+| `auto` | no | no | unset | none — the absence-nudge (Step 4) fires instead |
+| `auto` | no | yes | unset | `emil-design-eng` + `review-animations` |
+| `full` | no | no | unset | `emil-design-eng` (`review-animations` needs the motion signal even under `full`) |
+
+If the selection is empty, skip (c)–(f): no dispatch, and `craft_critics` is **omitted** from the return
+(the nudge in Step 4 still applies on its own conditions). Otherwise continue with the selected rows.
+
+**(c) Availability.** For each selected critic, resolve its `SKILL.md` per
+`../../_shared/design-craft.md`'s **Emil skill resolution** — the per-skill-name two-path lookup
+(`{project}/.claude/skills/{name}/SKILL.md`, then `~/.claude/skills/{name}/SKILL.md`; read through
+symlinks). A name resolving at neither path is unavailable: record
+`{provider: "<name>", ran: false, missed: "not installed at either path"}` in `craft_critics`, dispatch
+nothing for it, and log
+`SCANNED {time} — review Step 3.8: critic <name> unavailable (not installed at either path). Reversibility: n/a.`
+Availability is per critic; one missing critic never skips the others.
+
+**(d) Decisions layer.** Resolve `DESIGN.md` (three-path lookup, as in (b)) and the root sidecar
+`.impeccable/design.json` per `../../_shared/design-craft.md`'s decisions-layer resolution. Read both
+verbatim when present — they are inlined into every critic's prompt in (e). When neither exists, note
+it: (e) sends the literal absence sentence instead, and Step 4's absence-nudge conditions read this
+result.
+
+Sub-steps (e) and (f) follow.
+
 ### Step 4: Normalize findings
 
 Parse each output into a normalized findings list:
