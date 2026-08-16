@@ -290,3 +290,10 @@ test('run-config explicit value beats a policy autonomy derivation', () => {
   });
   assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: false, source: 'run-config' });
 });
+
+test('an invalid autonomy value feeding the derivation falls back to supervised, deriving false', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], {
+    policyRaw: 'autonomy: banana\n',
+  });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: false, source: 'default' });
+});
