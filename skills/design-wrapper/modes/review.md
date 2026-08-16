@@ -184,7 +184,7 @@ summary — is deliberately not this step's concern; it produces findings and a 
 routes them.
 
 **(a) Lever.** Resolve the `design-critique` policy value —
-`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values design-critique`
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` — the JSON envelope (`{"design-critique":{"value":…,"source":…}}`), not `--values`, because the log line below needs `source`
 (omit `--run "$PIPELINE_RUN_DIR"` when it is unset). Log one line per `../../_shared/auto-decision-log.md`:
 `AUTO {time} — review Step 3.8: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read).`
 `off` → skip the whole step: no roster read, no dispatch, no nudge, and `craft_critics` is **omitted**
@@ -203,14 +203,13 @@ from the return. `auto` and `full` continue.
 - **`Design-intent:` set** — the record body-metadata line is present with a value other than `none`
   (`none` is unset for this purpose).
 
-The roster's `terminal` row is `*pending*` and its native row is `*none*` until their own records
-land — a `*pending*`/`*none*` cell selects nothing, and this step never invents a critic for a track
-the roster leaves empty. Worked example, web track:
+A `*pending*` or `*none*` cell in the roster selects nothing, and this step never invents a critic for a
+track the roster leaves empty. Worked example, web track:
 
 | Lever | Decisions present | Motion signal | `Design-intent:` | Selected |
 |---|---|---|---|---|
 | `auto` | yes | no | unset | `emil-design-eng` |
-| `auto` | no | no | unset | none — the absence-nudge (Step 4) fires instead |
+| `auto` | no | no | unset | none — and the absence-nudge (Step 4) fires on its own conditions |
 | `auto` | no | yes | unset | `emil-design-eng` + `review-animations` |
 | `full` | no | no | unset | `emil-design-eng` (`review-animations` needs the motion signal even under `full`) |
 
@@ -227,7 +226,7 @@ nothing for it, and log
 Availability is per critic; one missing critic never skips the others.
 
 **(d) Decisions layer.** Resolve `DESIGN.md` (three-path lookup, as in (b)) and the root sidecar
-`.impeccable/design.json` per `../../_shared/design-craft.md`'s decisions-layer resolution. Read both
+`.impeccable/design.json` per `../../_shared/design-craft.md`'s **The two source classes** (its Decisions row). Read both
 verbatim when present — they are inlined into every critic's prompt in (e). When neither exists, note
 it: (e) sends the literal absence sentence instead, and Step 4's absence-nudge conditions read this
 result.
@@ -235,7 +234,7 @@ result.
 **(e) Dispatch.** One `Task()` per available critic.
 
 > **Parallel execution:** Dispatch the available critics as parallel Task agents — each runs independently and returns findings in Template A format (with the extra `Target` column below). Assemble results after all agents complete.
-> **Contract:** Each agent follows the Subagent Contract (`../../_shared/subagent-output-contract.md`) — minimal input (scope + paths + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then the table. Profile: Standard (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract §Model Selection) — a review-style fan-out, never Frontier. Inline the template literally; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract (`../../_shared/subagent-output-contract.md`) — minimal input (scope + paths + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then the table. Profile: Standard (`node bin/resolve-profile.js standard` from the checkout root, contract §Model Selection) — a review-style fan-out, never Frontier. Inline the template literally; reject and re-prompt on format violations.
 
 `subagent_type: general-purpose`. Do **not** pass `isolation: "worktree"` — this mode routinely runs
 inside a worktree already set up for the task, and a second one orphans everything written into it
@@ -247,7 +246,7 @@ this mode's other findings, never a path *to* the critic skill in place of its t
 
 1. The critic's `SKILL.md` content, inlined verbatim (a path string reaches nothing — see
    `../../_shared/design-craft.md`'s Subagent Contract compliance).
-2. Step 2's resolved file list, as absolute paths.
+2. The resolved absolute repository path (the working-directory anchor), then Step 2's resolved file list as absolute paths.
 3. The decisions layer from (d), inlined verbatim (`DESIGN.md`, then `.impeccable/design.json`) — or,
    when absent, the literal sentence: "No DESIGN.md or sidecar exists for this project — emit no
    `decisions` rows".
@@ -277,6 +276,8 @@ Do not add narration, headers, or summaries before or after the table.
 
 [Use: Standard model.]
 ```
+
+6. The read-only constraint, verbatim: "Read-only: report findings only — modify no file, run no formatter, stage nothing. This is an advisory review; the fixes belong to a later step."
 
 **(f) Parse and encode — four outcomes.** Every dispatched critic gets exactly one `craft_critics`
 entry; the outcomes are distinct encodings, and none of them may be reported as a clean design review:
