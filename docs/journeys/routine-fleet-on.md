@@ -19,6 +19,7 @@ files:
 
 2. **Confirm (or edit) the Manifesto** — Pick "Provision with current values", or "Change a lever" to edit any of the five (each re-asked individually, written to `policy.yml`, table re-rendered).
    - **Check:** Any value written here echoes again in the final summary — no silent config write.
+   - **Check:** `autonomy` reaches further than row 9's provisioning gate. With `housekeeping-auto-merge` left unset, `trusted`/`unattended` is what its effective default derives from (#580), so row 11's weekly tidy may arm `--auto` on its own green, marker-stamped housekeeping PRs instead of staging them. Writing `housekeeping-auto-merge` explicitly in `policy.yml` overrides the derivation in both directions.
 
 3. **Cloud-parity check** — The skill verifies the environment's Setup-script reality before creating billed infrastructure.
    - **Check:** A parity note names what was verified (or what could not be), per `fleet.md` Step 2.
@@ -31,4 +32,4 @@ files:
 
 ## Outcome
 
-The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly. Turning the posture off again is `fleet off` — not yet implemented (#276); until then, individual routines pause at claude.ai/code/routines.
+The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly — self-merging its own green housekeeping PRs wherever `autonomy` sits at `trusted`/`unattended` with `housekeeping-auto-merge` unset, staging them otherwise. Turning the posture off again is `fleet off` — not yet implemented (#276); until then, individual routines pause at claude.ai/code/routines.
