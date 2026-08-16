@@ -194,7 +194,8 @@ depends on them.
 | `/journey-health` | Same subject check — routes to `/feedback`. |
 | `/docs-health` | Same subject check — routes to `/feedback`. |
 | `_shared/learning-routing.md` | This skill is the contract's D5 writer — Steps 2-3 read the classifier directly to confirm a learning is D5 and to re-run it from rule 4 on self-reference collapse. |
-| `bin/resolve-profile.js` | Step 6's scrub judgment dispatches as one `[Use: Frontier]` singleton Task agent per invocation (the standalone-invocation cap — no `--run-dir`, since this skill is typically invoked with no pipeline run directory) — record #221. |
+| `_shared/feedback-objectives.md` | The maintainer-objective rubric the bare-invocation session evaluation judges against — the judge dispatch (session-evaluation.md) inlines its body verbatim; the rubric file is the canonical enumeration of the objective set. |
+| `bin/resolve-profile.js` | The session-evaluation judge dispatches as one `[Use: Frontier]` singleton Task agent per invocation (dispatched per `session-evaluation.md`, the standalone-invocation cap — no `--run-dir`, since this skill is typically invoked with no pipeline run directory) — record #221. Step 6's scrub judgment now resolves `[Use: Capable]` instead. |
 
 ## flow
 

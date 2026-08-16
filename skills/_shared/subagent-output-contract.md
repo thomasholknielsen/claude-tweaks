@@ -116,7 +116,7 @@ This table is pinned to `bin/lib/model-profiles/profiles.js` by test — change 
 | Verdict gate (#220) | `/specify`'s red-team synthesis/write-back (`specify/red-team.md`) | Single agent, dispatched only when interactive and the resolver returns `frontier`; otherwise runs main-thread exactly as today — never a Capable dispatch of this step. |
 | Self-improvement (#221) | `/wrap-up`'s Phase 2 curation-engine row-judgment, when fewer than 3 rows are open (`wrap-up/curation-engine.md` section 4) | Single agent judging every open row in one pass. The existing 3+-row branch is a genuine parallel fan-out and stays Capable unconditionally. |
 | Self-improvement (#221) | `/reflect`'s lens procedure, standalone invocations only (`reflect/SKILL.md` Step 2) | Single agent running every lens. Component-invoked runs (a `/review`- or `/wrap-up`-owned run dir, or an explicit `--source`) never dispatch this — main-thread only. |
-| Self-improvement (#221) | `/feedback`'s scrub judgment (`feedback/SKILL.md` Step 6) | Single agent per invocation — the standalone-invocation cap (no `--run-dir` in the common case). |
+| Self-improvement (#221) | `/feedback`'s session-evaluation judge (`feedback/session-evaluation.md`) | Single agent per invocation — the standalone-invocation cap (no `--run-dir` in the common case). The Step 6 scrub this slot previously named now resolves Capable (record #221's entry knowingly superseded). |
 | Self-improvement (#221) | `/init`'s CLAUDE.md generation/patch synthesis (`init/claude-md-template.md`) | Single agent; `--unattended` in headless (scheduled Routine) contexts. |
 
 **`/challenge` is excluded from the verdict-gate category.** Its `framing-check` mode is inline-only by that skill's own Component-Skill Contract — dispatching it as a Task agent is a named anti-pattern there. Profiles govern dispatches only; an inline step rides the session model by design and has no profile to carry, so `framing-check` is never a candidate for this enumeration regardless of how singleton-shaped its judgment is.
@@ -215,6 +215,7 @@ Cap at one retry. If still malformed, accept what you got and move on (do not lo
 | Asking for both narration AND a table | Agents pick narration. The contract must be exclusive. |
 | Omitting the severity scale | Agents invent their own scales (P0/P1, MUST/SHOULD, urgent/normal), making aggregation impossible. |
 | Letting agents read sibling files for the template | Agents only see their prompt. Always inline the template literally. |
+| Stating a requirement in prose beside the inlined template | The agent receives the fence, not the file around it. Anything outside the block never arrives. |
 | Skipping the "if no findings" literal text | Without it, agents pad empty results with explanation. |
 
 ## How to integrate at a dispatch site
