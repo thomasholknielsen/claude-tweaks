@@ -73,6 +73,44 @@ test('pruneRemote: squash-merged remote build/* branch is deleted on origin; dry
   assert.strictEqual(git(dir, 'ls-remote', 'origin', 'refs/heads/build/merged').trim(), ''); // gone on origin
 });
 
+// The evidence is read from local refs/remotes/origin/* but the delete lands
+// on origin's LIVE ref, and `push --delete` has no --force-with-lease. So the
+// check must refresh those refs itself: without the internal fetch, a branch
+// another clone has pushed to since our last fetch still reads merged here and
+// the delete destroys commits this checkout never saw. Deleting the fetch call
+// makes this test fail with the branch actually gone from origin.
+test('pruneRemote: refreshes origin before judging — a branch advanced from another clone is not deleted on stale evidence', () => {
+  const dir = makeRepoWithOrigin();
+  const originUrl = git(dir, 'remote', 'get-url', 'origin').trim();
+  git(dir, 'checkout', '-b', 'build/stale');
+  fs.writeFileSync(path.join(dir, 'h.txt'), 'h\n');
+  git(dir, 'add', 'h.txt');
+  git(dir, 'commit', '-m', 'merged part');
+  git(dir, 'push', 'origin', 'build/stale');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/stale'); // this clone's snapshot IS cherry-equivalent…
+  git(dir, 'branch', '-D', 'build/stale');
+
+  // …but another machine pushes a further commit to the same remote branch.
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-clone2-'));
+  git(other, 'clone', originUrl, 'c');
+  const clone2 = path.join(other, 'c');
+  git(clone2, 'config', 'user.email', 't@t');
+  git(clone2, 'config', 'user.name', 't');
+  git(clone2, 'checkout', 'build/stale');
+  fs.writeFileSync(path.join(clone2, 'i.txt'), 'i\n');
+  git(clone2, 'add', 'i.txt');
+  git(clone2, 'commit', '-m', 'work this clone never saw');
+  git(clone2, 'push', 'origin', 'build/stale');
+
+  // No fetch in `dir` — its refs/remotes/origin/build/stale is deliberately stale.
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const entry = r.entries.find((e) => e.name === 'build/stale');
+  assert.strictEqual(entry.action, 'skip');
+  assert.strictEqual(entry.reason, 'not-cherry-equivalent'); // the internal fetch pulled the new commit in
+  assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/stale'), /build\/stale/); // unfetched work survives
+});
+
 test('pruneRemote: unmerged remote branch and non-namespace remote branch are never deleted', () => {
   const dir = makeRepoWithOrigin();
   git(dir, 'checkout', '-b', 'build/unmerged');

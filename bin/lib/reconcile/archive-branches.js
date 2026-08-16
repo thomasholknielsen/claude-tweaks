@@ -151,4 +151,4 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   return { entries, failure: null };
 }
 
-module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, SCOPE_PATTERNS, isCherryEquivalent };
+module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, isCherryEquivalent };

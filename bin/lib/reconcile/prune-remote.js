@@ -8,9 +8,21 @@
 // merged-in-substance evidence archive-branches.js documents; ancestry
 // alone is explicitly not trusted). Anything weaker — no PR, a closed
 // unmerged PR, cherry-only — skips, keeping today's staged-in-tidy path
-// for the ambiguous cases. Scope is the plugin-owned namespaces
-// (SCOPE_PATTERNS, reused from archive-branches.js), and a branch attached
-// to a live worktree is silently out of scope (same inScope guard).
+// for the ambiguous cases. Scope is the plugin-owned namespaces (the
+// scope patterns behind `inScope`, reused from archive-branches.js), and a
+// branch attached to a live worktree is silently out of scope (same
+// inScope guard).
+//
+// The check FETCHES AND PRUNES origin first, before it enumerates anything:
+// the cherry-equivalence evidence is computed against local
+// `refs/remotes/origin/*` snapshots, but the deletion acts on origin's LIVE
+// ref and git offers no --force-with-lease for `push --delete`. Without the
+// refresh, a branch another clone has pushed to since our last fetch still
+// reads merged here, and the delete destroys commits this checkout never
+// saw. A fetch failure therefore skips the WHOLE check (`fetch-failed`) —
+// fail closed, never delete on stale evidence. The `--prune` half also
+// drops tracking refs for branches already gone on origin, so those stop
+// being re-examined (and re-`gh`-queried) on every run.
 // Pure decision function with I/O at the edges, matching the family.
 'use strict';
 
@@ -41,6 +53,14 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr } = {}) {
   const root = cwd || process.cwd();
   const resolve = resolvePr || resolvePrState;
   const entries = [];
+
+  // First, before any ref is read: every verdict below is computed from
+  // refs/remotes/origin/*, so refreshing them is a precondition of the check,
+  // not a step of it. Plain runGit call — no explicit timeoutMs, which would
+  // shadow the CT_HOOKS_GIT_TIMEOUT_MS escape hatch the rest of the family
+  // relies on under test-machine load.
+  const fetched = runGit(['fetch', '--prune', 'origin'], root);
+  if (fetched.failure) return { entries, failure: 'fetch-failed' };
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
   if (wtList.failure) return { entries, failure: 'git-failure' };
