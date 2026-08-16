@@ -28,14 +28,14 @@ into real writes (#190):
   name while the new one is invisible.
 
 Distinct from #11 (the *cloud sandbox's* checkout being stale at firing time, addressed by the
-template prompt preamble) and #132 (which branch a routine audits). This is the **local skill
+template kernel) and #132 (which branch a routine audits). This is the **local skill
 invocation** reading stale project state.
 
 **Generalized by #407/#408.** This file's own `git fetch` was a narrow, single-consumer fix for
 #190 — one skill's checkout-staleness problem, patched in isolation. `bin/lib/reconcile`
 generalizes the same fetch-and-converge operation to every shared-state read point in the
 plugin (`session-start.js`, `dispatch/SKILL.md`, `tidy/scan-procedures.md`, routine template
-preambles, `_shared/worktree-setup.md`); Step F2 below now calls it too instead of carrying its
+kernels, `_shared/worktree-setup.md`); Step F2 below now calls it too instead of carrying its
 own copy. The disposition logic in Step F3 is untouched — only the freshness source changed.
 
 ## Step F1 — Resolve the comparison branch
