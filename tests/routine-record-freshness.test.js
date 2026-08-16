@@ -346,6 +346,7 @@ test('a project with no records directory at all is handled, not thrown on', () 
 test('kernelFreshness: missing kernel_version is kernel-stale', () => {
   assert.equal(kernelFreshness(undefined, 1), 'kernel-stale');
   assert.equal(kernelFreshness(null, 1), 'kernel-stale');
+  assert.equal(kernelFreshness(null, 0), 'kernel-stale');
 });
 test('kernelFreshness: behind the schema literal is kernel-stale', () => {
   assert.equal(kernelFreshness(1, 2), 'kernel-stale');
