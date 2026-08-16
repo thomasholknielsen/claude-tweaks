@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.88.0 — Routine fleet status/off + routine-kickoff kernel (#276, #528-530), reconcile red-tip detection (#561), --unattended reserved for headless invocations (#648), specify native sub_issues/blocked_by linking (#608, #610), backlog overview funnel + refine worklist fixes (#563, #575, #576), housekeeping-auto-merge ceiling-derived default
+
+Routine fleet status/off + routine-kickoff kernel (#276, #528-530), reconcile red-tip detection (#561), --unattended reserved for headless invocations (#648), specify native sub_issues/blocked_by linking (#608, #610), backlog overview funnel + refine worklist fixes (#563, #575, #576), housekeeping-auto-merge ceiling-derived default.
+
 ## v6.87.1 — Statusline acct segment labels every account, incl. default ~/.claude via .claude.json email
 
 Statusline acct segment labels every account, incl. default ~/.claude via .claude.json email.
