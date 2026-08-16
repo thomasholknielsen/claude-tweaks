@@ -1,8 +1,8 @@
 # Policy — Deprecated Key Removal Conditions
 
-The removal-condition home that `bin/lib/policy-schema.js`'s `RENAMED_KEYS` comments point at, for the five policy keys collapsed or retired in #331. Each entry states what a stray `policy.yml` line does now, and a re-checkable condition under which the key's `RENAMED_KEYS` entry (and this file's entry) gets deleted. `skills/dispatch/deprecated-aliases.md` holds its own two dispatch-alias conditions — same pattern, separate entries.
+The removal-condition home that `bin/lib/policy-schema.js`'s `RENAMED_KEYS` comments point at, for every policy key collapsed, retired, or renamed since #331 (five in #331, seven in #332). Each entry states what a stray `policy.yml` line does now, and a re-checkable condition under which the key's `RENAMED_KEYS` entry (and this file's entry) gets deleted. `skills/dispatch/deprecated-aliases.md` holds its own two dispatch-alias conditions — same pattern, separate entries.
 
-All five share one predicate form: **(a)** `grep -n "{key}" .claude-tweaks/policy.yml` in this repo returns nothing, and **(b)** the release that shipped #331 is at least 6 months old per its date row in `docs/shipped-versions.tsv` — checked at the next minor release after both hold. (a) guards regression; (b) is the marketplace grace period, since users' `policy.yml` files cannot be enumerated and their only migration signal is the audit report below.
+Every entry shares one predicate form: **(a)** `grep -n "{key}" .claude-tweaks/policy.yml` in this repo returns nothing, and **(b)** the release that shipped the entry's rename or retirement (named in the entry's heading — #331 or #332) is at least 6 months old per its date row in `docs/shipped-versions.tsv` — checked at the next minor release after both hold. (a) guards regression; (b) is the marketplace grace period, since users' `policy.yml` files cannot be enumerated and their only migration signal is the audit report below.
 
 ## `execution.always` (merged into `execution-strategy`)
 
@@ -33,3 +33,45 @@ Removal condition: the shared predicate above, with `{key}` = `promise-register-
 Now: reports as retirement — same audit/init/resolver behavior as the entries above. Adaptive section batching is the unconditional behavior (`docs/skill-authoring.md`); the `per-section`/`batch` overrides no longer exist.
 
 Removal condition: the shared predicate above, with `{key}` = `section-confirmation`.
+
+## `review-severity-floor` (renamed to `review-auto-apply-ceiling`, #332)
+
+Now: migrates at read — identity `migrate`, enum semantics unchanged, `renamed-from` attribution. Renamed because the value is the *maximum* severity auto-applied (`medium` → Low and Medium auto-apply, High staged), i.e. a ceiling, and the `-floor` suffix collided with `review-effort-floor`, which is a genuine floor. `auditPolicy` reports the stray line under `renamedKeys` with the suggested replacement; a file setting both keys follows the resolver's uniform alias rule (new key wins).
+
+Removal condition: the shared predicate above, with `{key}` = `review-severity-floor`.
+
+## `automerge-max-lines` (renamed to `auto-merge-max-lines`, #332)
+
+Now: migrates at read — identity `migrate`, integer semantics unchanged, `renamed-from` attribution. Spelling unified with `housekeeping-auto-merge` and the `auto:merge` label.
+
+Removal condition: the shared predicate above, with `{key}` = `automerge-max-lines`.
+
+## `automerge-max-files` (renamed to `auto-merge-max-files`, #332)
+
+Now: as `automerge-max-lines` above.
+
+Removal condition: the shared predicate above, with `{key}` = `automerge-max-files`.
+
+## `project.maturity` (renamed to `project-maturity`, #332)
+
+Now: migrates at read — identity `migrate`, enum semantics unchanged, `renamed-from` attribution. Dot → dash per `policy-schema.md`'s `## Key naming` rule. `/claude-tweaks:init` writes the new name into generated `policy.yml` files; a pre-#332 project's dotted line keeps resolving until the removal condition is met.
+
+Removal condition: the shared predicate above, with `{key}` = `project.maturity`.
+
+## `harness-health.scoped-rule-budget` (renamed to `harness-health-scoped-rule-budget`, #332)
+
+Now: migrates at read — identity `migrate`, integer semantics unchanged, `renamed-from` attribution. Dot → dash per `## Key naming`.
+
+Removal condition: the shared predicate above, with `{key}` = `harness-health.scoped-rule-budget`.
+
+## `harness-health.always-loaded-budget` (renamed to `harness-health-always-loaded-budget`, #332)
+
+Now: as the entry above.
+
+Removal condition: the shared predicate above, with `{key}` = `harness-health.always-loaded-budget`.
+
+## `doc-convention.adr` (renamed to `doc-convention-adr`, #332)
+
+Now: migrates at read — identity `migrate`, enum semantics unchanged (still no schema default — unset means "detect and ask"), `renamed-from` attribution. Dot → dash per `## Key naming`.
+
+Removal condition: the shared predicate above, with `{key}` = `doc-convention.adr`.
