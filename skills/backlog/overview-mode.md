@@ -166,17 +166,27 @@ needs-you sub-issue). The Shape block's population is the `scored` bucket (recor
 the Score line's count is the `captured` bucket.
 
 Compute the batch's graph structure, transitive payout, and file-overlap groups in one pass,
-reusing Step 3's candidate set:
+reusing Step 3's candidate set — first with the dependency-mismatch-flagged ids (Step 3's `flags`)
+removed. A flagged record's graph data is unreliable by construction (that unreliability is exactly
+what triggered the flag), so it must never form a chain; any other candidate that lists a flagged id
+as a blocker simply loses that edge once the flagged id is filtered out, and ranks as an independent
+unless another in-set edge remains. Rule (e) below renders the flagged records themselves, verbatim,
+from the `flags` list — they never re-enter here. The same filtered candidate set also emits the
+out-of-set-blocked list (`outOfSetBlocked`) so the "Out-of-set-blocked granted records" rule can read
+it directly instead of re-deriving membership ad hoc at render time:
 
 ```bash
 node -e "
-  const { buildChains, transitiveUnblocksCount } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
+  const { buildChains, transitiveUnblocksCount, blockersOf } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
   const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const candidates = require('/tmp/backlog-overview-candidates.json');
+  const flags = require('/tmp/backlog-overview-ranked.json').flags.map((f) => f.id);
+  const candidates = require('/tmp/backlog-overview-candidates.json').filter((c) => !flags.includes(c.id));
+  const candidateIds = new Set(candidates.map((c) => c.id));
   console.log(JSON.stringify({
     graph: buildChains(candidates),
     payout: Object.fromEntries(transitiveUnblocksCount(candidates)),
     overlapGroups: groupByFileOverlap(candidates.map((c) => ({ id: c.id, keyFiles: c.keyFiles || [] }))),
+    outOfSetBlocked: candidates.filter((c) => blockersOf(c).some((b) => !candidateIds.has(b))).map((c) => c.id),
   }));
 " > /tmp/backlog-overview-emitter.json
 ```
@@ -239,9 +249,12 @@ re-derive membership.
   `groupByFileOverlap` groups together never appear in different concurrent terminal blocks.
   Deciding criterion: members of the same dependency component are already serialized in one
   terminal by construction; a file-overlap group spanning different components/independents
-  serializes them into one terminal when they are few (≤3 combined), otherwise excludes the
-  lower-ranked with a `#`-comment naming the conflict. Group membership is transitive — treat
-  membership, not pairwise overlap, as the signal.
+  serializes them into one terminal when they are few (≤3 combined); when a cross-component
+  file-overlap group exceeds 3 combined members, only the single top-ranked member stays
+  executable — every other member of the group is excluded, each with its own `#`-comment naming
+  the conflict (the invariant "overlapping records never appear in different concurrent terminal
+  blocks" must hold for any group size, not just the ≤3 case). Group membership is transitive —
+  treat membership, not pairwise overlap, as the signal.
 - **(b) Claim exclusion** — the excluded population is `.funnel.inFlight` (Step 2's
   `/tmp/backlog-overview-views.json` output — the records `funnelBuckets` already partitioned out
   of the buildable subset by the `bot:in-progress` facet; claim blobs on the claims-registry
@@ -257,14 +270,23 @@ re-derive membership.
   `flags`) render as plain independents: no `─▶` arrows, own terminal, with a `#`-comment naming
   the suppressed chain and pointing at `/claude-tweaks:backlog refine`'s dependency repair — never
   silently dropped (dropping would violate rule (c) above).
-- **Out-of-set-blocked granted records** — a `granted`-bucket candidate whose `blockersOf`
-  resolution contains an id OUTSIDE the buildable subset (`dispatchable` ∪ `granted`) is
-  definitionally blocked — its blocker is unshaped or ungranted, not yet part of this batch. It
-  still renders in the Dispatch block, but as a `#`-comment naming the out-of-set blocker and its
-  funnel stage (e.g. `# #521 waiting — blocked by #518 (shaped, ungranted)`), never a bare
-  paste-ready command; counted under rule (c). This is what keeps #513's header promise (the
-  granted stage's "no pointer — waiting on blockers; the blocker itself appears in the dispatch
-  hand-off").
+- **Out-of-set-blocked granted records** — a `granted`-bucket candidate whose id appears in the
+  compute block's `outOfSetBlocked` list (already computed above via `blockersOf` — never
+  re-derived ad hoc at render time) is definitionally blocked — its blocker is unshaped or
+  ungranted, not yet part of this batch. It still renders in the Dispatch block, but as a
+  `#`-comment naming the out-of-set blocker and its funnel stage (e.g. `# #521 waiting — blocked by
+  #518 (shaped, ungranted)`), never a bare paste-ready command; counted under rule (c). This is what
+  keeps #513's header promise (the granted stage's "no pointer — waiting on blockers; the blocker
+  itself appears in the dispatch hand-off").
+  **Chain vs out-of-set precedence:** when a chain member (not a bare independent) is
+  out-of-set-blocked, this rule wins over the chain's normal one-command rendering for that member
+  and everything after it in the linearized order — later members depend (directly or
+  transitively) on the blocked one, so they cannot run either. The chain's executable
+  `/claude-tweaks:flow #A,#B,...` command covers only the topological prefix BEFORE the first
+  out-of-set-blocked member; that member and every member after it render as comment-only lines
+  each naming the out-of-set blocker, per this rule, instead of joining the executable command. When
+  the out-of-set-blocked member is the chain's head (an empty prefix), the whole terminal renders
+  comment-only — no executable command for that terminal at all.
 - **Cyclic components** — a dependency component `buildChains` returns under `cycles` (never
   partially placed in `chains`) renders as a named `#`-comment block listing every id in the
   component, with a pointer to `/claude-tweaks:backlog refine`'s dependency repair; counted under

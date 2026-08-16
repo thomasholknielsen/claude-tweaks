@@ -288,3 +288,19 @@ test('out-of-set blockers contribute nothing to either helper', () => {
   assert.deepEqual(result.chains, [[10, 11]]);
   assert.deepEqual(result.cycles, []);
 });
+
+test('buildChains: a mixed-priority ready batch orders by priority band, not by id (#515)', () => {
+  const mixedBatch = [
+    { id: 1, blockedBy: [], facets: {} },
+    { id: 2, blockedBy: [1], facets: { priority: 'low' } },
+    { id: 3, blockedBy: [1], facets: { priority: 'high' } },
+  ];
+  const result = buildChains(mixedBatch);
+  assert.deepEqual(result.chains, [[1, 3, 2]], 'id 3 (priority:high) must precede id 2 (priority:low) in the ready batch even though 2 < 3');
+});
+
+test('buildChains: independents sort ascending by id regardless of input order (#515)', () => {
+  const outOfOrder = [{ id: 6, facets: {} }, { id: 5, facets: {} }];
+  const result = buildChains(outOfOrder);
+  assert.deepEqual(result.independents, [5, 6], 'independents must sort, not merely reflect input order');
+});

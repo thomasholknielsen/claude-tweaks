@@ -71,7 +71,7 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 - Option 2 — `label`: `"Dispatch just the next one"`, `description`: `"/claude-tweaks:dispatch next — claim and build the single highest-priority authorized record"`
 - Option 3 — `label`: `"Refine again"`, `description`: `"/claude-tweaks:backlog refine — review anything still left needing labels"`
 
-**After `overview`:** The menu's `(Recommended)` label is never a static tag on one option — it is computed fresh each run and attached to whichever option's action matches the report's closing `Next:` line (Step 4's two-channel contract — the menu carries this-session moves only, never other-terminal command lists). Call `AskUserQuestion`:
+**After `overview`:** The menu's `(Recommended)` label is never a static tag on one option — it is computed fresh each run and MUST be attached to exactly the option whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the menu carries this-session moves only, never other-terminal command lists). Call `AskUserQuestion`:
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Dispatch the top chain here"`, `description`: `"/claude-tweaks:flow {top-ranked Dispatch entry's refs, comma-joined} — run the report's top Dispatch terminal in this session"` — omit when the Dispatch block is empty
 - Option 2 — `label`: `"Refine the labels"`, `description`: `"/claude-tweaks:backlog refine — apply the priority/Related/grant suggestions this overview surfaced"` — omit when nothing surfaced needs refining

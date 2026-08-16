@@ -154,7 +154,11 @@ function transitiveUnblocksCount(candidates) {
 // caller attached; blocker precedence comes from blockersOf. Candidate ids
 // must be unique and each candidate must carry `.facets` (same precondition
 // as rankNextToBuild) — duplicate ids are undefined behavior (last-write-wins
-// internally, since byId/adjacency/seen are all keyed by id).
+// internally, since byId/adjacency/seen are all keyed by id). Ids are numbers
+// at every carrier (GraphQL's `.number`, the local-store driver's `Number()`
+// parse) — the strict-equality/Set comparisons above (`ids.has(b)`,
+// `componentSet.has(b)`, `emitted.has(b)`) rely on that; a stringified id
+// would silently drop its edge instead of throwing.
 function buildChains(candidates) {
   const ids = new Set(candidates.map((c) => c.id));
   const byId = new Map(candidates.map((c) => [c.id, c]));
