@@ -31,7 +31,7 @@ The 2026-08-16 standalone `/tidy` run staged two remote-branch deletions for bra
 
 ## Acceptance Criteria
 
-- [ ] A remote branch proven merged into the integration branch (plugin-owned namespace, no live worktree attached, no open PR) is deleted by reconcile's convergence pass and reported under **Applied automatically** — never staged.
+- [ ] A remote branch proven merged into the integration branch (plugin-owned namespace, no live worktree attached, carrying both a MERGED PR and cherry-equivalence — the stricter bar the build shipped; "no open PR" alone is insufficient for a pushed deletion) is deleted by reconcile's convergence pass and reported under **Applied automatically** — never staged.
 - [ ] A candidate failing the evidence conditions (open PR, unmerged commits, transport failure, out-of-scope namespace) is skipped with a reason and never deleted.
 - [ ] Under `integration-model: local-merge` the new check does not run (`index.js` guard) — existing behavior unchanged.
 - [ ] The "Mark as specified" recommendation has an explicit routing row; at default `moderate` aggressiveness the stamp is applied automatically and logged to `decisions.md` per `_shared/auto-decision-log.md`, not staged.
@@ -44,6 +44,7 @@ Follow the established reconcile pattern (`release-merged.js`, `archive-branches
 ## Gotchas
 
 - A pushed remote deletion is unrecoverable from the local side once origin GCs the ref — the evidence bar must be the strict merged-in-substance one (`git cherry`, the same reason `archive-branches.js` uses `-D` behind its decision table and never trusts `-d`), corroborated by PR state, not ancestry alone.
+- Evidence must be computed against FRESH remote refs: the check runs `git fetch --prune origin` first and fails closed (whole check skipped) when the fetch fails — cached `refs/remotes/origin/*` can be stale, and an unleased `push --delete` judged on stale evidence destroys commits another machine pushed since. (Added at build time — the final whole-branch review reproduced the data-loss scenario; the fetch's `--prune` also stops already-deleted refs being re-examined every run.)
 - A branch attached to a live worktree must remain out of scope — reuse `parseWorktreeList` liveness the way `archive-branches.js`'s `inScope` does.
 - Do not route "Mark as specified" through reconcile — it is a local tracked-file edit; a tidy tier row is the correct mechanism, unlike the remote deletes, which are outward writes forbidden on tidy tiers at every aggressiveness level.
 - The cleanly-merged local Delete row in step-6-auto.md predates the reconcile checks and stays tier-routed for `local-merge` parity — the new check must not absorb or break it.
