@@ -30,9 +30,14 @@ test('no raw sub_issues or blocked_by write snippet remains in the native branch
 test('the gh-absent posture names the body-text fallback, not an MCP path', () => {
   assert.match(text, /requires `gh`/, 'must say the helper requires gh');
   assert.match(text, /work-links: body-text/, 'must name the body-text fallback');
-  assert.doesNotMatch(text, /no MCP equivalent[^.]*create_or_update_file/, 'never claim an MCP path for these endpoints');
+  assert.doesNotMatch(text, /github-write-transport\.md[^.\n]*MCP path (?:covers|handles|supports) (?:them|these)/, 'never claim the MCP path covers these endpoints');
+  assert.match(text, /MCP path does not cover them/, 'must state plainly that the MCP path does not cover them');
 });
 
 test('the caller is told to read `failed`', () => {
   assert.match(text, /`failed`/, 'the prose must tell the caller to read the envelope\'s failed list');
+});
+
+test('the helper invocation prints its envelope to stdout (no /tmp redirect)', () => {
+  assert.doesNotMatch(text, /link-records\.js[^\n]*\n[^\n]*> \/tmp\//, 'do not redirect the envelope away from the tool result');
 });

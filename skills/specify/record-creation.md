@@ -238,11 +238,14 @@ Branches on driver, then — for `github-issues` — on `work-links`.
   companion overlaps or Step 2's implicit-dependency notes):
 
   ```bash
+  # Step 3 captured $SUB_ISSUE_NUM per sub-issue — join them: SUB_ISSUE_NUMS="595,597,598".
+  # DEP_EDGES is every dependency edge as dependent:blocker, comma-joined: "598:595,600:530"
+  # (blockers may be pre-existing records; leave --blocked-by off when there are none, and leave
+  # --parent/--subs off when only edges need wiring — at least one of the two is required).
   node "${CLAUDE_PLUGIN_ROOT}/bin/link-records.js" --parent $PARENT_NUM --subs $SUB_ISSUE_NUMS \
-    --blocked-by "$DEP_EDGES" > /tmp/specify-link-result.json
-  # $SUB_ISSUE_NUMS = comma-joined sub-issue numbers; $DEP_EDGES = "598:595,600:530,..." (omit
-  # --blocked-by when there are no edges). Owner/repo resolve from `origin`; pass --repo owner/name
-  # to override.
+    --blocked-by "$DEP_EDGES"
+  # Prints one JSON envelope to stdout (do not redirect it away — read it from the tool result).
+  # Owner/repo resolve from `origin`; pass --repo owner/name to override.
   ```
 
   Read the envelope's `subIssues.failed` and `blockedBy.failed` — a non-empty `failed` list is the
@@ -254,7 +257,10 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 - **This command requires `gh`** — the sub-issues and issue-dependencies endpoints have no
   GitHub MCP equivalent, so `_shared/github-write-transport.md`'s MCP path does not cover them.
   When `command -v gh` fails, `bin/link-records.js` exits 2 naming the fallback: link under
-  `work-links: body-text` instead (the branch below, which needs only `issue_write`).
+  `work-links: body-text` instead (the branch below, which needs only `issue_write`). The
+  endpoint family is the one `capabilities-probe.js`'s `probeSchema` checks for via the
+  `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and
+  insufficient, see that file's header comment.
 
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 

@@ -12,7 +12,7 @@
 const { execFileSync } = require('child_process');
 const link = require('./lib/issues/link');
 
-const USAGE = 'usage: link-records.js --parent <n> --subs <n,n,...> [--blocked-by "<dependent:blocker>,..."] [--repo owner/name] [--help]\n';
+const USAGE = 'usage: link-records.js [--parent <n> --subs <n,n,...>] [--blocked-by "<dependent:blocker>,..."] [--repo owner/name] [--help]\n       at least one of --parent+--subs or --blocked-by is required\n';
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
@@ -37,7 +37,7 @@ function parseArgs(argv) {
       }
       opts.blockedBy = blockedBy;
     }
-    else if (a === '--repo') opts.repo = next();
+    else if (a === '--repo') { const v = next(); if (!v || v.startsWith('--')) return { error: 'missing value for --repo' }; opts.repo = v; }
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
@@ -61,8 +61,11 @@ function run(argv, deps = realDeps) {
   const opts = parseArgs(argv);
   if (opts.error) { deps.stderr(opts.error + '\n' + USAGE); return 2; }
   if (opts.help) { deps.stdout(USAGE); return 0; }
-  const bad = !isPos(opts.parent) || opts.subs.length === 0 || opts.subs.some((n) => !isPos(n))
-    || opts.blockedBy.some((e) => !isPos(e.dependent) || !isPos(e.blocker));
+  const hasSubs = opts.parent !== null || opts.subs.length > 0;
+  const hasEdges = opts.blockedBy.length > 0;
+  const subsBad = hasSubs && (!isPos(opts.parent) || opts.subs.length === 0 || opts.subs.some((n) => !isPos(n)));
+  const edgesBad = opts.blockedBy.some((e) => !isPos(e.dependent) || !isPos(e.blocker));
+  const bad = (!hasSubs && !hasEdges) || subsBad || edgesBad;
   if (bad) { deps.stderr(USAGE); return 2; }
   if (!deps.ghAvailable()) {
     deps.stderr('link-records.js: `gh` is required — the sub_issues and dependencies/blocked_by endpoints have no GitHub MCP equivalent. Fall back to work-links: body-text (record-creation.md Step 4).\n');
@@ -71,7 +74,7 @@ function run(argv, deps = realDeps) {
   const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(deps.remoteUrl());
   if (!repoSpec) { deps.stderr('link-records.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
-  const numbers = [opts.parent, ...opts.subs, ...opts.blockedBy.flatMap((e) => [e.dependent, e.blocker])];
+  const numbers = [...(hasSubs ? [opts.parent, ...opts.subs] : []), ...opts.blockedBy.flatMap((e) => [e.dependent, e.blocker])];
   let ids;
   try {
     ids = link.resolveDatabaseIds({ owner, repo, numbers, runner: deps.runner });
@@ -79,7 +82,9 @@ function run(argv, deps = realDeps) {
     deps.stderr(`link-records.js: ${err.message}\n`);
     return 1;
   }
-  const subIssues = link.linkSubIssues({ owner, repo, parent: opts.parent, subs: opts.subs, ids, runner: deps.runner });
+  const subIssues = hasSubs
+    ? link.linkSubIssues({ owner, repo, parent: opts.parent, subs: opts.subs, ids, runner: deps.runner })
+    : { ok: [], failed: [] };
   const blockedBy = link.linkBlockedBy({ owner, repo, edges: opts.blockedBy, ids, runner: deps.runner });
   const idsObj = {}; for (const [n, id] of ids) idsObj[String(n)] = id;
   deps.stdout(JSON.stringify({ repo: `${owner}/${repo}`, ids: idsObj, subIssues, blockedBy }, null, 2) + '\n');
@@ -88,4 +93,4 @@ function run(argv, deps = realDeps) {
 
 module.exports = { run, parseArgs, parseRepo };
 
-if (require.main === module) process.exit(run(process.argv.slice(2), realDeps));
+if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

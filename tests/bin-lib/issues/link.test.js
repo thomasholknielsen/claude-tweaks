@@ -25,7 +25,8 @@ test('resolveDatabaseIds: one GraphQL call with one alias per number, returns a 
   assert.match(q, /i595: issue\(number:595\)\{ databaseId \}/);
   assert.match(q, /i597: issue\(number:597\)\{ databaseId \}/);
   assert.match(q, /i592: issue\(number:592\)\{ databaseId \}/);
-  assert.match(q, /-F owner=acme -F repo=w/, 'owner/repo passed with -F');
+  assert.match(q, /-f owner=acme -f repo=w/, 'owner/repo are resolved values → -f (raw string); -F would type-coerce numeric names');
+  assert.doesNotMatch(q, /-F owner=/, 'never -F for a resolved owner value');
   assert.equal(ids.get(595), 5164237962);
   assert.equal(ids.get(592), 5164219255);
 });
@@ -169,4 +170,42 @@ test('parseRepo: dotted repo names survive; only a trailing .git is stripped', (
   assert.deepEqual(parseRepo('git@github.com:owner/repo.git'), { owner: 'owner', repo: 'repo' });
   assert.deepEqual(parseRepo('https://github.com/owner/repo/'), { owner: 'owner', repo: 'repo' });
   assert.equal(parseRepo('https://gitlab.com/owner/repo'), null);
+});
+
+test('link-records CLI: blocked-by-only invocation is valid (no --parent/--subs)', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    if (isGraphQL(args)) return graphqlJSON({ 598: 3, 595: 2 });
+    if (isPost(args, 'repos/acme/w/issues/598/dependencies/blocked_by')) return '{}';
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const { deps, out } = cliDeps({ runner });
+  const code = run(['--blocked-by', '598:595'], deps);
+  assert.equal(code, 0);
+  assert.equal(calls.filter(isGraphQL).length, 1);
+  assert.equal(calls.filter((a) => a[1] === '-X').length, 1);
+  const env = JSON.parse(out.join(''));
+  assert.deepEqual(env.subIssues, { ok: [], failed: [] });
+  assert.deepEqual(env.blockedBy.ok.map((o) => o.dependent), [598]);
+});
+
+test('link-records CLI: neither link kind given is a malformed invocation (exit 2)', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  assert.equal(run(['--repo', 'acme/w'], deps), 2);
+  assert.match(err.join(''), /at least one of/);
+});
+
+test('link-records CLI: --repo with no value is a malformed invocation (exit 2)', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  assert.equal(run(['--parent', '592', '--subs', '595', '--repo'], deps), 2);
+  assert.match(err.join(''), /missing value for --repo/);
+});
+
+test('resolveDatabaseIds: GraphQL errors[] surface in the missing-id message', () => {
+  const runner = (args) => (isGraphQL(args) ? JSON.stringify({ data: { repository: null }, errors: [{ message: 'Could not resolve to a Repository' }] }) : '{}');
+  assert.throws(
+    () => resolveDatabaseIds({ owner: 'a', repo: 'b', numbers: [595], runner }),
+    /missing databaseId for #595 \(GraphQL: Could not resolve to a Repository\)/,
+  );
 });

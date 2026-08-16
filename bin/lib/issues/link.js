@@ -29,6 +29,9 @@ function errorText(err) {
 }
 
 // A 422 whose message says the relationship already exists — a re-run, not a failure.
+// Heuristic: matches "422" and "already" anywhere across message/stderr/stdout; not yet
+// confirmed against GitHub's live 422 bodies for these two endpoints. Fails safe: a false
+// negative reports a real duplicate under `failed` (visible, harmless on re-run).
 function isAlreadyLinkedError(err) {
   const text = errorText(err);
   return /\b422\b/.test(text) && /already/i.test(text);
@@ -42,7 +45,11 @@ function resolveDatabaseIds({ owner, repo, numbers, runner = defaultRunner }) {
   if (distinct.length === 0) return new Map();
   const fields = distinct.map((n) => `i${n}: issue(number:${n}){ databaseId }`).join(' ');
   const query = `query($owner:String!,$repo:String!){ repository(owner:$owner,name:$repo){ ${fields} } }`;
-  const out = runner(['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${owner}`, '-F', `repo=${repo}`]);
+  // -f (raw string), NOT -F: these are already-resolved values bound to String! variables —
+  // -F would type-coerce an all-numeric owner/repo (e.g. "2048") to an Int and GraphQL rejects it.
+  // (-F is only right for gh's literal `{owner}`/`{repo}` placeholder substitution, which is not
+  // in play here — see #608 vs #610.)
+  const out = runner(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `repo=${repo}`]);
   const parsed = JSON.parse(out);
   const repository = parsed && parsed.data && parsed.data.repository;
   const ids = new Map();
@@ -53,7 +60,11 @@ function resolveDatabaseIds({ owner, repo, numbers, runner = defaultRunner }) {
     if (id === null) missing.push(n);
     else ids.set(n, id);
   }
-  if (missing.length) throw new Error(`missing databaseId for ${missing.map((n) => `#${n}`).join(', ')}`);
+  if (missing.length) {
+    const errs = Array.isArray(parsed && parsed.errors) ? parsed.errors.map((e) => e && e.message).filter(Boolean) : [];
+    const suffix = errs.length ? ` (GraphQL: ${errs.join('; ')})` : '';
+    throw new Error(`missing databaseId for ${missing.map((n) => `#${n}`).join(', ')}${suffix}`);
+  }
   return ids;
 }
 
