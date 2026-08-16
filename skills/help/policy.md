@@ -90,22 +90,23 @@ On the user saying "show advanced": render the advanced-tier keys still on `sour
 
 This section replaces SKILL.md's own `## Next Actions` block for the `policy` mode — the two never both fire in the same run.
 
-**#537 pre-check fallback (run BEFORE offering apply options at all):** check the held snapshot's `worktree.always` value and the session's checkout:
+**Main-checkout pre-check (run BEFORE offering apply options at all):** check the held snapshot's `worktree.always` value, the session's checkout, and the running plugin build's version:
 
 ```bash
 git rev-parse --git-dir
 git rev-parse --git-common-dir
+node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/.claude-plugin/plugin.json').version)"
 ```
 
-When `worktree.always` is `true` AND the two paths are equal (a main checkout, not a linked worktree), the write path is gate-denied — this is a pre-check, not a try/catch around a failed write. In that case, skip the `AskUserQuestion` below entirely — deliberately: nothing in this branch is agent-decidable, since the agent cannot legally write the file itself. Instead render each of section 3's recommendations as a paste-ready command block for THE USER to run themselves, outside this session — the agent never executes these commands (the write gate denies agent file-writes in a main checkout under `worktree.always`, and a bare-shell workaround is not a supported bypass):
+When `worktree.always` is `true` AND the two `git rev-parse` paths are equal (a main checkout, not a linked worktree), the write gate's general Edit/Write/commit posture is denied for everything EXCEPT `.claude-tweaks/policy.yml` itself — `_shared/policy-schema.md`'s coverage block is the canonical statement of that exemption's terms (path identity, and the allowlisted policy-only commit); do not restate the grammar here. On a plugin build whose version compares greater than `6.86.0` (the last release without the exemption — compare with `bin/lib/changelog.js`'s `compareVersions`, per `skills/init/bootstrap/version-check.md`'s pattern), that exemption is live: proceed to the `AskUserQuestion` below as normal, then apply each approved edit as an isolated Edit/Write to `.claude-tweaks/policy.yml` followed by `git add .claude-tweaks/policy.yml` and then, as a **separate** Bash call, a bare `git commit -m "..."` — never chained with `&&` (the allowlist rejects every shell operator, so a chained form is denied whole), and staging nothing else in that commit, or the staged-set proof fails and the commit is denied.
+
+On an OLDER build (version `6.86.0` or below, predating the exemption), the write path is gate-denied unconditionally in a main checkout — this is a pre-check, not a try/catch around a failed write. In that case, skip the `AskUserQuestion` below entirely — deliberately: nothing in this branch is agent-decidable, since the agent cannot legally write the file itself. Instead render each of section 3's recommendations as a paste-ready command block for THE USER to run themselves, outside this session — the agent never executes these commands (the write gate denies agent file-writes in a main checkout under `worktree.always` on that build, and a bare-shell workaround is not a supported bypass):
 
 ```
 Run this yourself, from the repo root, to apply the recommended change:
 
 printf '%s\n' "{key}: {value}" >> "$(git rev-parse --show-toplevel)/.claude-tweaks/policy.yml"
 ```
-
-This fallback's removal condition is #537 — once that lands, re-check whether the gate still blocks a main-checkout write before keeping this branch.
 
 **If section 3 yielded zero recommendations** (either zero-finding case above): render all four render-contract sections as usual, then end with the single line `Nothing to change — configuration looks healthy; say "show advanced" to inspect defaults.` and skip the `AskUserQuestion` entirely. With a "No changes" option and no real recommendations, fewer than 2 real options exist for the call — per `docs/skill-authoring.md`'s lone-option rule, that means no call, not a call offering one meaningful option plus a no-op.
 
@@ -135,6 +136,6 @@ This fallback's removal condition is #537 — once that lands, re-check whether 
 |---------|---------------|
 | Restating a default value in prose instead of rendering the `--all` snapshot | The snapshot is the ground truth; a hand-typed default drifts from the schema silently. |
 | Re-reading `policy.yml` to discover a key's prior value after writing | The apply path may have already written other keys' lines; only the Gather-time snapshot holds the true "before" state for revert. |
-| Offering apply options without running the #537 pre-check first | A main-checkout write under `worktree.always: true` is gate-denied — presenting options that will fail wastes the user's selection. |
+| Offering apply options without running the main-checkout pre-check first | On a build at or below `6.86.0`, a main-checkout write under `worktree.always: true` is gate-denied outright — presenting options that will fail wastes the user's selection. On a newer build the exemption covers only the isolated policy.yml write/commit shape; skipping the check risks an apply attempt the allowlist's staged-set proof still rejects. |
 | Hardcoding an enum's legal value list in an option description | `POLICY_KEYS` is the pinned source; a hardcoded copy goes stale the moment a value is added or removed there. |
-| Adding a second `AskUserQuestion` call anywhere in this mode | The mode has exactly one — the capped Next Actions call; "show advanced" and the #537 fallback are both in-conversation renders, not questions. |
+| Adding a second `AskUserQuestion` call anywhere in this mode | The mode has exactly one — the capped Next Actions call; "show advanced" and the older-build paste-ready fallback are both in-conversation renders, not questions. |
