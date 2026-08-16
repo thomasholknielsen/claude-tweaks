@@ -14,7 +14,7 @@ files:
 ## Steps
 
 1. **Invoke** — Type `/claude-tweaks:routine fleet on`.
-   - **Action:** The skill reads the five human-owned levers from `.claude-tweaks/policy.yml` (`autonomy`, `grant-origination-enabled`, `automerge-max-lines`/`automerge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap`) and renders them back as a table *before* asking anything.
+   - **Action:** The skill reads the five human-owned levers from `.claude-tweaks/policy.yml` (`autonomy`, `grant-origination-enabled`, `auto-merge-max-lines`/`auto-merge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap`) and renders them back as a table *before* asking anything.
    - **Check:** The Fleet Config (Manifesto) table shows each lever's current value and source; the `AskUserQuestion` offers Provision with current values / Change a lever / Cancel.
 
 2. **Confirm (or edit) the Manifesto** — Pick "Provision with current values", or "Change a lever" to edit any of the five (each re-asked individually, written to `policy.yml`, table re-rendered).

@@ -352,7 +352,7 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
   // the command shape enough to spawn bin/hooks.js. A commit issued as
   // `git -c user.name=x commit -m y` previously never even reached the
   // parser: no registered `if` pattern matched its literal text, so both
-  // the worktree.always deny and the E1 wrong-checkout deny silently never
+  // the worktree-always deny and the E1 wrong-checkout deny silently never
   // fired for this shape.
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
   const requiredPatterns = ['Bash(git -c *)', 'Bash(git --exec-path=*)', 'Bash(git --namespace=*)'];
@@ -365,10 +365,10 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
   }
 });
 
-test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in the main checkout', () => {
+test('e2e: pre-tool-use CLI denies an Edit when worktree-always policy is set in the main checkout', () => {
   const project = gitRepo();
   fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
     cwd: project,
@@ -380,7 +380,7 @@ test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in
 function policyRepoWithRun() {
   const project = gitRepo();
   fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   return { project, run };
@@ -405,7 +405,7 @@ test('a resolved deny appends a gate-denial event', () => {
 test('a deny with no resolved run dir writes nothing and still denies', () => {
   const project = gitRepo();
   fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   // Deliberately no .claude-tweaks/pipelines/ run dir at all, so
   // ctxLib.resolveRun finds nothing and ownedRun.dir is null — the
   // documented, accepted gap: ad-hoc work with no run dir records nothing.
@@ -437,7 +437,7 @@ test('a gate denial with an unwritable run dir still denies and exits 0', () => 
   }
 });
 
-test('e2e: pre-tool-use CLI allows an Edit when worktree.always policy is not set', () => {
+test('e2e: pre-tool-use CLI allows an Edit when worktree-always policy is not set', () => {
   const project = gitRepo();
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),

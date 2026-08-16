@@ -217,7 +217,7 @@ Render this section only when any spec's Upstream feedback curation row (or the 
 
 | U# | Spec | Kind | Component | Summary | Patch |
 |---|---|---|---|---|---|
-| U1 | 157 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `spec-157/staged/wrap-up-upstream-1.md` |
+| U1 | 157 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree-always | `spec-157/staged/wrap-up-upstream-1.md` |
 
 Below each row, show the full staged file content for the item so the user can see exactly what would be published. Filing happens after approval by invoking `/claude-tweaks:feedback --pre-confirmed` per checked row. Omit the section entirely when no spec (and no parent-level proposal) staged an upstream proposal.
 

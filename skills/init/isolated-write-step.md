@@ -6,10 +6,10 @@ why this step exists, what it does and doesn't cover, and exactly how the write 
 ## Scope
 
 Every write in this phase — the confirmed CLAUDE.md/skills/rules/docs-registry/local-file
-work-record changes, plus Step 6's deferred `worktree.always` write when queued — happens
-inside an isolated worktree, **unconditionally**, regardless of what `worktree.always`
+work-record changes, plus Step 6's deferred `worktree-always` write when queued — happens
+inside an isolated worktree, **unconditionally**, regardless of what `worktree-always`
 currently says in `.claude-tweaks/policy.yml`. This is a stronger guarantee than the project
-policy itself: even on a project that declined `worktree.always` entirely, `/init`'s own
+policy itself: even on a project that declined `worktree-always` entirely, `/init`'s own
 confirmed writes still isolate themselves.
 
 Reconnaissance and drift detection (Phases 1-8.5) are **not** part of this — they already ran
@@ -38,7 +38,7 @@ from `_shared/worktree-setup.md`. This needs a valid HEAD to branch from — Ste
 (`bootstrap/step-05-verify-git.md`) already guarantees one exists, creating an empty initial
 commit if the repo had none. `/init` deviates from `_shared/scratch-worktree.md`'s own
 "provision only on demand" trigger, written for its other two callers (`/wrap-up`, `/tidy`),
-whose provisioning is gated on `worktree.always` already being live: `/init` provisions
+whose provisioning is gated on `worktree-always` already being live: `/init` provisions
 unconditionally, because the goal here is broader than gate compliance — protecting a
 concurrent session from colliding on the main checkout while `/init` writes, and giving this
 run's output a reviewable branch regardless of whether the project has opted into the policy

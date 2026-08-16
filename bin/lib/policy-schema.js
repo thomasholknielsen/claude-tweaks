@@ -12,14 +12,14 @@ const PROFILE_NAMES = Object.keys(PROFILES);
 const POLICY_CATEGORIES = ['autonomy-trust', 'pipeline-behavior', 'merge-safety', 'health-sweeps', 'models', 'housekeeping'];
 
 const POLICY_KEYS = [
-  { key: 'worktree.always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'worktree-always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
   // One key, two value classes since #331: plain 'subagent'/'batched' are
   // overridable defaults; the '-only' forms carry the full lock semantics the
   // retired execution.always key used to hold (a lock beats an explicit CLI
   // argument). RENAMED_KEYS migrates stray execution.always lines.
   { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched', 'subagent-only', 'batched-only'], default: 'subagent', summary: "Sets whether build defaults to subagent or batched execution, and can lock that choice against override.", category: 'pipeline-behavior', tier: 'core' },
   { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree', summary: "Sets whether new work defaults to an isolated worktree/working directory or continues on the current branch.", category: 'pipeline-behavior', tier: 'core' },
-  { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield', summary: "Scales how strict test discipline and task breakdown are, from a greenfield project up to an established one.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'project-maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield', summary: "Scales how strict test discipline and task breakdown are, from a greenfield project up to an established one.", category: 'pipeline-behavior', tier: 'core' },
   { key: 'integration-branch', type: 'string', summary: "Names the branch where finished work lands and new work starts, for a repo whose active branch is not its default.", category: 'merge-safety', tier: 'advanced' },
   // pr-first (origin is truth, GitHub PR integration) vs local-merge (today's
   // local merge into the integration branch — the permanent no-forge
@@ -44,8 +44,8 @@ const POLICY_KEYS = [
   // project's existing policy.yml validates; removal condition in
   // skills/dispatch/deprecated-aliases.md.
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence — an older name for the same cap, kept for migration.", category: 'merge-safety', tier: 'advanced' },
-  { key: 'automerge-max-lines', type: 'integer', default: 40, summary: "Bounds how large a diff an unattended merge will accept before a human is required — a weighted guideline, not a hard cutoff.", category: 'merge-safety', tier: 'core' },
-  { key: 'automerge-max-files', type: 'integer', default: 2, summary: "Bounds how many changed files an unattended merge will accept before a human is required — the same weighted guideline, by file count.", category: 'merge-safety', tier: 'core' },
+  { key: 'auto-merge-max-lines', type: 'integer', default: 40, summary: "Bounds how large a diff an unattended merge will accept before a human is required — a weighted guideline, not a hard cutoff.", category: 'merge-safety', tier: 'core' },
+  { key: 'auto-merge-max-files', type: 'integer', default: 2, summary: "Bounds how many changed files an unattended merge will accept before a human is required — the same weighted guideline, by file count.", category: 'merge-safety', tier: 'core' },
   { key: 'merge-sensitive-paths', type: 'list', default: [], summary: "Lists path patterns that always require a human to sign off on a merge, no matter how small the change looks.", category: 'merge-safety', tier: 'advanced' },
   // Sweep-backstop thresholds (#414) — how long a green, gate-passed PR may sit
   // with `--auto` unarmed, or a claimed/pushed run may sit with no PR progress,
@@ -60,8 +60,8 @@ const POLICY_KEYS = [
   { key: 'housekeeping-auto-merge', type: 'boolean', default: false, summary: "Lets routine cleanup pull requests merge themselves once green, instead of waiting for a person to arm them.", category: 'merge-safety', tier: 'core' },
   { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text', summary: "Chooses whether related records link through native issue relationships or a plain-text reference in the body.", category: 'housekeeping', tier: 'advanced' },
   { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'], summary: "Sets a minimum thoroughness level a code review is never allowed to fall below, even for a small-looking diff.", category: 'pipeline-behavior', tier: 'advanced' },
-  { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30, summary: "Caps how many lines a path-scoped rule file may hold before a health sweep flags it as too long.", category: 'health-sweeps', tier: 'advanced' },
-  { key: 'harness-health.always-loaded-budget', type: 'integer', default: 150, summary: "Caps how many lines the project's always-loaded instructions may hold before a health sweep flags them as too long.", category: 'health-sweeps', tier: 'advanced' },
+  { key: 'harness-health-scoped-rule-budget', type: 'integer', default: 30, summary: "Caps how many lines a path-scoped rule file may hold before a health sweep flags it as too long.", category: 'health-sweeps', tier: 'advanced' },
+  { key: 'harness-health-always-loaded-budget', type: 'integer', default: 150, summary: "Caps how many lines the project's always-loaded instructions may hold before a health sweep flags them as too long.", category: 'health-sweeps', tier: 'advanced' },
   // Per-origin open-singleton cap for the four health sweeps' digest filing
   // (_shared/health-filing-digest.md). Documented in _shared/policy-schema.md
   // since #235 but never registered here until #330's migration hit the gap.
@@ -71,7 +71,7 @@ const POLICY_KEYS = [
   { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none', summary: "Sets the visual and UX ambition a build aims for — bold, quiet, minimal, delightful, onboarding-focused, or none at all.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer', summary: "Decides what happens to loose ends found at the end of a run: leave them for later, file them as backlog, or drop them.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type', summary: "Sets how much a test pass auto-fixes before stopping — lint alone, lint and types, or lint, types, and tests.", category: 'pipeline-behavior', tier: 'advanced' },
-  { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'review-auto-apply-ceiling', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate', summary: "Sets how boldly cleanup sweeps act on what they find — from keep-unless-certain to delete-unless-doubtful.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'], summary: "Sets whether a standalone build or an unattended cleanup run starts hands-off by default, without being asked each time.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000, summary: "Caps how many backlog issues one scan pulls before warning that the list was truncated.", category: 'housekeeping', tier: 'advanced' },
@@ -109,7 +109,7 @@ const POLICY_KEYS = [
   // defaults ["emergency", "circuit", "kill"] — a flag whose identifier
   // matches is never emitted as a candidate, regardless of decision signals.
   { key: 'experiment-flag-exclude', type: 'list', default: [], summary: "Names extra flag-name substrings the experiment-cleanup sweep should never flag, on top of the built-in kill-switch defaults.", category: 'health-sweeps', tier: 'advanced' },
-  { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing decision-record convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-adr', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing decision-record convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
   // Retention for docs/superpowers/plans/*.md at /wrap-up's cleanup-planning
   // item 1. Default keep-forever preserves today's unconditional-retention
   // behavior (ADR-0007's own convention) for every project that never sets
@@ -186,6 +186,33 @@ const RENAMED_KEYS = [
   // Retired outright in #331 — adaptive batching is deepen's sole behavior.
   // Removal condition in skills/_shared/policy-deprecations.md.
   { key: 'section-confirmation', replacedBy: null, migrate: () => null },
+  // Renamed in #332 (naming convention + rename program). All seven are
+  // identity migrates — the value's shape and meaning did not change, only
+  // the name. Removal condition for each: skills/_shared/policy-deprecations.md.
+  //
+  // review-severity-floor was a misnomer: it is the MAX severity that gets
+  // auto-applied (`medium` -> Low AND Medium auto-apply), i.e. a ceiling, and
+  // this schema already spells "max" as -ceiling (model-ceiling,
+  // dispatch-retry-ceiling). The old name also collided with
+  // review-effort-floor, which IS a floor.
+  { key: 'review-severity-floor', replacedBy: 'review-auto-apply-ceiling', migrate: (value) => value },
+  // automerge -> auto-merge: one spelling, matching housekeeping-auto-merge
+  // and the auto:merge label.
+  { key: 'automerge-max-lines', replacedBy: 'auto-merge-max-lines', migrate: (value) => value },
+  { key: 'automerge-max-files', replacedBy: 'auto-merge-max-files', migrate: (value) => value },
+  // dot -> dash: keys are flat kebab-case identifiers; grouping is the
+  // `category` metadata, never the key (a dotted key reads as a nested-YAML
+  // path in a flat-line parser and silently defaults when written nested).
+  { key: 'project.maturity', replacedBy: 'project-maturity', migrate: (value) => value },
+  { key: 'harness-health.scoped-rule-budget', replacedBy: 'harness-health-scoped-rule-budget', migrate: (value) => value },
+  { key: 'harness-health.always-loaded-budget', replacedBy: 'harness-health-always-loaded-budget', migrate: (value) => value },
+  { key: 'doc-convention.adr', replacedBy: 'doc-convention-adr', migrate: (value) => value },
+  // Renamed in #602 — the last dotted key, carved out of #332 because the
+  // hook reads it by literal (bin/lib/policy.js isWorktreeAlwaysOn), which
+  // this alias alone does not reach; policy.js consults this entry to honor
+  // the old spelling. Identity migrate; boolean semantics unchanged. Removal
+  // condition in skills/_shared/policy-deprecations.md.
+  { key: 'worktree.always', replacedBy: 'worktree-always', migrate: (value) => value },
 ];
 const RENAMED_KEY_NAMES = new Set(RENAMED_KEYS.map((entry) => entry.key));
 
@@ -203,11 +230,13 @@ function parseFlatLines(raw) {
   const result = {};
   if (!raw) return result;
   for (const rawLine of raw.split('\n')) {
-    // Every top-level key in this file's flat convention starts in column 0
-    // (dot-notation namespacing, e.g. harness-health.scoped-rule-budget, is
-    // how nesting is expressed — never indentation). An indented line belongs
-    // to a nested block's own field (today, only model-profiles' rows) and
-    // must never be read as a flat key in its own right.
+    // Every top-level key starts in column 0 — nesting is never expressed by
+    // indentation. Dotted names still parse (the RENAMED_KEYS aliases such as
+    // harness-health.scoped-rule-budget are dotted inputs), but new keys are
+    // flat kebab-case per skills/_shared/policy-key-naming.md.
+    // An indented line belongs to a nested block's own field (today, only
+    // model-profiles' rows) and must never be read as a flat key in its own
+    // right.
     if (/^\s/.test(rawLine)) continue;
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;

@@ -1,4 +1,4 @@
 # Frozen fixture (tests/resolve-policy-cli.test.js) — never this repo's live policy.yml.
 autonomy: unattended
 dispatch-retry-ceiling: 5
-worktree.always: true # trailing comment exercises comment tolerance
+worktree-always: true # trailing comment exercises comment tolerance

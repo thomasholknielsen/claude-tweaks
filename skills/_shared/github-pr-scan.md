@@ -269,7 +269,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
 3. **Auto-merged this week** — `[fast-lane]`-tagged or `[auto-merge]`-tagged commits on the *default*
-   branch (never the current worktree's own branch — see the note on `worktree.always` below), last
+   branch (never the current worktree's own branch — see the note on `worktree-always` below), last
    7 days. Both skip the interactive finish-branch prompt because `merge-check` already cleared it —
    that is what this metric counts, not headlessness: `[auto-merge]` is always dispatch-originated
    (singleton or bundle, both via `dispatch/settle-and-merge.md`'s Dispatching-session merge
@@ -283,7 +283,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]") or contains("[auto-merge]"))] | length'
    ```
 
-   The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree.always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
+   The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree-always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
 
 Render as three lines: `Pending authorization: **{N}** records awaiting your decision` / `Blocked: **{N}** records hit their retry ceiling` / `Auto-merged this week: **{N}** auto-merges` — omit any line whose count is 0.
 

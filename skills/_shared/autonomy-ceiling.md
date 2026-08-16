@@ -130,9 +130,9 @@ disposition (`backlog` or `parked`) its own existing `leftover-default` auto-mod
 decided — this capability only changes whether *creating* that record needs a click, never which
 disposition auto-mode policy already picked.
 
-### Review-severity-floor ceiling-conditional default
+### Review-auto-apply-ceiling ceiling-conditional default
 
-At the `unattended` ceiling, `review-severity-floor`'s skill default is `medium` instead of the
+At the `unattended` ceiling, `review-auto-apply-ceiling`'s skill default is `medium` instead of the
 project-wide `low` (see `_shared/policy-schema.md`'s lever row). An explicit CLI arg, run config, or
 project-policy value still wins under the standard precedence chain (`_shared/auto-mode-contract.md`)
 — the ceiling only moves the *default*, it never overrides a stated choice.
