@@ -158,3 +158,29 @@ test('no SKILL.md instructs a terminal-menu AskUserQuestion outside the document
     );
   }
 });
+
+test('every terminal-ask exception still names a skill that exists', () => {
+  // Mirrors NO_NEXT_ACTIONS's own staleness guard above — vacuous while the
+  // set is empty, armed the moment a first exception lands.
+  for (const name of TERMINAL_ASK_EXCEPTIONS) {
+    assert.ok(skills.includes(name), `stale exception: skills/${name}/SKILL.md is gone`);
+  }
+});
+
+test('the terminal-ask exception is still exercised by the excepted skill itself', () => {
+  // If an excepted skill stops using AskUserQuestion in its Next Actions
+  // section, the exception is stale — remove it so the pin covers that skill
+  // again. Same re-derivation shape as the NO_NEXT_ACTIONS justification guard.
+  for (const name of TERMINAL_ASK_EXCEPTIONS) {
+    const body = readSkill(name);
+    const start = sectionIndex(body, '## Next Actions');
+    assert.ok(start > 0, `skills/${name}/SKILL.md is excepted but has no Next Actions section`);
+    const rest = body.slice(start + '## Next Actions'.length);
+    const end = rest.search(/^## /m);
+    const section = end === -1 ? rest : rest.slice(0, end);
+    assert.ok(
+      section.includes('AskUserQuestion'),
+      `skills/${name}/SKILL.md no longer uses AskUserQuestion in Next Actions — remove the stale exception`,
+    );
+  }
+});
