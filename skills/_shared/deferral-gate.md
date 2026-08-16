@@ -7,6 +7,7 @@ The single home of the rule every exhaust channel applies before anything become
 - `skills/wrap-up/residue-sweep.md` (`remedy: record` findings)
 - `skills/wrap-up/leftover-routing.md` (unfinished spec sections)
 - `skills/visual-review/browser-review.md` (Findings & Ideas Defer routing)
+- `skills/capture/SKILL.md` (Shaped-body branch — `--defer-reason=` validation and the deferral check)
 - `skills/_shared/ledger-format.md` (the ledger resolve gate's Phase 1 / 2 / 3)
 
 The code twins are `clearsFloor` (`bin/lib/issues/autonomy.js`) and `recordPayload`'s `deferReason` option (`bin/lib/issues/record.js`); `DEFER_REASONS` in `record.js` is the vocabulary's only code home, and `tests/deferral-gate-conformance.test.js` pins this file and that export equal.
@@ -72,7 +73,7 @@ After any fix-now change made after `/claude-tweaks:review` passed, re-run `/cla
 ## Where the reason lives
 
 - **Staged proposals** (`{run-dir}/staged/*.md`): a `Defer-reason: {value}` line inside the header block — the lines before the first blank line, alongside `Title:` / `Type:` / `Labels:`. Readers locate it **by key, never by position**.
-- **Directly-created records**: the first line of the body, followed by a blank line (`recordPayload`'s `deferReason` inserts it there when the body does not already carry one).
+- **Directly-created records**: a `Defer-reason: {value}` line in the body, located **by key** (`recordPayload`'s match-or-throw and `clearsFloor` both read it wherever it sits). A composer-composed body (`specShapedBody`) places it in the provenance block — after `header`/`Origin:`, before `## Current State`; a bare `recordPayload({deferReason})` on a body without the line inserts it as the first body line.
 
 ## Removal condition
 
