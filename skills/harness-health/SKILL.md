@@ -4,7 +4,7 @@ description: Use to check whether skills, rules, CLAUDE.md match codebase, templ
 argument-hint: "[--target <id>] [--kind skill|rule|claude-md|design-artifact|memory] [--memory-dir <path>] [--budget <n>] [--min-confidence low|med|high] [--force-gap-scan] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
