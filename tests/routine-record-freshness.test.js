@@ -16,6 +16,8 @@ const {
   readRoutineRecordsAtRef,
   compareRoutineRecords,
   freshnessNote,
+  kernelFreshness,
+  SIGNIFICANT_FIELDS,
 } = require('../bin/lib/routine-template-parser.js');
 
 const RECORD_DIR = '.claude-tweaks/routines';
@@ -337,4 +339,22 @@ test('a project with no records directory at all is handled, not thrown on', () 
   assert.equal(r.reason, 'no-remote');
   assert.deepEqual(r.local, []);
   assert.deepEqual(r.records, []);
+});
+
+// --- Kernel freshness (#529) -------------------------------------------------
+
+test('kernelFreshness: missing kernel_version is kernel-stale', () => {
+  assert.equal(kernelFreshness(undefined, 1), 'kernel-stale');
+  assert.equal(kernelFreshness(null, 1), 'kernel-stale');
+  assert.equal(kernelFreshness(null, 0), 'kernel-stale');
+});
+test('kernelFreshness: behind the schema literal is kernel-stale', () => {
+  assert.equal(kernelFreshness(1, 2), 'kernel-stale');
+});
+test('kernelFreshness: equal or ahead is fresh', () => {
+  assert.equal(kernelFreshness(2, 2), 'fresh');
+  assert.equal(kernelFreshness(3, 2), 'fresh');
+});
+test('kernel_version is a significant field for record comparison', () => {
+  assert.ok(SIGNIFICANT_FIELDS.includes('kernel_version'));
 });

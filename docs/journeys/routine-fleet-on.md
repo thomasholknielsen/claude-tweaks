@@ -31,4 +31,4 @@ files:
 
 ## Outcome
 
-The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly. Turning the posture off again is `fleet off` — not yet implemented (#276); until then, individual routines pause at claude.ai/code/routines.
+The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly. Checking on it is `fleet status` (routine health, trust table, weekly counters); turning the posture off again is `fleet off` — pause-based, but with no pause verb landed (#213) it reports a deletion-vs-keep tradeoff per routine today rather than pausing anything. See `docs/journeys/routine-fleet-status-and-off.md`.

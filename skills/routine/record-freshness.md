@@ -28,14 +28,14 @@ into real writes (#190):
   name while the new one is invisible.
 
 Distinct from #11 (the *cloud sandbox's* checkout being stale at firing time, addressed by the
-template prompt preamble) and #132 (which branch a routine audits). This is the **local skill
+template kernel) and #132 (which branch a routine audits). This is the **local skill
 invocation** reading stale project state.
 
 **Generalized by #407/#408.** This file's own `git fetch` was a narrow, single-consumer fix for
 #190 — one skill's checkout-staleness problem, patched in isolation. `bin/lib/reconcile`
 generalizes the same fetch-and-converge operation to every shared-state read point in the
 plugin (`session-start.js`, `dispatch/SKILL.md`, `tidy/scan-procedures.md`, routine template
-preambles, `_shared/worktree-setup.md`); Step F2 below now calls it too instead of carrying its
+kernels, `_shared/worktree-setup.md`); Step F2 below now calls it too instead of carrying its
 own copy. The disposition logic in Step F3 is untouched — only the freshness source changed.
 
 ## Step F1 — Resolve the comparison branch
@@ -98,7 +98,7 @@ cannot see. Relevant fields:
 | `records[]` | One entry per filename across both sides: `{filename, presence, uncommitted, authority, fields, local, upstream}` |
 | `presence` | `both` \| `local-only` \| `upstream-only` |
 | `authority` | Which copy to read — `upstream` when the checkout is behind and the record is not locally edited, else `local` |
-| `fields` | Which significant fields differ (`created_at` is excluded: UPDATE Step 7 rewrites it every run, so counting it would make every record differ) |
+| `fields` | Which significant fields differ (`created_at` is excluded: UPDATE Step 7 rewrites it every run, so counting it would make every record differ). `kernel_version` IS significant (unlike `created_at`) — an update that re-assembles against a newer kernel must read as divergence. |
 | `onlyUpstream` | Filenames committed upstream and absent here — the duplicate-minting case |
 
 An uncommitted local edit always keeps `authority: 'local'`, even on a behind checkout. That
