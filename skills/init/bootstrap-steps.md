@@ -15,7 +15,7 @@ step.
 | 3 | `step-03-starter-files.md` | Where work records live per backend; why no starter file is written. |
 | 4 | `step-04-gitignore-suggestions.md` | Suggested `.gitignore` block and the stories-commit prompt. |
 | 5 | `step-05-verify-git.md` | Git-repo verification and the non-git warning. |
-| 6 | `step-06-worktree-configuration.md` | `.worktrees/` setup and the `worktree.always` policy opt-in. |
+| 6 | `step-06-worktree-configuration.md` | `.worktrees/` setup and the `worktree-always` policy opt-in. |
 | 7 | `step-07-browser-integration.md` | `agent-browser` detection and install surfacing. |
 | 8 | `step-08-statusline-and-dependencies.md` | Node/git detection, statusline wrapper, `settings.json` migration matrix. |
 | 9 | `step-09-establish-github-remote.md` | `gh` install/auth, repo creation, `origin` linking. Interactive-only. |

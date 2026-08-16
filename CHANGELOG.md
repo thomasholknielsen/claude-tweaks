@@ -39,6 +39,14 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.87.1 — Statusline acct segment labels every account, incl. default ~/.claude via .claude.json email
+
+Statusline acct segment labels every account, incl. default ~/.claude via .claude.json email.
+
+## v6.87.0 — Policy.yml gate exemption (worktree.always allows isolated policy.yml edits + allowlisted policy-only commits from a main checkout); tidy report rows render commands on their own line and the staged-items option is named for the Approve section
+
+Policy.yml gate exemption (worktree.always allows isolated policy.yml edits + allowlisted policy-only commits from a main checkout); tidy report rows render commands on their own line and the staged-items option is named for the Approve section.
+
 ## v6.86.0 — Policy introspection: resolve-policy --all metadata, /help policy mode, init delegation; backlog overview funnel polish
 
 Policy introspection: resolve-policy --all metadata, /help policy mode, init delegation; backlog overview funnel polish.

@@ -69,7 +69,7 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
 git -C "{worktree-path}" push origin {branch}
 ```
 
-Its own Bash call — never chained (the `worktree.always` gate denies a compound command whole,
+Its own Bash call — never chained (the `worktree-always` gate denies a compound command whole,
 same as every other push in this plugin).
 
 **On failure** (network, auth, no `origin` remote, rejected non-fast-forward): stop here. Log to
@@ -215,6 +215,7 @@ time rather than tracking a local diff.
 | Push at run start fails | Local-only run, logged warning (Step 2 above), continue. Every later phase-exit push retries naturally. |
 | `gh pr create` fails twice | Local-only run (branch already pushed), logged warning, continue. |
 | `gh` absent | Same degrade as a push/create failure, distinguished reason: `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, so there is no MCP fallback to attempt for PR creation (unlike issue operations, which do have one). Log `reason: gh-absent — no MCP fallback for pull requests`. |
+| `gh` absent at merge time (`_shared/pr-first-merge.md` Step 2.5) | The `merge-verification` lever is unenforceable without `gh` — proceed as `off` and disclose it at **warn** tier in the run summary (a visible line, not a silent log entry): `merge-verification: {resolved} unenforceable — gh absent; proceeded as off`. Same no-MCP-fallback reason as the row above. |
 | Offline / no `origin` remote | Same degrade path as any push failure — `_shared/forge-detection.md` would already have resolved `local-merge` for a no-remote project, so this case is specifically "remote configured but unreachable right now." |
 
 None of these ever block the pipeline — a pr-first project whose GitHub connectivity is degraded

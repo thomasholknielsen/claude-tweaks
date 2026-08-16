@@ -1,6 +1,7 @@
-# Routine — Fleet Mode (`fleet on`)
+# Routine — Fleet Mode (`fleet on` / `fleet status` / `fleet off`)
 
-Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `fleet status` and `fleet off` are a companion sub-issue's job (Non-Goals) — this file covers `on` only, and `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb).
+Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`,
+`fleet status`, or `fleet off`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb). `fleet status` and `fleet off` live in their own sections below (#276).
 
 This mode is a loop over the existing CREATE/UPDATE procedure (`create-and-update.md` in this skill's directory), parameterized by the composition table below — never a reimplementation of `RemoteTrigger` handling. Read `create-and-update.md` and `schedule-resolution.md` first; this file states only what fleet mode does differently (per-entry naming, fleet-resolved cron instead of the interactive picker, the reconcile marker rule, and the Manifesto/conditional-provisioning wrapper around the loop).
 
@@ -34,13 +35,13 @@ Two buckets, named explicitly (never restated elsewhere as a bare list, per this
 
 One structured message, the bookend "begin stop" for this action (`_shared/auto-mode-contract.md`'s bookend pattern — this is a single-instance bookend for one `fleet on` invocation, not a multi-step pipeline). Collects every human-owned lever `fleet on` needs, **renders each one back before writing anything** (IL-114 — a render instruction does not bind itself; this is the explicit pre-write check that closes it):
 
-1. Read current values — `autonomy`, `grant-origination-enabled`, `automerge-max-lines`/`automerge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap` — in one canonical resolver call, whose per-key `{value, source}` JSON envelope is exactly what step 2's table renders:
+1. Read current values — `autonomy`, `grant-origination-enabled`, `auto-merge-max-lines`/`auto-merge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap` — in one canonical resolver call, whose per-key `{value, source}` JSON envelope is exactly what step 2's table renders:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" autonomy grant-origination-enabled automerge-max-lines automerge-max-files merge-sensitive-paths fleet-daily-grant-cap
+   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" autonomy grant-origination-enabled auto-merge-max-lines auto-merge-max-files merge-sensitive-paths fleet-daily-grant-cap
    ```
 
-   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this sub-issue's own prerequisite work in `_shared/autonomy-ceiling.md`; `automerge-max-lines`/`automerge-max-files`/`merge-sensitive-paths` predate this sub-issue; `fleet-daily-grant-cap` landed with #269 — this sub-issue reads it, never re-registers it).
+   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this sub-issue's own prerequisite work in `_shared/autonomy-ceiling.md`; `auto-merge-max-lines`/`auto-merge-max-files`/`merge-sensitive-paths` predate this sub-issue; `fleet-daily-grant-cap` landed with #269 — this sub-issue reads it, never re-registers it).
 2. Render every value as a table — key, current value, source (policy.yml / default; each key's envelope `source` field supplies this column directly, `policy` rendering as `policy.yml`) — **before** any `AskUserQuestion` call, so the render-then-write ordering IL-114 requires is structural, not a documentation promise:
 
    ```
@@ -49,17 +50,17 @@ One structured message, the bookend "begin stop" for this action (`_shared/auto-
    |---|---|---|
    | autonomy | supervised | Ceiling on autonomous action — 'unattended' + the opt-in below are both required to provision the grant unit (row 9) |
    | grant-origination-enabled | false | The reserved second opt-in `_shared/autonomy-ceiling.md` names — a human sets this deliberately, no skill ever writes it except this Manifesto |
-   | automerge-max-lines / automerge-max-files | 40 / 2 | Consumed by assess-agent-autonomy/dispatch/the grant gate — this Manifesto persists them, never validates their semantics |
+   | auto-merge-max-lines / auto-merge-max-files | 40 / 2 | Consumed by assess-agent-autonomy/dispatch/the grant gate — this Manifesto persists them, never validates their semantics |
    | merge-sensitive-paths | (none) | Same — persisted only |
    | fleet-daily-grant-cap | (unset — uncapped) | Grants-issued-per-UTC-day ceiling the grant unit's own gate chain reads (see the choke-point note below) |
    ```
 
 3. Call `AskUserQuestion` with `question`: `"Confirm fleet configuration before provisioning?"`, `header`: `"Fleet config"`, `multiSelect`: `false`:
    - Option 1 — `label`: `"Provision with current values (Recommended)"`, `description`: `"Use the levers shown above — supervised-only fleet unless autonomy/grant-origination-enabled are already both set"`
-   - Option 2 — `label`: `"Change a lever"`, `description`: `"Edit autonomy, grant-origination-enabled, automerge caps, merge-sensitive-paths, or fleet-daily-grant-cap before provisioning"`
+   - Option 2 — `label`: `"Change a lever"`, `description`: `"Edit autonomy, grant-origination-enabled, auto-merge caps, merge-sensitive-paths, or fleet-daily-grant-cap before provisioning"`
    - Option 3 — `label`: `"Cancel"`, `description`: `"Don't provision anything"`
 
-   Selecting **Change a lever** re-asks each of the five as its own follow-up (autonomy/grant-origination-enabled as enum/boolean pickers; automerge-max-lines/automerge-max-files as integers; merge-sensitive-paths as a free-text comma list; fleet-daily-grant-cap as an optional positive integer), writes every changed value to `.claude-tweaks/policy.yml` in the shape `bin/lib/policy-schema.js` expects, re-renders the table with the new values, then proceeds as if Option 1 had been chosen. Selecting **Cancel** stops here — nothing is provisioned, nothing is written.
+   Selecting **Change a lever** re-asks each of the five as its own follow-up (autonomy/grant-origination-enabled as enum/boolean pickers; auto-merge-max-lines/auto-merge-max-files as integers; merge-sensitive-paths as a free-text comma list; fleet-daily-grant-cap as an optional positive integer), writes every changed value to `.claude-tweaks/policy.yml` in the shape `bin/lib/policy-schema.js` expects, re-renders the table with the new values, then proceeds as if Option 1 had been chosen. Selecting **Cancel** stops here — nothing is provisioned, nothing is written.
 
 4. **Every value this step writes echoes in the fleet summary at the end** (Step 5) — no silent config write, per this sub-issue's own Deliverables.
 
@@ -97,14 +98,16 @@ For every row in the composition table whose source template exists on disk (Com
    - `presence: upstream-only` → same STOP as `create-and-update.md` CREATE Step 3 (BLOCKED — creating now would mint a duplicate live routine). Report it for this row and continue with the rest of the loop; do not abort the whole fleet run over one row.
 3. **CREATE** (no record, no collision): follow `create-and-update.md` CREATE Steps 4 (environment — resolves once, reused across every row in this loop, since one project has one environment) through 9, with two fleet-specific substitutions:
    - **Step 5 (schedule) is replaced entirely** by this row's own composition-table cron — never the template's `default_schedule.cron_expression`, and never the interactive picker (5b-5d). Fleet mode supplies its own coordinated stagger; asking per-row would re-introduce the collision risk staggering exists to avoid.
-   - **Step 6 (assemble body)**, for rows 1-4 only: after computing `RESOLVED_PROMPT` per the template's own substitution table, append `focus=<value>` to the kickoff line per `_shared/routine-template-schema.md`'s `focus` field contract (`Then: /claude-tweaks:code-health focus=dead-code`, etc.) — this is exactly the mechanism that field was reserved for.
+   - **Step 6 (assemble body)**, for rows 1-4 only: append `focus=<value>` to the template's `kickoff` args (single-space join) before Step 6's kernel assembly splices it into the closing line, producing `Then: /claude-tweaks:routine-kickoff code-health focus=dead-code`, etc. — this is exactly the mechanism that field was reserved for.
    - Step 7's preview/confirm collapses into the Manifesto's own confirm (Step 1 above) for a `fleet on` run — do not re-prompt per row; render each row's assembled preview as one line in a single batch table before Step 4's loop actually calls `RemoteTrigger create` for any row (batch-table convention, not N separate confirms).
    - Step 9 writes the instantiated record exactly as documented, using this row's `PREFIXED_NAME` as the record's filename.
-4. **RECONCILE** (a record exists): re-render `RESOLVED_PROMPT` fresh from the row's current template + this run's resolved branch (and `focus=`, for rows 1-4) — the exact same computation Step 3 above's CREATE path would produce for this row today. Call `RemoteTrigger {action: "get", trigger_id: record.routine_id}` and read the live prompt back off `job_config.ccr.session_context.events[].data.message.content` (or the equivalent field the `get` response actually returns — same field CREATE's body assembles into). Compare:
+4. **RECONCILE** (a record exists): re-render `RESOLVED_PROMPT` fresh via CREATE Step 6's kernel assembly (current schema kernel + this run's resolved branch + the row's `kickoff`, with `focus=` appended for rows 1-4) — the exact same computation Step 3 above's CREATE path would produce for this row today. Call `RemoteTrigger {action: "get", trigger_id: record.routine_id}` and read the live prompt back off `job_config.ccr.session_context.events[].data.message.content` (or the equivalent field the `get` response actually returns — same field CREATE's body assembles into). Compare:
    - **Prompt differs, or the live `cron_expression` differs from this row's composition-table cron** → drift. Run `create-and-update.md` UPDATE Steps 4-7 (assemble, diff, confirm folded into the batch table below, call `RemoteTrigger update`, rewrite the record) for this row.
    - **Both match** → no drift. Nothing to do for this row; note it in the summary as "reconciled, no drift" (AC1's exact expected wording).
 
    **This is re-render-and-compare, never a `template_version` check** (IL-89) — `template_version` still gets rewritten in the record on an update, but it is never itself the trigger; the byte comparison above is.
+
+   Immediately after the kernel migration ships, every pre-migration live routine diffs as drifted (old full preamble vs newly assembled kernel) — the intended lazy-migration signal, resolved by the standard `update` path, not an error.
 
 ## Step 5 — Fleet summary
 
@@ -118,7 +121,7 @@ One consolidated report, closing the Manifesto's begin-stop with an end-of-actio
 |---|---|---|
 | autonomy | {value} | {policy.yml | default} |
 | grant-origination-enabled | {value} | {policy.yml | default} |
-| automerge-max-lines / automerge-max-files | {v}/{v} | {...} |
+| auto-merge-max-lines / auto-merge-max-files | {v}/{v} | {...} |
 | merge-sensitive-paths | {list or "(none)"} | {...} |
 | fleet-daily-grant-cap | {n or "(uncapped)"} | {...} |
 
@@ -136,6 +139,122 @@ One consolidated report, closing the Manifesto's begin-stop with an end-of-actio
 Status is one of: `Created`, `Updated (drift)`, `Reconciled, no drift`, `Withheld — {reason}`, `Collision — {PREFIXED_NAME} already exists, not tracked by any record`, `Skipped — {skill} has no routine-template.yml`, `BLOCKED — record exists upstream only, not in this checkout`.
 ```
 
+## Fleet status (aggregation)
+
+One screen answering "what did my codebase do to itself this week." Read-only — no
+`RemoteTrigger` create/update calls, no record writes, no grants. Renders cleanly when the
+fleet is partially provisioned (missing templates, withheld grant unit, zero records): absent
+rows render as absent, never as errors.
+
+**Fleet membership** is resolved from the composition table above: compute every row's
+`PREFIXED_NAME` (once — same derivation Step 4.1 uses), then intersect with the instantiated
+records enumerated by `record-freshness.md` Steps F1-F2 (`compareRoutineRecords`' `records[]`,
+authority copy — never a bare directory listing). A record whose filename matches no
+composition-table `PREFIXED_NAME` is **not** fleet-marked and is excluded from every table and
+counter below; a hand-created routine sharing a skill under a name outside the composition table
+is invisible here by construction. The deliberate exception is row 5: a pre-existing
+`{REPO_SLUG}-code-health-daily` created by standalone `/claude-tweaks:routine create code-health`
+matches that row's standard-derivation name exactly, so it **is** fleet-marked and gets adopted
+into the fleet on first reconcile (Naming deviates from `create-and-update.md`, above) — not
+invisible, by construction of that same naming rule.
+
+### Step S1 — Routine table
+
+For each fleet-marked record, run `status.md` Steps 2-3.5 (parallel `RemoteTrigger get` calls,
+per that file's own parallel-execution note). Use the `--all` branch's non-interactive disposition
+throughout: a `get` call that fails outright records the **Stale** verdict in that row's Health
+cell (and `—` in its Last firing cell) — never the per-skill branch's interactive
+delete-and-recreate offer, which would break this section's read-only promise mid-render. Render:
+
+| Routine | Schedule | Last firing | Health |
+|---|---|---|---|
+| {name} | {record.schedule} | {last-run field from `RemoteTrigger get`, or "unknown — get response carries no last-run field"} | {STATUS verdict: In sync / Drifted / Orphaned / Stale / Malformed} |
+
+Health is exactly `status.md`'s five-verdict set — never a sixth value.
+
+### Step S2 — Trust table
+
+Render the per-class trust table by running `_shared/trust-table.md`'s **Fetch** and **Render**
+sections verbatim — the same shared path `/claude-tweaks:backlog overview` (Step 1.5) and
+`/claude-tweaks:help` (Stage 4.8) already use. The Fetch section goes in whole, including its
+`backlog-fetch-limit` and `work-links` resolution sub-sections. Never fork a third rendering
+(IL-32).
+
+### Step S3 — Weekly counters
+
+Posture first — compute via `fleetPosture` (`bin/lib/issues/fleet-counters.js`):
+`grantUnitProvisioned` = the grant unit's `{REPO_SLUG}-backlog-grant-weekdays.yml` record is
+fleet-marked present; `autonomy` / `grantOriginationEnabled` from
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled`.
+`--values` mode emits plain-text scalars, not JSON booleans, so `grant-origination-enabled`
+arrives as the string `"true"`/`"false"`; `fleetPosture` accepts `'true'` verbatim (same
+string-vs-boolean coercion `skills/backlog/grant-mode.md`'s Phase A script performs explicitly
+for its own `$OPT_IN` shell variable), so pass the resolver's output straight through with no
+extra coercion here.
+A **supervised** posture renders no grant counters and states why: "supervised fleet — no grant
+unit provisioned (or unattended keys unset); grant counters not applicable."
+
+Fetch the counter inputs (REST list, never `--search` — search-index lag), then derive every
+number with `deriveFleetCounters(input, Date.now())` — the window is a rolling 7×24h window
+ending at render time, boundaries computed from full ISO datetimes (IL-47), and is printed in
+the header line: `Week of {startIso} → {endIso}`.
+
+| Counter | Value | Source (stated inline in the render) | Blind spot (stated inline) |
+|---|---|---|---|
+| Firings | {fired}/{total} routines fired | per-routine STATUS `RemoteTrigger get` last-run field | only the *last* firing is visible — a routine that fired 7× counts once; a get response with no last-run field counts as not fired |
+| Findings filed | {n} | records created in-window carrying a `by:*` origin label (`gh issue list` REST, `createdAt` in-window) | only tracker-visible records are counted — a finder whose filing failed is invisible, and records predating the tracker are out of scope |
+| Grants issued | {machine} machine / {human} human | in-window `auto:build`/`auto:merge` label events; machine identified by the `<!-- grant-mode-audit: ... -->` comment marker (#269), human by its absence | grants counted from audit comments cannot see pre-feature history; a human grant's timestamp comes from the label-add event, which GitHub's timeline may paginate |
+| Merges | {n} | closed records whose closing event carries a merge commit, `closedAt` in-window | records closed by hand (wontfix/duplicate) are excluded; squash-merges closed without a closing keyword are invisible |
+| Revocations | {n} | trust reads — negative-evidence outcomes (failure-classification markers, `bin/lib/issues/retry.js`'s shape, and detected reverts) whose evidence entered the window, counted per class-downgrade event, not per marker | evidence is read from issue comments and git history; a revert pushed without landing on the integration branch is invisible; a class downgraded more than once in the window counts once, and in-window evidence does not prove a downgrade actually occurred |
+
+Counter honesty is structural: each cell's Source and Blind spot columns render in the output —
+never a bare total over a domain the lookup can't enumerate (IL-110, IL-67).
+
+**Posture taxonomy (defined here, since status reports it):** a **supervised** fleet has no
+grant routine provisioned (or unattended keys unset); an **unattended** fleet has the grant
+routine present and both unattended keys true — detected from the provisioned set plus policy.
+
+## Fleet off (pause-based shutdown)
+
+Pause-based shutdown that preserves all durable state — rotation cursors, wontfix
+suppressions, trust history, and every instantiated record survive. `fleet off`
+**never deletes anything** (`RemoteTrigger` has no delete API to call in the first place)
+and **never touches a routine that is not fleet-marked** — a hand-created routine sharing
+a skill under a name outside the composition table is untouched by construction. (Row 5's
+adoption exception applies here too — an adopted `{REPO_SLUG}-code-health-daily` is
+fleet-marked and *is* in scope for pausing, same as any other fleet member.)
+
+1. **Enumerate** fleet-marked routines exactly as Fleet status resolves membership
+   (composition-table `PREFIXED_NAME`s ∩ `record-freshness.md`'s `records[]`). Capture the
+   before-list. A repo with no fleet-marked routines reports that plainly — "no fleet-marked
+   routines in this project; nothing to pause" — and stops. Not an error.
+2. **Probe for the pause verb (#213).** Re-check at execution time whether the routine skill
+   has a pause mechanism (a pause/disable action documented in `create-and-update.md` or an
+   enabled/disabled field writable via `RemoteTrigger update`). #213 was open with no landed
+   verb when this section shipped, so the fallback below is the expected live path, not an
+   edge case.
+3. **Pause path (verb exists):** pause each fleet-marked routine via the landed mechanism —
+   consume whatever shipped, per #276's prerequisite note. Report the paused set and what
+   state survives (records, cursors, suppressions, trust history — all of it).
+4. **Fallback path (no pause verb — the live path today, AC6):** perform **no destructive
+   action**. For each fleet-marked routine, report the deletion-vs-keep tradeoff instead:
+
+   | Routine | If you delete it (manually, at claude.ai/code/routines) | If you keep it running |
+   |---|---|---|
+   | {name} | live firings stop; the instantiated record, rotation cursors, wontfix suppressions, and trust history all survive on disk — but deletion has no undo and re-provisioning re-creates billed infrastructure | keeps firing on schedule; report-only routines file findings as usual; the grant unit (if any) is harmless-by-construction at a downgraded ceiling (Gate 0 denies every candidate) |
+
+   Close with: deletion is a manual step at claude.ai/code/routines (IL-69: destroying billed
+   infrastructure must have a decided human owner); this skill never performs it.
+5. **Verify scope (AC3):** list routines before and after — the after-list must show every
+   fleet-marked routine paused (pause path) or untouched (fallback path), and every non-fleet
+   routine byte-identical in state. Include both lists in the report.
+6. **Round-trip note (AC4):** a paused fleet is resumed by re-running `fleet on` — Step 4's
+   reconcile detects the existing records and updates/resumes rather than duplicating. The
+   marker semantics both verbs consume are this file's own composition-table `PREFIXED_NAME`
+   rule (Step 4.2) — one home, both consumers. Paused-state semantics do not exist yet; they
+   will be defined by whatever pause mechanism #213 lands, at which point the pause path
+   (Step 3 above) consumes them.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -147,3 +266,6 @@ Status is one of: `Created`, `Updated (drift)`, `Reconciled, no drift`, `Withhel
 | Silently deleting or pausing a downgraded grant-unit routine | Deletion has no undo (`RemoteTrigger` has no delete API to call in the first place, at claude.ai/code/routines this is a manual step) — pause when the verb exists, otherwise surface prominently, never act unprompted beyond what Step 3 documents |
 | Re-prompting per row for schedule/environment/confirm | Fleet mode's whole point is one deliberate action — the Manifesto (Step 1) and the batch preview (Step 4.3) are the only confirmation points; 11 separate `AskUserQuestion` calls would defeat "one-action provisioning" |
 | Treating a missing template as a fleet-wide failure | Composition, not exhaustiveness — provision what exists, name what's missing, never refuse the whole fleet over one absent template |
+| Deleting (or offering to delete) routines from `fleet off` | Deletion has no API and no undo — `fleet off` is pause-based precisely so durable state survives; deletion is a human act at claude.ai/code/routines (IL-69) |
+| Pausing a routine that is not fleet-marked | A hand-created routine sharing a skill under a name outside the composition table is someone else's infrastructure — membership is the composition-table `PREFIXED_NAME` intersection, never a skill-name match. (Row 5's standard-derivation name is the one deliberate exception — adopted, not treated as someone else's.) |
+| Rendering grant counters on a supervised fleet | No grant unit exists to count — state the posture and why grant counters are absent instead of rendering zeros that imply a grant unit ran |

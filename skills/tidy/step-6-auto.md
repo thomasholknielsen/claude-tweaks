@@ -3,7 +3,7 @@
 Step 6's auto branch; `step-6-interactive.md` is its twin. `SKILL.md` resolves `--dry-run` before
 reading either — under it, everything Stages and the routing table below is bypassed.
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `tidy-aggressiveness` from `config.yml` (default `moderate`; `conservative` is the documented opt-down).
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), resolve `tidy-aggressiveness` — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" tidy-aggressiveness)` — the same variable the standalone-auto path below already resolves without `--run`; `conservative` is the documented opt-down.
 
 **A recurring staged item is a missing routing rule.** The Approve bucket should be empty in steady state: when the same class of finding stages run after run, the fix is a routing row — or a reconcile check — that disposes of it mechanically, not a faster approval habit. The durable exception is outward-facing GitHub writes, which the skill-side auto-mode contract forbids at every tier (`_shared/auto-mode-contract.md`); mechanical dispositions of outward state therefore ride on reconcile's background convergence (the reconcile-converged rows below), never on a tidy tier.
 
@@ -82,17 +82,19 @@ Four verb-grouped sections, these exact literal headers, in this order — what 
 - …
 
 **Approve ({N})**
-1. [{tag}] #{N} "{title}" — {staged action, one line} → approve applies: `{the exact command or mutation}`
+1. [{tag}] #{N} "{title}" — {staged action, one line}. Approve applies:
+   `{the exact command or mutation}`
 2. …
 
 **Yours ({N})**
-- #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
+- #{N} "{title}" — {why it needs the human}
+  `{paste-ready command}`
 - …
 
 **Clean:** {comma list of scans with nothing to report, each with its count — e.g. "parked (3 checked), worktrees (2), doc registry"}
 ```
 
-How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Apply all staged ({N})" option that executes Step 7 over exactly those items. Nothing applies without that click.
+How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Approve ({N})" option — named for this section — that executes Step 7 over exactly those items. Nothing applies without that click.
 
 #### Bucket mapping (which section a finding lands in)
 
@@ -113,6 +115,7 @@ Binding rules for every rendering of this template, on both surfaces (`step-6-in
 
 - No box-drawing tables anywhere in the report — sections are markdown lists and plain tables only.
 - Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**.
+- Commands render on their own line: a row's paste-ready command (and an Approve row's applied mutation) sits alone on its own line, with the annotation — tag, record ref, rationale — on the adjacent line above. A command never shares a line with prose, and no annotation trails a command on its line.
 - Records render as `#{N} "{title}"` — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
 - `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
 - Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as the comma list, or as **Clean:** nothing — every scan surfaced findings.

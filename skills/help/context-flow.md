@@ -19,6 +19,9 @@ Codebase                     ──→ Findings cache               ──→ Wo
   /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /claude-tweaks:flow #{n}
                                   health-state branch              Low-confidence: backlog record          auto:merge)
                                   cursors/runs.json (durable)        via /capture instead
+      ▲
+      └────────────── /claude-tweaks:routine fleet status ──── read-only aggregation across this whole row: routine schedule/health,
+                                                               tracker labels/comments, weekly counters (firings, findings, grants, merges)
 ```
 
 ```
@@ -73,6 +76,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/research` | Web sources (built-in `/deep-research` or `WebSearch`/`WebFetch`) | `.claude-tweaks/research/[YYYY-MM-DD]-[slug]/` (`report.md` + `sources.json`) | — |
 | `/visualize` | `DESIGN.md` tokens (when present) | `docs/journeys/{name}-{type}.html`, `docs/plans/{spec}-{type}.html`, or `docs/diagrams/{slug}.html` (context-free fallback) | — |
 | `/routine` | `skills/{skill}/routine-template.yml`, the existing instantiated record (if any), live state via `RemoteTrigger list`/`get` | `.claude-tweaks/routines/{routine_name}.yml` (the instantiated record); a live cloud Routine via `RemoteTrigger create`/`update` | — (this skill cannot delete; deletion is always via claude.ai/code/routines, never through this skill) |
+| `/routine fleet status` | `.claude-tweaks/routines/*.yml`, `RemoteTrigger get`, tracker labels/comments, trust reads | — | — |
 | `/stories` | Existing `stories/*.yaml`, `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
@@ -82,6 +86,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 | `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state), `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (installed version) — read-only status scan | — | — |
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
+| `/routine-kickoff` | Plugin cache listing, target SKILL.md (fallback path) | — (reconcile side effects belong to bin/lib/reconcile) | — |
 
 ## Open Items Ledger
 
@@ -95,7 +100,7 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `$RU
 
 | File | Written by | Read by |
 |---|---|---|
-| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance |
+| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification |
 | `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up`'s Phase 4 (Wrap-Up Review Console) |
 | `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up`'s Phase 4 |
 

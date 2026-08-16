@@ -14,7 +14,7 @@ files:
 ## Steps
 
 1. **Invoke** — Type `/claude-tweaks:routine fleet on`.
-   - **Action:** The skill reads the five human-owned levers from `.claude-tweaks/policy.yml` (`autonomy`, `grant-origination-enabled`, `automerge-max-lines`/`automerge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap`) and renders them back as a table *before* asking anything.
+   - **Action:** The skill reads the five human-owned levers from `.claude-tweaks/policy.yml` (`autonomy`, `grant-origination-enabled`, `auto-merge-max-lines`/`auto-merge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap`) and renders them back as a table *before* asking anything.
    - **Check:** The Fleet Config (Manifesto) table shows each lever's current value and source; the `AskUserQuestion` offers Provision with current values / Change a lever / Cancel.
 
 2. **Confirm (or edit) the Manifesto** — Pick "Provision with current values", or "Change a lever" to edit any of the five (each re-asked individually, written to `policy.yml`, table re-rendered).
@@ -31,4 +31,4 @@ files:
 
 ## Outcome
 
-The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly. Turning the posture off again is `fleet off` — not yet implemented (#276); until then, individual routines pause at claude.ai/code/routines.
+The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly. Checking on it is `fleet status` (routine health, trust table, weekly counters); turning the posture off again is `fleet off` — pause-based, but with no pause verb landed (#213) it reports a deletion-vs-keep tradeoff per routine today rather than pausing anything. See `docs/journeys/routine-fleet-status-and-off.md`.
