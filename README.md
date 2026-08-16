@@ -74,6 +74,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
                             sub-issue closes; record mode only)
      │
   ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per invocation: a specific #N, or this session's own unrecorded work via session-recall) ┈┈
+     │
+  ┈┈ /claude-tweaks:routine fleet status aggregates routine health + weekly counters, fleet off pauses (utility skill, no fixed position — run anytime) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
