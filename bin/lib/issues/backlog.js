@@ -17,6 +17,7 @@
 
 const { execSync } = require('child_process');
 const { PRIORITIES, TIERS } = require('./record');
+const { blockersOf } = require('./ranking');
 
 // Urgency order shared by both bands (high first). Values are validated
 // against record.js's canonical PRIORITIES/TIERS vocabulary before this
@@ -152,15 +153,18 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // rationale: bot-state outranks stage labels because live work reflects current
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
 // toward what is actually happening right now), and granted is checked before
-// dispatchable so a blocked grant can never render as go-now. `blockedBy` is an
-// optional number[] read from either of two sources: top-level `r.blockedBy`,
-// attached upstream once the native blocked-by resolution ships (#514) —
-// preferred when present — or `facets.blockedBy`, parsed from `blocked-by:`
-// frontmatter by the local-files driver (local-store.js), used as a fallback
-// when the top-level field is absent. Only ids within the open input set
-// count as blockers, since an out-of-set blocker cannot be acted on from this
-// report. Note `scored` here is a different definition from
-// splitScoredUnscored's: this funnel's scored means ANY scoring signal has
+// dispatchable so a blocked grant can never render as go-now. Blocker
+// resolution is delegated to ranking.js's `blockersOf` — the single owner of
+// precedence (top-level `r.blockedBy` → `facets.blockedBy` → body-text
+// `parseDependencies` fallback), shared with rankNextToBuild so both
+// consumers agree on the same blocker for the same record (refs #514). One
+// exception: a record with `facets.unsynced === true` gets NO blocker
+// resolution here — its `facets.blockedBy` ids (when present) live in the
+// local-record namespace, a different id space from the GitHub numbers in
+// this merged set, and must never cross-match them (parent #512 promise F1).
+// Only ids within the open input set count as blockers, since an out-of-set
+// blocker cannot be acted on from this report. Note `scored` here is a
+// different definition from splitScoredUnscored's: this funnel's scored means ANY scoring signal has
 // been applied (priority, risk, or size), where splitScoredUnscored's scored
 // means FULLY scored — both risk and size — for the lens views. Deliberate,
 // not drift: the funnel tracks "has triage started?" while the lenses need
@@ -174,10 +178,14 @@ function funnelBuckets(records) {
   for (const r of records) {
     const f = r.facets;
     const granted = f.grants.build || f.grants.merge;
-    const blockers = r.blockedBy ?? f.blockedBy;
-    const inSetBlockers = Array.isArray(blockers)
-      ? blockers.filter((id) => openIds.has(id))
-      : [];
+    // Blocker precedence is owned by ranking.js's blockersOf — one decision,
+    // shared with rankNextToBuild (refs #514). An unsynced fallback record's
+    // facets.blockedBy references LOCAL record ids, a different namespace from
+    // the GitHub numbers in a merged set — never cross-match them (parent
+    // #512 promise F1): its blockers resolve as none here.
+    const inSetBlockers = f.unsynced === true
+      ? []
+      : blockersOf(r).filter((id) => openIds.has(id));
     if (f.bot.inProgress) buckets.inFlight.push(r);
     else if (f.stage === 'parked') buckets.parked.push(r);
     else if (f.notPlanned) buckets.notPlanned.push(r);

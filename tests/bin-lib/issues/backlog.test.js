@@ -335,3 +335,25 @@ test('funnelBuckets: scored means any of priority/risk/size without ready stage'
   assert.deepEqual(b.scored.map((r) => r.number), [1, 2, 3]);
   assert.deepEqual(b.captured.map((r) => r.number), [4]);
 });
+
+test('funnelBuckets: body-text canonical declaration now resolves via blockersOf — granted, not dispatchable', () => {
+  const records = [
+    rec(1, { stage: 'ready', grants: { build: true, merge: false } }, { body: 'Blocked by #2' }),
+    rec(2, { stage: 'ready', grants: { build: false, merge: true } }),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.granted.map((r) => r.number), [1]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [2]);
+});
+
+test('funnelBuckets: unsynced record blockers are never resolved against the merged set (namespace rule)', () => {
+  const records = [
+    rec(1, { stage: 'ready', grants: { build: true, merge: false }, unsynced: true, blockedBy: [2] }),
+    rec(2, { stage: 'ready', grants: { build: false, merge: true } }),
+  ];
+  const b = funnelBuckets(records);
+  // Record 1's facets.blockedBy [2] references a LOCAL id; record 2 here is a
+  // GitHub record — cross-namespace matching is forbidden, so 1 is dispatchable.
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [1, 2]);
+  assert.deepEqual(b.granted, []);
+});
