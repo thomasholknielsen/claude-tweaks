@@ -23,14 +23,22 @@ const priorityBandOf = (c) => (c.facets.priority && PRIORITIES.includes(c.facets
 const sizeBandOf = (c) => (c.facets.size && TIERS.includes(c.facets.size) ? SIZE_ORDER[c.facets.size] : 3);
 
 // candidate -> number[]. THE single blocker-precedence decision, shared by
-// computeUnblocksCount here and funnelBuckets (backlog.js) — never re-implement
-// it at a call site. Precedence: top-level `blockedBy` (attached by the
-// overview's native fetch, or any caller that resolved blockers itself) wins;
-// then the local-files driver's `facets.blockedBy` (already native-shaped
-// frontmatter data); then record.js's parseDependencies over the body
-// (work-links: body-text). Both explicit tiers are authoritative even when
-// empty — `[]` means "confirmed no blockers", never "fall through to prose".
+// computeUnblocksCount here, funnelBuckets (backlog.js), and #515's import —
+// never re-implement it at a call site. Precedence: an unsynced fallback
+// record (`facets.unsynced === true`) short-circuits to `[]` FIRST — its
+// blocker ids (when present) live in the local-record namespace, a different
+// id space from the GitHub numbers in a merged set, and must never
+// cross-match them (parent #512 promise F1); this helper owns the rule so
+// every consumer inherits it. Then: top-level `blockedBy` (attached by the
+// overview's native fetch, or any caller that resolved blockers itself)
+// wins; then the local-files driver's `facets.blockedBy` (already
+// native-shaped frontmatter data); then record.js's parseDependencies over
+// the body (work-links: body-text). Both explicit tiers are authoritative
+// even when empty — `[]` means "confirmed no blockers", never "fall through
+// to prose". Callers must not mutate the returned array — the two explicit
+// tiers return live references into the candidate's own data.
 function blockersOf(candidate) {
+  if (candidate.facets && candidate.facets.unsynced === true) return [];
   if (Array.isArray(candidate.blockedBy)) return candidate.blockedBy;
   if (candidate.facets && Array.isArray(candidate.facets.blockedBy)) return candidate.facets.blockedBy;
   return parseDependencies(candidate.body || '');

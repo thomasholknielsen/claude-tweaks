@@ -120,11 +120,16 @@ exclusive by construction) — never re-list a record in a second stage or an ex
 
 Restricted to the buildable subset — `funnelBuckets` output `dispatchable` ∪ `granted` (Step 2's
 `.funnel` view) — one predicate, owned by `funnelBuckets`, so the header's counts and this
-recommendation's population can never drift apart. For each candidate, compute the three inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself:
+recommendation's population can never drift apart. One limitation on that guarantee: the funnel
+header's own `granted`/`dispatchable` split (Step 2) resolves blockers from body-text/`facets`
+data only — native `blockedBy` attachment happens here, in Step 3 — so on a `work-links: native`
+repo a natively-blocked record can still render `dispatchable` in the header even though this
+step's native fetch would resolve it as blocked. Header-level native resolution is deliberately
+out of this record's scope (captured as a follow-up record). For each candidate, compute the three inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself:
 
 - `keyFiles` — extract the `### Key Files` subsection from the body, the same extraction `/help`'s Conflict detection sub-section already performs.
 - `hasPlan` — `true` if `docs/superpowers/plans/` contains a file whose name references this record's id/slug (a simple filename-pattern check, not a content read).
-- `body` — already present from Step 1's fetch (needed for `rankNextToBuild`'s internal `parseDependencies` call).
+- `body` — already present from Step 1's fetch (needed for `blockersOf`'s body-text `parseDependencies` fallback, used when no `blockedBy` is attached).
 - `blockedBy` — resolved per `work-links`/`work-backend`:
   - **`work-links: native`** (resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links`): fetch every candidate's blocked-by set as **one aliased GraphQL query** using `buildNativeDependencyQuery` (`bin/lib/issues/record.js`) — one alias per candidate issue, chunked at 50 aliases per request (buildable candidate sets are small, so one chunk is the norm) — and attach `blockedBy: [ids]` (the open blockers' numbers from each alias's `blockedBy.nodes`). A candidate whose node is missing or errored inside an otherwise-successful batch response gets **nothing attached** for that id only — never coerce a failed node to `[]`, since an empty array means "confirmed no blockers" and the mismatch detection below runs on exactly that distinction. Before the fetch, check field availability via `capabilities-probe.js`'s `probeSchema` (the `blockedBy` field itself — its count-only sibling `issueDependenciesSummary` is insufficient); probe unavailability or whole-fetch failure degrades to the body-text fallback with one failure-only narration line (per this file's failure-only narration rule), never a hard stop.
   - **`work-backend: local-files`**: attach `facets.blockedBy` as the `blockedBy` array — it is already native-shaped data (and `blockersOf`'s own `facets.blockedBy` tier makes this attachment a no-op safety net rather than load-bearing).
@@ -133,18 +138,19 @@ recommendation's population can never drift apart. For each candidate, compute t
 
 ```bash
 node -e "
-  const { rankNextToBuild } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
-  const candidates = require('/tmp/backlog-overview-candidates.json'); // [{id, facets, body, keyFiles, hasPlan}]
-  console.log(JSON.stringify(rankNextToBuild(candidates)));
+  const { rankNextToBuild, findUnresolvedDependencyProse } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
+  const candidates = require('/tmp/backlog-overview-candidates.json'); // [{id, facets, body, keyFiles, hasPlan, blockedBy?}]
+  console.log(JSON.stringify({ ranked: rankNextToBuild(candidates), flags: findUnresolvedDependencyProse(candidates) }));
 " > /tmp/backlog-overview-ranked.json
 ```
 
 ### Dependency-mismatch detection
 
-- Run `findUnresolvedDependencyProse` (from `ranking.js`) over the candidates. On any hit, render a loud flag naming the affected ids with their `mention` lines, and **suppress every chain-shaped claim** about them ("unblocks N", dependency-order phrasing) — no corrected chain is drawn (chain rendering is the batch-emitter sub-issue).
+- Read the `flags` array from `/tmp/backlog-overview-ranked.json` (computed above, in the same pass as `ranked` — `findUnresolvedDependencyProse`, from `ranking.js`). On any hit, render a loud flag naming the affected ids with their `mention` lines, and **suppress every chain-shaped claim** about them ("unblocks N", dependency-order phrasing) — no corrected chain is drawn (chain rendering is the batch-emitter sub-issue).
 - The accepted limitation, verbatim: the check fires only on empty resolved blockers; a *partially* wired record (non-empty `blockedBy` missing some prose-mentioned id) is not flagged — prose mentions have no mechanical ground truth, so partial-coverage checking would guess.
+- **False-positive expectation:** the prose regex is deliberately broad (same-line intervening words allowed between "blocked by" and the `#N`), so non-dependency mentions can flag too — e.g. "blocked by the outage, see #12" is not a real dependency but still matches. The rendered `mention` line is exactly the human's evidence to dismiss a false positive at a glance; a false negative here would instead be the silent mis-ranking this detection exists to prevent, so the check accepts occasional over-flagging rather than risk under-flagging.
 - **Headline-replacement rule:** when detection fires, the flagged candidates get no mechanical recommendation. Either (a) the output cites explicit dependency evidence it holds — native links on other candidates, the flagged records' own prose — as a **corrected** "Recommended next" with the citation inline, in which case the corrected pick IS the headline and the raw ranker pick demotes to a one-line footnote (never render a recommendation the same output retracts); or (b) when no such evidence resolves an order, the output states plainly that ranking is unreliable for the flagged set and points at `/claude-tweaks:backlog refine`'s dependency repair.
-- A worked example tracing the observed #418/#419/#420 failure: three records wired `#420 blocked-by #419 blocked-by #418` in the native graph, bodies carrying only prose mentions ("Hard prerequisites, wired as Blocked by links: …"). Pre-#514: bodies parse as zero-dependency, `rankNextToBuild` recommends #420 (the chain's *last* record) first. Post-#514: the native fetch attaches `blockedBy: [419]`/`[418]`/`[]`, the ranker sees the true order, and #418 heads the recommendation; had the fetch failed, `findUnresolvedDependencyProse` flags all three (prose mention, empty resolution) and case (b) replaces the headline with the unreliable-ranking statement.
+- A worked example tracing the observed #418/#419/#420 failure: three records wired `#420 blocked-by #419 blocked-by #418` in the native graph, bodies carrying only prose mentions ("Hard prerequisites, wired as Blocked by links: …"). Pre-#514: bodies parse as zero-dependency, `rankNextToBuild` recommends #420 (the chain's *last* record) first. Post-#514: the native fetch attaches `#420→blockedBy:[419]`, `#419→blockedBy:[418]`, `#418→blockedBy:[]`; `computeUnblocksCount` then yields `418→1, 419→1, 420→0`, so #420 — the record the old path recommended first — drops to last, while #418 and #419 tie at 1. That residual tie (including the fact that a blocked candidate is not demoted by ranking — #419 is itself blocked by #418, yet ties with it) is left to the batch-emitter sub-issue's chain-aware ordering. Had the fetch failed instead, `findUnresolvedDependencyProse` flags all three (prose mention, empty resolution) and case (b) replaces the headline with the unreliable-ranking statement.
 
 Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role.
 

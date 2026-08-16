@@ -143,6 +143,30 @@ test('rankNextToBuild: no blockedBy keys — body parsing result unchanged (regr
   assert.equal(ranked[0].id, 2);
 });
 
+// --- unsynced namespace rule (record #514) ---
+// Mirrors backlog.test.js's funnelBuckets namespace pin: blockersOf owns the
+// rule now (moved, not changed), so this pins it at the source.
+
+test('blockersOf: an unsynced candidate resolves [] even though facets.blockedBy is non-empty — never crosses into the GitHub id namespace', () => {
+  const unsyncedCandidate = { id: 1, facets: { unsynced: true, blockedBy: [3] }, body: '' };
+  assert.deepEqual(blockersOf(unsyncedCandidate), []);
+});
+
+test("rankNextToBuild: an unsynced candidate's phantom blockedBy reference does not inflate another candidate's unblocks-count", () => {
+  const unsyncedCandidate = { id: 1, facets: { unsynced: true, blockedBy: [3], priority: 'high', size: null }, body: '', keyFiles: [], hasPlan: false };
+  const target = { id: 3, facets: { priority: 'high', size: null }, body: '', keyFiles: [], hasPlan: false };
+  // Direct assertion is sufficient per #514's contract — id 3's unblocks-count
+  // must not count the unsynced candidate's local-namespace reference to it.
+  assert.deepEqual(blockersOf(unsyncedCandidate), []);
+  const ranked = rankNextToBuild([unsyncedCandidate, target]);
+  assert.deepEqual(ranked.map((c) => c.id), [1, 3], 'both candidates tie on unblocks-count (0); array order is preserved by the stable sort');
+});
+
+test('blockersOf: facets.blockedBy [] (the local driver\'s default) is authoritative even with a canonical body line — the explicit empty tier short-circuits the body fallback', () => {
+  const c = { id: 1, facets: { blockedBy: [] }, body: 'Blocked by #2' };
+  assert.deepEqual(blockersOf(c), [], "documents the deliberate behavior change for local-driver callers: an explicit empty blockedBy wins over prose, it is not merely 'no data yet'");
+});
+
 // --- findUnresolvedDependencyProse (record #514) ---
 
 test('findUnresolvedDependencyProse: mid-line prose with empty resolved blockers is flagged, mention is the trimmed line', () => {

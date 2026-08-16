@@ -154,21 +154,18 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
 // toward what is actually happening right now), and granted is checked before
 // dispatchable so a blocked grant can never render as go-now. Blocker
-// resolution is delegated to ranking.js's `blockersOf` — the single owner of
-// precedence (top-level `r.blockedBy` → `facets.blockedBy` → body-text
-// `parseDependencies` fallback), shared with rankNextToBuild so both
-// consumers agree on the same blocker for the same record (refs #514). One
-// exception: a record with `facets.unsynced === true` gets NO blocker
-// resolution here — its `facets.blockedBy` ids (when present) live in the
-// local-record namespace, a different id space from the GitHub numbers in
-// this merged set, and must never cross-match them (parent #512 promise F1).
+// resolution — including the unsynced-namespace short-circuit (parent #512
+// promise F1) — is delegated to ranking.js's `blockersOf`, the single owner
+// of precedence (unsynced → top-level `r.blockedBy` → `facets.blockedBy` →
+// body-text `parseDependencies` fallback), shared with rankNextToBuild so
+// both consumers agree on the same blocker for the same record (refs #514).
 // Only ids within the open input set count as blockers, since an out-of-set
 // blocker cannot be acted on from this report. Note `scored` here is a
-// different definition from splitScoredUnscored's: this funnel's scored means ANY scoring signal has
-// been applied (priority, risk, or size), where splitScoredUnscored's scored
-// means FULLY scored — both risk and size — for the lens views. Deliberate,
-// not drift: the funnel tracks "has triage started?" while the lenses need
-// "is there enough signal to rank on?".
+// different definition from splitScoredUnscored's: this funnel's scored
+// means ANY scoring signal has been applied (priority, risk, or size), where
+// splitScoredUnscored's scored means FULLY scored — both risk and size — for
+// the lens views. Deliberate, not drift: the funnel tracks "has triage
+// started?" while the lenses need "is there enough signal to rank on?".
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
@@ -178,14 +175,10 @@ function funnelBuckets(records) {
   for (const r of records) {
     const f = r.facets;
     const granted = f.grants.build || f.grants.merge;
-    // Blocker precedence is owned by ranking.js's blockersOf — one decision,
-    // shared with rankNextToBuild (refs #514). An unsynced fallback record's
-    // facets.blockedBy references LOCAL record ids, a different namespace from
-    // the GitHub numbers in a merged set — never cross-match them (parent
-    // #512 promise F1): its blockers resolve as none here.
-    const inSetBlockers = f.unsynced === true
-      ? []
-      : blockersOf(r).filter((id) => openIds.has(id));
+    // Blocker precedence, INCLUDING the unsynced-namespace short-circuit, is
+    // owned by ranking.js's blockersOf — one decision, shared with
+    // rankNextToBuild (refs #514).
+    const inSetBlockers = blockersOf(r).filter((id) => openIds.has(id));
     if (f.bot.inProgress) buckets.inFlight.push(r);
     else if (f.stage === 'parked') buckets.parked.push(r);
     else if (f.notPlanned) buckets.notPlanned.push(r);
