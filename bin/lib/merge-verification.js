@@ -135,4 +135,72 @@ function hasPullRequestCi(repoRoot, { readWorkflows = readWorkflowFiles } = {}) 
   }
 }
 
-module.exports = { workflowHasPullRequestTrigger, readWorkflowFiles, hasPullRequestCi };
+// The repository's default branch — skills/_shared/integration-branch.md's
+// rank-5 GitHub-default half, in code: gh's defaultBranchRef, else the local
+// origin/HEAD symref (what a clone records), else null. Never throws.
+function readDefaultBranch(repoRoot) {
+  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8' };
+  try {
+    const name = execFileSync('gh', ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'], opts).trim();
+    if (name) return name;
+  } catch {}
+  try {
+    const ref = execFileSync('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], opts).trim();
+    const name = ref.replace(/^origin\//, '');
+    if (name) return name;
+  } catch {}
+  return null;
+}
+
+// The four-branch ladder — first match wins, no fall-through. `deps` lets tests
+// inject each lookup; production callers pass nothing.
+//   (1) integration-model resolves local-merge          -> off
+//   (2) no PR-triggered CI under .github/workflows       -> off
+//   (3) integration branch is the repo's default branch -> merge-when-green
+//   (4) any other (non-default) integration branch       -> off
+// Prose statement of record: skills/_shared/policy-schema.md's coverage block.
+// integration-model per skills/_shared/integration-model.md; the branch pair
+// per skills/_shared/integration-branch.md via the shared resolvers, never a
+// hand-rolled detection. Any lookup failure resolves toward off.
+function deriveMergeVerification(repoRoot, deps = {}) {
+  const integrationModel = deps.integrationModel || resolveIntegrationModel;
+  const readWorkflows = deps.readWorkflows || readWorkflowFiles;
+  const integrationBranch = deps.integrationBranch || resolveIntegrationBranch;
+  const defaultBranch = deps.defaultBranch || readDefaultBranch;
+
+  let model;
+  try { model = integrationModel(repoRoot); } catch { return 'off'; }
+  if (model === 'local-merge') return 'off';                       // (1)
+
+  if (!hasPullRequestCi(repoRoot, { readWorkflows })) return 'off'; // (2)
+
+  let target;
+  let fallback;
+  try {
+    target = integrationBranch(repoRoot);
+    fallback = defaultBranch(repoRoot);
+  } catch {
+    return 'off';
+  }
+  if (!target || !fallback) return 'off';
+  return target === fallback ? 'merge-when-green' : 'off';         // (3) / (4)
+}
+
+// Explicit policy.yml value (ordinary enum validation) wins outright, else the
+// derived default — the same shape as policy-schema.js's resolveIntegrationModel.
+// Never returns null: an absent OR invalid value both fall through to the ladder.
+function resolveMergeVerification(repoRoot, deps = {}) {
+  let policyRaw = null;
+  try {
+    policyRaw = fs.readFileSync(path.join(repoRoot, '.claude-tweaks', 'policy.yml'), 'utf8');
+  } catch {}
+  const resolved = resolvePolicyKeys(['merge-verification'], { policyRaw, runConfigRaw: null });
+  const entry = resolved['merge-verification'];
+  if (entry && entry.source !== 'default' && !entry.invalid) return entry.value;
+  return deriveMergeVerification(repoRoot, deps);
+}
+
+module.exports = {
+  workflowHasPullRequestTrigger, readWorkflowFiles, hasPullRequestCi,
+  readDefaultBranch, deriveMergeVerification, resolveMergeVerification,
+};

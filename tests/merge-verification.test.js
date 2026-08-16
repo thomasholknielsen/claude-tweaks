@@ -102,3 +102,88 @@ test('readWorkflowFiles: reads .yml and .yaml under .github/workflows, [] when t
   assert.deepEqual(files, ['a.yml', 'b.yaml']);
   assert.equal(mv.hasPullRequestCi(dir), true);
 });
+
+// --- Derivation ladder ---
+
+const throwingReader = () => { throw new Error('workflow reader must not be consulted'); };
+const prCi = () => [{ name: 'ci.yml', text: 'on: [push, pull_request]\n' }];
+const pushOnly = () => [{ name: 'ci.yml', text: 'on: push\n' }];
+
+test('branch (1): integration-model local-merge -> off, short-circuiting before any workflow read', () => {
+  const value = mv.deriveMergeVerification('/nonexistent', {
+    integrationModel: () => 'local-merge',
+    readWorkflows: throwingReader,
+    integrationBranch: throwingReader,
+    defaultBranch: throwingReader,
+  });
+  assert.equal(value, 'off');
+});
+
+test('branch (2): pr-first but no PR-triggered CI -> off, before any branch lookup', () => {
+  const value = mv.deriveMergeVerification('/nonexistent', {
+    integrationModel: () => 'pr-first',
+    readWorkflows: pushOnly,
+    integrationBranch: throwingReader,
+    defaultBranch: throwingReader,
+  });
+  assert.equal(value, 'off');
+});
+
+test('branch (3): pr-first + PR CI + integration branch == default branch -> merge-when-green', () => {
+  const value = mv.deriveMergeVerification('/nonexistent', {
+    integrationModel: () => 'pr-first',
+    readWorkflows: prCi,
+    integrationBranch: () => 'main',
+    defaultBranch: () => 'main',
+  });
+  assert.equal(value, 'merge-when-green');
+});
+
+test('branch (4): pr-first + PR CI + non-default integration branch -> off', () => {
+  const value = mv.deriveMergeVerification('/nonexistent', {
+    integrationModel: () => 'pr-first',
+    readWorkflows: prCi,
+    integrationBranch: () => 'dev',
+    defaultBranch: () => 'main',
+  });
+  assert.equal(value, 'off');
+});
+
+test('failed lookups resolve toward off: unresolvable branches, throwing branch lookup, throwing integration-model', () => {
+  const base = { integrationModel: () => 'pr-first', readWorkflows: prCi };
+  assert.equal(mv.deriveMergeVerification('/x', { ...base, integrationBranch: () => null, defaultBranch: () => 'main' }), 'off');
+  assert.equal(mv.deriveMergeVerification('/x', { ...base, integrationBranch: () => 'main', defaultBranch: () => null }), 'off');
+  assert.equal(mv.deriveMergeVerification('/x', { ...base, integrationBranch: throwingReader, defaultBranch: () => 'main' }), 'off');
+  assert.equal(mv.deriveMergeVerification('/x', { integrationModel: throwingReader, readWorkflows: prCi, integrationBranch: () => 'main', defaultBranch: () => 'main' }), 'off');
+});
+
+test('the ladder never derives wait', () => {
+  const combos = [
+    { integrationModel: () => 'local-merge' },
+    { integrationModel: () => 'pr-first', readWorkflows: pushOnly },
+    { integrationModel: () => 'pr-first', readWorkflows: prCi, integrationBranch: () => 'main', defaultBranch: () => 'main' },
+    { integrationModel: () => 'pr-first', readWorkflows: prCi, integrationBranch: () => 'dev', defaultBranch: () => 'main' },
+  ];
+  for (const deps of combos) assert.notEqual(mv.deriveMergeVerification('/x', deps), 'wait');
+});
+
+test('resolveMergeVerification: explicit valid policy value wins outright — no derivation lookups run', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-explicit-'));
+  tempDirs.push(dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'));
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'merge-verification: wait\n');
+  const value = mv.resolveMergeVerification(dir, {
+    integrationModel: throwingReader, readWorkflows: throwingReader, integrationBranch: throwingReader, defaultBranch: throwingReader,
+  });
+  assert.equal(value, 'wait');
+});
+
+test('resolveMergeVerification: absent or invalid policy value falls through to the ladder', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-derive-'));
+  tempDirs.push(dir);
+  const deps = { integrationModel: () => 'pr-first', readWorkflows: prCi, integrationBranch: () => 'main', defaultBranch: () => 'main' };
+  assert.equal(mv.resolveMergeVerification(dir, deps), 'merge-when-green', 'absent -> derived');
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'));
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'merge-verification: sideways\n');
+  assert.equal(mv.resolveMergeVerification(dir, deps), 'merge-when-green', 'invalid -> derived, not null');
+});
