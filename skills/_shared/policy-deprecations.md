@@ -75,3 +75,9 @@ Removal condition: the shared predicate above, with `{key}` = `harness-health.al
 Now: migrates at read — identity `migrate`, enum semantics unchanged (still no schema default — unset means "detect and ask"), `renamed-from` attribution. Dot → dash per `## Key naming`.
 
 Removal condition: the shared predicate above, with `{key}` = `doc-convention.adr`.
+
+## `worktree.always` (renamed to `worktree-always`, #602)
+
+Now: migrates at read — identity `migrate`, boolean semantics unchanged, `renamed-from` attribution in the resolver. The hook's own reader (`bin/lib/policy.js` `isWorktreeAlwaysOn`) consults the same `RENAMED_KEYS` entry, so an un-migrated project keeps the gate: old line alone → ON; new line present → the new line decides, in any file order. `auditPolicy` reports the stray old line under `renamedKeys` with the suggested replacement. This repo's own `.claude-tweaks/policy.yml` deliberately carries both lines during the transition — see the comment on the old line there — because the *installed* plugin build reads the old literal until it is upgraded to the release that shipped #602.
+
+Removal condition: the shared predicate above, with `{key}` = `worktree.always` — clause (a) additionally waits for the transitional twin line to be deleted from this repo's `policy.yml`, which happens once the installed build's `plugin.json` version is at or above the release that shipped #602.

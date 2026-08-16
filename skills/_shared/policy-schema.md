@@ -2,7 +2,7 @@
 
 Every project-config lever claude-tweaks skills read, in one place — the way `_shared/work-record.md`'s Config Keys table indexes the work-record system's keys. `bin/lib/policy-schema.js` owns the same keys as data (name, type/enum, default) plus `auditPolicy(repoRoot)`, a deterministic validator. If this table and that file disagree, one of them has a bug — fix, don't fork.
 
-`.claude-tweaks/policy.yml` is the canonical **and only** home for every lever below — no key in this table is read from CLAUDE.md. `worktree.always` is additionally enforced mechanically by `bin/lib/hooks/pre-tool-use.js`, which reads `policy.yml` directly. A recognized key still sitting in a project's CLAUDE.md no longer applies to anything; `auditPolicy()` reports it under `migratableKeys` and `/claude-tweaks:init --update`'s Config Home Drift check offers to move it.
+`.claude-tweaks/policy.yml` is the canonical **and only** home for every lever below — no key in this table is read from CLAUDE.md. `worktree-always` is additionally enforced mechanically by `bin/lib/hooks/pre-tool-use.js`, which reads `policy.yml` directly. A recognized key still sitting in a project's CLAUDE.md no longer applies to anything; `auditPolicy()` reports it under `migratableKeys` and `/claude-tweaks:init --update`'s Config Home Drift check offers to move it.
 
 ## Canonical read path
 
@@ -24,7 +24,7 @@ Output is a single JSON object keyed by requested key. Each key resolves to the 
 
 Two carve-outs:
 
-- The PreToolUse hook's `worktree.always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
+- The PreToolUse hook's `worktree-always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
 - `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
 
 `--all` emits the whole resolved config in one call: every schema key mapped to its `{value, source}` envelope plus its metadata fields and shape (`summary`, `category`, `tier`, `type`, `default` — `default` is JSON `null` when the row has none, which consumers read as "no default"). It composes with `--run`, takes no key arguments, and is mutually exclusive with `--values`. Renderers (the `/claude-tweaks:help` policy mode, init's policy review) consume this instead of enumerating key names by hand.
@@ -76,17 +76,15 @@ Every key in `POLICY_KEYS` (and every `RENAMED_KEYS` replacement name) is a **fl
 
 **Deliberately not renamed — `auto-mode`.** It reads as a sibling of `autonomy`, but the two are orthogonal axes (interaction stops vs. authority) and the confusion is conceptual, not spelling — any name containing "auto" stays proximate, and a key not named after the `auto-mode` contract it toggles (`_shared/auto-mode-contract.md`) would be worse. Their `category` values (`pipeline-behavior` / `autonomy-trust`) are the disambiguation surface. Judged 2026-08-16 (#332); do not re-open without new evidence.
 
-**Pending:** `worktree.always` — renamed to `worktree-always` by #602 (the hook's read path in `bin/lib/policy.js` needs its own alias handling); until then it is the one allowed exception, listed in the test's `PENDING_RENAMES`.
-
 ## Worktree & execution
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
-| `worktree.always` | `policy.yml` only — no CLAUDE.md path exists | `/claude-tweaks:init`, `/claude-tweaks:build`, `_shared/git-discipline.md`; mechanically enforced by `bin/lib/hooks/pre-tool-use.js` | `false` (unenforced) | Whether covered operations must occur inside a linked git worktree — see the coverage block below for exactly which |
+| `worktree-always` | `policy.yml` only — no CLAUDE.md path exists | `/claude-tweaks:init`, `/claude-tweaks:build`, `_shared/git-discipline.md`; mechanically enforced by `bin/lib/hooks/pre-tool-use.js` | `false` (unenforced) | Whether covered operations must occur inside a linked git worktree — see the coverage block below for exactly which |
 | `execution-strategy` | `policy.yml` | `/claude-tweaks:build`, `_shared/git-discipline.md` | `subagent` | `/claude-tweaks:build`'s execution axis, one key with two value classes: `subagent`/`batched` set the default when no argument is passed (an explicit argument still overrides); `subagent-only`/`batched-only` lock the axis — the other value is not offered and a contradicting explicit argument is substituted with an inline notice (see build/SKILL.md's Execution axis paragraph). `execution.always` is a deprecated alias: `migrate` maps `subagent` → `subagent-only` and `batched` → `batched-only`; a malformed value null-migrates to the schema default (`subagent`, unlocked); when both keys are set, the `execution-strategy` line wins (uniform alias rule — the audit/init drift check surfaces the conflict) |
-| `git-strategy` | `policy.yml` | `/claude-tweaks:build`, `/claude-tweaks:flow` | `worktree` | Default value of the Git axis when no argument is passed — matches /claude-tweaks:build's own documented default and /claude-tweaks:flow's intrinsic one. Set current-branch to opt a project out of worktree isolation by default; an explicit argument still wins, and worktree.always overrides both |
+| `git-strategy` | `policy.yml` | `/claude-tweaks:build`, `/claude-tweaks:flow` | `worktree` | Default value of the Git axis when no argument is passed — matches /claude-tweaks:build's own documented default and /claude-tweaks:flow's intrinsic one. Set current-branch to opt a project out of worktree isolation by default; an explicit argument still wins, and worktree-always overrides both |
 
-### `worktree.always` coverage — canonical
+### `worktree-always` coverage — canonical
 
 **This block is the single statement of what the gate intercepts.** Every other file cites it; none restates the list. `bin/lib/hooks/pre-tool-use.js`'s exported `GATE_COVERAGE` constant is its machine counterpart, and `tests/hooks-gate-coverage.test.js` asserts the two agree — so widening the gate fails a test until this block is updated.
 
