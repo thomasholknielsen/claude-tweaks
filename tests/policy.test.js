@@ -88,6 +88,12 @@ test('isWorktreeAlwaysOn: when both spellings are set the new line wins — work
   assert.strictEqual(isWorktreeAlwaysOn(repo2), true, 'order in the file does not matter — the new NAME wins, not the last line');
 });
 
+test('isWorktreeAlwaysOn: an invalid new-name value beside a valid old-name line still lets the new NAME win — the gate reads OFF, matching the resolver (deliberate: presence of the new name ends the alias window for that file)', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: yes\nworktree.always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+});
+
 test('readIntegrationBranch: key present -> returns the branch name', () => {
   const repo = tmpRepo();
   writePolicy(repo, 'integration-branch: staging\n');
