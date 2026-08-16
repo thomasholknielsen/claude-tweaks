@@ -216,7 +216,7 @@ test('gatherFacts claudeMdOverBudget honors a policy.yml budget — proves the r
     git(['config', 'user.name', 'Test'], dir);
     fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
     fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'harness-health-always-loaded-budget: 5\n');
-    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), `${'line\n'.repeat(6)}`);
+    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), 'line\n'.repeat(6));
     git(['add', '.'], dir);
     git(['commit', '-q', '-m', 'over a configured budget'], dir);
     const sha = git(['rev-parse', 'HEAD'], dir);
