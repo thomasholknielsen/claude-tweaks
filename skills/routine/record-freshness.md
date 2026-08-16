@@ -98,7 +98,7 @@ cannot see. Relevant fields:
 | `records[]` | One entry per filename across both sides: `{filename, presence, uncommitted, authority, fields, local, upstream}` |
 | `presence` | `both` \| `local-only` \| `upstream-only` |
 | `authority` | Which copy to read — `upstream` when the checkout is behind and the record is not locally edited, else `local` |
-| `fields` | Which significant fields differ (`created_at` is excluded: UPDATE Step 7 rewrites it every run, so counting it would make every record differ) |
+| `fields` | Which significant fields differ (`created_at` is excluded: UPDATE Step 7 rewrites it every run, so counting it would make every record differ). `kernel_version` IS significant (unlike `created_at`) — an update that re-assembles against a newer kernel must read as divergence. |
 | `onlyUpstream` | Filenames committed upstream and absent here — the duplicate-minting case |
 
 An uncommitted local edit always keeps `authority: 'local'`, even on a behind checkout. That
