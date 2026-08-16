@@ -9,7 +9,7 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 `bin/resolve-policy.js` is THE canonical way skill prose reads any policy or run-config value:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" [--values] [--run "$PIPELINE_RUN_DIR"] <key> [<key>…]
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" [--values | --all] [--run "$PIPELINE_RUN_DIR"] <key> [<key>…]
 ```
 
 For shell-variable capture, `--values` prints one plain value per line in request order instead of the JSON envelope — coerced values render natively (`true`, `14`); an unset no-default key and an unknown key each print an empty line (the same empty string the retired grep pipeline produced); `model-profiles` has no scalar form and is an invocation error under `--values`. List-typed keys (e.g. `merge-sensitive-paths`) resolve to the raw comma-separated string in both modes when configured — callers split on `,`; only the unset default is a JSON `[]`, which `--values` renders as an empty line (same empty-means-none reading as the retired grep).
