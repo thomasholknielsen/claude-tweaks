@@ -249,6 +249,10 @@ function fixture() {
   const shadow = path.join(main, '.claude', 'worktrees', 'flow-spec-12', '.claude-tweaks', 'pipelines', '2026-08-16T090000-spec-12');
   fs.mkdirSync(run, { recursive: true });
   fs.mkdirSync(shadow, { recursive: true });
+  // Realistic git shape: the main checkout has a `.git` DIRECTORY; a linked worktree has a
+  // `.git` FILE carrying a gitdir: pointer. resolveTarget's structural check keys on that.
+  fs.mkdirSync(path.join(main, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(main, '.claude', 'worktrees', 'flow-spec-12', '.git'), 'gitdir: ../../../.git/worktrees/flow-spec-12\n');
   return { main, run, shadow };
 }
 
