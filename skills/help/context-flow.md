@@ -86,7 +86,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 | `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state), `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (installed version) — read-only status scan | — | — |
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
-| `/routine-kickoff` | Reads: plugin cache listing, target SKILL.md (fallback path) | Writes: — (reconcile side effects belong to bin/lib/reconcile) | Deletes: — |
+| `/routine-kickoff` | Plugin cache listing, target SKILL.md (fallback path) | — (reconcile side effects belong to bin/lib/reconcile) | — |
 
 ## Open Items Ledger
 
