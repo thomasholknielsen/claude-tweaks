@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { rankNextToBuild } = require('../../../bin/lib/issues/ranking');
+const { rankNextToBuild, blockersOf } = require('../../../bin/lib/issues/ranking');
 const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
 function candidate(overrides) {
@@ -99,4 +99,46 @@ test('the size tie-break reads the facet key the real label parser writes', () =
   const largeAgain = fromLabels(3, ['priority:high', 'size:high']);
   const legacySmall = fromLabels(4, ['priority:high', 'effort:low']);
   assert.deepStrictEqual(rankNextToBuild([largeAgain, legacySmall]).map((c) => c.id), [4, 3]);
+});
+
+// --- blockersOf precedence (record #514) ---
+
+test('blockersOf: top-level blockedBy wins over body text when both present and disagree', () => {
+  const c = { id: 1, blockedBy: [2], facets: {}, body: 'Blocked by #3' };
+  assert.deepEqual(blockersOf(c), [2]);
+});
+
+test('blockersOf: no blockedBy key falls back to parseDependencies on the body', () => {
+  const c = { id: 1, facets: {}, body: 'Blocked by #3\nsome text' };
+  assert.deepEqual(blockersOf(c), [3]);
+});
+
+test('blockersOf: blockedBy [] is authoritative — no body fallback', () => {
+  const c = { id: 1, blockedBy: [], facets: {}, body: 'Blocked by #3' };
+  assert.deepEqual(blockersOf(c), []);
+});
+
+test('blockersOf: facets.blockedBy (local driver) used when top-level absent, and [] there is authoritative too', () => {
+  assert.deepEqual(blockersOf({ id: 1, facets: { blockedBy: [7] }, body: 'Blocked by #3' }), [7]);
+  assert.deepEqual(blockersOf({ id: 1, facets: { blockedBy: [] }, body: 'Blocked by #3' }), []);
+});
+
+test('rankNextToBuild: candidate with blockedBy [2] and body "Blocked by #3" ranks using blocker 2, not 3', () => {
+  // Three candidates, same priority/size: 2 should gain the unblocks count (1 blocks on it), 3 should not.
+  const candidates = [
+    { id: 1, blockedBy: [2], facets: {}, body: 'Blocked by #3', keyFiles: [], hasPlan: false },
+    { id: 2, facets: {}, body: '', keyFiles: [], hasPlan: false },
+    { id: 3, facets: {}, body: '', keyFiles: [], hasPlan: false },
+  ];
+  const ranked = rankNextToBuild(candidates);
+  assert.equal(ranked[0].id, 2); // unblocks 1 other candidate; 3 unblocks none
+});
+
+test('rankNextToBuild: no blockedBy keys — body parsing result unchanged (regression pin for /help)', () => {
+  const candidates = [
+    { id: 1, facets: {}, body: 'Blocked by #2', keyFiles: [], hasPlan: false },
+    { id: 2, facets: {}, body: '', keyFiles: [], hasPlan: false },
+  ];
+  const ranked = rankNextToBuild(candidates);
+  assert.equal(ranked[0].id, 2);
 });

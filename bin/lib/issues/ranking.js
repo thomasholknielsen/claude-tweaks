@@ -8,7 +8,10 @@
 // (low first) -> hasPlan (true first). Every input this needs (the unblocks
 // graph, file-overlap groups, hasPlan) must be precomputed by the caller and
 // attached to each candidate — this function does no I/O, mirroring record.js
-// and grouping.js's purity contract.
+// and grouping.js's purity contract. Candidates *may* carry a top-level
+// `blockedBy` or `facets.blockedBy` array (native/local-driver blocker data);
+// when absent, blockers fall back to body-text parsing — see blockersOf for
+// the exact precedence.
 'use strict';
 
 const { PRIORITIES, TIERS, parseDependencies } = require('./record');
@@ -19,15 +22,29 @@ const SIZE_ORDER = { low: 0, medium: 1, high: 2 };
 const priorityBandOf = (c) => (c.facets.priority && PRIORITIES.includes(c.facets.priority) ? RANK[c.facets.priority] : 3);
 const sizeBandOf = (c) => (c.facets.size && TIERS.includes(c.facets.size) ? SIZE_ORDER[c.facets.size] : 3);
 
+// candidate -> number[]. THE single blocker-precedence decision, shared by
+// computeUnblocksCount here and funnelBuckets (backlog.js) — never re-implement
+// it at a call site. Precedence: top-level `blockedBy` (attached by the
+// overview's native fetch, or any caller that resolved blockers itself) wins;
+// then the local-files driver's `facets.blockedBy` (already native-shaped
+// frontmatter data); then record.js's parseDependencies over the body
+// (work-links: body-text). Both explicit tiers are authoritative even when
+// empty — `[]` means "confirmed no blockers", never "fall through to prose".
+function blockersOf(candidate) {
+  if (Array.isArray(candidate.blockedBy)) return candidate.blockedBy;
+  if (candidate.facets && Array.isArray(candidate.facets.blockedBy)) return candidate.facets.blockedBy;
+  return parseDependencies(candidate.body || '');
+}
+
 // candidates[] -> Map<id, count>. For each candidate, how many OTHER candidates
-// in the SAME input array declare `Blocked by #{candidate.id}` in their body
-// (record.js's parseDependencies). A blocker id outside this array's id set
-// contributes nothing — this only ranks within the candidate set actually
-// passed in, not the whole backlog's dependency graph.
+// in the SAME input array declare it as a blocker (blockersOf's precedence — not
+// only body text). A blocker id outside this array's id set contributes
+// nothing — this only ranks within the candidate set actually passed in, not
+// the whole backlog's dependency graph.
 function computeUnblocksCount(candidates) {
   const counts = new Map(candidates.map((c) => [c.id, 0]));
   for (const c of candidates) {
-    for (const blockerId of parseDependencies(c.body)) {
+    for (const blockerId of blockersOf(c)) {
       if (counts.has(blockerId)) counts.set(blockerId, counts.get(blockerId) + 1);
     }
   }
@@ -59,4 +76,4 @@ function rankNextToBuild(candidates) {
   );
 }
 
-module.exports = { rankNextToBuild };
+module.exports = { rankNextToBuild, blockersOf };
