@@ -159,7 +159,7 @@ test('pr-unarmed-age-hours and unsettled-age-hours are registered with a 24-hour
   assert.strictEqual(unsettled.default, 24);
 });
 
-test('housekeeping-auto-merge is registered as a boolean, default false', () => {
+test('housekeeping-auto-merge row: boolean, static default false (the supervised base — effective default derives from autonomy, #580)', () => {
   const key = POLICY_KEYS.find((k) => k.key === 'housekeeping-auto-merge');
   assert.ok(key, 'housekeeping-auto-merge key not found');
   assert.strictEqual(key.type, 'boolean');
