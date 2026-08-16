@@ -37,7 +37,7 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 
 ### Metadata block
 
-Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:`. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
 Surface: web
