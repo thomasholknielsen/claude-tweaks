@@ -68,10 +68,9 @@ Run `/claude-tweaks:deepen <changed-paths>` to act on these — it presents cand
 
 ### Next Actions
 
-Close the template's fence above, then assemble the applicable options (the base 2 always; the two conditional options only when their trigger condition holds) and present them via one `AskUserQuestion` call as unfenced prose:
+Close the template's fence above, then assemble the applicable lines (the base 2 always; the two conditional lines only when their trigger condition holds) and render them as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: short name of the next spec's run suffixed `(Recommended)`, `description`: `"/claude-tweaks:flow {next spec} — full pipeline on spec {N}: \"{title}\""`
-- Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
-- Option 3 (if unblocked specs) — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — spec {N} \"{title}\" now unblocked"`
-- Option 4 (if the depth survey surfaced candidates) — `label`: `"Depth opportunities"`, `description`: `"/claude-tweaks:deepen {changed-paths} — act on the {N} depth opportunit{y/ies} surfaced above"`
+**`/claude-tweaks:flow {next spec}`** — full pipeline on spec {N}: "{title}" (recommended)
+`/claude-tweaks:help` — full pipeline status
+`/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked — when unblocked specs exist
+`/claude-tweaks:deepen {changed-paths}` — act on the {N} depth opportunit{y/ies} surfaced above — when the depth survey surfaced candidates

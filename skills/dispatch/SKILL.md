@@ -3,7 +3,7 @@ name: dispatch
 description: "Use to select and dispatch authorized GitHub records to /flow — the queue consumer between human gate and executor. Bare, next, or #N direct. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine."
 argument-hint: "[next|#N[,#M...]] [--batch-size <n>] [--priority high|medium|low]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Dispatch — the Queue Consumer
 
@@ -253,12 +253,11 @@ These rows mirror `_shared/work-record-config.md`'s canonical key table (which e
 
 ## Next Actions
 
-Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. `/claude-tweaks:backlog refine`'s Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
+Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. `/claude-tweaks:backlog refine`'s Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise). When rendering, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Dispatch again (Recommended)"`, `description`: `"/claude-tweaks:dispatch — pick from what's left in the authorized queue"`
-- Option 2 — `label`: `"Set up the dispatch routine"`, `description`: `"/claude-tweaks:routine create dispatch — schedule 'dispatch next' as a recurring headless routine"`
-- Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — see the authorized-queue size and bot:blocked records"`
+**`/claude-tweaks:dispatch`** — pick from what's left in the authorized queue (recommended)
+`/claude-tweaks:routine create dispatch` — schedule 'dispatch next' as a recurring headless routine
+`/claude-tweaks:help` — see the authorized-queue size and bot:blocked records
 
 ## Component-Skill Contract
 

@@ -3,7 +3,7 @@ name: tidy
 description: Use when the backlog needs hygiene — review stale backlog records, parked-trigger wakes, unsynced local records, and orphaned plans/worktrees
 argument-hint: "[--scope=<name>[,<name>...]] [--dry-run]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Tidy
@@ -224,21 +224,20 @@ This resolves the account- and project-specific values a portable template can't
 
 ## Next Actions
 
-Derive the options from the report's **Approve ({N})** and **Yours ({N})** sections: when **Approve ({N})** is non-empty, prepend an `"Approve ({N})"` option FIRST — `description`: `"Execute Step 7 over the {N} staged items in the report's Approve ({N}) section"` — suffixed `(Recommended)` when present. Then take Yours items, in report order, one option each — `label` naming the item's action (≤5 words), `description` carrying the item's own paste-ready command verbatim (fully-qualified `/claude-tweaks:{skill}` form): up to three when the Approve option is absent, capped at **two** when it is present, so the total never exceeds `AskUserQuestion`'s 4-option cap (1 Approve + 2 Yours + 1 dashboard = 4). The final option is always the help dashboard. When both **Approve** and **Yours** are empty, render the fixed menu below unchanged.
+Derive the lines from the report's **Approve ({N})** and **Yours ({N})** sections: when **Approve ({N})** is non-empty, put an "Approve ({N})" line first, bolded, suffixed `(recommended)` — not a slash command; it instructs executing Step 7 over the {N} staged items in the report's Approve ({N}) section, resolved directly in this session. Then take Yours items, in report order, one line each — the annotation names the item's action (≤5 words), the line itself carrying the item's own paste-ready command verbatim (fully-qualified `/claude-tweaks:{skill}` form): up to three when the Approve line is absent, capped at two when it is present, keeping the handoff to at most four lines. The first Yours line is bolded and suffixed `(recommended)` only when the Approve line is absent. The final line is always the help dashboard. When both **Approve** and **Yours** are empty, render the fixed block below unchanged.
 
-Call `AskUserQuestion`:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 (when Approve is non-empty) — `"Approve ({N})"` as derived above, suffixed `(Recommended)`; first option overall when present
-- Up to 3 more options (when Yours items exist and the Approve option is absent) or up to 2 more options (when Yours items exist and the Approve option is present) — one per Yours item as derived above, first option overall suffixed `(Recommended)` only when the "Approve ({N})" option is absent
-- Final option (whenever Approve or Yours items exist; the empty-fallback below already carries it) — `label`: `"Help dashboard"`, `description`: `"/claude-tweaks:help — full pipeline status with refreshed counts after the cleanup"`
+**Execute Step 7 over the {N} staged items in the report's Approve ({N}) section** (recommended) — not a slash command; resolve directly in this session — render only when Approve ({N}) is non-empty
+`{Yours item's own paste-ready command}` — {item's action, ≤5 words} — bold this line and suffix `(recommended)` only when the Approve line above is absent, and only on the first Yours line
+`/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup
 
-Empty fallback — Approve and Yours both empty (the fixed menu, unchanged from before this derivation rule existed):
+Empty fallback — Approve and Yours both empty (the fixed block, unchanged from before this derivation rule existed):
 
-- Option 1 — `label`: `"Help dashboard (Recommended)"`, `description`: `"/claude-tweaks:help — full pipeline status with refreshed counts after the cleanup"`
-- Option 2 — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — build the highest-priority ready spec surfaced by the tidy report"`
-- Option 3 — `label`: `"Specify {topic}"`, `description`: `"/claude-tweaks:specify {topic} — specify an unspecified design doc surfaced by the audit"`
-- Option 4 — `label`: `"Refine the queue"`, `description`: `"/claude-tweaks:backlog refine — authorize any ready-but-unscored or bot:blocked records the audit surfaced"`
+**`/claude-tweaks:help`** — full pipeline status with refreshed counts after the cleanup (recommended)
+`/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report
+`/claude-tweaks:specify {topic}` — specify an unspecified design doc surfaced by the audit
+`/claude-tweaks:backlog refine` — authorize any ready-but-unscored or bot:blocked records the audit surfaced
 
 ## Component-Skill Contract
 

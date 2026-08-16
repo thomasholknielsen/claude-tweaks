@@ -125,17 +125,21 @@ If "Override specific items" is chosen, the follow-up is ordinary free-text chat
 
 **When "Fix now" isn't possible**, route to the right destination:
 
-- **Defer** (new work record, `parked`) — the fix is understood but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin spec, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
-- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline.
+- **Defer** (new work record — born-ready, or `parked` on a concrete wake condition) — the fix is understood but it's bigger and not relevant to the current work. Compose the body via `specShapedBody` (finding + evidence → Current State, citing the origin spec as `refs #{n}`; the fix → Deliverables; the review lens's own check → Acceptance Criteria; `filedBy: 'review'`; `provenance: { origin: 'spec #{n} review ({lens})', deferReason }` — the reason chosen by the mapping below; footer `_Filed by \`review\` via specShapedBody._`), then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`) — with `recordPayload({ …, risk, size, ready: true })` scored per the Scoring axis (born-ready per `_shared/work-record.md`'s `/review` row), or `header: 'Trigger: {wake condition}'` + `parked: true` instead of `ready` when the reason is `blocked-dependency`/`blocked-external` with a concrete wake condition. A finding whose verification cannot be honestly stated (its own text names an open choice or missing evidence) uses the composer's `openQuestion` variant and files `needs:definition` (a label with no `recordPayload` parameter — append it at the create call) with no `ready` and no scoring, per `_shared/work-record.md`'s `/review` row; a finding naming an open product choice routes to Capture instead (`tangential` captures).
+- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when the finding names an open choice.
 
-**Deferral gate:** An item may only be deferred if it meets ALL of these:
+**Deferral gate:** `_shared/deferral-gate.md` is the gate — run its fix-now criteria before any Defer or Capture, and never skip a fix for one of its bad reasons (its list includes "minor / not load-bearing" — severity floors decide what blocks, not what gets fixed). A finding that fails fix-now carries exactly one `Defer-reason:` from that file's vocabulary, chosen by this mapping (one line of justification recorded in `decisions.md` alongside the routing decision):
 
-- Pre-existing (not introduced by this build), OR requires design discussion that can't be resolved in the current session
-- Has a clear trigger documented for when to revisit
+- a defect in a file the diff does not touch → `pre-existing-outside-diff`
+- a fix needing a product/design call → `needs-human-decision`
+- a fix that expands scope past the fix-now criteria → `genuinely-larger`
+- a fix waiting on unbuilt functionality → `blocked-dependency`
+- a fix waiting on external state → `blocked-external`
+- a new capability the finding suggests → `tangential` (Capture, not Defer)
 
-Items introduced by this build that are fixable now must be fixed now — even if the fix is imperfect, closing the gap is better than deferring.
+A finding that fails fix-now with **no** valid reason stays `open` — in an interactive review it goes to the human drill; in `auto` it becomes an `open` ledger item for wrap-up's Phase 2 drill — it is never filed as a record; it resolves at the human drill (interactive) or wrap-up's ledger resolve gate (auto).
 
-If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, and verify fixes didn't introduce new findings.
+If any findings are "Fix now", make the changes, re-verify per `_shared/deferral-gate.md`'s Re-verification rule (`/claude-tweaks:test`), and verify fixes didn't introduce new findings.
 
 ## Parallel fix dispatch (3+ independent fixes)
 
@@ -157,7 +161,7 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 >
 > The dispatcher inspects the bullets for cross-file conflicts before re-running `/claude-tweaks:test`.
 
-**Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for `parked` routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
+**Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for Defer routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
 ## Routing bias
 
