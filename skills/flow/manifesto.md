@@ -79,7 +79,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 |---|---|---|---|---|---|
 | 157 | infra | skip (design-intent:none) | skip (no UI) | skip (no stories) | — |
 | 159 | infra | skip | skip | skip | — |
-| 160 | infra | skip | skip | skip | — |
+| 160 | web | run (design-intent:quiet) | auto-detect | skip (no stories) | — |
 
 **Expected friction under these defaults:** {one of:
   - "none — auto runs end-to-end."
@@ -101,9 +101,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
 | 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge into the integration branch waits for — derived per `_shared/policy-schema.md`'s `merge-verification` coverage block (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification`); explicit `policy.yml` value wins. Merge sites act on it from #560 onward |
-| 12 | Design critique | **{resolved}** | off / **auto** / full | `off (never) / auto (critics when DESIGN.md exists or the record asks) / full (always)` — governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values design-critique`; Recommended = the resolved value; log its resolution to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a.` |
+| 12 | Design critique | **{resolved}** | off / **auto** / full | `off (never) / auto (critics when DESIGN.md exists or the record asks) / full (always)` — governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values design-critique`; Recommended = the resolved value; log its resolution to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11, 12.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records: none/none/quiet), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11, 12.
 
 #### Override semantics (read before overriding)
 
