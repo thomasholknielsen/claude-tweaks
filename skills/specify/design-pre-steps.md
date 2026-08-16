@@ -104,7 +104,7 @@ On option 1:
 
 Sets the `Design-intent:` body-metadata line that Phase 3's `polish` mode will read for intent-driven dispatch.
 
-**Auto mode:** resolve `design-intent` — `DESIGN_INTENT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values design-intent)`. Apply per the resolved value:
+**Auto mode:** resolve `design-intent` — `DESIGN_INTENT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" design-intent)`. Apply per the resolved value:
 
 - Value is one of `bold` / `quiet` / `minimal` / `delightful` / `onboarding` → write the `Design-intent:` body-metadata line directly. Log:
   ```

@@ -53,7 +53,7 @@ For each major section/feature in the design doc, classify coverage against the 
 
 ### Auto mode (policy lookup)
 
-When a pipeline run directory exists, resolve `overlap` — `OVERLAP=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values overlap)`. Apply per policy:
+When a pipeline run directory exists, resolve `overlap` — `OVERLAP=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" overlap)`. Apply per policy:
 
 | Policy | Action | Log entry |
 |---|---|---|

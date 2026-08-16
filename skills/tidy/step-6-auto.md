@@ -3,7 +3,7 @@
 Step 6's auto branch; `step-6-interactive.md` is its twin. `SKILL.md` resolves `--dry-run` before
 reading either — under it, everything Stages and the routing table below is bypassed.
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), resolve `tidy-aggressiveness` — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values tidy-aggressiveness)` — the same variable the standalone-auto path below already resolves without `--run`; `conservative` is the documented opt-down.
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), resolve `tidy-aggressiveness` — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" tidy-aggressiveness)` — the same variable the standalone-auto path below already resolves without `--run`; `conservative` is the documented opt-down.
 
 **A recurring staged item is a missing routing rule.** The Approve bucket should be empty in steady state: when the same class of finding stages run after run, the fix is a routing row — or a reconcile check — that disposes of it mechanically, not a faster approval habit. The durable exception is outward-facing GitHub writes, which the skill-side auto-mode contract forbids at every tier (`_shared/auto-mode-contract.md`); mechanical dispositions of outward state therefore ride on reconcile's background convergence (the reconcile-converged rows below), never on a tidy tier.
 
