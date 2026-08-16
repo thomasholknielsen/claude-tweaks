@@ -1,0 +1,100 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { run } = require('../../../bin/release-claim');
+
+const NOW = Date.parse('2026-08-16T12:00:00Z');
+const RUN_DIR_NAME = '2026-08-16T100000-spec-999';
+const live = (runId) => JSON.stringify({ runId, sessionId: 's', claimedAt: '2026-08-16T11:00:00.000Z', ttlHours: 72, host: 'h' });
+const isGet = (a) => a[0] === 'api' && String(a[1]).startsWith('repos/acme/w/contents/claims/issue-999.json?ref=');
+const isPut = (a) => a[0] === 'api' && a[1] === '--method' && a[2] === 'PUT';
+const isComment = (a) => a[0] === 'issue' && a[1] === 'comment';
+const isEdit = (a) => a[0] === 'issue' && a[1] === 'edit';
+
+function mkRun() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rc-'));
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', RUN_DIR_NAME);
+  fs.mkdirSync(runDir, { recursive: true });
+  return runDir;
+}
+function deps({ content, putThrows, gh = true, out }) {
+  const calls = [];
+  const runner = (a) => {
+    calls.push(a);
+    if (isGet(a)) { if (content === null) throw new Error('HTTP 404'); return JSON.stringify({ content, sha: 'blobsha1' }); }
+    if (isPut(a)) { if (putThrows) throw new Error(putThrows); return '{}'; }
+    if (isComment(a) || isEdit(a)) return '';
+    throw new Error('unexpected ' + a.join(' '));
+  };
+  return { calls, d: { runner, ghAvailable: () => gh, remoteUrl: () => 'git@github.com:acme/w.git', now: () => NOW, stdout: (s) => out.push(['out', s]), stderr: (s) => out.push(['err', s]) } };
+}
+const envelope = (out) => JSON.parse(out.filter((o) => o[0] === 'out').map((o) => o[1]).join(''));
+
+test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label removals; exit 0; logs to decisions.md', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), out });
+  const code = run(['999', '--run', runDir + '/', '--reason', 'merged: spec 999', '--link', 'https://x/1', '--remove-grants'], d);
+  assert.equal(code, 0);
+  assert.deepEqual(calls.map((a) => (isGet(a) ? 'get' : isPut(a) ? 'put' : isComment(a) ? 'comment' : a[a.indexOf('--remove-label') + 1])), ['get', 'put', 'comment', 'auto:build', 'auto:merge']);
+  const put = calls.find(isPut);
+  assert.ok(put.includes('sha=blobsha1'), 'PUT carries the read sha');
+  const env = envelope(out);
+  assert.equal(env.outcome, 'released');
+  assert.equal(env.runId, RUN_DIR_NAME, 'runId is basename(--run), trailing slash stripped');
+  assert.equal(env.logged, true);
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: released claim on #999 \(merged: spec 999\); link https:\/\/x\/1\. Reversibility: high\.$/m);
+});
+
+test('404/422 on the PUT: comment still posted, exit 3', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), putThrows: 'HTTP 422 sha mismatch', out });
+  assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d), 3);
+  assert.equal(calls.filter(isComment).length, 1);
+  assert.equal(envelope(out).outcome, 'already-released');
+});
+
+test('blob owned by another run: exit 4, nothing written, skip line logged', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live('2026-08-16T110000-spec-999'), out });
+  assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999', '--remove-grants'], d), 4);
+  assert.equal(calls.length, 1, 'only the read');
+  assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim held by run 2026-08-16T110000-spec-999/);
+});
+
+test('failed PUT (500): exit 1, no comment; missing run dir still releases (logged:false, warning)', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), putThrows: 'HTTP 500', out });
+  assert.equal(run(['999', '--run', runDir, '--reason', 'r'], d), 1);
+  assert.equal(calls.filter(isComment).length, 0);
+  const out2 = [];
+  const { d: d2 } = deps({ content: live(RUN_DIR_NAME), out: out2 });
+  // Same basename (so the ownership check still matches) under a directory that does not exist.
+  assert.equal(run(['999', '--run', path.join(os.tmpdir(), 'rc-none-' + process.pid, RUN_DIR_NAME), '--reason', 'r'], d2), 0);
+  assert.equal(envelope(out2).logged, false);
+  assert.match(out2.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /decisions\.md not written/);
+});
+
+test('malformed invocation / gh absent exit 2 with the MCP fallback named; --help exits 0', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({ content: live(RUN_DIR_NAME), out });
+  assert.equal(run(['--run', runDir, '--reason', 'r'], d), 2, 'issue missing');
+  assert.equal(run(['abc', '--run', runDir, '--reason', 'r'], d), 2, 'issue not a number');
+  assert.equal(run(['999', '--reason', 'r'], d), 2, '--run missing');
+  assert.equal(run(['999', '--run', runDir], d), 2, '--reason missing');
+  const { d: noGh } = deps({ content: live(RUN_DIR_NAME), gh: false, out });
+  assert.equal(run(['999', '--run', runDir, '--reason', 'r'], noGh), 2);
+  assert.match(out.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /github-write-transport\.md/);
+  const help = [];
+  const { d: h } = deps({ content: null, out: help });
+  assert.equal(run(['--help'], h), 0);
+  assert.match(help[0][1], /usage: release-claim\.js/);
+});
