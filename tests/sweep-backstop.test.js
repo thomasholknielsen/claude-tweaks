@@ -151,13 +151,19 @@ test('existing severity rows are unchanged (delta review — AC4)', () => {
 test('pr-unarmed-age-hours and unsettled-age-hours are registered with a 24-hour default each', () => {
   const unarmed = POLICY_KEYS.find((k) => k.key === 'pr-unarmed-age-hours');
   const unsettled = POLICY_KEYS.find((k) => k.key === 'unsettled-age-hours');
-  assert.deepStrictEqual(unarmed, { key: 'pr-unarmed-age-hours', type: 'integer', default: 24 });
-  assert.deepStrictEqual(unsettled, { key: 'unsettled-age-hours', type: 'integer', default: 24 });
+  assert.ok(unarmed, 'pr-unarmed-age-hours key not found');
+  assert.strictEqual(unarmed.type, 'integer');
+  assert.strictEqual(unarmed.default, 24);
+  assert.ok(unsettled, 'unsettled-age-hours key not found');
+  assert.strictEqual(unsettled.type, 'integer');
+  assert.strictEqual(unsettled.default, 24);
 });
 
 test('housekeeping-auto-merge is registered as a boolean, default false', () => {
   const key = POLICY_KEYS.find((k) => k.key === 'housekeeping-auto-merge');
-  assert.deepStrictEqual(key, { key: 'housekeeping-auto-merge', type: 'boolean', default: false });
+  assert.ok(key, 'housekeeping-auto-merge key not found');
+  assert.strictEqual(key.type, 'boolean');
+  assert.strictEqual(key.default, false);
 });
 
 test('all three new keys are documented in policy-schema.md', () => {

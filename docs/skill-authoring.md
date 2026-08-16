@@ -14,6 +14,8 @@ Every skill follows this structure:
 7. Numbered workflow steps
 8. Anti-Patterns table (`| Pattern | Why It Fails |`)
 
+**Adding a mode or argument to an existing argument-dispatched skill:** enumerate and update every mode-conditional block in the host SKILL.md — skip lines, section gates, and the terminal `## Next Actions` block — not only the blocks the change directly names; missing one produces a contradictory double-`AskUserQuestion` prompt at runtime.
+
 Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.34.0 — every edge is recorded once in `docs/skill-graph.md` instead.
 
 **Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.

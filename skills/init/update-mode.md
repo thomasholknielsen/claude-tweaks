@@ -274,8 +274,8 @@ skippable one-click walkthrough of what each lever does). Both empty findings an
 list count the same way toward Phase 1u.6's Total drift count as the checks above. Read
 `policy-review.md` in this skill's directory for the full procedure (the `auditPolicy()` call,
 the always-surfaced one-line count, the single low-friction skip prompt, and the Show-details
-rendering that reuses `_shared/policy-schema.md`'s own Meaning column rather than re-authoring
-lever descriptions here).
+entrance, which delegates to `${CLAUDE_PLUGIN_ROOT}/skills/help/policy.md`'s Render contract
+rather than re-authoring lever descriptions here).
 
 ### Maturity Drift
 
