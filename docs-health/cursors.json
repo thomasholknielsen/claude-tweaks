@@ -25,5 +25,8 @@
   },
   "doc:decisions/0008-gh-cli-locally-github-mcp-in-cloud-capability-detected": {
     "lastAuditedMs": 1786774016381
+  },
+  "doc:decisions/0009-guided-environment-creation-attaches-the-real-routine": {
+    "lastAuditedMs": 1786860236496
   }
 }
