@@ -37,7 +37,7 @@ Before rendering the Manifesto, derive a per-spec preview by reading each record
 | Polish | `surface` × materialized header `design-intent:` (or the body's `Design-intent:` line) × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
 | Stories | UI files in plan + `no-stories` arg | `auto-detect` if UI files in plan + no-stories not set; `skip` otherwise |
 | QA | `stories/*.yaml` exists for this record's surface | `run` if matching stories; `skip` if none |
-| Friction note | Lever recommendations × record content | One-line warning when an approved lever still introduces prompts for this record (e.g., review-severity-floor `low` + a frontend record with prior HIGH findings) |
+| Friction note | Lever recommendations × record content | One-line warning when an approved lever still introduces prompts for this record (e.g., review-auto-apply-ceiling `low` + a frontend record with prior HIGH findings) |
 
 Suppress the preview table entirely when only one spec is run and Polish, Stories, and QA all read `skip` or `none` — present a single-line summary instead.
 
@@ -51,7 +51,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata), OR all records are non-frontend (polish auto-skips regardless) |
 | **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step at all (`steps-and-gates.md`'s Allowed Steps table lists it unconditionally under "Not allowed in flow") and can never be added to a step list. Still written to `config.yml` (per the "suppression is a UI affordance" rule below) since a standalone `/tidy` run can independently resolve the same run directory and read this lever's value. Kept in the canonical lever count for stable numbering across all skills that reference these levers. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
-| **Review severity floor** (7) | `/review` not in the step list |
+| **Review auto-apply ceiling** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9), **Model stance** (10) — they affect every pipeline.
@@ -87,7 +87,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
-**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness, 9=Ceremony profile, 10=Model stance. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review auto-apply ceiling, 8=Tidy aggressiveness, 9=Ceremony profile, 10=Model stance. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
 
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
@@ -95,7 +95,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 2 | Scope-creep | **add-to-plan** | **add-to-plan** / stop-and-ask / drop | Files outside plan auto-added; nothing dropped silently |
 | 5 | Leftover routing | **defer** | **defer** / backlog / drop | Unfinished sections → a new work record (parked), reversible at Review Console |
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
-| 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
+| 7 | Review auto-apply ceiling | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
 | 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
 
@@ -113,8 +113,8 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Leftover routing | `drop` | Unfinished sections are noted in `decisions.md` but no work record staged |
 | Auto-fix threshold | `lint-only` | Type errors surface as prompts; tests always surface |
 | Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
-| Review severity floor | `none` | All findings auto-applied (lowest friction, highest revert load) |
-| Review severity floor | `medium` | LOW + MED auto-applied; only HIGH prompts |
+| Review auto-apply ceiling | `none` | All findings auto-applied (lowest friction, highest revert load) |
+| Review auto-apply ceiling | `medium` | LOW + MED auto-applied; only HIGH prompts |
 | Ceremony profile | `standard` | Forces full-depth wrap-up ceremony (reflect full mode, unrestricted skill-curation scan, doc/CLAUDE.md/ADR sub-scans) even though `ceremony-check` verdicted `fast-lane` for every record |
 | Ceremony profile | `fast-lane` | Forces the fast-lane shape even if a record's `ceremony:` header was `standard` (or one member of a bundle was) — an active, informed human override, not the automated default |
 | Model stance | `economy` | Every profile's resolved effort drops one notch on `EFFORT_SCALE`; a Frontier resolution additionally degrades to Capable — lower cost, lower rigor |
@@ -155,7 +155,7 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Design intent | `none` | No creative direction unless user opts in |
 | Leftover routing | `defer` | Reversible; user reviews at Wrap-Up Review Console |
 | Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
-| Review severity floor | `low` | Auto LOW (nits), stage MED, prompt HIGH |
+| Review auto-apply ceiling | `low` | Auto LOW (nits), stage MED, prompt HIGH |
 | Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
 | Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
 
@@ -179,7 +179,7 @@ overlap: companion
 design-intent: none
 leftover-default: defer
 auto-fix-threshold: lint+type
-review-severity-floor: low
+review-auto-apply-ceiling: low
 tidy-aggressiveness: moderate
 ceremony-profile: fast-lane
 model-stance: default

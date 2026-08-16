@@ -206,7 +206,7 @@ This sequential-dispatch precondition is a *distinct* bound from the actual **co
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
-**Maturity-scaled test discipline (both strategies, all modes):** resolve `project.maturity` once per build — `MATURITY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values project.maturity)`. The resolver's schema default is `greenfield`, and a value outside the four-item enum also resolves to `greenfield` — either way, add nothing. Fold one additional instruction into whichever execution skill was invoked above:
+**Maturity-scaled test discipline (both strategies, all modes):** resolve `project-maturity` once per build — `MATURITY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values project-maturity)`. The resolver's schema default is `greenfield`, and a value outside the four-item enum also resolves to `greenfield` — either way, add nothing. Fold one additional instruction into whichever execution skill was invoked above:
 
 | Maturity | Added instruction |
 |---|---|

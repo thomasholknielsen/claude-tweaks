@@ -24,7 +24,7 @@ Section 3 below argues from three probes, run once here alongside the two calls 
 
 - `git remote -v` — forge presence, argues against an unset `integration-model`.
 - `gh issue list --label auto:build --state open --limit 1 --json number` — standing grants, argues against the `autonomy` ceiling. Skip if `gh` is absent or the call fails.
-- `ls .claude-tweaks/pipelines/` — recent pipeline activity, argues against `project.maturity`. Empty or missing directory is a valid "no activity" result, not a failure.
+- `ls .claude-tweaks/pipelines/` — recent pipeline activity, argues against `project-maturity`. Empty or missing directory is a valid "no activity" result, not a failure.
 
 This three-probe list is the v1 signal set. Extending it is a prose edit to this file's Section 3 below — no schema change, no new-issue ceremony.
 
@@ -63,7 +63,7 @@ When ALL four lists are empty, render exactly one line: `Policy config issues: n
 
 Core-tier keys still on `source: default` where an available probe signal (Gather, above) argues otherwise. Advanced-tier keys are never "notable" — this section is core-tier only. A key whose envelope carries `invalid: true` is excluded from candidacy here regardless of tier — it's section 2's business (the file holds a bad line for that key), not a notable default.
 
-One line per finding: lever + proposed value + why. For example: an unset `integration-model` plus a GitHub remote → propose `pr-first`; `autonomy: supervised` plus standing `auto:*` grants → propose reviewing the ceiling; `project.maturity: greenfield` plus a populated pipelines directory → propose a later stage.
+One line per finding: lever + proposed value + why. For example: an unset `integration-model` plus a GitHub remote → propose `pr-first`; `autonomy: supervised` plus standing `auto:*` grants → propose reviewing the ceiling; `project-maturity: greenfield` plus a populated pipelines directory → propose a later stage.
 
 Each finding line carries two distinct text sources, in this order: the "why" clause (what the probe observed — e.g. "a GitHub remote") comes from the probe signal itself; the lever's meaning text (what the key does) comes from the key's own `summary` field in the snapshot — never re-derived or paraphrased.
 

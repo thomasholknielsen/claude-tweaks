@@ -30,7 +30,7 @@ files:
 - **Red flags:** String-typed integers or booleans in the JSON; a deprecated key name resolving nothing — `dispatch-pick-max-concurrent: 5` must answer a request for `dispatch-batch-size` with value `5` plus `"renamed-from"`.
 
 ### 3. Overlay a pipeline run's config — `--run`
-- **URL:** `node bin/resolve-policy.js --run "$PIPELINE_RUN_DIR" review-severity-floor`
+- **URL:** `node bin/resolve-policy.js --run "$PIPELINE_RUN_DIR" review-auto-apply-ceiling`
 - **Action:** Run with `--run` pointing at an active pipeline run directory whose `config.yml` sets the requested lever.
 - **Should feel:** Deterministic layering — the run's Manifesto answer wins over the project default, and `source: "run-config"` says so.
 - **Should understand:** This is the whole precedence chain made mechanical: run config beats `policy.yml` beats the schema default, per key, in one call. A run dir that exists but has no `config.yml` yet is not an error — the overlay is simply absent.
