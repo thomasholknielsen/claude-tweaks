@@ -27,6 +27,8 @@ Two carve-outs:
 - The PreToolUse hook's `worktree.always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
 - `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
 
+`--all` emits the whole resolved config in one call: every schema key mapped to its `{value, source}` envelope plus its metadata fields and shape (`summary`, `category`, `tier`, `type`, `default` — `default` is JSON `null` when the row has none, which consumers read as "no default"). It composes with `--run`, takes no key arguments, and is mutually exclusive with `--values`. Renderers (the `/claude-tweaks:help` policy mode, init's policy review) consume this instead of enumerating key names by hand.
+
 ## `resolveValue` — canonical coercion contract
 
 `bin/lib/policy-schema.js` also exports `resolveValue(key, rawValue)`: look up `key` in
@@ -39,6 +41,29 @@ validated. An unrecognized `key` returns `rawValue` untouched (nothing to coerce
 (`trust-revert-window-days`); any future lever of the same shape — read a policy key, coerce with a
 typed fallback to a documented default — should call `resolveValue` rather than re-deriving its own
 parsing.
+
+## Metadata fields
+
+Every `POLICY_KEYS` row carries three human-facing fields alongside its shape: `summary`, `category`, and `tier`. `tests/policy-schema-metadata.test.js` pins completeness (a future lever cannot ship metadata-less), the category set against the mapping table below, the core-tier cap, and the no-duplication rule — the same prose↔constant pattern as `tests/hooks-gate-coverage.test.js`.
+
+- **`summary`** — one plain-language sentence stating *what changes when you move this lever* (style target ≤ ~120 chars; hard test ceiling 140). It never restates the key name or type, and carries no implementation citations. This is a different altitude from each key's Meaning column in the sections below: the summary is for a project owner scanning their config; the Meaning prose is the deep contract for skill authors. Neither replaces the other, and no summary text may be duplicated into this file (test-enforced).
+- **`category`** — one of the values in `POLICY_CATEGORIES` (exported beside `POLICY_KEYS`). The mapping below assigns every key-bearing section of this file to a category; it is many-sections-to-one-category, and a key may individually carry a different category than its section when its subject genuinely differs (the section mapping is orientation, the per-key field is truth).
+- **`tier`** — `core` or `advanced`. Decision rule: `core` = levers that change what the pipeline may *do without a human* — enforcement gates, autonomy/trust posture, merge/execution defaults, integration identity. Tuning caps, thresholds, retention, and cosmetic/reporting knobs are `advanced`. The core tier is capped at 12 keys (enforced, not advisory).
+
+| Section | Category |
+|---------|----------|
+| Worktree & execution | `pipeline-behavior` |
+| Integration model | `merge-safety` |
+| Project facts | `autonomy-trust` |
+| Dispatch & merge | `merge-safety` |
+| Review | `pipeline-behavior` |
+| Documentation | `housekeeping` |
+| Harness-health budgets | `health-sweeps` |
+| Health-sweep filing | `health-sweeps` |
+| Code-health focus verticals | `health-sweeps` |
+| Auto-mode levers | `pipeline-behavior` |
+| Model profiles | `models` |
+| Additional levers | `housekeeping` |
 
 ## Worktree & execution
 
