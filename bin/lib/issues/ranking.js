@@ -143,7 +143,7 @@ function transitiveUnblocksCount(candidates) {
 // candidates[] -> { chains: number[][], independents: number[], cycles:
 // {ids: number[]}[] } — the single authoritative shape (cycles always
 // present, [] when none). Partitions the set into dependency components
-// (undirected BFS over in-set blocker edges), then linearizes each
+// (undirected depth-first traversal over in-set blocker edges), then linearizes each
 // multi-member component topologically: repeatedly emit ids whose in-set
 // blockers are all already emitted, ready-batch ties broken by priority band
 // then id for determinism. A component that stalls before emitting every
