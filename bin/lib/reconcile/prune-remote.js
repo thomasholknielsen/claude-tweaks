@@ -46,11 +46,14 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr } = {}) {
   if (wtList.failure) return { entries, failure: 'git-failure' };
   const worktrees = parseWorktreeList(wtList.stdout);
 
-  const refs = runGit(['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin'], root);
+  // lstrip=3 strips exactly refs/remotes/origin/, leaving the symbolic HEAD
+  // ref as the bare string 'HEAD' — refname:short instead yields 'origin'
+  // for that ref (no slash), which the branch === 'HEAD' guard below would
+  // never match.
+  const refs = runGit(['for-each-ref', '--format=%(refname:lstrip=3)', 'refs/remotes/origin'], root);
   if (refs.failure) return { entries, failure: 'git-failure' };
 
-  for (const line of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
-    const branch = line.replace(/^origin\//, '');
+  for (const branch of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
     if (branch === 'HEAD' || branch === integration) continue;
     if (!inScope(branch, worktrees)) continue; // namespace + live-worktree guard — never reaches the decision fn
 

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { decideRemotePrune } = require('../../../bin/lib/reconcile/prune-remote');
+const { decideRemotePrune, pruneRemote } = require('../../../bin/lib/reconcile/prune-remote');
 
 // The delete bar is deliberately stricter than archive-branches' local -D:
 // a pushed deletion is unrecoverable from this checkout once origin GCs the
@@ -30,7 +30,6 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { pruneRemote } = require('../../../bin/lib/reconcile/prune-remote');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -98,11 +97,44 @@ test('pruneRemote: unmerged remote branch and non-namespace remote branch are ne
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/feature/out-of-scope'), /feature\/out-of-scope/);
 });
 
-test('pruneRemote: integration branch and origin/HEAD are never candidates', () => {
+test('pruneRemote: integration branch is excluded even when it sits inside the plugin namespace', () => {
+  // Namespaced (build/*), trivially cherry-equivalent against itself, and
+  // NOT the branch currently checked out in this worktree (so the
+  // live-worktree half of inScope can't be why it survives either) —
+  // only the branch === integration guard can be what keeps it out of
+  // entries. (A namespaced branch that IS the checked-out branch would
+  // accidentally be protected by the live-worktree guard instead, since
+  // the primary worktree's own branch always self-matches that check.)
   const dir = makeRepoWithOrigin();
+  git(dir, 'checkout', '-b', 'build/trunk');
+  fs.writeFileSync(path.join(dir, 'g.txt'), 'g\n');
+  git(dir, 'add', 'g.txt');
+  git(dir, 'commit', '-m', 'trunk');
+  git(dir, 'push', 'origin', 'build/trunk');
+  git(dir, 'checkout', 'main'); // build/trunk stays as a local ref but is no longer attached to any worktree
+
+  const r = pruneRemote({ cwd: dir, integration: 'build/trunk', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  assert.strictEqual(r.entries.find((e) => e.name === 'build/trunk'), undefined);
+  assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/trunk'), /build\/trunk/);
+});
+
+test('pruneRemote: origin/HEAD symbolic ref is never a candidate, alongside a real deletable branch', () => {
+  const dir = makeRepoWithOrigin();
+  git(dir, 'remote', 'set-head', 'origin', 'main'); // creates the symbolic refs/remotes/origin/HEAD ref
+  git(dir, 'checkout', '-b', 'build/merged2');
+  fs.writeFileSync(path.join(dir, 'f.txt'), 'f\n');
+  git(dir, 'add', 'f.txt');
+  git(dir, 'commit', '-m', 'change2');
+  git(dir, 'push', 'origin', 'build/merged2');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/merged2');
+  git(dir, 'branch', '-D', 'build/merged2');
+
   const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
-  assert.strictEqual(r.entries.length, 0);
-  assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/main'), /refs\/heads\/main/);
+  assert.strictEqual(r.entries.find((e) => e.name === 'build/merged2').action, 'delete');
+  assert.strictEqual(r.entries.find((e) => e.name === 'HEAD'), undefined);
+  assert.strictEqual(git(dir, 'ls-remote', 'origin', 'refs/heads/build/merged2').trim(), ''); // real branch actually deleted
+  assert.match(git(dir, 'symbolic-ref', 'refs/remotes/origin/HEAD'), /refs\/remotes\/origin\/main/); // origin/HEAD survives untouched
 });
 
 test('pruneRemote: branch attached to a live worktree is silently out of scope', () => {
