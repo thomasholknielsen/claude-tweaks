@@ -139,11 +139,12 @@ done
    surface is dispatch's resume confirmation (`dispatch/SKILL.md`, "Confirm before resuming").
 
 **Forge-cooperation path.** A merge attempt rejected by *org-owned required checks* — the state read
-shows `mergeStateStatus: BLOCKED` with every rollup entry green, or Step 3's call fails with the
-required-status-check signature (Task 0 capture (b): not captured — this repo has no branch
-protection or rulesets, so classification rests on the state read, never on a stderr string) — is
-the forge enforcing a stricter policy than the lever. Report it as such, arm `--auto` (Step 3's own call — the merge lands when the
-forge is satisfied), and stop: never retry-loop, never suggest bypassing protection.
+shows `mergeStateStatus: BLOCKED` with every rollup entry green (required reviews or org-owned
+required checks the forge is enforcing) — is the forge enforcing a stricter policy than the lever
+(Task 0 capture (b): not captured — this repo has no branch protection or rulesets, so
+classification rests on the state read, never on a stderr string). Report it as such, arm `--auto`
+(Step 3's own call — the merge lands when the forge is satisfied), and stop: never retry-loop,
+never suggest bypassing protection.
 
 **Signatures (Task 0, captured on this repo — literal, 2026-08-16, probe PR #591 against a throwaway base):**
 
@@ -182,25 +183,32 @@ the result:
 
 1. **Command failed with an auto-merge-not-enabled signature** (stderr contains
    `auto-merge` and (`not allowed` or `not enabled`) — GitHub's own wording for the repository
-   setting "Allow auto-merge" being off): under `merge-verification: off` — degrade to an
-   immediate merge, no `--auto` (today's behavior):
+   setting "Allow auto-merge" being off):
 
-   ```bash
-   gh pr merge {pr-number} --repo {owner}/{repo} --merge \
-     -t "[{tag}] {one-line summary}" \
-     -b "$(printf 'Fixes #%s\n' {issue-list})"
-   ```
+   - under `merge-verification: off` — degrade to an immediate merge, no `--auto` (today's
+     behavior):
+
+     ```bash
+     gh pr merge {pr-number} --repo {owner}/{repo} --merge \
+       -t "[{tag}] {one-line summary}" \
+       -b "$(printf 'Fixes #%s\n' {issue-list})"
+     ```
+
+   - under `merge-when-green` — do not merge immediately: degrade to Step 2.5's `wait` row
+     instead (the immediate merge is exactly the race the lever closes).
 
    This either succeeds (→ outcome `merged`, go to Step 4) or fails on one of the signatures
-   below (→ that signature's own degrade branch). Under `merge-verification: merge-when-green` —
-   do NOT merge immediately: degrade to Step 2.5's `wait` row instead (the immediate merge is
-   exactly the race the lever closes).
+   below (→ that signature's own degrade branch).
 
 2. **Command failed with a checks-pending or checks-failing signature** (stderr contains
    `not mergeable` alongside `required status check`, `review`, or `checks`): checks are red or
    still running and this repo has no auto-merge to arm around it (already ruled out by reaching
    here from branch 1, or `--auto` itself isn't what failed — a plain `--merge` attempt hit this
-   directly). → **degrade to ready+comment** (Step 5), outcome `pending-review`.
+   directly). → **degrade to ready+comment** (Step 5), outcome `pending-review`. If Step 2.5's
+   state read had shown `mergeStateStatus: BLOCKED` with a green rollup, this rejection is the
+   Forge-cooperation case — arm `--auto` per Step 2.5 (the forge holds the merge until it is
+   satisfied) instead of degrading to ready+comment; item 2's degrade applies to the remaining
+   signatures (checks genuinely red or still running with no forge hold).
 
 3. **Command failed with a conflict signature** (stderr contains `not mergeable` alongside
    `conflict`, or a GraphQL `mergeable: CONFLICTING` reason): → **Conflict path** below.
