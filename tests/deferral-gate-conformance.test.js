@@ -115,3 +115,52 @@ test('ledger-format.md keeps its Phase heading names intact (consumers grep them
     '### Phase 3 — Apply user decisions',
   ]) assert.ok(LEDGER.includes(heading), heading);
 });
+
+// --- #621: consumers cite the gate and stamp Defer-reason ---
+
+const CONSUMER_FILES = [
+  'skills/review/step3-routing.md',
+  'skills/reflect/full-mode.md',
+  'skills/reflect/hindsight-mode.md',
+  'skills/reflect/SKILL.md',
+  'skills/wrap-up/residue-sweep.md',
+  'skills/wrap-up/leftover-routing.md',
+];
+
+for (const rel of CONSUMER_FILES) {
+  test(`${rel} cites _shared/deferral-gate.md`, () => {
+    assert.ok(read(rel).includes('_shared/deferral-gate.md'));
+  });
+}
+
+test('the retired defer wordings appear nowhere in the consumer files', () => {
+  for (const rel of CONSUMER_FILES) {
+    const content = read(rel);
+    assert.ok(!content.includes('Has a clear trigger documented for when to revisit'), rel);
+    assert.ok(!content.includes('starts exactly where a captured idea starts'), rel);
+  }
+});
+
+test('reflect SKILL.md and leftover-routing.md carry Defer-reason in their staged-header blocks', () => {
+  assert.match(read('skills/reflect/SKILL.md'), /^Defer-reason: tangential$/m);
+  assert.ok(read('skills/wrap-up/leftover-routing.md').includes("'\\nDefer-reason: ' + process.argv[2]"));
+});
+
+test('no file outside deferral-gate.md restates the fix-now criteria', () => {
+  const skillsDir = path.join(REPO_ROOT, 'skills');
+  const offenders = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.md')) {
+        const rel = path.relative(REPO_ROOT, p);
+        if (rel === path.join('skills', '_shared', 'deferral-gate.md')) continue;
+        const c = fs.readFileSync(p, 'utf8');
+        if (c.includes('≤5 files') || c.includes('no spans across unrelated systems')) offenders.push(rel);
+      }
+    }
+  };
+  walk(skillsDir);
+  assert.deepEqual(offenders, []);
+});
