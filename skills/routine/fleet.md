@@ -1,6 +1,6 @@
-# Routine — Fleet Mode (`fleet on`)
+# Routine — Fleet Mode (`fleet on` / `fleet status` / `fleet off`)
 
-Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `fleet status` and `fleet off` are a companion sub-issue's job (Non-Goals) — this file covers `on` only, and `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb).
+Loaded by `/claude-tweaks:routine`'s Workflow dispatch when the resolved mode is `fleet on`. Turns on the self-maintaining posture in one deliberate action: a Manifesto collecting the human-owned policy decisions, then instantiation of every fleet routine from the project's already-parameterized templates, staggered so they don't collide, with an idempotent reconcile on every re-run. `on`'s own re-run **is** the reconcile path (there is no separate `fleet reconcile` verb). `fleet status` and `fleet off` live in their own sections below (#276).
 
 This mode is a loop over the existing CREATE/UPDATE procedure (`create-and-update.md` in this skill's directory), parameterized by the composition table below — never a reimplementation of `RemoteTrigger` handling. Read `create-and-update.md` and `schedule-resolution.md` first; this file states only what fleet mode does differently (per-entry naming, fleet-resolved cron instead of the interactive picker, the reconcile marker rule, and the Manifesto/conditional-provisioning wrapper around the loop).
 
@@ -135,6 +135,68 @@ One consolidated report, closing the Manifesto's begin-stop with an end-of-actio
 
 Status is one of: `Created`, `Updated (drift)`, `Reconciled, no drift`, `Withheld — {reason}`, `Collision — {PREFIXED_NAME} already exists, not tracked by any record`, `Skipped — {skill} has no routine-template.yml`, `BLOCKED — record exists upstream only, not in this checkout`.
 ```
+
+## Fleet status (aggregation)
+
+One screen answering "what did my codebase do to itself this week." Read-only — no
+`RemoteTrigger` create/update calls, no record writes, no grants. Renders cleanly when the
+fleet is partially provisioned (missing templates, withheld grant unit, zero records): absent
+rows render as absent, never as errors.
+
+**Fleet membership** is resolved from the composition table above: compute every row's
+`PREFIXED_NAME` (once — same derivation Step 4.1 uses), then intersect with the instantiated
+records enumerated by `record-freshness.md` Steps F1-F2 (`compareRoutineRecords`' `records[]`,
+authority copy — never a bare directory listing). A record whose filename matches no
+composition-table `PREFIXED_NAME` is **not** fleet-marked and is excluded from every table and
+counter below; a hand-created routine sharing a skill is invisible here by construction.
+
+### Step S1 — Routine table
+
+For each fleet-marked record, run `status.md` Steps 2-3.5 (parallel `RemoteTrigger get` calls,
+per that file's own parallel-execution note) and render:
+
+| Routine | Schedule | Last firing | Health |
+|---|---|---|---|
+| {name} | {record.schedule} | {last-run field from `RemoteTrigger get`, or "unknown — get response carries no last-run field"} | {STATUS verdict: In sync / Drifted / Orphaned / Stale / Malformed} |
+
+Health is exactly `status.md`'s five-verdict set — never a sixth value.
+
+### Step S2 — Trust table
+
+Render the per-class trust table by running `_shared/trust-table.md`'s **Fetch** and **Render**
+sections verbatim — the same shared path `/claude-tweaks:backlog overview` (Step 1.5) and
+`/claude-tweaks:help` (Stage 4.8) already use. The Fetch section goes in whole, including its
+`backlog-fetch-limit` and `work-links` resolution sub-sections. Never fork a third rendering
+(IL-32).
+
+### Step S3 — Weekly counters
+
+Posture first — compute via `fleetPosture` (`bin/lib/issues/fleet-counters.js`):
+`grantUnitProvisioned` = the grant unit's `{REPO_SLUG}-backlog-grant-weekdays.yml` record is
+fleet-marked present; `autonomy` / `grantOriginationEnabled` from
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled`.
+A **supervised** posture renders no grant counters and states why: "supervised fleet — no grant
+unit provisioned (or unattended keys unset); grant counters not applicable."
+
+Fetch the counter inputs (REST list, never `--search` — search-index lag), then derive every
+number with `deriveFleetCounters(input, Date.now())` — the window is a rolling 7×24h window
+ending at render time, boundaries computed from full ISO datetimes (IL-47), and is printed in
+the header line: `Week of {startIso} → {endIso}`.
+
+| Counter | Value | Source (stated inline in the render) | Blind spot (stated inline) |
+|---|---|---|---|
+| Firings | {fired}/{total} routines fired | per-routine STATUS `RemoteTrigger get` last-run field | only the *last* firing is visible — a routine that fired 7× counts once; a get response with no last-run field counts as not fired |
+| Findings filed | {n} | records created in-window carrying a `by:*` origin label (`gh issue list` REST, `createdAt` in-window) | pre-dates nothing: only tracker-visible records; a finder whose filing failed is invisible |
+| Grants issued | {machine} machine / {human} human | in-window `auto:build`/`auto:merge` label events; machine identified by the `<!-- grant-mode-audit: ... -->` comment marker (#269), human by its absence | grants counted from audit comments cannot see pre-feature history; a human grant's timestamp comes from the label-add event, which GitHub's timeline may paginate |
+| Merges | {n} | closed records whose closing event carries a merge commit, `closedAt` in-window | records closed by hand (wontfix/duplicate) are excluded; squash-merges closed without a closing keyword are invisible |
+| Revocations | {n} | trust reads — negative-evidence outcomes (failure-classification markers, `bin/lib/issues/retry.js`'s shape, and detected reverts) whose evidence entered the window, counted per class-downgrade event, not per marker | evidence is read from issue comments and git history; a revert pushed without landing on the integration branch is invisible |
+
+Counter honesty is structural: each cell's Source and Blind spot columns render in the output —
+never a bare total over a domain the lookup can't enumerate (IL-110, IL-67).
+
+**Posture taxonomy (defined here, since status reports it):** a **supervised** fleet has no
+grant routine provisioned (or unattended keys unset); an **unattended** fleet has the grant
+routine present and both unattended keys true — detected from the provisioned set plus policy.
 
 ## Anti-Patterns
 
