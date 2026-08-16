@@ -92,3 +92,7 @@ Skill prose over existing machinery, with one exception made **required**: count
 
 
 <!-- work-fingerprint: 2026-08-09-self-maintaining-fleet-design:routine-fleet-status-and-off-aggregated-posture-dashboard-an -->
+
+## Blocked / Future Work
+
+- **AC4's live round-trip half is blocked on #213.** With no pause verb landed, `fleet off` never pauses anything, so an off→on live round-trip cannot be exercised — the fallback path (AC6) is the tested live path instead. The marker-semantics half of AC4 is verified against fleet.md Step 4.2; the paused-state half becomes testable when #213 ships a pause mechanism. Unblocks: #213 landing (any shape); then run a live off→on round-trip and extend fleet.md's pause path against the landed verb.
