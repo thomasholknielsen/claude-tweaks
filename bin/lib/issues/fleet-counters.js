@@ -1,0 +1,83 @@
+'use strict';
+// Fleet counter derivation — pure data-in/data-out (#276).
+// Callers (skills/routine/fleet.md's `fleet status` procedure) fetch records,
+// comments, and trust reads themselves and feed plain objects in; this module
+// never touches the network or the filesystem, which is what lets
+// tests/bin-lib/issues/fleet-counters.test.js pin AC1 as an automated test.
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Mirrors skills/backlog/grant-mode.md's audit-comment marker (#269) — the
+// machine-grant signal. A grant with no marker anywhere is human-granted.
+const GRANT_AUDIT_RE = /<!--\s*grant-mode-audit:\s*date=\S+\s+auto-merge=(?:true|false)\s*-->/;
+
+// Rolling 7x24h window ending at nowMs. Full ISO datetimes, never a
+// date-only boundary (IL-47).
+function weeklyWindow(nowMs) {
+  const startMs = nowMs - WEEK_MS;
+  return {
+    startMs,
+    endMs: nowMs,
+    startIso: new Date(startMs).toISOString(),
+    endIso: new Date(nowMs).toISOString(),
+  };
+}
+
+// 'unattended' posture = grant unit provisioned AND both unattended keys set;
+// anything else is 'supervised'. Same two-key rule as fleet.md Step 3 — no
+// third key, no paraphrase.
+function fleetPosture({ grantUnitProvisioned, autonomy, grantOriginationEnabled }) {
+  return grantUnitProvisioned && autonomy === 'unattended' && grantOriginationEnabled === true
+    ? 'unattended'
+    : 'supervised';
+}
+
+function inWindow(iso, w) {
+  if (!iso) return false;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) && ms >= w.startMs && ms <= w.endMs;
+}
+
+// input:
+//   routines:  [{ name, lastFiringIso|null }]           — from per-routine STATUS
+//   findings:  [{ number, createdAtIso }]               — health-swept records created in-window
+//   grants:    [{ number, grantedAtIso, commentBodies }] — records granted auto:* ; marker => machine
+//   merges:    [{ number, closedAtIso, viaMergeCommit }] — closed records; merge-closed only counts
+//   negativeEvidence: [{ trustClass, atIso, source }]    — markers + detected reverts, per trust class
+// returns { window, firings: {fired, total}, findings, grants: {machine, human}, merges, revocations }
+function deriveFleetCounters(input, nowMs) {
+  const w = weeklyWindow(nowMs);
+  const routines = input.routines || [];
+  const fired = routines.filter((r) => inWindow(r.lastFiringIso, w)).length;
+  const findings = (input.findings || []).filter((f) => inWindow(f.createdAtIso, w)).length;
+
+  let machine = 0;
+  let human = 0;
+  for (const g of input.grants || []) {
+    if (!inWindow(g.grantedAtIso, w)) continue;
+    const isMachine = (g.commentBodies || []).some((b) => GRANT_AUDIT_RE.test(b || ''));
+    if (isMachine) machine += 1; else human += 1;
+  }
+
+  const merges = (input.merges || [])
+    .filter((m) => m.viaMergeCommit && inWindow(m.closedAtIso, w)).length;
+
+  // Revocations count per class-downgrade event, not per marker: N pieces of
+  // in-window negative evidence on one trust class are one revocation.
+  const revokedClasses = new Set(
+    (input.negativeEvidence || [])
+      .filter((e) => inWindow(e.atIso, w))
+      .map((e) => e.trustClass),
+  );
+
+  return {
+    window: w,
+    firings: { fired, total: routines.length },
+    findings,
+    grants: { machine, human },
+    merges,
+    revocations: revokedClasses.size,
+  };
+}
+
+module.exports = { WEEK_MS, weeklyWindow, GRANT_AUDIT_RE, fleetPosture, deriveFleetCounters };
