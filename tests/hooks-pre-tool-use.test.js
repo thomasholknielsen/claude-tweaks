@@ -519,16 +519,20 @@ test('worktree-required: a cp into any OTHER main-checkout path is still denied 
 });
 
 test('worktree-required: the exemption is a prefix on pipelines/, not on .claude-tweaks/ (#138)', () => {
-  // policy.yml itself lives in .claude-tweaks/ — a prefix test one segment too
-  // short would let a worktree rewrite the very policy that gates it.
+  // A prefix test one segment too short would exempt every file under
+  // .claude-tweaks/. policy.yml itself is now separately, deliberately exempt
+  // (#537 — its own exact-path exemption, tested in
+  // hooks-policy-exemption.test.js), so this uses a SIBLING file that no
+  // exemption names: it must stay gated, proving the pipelines/ prefix does
+  // not leak one segment up.
   const repo = repoWithCommittedPolicy();
   const wt = linkedWorktreeOf(repo);
   const out = pre.run({
-    input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, '.claude-tweaks', 'policy.yml') } },
+    input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, '.claude-tweaks', 'other.yml') } },
     runDir: null, runState: null, cwd: wt,
   });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
-    '.claude-tweaks/policy.yml is not under .claude-tweaks/pipelines/ and must stay gated');
+    '.claude-tweaks/other.yml is not under .claude-tweaks/pipelines/ and must stay gated');
 });
 
 test('worktree-required: git commit/push stay denied even when issued from inside .claude-tweaks/pipelines/ (#138)', () => {
