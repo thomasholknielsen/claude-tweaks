@@ -51,13 +51,17 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, prState }) {
   if (cherryEquivalent) {
     return { action: 'delete', reason: 'cherry-equivalent' }; // merged in substance — no tag needed
   }
-  const closedUnmerged = prState && prState.state === 'CLOSED';
-  if ((prState === null || closedUnmerged) && tipAgeDays > BRANCH_AGE_DAYS) {
-    return { action: 'tag-and-delete', reason: `unmerged-aged: ${Math.floor(tipAgeDays)}d > ${BRANCH_AGE_DAYS}d` };
-  }
-  if (prState === null || closedUnmerged) {
+  // No PR at all, or a PR closed without merging: nothing landed, so age alone decides.
+  const nothingLanded = prState === null || (prState && prState.state === 'CLOSED');
+  if (nothingLanded) {
+    if (tipAgeDays > BRANCH_AGE_DAYS) {
+      return { action: 'tag-and-delete', reason: `unmerged-aged: ${Math.floor(tipAgeDays)}d > ${BRANCH_AGE_DAYS}d` };
+    }
     return { action: 'skip', reason: 'too-young' };
   }
+  // Exhaustive: only a MERGED PR reaches here (gh-absent/network-failure, OPEN,
+  // and the no-PR/closed-unmerged pair all returned above), and its commits are
+  // not patch-equivalent to the integration branch.
   return { action: 'skip', reason: 'merged-pr-without-cherry-equivalence' }; // rebased remnant — human territory
 }
 

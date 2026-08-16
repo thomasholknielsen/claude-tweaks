@@ -45,6 +45,15 @@ function decideRelease(classifiedState, prState, issueState) {
   return { action: 'skip', reason: prState ? 'pr-closed-unmerged' : 'no-pr' };
 }
 
+// The two joins `decideRelease` cannot settle from PR evidence alone — no PR at
+// all, or a PR closed unmerged. Everything else (MERGED, OPEN, gh-absent,
+// network-failure) is decided without an issue lookup, so this is what gates the
+// extra gh api call at the call site.
+function needsIssueEvidence(prState) {
+  if (prState === null) return true;
+  return typeof prState === 'object' && prState.state === 'CLOSED';
+}
+
 function ghApi(args) {
   try {
     const stdout = execFileSync('gh', ['api', ...args], {
@@ -90,9 +99,9 @@ function readIssueState(repoSlug, issueNumber) {
   return s === 'OPEN' || s === 'CLOSED' ? s : undefined;
 }
 
-// Pure seam for the released.push shape — the issue-closed path releases with
-// a null/non-merged prState, so the old unconditional prState.number dereference
-// would throw on exactly the new path.
+// Pure seam for the released.push shape — the issue-closed path releases with a
+// null/non-merged prState, so an unconditional prState.number dereference would
+// throw on exactly that path.
 function releasedEntry(issueNumber, runId, prState) {
   return { issueNumber, runId, prNumber: prState && typeof prState === 'object' ? prState.number : null };
 }
@@ -176,8 +185,7 @@ function releaseMerged({ cwd } = {}) {
     // forever (overwrites, not deletions), so an ungated fetch here would be
     // a growing per-pass gh api cost with zero effect on non-candidates.
     let issueState;
-    if ((classified.state === 'live' || classified.state === 'stale')
-        && (prState === null || (prState && typeof prState === 'object' && prState.state === 'CLOSED'))) {
+    if ((classified.state === 'live' || classified.state === 'stale') && needsIssueEvidence(prState)) {
       // One gh api call per candidate, per pass — intentional; bounded by the
       // open claim count (typically small), not by repo or issue history size.
       issueState = readIssueState(repoSlug, issueNumber);
