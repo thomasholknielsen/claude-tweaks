@@ -172,7 +172,7 @@ function run(ctx) {
       if (repoRoot && policy.isWorktreeAlwaysOn(repoRoot) && !isLinkedWorktree) {
         parts.push(
           'claude-tweaks: this project requires an isolated worktree for all work ' +
-            '(policy: worktree.always in .claude-tweaks/policy.yml). Before making any edits, ' +
+            '(policy: worktree-always in .claude-tweaks/policy.yml). Before making any edits, ' +
             'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
             "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
         );

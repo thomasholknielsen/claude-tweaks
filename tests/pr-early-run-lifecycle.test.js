@@ -33,7 +33,7 @@ test('the push at run start is its own Bash call, never chained', () => {
   assert.match(
     LIFECYCLE,
     /git -C "\{worktree-path\}" push origin \{branch\}/,
-    'the worktree.always gate denies a chained push entirely (IL-33)',
+    'the worktree-always gate denies a chained push entirely (IL-33)',
   );
 });
 

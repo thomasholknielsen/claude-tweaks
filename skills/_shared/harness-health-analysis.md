@@ -89,12 +89,12 @@ Before forming any finding, run these mechanical checks and treat their output a
    Zero matches is strong, mechanical evidence the rule's domain no longer exists (a renamed/removed directory) — a high-confidence `drift` finding proposing either an updated glob or retiring the rule.
 
 4. **Tiered line-budget check** (CLAUDE.md and rules, revised). Budget scales with how unconditionally a file loads, not with what kind of file it is:
-   - **Always-loaded tier** — CLAUDE.md, and any `.claude/rules/*.md` file whose `paths:` frontmatter is absent or empty (`parseRulePaths` in `bin/lib/harness-health/scope.js` already returns `[]` for exactly this case — it loads every session identically to CLAUDE.md). Budget: the `harness-health.always-loaded-budget` policy key, resolved below.
-   - **Scoped tier** — any rule with a non-empty `paths:` list. Budget: the `harness-health.scoped-rule-budget` policy key, resolved below.
+   - **Always-loaded tier** — CLAUDE.md, and any `.claude/rules/*.md` file whose `paths:` frontmatter is absent or empty (`parseRulePaths` in `bin/lib/harness-health/scope.js` already returns `[]` for exactly this case — it loads every session identically to CLAUDE.md). Budget: the `harness-health-always-loaded-budget` policy key, resolved below.
+   - **Scoped tier** — any rule with a non-empty `paths:` list. Budget: the `harness-health-scoped-rule-budget` policy key, resolved below.
 
    ```bash
    wc -l <target-path>
-   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" harness-health.scoped-rule-budget harness-health.always-loaded-budget
+   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" harness-health-scoped-rule-budget harness-health-always-loaded-budget
    ```
 
    Classify the target's tier, take its budget from the resolver's JSON output (the resolver applies the schema defaults when the file or key is absent), then compare. Over budget is mechanical, high-confidence evidence for a `template-conformance` finding — content belongs in a skill instead (always-loaded tier), or needs tightening/splitting (scoped tier), per `skills/init/claude-md-template.md`'s "Under 150 lines" principle and `skills/init/rules-template.md`'s budget guidance.
@@ -184,7 +184,7 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 Nothing in this dimension licenses an edit: a bloat finding proposes the exact `oldString`/`newString` that removes the weight and files like any other, and it owes the same Anchor Requirement — cite check 9's reported line and byte count, never an impression that the file feels long.
 
 **CLAUDE.md-specific checks unlocked by dimension 7/8 (concrete, largely mechanical):**
-- **Line budget** — Step 1's tiered `wc -l` check vs. the `harness-health.always-loaded-budget` policy lever.
+- **Line budget** — Step 1's tiered `wc -l` check vs. the `harness-health-always-loaded-budget` policy lever.
 - **Observed-not-aspirational** — flag language ("should", "TODO", "need to add") describing infrastructure that doesn't exist yet; that belongs in the project's backlog, not CLAUDE.md.
 - **Working Approach present verbatim** — `skills/init/claude-md-template.md` mandates this section be included unmodified in every generated CLAUDE.md; a structural presence check.
 - **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable, same evidence style as dimension 2), never aspirational infrastructure.

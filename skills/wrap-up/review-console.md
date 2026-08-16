@@ -118,14 +118,14 @@ assignment the same way `flow/worktree-merge.md`'s reconciliation does
 the merge itself, landing in the main checkout, isn't denied as a
 wrong-checkout commit.
 
-`close-run` satisfies E1 only. Under `worktree.always: true` the separate,
+`close-run` satisfies E1 only. Under `worktree-always: true` the separate,
 run-independent policy gate still applies, and it covers `git push` as well as
 `git commit` — so the push below **cannot** run from the main checkout, and
 **must not** be chained onto the merge (the gate inspects the whole command
 string up front, so one compound call is denied entirely and the merge never
 runs either). `git merge` itself is not covered, so it runs in the main
 checkout normally. This is the same two-call shape `dispatch/settle-and-merge.md`'s
-local-merge fallback already uses; see the `worktree.always` coverage block in
+local-merge fallback already uses; see the `worktree-always` coverage block in
 `_shared/policy-schema.md` for what the gate does and does not intercept.
 
 **Shell state does not survive between the two calls** — each Bash invocation

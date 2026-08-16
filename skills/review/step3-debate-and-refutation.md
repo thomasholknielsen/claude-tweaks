@@ -65,7 +65,7 @@ This pass is the only place in the skill where an unbounded fan-out would meet t
 
    Floor-skipped candidates are **not** downgraded — they proceed to Step 3 Routing as `confirmed`, exactly as if this pass had never run. Downgrading them to `unconfirmed` would pull them *out* of routing on the strength of an examination that never happened, which is less scrutiny of the code, not more. Write one aggregate entry: `AUTO {HH:MM:SS} — Refutation: {N} low/info candidates below the medium severity floor, not refuted; proceeding as confirmed. Reversibility: high.`
 
-   This floor is fixed at `medium` and is deliberately independent of `review-severity-floor` (`step3-routing.md`), which governs which findings *surface at all* — not which ones get falsified.
+   This floor is fixed at `medium` and is deliberately independent of `review-auto-apply-ceiling` (`step3-routing.md`), which governs which findings *surface at all* — not which ones get falsified.
 
 3. **Apply the fan-out cap — 10 candidates.** Order the remaining candidates by severity descending (`critical` → `high` → `medium`), breaking ties by `path:line` ascending so the selection is deterministic and reproducible across runs. Refute only the first 10.
 

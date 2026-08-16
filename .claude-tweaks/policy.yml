@@ -1,4 +1,5 @@
-worktree.always: true
+worktree-always: true
+worktree.always: true   # transitional twin for the installed pre-#602 plugin build (bespoke literal read, no alias) — delete once the installed build's plugin.json version >= the release that shipped #602
 execution-strategy: subagent-only
 auto-mode: default-on
 work-links: native

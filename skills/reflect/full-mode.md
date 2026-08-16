@@ -49,7 +49,7 @@ plugin should have had a default for):
 - *Avoidable* — a `gate-denial` firing on an action the gate's own stated policy condition
   doesn't actually match (a false positive); an `ask-user-question` whose header and options were
   fully answerable from CLAUDE.md content already in context.
-- *Not avoidable* — a `wd-deny` firing exactly as `worktree.always` documents it should (a
+- *Not avoidable* — a `wd-deny` firing exactly as `worktree-always` documents it should (a
   provable wrong-checkout commit); an `ask-user-question` posing a genuine judgment call with no
   stated project preference either way.
 
