@@ -35,7 +35,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR, installed plugin version) + recommendations | `[status\|commands\|<topic>] [--budget <n>]` |
+| `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR, installed plugin version) + recommendations | `[status\|commands\|policy\|<topic>] [--budget <n>]` |
+| `/claude-tweaks:help policy` | Grouped policy-config review with audit issues, notable defaults, and validated apply | — |
 | `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health/docs-health issues) | `[--scope=<name>[,<name>...]] [--dry-run]` |
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | `<#n>[,#m,#o]\|<spec>[,spec...] [worktree\|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto\|interactive\|hybrid\|confirm] [keep-going] [step1,step2,step3]` |
 | `/claude-tweaks:backlog` | Three modes over the open backlog: `refine` ensures every record has the right priority/Related/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only); `grant` is the headless machine-grant unit behind the `unattended` autonomy ceiling (`github-issues` only, off by default). | `[refine\|overview\|grant] [critical\|risk-value\|cleanup\|trust] [--budget <n>] [--origin <origin>]` |
@@ -149,7 +150,7 @@ Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-back
 
 | Stop | Where | What |
 |---|---|---|
-| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
+| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
 | **Wrap-Up Review Console** | `/wrap-up` Phase 4 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
 
 **Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` — read via `bin/resolve-policy.js`, `_shared/policy-schema.md`'s Canonical read path — and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.

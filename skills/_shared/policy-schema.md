@@ -9,7 +9,7 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 `bin/resolve-policy.js` is THE canonical way skill prose reads any policy or run-config value:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" [--values] [--run "$PIPELINE_RUN_DIR"] <key> [<key>…]
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" [--values | --all] [--run "$PIPELINE_RUN_DIR"] <key> [<key>…]
 ```
 
 For shell-variable capture, `--values` prints one plain value per line in request order instead of the JSON envelope — coerced values render natively (`true`, `14`); an unset no-default key and an unknown key each print an empty line (the same empty string the retired grep pipeline produced); `model-profiles` has no scalar form and is an invocation error under `--values`. List-typed keys (e.g. `merge-sensitive-paths`) resolve to the raw comma-separated string in both modes when configured — callers split on `,`; only the unset default is a JSON `[]`, which `--values` renders as an empty line (same empty-means-none reading as the retired grep).
@@ -27,6 +27,10 @@ Two carve-outs:
 - The PreToolUse hook's `worktree.always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
 - `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
 
+**Derived-default keys** (`integration-model`, `merge-verification`) share one shape, stated once here so a third key follows it rather than rediscovering the pieces: the `POLICY_KEYS` row carries no static `default` (a literal would bypass the derivation); the derivation's single prose statement lives in this file (`_shared/integration-model.md`'s ladder via forge detection; the `merge-verification` coverage block below) with a code twin in `bin/lib/` (`policy-schema.js`'s `detectIntegrationModel`; `merge-verification.js`'s `deriveMergeVerification`); `bin/resolve-policy.js` computes the value only for an *absent* key (`source: "default"`, no `invalid` flag) and never overwrites an `invalid: true` envelope; and `/claude-tweaks:help`'s policy mode renders the default as `computed (…)` rather than `no default`. Adding a lever of this shape also walks `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist when it is Manifesto-visible.
+
+`--all` emits the whole resolved config in one call: every schema key mapped to its `{value, source}` envelope plus its metadata fields and shape (`summary`, `category`, `tier`, `type`, `default` — `default` is JSON `null` when the row has none, which consumers read as "no default"). It composes with `--run`, takes no key arguments, and is mutually exclusive with `--values`. Renderers (the `/claude-tweaks:help` policy mode, init's policy review) consume this instead of enumerating key names by hand.
+
 ## `resolveValue` — canonical coercion contract
 
 `bin/lib/policy-schema.js` also exports `resolveValue(key, rawValue)`: look up `key` in
@@ -39,6 +43,29 @@ validated. An unrecognized `key` returns `rawValue` untouched (nothing to coerce
 (`trust-revert-window-days`); any future lever of the same shape — read a policy key, coerce with a
 typed fallback to a documented default — should call `resolveValue` rather than re-deriving its own
 parsing.
+
+## Metadata fields
+
+Every `POLICY_KEYS` row carries three human-facing fields alongside its shape: `summary`, `category`, and `tier`. `tests/policy-schema-metadata.test.js` pins completeness (a future lever cannot ship metadata-less), the category set against the mapping table below, the core-tier cap, and the no-duplication rule — the same prose↔constant pattern as `tests/hooks-gate-coverage.test.js`.
+
+- **`summary`** — one plain-language sentence stating *what changes when you move this lever* (style target ≤ ~120 chars; hard test ceiling 140). It never restates the key name or type, and carries no implementation citations. This is a different altitude from each key's Meaning column in the sections below: the summary is for a project owner scanning their config; the Meaning prose is the deep contract for skill authors. Neither replaces the other, and no summary text may be duplicated into this file (test-enforced).
+- **`category`** — one of the values in `POLICY_CATEGORIES` (exported beside `POLICY_KEYS`). The mapping below assigns every key-bearing section of this file to a category; it is many-sections-to-one-category, and a key may individually carry a different category than its section when its subject genuinely differs (the section mapping is orientation, the per-key field is truth).
+- **`tier`** — `core` or `advanced`. Decision rule: `core` = levers that change what the pipeline may *do without a human* — enforcement gates, autonomy/trust posture, merge/execution defaults, integration identity. Tuning caps, thresholds, retention, and cosmetic/reporting knobs are `advanced`. The core tier is capped at 12 keys (enforced, not advisory).
+
+| Section | Category |
+|---------|----------|
+| Worktree & execution | `pipeline-behavior` |
+| Integration model | `merge-safety` |
+| Project facts | `autonomy-trust` |
+| Dispatch & merge | `merge-safety` |
+| Review | `pipeline-behavior` |
+| Documentation | `housekeeping` |
+| Harness-health budgets | `health-sweeps` |
+| Health-sweep filing | `health-sweeps` |
+| Code-health focus verticals | `health-sweeps` |
+| Auto-mode levers | `pipeline-behavior` |
+| Model profiles | `models` |
+| Additional levers | `housekeeping` |
 
 ## Worktree & execution
 
@@ -58,6 +85,7 @@ That binding exists because the list has drifted before. The gate was widened tw
 - Tools: `Edit`, `Write`, `NotebookEdit`
 - Git actions: `commit`, `push`
 - Bash write shapes: `cp`, `mv`, `tee`, `sed`, `perl`, `install`, `ln`, `truncate`, `dd`
+- Exemptions: `.claude-tweaks/pipelines/`, `.claude-tweaks/policy.yml`, and an allowlisted `policy-only` commit
 <!-- gate-coverage:end -->
 
 `sed` and `perl` count only for an **in-place** edit (`-i`, `-i.bak`, `--in-place`, or a bundled `-pi`/`-ni`). A plain read such as `sed -n '…p' file` is not a write and stays allowed everywhere, including the main checkout.
@@ -73,9 +101,11 @@ That binding exists because the list has drifted before. The gate was widened tw
 
 Do not write a procedure that depends on either gap: they are unpatched holes, not a supported bypass. And do not add a `fileWriteTargets` branch without the matching `hooks.json` if-matcher — the hook never spawns, so the branch is dead code that reads exactly like a fix. `tests/hooks-gate-coverage.test.js` asserts the two lists agree precisely because that asymmetry hid `sed -i` for months.
 
-**The one exemption.** File writes targeting a path under the repo's own `.claude-tweaks/pipelines/` are allowed from anywhere — that directory is plugin-owned, gitignored pipeline bookkeeping (run config, the auto-decision log, staged proposals), not the project work this gate isolates. It applies to file-write targets only: a `git commit`/`git push` target is the command's *working directory*, so exempting those by prefix would permit any commit merely issued from inside a run dir. The exemption also fails closed — a relative or unresolvable path is never exempt.
+**The two exemptions.** File writes targeting a path under the repo's own `.claude-tweaks/pipelines/` are allowed from anywhere — that directory is plugin-owned, gitignored pipeline bookkeeping (run config, the auto-decision log, staged proposals), not the project work this gate isolates. It applies to file-write targets only: a `git commit`/`git push` target is the command's *working directory*, so exempting those by prefix would permit any commit merely issued from inside a run dir. The exemption also fails closed — a relative or unresolvable path is never exempt.
 
-**Consequence for procedures.** A `git push` from the main checkout is denied even after `close-run` clears the E1 worktree assignment (that clears wrong-checkout enforcement, not this policy). A merge followed by a push must therefore be **two separate Bash calls** — the merge from the main checkout, the push from inside a linked worktree. Chaining them into one command gets the whole invocation denied before either half runs, since the gate inspects the full command string up front.
+The second (#537): an `Edit`/`Write`/`NotebookEdit` — the three file tools only, never a Bash write shape (`tee`/`cp`/`sed -i`/…), which stays gated for this file — whose target, once fully resolved to a real path (symlinks followed, `..` normalized, on-disk casing canonicalized), IS the repo root's `.claude-tweaks/policy.yml` — exact identity, never containment, so a symlinked alias resolves to the same allow and `policy.yml` itself being swapped for a symlink elsewhere resolves to the same deny. Alongside it, `git commit` is allowed when the **entire command string** matches an allowlist grammar — exactly `git commit` plus one or more `-m`/`--message` args and an optional `--no-verify`, in any order, and nothing else: no other flag, no pathspec, no shell operator (`&&`, `;`, `|`, `` $() ``, backticks), no env-var prefix, no path to `git` other than the bare word — **and** the staged set (`git diff --cached --name-status`) is provably one row — an Add, Modify, or Delete of `.claude-tweaks/policy.yml`; a rename or copy *into* that path is rejected on its status letter, since `--name-only` would collapse it to a single misleading line. `git push` stays gated regardless. Both exemptions fail closed: anything unprovable about a path, a command's grammar, or the staged set keeps the deny.
+
+**Consequence for procedures.** A `git push` from the main checkout is denied even after `close-run` clears the E1 worktree assignment (that clears wrong-checkout enforcement, not this policy). A merge followed by a push must therefore be **two separate Bash calls** — the merge from the main checkout, the push from inside a linked worktree. Chaining them into one command gets the whole invocation denied before either half runs, since the gate inspects the full command string up front. The one exception: an isolated `.claude-tweaks/policy.yml` edit plus its allowlisted, policy-only-staged commit may now both run from a main checkout without a worktree.
 
 ### Teardown gate coverage — canonical
 
@@ -93,6 +123,20 @@ Do not write a procedure that depends on either gap: they are unpatched holes, n
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `integration-model` | `policy.yml` | `/claude-tweaks:init` (Step 20 offer) | unset — computed at resolve time by `bin/resolve-policy.js`'s `detectIntegrationModel` (forge detection), never a schema literal | `pr-first`/`local-merge` — which backend a project integrates through. Explicit value validates and wins outright (ordinary enum validation, unconditional); detection runs only when the key is absent. See `_shared/integration-model.md` for the full resolution ladder, run-scoped pinning, and consumer table |
+| `merge-verification` | `policy.yml` (per-run override via the Manifesto's `config.yml`, lever 11) | `/claude-tweaks:flow` Manifesto (lever row); merge-site consumers land in #560 | unset — derived at resolve time by `bin/lib/merge-verification.js` (wired through `bin/resolve-policy.js`), never a schema literal; see the coverage block below | `merge-when-green`/`wait`/`off` — how much CI verification a merge into the integration branch requires. Explicit value validates and wins outright; derivation runs only when the key is absent — an invalid value surfaces as `invalid: true` (an empty `--values` line), never silently overwritten by derivation, exactly as `integration-model` above. `bin/resolve-policy.js` is the only resolution path — there is deliberately no in-process resolver twin (the merge sites read the lever through the CLI, `_shared/pr-first-merge.md` Step 2.5), so no second contract exists to diverge from it. `wait` is explicit-config-only (the ladder never derives it) — it is the runtime fallback merge sites degrade to when `--auto` arming is unavailable, not a default. Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification` |
+
+### `merge-verification` derivation — canonical
+
+<!-- merge-verification-derivation:start -->
+The single prose statement of the derived default (code twin: `bin/lib/merge-verification.js`'s `deriveMergeVerification`; every other file cites this block rather than restating it). Four branches, first match wins, no fall-through:
+
+1. `integration-model` (`_shared/integration-model.md`) resolves `local-merge` → `off`. Short-circuits before any workflow read.
+2. No PR-triggered CI → `off`. Detection reads only `{root}/.github/workflows/*.yml|*.yaml` and looks for a top-level `on:` naming `pull_request` or `pull_request_target` in any legal shape — bare string, flow array, block list, or mapping key. Trigger *presence* is a deliberate proxy for "CI verification is requested"; enforcement (branch protection) is out of scope. GitHub Actions-only by intent — a repo on another CI system derives `off` and opts in with the one-line explicit value.
+3. Integration branch is the repository default branch → `merge-when-green`.
+4. Any other (non-default) integration branch → `off`.
+
+Branches 3–4 obtain both branches through the canonical resolution in `_shared/integration-branch.md` (its rank 3 `integration-branch:` policy key, else the rank-5 GitHub-default half) via the shared code resolver, never a hand-rolled detection. Every failed lookup — no `gh`, API error, no upstream, unreadable workflow file — resolves toward `off`, the permissive default, never toward the stricter value.
+<!-- merge-verification-derivation:end -->
 
 ## Project facts
 
