@@ -39,6 +39,24 @@ Cache resolution:
 - If no cache file is found, proceed without suggestion-driven dispatch — only the refinement set and intent dispatch run.
 - If the cache exists but is older than the most recent commit on the spec's branch, treat as stale and skip suggestion-driven dispatch (the audit no longer reflects current code).
 
+Since #599 the cache also carries `source: "craft-critic"` entries with `target: "code"` (review-time
+craft-critic findings normalized by `review.md` Step 4 and filtered by its Step 5; `decisions`
+findings never reach this cache). The staleness rule above covers both kinds identically — a stale
+`craft-critic` entry is skipped along with stale audit entries; there is no separate staleness path.
+
+#### Three-way consumption
+
+Every cached finding is consumed one of exactly three ways, keyed on `source` and `suggestion`:
+
+| Cached finding | Consumed as | Where |
+|---|---|---|
+| `source: "audit"` with a usable `suggestion` | **Command** — suggestion-driven dispatch, unchanged | Step 5 |
+| `source: "audit"` with `suggestion: null` / unresolvable | **Staged observation** — `kind: "unclassified"`, unchanged | Step 5 |
+| `source: "craft-critic"` (`target: "code"` only) | **Context** — inlined into each refinement-set dispatch prompt as a "Known craft issues" block; never selects a command, never staged, never counted in `commands_invoked` | Step 4 |
+
+A `craft-critic` finding has no `suggestion` by construction (`review.md` Step 4 writes `null`) and is
+never fed to Step 5's resolution — it is not an unclassified observation either; it is context.
+
 ### Step 4: Refinement-set dispatch (always invoked when frontend)
 
 Invoke each via the Skill tool, in order:
@@ -49,11 +67,30 @@ Invoke each via the Skill tool, in order:
 
 **Job-statement suffix.** All three targets carry a fixed job-statement suffix appended after the file list — see `../command-map.md`'s `### Step 1 — Refinement set` section for the exact text and the reason it is not job-type inference. It is not optional, does not vary by record, and is appended on every refinement-set dispatch, exactly as `animate`'s Frequency Gate suffix is.
 
+**Known craft issues (from review-time critics).** The refinement dispatch already receives the
+assembled design-craft principles per `_shared/design-craft.md` (the assembly `skills/flow/polish-execution.md`
+carries). When the cache from Step 3 holds `source: "craft-critic"` entries, add a **sibling** block
+beside those principles in each refinement-set dispatch — never a replacement, and never above them:
+`design-craft.md`'s authority rule (decisions win over principles) stays exactly as the executing
+agent receives it. Per dispatch, filter the cached `craft-critic` findings to those whose `file` is
+in that dispatch's target file list; render at most 15 rows, highest severity first, each row the
+finding's `file`, `severity`, and `message` verbatim; when more than 15 match, append a final line
+`+N more` with the count. Head the block literally:
+
+```
+Known craft issues (from review-time critics) — context, not commands:
+| File | Severity | Finding |
+```
+
+The block informs the refinement commands; it never selects one, is never staged, and is never
+counted in `commands_invoked`. A dispatch whose file list matches no cached `craft-critic` finding
+carries no block.
+
 **File-target convention:** The wrapper passes the file list as a single space-separated argument. If a command rejects multi-file input, the wrapper falls back to looping per file and records the per-command preference once per session in the in-memory marker (same marker pattern as the availability skip de-dupe). Do not surface the looping as a finding — it is a normalization detail, not user-facing behavior. The canonical per-command argument shape is documented alongside each command in `../command-map.md`.
 
 ### Step 5: Suggestion-driven dispatch (only when the audit cache holds findings)
 
-Read the audit findings from Step 3. Every finding carries its own `suggestion` field naming the command that remediates it — `audit` writes one on each issue it reports. Dispatch what the finding names. Do not derive a command from the finding's `category`, `rule`, or `description` text; the wrapper does no keyword matching of any kind here.
+Read the audit findings from Step 3 — the cache entries with `source: "audit"` only; `source: "craft-critic"` entries are Step 4's context (three-way consumption table) and never enter this loop. Every finding carries its own `suggestion` field naming the command that remediates it — `audit` writes one on each issue it reports. Dispatch what the finding names. Do not derive a command from the finding's `category`, `rule`, or `description` text; the wrapper does no keyword matching of any kind here.
 
 For each finding, in cache order:
 
@@ -97,6 +134,14 @@ Dispatched 5 Impeccable commands on 3 files — refinement-set: polish, clarify,
 
 Staged entries are **not** counted in `N` and do not appear in the category list — nothing was dispatched. They are logged separately by the caller as `STAGED` entries.
 
+When at least one cached `craft-critic` finding was inlined into a refinement dispatch (Step 4's
+"Known craft issues" block), append the trailing clause `; craft-context: {N} critic findings inlined`
+to the sentence, where `{N}` is the **run-total of distinct cached `craft-critic` findings inlined
+into at least one refinement dispatch** this polish invocation (a finding inlined into two dispatches
+counts once). Emit the clause once per polish invocation, exactly as `decision_summary` itself is;
+omit it when `N` is zero. Example: `Dispatched 3 Impeccable commands on 2 files — refinement-set:
+polish, clarify, harden; craft-context: 4 critic findings inlined.`
+
 When `commands_invoked` is empty, do not build `decision_summary` — omit the field entirely from the output.
 
 ### Step 8: `--dry-run` short-circuit
@@ -122,7 +167,7 @@ When the caller passes `--dry-run`, run Steps 1-7 exactly as above to compute th
     { "kind": "unclassified", "id": "<finding id>", "category": "slop", "description": "<finding description>", "files": ["..."], "trigger": "audit:slop" }
   ],
   "files_modified": [ "<path>", ... ],
-  "decision_summary": "Dispatched 6 Impeccable commands on 3 files — refinement-set: polish; suggestion-driven: typeset (audit:typography), bolder (audit:slop); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful)."
+  "decision_summary": "Dispatched 6 Impeccable commands on 3 files — refinement-set: polish; suggestion-driven: typeset (audit:typography), bolder (audit:slop); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful); craft-context: 2 critic findings inlined."
 }
 ```
 
@@ -150,3 +195,9 @@ Or, when no commands ran (skip from preconditions, or zero files in scope, or no
 Note `decision_summary` is absent from the empty-`commands_invoked` case above — there is nothing to log.
 
 `polish` is the **first wrapper mode that modifies code** — unless invoked with `--dry-run` (Step 8), in which case `dry_run: true` is present and `files_modified` is always `[]`. Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present *and* `dry_run` is absent, callers must also append it to the auto-decision log (see `_shared/auto-mode-card.md`). When `staged_suggestions` is non-empty *and* `dry_run` is absent, callers must also write one file per entry to `{run-dir}/staged/` and log a `STAGED` entry per entry to `decisions.md` (see `_shared/auto-decision-log.md`) — otherwise the suggestion is silently dropped instead of surfacing at the Wrap-Up Review Console. A `dry_run: true` response is a preview only — callers must not log or stage anything from it.
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|-------------|
+| Deriving a command from a `craft-critic` finding | It has no `suggestion` by construction — it is refinement **context**, never a dispatch key; keyword-mapping a finding onto a command is the mechanism Step 5 retired. |

@@ -53,9 +53,10 @@ const POLICY_KEYS = [
   // 'unarmed ready PR' and 'unsettled run' checks.
   { key: 'pr-unarmed-age-hours', type: 'integer', default: 24, summary: "Sets how long a ready, passing pull request may sit without being armed to merge before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
   { key: 'unsettled-age-hours', type: 'integer', default: 24, summary: "Sets how long a claimed piece of work may sit with no visible progress before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
-  // false by default: tidy's own Step 7 housekeeping PRs stage rather than arm
-  // --auto until a project opts in. See tidy/SKILL.md Step 7 and the
-  // <!-- tidy-housekeeping-pr --> body marker that identifies them.
+  // The row default (false) is the `supervised` base only: the EFFECTIVE
+  // unset default is derived in resolvePolicyKeys from the resolved autonomy
+  // ceiling — trusted/unattended derive true (#580; was opt-in-only, #414).
+  // See deriveHousekeepingAutoMerge below and tidy/SKILL.md Step 7.
   { key: 'housekeeping-auto-merge', type: 'boolean', default: false, summary: "Lets routine cleanup pull requests merge themselves once green, instead of waiting for a person to arm them.", category: 'merge-safety', tier: 'core' },
   { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text', summary: "Chooses whether related records link through native issue relationships or a plain-text reference in the body.", category: 'housekeeping', tier: 'advanced' },
   { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'], summary: "Sets a minimum thoroughness level a code review is never allowed to fall below, even for a small-looking diff.", category: 'pipeline-behavior', tier: 'advanced' },
@@ -68,6 +69,7 @@ const POLICY_KEYS = [
   { key: 'scope-creep', type: 'enum', values: ['add-to-plan', 'stop-and-ask', 'drop'], default: 'add-to-plan', summary: "Decides what happens when new work surfaces mid-build that was not in the original plan: fold it in, pause and ask, or drop it.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'overlap', type: 'enum', values: ['companion', 'extend', 'skip', 'replace'], default: 'companion', summary: "Decides how a new spec is treated when it duplicates an existing one: run beside it, extend it, skip it, or replace it.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none', summary: "Sets the visual and UX ambition a build aims for — bold, quiet, minimal, delightful, onboarding-focused, or none at all.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'design-critique', type: 'enum', values: ['off', 'auto', 'full'], default: 'auto', summary: "Sets whether project-local design critics run at review time: never, when the project shows design investment or the record asks, or always.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer', summary: "Decides what happens to loose ends found at the end of a run: leave them for later, file them as backlog, or drop them.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type', summary: "Sets how much a test pass auto-fixes before stopping — lint alone, lint and types, or lint, types, and tests.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'review-auto-apply-ceiling', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
@@ -319,6 +321,33 @@ function hasOwn(obj, key) {
 // renamed-from when the final resolution falls to the default); old + new in
 // one source -> the new key wins with no tag (the stray old key is
 // auditPolicy's business).
+
+// housekeeping-auto-merge's effective default derives from the resolved
+// autonomy ceiling (skills/_shared/autonomy-ceiling.md): a project declaring
+// trusted/unattended has already opted into click-free bookkeeping, and a
+// tidy housekeeping PR is bookkeeping whose content judgment passed at tidy
+// Step 6, before the PR opened (#580). Invariants: (1) autonomy is resolved
+// HERE, from the same parsed sources — never via requestedKeys, whose per-key
+// loop shares no resolved-so-far state, so requesting the key alone still
+// derives correctly; (2) positive-list mapping — a future autonomy enum value
+// lands on false until this mapping is deliberately revisited; (3) the
+// derived entry keeps source: 'default' — that field is the derived-vs-
+// explicit attribution surface tidy Step 7.5 reads (#581); never tag a
+// distinct source for a derived value.
+function deriveHousekeepingAutoMerge(sources) {
+  const schemaEntry = SCHEMA_BY_KEY.get('autonomy');
+  let autonomy = schemaEntry.default;
+  for (const source of sources) {
+    if (!hasOwn(source.values, 'autonomy')) continue;
+    const raw = source.values.autonomy;
+    // Mirrors the main loop's invalid handling: an invalid value resolves the
+    // schema default, never the next source's value.
+    if (isValidValue(schemaEntry, raw)) autonomy = resolveValue('autonomy', raw);
+    break;
+  }
+  return autonomy === 'trusted' || autonomy === 'unattended';
+}
+
 function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
   const sources = [
     { name: 'run-config', raw: typeof runConfigRaw === 'string' ? runConfigRaw : null },
@@ -390,6 +419,12 @@ function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
       resolved = { value: defaultValue, source: 'default' };
       const tagged = sources.find((source) => hasOwn(source.emptyRenames, canonical));
       if (tagged) resolved['renamed-from'] = tagged.emptyRenames[canonical];
+    }
+    // Derived default (#580): source 'default' covers both unset and
+    // set-but-invalid — both fall back to the autonomy-derived value, the
+    // same set-but-invalid posture resolveIntegrationModel documents.
+    if (canonical === 'housekeeping-auto-merge' && resolved.source === 'default') {
+      resolved = { ...resolved, value: deriveHousekeepingAutoMerge(sources) };
     }
     result[requested] = resolved;
   }

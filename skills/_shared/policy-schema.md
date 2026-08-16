@@ -27,7 +27,13 @@ Two carve-outs:
 - The PreToolUse hook's `worktree-always` read stays an in-process `bin/lib/policy.js` call — hot path, never shells out.
 - `model-profiles` is policy-only (the `--run` overlay never applies) and returns `{value: null, source: "default"}` when the block is absent. Any fragment-reader failure — a malformed block, or a malformed sibling model key such as `frontier-run-cap` (the reader parses all four model keys; its throws aren't sub-classified) — degrades to `{value: null, source: "default", invalid: true}`.
 
-**Derived-default keys** (`integration-model`, `merge-verification`) share one shape, stated once here so a third key follows it rather than rediscovering the pieces: the `POLICY_KEYS` row carries no static `default` (a literal would bypass the derivation); the derivation's single prose statement lives in this file (`_shared/integration-model.md`'s ladder via forge detection; the `merge-verification` coverage block below) with a code twin in `bin/lib/` (`policy-schema.js`'s `detectIntegrationModel`; `merge-verification.js`'s `deriveMergeVerification`); `bin/resolve-policy.js` computes the value only for an *absent* key (`source: "default"`, no `invalid` flag) and never overwrites an `invalid: true` envelope; and `/claude-tweaks:help`'s policy mode renders the default as `computed (…)` rather than `no default`. Adding a lever of this shape also walks `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist when it is Manifesto-visible.
+**Derived-default keys** come in two shapes; both are live, so a new derived key picks one deliberately and states the choice in its row.
+
+*Shape A — resolve-time derivation, no static default* (`integration-model`, `merge-verification`): the `POLICY_KEYS` row carries no static `default`; the derivation's one prose statement lives here (`_shared/integration-model.md`'s forge-detection ladder; the `merge-verification` coverage block below) with a code twin in `bin/lib/` (`policy-schema.js`'s `detectIntegrationModel`; `merge-verification.js`'s `deriveMergeVerification`); `bin/resolve-policy.js` computes it only for an *absent* key (`source: "default"`, no `invalid` flag), never overwriting an `invalid: true` envelope; and `/claude-tweaks:help`'s policy mode renders the default as `computed (…)`.
+
+*Shape B — in-loop derivation over a static base default* (`housekeeping-auto-merge`, #580): the row keeps a static `default` as the base (`false`, the `supervised` base), so schema default and effective default differ; the derivation runs inside `bin/lib/policy-schema.js`'s `resolvePolicyKeys` (`deriveHousekeepingAutoMerge`); it fires for any entry that resolved `source: "default"` — unset **and** set-but-invalid (the `invalid: true` flag survives, the value is derived) — and keeps `source: "default"` because that field is the derived-vs-explicit attribution surface its consumers read. Pick B when an existing consumer must keep reading the value as a plain default; A otherwise. `/claude-tweaks:help`'s policy mode does not yet render B's default as `computed (…)` (#636).
+
+Consolidating the two is deferred until a further derived lever appears (#580's ledger). Adding a lever of either shape also walks `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist when it is Manifesto-visible.
 
 `--all` emits the whole resolved config in one call: every schema key mapped to its `{value, source}` envelope plus its metadata fields and shape (`summary`, `category`, `tier`, `type`, `default` — `default` is JSON `null` when the row has none, which consumers read as "no default"). It composes with `--run`, takes no key arguments, and is mutually exclusive with `--values`. Renderers (the `/claude-tweaks:help` policy mode, init's policy review) consume this instead of enumerating key names by hand.
 
@@ -171,7 +177,7 @@ Canonical defaults for the keys in this section also live in `_shared/work-recor
 | `work-links` | `policy.yml` | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
 | `pr-unarmed-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a green, gate-passed, granted PR may sit with `--auto` unarmed before the sweep surfaces `[pr-unarmed]` |
 | `unsettled-age-hours` | `policy.yml` | `_shared/github-pr-scan.md`'s `repo-wide` scope | `24` | How long a live claim or stale `bot:in-progress` may sit with no PR progress before the sweep surfaces `[unsettled]` |
-| `housekeeping-auto-merge` | `policy.yml` | `/claude-tweaks:tidy` Step 7, `_shared/github-pr-scan.md`'s `repo-wide` scope | `false` | When set, the sweep may arm `--auto` on tidy's own green, marker-stamped Step-7 PRs — otherwise they stage like any other unarmed PR |
+| `housekeeping-auto-merge` | `policy.yml` | `/claude-tweaks:tidy` Step 7, `_shared/github-pr-scan.md`'s `repo-wide` scope | derived from `autonomy`: `true` at `trusted`/`unattended`, else `false` | When it resolves true, tidy's own green, marker-stamped Step-7 PRs may arm `--auto` — otherwise they stage like any other unarmed PR. An explicit key wins over the derivation in both directions (#580) |
 
 ## Review
 
@@ -214,6 +220,7 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 | `scope-creep` | `policy.yml` | `/claude-tweaks:build` | `add-to-plan` | `add-to-plan`/`stop-and-ask`/`drop` |
 | `overlap` | `policy.yml` (via `/flow` Manifesto only — no standalone direct-read site exists) | `/flow` Manifesto → `/claude-tweaks:specify` | `companion` | `companion`/`extend`/`skip`/`replace` |
 | `design-intent` | `policy.yml` (via `/flow` Manifesto/`config.yml`; a standalone invocation with no pipeline run dir asks the user inline instead of reading CLAUDE.md) | `/claude-tweaks:specify` | `none` | `none`/`bold`/`quiet`/`minimal`/`delightful`/`onboarding` |
+| `design-critique` | `policy.yml` (via `/flow` Manifesto/`config.yml`, or the resolver directly outside a pipeline run) | `/claude-tweaks:design-wrapper` `review` mode (Step 3.8 critic dispatch, #598) | `auto` | `off`/`auto`/`full` — how eagerly project-local craft critics run at review time; `auto` keys on `DESIGN.md` presence or a `Design-intent:` line, per `skills/design-wrapper/critics.md`. Critique only — writing-context assembly (`_shared/design-craft.md`) is untouched by every value |
 | `leftover-default` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — leftover routing is inherently pipeline-scoped, no standalone site exists) | `/claude-tweaks:wrap-up` | `defer` | `defer`/`backlog`/`drop` |
 | `auto-fix-threshold` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:test` | `lint+type` | `lint-only`/`lint+type`/`lint+type+test` |
 | `review-auto-apply-ceiling` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply ceiling — the maximum severity applied without asking (`medium` = Low and Medium auto-apply, High staged, Critical prompted); ceiling-conditional default at `unattended` — see `_shared/autonomy-ceiling.md` |
@@ -222,15 +229,15 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 
 ## Model profiles
 
-Registered by #219; the resolver that actually reads these four (`model-stance`/`frontier-run-cap`/`model-ceiling`/`model-profiles`) is `bin/lib/model-profiles/profiles.js` (`resolve()`), fed by `bin/lib/model-profiles/policy-fragment.js`'s dedicated nested-block reader — `bin/lib/policy-schema.js`'s `auditPolicy()` validates these four shallowly (key names / value types only; `model-profiles`' own row *fields* are never inspected here, since the resolver validates those deeply at resolve time and rejects an unknown one there). `research-mode` is unrelated to the resolver — it feeds `/claude-tweaks:research` directly.
+Registered by #219; the resolver that actually reads these five is `bin/lib/model-profiles/profiles.js` (`resolve()`). Full canonical-home/owner-skill/default/meaning table: `policy-schema-model-profiles.md` (split out per IL-70 — merged branch content pushed this file over its ceiling).
 
-| Key | Canonical home | Owner skill(s) | Default | Meaning |
-|---|---|---|---|---|
-| `model-stance` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js`, `/flow` Manifesto (lever 10) | `default` | `economy`/`default`/`max-rigor` — shifts a resolved profile's effort one notch on `EFFORT_SCALE` (`economy` also degrades a Frontier resolution to Capable); never promotes a profile's model upward |
-| `frontier-run-cap` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | `3` | Per-pipeline-run ceiling on Frontier (`fable`) dispatches; `0` disables Frontier entirely for the run |
-| `model-ceiling` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (no ceiling) | A profile name (`fast`/`standard`/`capable`/`frontier`) above which a resolved profile is clamped down to the ceiling's row; does not clamp an explicit CLI override — the ceiling defends against skill defaults, not against a human's typed choice |
-| `model-profiles` | `policy.yml` | `bin/resolve-profile.js`, `bin/lib/model-profiles/profiles.js` | unset (table defaults apply) | Per-profile `{model, effort}` override rows, keyed by profile name, as a nested block (not a flat `key: value` line — see `bin/lib/model-profiles/policy-fragment.js`'s reader for the shape). **Shallow schema validation**: `auditPolicy()` checks only that each row's key names a real profile; a row's own field shape is validated deeply by the resolver instead |
-| `research-mode` | `policy.yml` | `/claude-tweaks:research` | unset (falls through to `standard`) | `quick`/`standard`/`deep`/`ultradeep` — project-level default research depth tier, read when no `--mode=` flag or prompt answer is given. Vocabulary lifted from `/claude-tweaks:research`'s own `## Input` section (that file is authoritative, not this row — IL-24) |
+| Key |
+|---|
+| `model-stance` |
+| `frontier-run-cap` |
+| `model-ceiling` |
+| `model-profiles` |
+| `research-mode` |
 
 ## Additional levers
 

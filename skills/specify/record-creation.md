@@ -229,13 +229,39 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 
 **`work-backend: github-issues`, `work-links: native`:**
 
-- Parent ↔ sub-issue — a sub-issue link, once per sub-issue:
+- **One command links the whole batch.** Both native write endpoints take the target issue's
+  integer database ID (`databaseId`) **in the request body**, never its issue number, and the
+  dependency edge lives at `issues/{dependent}/dependencies/blocked_by` — `bin/link-records.js`
+  (over `bin/lib/issues/link.js`) resolves every needed id in one GraphQL call and issues the
+  writes, so no per-edge `gh api` assembly happens here. Pass the parent, every sub-issue, and
+  every dependency edge as `dependent:blocker` (blockers may be pre-existing records from Step 1's
+  companion overlaps or Step 2's implicit-dependency notes):
 
   ```bash
-  gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$SUB_ISSUE_NUM
+  # Step 3 captured $SUB_ISSUE_NUM per sub-issue — join them: SUB_ISSUE_NUMS="595,597,598".
+  # DEP_EDGES is every dependency edge as dependent:blocker, comma-joined: "598:595,600:530"
+  # (blockers may be pre-existing records; leave --blocked-by off when there are none, and leave
+  # --parent/--subs off when only edges need wiring — at least one of the two is required).
+  node "${CLAUDE_PLUGIN_ROOT}/bin/link-records.js" --parent $PARENT_NUM --subs $SUB_ISSUE_NUMS \
+    --blocked-by "$DEP_EDGES"
+  # Prints one JSON envelope to stdout (do not redirect it away — read it from the tool result).
+  # Owner/repo resolve from `origin`; pass --repo owner/name to override.
   ```
 
-- Sub-issue ↔ sub-issue, and sub-issue ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's header comment). Call it once per dependency edge, dependent sub-issue pointing at blocking record.
+  Read the envelope's `subIssues.failed` and `blockedBy.failed` — a non-empty `failed` list is the
+  Write-path resilience case above (note the failed link, continue the pass; never abort the
+  decomposition). Exit 1 means the id resolution itself failed (a number that resolves to no
+  issue) — stop and check the numbers before retrying. A re-run is safe: an edge GitHub already
+  holds lands in `ok` with `already: true`.
+
+- **This command requires `gh`** — the sub-issues and issue-dependencies endpoints have no
+  GitHub MCP equivalent, so `_shared/github-write-transport.md`'s MCP path does not cover them.
+  When `command -v gh` fails, `bin/link-records.js` exits 2 naming the fallback: link under
+  `work-links: body-text` instead (the branch below, which needs only `issue_write`). The
+  endpoint family is the one `capabilities-probe.js`'s `probeSchema` checks for via the
+  `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and
+  insufficient, see that file's header comment.
+
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
 **`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):
