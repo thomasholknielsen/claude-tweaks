@@ -247,13 +247,13 @@ test('worktree-required: policy off allows Edit/Write/NotebookEdit/commit in the
   assert.deepStrictEqual(pre.run({ input: bashInput('git commit -m "x"', repo), runDir: null, runState: null, cwd: repo }), {});
 });
 
-test('worktree-required: policy on denies Edit in the main checkout with a corrective reason', () => {
+test('worktree-required: denies a covered Edit outside a worktree under the pre-#602 spelling worktree.always: true — the alias keeps un-migrated projects gated', () => {
   const repo = gitRepoWithCommit();
   withPolicy(repo, 'worktree.always: true\n');
   const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
   const spec = out.json.hookSpecificOutput;
   assert.strictEqual(spec.permissionDecision, 'deny');
-  assert.match(spec.permissionDecisionReason, /worktree\.always/);
+  assert.match(spec.permissionDecisionReason, /worktree-always/);
   assert.match(spec.permissionDecisionReason, /using-git-worktrees/);
 });
 
@@ -264,7 +264,7 @@ test('worktree-required: policy on denies Edit in the main checkout with a corre
 test('worktree-required: an indeterminate repo status ALLOWS but says so out loud (#134)', () => {
   const wtDetect = require('../bin/lib/hooks/worktree-detect');
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const real = wtDetect.repoInfo;
   wtDetect.repoInfo = () => ({ repoRoot: null, isLinkedWorktree: false, indeterminate: true });
   let out;
@@ -282,7 +282,7 @@ test('worktree-required: an indeterminate repo status ALLOWS but says so out lou
   assert.match(out.json.systemMessage, /could not determine/i);
   // Says the CHECK could not run — not that a policy was skipped. Reaching this
   // branch proves only that a policy.yml exists somewhere up the chain, not that
-  // worktree.always is on for this repo (that needs a repoRoot we never got).
+  // worktree-always is on for this repo (that needs a repoRoot we never got).
   assert.match(out.json.systemMessage, /check could not run/);
   assert.doesNotMatch(out.json.systemMessage, /gate was NOT applied/,
     'must not assert a policy applied that may not exist');
@@ -296,7 +296,7 @@ test('worktree-required: a DEFINITIVE non-repo answer allows silently, with no w
   // spamming every non-git path in the project.
   const wtDetect = require('../bin/lib/hooks/worktree-detect');
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const real = wtDetect.repoInfo;
   wtDetect.repoInfo = () => ({ repoRoot: null, isLinkedWorktree: false, indeterminate: false });
   let out;
@@ -311,7 +311,7 @@ test('worktree-required: a DEFINITIVE non-repo answer allows silently, with no w
 
 test('worktree-required: policy on allows Edit inside a linked worktree', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
   const wt = linkedWorktreeOf(repo);
@@ -321,7 +321,7 @@ test('worktree-required: policy on allows Edit inside a linked worktree', () => 
 
 test('worktree-required: policy on denies Write to a not-yet-existing file, and NotebookEdit, in the main checkout', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const writeOut = pre.run({ input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, 'new', 'brand-new.txt') } }, runDir: null, runState: null, cwd: repo });
   assert.strictEqual(writeOut.json.hookSpecificOutput.permissionDecision, 'deny');
   const nbOut = pre.run({ input: { tool_name: 'NotebookEdit', tool_input: { notebook_path: path.join(repo, 'n.ipynb') } }, runDir: null, runState: null, cwd: repo });
@@ -330,7 +330,7 @@ test('worktree-required: policy on denies Write to a not-yet-existing file, and 
 
 test('worktree-required: policy on denies a git commit in the main checkout even with NO pipeline run dir at all', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const out = pre.run({ input: bashInput('git commit -m "x"', repo), runDir: null, runState: null, cwd: repo });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
@@ -344,15 +344,15 @@ test('worktree-required: policy on denies a bare "git push" in the main checkout
   // CLAUDE.md's Hooks section, which both state the policy covers
   // "git commit/push".
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const out = pre.run({ input: bashInput('git push origin main', repo), runDir: null, runState: null, cwd: repo });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny', 'a bare git push must be denied from a non-isolated checkout, same as git commit');
-  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /worktree\.always/);
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /worktree-always/);
 });
 
 test('worktree-required: policy on allows "git push" from inside a linked worktree', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
   const wt = linkedWorktreeOf(repo);
@@ -362,7 +362,7 @@ test('worktree-required: policy on allows "git push" from inside a linked worktr
 
 test('worktree-required: policy is read from the EDIT TARGET\'s own repo, not the session cwd', () => {
   const policyRepo = gitRepoWithCommit();
-  withPolicy(policyRepo, 'worktree.always: true\n');
+  withPolicy(policyRepo, 'worktree-always: true\n');
   const otherRepo = gitRepoWithCommit(); // no policy
   const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(otherRepo, 'a.txt') } }, runDir: null, runState: null, cwd: policyRepo });
   assert.deepStrictEqual(out, {});
@@ -378,7 +378,7 @@ test('deny paths always carry exit: 0 — the deny signal is JSON permissionDeci
   // outcome is the pre-tool-use deny" line, would break the corrective
   // reason message actually shown — this test guards against that.
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const gateOut = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
   assert.strictEqual(gateOut.json.hookSpecificOutput.permissionDecision, 'deny');
   assert.strictEqual(gateOut.exit, 0);
@@ -393,7 +393,7 @@ test('deny paths always carry exit: 0 — the deny signal is JSON permissionDeci
 
 test('worktree-required: a policy file in an ancestor directory OUTSIDE the target repo does not leak in (repo-scoped, not filesystem-ancestor-scoped)', () => {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-ancestor-'));
-  withPolicy(parent, 'worktree.always: true\n');
+  withPolicy(parent, 'worktree-always: true\n');
   const nestedRepo = path.join(parent, 'nested-repo');
   fs.mkdirSync(nestedRepo, { recursive: true });
   execFileSync('git', ['-C', nestedRepo, 'init', '-q']);
@@ -404,7 +404,7 @@ test('worktree-required: a policy file in an ancestor directory OUTSIDE the targ
 
 test('worktree-required: policy on denies a non-git Bash file write in the main checkout (tee, cp, mv)', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const target = path.join(repo, 'a.txt');
 
   const tee = pre.run({ input: bashInput(`echo hi | tee ${target}`, repo), runDir: null, runState: null, cwd: repo });
@@ -419,7 +419,7 @@ test('worktree-required: policy on denies a non-git Bash file write in the main 
 
 test('worktree-required: a non-git Bash file write inside a linked worktree is allowed', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
   const wt = linkedWorktreeOf(repo);
@@ -430,14 +430,14 @@ test('worktree-required: a non-git Bash file write inside a linked worktree is a
 
 test('worktree-required: /dev/null is not treated as a file-write target', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const out = pre.run({ input: bashInput('cp source.txt /dev/null', repo), runDir: null, runState: null, cwd: repo });
   assert.deepStrictEqual(out, {});
 });
 
 test('worktree-required: a Bash command with no file-write shape at all (e.g. a plain read) is allowed', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const out = pre.run({ input: bashInput('cat a.txt | grep foo', repo), runDir: null, runState: null, cwd: repo });
   assert.deepStrictEqual(out, {});
 });
@@ -449,20 +449,20 @@ test('worktree-required: a compound Bash command checks EVERY git commit/push ta
   // every subsequent target in the same compound command.
   const compliant = gitRepoWithCommit(); // no policy.yml — first target, must not mask what follows
   const violating = gitRepoWithCommit();
-  withPolicy(violating, 'worktree.always: true\n');
+  withPolicy(violating, 'worktree-always: true\n');
   const out = pre.run({
     input: bashInput(`git -C ${compliant} commit -q --allow-empty -m "a" && git -C ${violating} commit -q --allow-empty -m "b"`, compliant),
     runDir: null, runState: null, cwd: compliant,
   });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
-    'the second target violates worktree.always and must be caught even though the first target was compliant');
+    'the second target violates worktree-always and must be caught even though the first target was compliant');
   assert.match(out.json.hookSpecificOutput.permissionDecisionReason, new RegExp(esc(violating)));
 });
 
 test('worktree-required: a compound Bash command checks EVERY cp/mv/tee write target, not just the first (finding regression)', () => {
   const compliant = gitRepoWithCommit();
   const violating = gitRepoWithCommit();
-  withPolicy(violating, 'worktree.always: true\n');
+  withPolicy(violating, 'worktree-always: true\n');
   const out = pre.run({
     input: bashInput(
       `cp source.txt ${path.join(compliant, 'a.txt')} && cp source.txt ${path.join(violating, 'b.txt')}`,
@@ -471,7 +471,7 @@ test('worktree-required: a compound Bash command checks EVERY cp/mv/tee write ta
     runDir: null, runState: null, cwd: compliant,
   });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
-    'the second cp destination violates worktree.always and must be caught even though the first was compliant');
+    'the second cp destination violates worktree-always and must be caught even though the first was compliant');
 });
 
 // --- .claude-tweaks/pipelines/ bookkeeping exemption (#138) ---
@@ -479,7 +479,7 @@ test('worktree-required: a compound Bash command checks EVERY cp/mv/tee write ta
 // /wrap-up must copy a run's gitignored audit state (config.yml, decisions.md,
 // events.jsonl, staged/) from the worktree into the main checkout's archive
 // BEFORE `git worktree remove` deletes it. That copy is a plain `cp` into the
-// main checkout, which the gate denied — so every worktree.always project lost
+// main checkout, which the gate denied — so every worktree-always project lost
 // decisions.md on every run, silently, because a denied tool call mid-cleanup
 // is not a hard stop.
 
@@ -491,7 +491,7 @@ function archivePathIn(repo, leaf) {
 // a committed policy.yml — so these fixtures commit it before branching.
 function repoWithCommittedPolicy() {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
   return repo;
@@ -540,7 +540,7 @@ test('worktree-required: git commit/push stay denied even when issued from insid
   // path-prefix exemption to those targets would let any commit run from a cwd
   // under .claude-tweaks/pipelines/ — exactly the isolation being enforced.
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const runDir = path.join(repo, '.claude-tweaks', 'pipelines', '2026-08-06T000000-record-1');
   fs.mkdirSync(runDir, { recursive: true });
   for (const cmd of ['git commit -m "x"', 'git push origin main']) {
@@ -586,7 +586,7 @@ test('isPipelineBookkeeping fails closed on anything it cannot prove (#138)', ()
 
 function policedRepo() {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   return repo;
 }
 const decisionOf = (out) => (out.json ? out.json.hookSpecificOutput.permissionDecision : 'allow');
