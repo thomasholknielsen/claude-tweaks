@@ -144,14 +144,35 @@ No finding may be presented information-only: anything actionable carries its pa
 
 Binding rules for every rendering of this template, on both surfaces (`step-6-interactive.md` cross-references this heading rather than restating):
 
-- No box-drawing tables anywhere in the report — sections are markdown lists and plain tables only.
-- Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**.
-- Commands render on their own line: a row's paste-ready command (and an Approve row's applied mutation) sits alone on its own line, with the annotation — tag, record ref, rationale — on the adjacent line above. A command never shares a line with prose, and no annotation trails a command on its line.
-- Records render as `#{N} "{title}"` — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
+- No box-drawing art anywhere in the report — no `┌ ─ ┐ │ ├ ┤ └ ┘` characters. This bans drawn table borders, not alignment: whitespace-aligned columns inside the ```text fences are required, and are what "no box-drawing tables" always meant.
+- Width: no rendered line exceeds **100 characters**. Titles are truncated to **50 characters** with a trailing `…`; every row states one fact — the record, its title, one short trailing column — and never wraps onto a second line.
+- Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**. In **Yours ({N})** that command is the group's batch line or its paste block (Yours grouping above) — one command line per row, or one batch / ref-less line per group; multi-record shorthand (`(likewise …)`, `(and N more)`) never substitutes for it.
+- Commands render on their own line: a command line holds only the command — no annotation, no rationale, no leading `—`/`→`, nothing trailing. The annotation (tag, record ref, why) lives on the row line(s) above it.
+- Records render as `#{N}` in the record column followed by the title column — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
 - `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
-- Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as the comma list, or as **Clean:** nothing — every scan surfaced findings.
+- Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as its fence, or as the single line **Clean:** nothing — every scan surfaced findings.
+- Digest: when the rendered report exceeds **40 lines** (fences, headers and footer all counted), do not send it whole. Write the full report to `{run-dir}/report.md` (Bash append — the same write path as `decisions.md`; the run dir lives under the main checkout) and send a digest of at most ~20 lines instead: the `## Tidy Report` line; **Applied automatically** collapsed to one line with its count; **Approve ({N})** in full — it is the click surface, and nothing is approved unseen; **Yours ({N})** as group heads with counts, each followed by its batch or ref-less line when the group has one (paste blocks stay in `report.md`); **Clean:** collapsed to `{n} scans clean`; and a footer `Full report: {run-dir}/report.md` in place of the decisions.md line (the full report carries that one). Below 40 lines nothing extra is written and the report is sent whole.
+
+#### Conformance scan (before the hard gate)
+
+Run this scan over the literal markdown about to be sent — the whole report, or the digest plus `report.md` when the digest rule fired — before the hard gate below. Every row is a check and a remedy; a failing row is fixed and the scan re-run. A non-conformant render is never shipped as-is, and a clean pass logs nothing (mirrors `multi-spec.md`'s pre-flight verify sweep, which stays silent on a clean sweep).
+
+| Rule | Check | Remedy on failure |
+|---|---|---|
+| Width | no line longer than 100 characters | truncate the title to 50 + `…`; shorten the trailing column; never wrap a row |
+| Titles | every title column ≤ 50 characters, `…` when truncated | truncate |
+| One record per row | every Applied / Approve / Yours row carries exactly one `#{N}` | split into one row per record |
+| No shorthand | none of `(likewise`, `(also`, `(and {n} more`, `(+{n}`, `et al` appear anywhere | expand into one row per record and one command line per row |
+| Command alone | a command line holds only the command — no leading `—`/`→`, no trailing prose | move the annotation to the row line above |
+| Every Yours row covered | each Yours group closes with one batch or ref-less line, or a paste block with exactly one line per row | add the missing command line(s) |
+| Batch only where allowed | a batch line's target skill accepts multiple refs per its `argument-hint` (`flow`, `dispatch` today) | expand into a paste block |
+| Fenced, no box art | every non-empty section's rows sit inside a ```text fence; no `┌ ─ ┐ │ ├ ┤ └ ┘` characters anywhere | re-render inside the fence |
+| Group order | Yours groups run `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical | reorder |
+| Clean shape | `**Clean:**` followed by a fence of `{scan}  {count} checked` lines, or the literal `**Clean:** nothing — every scan surfaced findings` | re-render |
+| Footer once | `{run-dir}/decisions.md` appears exactly once, in the footer | dedupe |
+| Digest | a report over 40 lines was written to `{run-dir}/report.md` and the chat carries the digest, not the whole | apply the digest rule |
 
 #### Hard gate (report before question)
 
-Check the response you are about to send: does it already contain the report above as literal rendered markdown — every non-empty section of **Applied automatically**, **Approve ({N})**, **Yours ({N})**, and the **Clean:** line? If not, render it now, in this response, before any `AskUserQuestion` call. `AskUserQuestion` cannot carry the report itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with a question but no report above it has asked for a decision with nothing to decide on.
+Check the response you are about to send: does it already contain the report above — or, when the digest rule fired, the digest — as literal rendered markdown — every non-empty section of **Applied automatically**, **Approve ({N})**, **Yours ({N})**, and the **Clean:** line? If not, render it now, in this response, before any `AskUserQuestion` call. `AskUserQuestion` cannot carry the report itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with a question but no report above it has asked for a decision with nothing to decide on.
 

@@ -70,3 +70,40 @@ test('grouping rule\'s batchable-today claim matches the live argument-hints', (
   assert.doesNotMatch(hint('specify'), multi);
   assert.doesNotMatch(hint('demo'), multi);
 });
+
+// --- Task 2: Report rules width discipline, digest, conformance scan ---
+
+test('step-6-auto.md: Report rules carry the width cap, title truncation, one-fact-per-line, and the shorthand ban', () => {
+  const rules = section(STEP6, '### Report rules', '#### Conformance scan');
+  assert.match(rules, /\*\*100 characters\*\*/);
+  assert.match(rules, /\*\*50 characters\*\*/);
+  assert.match(rules, /one fact/);
+  assert.match(rules, /\(likewise …\)/);
+  assert.match(rules, /never substitutes for it/);
+  assert.match(rules, /bans drawn table borders, not alignment/);
+});
+
+test('step-6-auto.md: Report rules state the 40-line digest rule and the report.md path', () => {
+  const rules = section(STEP6, '### Report rules', '#### Conformance scan');
+  assert.match(rules, /\*\*40 lines\*\*/);
+  assert.match(rules, /\{run-dir\}\/report\.md/);
+  assert.match(rules, /Below 40 lines nothing extra is written/);
+});
+
+test('step-6-auto.md: a conformance scan sits between Report rules and the Hard gate, one row per rule with a remedy', () => {
+  const rulesAt = STEP6.indexOf('### Report rules');
+  const scanAt = STEP6.indexOf('#### Conformance scan (before the hard gate)');
+  const gateAt = STEP6.indexOf('#### Hard gate (report before question)');
+  assert.ok(rulesAt > 0 && scanAt > rulesAt && gateAt > scanAt, 'order must be Report rules → Conformance scan → Hard gate');
+  const scan = STEP6.slice(scanAt, gateAt);
+  assert.match(scan, /\| Rule \| Check \| Remedy on failure \|/);
+  for (const rule of ['Width', 'Titles', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Digest']) {
+    assert.match(scan, new RegExp(`^\\| ${rule} \\|`, 'm'), `conformance scan lacks a "${rule}" row`);
+  }
+  assert.match(scan, /never shipped as-is/);
+});
+
+test('step-6-auto.md: the Hard gate accepts the digest in place of the whole report when the digest rule fired', () => {
+  const gate = section(STEP6, '#### Hard gate (report before question)');
+  assert.match(gate, /when the digest rule fired, the digest/);
+});
