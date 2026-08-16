@@ -363,8 +363,7 @@ finding:
 - **`target`** is copied verbatim (`code` | `decisions`); a `decisions` row keeps `DESIGN.md` or the
   sidecar path as `file`.
 - **`suggestion` is `null`** (not omitted), per Step 5's rule — a critic names no Impeccable command.
-- These findings join the same `findings` array as critique / audit / finish-review. Step 5's cache
-  filter is unchanged (`source === "audit"`); where `code` and `decisions` findings go next is #599's.
+- These findings join the same `findings` array as critique / audit / finish-review. Step 5's cache filter admits the `code` findings (`source === "audit" || (source === "craft-critic" && target === "code")`) as polish context; a `decisions` finding never enters the cache — Step 5.5 stages it for a human instead.
 
 **Absence-nudge (wrapper-emitted).** When **all** of: the lever from Step 3.8 (a) is `auto`;
 `surface_track === "web"`; Step 2 resolved ≥ 1 file; and decisions are absent (Step 3.8 (b)/(d)) —
