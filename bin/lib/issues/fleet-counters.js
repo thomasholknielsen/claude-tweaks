@@ -43,7 +43,8 @@ function inWindow(iso, w) {
 }
 
 function isMachineGrant(grant) {
-  return (grant.commentBodies || []).some((body) => GRANT_AUDIT_RE.test(body || ''));
+  const bodies = grant && grant.commentBodies;
+  return Array.isArray(bodies) && bodies.some((body) => GRANT_AUDIT_RE.test(body || ''));
 }
 
 // input:
@@ -56,21 +57,22 @@ function isMachineGrant(grant) {
 function deriveFleetCounters(input, nowMs) {
   const w = weeklyWindow(nowMs);
   const routines = input.routines || [];
-  const fired = routines.filter((r) => inWindow(r.lastFiringIso, w)).length;
-  const findings = (input.findings || []).filter((f) => inWindow(f.createdAtIso, w)).length;
+  const fired = routines.filter((r) => r && inWindow(r.lastFiringIso, w)).length;
+  const findings = (input.findings || []).filter((f) => f && inWindow(f.createdAtIso, w)).length;
 
-  const grantsInWindow = (input.grants || []).filter((g) => inWindow(g.grantedAtIso, w));
+  const grantsInWindow = (input.grants || []).filter((g) => g && inWindow(g.grantedAtIso, w));
   const machine = grantsInWindow.filter(isMachineGrant).length;
   const human = grantsInWindow.length - machine;
 
   const merges = (input.merges || [])
-    .filter((m) => m.viaMergeCommit && inWindow(m.closedAtIso, w)).length;
+    .filter((m) => m && m.viaMergeCommit && inWindow(m.closedAtIso, w)).length;
 
   // Revocations count per class-downgrade event, not per marker: N pieces of
   // in-window negative evidence on one trust class are one revocation.
+  // A missing trustClass is not a revocation (e.g. a bare timestamp marker).
   const revokedClasses = new Set(
     (input.negativeEvidence || [])
-      .filter((e) => inWindow(e.atIso, w))
+      .filter((e) => e && e.trustClass && inWindow(e.atIso, w))
       .map((e) => e.trustClass),
   );
 

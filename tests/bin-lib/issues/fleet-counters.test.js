@@ -92,3 +92,18 @@ test('deriveFleetCounters: empty input renders zeros, not errors (partially prov
   assert.strictEqual(c.firings.total, 0);
   assert.strictEqual(c.revocations, 0);
 });
+
+test('deriveFleetCounters: malformed elements degrade to not-counted, never throw', () => {
+  const c = deriveFleetCounters({
+    routines: [null, { name: 'x', lastFiringIso: '2026-08-15T05:00:00Z' }],
+    findings: [undefined],
+    grants: [{ number: 1, grantedAtIso: '2026-08-14T09:00:00Z', commentBodies: 'not-an-array' }, null],
+    merges: [null],
+    negativeEvidence: [{ atIso: '2026-08-15T20:00:00Z' }, null], // missing trustClass — not a revocation
+  }, NOW);
+  assert.strictEqual(c.firings.fired, 1);
+  assert.strictEqual(c.findings, 0);
+  assert.deepStrictEqual(c.grants, { machine: 0, human: 1 }); // string commentBodies = no marker seen = human
+  assert.strictEqual(c.merges, 0);
+  assert.strictEqual(c.revocations, 0);
+});
