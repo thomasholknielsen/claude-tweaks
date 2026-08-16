@@ -3,7 +3,7 @@ name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
 argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition]'
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Capture — Quickly note an idea for later specification
@@ -334,12 +334,11 @@ Periodically (or when the backlog gets long), use `/claude-tweaks:tidy` to batch
 
 ## Next Actions
 
-When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, call `AskUserQuestion`:
+When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
-- Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage backlog records (promote, absorb, or drop stale items)"`
-- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this record straight to a spec ({ref} is '#{n}' under work-backend: github-issues, or the record id under work-backend: local-files)"` — omit this option when the born-ready chain already shaped the record earlier this turn; there is nothing left to promote
+**`/claude-tweaks:capture {next idea}`** — capture another idea while you're in brainstorming flow (recommended)
+`/claude-tweaks:tidy` — review and triage backlog records (promote, absorb, or drop stale items)
+`/claude-tweaks:specify {ref}` — promote this record straight to a spec ({ref} is `#{n}` under `work-backend: github-issues`, or the record id under `work-backend: local-files`); omit this line when the born-ready chain already shaped the record earlier this turn — there is nothing left to promote
 
 ## Component-Skill Contract
 

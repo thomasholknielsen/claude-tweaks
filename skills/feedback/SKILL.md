@@ -3,7 +3,7 @@ name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files a GitHub issue against claude-tweaks after an explicit scrub and confirmation.
 argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--pre-confirmed]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Feedback — Route a learning upstream to the claude-tweaks plugin
@@ -360,8 +360,11 @@ Nothing further is needed.
 
 ## Next Actions
 
-Render one `AskUserQuestion` with options drawn from context: continue the
-parent workflow, file a second related learning, or open the created issue.
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), lines drawn from context — include only the lines that apply:
+
+**{the parent workflow's next command, fully qualified, e.g. `/claude-tweaks:wrap-up {spec}`}** — continue the parent workflow (recommended)
+`/claude-tweaks:feedback {second learning}` — file another related learning while it's fresh
+{created issue URL} — the filed issue, for reading or follow-up
 
 ## Component-Skill Contract
 

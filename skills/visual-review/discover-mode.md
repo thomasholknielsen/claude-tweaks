@@ -175,7 +175,7 @@ Commit journey files with message: "Add {N} user journeys from discovery (brownf
 
 Discover mode emphasises journey-walk follow-up because it just created journey files. Render this block in place of the canonical SKILL.md `## Next Actions` when reporting discover-mode results; otherwise defer to SKILL.md.
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Test a journey (Recommended)"`, `description`: `"/claude-tweaks:visual-review journey:{name} — test a specific journey against its expectations"`
-- Option 2 — `label`: `"Review a page"`, `description`: `"/claude-tweaks:visual-review {url} — review a specific page"`
+**`/claude-tweaks:visual-review journey:{name}`** — test a specific journey against its expectations (recommended)
+`/claude-tweaks:visual-review {url}` — review a specific page
