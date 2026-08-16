@@ -114,8 +114,9 @@ trace of it.
 6. **If `ceilingHit` was `true`:** bootstrap `bot:blocked` if it doesn't already exist:
 
    ```bash
-   # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-   # [['bot:blocked', 'Bot state: retry ceiling reached - needs human re-triage before autonomous retry']]
+   # Bootstrap per _shared/label-bootstrap.md — LABELS_JSON is the single ['bot:blocked', <description>]
+   # pair, with <description> read from that file's canonical LABELS_JSON fence (the one source
+   # tests/bin-lib/issues/labels.test.js pins); never restate the description text here.
    ```
 
    Then remove `auto:build` and, if still present (a `transient`-classified attempt preserves it per step 3 above, so it can still be there at the ceiling), `auto:merge` too — per `_shared/issue-claims.md`'s canonical rule, the retry ceiling removes **all** `auto:*` labels, not just whichever one step 3 didn't already strip. Add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
@@ -139,13 +140,17 @@ Order is load-bearing: the merge carries one `Fixes #{issue}` line per record, s
 `auto:merge` governs merge timing only and has no bearing on whether a record gets `demo:pending` — `_shared/work-record.md` states that an `auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and this gate is the only place on the group path that can honor it.
 
 **Both layers pass — merge (`integration-model: pr-first`, `_shared/integration-model.md`):**
-run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — `tag: auto-merge`,
-`issue-list` the group's full record set, `summary` the lowest-numbered record's title for a
-singleton or a semicolon-joined list of every member's title for a bundle. `gh pr merge` needs no
-checkout, so this same cwd-pinned call performs the merge itself; there is no second thread, no
-`OUTCOME: ready-to-merge` relay, and no `close-run`/branch-guard/push-from-worktree dance —
-those existed only for a *local* merge. Report the outcome that procedure returned
-(`merged` / `armed` / `pending-review`) per `task-prompt.md`'s updated second-call template. On
+run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — its Step 2.5
+(Merge-verification gate) applies the resolved merge-verification lever before any merge attempt:
+green arms or merges, pending waits or arms, red parks the group with bot:blocked and reports
+pending-review, never merges (this is where a #540-shaped red merge is stopped) —
+`tag: auto-merge`, `issue-list` the group's full record set, `summary` the lowest-numbered
+record's title for a singleton or a semicolon-joined list of every member's title for a bundle.
+`gh pr merge` needs no checkout, so this same cwd-pinned call performs the merge itself;
+there is no second thread, no `OUTCOME: ready-to-merge` relay, and no
+`close-run`/branch-guard/push-from-worktree dance — those existed only for a *local* merge. Report the outcome that procedure returned
+(`merged` / `armed` / `pending-review`) (pending-review now also covers a red or timed-out check
+per that gate) per `task-prompt.md`'s updated second-call template. On
 `merged`, this call also owes the cleanup a merge unlocks — worktree removal, claim release,
 run-dir archival (wrap-up's Items 4, 7, 8) — run them directly, citing the same canonical
 procedures Settle already cites for claim release: `wrap-up/cleanup-procedures.md` Section C
@@ -187,7 +192,7 @@ Clear this run's worktree assignment before merging, the same way `flow/worktree
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "{run-dir}"
 ```
 
-so the merge itself, landing in the main checkout, isn't denied as a wrong-checkout commit (E1). That only satisfies E1, though — if the project also has `worktree.always: true` set, the separate, run-independent `checkWorktreeRequired` policy gate in `bin/lib/hooks/pre-tool-use.js` still applies, and it denies any `git push` issued from the main checkout regardless of `close-run` (that gate keys off whether the command's target is a linked worktree, not run state — `close-run` never touches it). `git merge` itself is never flagged by that gate (only `commit`/`push` targets are), so the merge below is safe to run from the main checkout either way. The push after it is not — it must run from inside this group's own linked worktree instead, as a **separate** Bash call: chaining merge-then-push into one compound command still gets the whole invocation denied before either half runs, since the gate inspects the full command string up front (see CLAUDE.md's Don'ts list on this exact shape).
+so the merge itself, landing in the main checkout, isn't denied as a wrong-checkout commit (E1). That only satisfies E1, though — if the project also has `worktree-always: true` set, the separate, run-independent `checkWorktreeRequired` policy gate in `bin/lib/hooks/pre-tool-use.js` still applies, and it denies any `git push` issued from the main checkout regardless of `close-run` (that gate keys off whether the command's target is a linked worktree, not run state — `close-run` never touches it). `git merge` itself is never flagged by that gate (only `commit`/`push` targets are), so the merge below is safe to run from the main checkout either way. The push after it is not — it must run from inside this group's own linked worktree instead, as a **separate** Bash call: chaining merge-then-push into one compound command still gets the whole invocation denied before either half runs, since the gate inspects the full command string up front (see CLAUDE.md's Don'ts list on this exact shape).
 
 **Shell state does not survive between these calls** — each Bash invocation gets a fresh shell, so a variable assigned in one is empty in the next. Read `{integration-branch}` first and substitute it, and every other placeholder, **literally** into the calls below; do not carry them in shell variables.
 
@@ -214,7 +219,7 @@ Fixes #{second-issue}"
 
 The guard's job is catching a concurrent session switching the shared checkout out from under this merge.
 
-**Second call — push, from inside the worktree** — not the main checkout, which the `worktree.always` gate denies a push from even after `close-run`. Both checkouts share the same underlying `.git`, so pushing the just-merged integration branch from the worktree publishes exactly what the main checkout just merged:
+**Second call — push, from inside the worktree** — not the main checkout, which the `worktree-always` gate denies a push from even after `close-run`. Both checkouts share the same underlying `.git`, so pushing the just-merged integration branch from the worktree publishes exactly what the main checkout just merged:
 
 ```bash
 git -C "{group-worktree}" push origin {integration-branch}
@@ -225,9 +230,9 @@ One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guaran
 **On success**, this call still owes the cleanup the second Task call deliberately skipped (worktree removal, claim release, run-dir archival — Items 4, 7, 8, all merge-dependent). Run them directly, citing the same canonical procedures Settle already cites for claim release rather than re-inventing them: remove the worktree per `wrap-up/cleanup-procedures.md` Section C (`ExitWorktree`, or `git worktree remove` once unlocked), release the claim per that file's Section E, and archive the run directory per its Section B. This is required, not optional — `dispatch/SKILL.md` Step 5 only enters the next group's worktree once this one "has been torn down," so skipping this stalls every later group in the same firing.
 
 Log to `{run-dir}/decisions.md`:
-`AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert). [lever: automerge-max-lines={value} ({source}); automerge-max-files={value} ({source}); merge-sensitive-paths={value} ({source})]`
+`AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert). [lever: auto-merge-max-lines={value} ({source}); auto-merge-max-files={value} ({source}); merge-sensitive-paths={value} ({source})]`
 
-The trailing `[lever: …]` field follows `_shared/auto-decision-log.md`'s Lever attribution section — these are the levers the gate's `merge-check` invocation reads (`skills/assess-agent-autonomy/merge-check.md`); `{value}` comes from that invocation's own resolver call; `{source}` needs the envelope form — re-resolve with `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-sensitive-paths automerge-max-lines automerge-max-files` (no `--values`) when writing the line.
+The trailing `[lever: …]` field follows `_shared/auto-decision-log.md`'s Lever attribution section — these are the levers the gate's `merge-check` invocation reads (`skills/assess-agent-autonomy/merge-check.md`); `{value}` comes from that invocation's own resolver call; `{source}` needs the envelope form — re-resolve with `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-sensitive-paths auto-merge-max-lines auto-merge-max-files` (no `--values`) when writing the line.
 
 Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced and reported) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
 

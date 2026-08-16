@@ -24,7 +24,7 @@ Section 3 below argues from three probes, run once here alongside the two calls 
 
 - `git remote -v` — forge presence, argues against an unset `integration-model`.
 - `gh issue list --label auto:build --state open --limit 1 --json number` — standing grants, argues against the `autonomy` ceiling. Skip if `gh` is absent or the call fails.
-- `ls .claude-tweaks/pipelines/` — recent pipeline activity, argues against `project.maturity`. Empty or missing directory is a valid "no activity" result, not a failure.
+- `ls .claude-tweaks/pipelines/` — recent pipeline activity, argues against `project-maturity`. Empty or missing directory is a valid "no activity" result, not a failure.
 
 This three-probe list is the v1 signal set. Extending it is a prose edit to this file's Section 3 below — no schema change, no new-issue ceremony.
 
@@ -42,9 +42,9 @@ Row form, one per key, all values verbatim from the `--all` snapshot — the tra
 `{key}` — {value} ({source}) · default: {default} — {summary}
 ```
 
-**Null-default keys:** when a key's envelope carries `default: null`, render its default cell as `default: no default` — consumers read a `null` default as "this key has no default", not literal `null`. `integration-model` keeps its own special case below instead of this rule.
+**Null-default keys:** when a key's envelope carries `default: null`, render its default cell as `default: no default` — consumers read a `null` default as "this key has no default", not literal `null`. The derived-default keys (`integration-model`, `merge-verification`) keep their own special case below instead of this rule.
 
-**`integration-model` special case:** when it appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders `computed (forge detection)` instead of the schema's literal `default` — the real default is `detectIntegrationModel()`'s forge-detection result, not a static value. (See `_shared/integration-model.md` for the resolution ladder.)
+**Derived-default keys special case:** when `integration-model` or `merge-verification` appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders as computed rather than the schema's literal `default` — neither is a static value. `integration-model` renders `computed (forge detection)`, since the real default is `detectIntegrationModel()`'s forge-detection result (see `_shared/integration-model.md` for the resolution ladder). `merge-verification` renders `computed (derivation ladder)`, since the real default is `deriveMergeVerification()`'s result (see `_shared/policy-schema.md`'s `merge-verification` coverage block for the derivation ladder).
 
 **Zero set keys:** when no levers diverge from defaults, render the single line `No levers diverge from defaults.`, then — since the levers that govern what the pipeline may do without a human are exactly what a fresh project's owner needs to see — render the core-tier levers still on `source: default`, grouped by `category`, each row `` `{key}` — {default} — {summary} `` (advanced-tier defaults stay section 4's business).
 
@@ -63,7 +63,7 @@ When ALL four lists are empty, render exactly one line: `Policy config issues: n
 
 Core-tier keys still on `source: default` where an available probe signal (Gather, above) argues otherwise. Advanced-tier keys are never "notable" — this section is core-tier only. A key whose envelope carries `invalid: true` is excluded from candidacy here regardless of tier — it's section 2's business (the file holds a bad line for that key), not a notable default.
 
-One line per finding: lever + proposed value + why. For example: an unset `integration-model` plus a GitHub remote → propose `pr-first`; `autonomy: supervised` plus standing `auto:*` grants → propose reviewing the ceiling; `project.maturity: greenfield` plus a populated pipelines directory → propose a later stage.
+One line per finding: lever + proposed value + why. For example: an unset `integration-model` plus a GitHub remote → propose `pr-first`; `autonomy: supervised` plus standing `auto:*` grants → propose reviewing the ceiling; `project-maturity: greenfield` plus a populated pipelines directory → propose a later stage.
 
 Each finding line carries two distinct text sources, in this order: the "why" clause (what the probe observed — e.g. "a GitHub remote") comes from the probe signal itself; the lever's meaning text (what the key does) comes from the key's own `summary` field in the snapshot — never re-derived or paraphrased.
 
@@ -90,22 +90,23 @@ On the user saying "show advanced": render the advanced-tier keys still on `sour
 
 This section replaces SKILL.md's own `## Next Actions` block for the `policy` mode — the two never both fire in the same run.
 
-**#537 pre-check fallback (run BEFORE offering apply options at all):** check the held snapshot's `worktree.always` value and the session's checkout:
+**Main-checkout pre-check (run BEFORE offering apply options at all):** check the held snapshot's `worktree-always` value, the session's checkout, and the running plugin build's version:
 
 ```bash
 git rev-parse --git-dir
 git rev-parse --git-common-dir
+node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/.claude-plugin/plugin.json').version)"
 ```
 
-When `worktree.always` is `true` AND the two paths are equal (a main checkout, not a linked worktree), the write path is gate-denied — this is a pre-check, not a try/catch around a failed write. In that case, skip the `AskUserQuestion` below entirely — deliberately: nothing in this branch is agent-decidable, since the agent cannot legally write the file itself. Instead render each of section 3's recommendations as a paste-ready command block for THE USER to run themselves, outside this session — the agent never executes these commands (the write gate denies agent file-writes in a main checkout under `worktree.always`, and a bare-shell workaround is not a supported bypass):
+When `worktree-always` is `true` AND the two `git rev-parse` paths are equal (a main checkout, not a linked worktree), the write gate's general Edit/Write/commit posture is denied for everything EXCEPT `.claude-tweaks/policy.yml` itself — `_shared/policy-schema.md`'s coverage block is the canonical statement of that exemption's terms (path identity, and the allowlisted policy-only commit); do not restate the grammar here. On a plugin build whose version compares greater than `6.86.0` (the last release without the exemption — compare with `bin/lib/changelog.js`'s `compareVersions`, per `skills/init/bootstrap/version-check.md`'s pattern), that exemption is live: proceed to the `AskUserQuestion` below as normal, then apply each approved edit as an isolated Edit/Write to `.claude-tweaks/policy.yml` followed by `git add .claude-tweaks/policy.yml` and then, as a **separate** Bash call, a bare `git commit -m "..."` — never chained with `&&` (the allowlist rejects every shell operator, so a chained form is denied whole), and staging nothing else in that commit, or the staged-set proof fails and the commit is denied.
+
+On an OLDER build (version `6.86.0` or below, predating the exemption), the write path is gate-denied unconditionally in a main checkout — this is a pre-check, not a try/catch around a failed write. In that case, skip the `AskUserQuestion` below entirely — deliberately: nothing in this branch is agent-decidable, since the agent cannot legally write the file itself. Instead render each of section 3's recommendations as a paste-ready command block for THE USER to run themselves, outside this session — the agent never executes these commands (the write gate denies agent file-writes in a main checkout under `worktree-always` on that build, and a bare-shell workaround is not a supported bypass):
 
 ```
 Run this yourself, from the repo root, to apply the recommended change:
 
 printf '%s\n' "{key}: {value}" >> "$(git rev-parse --show-toplevel)/.claude-tweaks/policy.yml"
 ```
-
-This fallback's removal condition is #537 — once that lands, re-check whether the gate still blocks a main-checkout write before keeping this branch.
 
 **If section 3 yielded zero recommendations** (either zero-finding case above): render all four render-contract sections as usual, then end with the single line `Nothing to change — configuration looks healthy; say "show advanced" to inspect defaults.` and skip the `AskUserQuestion` entirely. With a "No changes" option and no real recommendations, fewer than 2 real options exist for the call — per `docs/skill-authoring.md`'s lone-option rule, that means no call, not a call offering one meaningful option plus a no-op.
 
@@ -127,7 +128,7 @@ This fallback's removal condition is #537 — once that lands, re-check whether 
 
    `resolveValue` coerces silently to the schema default on an invalid value — parse the output and compare `String(parsedValue)` against the raw `{raw-value}` string: a mismatch means the value was rejected. (`resolveValue` returns numbers and booleans already coerced to their real type, not strings — comparing the parsed value directly against the raw string, without the `String()` wrap, inverts the check for every integer or boolean key.) A rejected key is reported (key + rejected value) and its line is never written; continue validating and writing the rest of the batch.
 
-2. After the whole batch has been written: re-run the exact `auditPolicy()` call from Gather, ONCE. Any issue that is NEW relative to the Gather-time snapshot names the offending key and reverts it: a key whose pre-apply `source` (read from the Gather snapshot) was `default` — no line existed before this apply — reverts by DELETING the line this apply added; a key that already had a `.claude-tweaks/policy.yml` line before this apply reverts by restoring that line to its Gather-snapshot value (never by re-reading the file). `integration-model`'s computed default (`detectIntegrationModel()`'s forge-detection result) is never written back as a "revert" value — deleting its line is the only valid revert for that key. Report the revert either way. No edit is described as confirmed to the user until this re-audit comes back clean.
+2. After the whole batch has been written: re-run the exact `auditPolicy()` call from Gather, ONCE. Any issue that is NEW relative to the Gather-time snapshot names the offending key and reverts it: a key whose pre-apply `source` (read from the Gather snapshot) was `default` — no line existed before this apply — reverts by DELETING the line this apply added; a key that already had a `.claude-tweaks/policy.yml` line before this apply reverts by restoring that line to its Gather-snapshot value (never by re-reading the file). The derived-default keys' (`integration-model`, `merge-verification`) computed defaults are never written back as a "revert" value — deleting the line is the only valid revert for either key. Report the revert either way. No edit is described as confirmed to the user until this re-audit comes back clean.
 
 ## Anti-Patterns
 
@@ -135,6 +136,6 @@ This fallback's removal condition is #537 — once that lands, re-check whether 
 |---------|---------------|
 | Restating a default value in prose instead of rendering the `--all` snapshot | The snapshot is the ground truth; a hand-typed default drifts from the schema silently. |
 | Re-reading `policy.yml` to discover a key's prior value after writing | The apply path may have already written other keys' lines; only the Gather-time snapshot holds the true "before" state for revert. |
-| Offering apply options without running the #537 pre-check first | A main-checkout write under `worktree.always: true` is gate-denied — presenting options that will fail wastes the user's selection. |
+| Offering apply options without running the main-checkout pre-check first | On a build at or below `6.86.0`, a main-checkout write under `worktree-always: true` is gate-denied outright — presenting options that will fail wastes the user's selection. On a newer build the exemption covers only the isolated policy.yml write/commit shape; skipping the check risks an apply attempt the allowlist's staged-set proof still rejects. |
 | Hardcoding an enum's legal value list in an option description | `POLICY_KEYS` is the pinned source; a hardcoded copy goes stale the moment a value is added or removed there. |
-| Adding a second `AskUserQuestion` call anywhere in this mode | The mode has exactly one — the capped Next Actions call; "show advanced" and the #537 fallback are both in-conversation renders, not questions. |
+| Adding a second `AskUserQuestion` call anywhere in this mode | The mode has exactly one — the capped Next Actions call; "show advanced" and the older-build paste-ready fallback are both in-conversation renders, not questions. |

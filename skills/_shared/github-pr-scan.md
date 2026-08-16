@@ -65,7 +65,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    ```
 
    - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull (`skills/backlog/refine-mode.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:backlog refine` owns that).
-   - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `tidy/step-1-records.md`'s Shape 5).
+   - **`bot:blocked`** — records that hit their retry ceiling, or that `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) parked on a red or timed-out PR check; either way they need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `tidy/step-1-records.md`'s Shape 5).
    - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
    Surface all three as the `[queue]` Output Contract row below — bare counts only, per the Output Contract's own documented shape. No per-record enumeration is produced or needed here.
@@ -116,7 +116,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    done
    ```
 
-   Classify each surviving candidate — granted when every linked record carries `auto:merge` (a housekeeping-marker PR is granted instead by `housekeeping-auto-merge` alone, no record grant needed):
+   Classify each surviving candidate — granted when every linked record carries `auto:merge` **and none carries `bot:blocked`** (a housekeeping-marker PR is granted instead by `housekeeping-auto-merge` alone, no record grant needed). The `bot:blocked` exclusion is what keeps this sweep from un-parking a deliberately parked run: a record carries it either because dispatch hit its retry ceiling or because `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) took the red path, and both mean a human owes a re-triage before anything arms that PR — a later-green rollup does not retract the park.
 
    ```bash
    HOUSEKEEPING_GRANT="$HOUSEKEEPING_GRANT" node -e "
@@ -134,7 +134,9 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
          granted = HOUSEKEEPING;
        } else {
          const linked = (pr.closingIssuesReferences || []).map((i) => i.number);
-         granted = linked.length > 0 && linked.every((n) => (labelsByIssue.get(n) || []).includes('auto:merge'));
+         granted = linked.length > 0
+           && linked.every((n) => (labelsByIssue.get(n) || []).includes('auto:merge'))
+           && !linked.some((n) => (labelsByIssue.get(n) || []).includes('bot:blocked'));
        }
        if (granted) {
          console.log('[pr-unarmed] PR #' + pr.number + ': ' + pr.title + ' — green and granted, --auto never armed — arm per _shared/pr-first-merge.md');
@@ -145,7 +147,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    "
    ```
 
-   Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). **The list-time snapshot above is never trusted for the actual write**: grant labels, `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
+   Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). **The list-time snapshot above is never trusted for the actual write**: grant labels, the `bot:blocked` exclusion (a record parked between the scan and the arm — or one whose labels the classifier's `gh issue view` loop failed to fetch and defaulted to `[]` — must still block the arm), `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
 
 10. **Unsettled run** — a claimed or `bot:in-progress`-labeled issue whose pipeline shows no evidence of progress since it was claimed, past a threshold. Detected purely GitHub-side, in three fetches:
 
@@ -267,7 +269,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
 3. **Auto-merged this week** — `[fast-lane]`-tagged or `[auto-merge]`-tagged commits on the *default*
-   branch (never the current worktree's own branch — see the note on `worktree.always` below), last
+   branch (never the current worktree's own branch — see the note on `worktree-always` below), last
    7 days. Both skip the interactive finish-branch prompt because `merge-check` already cleared it —
    that is what this metric counts, not headlessness: `[auto-merge]` is always dispatch-originated
    (singleton or bundle, both via `dispatch/settle-and-merge.md`'s Dispatching-session merge
@@ -281,7 +283,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]") or contains("[auto-merge]"))] | length'
    ```
 
-   The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree.always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
+   The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree-always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
 
 Render as three lines: `Pending authorization: **{N}** records awaiting your decision` / `Blocked: **{N}** records hit their retry ceiling` / `Auto-merged this week: **{N}** auto-merges` — omit any line whose count is 0.
 

@@ -19,8 +19,8 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `work-types` | `native` \| `labels` | How Type is expressed (native Issue Types vs `type:*` labels) |
 | `work-links` | `native` \| `body-text` | How parent/dependency links are expressed (sub-issue + blocked-by APIs vs `Blocked by #N` body lines) |
 | `dispatch-retry-ceiling` | `3` | Failed autonomous attempts before `auto:*` removal + `bot:blocked` |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline: implementation diff lines `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode weighs, not a hard cutoff |
-| `automerge-max-files` | `2` | Auto-merge blast-radius guideline: implementation files touched, same weighted-not-cutoff treatment |
+| `auto-merge-max-lines` | `40` | Auto-merge blast-radius guideline: implementation diff lines `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode weighs, not a hard cutoff |
+| `auto-merge-max-files` | `2` | Auto-merge blast-radius guideline: implementation files touched, same weighted-not-cutoff treatment |
 | `dispatch-batch-size` | `3` | Max groups one `/dispatch` firing processes **sequentially**, one after another (never concurrently — see #155); remaining picks stay unclaimed in the queue for a later firing to select. Deprecated alias `dispatch-pick-max-concurrent` still resolves, with one warn-tier notice per invocation |
 | `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` verdict mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
 | `backlog-fetch-limit` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer (`/help`, `/tidy`, `/backlog`) — `gh` auto-paginates internally regardless of size; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |

@@ -2,6 +2,7 @@
 files:
   - skills/dispatch/SKILL.md
   - skills/wrap-up/SKILL.md
+  - skills/_shared/pr-first-merge.md
 ---
 
 # Resume a Parked Dispatch Run
@@ -24,8 +25,8 @@ files:
 - **URL:** no page — an `AskUserQuestion` rendered by the agent per `skills/dispatch/SKILL.md`'s "Confirm before resuming": header `Resume run`, question opening `Resume {target} toward merge? PR #{number} …`, and exactly two options — `Resume (Recommended)` and `Cancel`.
 - **Action:** Read the question, which names the target, PR number and URL (or, under `integration-model: local-merge`, the branch/worktree), CI status, and files changed.
 - **Should feel:** Grounded in live evidence, not a rubber-stamp — the values are sourced fresh (`gh pr view`/`gh pr checks`/`gh pr diff`; falling back to `run-state.json`'s `pr` field for the PR reference and `unavailable — gh absent` for CI status/files-changed when `gh` isn't installed), never a stale cached report.
-- **Should understand:** Declining stops here — nothing below runs and the run stays parked exactly as it was; this is the one path where "resuming" doesn't proceed toward the console at all.
-- **Red flags:** CI status or files-changed silently absent with no `unavailable — gh absent` label when `gh` isn't installed; the question naming a PR number that doesn't match the actual parked run.
+- **Should understand:** Declining stops here — nothing below runs and the run stays parked exactly as it was; this is the one path where "resuming" doesn't proceed toward the console at all. The CI status shown is also *decided on*, once, per `skills/_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) resume rule: green → resume proceeds; red → the confirmation says so and the run stays parked; pending → `--auto` is armed only when the state read shows `mergeStateStatus: BLOCKED` (the forge holds the merge), otherwise this same confirmation carries the choice — because on a repository without required checks, arming *is* an immediate merge of a still-pending PR. Resume never runs the gate's 15-minute watch.
+- **Red flags:** CI status or files-changed silently absent with no `unavailable — gh absent` label when `gh` isn't installed; the question naming a PR number that doesn't match the actual parked run; a "Resume" click merging a PR whose checks the question just showed as pending or red.
 
 ### 3. Confirm and re-enter the Review Console — `AskUserQuestion` (Review Console)
 - **URL:** only reached after choosing "Resume" in Step 2 — the agent re-adopts the run's own `PIPELINE_RUN_DIR` and re-invokes `/claude-tweaks:flow "{target}" wrap-up`, landing in the same Review Console a direct command invocation would reach.
@@ -36,4 +37,5 @@ files:
 
 ## Origin
 - Created during build of #531 ("Resuming a parked/pending-review merge outside the Review Console has no AskUserQuestion confirmation gate") — the resume-outside-the-console path existed before this build (documented in `dispatch/SKILL.md`'s "Resuming a parked run" section) but had no confirmation gate and no journey coverage; #531 added Step 2's gate and this journey documents it as current behavior.
-- Related specs: #531
+- Updated during build of #560 (merge-verification: merge-site consumers gate on CI) — Step 2's confirmation now applies the `merge-verification` lever one-shot (green/red/pending rule above), so a resume can no longer merge a pending PR on an unprotected repository.
+- Related specs: #531, #560
