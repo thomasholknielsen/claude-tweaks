@@ -73,7 +73,7 @@ After any fix-now change made after `/claude-tweaks:review` passed, re-run `/cla
 ## Where the reason lives
 
 - **Staged proposals** (`{run-dir}/staged/*.md`): a `Defer-reason: {value}` line inside the header block — the lines before the first blank line, alongside `Title:` / `Type:` / `Labels:`. Readers locate it **by key, never by position**.
-- **Directly-created records**: a `Defer-reason: {value}` line in the body, located **by key** (`recordPayload`'s match-or-throw and `clearsFloor` both read it wherever it sits). A composer-composed body (`specShapedBody`) places it in the provenance block — after `header`/`Origin:`, before `## Current State`; a bare `recordPayload({deferReason})` on a body without the line inserts it as the first body line.
+- **Directly-created records**: a `Defer-reason: {value}` line in the body, located **by key** (`recordPayload`'s match-or-throw reads it wherever it sits; `clearsFloor` never reads a body — it receives the extracted value itself). A composer-composed body (`specShapedBody`) places it in the provenance block — after `header`/`Origin:`, before `## Current State`; a bare `recordPayload({deferReason})` on a body without the line inserts it as the first body line.
 
 ## Removal condition
 
