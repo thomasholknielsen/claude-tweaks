@@ -335,7 +335,7 @@ Applied to this example's two queue writes (one chunk, both pre-checked):
 
 ## On approval (option 1)
 
-1. Apply all staged patches in `staged/` for items 5–7 (run `git apply` or equivalent for each)
+1. Apply all staged patches in `staged/` for items 5–7 per `_shared/staged-patch.md`'s Console apply with description fallback: `git apply --check` then `git apply` when the diff still fits; when it doesn't — a **stale** diff, the **expected** case for one staged before `/simplify`, polish, or a later fix wave moved the target — read the artifact's `Target:` and `Invariant:` preamble and re-derive the edit directly in the current tree (the description, not the diff bytes, is the durable intent), logging which path applied and what moved since `Staged-at:`. A description-only `staged/{slug}-{n}.md` (a patch that failed the staging-time gate) goes straight to the re-derivation path. An item that cannot be re-derived stays `open` and renders in a "Not applied" footer — never dropped silently.
 2. Apply skill updates and create new skills (items 11–12, from the Skills curation row)
 3. Apply documentation updates (item 13, from the Docs curation row) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
 4. Apply journey updates (item 14, from the Journeys curation row) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
@@ -350,7 +350,7 @@ Applied to this example's two queue writes (one chunk, both pre-checked):
 ## On override (option 2)
 
 1. Parse the user's overrides across every numbered item in the console
-2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
+2. For each item: apply (same `_shared/staged-patch.md` apply-or-re-derive path as "On approval" step 1), skip (delete from staged/), or modify (re-edit the staged patch's `Invariant:` and/or diff, re-run `git apply --check`, then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
 5. Queue writes (`Q#`), Memory updates (`M#`), and Upstream feedback (`U#`) resolve via their own multiSelect chunking (`_shared/batched-item-drill.md` for `Q#`/`M#`; `_shared/upstream-feedback-batch.md` for `U#`) — override is the one path where they resolve individually instead of by their Approve-all default; no per-item gate can be bulk-resolved by a shared toggle even here (Hard requirements below)
