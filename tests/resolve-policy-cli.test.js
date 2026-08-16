@@ -105,11 +105,11 @@ test('AC 5: alias-only fixture resolves dispatch-batch-size with renamed-from', 
 
 test('AC 6: integer and boolean keys arrive as native JSON types, never strings', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
-  const out = runOk(['dispatch-retry-ceiling', 'worktree.always'], tmp);
+  const out = runOk(['dispatch-retry-ceiling', 'worktree-always'], tmp);
   assert.strictEqual(typeof out['dispatch-retry-ceiling'].value, 'number');
   assert.strictEqual(out['dispatch-retry-ceiling'].value, 5);
-  assert.strictEqual(typeof out['worktree.always'].value, 'boolean');
-  assert.strictEqual(out['worktree.always'].value, true);
+  assert.strictEqual(typeof out['worktree-always'].value, 'boolean');
+  assert.strictEqual(out['worktree-always'].value, true);
 });
 
 test('AC 7: malformed value resolves to the schema default with invalid: true', () => {
@@ -175,7 +175,7 @@ test('--run pointing at a FILE (not a dir): exit 1, stderr message, no JSON', ()
 
 test('--values: one plain value per line in request order, native rendering', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
-  const res = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree.always', 'tidy-aggressiveness'], tmp);
+  const res = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree-always', 'tidy-aggressiveness'], tmp);
   assert.strictEqual(res.status, 0);
   assert.strictEqual(res.stderr, '');
   assert.strictEqual(res.stdout, 'unattended\n5\ntrue\nmoderate\n');

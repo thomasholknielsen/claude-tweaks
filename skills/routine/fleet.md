@@ -34,13 +34,13 @@ Two buckets, named explicitly (never restated elsewhere as a bare list, per this
 
 One structured message, the bookend "begin stop" for this action (`_shared/auto-mode-contract.md`'s bookend pattern — this is a single-instance bookend for one `fleet on` invocation, not a multi-step pipeline). Collects every human-owned lever `fleet on` needs, **renders each one back before writing anything** (IL-114 — a render instruction does not bind itself; this is the explicit pre-write check that closes it):
 
-1. Read current values — `autonomy`, `grant-origination-enabled`, `automerge-max-lines`/`automerge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap` — in one canonical resolver call, whose per-key `{value, source}` JSON envelope is exactly what step 2's table renders:
+1. Read current values — `autonomy`, `grant-origination-enabled`, `auto-merge-max-lines`/`auto-merge-max-files`, `merge-sensitive-paths`, `fleet-daily-grant-cap` — in one canonical resolver call, whose per-key `{value, source}` JSON envelope is exactly what step 2's table renders:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" autonomy grant-origination-enabled automerge-max-lines automerge-max-files merge-sensitive-paths fleet-daily-grant-cap
+   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" autonomy grant-origination-enabled auto-merge-max-lines auto-merge-max-files merge-sensitive-paths fleet-daily-grant-cap
    ```
 
-   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this sub-issue's own prerequisite work in `_shared/autonomy-ceiling.md`; `automerge-max-lines`/`automerge-max-files`/`merge-sensitive-paths` predate this sub-issue; `fleet-daily-grant-cap` landed with #269 — this sub-issue reads it, never re-registers it).
+   All of these are already schema-registered in `bin/lib/policy-schema.js` (the first two by this sub-issue's own prerequisite work in `_shared/autonomy-ceiling.md`; `auto-merge-max-lines`/`auto-merge-max-files`/`merge-sensitive-paths` predate this sub-issue; `fleet-daily-grant-cap` landed with #269 — this sub-issue reads it, never re-registers it).
 2. Render every value as a table — key, current value, source (policy.yml / default; each key's envelope `source` field supplies this column directly, `policy` rendering as `policy.yml`) — **before** any `AskUserQuestion` call, so the render-then-write ordering IL-114 requires is structural, not a documentation promise:
 
    ```
@@ -49,17 +49,17 @@ One structured message, the bookend "begin stop" for this action (`_shared/auto-
    |---|---|---|
    | autonomy | supervised | Ceiling on autonomous action — 'unattended' + the opt-in below are both required to provision the grant unit (row 9) |
    | grant-origination-enabled | false | The reserved second opt-in `_shared/autonomy-ceiling.md` names — a human sets this deliberately, no skill ever writes it except this Manifesto |
-   | automerge-max-lines / automerge-max-files | 40 / 2 | Consumed by assess-agent-autonomy/dispatch/the grant gate — this Manifesto persists them, never validates their semantics |
+   | auto-merge-max-lines / auto-merge-max-files | 40 / 2 | Consumed by assess-agent-autonomy/dispatch/the grant gate — this Manifesto persists them, never validates their semantics |
    | merge-sensitive-paths | (none) | Same — persisted only |
    | fleet-daily-grant-cap | (unset — uncapped) | Grants-issued-per-UTC-day ceiling the grant unit's own gate chain reads (see the choke-point note below) |
    ```
 
 3. Call `AskUserQuestion` with `question`: `"Confirm fleet configuration before provisioning?"`, `header`: `"Fleet config"`, `multiSelect`: `false`:
    - Option 1 — `label`: `"Provision with current values (Recommended)"`, `description`: `"Use the levers shown above — supervised-only fleet unless autonomy/grant-origination-enabled are already both set"`
-   - Option 2 — `label`: `"Change a lever"`, `description`: `"Edit autonomy, grant-origination-enabled, automerge caps, merge-sensitive-paths, or fleet-daily-grant-cap before provisioning"`
+   - Option 2 — `label`: `"Change a lever"`, `description`: `"Edit autonomy, grant-origination-enabled, auto-merge caps, merge-sensitive-paths, or fleet-daily-grant-cap before provisioning"`
    - Option 3 — `label`: `"Cancel"`, `description`: `"Don't provision anything"`
 
-   Selecting **Change a lever** re-asks each of the five as its own follow-up (autonomy/grant-origination-enabled as enum/boolean pickers; automerge-max-lines/automerge-max-files as integers; merge-sensitive-paths as a free-text comma list; fleet-daily-grant-cap as an optional positive integer), writes every changed value to `.claude-tweaks/policy.yml` in the shape `bin/lib/policy-schema.js` expects, re-renders the table with the new values, then proceeds as if Option 1 had been chosen. Selecting **Cancel** stops here — nothing is provisioned, nothing is written.
+   Selecting **Change a lever** re-asks each of the five as its own follow-up (autonomy/grant-origination-enabled as enum/boolean pickers; auto-merge-max-lines/auto-merge-max-files as integers; merge-sensitive-paths as a free-text comma list; fleet-daily-grant-cap as an optional positive integer), writes every changed value to `.claude-tweaks/policy.yml` in the shape `bin/lib/policy-schema.js` expects, re-renders the table with the new values, then proceeds as if Option 1 had been chosen. Selecting **Cancel** stops here — nothing is provisioned, nothing is written.
 
 4. **Every value this step writes echoes in the fleet summary at the end** (Step 5) — no silent config write, per this sub-issue's own Deliverables.
 
@@ -118,7 +118,7 @@ One consolidated report, closing the Manifesto's begin-stop with an end-of-actio
 |---|---|---|
 | autonomy | {value} | {policy.yml | default} |
 | grant-origination-enabled | {value} | {policy.yml | default} |
-| automerge-max-lines / automerge-max-files | {v}/{v} | {...} |
+| auto-merge-max-lines / auto-merge-max-files | {v}/{v} | {...} |
 | merge-sensitive-paths | {list or "(none)"} | {...} |
 | fleet-daily-grant-cap | {n or "(uncapped)"} | {...} |
 

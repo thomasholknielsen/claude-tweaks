@@ -19,7 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolvePolicyKeys, resolveIntegrationModel } = require('./policy-schema');
+const { resolveIntegrationModel } = require('./policy-schema');
 const { resolveIntegrationBranch } = require('./hooks/worktree-reap');
 
 const PR_TRIGGERS = new Set(['pull_request', 'pull_request_target']);
@@ -196,21 +196,18 @@ function deriveMergeVerification(repoRoot, deps = {}) {
   return target === fallback ? 'merge-when-green' : 'off';         // (3) / (4)
 }
 
-// Explicit policy.yml value (ordinary enum validation) wins outright, else the
-// derived default — the same shape as policy-schema.js's resolveIntegrationModel.
-// Never returns null: an absent OR invalid value both fall through to the ladder.
-function resolveMergeVerification(repoRoot, deps = {}) {
-  let policyRaw = null;
-  try {
-    policyRaw = fs.readFileSync(path.join(repoRoot, '.claude-tweaks', 'policy.yml'), 'utf8');
-  } catch {}
-  const resolved = resolvePolicyKeys(['merge-verification'], { policyRaw, runConfigRaw: null });
-  const entry = resolved['merge-verification'];
-  if (entry && entry.source !== 'default' && !entry.invalid) return entry.value;
-  return deriveMergeVerification(repoRoot, deps);
-}
+// The one resolution path is bin/resolve-policy.js: explicit policy.yml value
+// (ordinary enum validation) wins, an invalid value stays visible as
+// `invalid: true` (never silently re-derived), and only an *absent* key reaches
+// deriveMergeVerification. There is deliberately no in-process resolver twin
+// here — the merge sites read the lever through the CLI (`--run … --values
+// merge-verification`, _shared/pr-first-merge.md Step 2.5), so a second
+// resolver would carry a second contract with no consumer.
 
+// readDefaultBranch stays internal: deriveMergeVerification's callers inject
+// `deps.defaultBranch` when they need a stand-in, and nothing imports the
+// real lookup on its own.
 module.exports = {
   workflowHasPullRequestTrigger, readWorkflowFiles, hasPullRequestCi,
-  readDefaultBranch, deriveMergeVerification, resolveMergeVerification,
+  deriveMergeVerification,
 };

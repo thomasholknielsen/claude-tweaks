@@ -35,7 +35,7 @@ test('policy-source value resolves with source: "policy"', () => {
 });
 
 test('known-but-unset key resolves to the schema default with source: "default" and NO invalid flag', () => {
-  const result = resolvePolicyKeys(['autonomy'], { policyRaw: 'worktree.always: true\n' });
+  const result = resolvePolicyKeys(['autonomy'], { policyRaw: 'worktree-always: true\n' });
   assert.deepStrictEqual(result.autonomy, { value: 'supervised', source: 'default' });
   assert.ok(!('invalid' in result.autonomy), 'source: "default" alone means known-but-unset — invalid must be absent');
 });
@@ -140,10 +140,17 @@ test('unknown key yields an error entry while its sibling still resolves', () =>
   assert.deepStrictEqual(result.autonomy, { value: 'trusted', source: 'policy' });
 });
 
-test('boolean coercion: worktree.always: true resolves to native boolean true', () => {
-  const result = resolvePolicyKeys(['worktree.always'], { policyRaw: 'worktree.always: true\n' });
-  assert.strictEqual(result['worktree.always'].value, true);
-  assert.strictEqual(result['worktree.always'].source, 'policy');
+test('boolean coercion: worktree-always: true resolves to native boolean true', () => {
+  const result = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree-always: true\n' });
+  assert.strictEqual(result['worktree-always'].value, true);
+  assert.strictEqual(result['worktree-always'].source, 'policy');
+});
+
+test('boolean coercion through the #602 alias: a worktree.always line resolves worktree-always to native boolean true with renamed-from', () => {
+  const result = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree.always: true\n' });
+  assert.strictEqual(result['worktree-always'].value, true);
+  assert.strictEqual(result['worktree-always'].source, 'policy');
+  assert.strictEqual(result['worktree-always']['renamed-from'], 'worktree.always');
 });
 
 test('a key with no schema default, absent everywhere, resolves to value: null, source: "default"', () => {
