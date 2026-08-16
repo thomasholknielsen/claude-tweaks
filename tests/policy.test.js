@@ -67,6 +67,27 @@ test('garbage trailing content that is not a # comment is still rejected', () =>
   assert.strictEqual(isWorktreeAlwaysOn(repo), false);
 });
 
+test('isWorktreeAlwaysOn: the new spelling worktree-always: true reads as ON', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('isWorktreeAlwaysOn: the pre-#602 spelling worktree.always: true still reads as ON through the RENAMED_KEYS alias — an un-migrated project never silently loses the gate', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('isWorktreeAlwaysOn: when both spellings are set the new line wins — worktree-always: false beats worktree.always: true (same precedence as the resolver)', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: false\nworktree.always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+  const repo2 = tmpRepo();
+  writePolicy(repo2, 'worktree.always: false\nworktree-always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo2), true, 'order in the file does not matter — the new NAME wins, not the last line');
+});
+
 test('readIntegrationBranch: key present -> returns the branch name', () => {
   const repo = tmpRepo();
   writePolicy(repo, 'integration-branch: staging\n');
