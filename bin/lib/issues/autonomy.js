@@ -6,6 +6,15 @@
 // it grants nothing on its own. Callers apply the labels.
 // Was docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md, Phase
 // 3 — deleted (bdb2f4f6): all 4 phases shipped, v6.50.0-6.59.0.
+//
+// Expand-contract (refs #647): permittedGrants' flat top-level
+// `bornReady`/`bornAuthorized`/`reason` keys are a transitional twin of the
+// per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` shape — the
+// flat single `reason` could pair a granted bornReady with the other grant's
+// denial text, which is the bug the per-grant shape fixes. Removal condition:
+// delete the flat keys once the installed build's plugin.json version >= the
+// release that ships #647 and `grep -rn "permittedGrants" skills/ bin/` shows
+// every consumer reading `grants.*`.
 
 // Ordered least to most permissive. Index comparison is the tier test, so the
 // order is load-bearing, not cosmetic.
@@ -57,7 +66,15 @@ function atLeast(ceiling, minimum) {
   return CEILINGS.indexOf(ceiling) >= CEILINGS.indexOf(minimum);
 }
 
-const DENY = (reason) => ({ bornReady: false, bornAuthorized: false, reason });
+const DENY = (reason) => ({
+  bornReady: false,
+  bornAuthorized: false,
+  reason,
+  grants: {
+    bornReady: { granted: false, reason },
+    bornAuthorized: { granted: false, reason },
+  },
+});
 
 // `row` is one of trustRows()'s rows. `grantOriginationEnabled` is the separate,
 // explicit opt-in described below — never inferred from the ceiling.
@@ -104,16 +121,38 @@ function permittedGrants(input) {
   // stays behind its own opt-in until that invariant is deliberately amended, and
   // reaching the top tier is never by itself that amendment.
   if (!atLeast(tier, 'unattended')) {
-    return { bornReady, bornAuthorized: false, reason: `class is clean and the ceiling is ${tier}` };
-  }
-  if (grantOriginationEnabled !== true) {
+    const reason = `class is clean and the ceiling is ${tier}`;
     return {
       bornReady,
       bornAuthorized: false,
-      reason: 'ceiling is unattended, but machine-originated grants need their own explicit opt-in',
+      reason,
+      grants: {
+        bornReady: { granted: true, reason: '' },
+        bornAuthorized: { granted: false, reason },
+      },
     };
   }
-  return { bornReady, bornAuthorized: true, reason: 'class is clean, ceiling is unattended, grant origination opted in' };
+  if (grantOriginationEnabled !== true) {
+    const reason = 'ceiling is unattended, but machine-originated grants need their own explicit opt-in';
+    return {
+      bornReady,
+      bornAuthorized: false,
+      reason,
+      grants: {
+        bornReady: { granted: true, reason: '' },
+        bornAuthorized: { granted: false, reason },
+      },
+    };
+  }
+  return {
+    bornReady,
+    bornAuthorized: true,
+    reason: 'class is clean, ceiling is unattended, grant origination opted in',
+    grants: {
+      bornReady: { granted: true, reason: '' },
+      bornAuthorized: { granted: true, reason: '' },
+    },
+  };
 }
 
 // Floor-check predicate for the autonomy ceiling's ledger-narrowing bookkeeping
