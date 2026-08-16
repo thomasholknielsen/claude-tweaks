@@ -229,48 +229,32 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 
 **`work-backend: github-issues`, `work-links: native`:**
 
-- **Resolve database IDs first, once for the whole batch.** Both native write endpoints below take
-  the target issue's integer database ID (`databaseId` — the REST `id`) **in the request body**,
-  **not** its issue number; passing `$SUB_ISSUE_NUM` fails. The parent and the dependent appear
-  only as numbers, in the URL path — they need no lookup. One aliased GraphQL call resolves every
-  sub-issue plus any pre-existing blocking record from Step 1's companion overlaps or Step 2's
-  implicit-dependency notes (one `i{N}:` alias per number). Two things the surrounding REST calls
-  do not teach: pass `{owner}`/`{repo}` with `-F` — `-f` sends the literal braces (only `-F`
-  substitutes placeholders in a *field* value; the path placeholders in the REST calls below are a
-  different mechanism) — and ask for `databaseId`, never the node `id`:
+- **One command links the whole batch.** Both native write endpoints take the target issue's
+  integer database ID (`databaseId`) **in the request body**, never its issue number, and the
+  dependency edge lives at `issues/{dependent}/dependencies/blocked_by` — `bin/link-records.js`
+  (over `bin/lib/issues/link.js`) resolves every needed id in one GraphQL call and issues the
+  writes, so no per-edge `gh api` assembly happens here. Pass the parent, every sub-issue, and
+  every dependency edge as `dependent:blocker` (blockers may be pre-existing records from Step 1's
+  companion overlaps or Step 2's implicit-dependency notes):
 
   ```bash
-  gh api graphql -f query='query($owner:String!,$repo:String!){ repository(owner:$owner,name:$repo){
-    i{N1}: issue(number:{N1}){ databaseId }
-    i{N2}: issue(number:{N2}){ databaseId }
-  } }' -F owner={owner} -F repo={repo} > /tmp/specify-database-ids.json
-  # SUB_ISSUE_DB_ID / BLOCKER_DB_ID below are read from this file by alias, e.g.:
-  SUB_ISSUE_DB_ID=$(jq -r '.data.repository.i{N1}.databaseId' /tmp/specify-database-ids.json)
+  node "${CLAUDE_PLUGIN_ROOT}/bin/link-records.js" --parent $PARENT_NUM --subs $SUB_ISSUE_NUMS \
+    --blocked-by "$DEP_EDGES" > /tmp/specify-link-result.json
+  # $SUB_ISSUE_NUMS = comma-joined sub-issue numbers; $DEP_EDGES = "598:595,600:530,..." (omit
+  # --blocked-by when there are no edges). Owner/repo resolve from `origin`; pass --repo owner/name
+  # to override.
   ```
 
-  If any alias reads back `null` **or empty** — a GraphQL error still writes
-  `{"data":{"repository":null},…}` to the file, while a failed `gh` call (auth, network, non-2xx)
-  writes nothing at all and `jq -r` on an empty file prints nothing with exit 0 — stop before
-  writing: treat every edge that needed that id as a failed link per Write-path resilience above,
-  never POST `sub_issue_id=null` or `sub_issue_id=` (empty).
+  Read the envelope's `subIssues.failed` and `blockedBy.failed` — a non-empty `failed` list is the
+  Write-path resilience case above (note the failed link, continue the pass; never abort the
+  decomposition). Exit 1 means the id resolution itself failed (a number that resolves to no
+  issue) — stop and check the numbers before retrying. A re-run is safe: an edge GitHub already
+  holds lands in `ok` with `already: true`.
 
-- Parent ↔ sub-issue — a sub-issue link, once per sub-issue, sending the sub-issue's database ID
-  (`-F`, typed, so it lands as an integer):
-
-  ```bash
-  gh api -X POST repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -F sub_issue_id=$SUB_ISSUE_DB_ID
-  ```
-
-- Sub-issue ↔ sub-issue, and sub-issue ↔ any pre-existing open record from Step 1's companion
-  overlaps or Step 2's implicit-dependency notes — the issue-dependencies endpoint (the same GitHub
-  feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field —
-  the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's
-  header comment). Call it once per dependency edge, **on the dependent** sub-issue, naming the
-  **blocking** record's database ID:
-
-  ```bash
-  gh api -X POST repos/{owner}/{repo}/issues/$DEPENDENT_NUM/dependencies/blocked_by -F issue_id=$BLOCKER_DB_ID
-  ```
+- **This command requires `gh`** — the sub-issues and issue-dependencies endpoints have no
+  GitHub MCP equivalent, so `_shared/github-write-transport.md`'s MCP path does not cover them.
+  When `command -v gh` fails, `bin/link-records.js` exits 2 naming the fallback: link under
+  `work-links: body-text` instead (the branch below, which needs only `issue_write`).
 
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
