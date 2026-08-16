@@ -42,7 +42,7 @@ Row form, one per key, all values verbatim from the `--all` snapshot:
 `{key}` — {value} ({source}) · default: {default}
 ```
 
-**`integration-model` special case:** when it appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders `computed (forge detection)` instead of the schema's literal `default` — the real default is `detectIntegrationModel()`'s forge-detection result, not a static value.
+**`integration-model` special case:** when it appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders `computed (forge detection)` instead of the schema's literal `default` — the real default is `detectIntegrationModel()`'s forge-detection result, not a static value. (See `_shared/integration-model.md` for the resolution ladder.)
 
 ### 2. Issues
 
