@@ -50,5 +50,9 @@
   "skill:transcript-payload-verification": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786895157317
+  },
+  "skill:tidy": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786900466986
   }
 }
