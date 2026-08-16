@@ -26,5 +26,9 @@
   "skill:upstream-drift": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786339353644
+  },
+  "skill:.claude/skills/transcript-payload-verification/SKILL.md": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786864391047
   }
 }
