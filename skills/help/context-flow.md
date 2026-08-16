@@ -21,7 +21,7 @@ Codebase                     ──→ Findings cache               ──→ Wo
                                   cursors/runs.json (durable)        via /capture instead
       ▲
       └────────────── /claude-tweaks:routine fleet status ──── read-only aggregation across this whole row: routine schedule/health,
-                                                                 tracker labels/comments, weekly counters (firings, findings, grants, merges)
+                                                               tracker labels/comments, weekly counters (firings, findings, grants, merges)
 ```
 
 ```
