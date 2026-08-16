@@ -306,6 +306,8 @@ Reached only when the Auto-resolution short-circuit above did not already resolv
 
 Read `console-template.md` in this skill's directory and render that exact shape — every section's column layout, the engine-vs-prose-fallback distinction (engine output is plainer: one uniform four-column table per section, not the richer per-section shapes shown there), and the `[adr-convention]` row's three-way prompt. The worked example rows there are fictional; substitute this run's own `decisions.md`/`staged/` content.
 
+**Lever attribution suffix.** A `decisions.md` entry's optional `[lever: …]` field (`_shared/auto-decision-log.md`'s Lever attribution section) appends to that row's existing detail cell (`What`/`Detail`) as an inline code span — no new column. Absence is valid and never annotated.
+
 **Hard gate (restated):** the tables must be literal rendered markdown in THIS response, above this tool call — see the top-of-file gate.
 
 Immediately after presenting the console tables above, call `AskUserQuestion` with:

@@ -8,61 +8,32 @@ Present all collected findings as a single report. Every item has a pre-filled r
 ```markdown
 ## Tidy Report — {date}
 
-### Actions
+**Applied automatically**
+- {what was done}: #{N} "{title}" — {one-line outcome} ({reversibility: commit {hash} | reconcile-converged})
+- …
 
-| # | Type | Item | Recommendation |
-|---|------|------|---------------|
-| 1 | Backlog | "{title}" (4+ weeks) | Delete — stale |
-| 2 | Backlog | "{title}" (2 weeks) | Keep — still fresh |
-| 3 | Backlog | "{title}" (clean, ready) | Promote — /claude-tweaks:specify #{n} |
-| 4 | Backlog | "{title}" (overlaps #{m}) | Absorb → #{m} |
-| 5 | Parked | "{title}" (valid, not timely) | Defer — trigger: {condition} |
-| 6 | Parked | "{title}" (trigger met) | Promote — trigger fired |
-| 7 | Scoring | "{title}" (ready, unscored) | Flag for scoring — /claude-tweaks:specify #{n} |
-| 8 | Blocked | "{title}" (bot:blocked) | Re-triage — /claude-tweaks:backlog refine |
-| 9 | Sizing | "{title}" (ready, 12 tasks implied) | Split into two records |
-| 10 | Design doc | "{filename}" (specified) | Delete |
-| 11 | Plan | "{filename}" (orphaned) | Delete |
-| 12 | Worktree | "{path}" (merged) | Remove |
-| 13 | Branch | "build/{name}" (merged) | Delete |
-| 14 | Backlog (unsynced) | "{title}" — local-only under `work-backend: github-issues` | Sync to GitHub |
+**Approve ({N})**
+1. [{tag}] #{N} "{title}" — {recommended action, one line} → apply-all executes: `{the exact command or mutation}`
+2. …
 
-### Cross-Spec Patterns (if any)
+**Yours ({N})**
+- #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
+- …
 
-| # | Pattern | Seen In | Recommended |
-|---|---------|---------|-------------|
-| 15 | {description} | Specs {list} | Add rule to CLAUDE.md |
-| 16 | {description} | Specs {list} | Promote to spec |
-
-*Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
-
-### Design Record Drift (if any)
-
-| # | Severity | Path:Line | Finding | Evidence |
-|---|----------|-----------|---------|----------|
-| 17 | medium | PRODUCT.md | [doctor] product-schema-legacy (route) — {summary} | {fix text} |
-| 18 | info | PRODUCT.md | [doctor] product-deprecated-register (mention) — {summary} | {fix text} |
-
-*Drift in this project's own Impeccable artifacts, from `/claude-tweaks:design-wrapper doctor` (Step 4.9). **Informational — nothing here is applied.** "Apply all" does not act on these rows: `route` and `mention` findings have no mechanical fix by construction, and an `auto` finding's fix means running `doctor.mjs --fix`, which rewrites `PRODUCT.md` and is yours to run. Omit this whole section entirely when the scan skipped or returned no findings — never render it with an "unavailable" note.*
-
-### Summary
-- Backlog: {X} records ({Y} stale, {Z} ready to promote)
-- Parked: {X} records ({Y} trigger-met, {Z} still waiting)
-- Ready, unscored: {N} — needs `/claude-tweaks:specify`
-- `bot:blocked`: {N} — needs `/claude-tweaks:backlog refine`
-- Plans to clean: {D} design docs, {E} execution plans
-- Git cleanup: {F} worktrees, {G} build branches
+**Clean:** {comma list of scans with nothing to report, each with its count}
 ```
+
+Section semantics follow `step-6-auto.md`'s Bucket mapping and are bound by its "Report rules" section (stated once there — not restated here): in interactive mode, **Applied automatically** carries only what already executed without a decision (reconcile-converged outcomes only); every active recommendation from the scans (delete, defer, absorb, promote, sync, fix, close, resolve, capture, open parent gate — every mutating entry in `SKILL.md`'s Action Vocabulary table) renders as a numbered row (1..N) in **Approve ({N})**, which is the set "Apply all" applies; findings that only a human can act on (needs-scoring, re-triage, acceptance gaps, trigger-met parked records, unsettled runs, ungranted PRs, cross-spec patterns, design-record drift) render in **Yours ({N})** with their paste-ready command; Keep rows and clean scans are counted in **Clean:** — kept visible as counts, never itemized rows.
 
 Immediately after presenting the report above, call `AskUserQuestion`:
 
 - `question`: `"How do you want to handle these tidy actions?"`, `header`: `"Tidy actions"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations shown above"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply every item in the Approve ({N}) section above"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which Approve #s to change"`
 
-**Hard gate.** Check the response you are about to send: does it already contain the `## Tidy Report` block above as literal rendered markdown, with a row for every finding (Actions, and Cross-Spec Patterns / Design Record Drift when non-empty)? If not, this is not "the report was presented earlier" or "the user can infer the items from the summary" — render it now, in this response, before the tool call. `AskUserQuestion` cannot carry the table itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with the tool call but no report above it has shown the user "Apply all" with nothing to apply it to.
+**Hard gate.** Check the response you are about to send: does it already contain the `## Tidy Report` block above as literal rendered markdown, with every non-empty section — **Applied automatically**, **Approve ({N})**, **Yours ({N})** — and the **Clean:** line? If not, this is not "the report was presented earlier" or "the user can infer the items from the summary" — render it now, in this response, before the tool call. `AskUserQuestion` cannot carry the report itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with the tool call but no report above it has shown the user "Apply all" with nothing to apply it to.
 
 If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's built-in `Other` field.
 
-Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy taxonomy (`step-1-records.md`'s Shape 5.5 — a retired label whose rename is the user's call) are included for visibility but require no mutation. Only items with an active recommendation (delete, defer, absorb, promote, sync, fix, close, resolve, capture, open parent gate) are executed — every mutating entry in `SKILL.md`'s Action Vocabulary table, not a fixed subset of it.
+Only items in **Approve ({N})** are executed — every mutating entry in `SKILL.md`'s Action Vocabulary table, not a fixed subset of it. **Yours ({N})** and **Clean:** items require no mutation and are never touched by "Apply all".
 

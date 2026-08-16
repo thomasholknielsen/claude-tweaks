@@ -6,7 +6,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend]` |
+| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|github-remote\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend\|autonomy\|emil-skills\|integration-model]` |
 | `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
 | `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready sub-issue records | `<#N\|record-id\|design-doc-path\|topic\|backlog-title> [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra>] [--granularity <fine\|standard\|coarse>]` |
@@ -143,7 +143,7 @@ Backlog record → Design Doc → Ready record(s) → Code → Stories → TEST_
 
 Consumed artifacts are deleted — specs and code are the durable outputs.
 
-Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-backed projects), a worktree run is born public: `/build`'s first phase opens a draft PR immediately, every later phase pushes and flips its own PR checklist row, and `/wrap-up`'s Review Console renders as PR checkboxes instead of a blocking chat prompt. A background reconciler converges local state (fast-forward, worktree reap, claim release, run-dir archive) at every shared-state read point, so no step depends on the session that started it still being alive. `local-merge` (no GitHub remote) keeps the artifact flow above unchanged.
+Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-backed projects), a worktree run is born public: `/build`'s first phase opens a draft PR immediately, every later phase pushes and flips its own PR checklist row, and `/wrap-up`'s Review Console renders as PR checkboxes instead of a blocking chat prompt. A background reconciler converges local state (fast-forward, worktree reap, claim release, run-dir archive, branch archival) at every shared-state read point, so no step depends on the session that started it still being alive. `local-merge` (no GitHub remote) keeps the artifact flow above unchanged.
 
 ## Bookend Architecture (v4.6+)
 

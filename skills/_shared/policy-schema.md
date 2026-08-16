@@ -169,7 +169,7 @@ These resolve from `policy.yml`. `/claude-tweaks:init` does not generate them in
 | `leftover-default` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — leftover routing is inherently pipeline-scoped, no standalone site exists) | `/claude-tweaks:wrap-up` | `defer` | `defer`/`backlog`/`drop` |
 | `auto-fix-threshold` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:test` | `lint+type` | `lint-only`/`lint+type`/`lint+type+test` |
 | `review-severity-floor` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply cutoff; ceiling-conditional default at `unattended` — see `_shared/autonomy-ceiling.md` |
-| `tidy-aggressiveness` | `policy.yml` | `/claude-tweaks:tidy` | `conservative` | `conservative`/`moderate`/`aggressive` |
+| `tidy-aggressiveness` | `policy.yml` | `/claude-tweaks:tidy` | `moderate` | `conservative`/`moderate`/`aggressive` |
 | `superpowers-plans-retention` | `policy.yml` | `/claude-tweaks:wrap-up`'s cleanup-planning item 1 (`cleanup-procedures.md`) | `keep-forever` | `keep-forever` (never delete `docs/superpowers/plans/*.md` — this plugin's own ADR-0007 convention) / `prune-after-wrapup` (delete this spec's own plan/spec file(s) as part of cleanup) / `ask` (stage the decision for the Wrap-Up Review Console) |
 
 ## Model profiles

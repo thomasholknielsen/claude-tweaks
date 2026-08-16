@@ -3,11 +3,15 @@
 Step 6's auto branch; `step-6-interactive.md` is its twin. `SKILL.md` resolves `--dry-run` before
 reading either — under it, everything Stages and the routing table below is bypassed.
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `tidy-aggressiveness` from `config.yml` (default `conservative`).
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `tidy-aggressiveness` from `config.yml` (default `moderate`; `conservative` is the documented opt-down).
+
+**A recurring staged item is a missing routing rule.** The Approve bucket should be empty in steady state: when the same class of finding stages run after run, the fix is a routing row — or a reconcile check — that disposes of it mechanically, not a faster approval habit. The durable exception is outward-facing GitHub writes, which the skill-side auto-mode contract forbids at every tier (`_shared/auto-mode-contract.md`); mechanical dispositions of outward state therefore ride on reconcile's background convergence (the reconcile-converged rows below), never on a tidy tier.
+
+**`local-merge` caveat (stated once, referenced by the reconcile-converged rows):** reconcile's checks run under `integration-model: pr-first` only (resolved per `_shared/integration-model.md`; `bin/lib/reconcile/index.js`'s guard). Under `local-merge`, nothing below converges — except `reap`, which falls back to `worktree-reap.js`'s long-standing ancestry check — every other such finding keeps today's staging behavior, unchanged.
 
 For each finding, route by recommendation type:
 
-| Recommendation | `conservative` (default) | `moderate` | `aggressive` |
+| Recommendation | `conservative` | `moderate` (default) | `aggressive` |
 |---|---|---|---|
 | **Keep** | Auto (no-op) | Auto (no-op) | Auto (no-op) |
 | **Needs scoring** (Shape 4 — `ready` record missing risk/size; no mutation, recommends `/claude-tweaks:specify`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
@@ -19,7 +23,9 @@ For each finding, route by recommendation type:
 | **Arm ready PR** (a green, gate-passed, `[pr-unarmed]` PR granted via `housekeeping-auto-merge` — the marker-stamped tidy Step-7 flavor of item 9) | Stage | Auto-apply — only under the grant; an ungranted marker-stamped PR still Stages regardless of tier | Auto-apply — same grant gate as `moderate` |
 | **Arm ready PR** (item 9's other granted flavor — a non-housekeeping PR already `auto:merge`-granted on every linked record, discovered unarmed by this backstop) | Stage | Stage | Stage — this backstop discovering an already-granted, already-green PR that never armed is itself an anomaly the normal dispatch pipeline should have caught; re-arming it blind at any tier rather than surfacing it first would hide whatever actually went wrong. Once staged and approved, execution is identical to the housekeeping row above (`_shared/pr-first-merge.md`) — only the tier gate differs |
 | **Unarmed ready PR, ungranted** (item 9 — no `auto:merge` on a linked record and no `housekeeping-auto-merge`; no mutation, recommends granting first) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) — never auto-applied at any tier: granting `auto:merge` is `/claude-tweaks:backlog refine`'s job, never this sweep's (Non-Goals: no auto-merge for ungranted anything) |
-| **Unsettled run** (item 10 — a claimed or `bot:in-progress` issue whose pipeline shows no progress past the threshold; no mutation, recommends resuming via the reported command or releasing the claim) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) — resuming re-enters a pipeline mid-flight and releasing drops a claim another session may still hold; both are judgment calls this sweep only ever surfaces, never one it decides or executes |
+| **Unsettled run** (item 10 — a claimed or `bot:in-progress` issue whose pipeline shows no progress past the threshold; no mutation, recommends resuming via the reported command or releasing the claim) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) — resuming re-enters a pipeline mid-flight — always a judgment call this sweep only surfaces. Releasing a claim on a still-open issue drops a claim another session may still hold — that stays surface-only here; the issue-closed case is disposed mechanically by reconcile's release check wherever its own evidence conditions are met (see the Issue-closed claim release row below) — a closed-issue claim the check skips (e.g. its PR is still open) still surfaces here |
+| **Issue-closed claim release** (claims on already-closed issues that reconcile's `release` check released — `bin/lib/reconcile/release-merged.js`; the module header owns the evidence conditions) | Reconcile-converged — reported in **Applied automatically**, never staged | Reconcile-converged (same) | Reconcile-converged (same) — see the preamble's `local-merge` caveat. Releasing a claim IS an outward GitHub write (a claims-blob conditional overwrite plus `bot:in-progress` removal); it is permitted because it is reconcile's own background-convergence write — shipped behavior for merged-PR evidence since the reconcile layer landed — governed by reconcile's posture, outside the skill-side auto-mode contract. This row only reports the result; evidence conditions live in the module header, never here. Claims on still-open issues are untouched by this row — see the Unsettled-run row above. |
+| **Abandoned-branch archival + locked-worktree resolution** (unmerged/aged plugin-owned branches and merged-but-stuck worktrees — reconcile's `archive-branches` and `reap` checks, `bin/lib/reconcile/archive-branches.js` + `reap-merged.js`, with worktree liveness via `worktree-reap.js`'s predicates) | Reconcile-converged — reported in **Applied automatically**, never staged | Reconcile-converged (same) | Reconcile-converged (same) — see the preamble's `local-merge` caveat. Evidence conditions and thresholds (cherry equivalence, tag-then-delete, age windows, liveness) live in the module headers, never here. A candidate the checks skip — open PR, too young, transport failure — surfaces as a non-actionable skip sub-line under **Applied automatically**'s converged summary (it carries no command; the Report rules' paste-ready requirement binds *actionable* lines only). A branch attached to a live worktree is silently out of scope for `archive-branches` (its scope guard, no entry emitted); a locked worktree is `reap`'s skip, reported with its reason — never broken. The cleanly-merged Delete row above is unaffected — it predates these checks and stays tier-routed for `local-merge` parity. |
 | **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
 | **Delete** (any case requiring judgment, excluding backlog records — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-record Delete rows below for `local-files`- and `github-issues`-backend findings) | Stage | Auto-apply | Auto-apply |
 | **Delete** (stale backlog record, `local-files` backend — Shape 1's "Stale" recommendation; deletes a git-tracked file, same reversibility tier as the row above) | Stage | Auto-apply | Auto-apply |
@@ -44,7 +50,7 @@ STAGED 11:14:35 — Step 6: absorb proposal for backlog record "{title}" into #4
 
 Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up`'s Phase 4) when `/tidy` runs as part of a pipeline.
 
-**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply the resolved `tidy-aggressiveness` value — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values tidy-aggressiveness)` (see `_shared/policy-schema.md`) — as the routing key. Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
+**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply the resolved `tidy-aggressiveness` value — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values tidy-aggressiveness)` (see `_shared/policy-schema.md`) — as the routing key. Render the report per the template below (this is the bookend-end for the standalone run; no separate Review Console).
 
 #### Archival compaction (every Standalone-auto firing, any scope)
 
@@ -63,4 +69,55 @@ For each matched directory:
 4. Log one `AUTO` line to *this* firing's own `decisions.md`: `AUTO {time} — Archival: compacted {run-id} (age: {N} days) into index-{YYYY-MM}.md. Reversibility: high (archive is additive, nothing deleted).`
 
 Skipped staged items inside a compacted run are preserved verbatim in the archive (not silently dropped) — same rule `/wrap-up`'s own archival already follows.
+
+#### The report template (standalone auto)
+
+Four verb-grouped sections, these exact literal headers, in this order — what tidy **did**, what it **will do on a click**, what **only the human can do**, and what came back clean:
+
+```markdown
+## Tidy Report — {date}
+
+**Applied automatically**
+- {what was done}: #{N} "{title}" — {one-line outcome} ({reversibility: commit {hash} | reconcile-converged})
+- …
+
+**Approve ({N})**
+1. [{tag}] #{N} "{title}" — {staged action, one line} → approve applies: `{the exact command or mutation}`
+2. …
+
+**Yours ({N})**
+- #{N} "{title}" — {why it needs the human} → `{paste-ready command}`
+- …
+
+**Clean:** {comma list of scans with nothing to report, each with its count — e.g. "parked (3 checked), worktrees (2), doc registry"}
+```
+
+How **Approve ({N})** resolves on this surface: the staged files persist under `{run-dir}/staged/`; when the section is non-empty, `SKILL.md`'s Next Actions prepends an "Apply all staged ({N})" option that executes Step 7 over exactly those items. Nothing applies without that click.
+
+#### Bucket mapping (which section a finding lands in)
+
+A finding's section is a function of its routing outcome from the table above — never per-run judgment:
+
+| Routing outcome | Section |
+|---|---|
+| Auto-applied (executed this run) or reconcile-converged | **Applied automatically** |
+| Staged with an executable action (awaiting approval) | **Approve ({N})** |
+| Auto (no-op, always surfaced) — a finding recommending a command the human runs (needs-scoring, re-triage, acceptance gaps, parked triggers, unsettled runs, ungranted PRs, patterns, drift — every `Auto (no-op, always surfaced)` row in the routing table) | **Yours ({N})** |
+| Keep / nothing-to-report scans | **Clean:** (counted in the comma list, never itemized) |
+
+No finding may be presented information-only: anything actionable carries its paste-ready command in **Yours** or lands in **Approve**.
+
+### Report rules
+
+Binding rules for every rendering of this template, on both surfaces (`step-6-interactive.md` cross-references this heading rather than restating):
+
+- No box-drawing tables anywhere in the report — sections are markdown lists and plain tables only.
+- Every actionable line carries a paste-ready command (fully-qualified `/claude-tweaks:{skill}` form for skill invocations) or lands in **Approve ({N})**.
+- Records render as `#{N} "{title}"` — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`.
+- `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
+- Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as the comma list, or as **Clean:** nothing — every scan surfaced findings.
+
+#### Hard gate (report before question)
+
+Check the response you are about to send: does it already contain the report above as literal rendered markdown — every non-empty section of **Applied automatically**, **Approve ({N})**, **Yours ({N})**, and the **Clean:** line? If not, render it now, in this response, before any `AskUserQuestion` call. `AskUserQuestion` cannot carry the report itself (`docs/skill-authoring.md`'s Multi-item decisions convention), so a response with a question but no report above it has asked for a decision with nothing to decide on.
 
