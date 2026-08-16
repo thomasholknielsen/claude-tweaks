@@ -48,7 +48,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 
 - Findings table merged from lenses 3a-3i, plus open QA ledger entries with phase `test/qa`.
 - Pipeline run directory (when in auto/hybrid mode).
-- `review-auto-apply-ceiling` value from `config.yml` (default `low`).
+- `review-auto-apply-ceiling`, resolved per the Auto mode section below (resolver `--run` overlay; ceiling-conditional default when nothing is set).
 - The resolved `review-effort` tier from `/claude-tweaks:review`'s Step 2.5.
 
 **`unconfirmed` findings can originate from several sources**, and all render identically in this table with `(low-confidence)` appended — the caller does not distinguish them:
@@ -72,7 +72,7 @@ Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in th
 
 ## Auto mode (severity-based routing)
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `review-auto-apply-ceiling` from `config.yml` (default `low`). When no explicit value was set (no CLI arg, no Manifesto override, no project policy), the default is ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise — see `_shared/autonomy-ceiling.md` for the rationale; this is a skill-default shift, not a new capability, so an explicit value at any level still wins.
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), resolve `review-auto-apply-ceiling` — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" review-auto-apply-ceiling` (JSON envelope, not `--values`, because the next sentence needs `source`). When the envelope's `source` is `default` (no CLI arg, no Manifesto override, no project policy — nothing set at run or policy level), the effective default is ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise — see `_shared/autonomy-ceiling.md` for the rationale; this is a skill-default shift, not a new capability, so an explicit value at any level still wins.
 
 Per the `/review` Step 3 Routing row in `_shared/auto-mode-contract.md`, severity routes to: low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT (rare; security/correctness hard-fails the bookend). Append every entry to `decisions.md` under the `## /review` heading.
 
