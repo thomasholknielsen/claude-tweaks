@@ -40,9 +40,9 @@ test('checks-pending-timeout is defined only in the gate; other files at most ci
 });
 
 test('merge-when-green appears outside the gate only as a lever value (#559 files) or a citation', () => {
-  // The three #559 files name the value as a lever, never the procedure; anything else naming
+  // The #559 lever files name the value as a lever, never the procedure; anything else naming
   // the value must cite the gate's file.
-  const LEVER_FILES = new Set(['_shared/policy-schema.md', 'flow/manifesto.md', 'help/policy.md']);
+  const LEVER_FILES = new Set(['_shared/policy-schema.md', 'flow/manifesto.md']);
   const offenders = [];
   for (const file of walk(SKILLS)) {
     if (file === GATE_FILE) continue;
@@ -61,7 +61,7 @@ test('the gate reads state before any merge attempt and names the red-path piece
   const step3 = gate.indexOf('## Step 3:');
   assert.ok(step25 !== -1 && step3 !== -1 && step25 < step3, 'Step 2.5 must precede Step 3');
   const section = gate.slice(step25, step3);
-  for (const needle of ['statusCheckRollup', 'mergeStateStatus', 'bot:blocked', 'checks-pending-timeout', 'AUTO ', '15 minutes', 'never', '--auto']) {
+  for (const needle of ['statusCheckRollup', 'mergeStateStatus', 'bot:blocked', 'checks-pending-timeout', 'AUTO ', '15 minutes', 'never merge', '--auto']) {
     assert.ok(section.includes(needle), `gate section missing "${needle}"`);
   }
   assert.ok(!/AskUserQuestion/.test(section), 'the gate is park-and-surface — no mid-pipeline prompt');

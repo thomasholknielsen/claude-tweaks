@@ -7,8 +7,9 @@ short-circuit, and `flow/worktree-merge.md`'s multi-branch reconciliation. Super
 #299 (the fast-lane `git -C "$RUN_DIR"` worktree/branch anchoring defect — obsolete once merge
 needs no checkout at all).
 
-**The shape:** ready → `gh pr merge --auto` (arm) → degrade to immediate merge → degrade to
-ready+comment. `gh pr merge` needs no local checkout, which is what deletes the two-thread split
+**The shape:** ready → merge-verification gate (Step 2.5: state read; red parks; pending waits or
+arms only when the forge holds it) → `gh pr merge --auto` (arm) → degrade to immediate merge →
+degrade to ready+comment. `gh pr merge` needs no local checkout, which is what deletes the two-thread split
 every pr-first caller used to need: the same cwd-pinned Task call that already holds
 authorization, `merge-check`, and acceptance labeling can run the merge itself. No
 `close-run`-before-merge relief, no branch-switch guard, no push-from-worktree rule, no
@@ -54,6 +55,16 @@ key row and coverage block own its meaning and derivation); this step owns what 
 MERGE_VERIFICATION=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification)
 ```
 
+When one session merges several runs sequentially (`flow/worktree-merge.md`'s reconciliation),
+resolve the lever **per merged run** from that run's own directory (`--run "{that run's dir}"`) —
+never from whichever `PIPELINE_RUN_DIR` the merging session happens to hold, which is one run's
+overlay applied to another's merge.
+
+`gh` absent → the lever is unenforceable; proceed as `off` and disclose at **warn** tier per
+`_shared/pr-early-run-lifecycle.md`'s degrade table (its "gh absent at merge time" row). Under
+pr-first this is near-unreachable: no `gh` means no PR, so this procedure's own precondition
+already fails.
+
 **Read state first — never parse stderr first.** Before any merge attempt, regardless of value:
 
 ```bash
@@ -87,7 +98,7 @@ must not lean on it. That is why the pending column below keys on `mergeStateSta
 | Value | Green | Pending | Red |
 |---|---|---|---|
 | `merge-when-green` | Step 3 as written — arm/merge (identical outcome when checks are already green) | `mergeStateStatus: BLOCKED` → Step 3 as written — arm `--auto` (the forge holds it; outcome `armed`). Any other value (`CLEAN`, `UNSTABLE`, `BEHIND`, `UNKNOWN`, …) → arming would merge immediately: **degrade to the `wait` row** — never to an immediate merge | Red path |
-| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`) and merge with the run's configured method — Step 3's immediate-merge form | **Bounded watch** below | Red path |
+| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`) and merge via Step 3's immediate `--merge` form | **Bounded watch** below | Red path |
 | `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
 
 **Bounded watch (`wait`, and `merge-when-green` when arming would not hold) — 15 minutes, fixed.**
@@ -115,8 +126,8 @@ done
 - `RC=0` → **green**: re-read state (`gh pr view … --json state,mergeStateStatus,headRefOid`); if
   `headRefOid` changed since the first read (a new push landed) or `state` is not `OPEN`, re-enter this
   step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`)
-  — never merge blind; otherwise merge with the run's configured method (Step 3's immediate-merge
-  form, outcome `merged`, then Step 4).
+  — never merge blind; otherwise merge via Step 3's immediate `--merge` form (outcome `merged`,
+  then Step 4).
 - `RC=1` (a check failed during the watch) → **Red path**, reason `check-failed:{names}` (names from
   the `fail` rows of `/tmp/pr-checks-{n}.txt`).
 - `RC=124` (still pending at the bound) → **Red path** with reason `checks-pending-timeout` —
@@ -133,10 +144,15 @@ done
    failing check(s), the PR, and the reason:
    `Parked by merge-verification ({value}): {failing check names — or "checks still pending after 15m" for checks-pending-timeout} on PR #{n}. Resume once green.`
 3. Log to `decisions.md` per `_shared/auto-decision-log.md` (an action taken autonomously — parked, not asked):
-   `AUTO {HH:MM:SS} — merge-verification ({value}): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:blocked applied to #{issue-list}. Reversibility: high (label removal + resume).`
+   `AUTO {HH:MM:SS} — Step 2.5 (merge-verification gate): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:blocked applied to #{issue-list}. Reversibility: high (label removal + resume). [lever: merge-verification={value} ({source})]`
 4. Report outcome `pending-review`. This is a HARD-GATE-class stop written as park-and-surface — the
    `_shared/auto-mode-contract.md` strict rule holds: never a mid-pipeline prompt here; the human-facing
    surface is dispatch's resume confirmation (`dispatch/SKILL.md`, "Confirm before resuming").
+
+**Log the armed outcome too** — one AUTO line per parked *or* armed merge, so `decisions.md`
+accounts for every merge this gate influenced, not only the stopped ones:
+
+`AUTO {HH:MM:SS} — Step 2.5 (merge-verification gate): armed — forge holds the merge (mergeStateStatus BLOCKED, checks pending) on PR #{n}; reconciler completes cleanup on merged evidence. Reversibility: high (gh pr merge --disable-auto). [lever: merge-verification={value} ({source})]`
 
 **Forge-cooperation path.** A merge attempt rejected by *org-owned required checks* — the state read
 shows `mergeStateStatus: BLOCKED` with every rollup entry green (required reviews or org-owned
@@ -156,8 +172,10 @@ never suggest bypassing protection.
 
 **Resume-to-merge is one-shot.** `dispatch/SKILL.md`'s "Confirm before resuming" confirmation applies
 this same lever as a single read-then-decide (green → proceed; red → surface in the confirmation;
-pending → arm `--auto` where available, else offer the choice in that same confirmation) — a human is
-present on resume, so it never runs the bounded watch.
+pending with `mergeStateStatus: BLOCKED` → arm `--auto`, since the forge is what holds it; pending
+with any other `mergeStateStatus` → do **not** arm — on an unprotected repo arming *is* an immediate
+merge (capture (a)), so the confirmation itself carries the choice: wait for green, or leave parked)
+— a human is present on resume, so it never runs the bounded watch.
 
 ## Step 3: Attempt auto-merge, degrading on specific failure signatures
 
@@ -185,7 +203,7 @@ the result:
    `auto-merge` and (`not allowed` or `not enabled`) — GitHub's own wording for the repository
    setting "Allow auto-merge" being off):
 
-   - under `merge-verification: off` — degrade to an immediate merge, no `--auto` (today's
+   - under `merge-verification: off` only — degrade to an immediate merge, no `--auto` (today's
      behavior):
 
      ```bash
@@ -194,8 +212,9 @@ the result:
        -b "$(printf 'Fixes #%s\n' {issue-list})"
      ```
 
-   - under `merge-when-green` — do not merge immediately: degrade to Step 2.5's `wait` row
-     instead (the immediate merge is exactly the race the lever closes).
+   - under `merge-when-green` or `wait` — do not merge immediately: degrade to Step 2.5's `wait`
+     row instead (the immediate merge is exactly the race both values exist to close; `wait`
+     reaching here at all means arming was never its path — it lands in the same bounded watch).
 
    This either succeeds (→ outcome `merged`, go to Step 4) or fails on one of the signatures
    below (→ that signature's own degrade branch).

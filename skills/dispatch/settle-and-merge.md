@@ -115,7 +115,7 @@ trace of it.
 
    ```bash
    # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-   # [['bot:blocked', 'Bot state: retry ceiling reached - needs human re-triage before autonomous retry']]
+   # [['bot:blocked', 'Bot state: retry ceiling or merge-verification park - needs human re-triage before autonomous retry']]
    ```
 
    Then remove `auto:build` and, if still present (a `transient`-classified attempt preserves it per step 3 above, so it can still be there at the ceiling), `auto:merge` too — per `_shared/issue-claims.md`'s canonical rule, the retry ceiling removes **all** `auto:*` labels, not just whichever one step 3 didn't already strip. Add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
@@ -145,9 +145,9 @@ green arms or merges, pending waits or arms, red parks the group with bot:blocke
 pending-review, never merges (this is where a #540-shaped red merge is stopped) —
 `tag: auto-merge`, `issue-list` the group's full record set, `summary` the lowest-numbered
 record's title for a singleton or a semicolon-joined list of every member's title for a bundle.
-`gh pr merge` needs no checkout, so this same cwd-pinned call performs the merge itself; there is
-no second thread, no `OUTCOME: ready-to-merge` relay, and no `close-run`/branch-guard/push-from-worktree
-dance — those existed only for a *local* merge. Report the outcome that procedure returned
+`gh pr merge` needs no checkout, so this same cwd-pinned call performs the merge itself;
+there is no second thread, no `OUTCOME: ready-to-merge` relay, and no
+`close-run`/branch-guard/push-from-worktree dance — those existed only for a *local* merge. Report the outcome that procedure returned
 (`merged` / `armed` / `pending-review`) (pending-review now also covers a red or timed-out check
 per that gate) per `task-prompt.md`'s updated second-call template. On
 `merged`, this call also owes the cleanup a merge unlocks — worktree removal, claim release,
