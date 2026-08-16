@@ -9,111 +9,113 @@ const { PROFILES } = require('./model-profiles/profiles');
 
 const PROFILE_NAMES = Object.keys(PROFILES);
 
+const POLICY_CATEGORIES = ['autonomy-trust', 'pipeline-behavior', 'merge-safety', 'health-sweeps', 'models', 'housekeeping'];
+
 const POLICY_KEYS = [
-  { key: 'worktree.always', type: 'boolean', default: false },
+  { key: 'worktree.always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
   // One key, two value classes since #331: plain 'subagent'/'batched' are
   // overridable defaults; the '-only' forms carry the full lock semantics the
   // retired execution.always key used to hold (a lock beats an explicit CLI
   // argument). RENAMED_KEYS migrates stray execution.always lines.
-  { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched', 'subagent-only', 'batched-only'], default: 'subagent' },
-  { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree' },
-  { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield' },
-  { key: 'integration-branch', type: 'string' },
+  { key: 'execution-strategy', type: 'enum', values: ['subagent', 'batched', 'subagent-only', 'batched-only'], default: 'subagent', summary: "Sets whether build defaults to subagent or batched execution, and can lock that choice against override.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'git-strategy', type: 'enum', values: ['current-branch', 'worktree'], default: 'worktree', summary: "Sets whether new work defaults to an isolated worktree/working directory or continues on the current branch.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'project.maturity', type: 'enum', values: ['greenfield', 'pre-launch', 'early-production', 'established'], default: 'greenfield', summary: "Scales how strict test discipline and task breakdown are, from a greenfield project up to an established one.", category: 'pipeline-behavior', tier: 'core' },
+  { key: 'integration-branch', type: 'string', summary: "Names the branch where finished work lands and new work starts, for a repo whose active branch is not its default.", category: 'merge-safety', tier: 'advanced' },
   // pr-first (origin is truth, GitHub PR integration) vs local-merge (today's
   // local merge into the integration branch — the permanent no-forge
   // fallback). Deliberately no static `default`: an absent value's default is
   // computed by bin/resolve-policy.js's detectIntegrationModel (forge
   // detection), not a schema literal — see skills/_shared/integration-model.md.
-  { key: 'integration-model', type: 'enum', values: ['pr-first', 'local-merge'] },
-  { key: 'dispatch-retry-ceiling', type: 'integer', default: 3 },
-  { key: 'dispatch-batch-size', type: 'integer', default: 3 },
+  { key: 'integration-model', type: 'enum', values: ['pr-first', 'local-merge'], summary: "Whether finished work lands through GitHub pull requests or by local merges into the integration branch.", category: 'merge-safety', tier: 'core' },
+  { key: 'dispatch-retry-ceiling', type: 'integer', default: 3, summary: "Sets how many consecutive autonomous build failures a record tolerates before it is flagged blocked and pulled from auto-pilot.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'dispatch-batch-size', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence before leaving the rest for next time.", category: 'merge-safety', tier: 'advanced' },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
   // sequential batch count, never a concurrency slot count). Still recognized so a
   // project's existing policy.yml validates; removal condition in
   // skills/dispatch/deprecated-aliases.md.
-  { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3 },
-  { key: 'automerge-max-lines', type: 'integer', default: 40 },
-  { key: 'automerge-max-files', type: 'integer', default: 2 },
-  { key: 'merge-sensitive-paths', type: 'list', default: [] },
+  { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence — an older name for the same cap, kept for migration.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'automerge-max-lines', type: 'integer', default: 40, summary: "Bounds how large a diff an unattended merge will accept before a human is required — a weighted guideline, not a hard cutoff.", category: 'merge-safety', tier: 'core' },
+  { key: 'automerge-max-files', type: 'integer', default: 2, summary: "Bounds how many changed files an unattended merge will accept before a human is required — the same weighted guideline, by file count.", category: 'merge-safety', tier: 'core' },
+  { key: 'merge-sensitive-paths', type: 'list', default: [], summary: "Lists path patterns that always require a human to sign off on a merge, no matter how small the change looks.", category: 'merge-safety', tier: 'advanced' },
   // Sweep-backstop thresholds (#414) — how long a green, gate-passed PR may sit
   // with `--auto` unarmed, or a claimed/pushed run may sit with no PR progress,
   // before the repo-wide scan surfaces it. See _shared/github-pr-scan.md's
   // 'unarmed ready PR' and 'unsettled run' checks.
-  { key: 'pr-unarmed-age-hours', type: 'integer', default: 24 },
-  { key: 'unsettled-age-hours', type: 'integer', default: 24 },
+  { key: 'pr-unarmed-age-hours', type: 'integer', default: 24, summary: "Sets how long a ready, passing pull request may sit without being armed to merge before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'unsettled-age-hours', type: 'integer', default: 24, summary: "Sets how long a claimed piece of work may sit with no visible progress before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
   // false by default: tidy's own Step 7 housekeeping PRs stage rather than arm
   // --auto until a project opts in. See tidy/SKILL.md Step 7 and the
   // <!-- tidy-housekeeping-pr --> body marker that identifies them.
-  { key: 'housekeeping-auto-merge', type: 'boolean', default: false },
-  { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text' },
-  { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'] },
-  { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30 },
-  { key: 'harness-health.always-loaded-budget', type: 'integer', default: 150 },
+  { key: 'housekeeping-auto-merge', type: 'boolean', default: false, summary: "Lets routine cleanup pull requests merge themselves once green, instead of waiting for a person to arm them.", category: 'merge-safety', tier: 'core' },
+  { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text', summary: "Chooses whether related records link through native issue relationships or a plain-text reference in the body.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'], summary: "Sets a minimum thoroughness level a code review is never allowed to fall below, even for a small-looking diff.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30, summary: "Caps how many lines a path-scoped rule file may hold before a health sweep flags it as too long.", category: 'health-sweeps', tier: 'advanced' },
+  { key: 'harness-health.always-loaded-budget', type: 'integer', default: 150, summary: "Caps how many lines the project's always-loaded instructions may hold before a health sweep flags them as too long.", category: 'health-sweeps', tier: 'advanced' },
   // Per-origin open-singleton cap for the four health sweeps' digest filing
   // (_shared/health-filing-digest.md). Documented in _shared/policy-schema.md
   // since #235 but never registered here until #330's migration hit the gap.
-  { key: 'health-open-cap', type: 'integer', default: 10 },
-  { key: 'scope-creep', type: 'enum', values: ['add-to-plan', 'stop-and-ask', 'drop'], default: 'add-to-plan' },
-  { key: 'overlap', type: 'enum', values: ['companion', 'extend', 'skip', 'replace'], default: 'companion' },
-  { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none' },
-  { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer' },
-  { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type' },
-  { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low' },
-  { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate' },
-  { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'] },
-  { key: 'backlog-fetch-limit', type: 'integer', default: 1000 },
-  { key: 'depth-survey', type: 'enum', values: ['off'] },
-  { key: 'creative-survey', type: 'enum', values: ['off'] },
-  { key: 'scope-keywords-required', type: 'boolean', default: false },
+  { key: 'health-open-cap', type: 'integer', default: 10, summary: "Sets how many open findings a health sweep will file as separate issues before folding new ones into a shared digest instead.", category: 'health-sweeps', tier: 'advanced' },
+  { key: 'scope-creep', type: 'enum', values: ['add-to-plan', 'stop-and-ask', 'drop'], default: 'add-to-plan', summary: "Decides what happens when new work surfaces mid-build that was not in the original plan: fold it in, pause and ask, or drop it.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'overlap', type: 'enum', values: ['companion', 'extend', 'skip', 'replace'], default: 'companion', summary: "Decides how a new spec is treated when it duplicates an existing one: run beside it, extend it, skip it, or replace it.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none', summary: "Sets the visual and UX ambition a build aims for — bold, quiet, minimal, delightful, onboarding-focused, or none at all.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer', summary: "Decides what happens to loose ends found at the end of a run: leave them for later, file them as backlog, or drop them.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type', summary: "Sets how much a test pass auto-fixes before stopping — lint alone, lint and types, or lint, types, and tests.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate', summary: "Sets how boldly cleanup sweeps act on what they find — from keep-unless-certain to delete-unless-doubtful.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'], summary: "Sets whether a standalone build or an unattended cleanup run starts hands-off by default, without being asked each time.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'backlog-fetch-limit', type: 'integer', default: 1000, summary: "Caps how many backlog issues one scan pulls before warning that the list was truncated.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'depth-survey', type: 'enum', values: ['off'], summary: "When set, turns off the end-of-run prompt asking whether recently changed code deserves a deeper architectural pass.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'creative-survey', type: 'enum', values: ['off'], summary: "When set, turns off the end-of-run prompt suggesting creative or UX improvement ideas for what was just built.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'scope-keywords-required', type: 'boolean', default: false, summary: "When on, a build refuses to start over files outside its plan unless the plan names its intended scope; otherwise it is only a warning.", category: 'pipeline-behavior', tier: 'advanced' },
   // Renamed from merge-check in #331 (default-parity: that key also defaulted
   // true) — the old name collided with assess-agent-autonomy's merge-check
   // verdict mode, a different concept that keeps its name.
-  { key: 'branch-divergence-check', type: 'boolean', default: true },
-  { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised' },
-  { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14 },
+  { key: 'branch-divergence-check', type: 'boolean', default: true, summary: "Whether a build or pipeline run checks the current branch against its upstream and offers a rebase before starting.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised', summary: "Caps how much the pipeline may do without a human — trust that classes earn can never exceed this ceiling.", category: 'autonomy-trust', tier: 'core' },
+  { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14, summary: "Sets how many days a closed record must age before its outcome counts as proven-good evidence toward earned trust.", category: 'autonomy-trust', tier: 'advanced' },
   // The reserved second opt-in named by skills/_shared/autonomy-ceiling.md —
   // read by permittedGrants as grantOriginationEnabled. false by default: the
   // 'unattended' ceiling alone never authorizes a machine-originated grant.
-  { key: 'grant-origination-enabled', type: 'boolean', default: false },
+  { key: 'grant-origination-enabled', type: 'boolean', default: false, summary: "A separate, deliberate opt-in a human must set before the pipeline is ever allowed to originate its own grants.", category: 'autonomy-trust', tier: 'core' },
   // Shared floors read by bin/lib/issues/oversight-floor.js's exceedsOversightFloor
   // — the point past which a machine-originated grant (grant-gate.js gate 5) or a
   // /claude-tweaks:demo binary-gate check is denied and a human review is
   // required. 'always' is the reserved unconditional-deny opt-out value. Not
   // prefixed 'demo-' or 'grant-': more than one consumer reads the same pair. #366.
-  { key: 'risk-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high' },
-  { key: 'size-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high' },
+  { key: 'risk-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The risk tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
+  { key: 'size-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The size tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   // Positive integer counting machine grants issued today (audit-comment
   // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
-  { key: 'fleet-daily-grant-cap', type: 'integer', min: 1 },
+  { key: 'fleet-daily-grant-cap', type: 'integer', min: 1, summary: "Caps how many machine-issued grants may be handed out across one calendar day; leave it unset for no cap.", category: 'autonomy-trust', tier: 'advanced' },
   // experiment-cleanup vertical (code-health focus mode) — the repo's own
   // feature-flag idiom, as regex-source strings (first capture group =
   // flag identifier). Empty/absent = the vertical is inactive; there is no
   // whole-repo-scan fallback (see bin/lib/code-health/candidates-experiment-
   // cleanup.js and skills/code-health/focus-mode.md).
-  { key: 'experiment-flag-patterns', type: 'list', default: [] },
+  { key: 'experiment-flag-patterns', type: 'list', default: [], summary: "Teaches the experiment-cleanup sweep this repo's own feature-flag idiom; leave it unset and that sweep stays inactive.", category: 'health-sweeps', tier: 'advanced' },
   // Kill-switch name substrings, extending (never replacing) the shipped
   // defaults ["emergency", "circuit", "kill"] — a flag whose identifier
   // matches is never emitted as a candidate, regardless of decision signals.
-  { key: 'experiment-flag-exclude', type: 'list', default: [] },
-  { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
+  { key: 'experiment-flag-exclude', type: 'list', default: [], summary: "Names extra flag-name substrings the experiment-cleanup sweep should never flag, on top of the built-in kill-switch defaults.", category: 'health-sweeps', tier: 'advanced' },
+  { key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing decision-record convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
   // Retention for docs/superpowers/plans/*.md at /wrap-up's cleanup-planning
   // item 1. Default keep-forever preserves today's unconditional-retention
   // behavior (ADR-0007's own convention) for every project that never sets
   // this — the ADR describes this plugin's own repo, not every consumer.
-  { key: 'superpowers-plans-retention', type: 'enum', values: ['keep-forever', 'prune-after-wrapup', 'ask'], default: 'keep-forever' },
+  { key: 'superpowers-plans-retention', type: 'enum', values: ['keep-forever', 'prune-after-wrapup', 'ask'], default: 'keep-forever', summary: "Decides whether finished planning files are kept forever, pruned once a run wraps up, or decided case by case.", category: 'housekeeping', tier: 'advanced' },
   // Model-profile resolver levers (#216's bin/lib/model-profiles/profiles.js is
   // the runtime reader for these four key names — POLICY_KEYS_READ pins them;
   // registration here is schema/audit only, deliberately shallow (#219): this
   // file checks model-profiles' row keys are real profile names, never the
   // shape of a row's own fields — that's the resolver's job, at resolve time.
-  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default' },
-  { key: 'frontier-run-cap', type: 'integer', default: 3 },
-  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES },
-  { key: 'model-profiles', type: 'map', keys: PROFILE_NAMES },
+  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model tier is chosen.", category: 'models', tier: 'advanced' },
+  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many top-tier model dispatches one pipeline run may use before falling back to a cheaper tier.", category: 'models', tier: 'advanced' },
+  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model tier a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
+  { key: 'model-profiles', type: 'map', keys: PROFILE_NAMES, summary: "Lets a project override which model and effort level each named profile resolves to, replacing the shipped table row by row.", category: 'models', tier: 'advanced' },
   // Read from /claude-tweaks:research's own `## Input` --mode= flag (IL-24:
   // that file is authoritative for the vocabulary, not this schema).
-  { key: 'research-mode', type: 'enum', values: ['quick', 'standard', 'deep', 'ultradeep'] },
+  { key: 'research-mode', type: 'enum', values: ['quick', 'standard', 'deep', 'ultradeep'], summary: "Sets the default depth of a research run — quick, standard, deep, or ultradeep — when nothing else specifies one.", category: 'pipeline-behavior', tier: 'advanced' },
 ];
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
@@ -485,6 +487,6 @@ function auditPolicy(repoRoot) {
 }
 
 module.exports = {
-  POLICY_KEYS, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
+  POLICY_KEYS, POLICY_CATEGORIES, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
   detectIntegrationModel, resolveIntegrationModel,
 };
