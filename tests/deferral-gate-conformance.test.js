@@ -164,3 +164,42 @@ test('no file outside deferral-gate.md restates the fix-now criteria', () => {
   walk(skillsDir);
   assert.deepEqual(offenders, []);
 });
+
+// --- #622: the console refuses reason-less proposals; the reason travels the audit trail ---
+
+test('both consoles and the narrowing auto-file cite refused-proposals.md', () => {
+  for (const rel of [
+    'skills/wrap-up/review-console.md',
+    'skills/flow/multispec-review-console.md',
+    'skills/wrap-up/ledger-narrowing-auto-file.md',
+  ]) assert.ok(read(rel).includes('refused-proposals.md'), rel);
+});
+
+test('refused-proposals.md stays within its 3 KB budget and never hardcodes the vocabulary', () => {
+  const content = read('skills/wrap-up/refused-proposals.md');
+  assert.ok(Buffer.byteLength(content, 'utf8') <= 3072, `size ${Buffer.byteLength(content, 'utf8')}`);
+  assert.ok(content.includes('DEFER_REASONS'));
+  for (const v of ['needs-human-decision', 'pre-existing-outside-diff', 'genuinely-larger', 'blocked-external', 'blocked-dependency']) {
+    assert.ok(!content.includes(v), `hardcoded vocabulary value: ${v}`);
+  }
+});
+
+test('the audit trail renders (defer-reason: {value}) — (blocker: {category}) is retired', () => {
+  assert.ok(read('skills/wrap-up/summary-template.md').includes('Defer-reason'));
+  const offenders = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.md') && fs.readFileSync(p, 'utf8').includes('(blocker: {category})')) {
+        offenders.push(path.relative(REPO_ROOT, p));
+      }
+    }
+  };
+  walk(path.join(REPO_ROOT, 'skills'));
+  assert.deepEqual(offenders, []);
+});
+
+test('auto-decision-log.md defines the REFUSED entry kind', () => {
+  assert.ok(read('skills/_shared/auto-decision-log.md').includes('REFUSED'));
+});
