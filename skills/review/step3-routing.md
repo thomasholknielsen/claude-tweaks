@@ -123,17 +123,21 @@ If "Override specific items" is chosen, the follow-up is ordinary free-text chat
 
 **When "Fix now" isn't possible**, route to the right destination:
 
-- **Defer** (new work record, `parked`) — the fix is understood but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin spec, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
-- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline.
+- **Defer** (new work record, `parked`) — the fix is understood but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin spec, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`) — passing `deferReason` to `recordPayload` (`bin/lib/issues/record.js`), chosen by the mapping below.
+- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline. Invoke `/claude-tweaks:capture` with the finding text carrying a `Defer-reason: {value}` line (a caller-side pass-through convention — capture's own `--defer-reason=` flag arrives with #625), and pass `--needs-definition` when the finding names an open choice.
 
-**Deferral gate:** An item may only be deferred if it meets ALL of these:
+**Deferral gate:** `_shared/deferral-gate.md` is the gate — run its fix-now criteria before any Defer or Capture, and never skip a fix for one of its bad reasons (the list now includes "minor / not load-bearing"; severity floors decide what blocks, not what gets fixed). A finding that fails fix-now carries exactly one `Defer-reason:` from that file's vocabulary, chosen by this mapping (one line of justification in the `AUTO`/`STAGED` log line):
 
-- Pre-existing (not introduced by this build), OR requires design discussion that can't be resolved in the current session
-- Has a clear trigger documented for when to revisit
+- a defect in a file the diff does not touch → `pre-existing-outside-diff`
+- a fix needing a product/design call → `needs-human-decision`
+- a fix that expands scope past the fix-now criteria → `genuinely-larger`
+- a fix waiting on unbuilt functionality → `blocked-dependency`
+- a fix waiting on external state → `blocked-external`
+- a new capability the finding suggests → `tangential` (Capture, not Defer)
 
-Items introduced by this build that are fixable now must be fixed now — even if the fix is imperfect, closing the gap is better than deferring.
+A finding that fails fix-now with **no** valid reason stays `open` — in an interactive review it goes to the human drill; in `auto` it becomes an `open` ledger item for wrap-up's Phase 2 drill — and per the routing rule at the top of this file the review cannot pass with it `open`.
 
-If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, and verify fixes didn't introduce new findings.
+If any findings are "Fix now", make the changes, re-verify per `_shared/deferral-gate.md`'s Re-verification rule (`/claude-tweaks:test`), and verify fixes didn't introduce new findings.
 
 ## Parallel fix dispatch (3+ independent fixes)
 
