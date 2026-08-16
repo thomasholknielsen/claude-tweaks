@@ -28,6 +28,7 @@ a record's declared surface.
 | `pre-build` | **Runs.** The always-load set is `_shared/terminal-ux.md` plus `_shared/design-craft.md` (the contract file) only — no Impeccable references, no Emil skills, no `DESIGN.md`/sidecar read; `missed` stays empty (nothing on this track has an install to miss). |
 | `shape`, `explore` | **N/A — never read `Surface:`** (structurally inapplicable per `SKILL.md`'s mode notes; unaffected by this track). |
 | `doctor` | **Unchanged** — track-independent by `SKILL.md`'s own note; no `doctor` outcome depends on which track resolved. |
+| `reset-recommendations` | **Unchanged** — cache utility, track-independent. |
 
 ## Revisit condition
 

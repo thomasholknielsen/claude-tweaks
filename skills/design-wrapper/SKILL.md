@@ -132,7 +132,7 @@ Layers 1-3 answer *whether* to dispatch; this answers *which track*. It is **one
 | `ios` / `android` / `adaptive` | any | **native** | that value |
 | `null` | `web`, `desktop`, *(missing)* | web | — |
 | `null` | `mobile` | **native** | `adaptive`, **inferred** |
-| any | `terminal` | **terminal** | — |
+| any | `terminal` | **terminal** | — (wins over the platform-first rows above — see the disagreement rule below) |
 
 `setup.platform`'s value domain is closed to those four values plus `null` by `extractPlatform`'s own implementation (see `impeccable-plugin.md`), and Layer 2 has already returned a skip for `backend` / `infra`, so every reachable combination has a row. There is no "otherwise" case to write. `null` + `mobile` infers `adaptive` because upstream has no unnamed-native track; `desktop` takes the web path because upstream's enum has no desktop value. Both are reasoned resolutions rather than placeholders — the arguments are in `native-routing.md`.
 
@@ -238,7 +238,7 @@ Callers must handle both — see the canonical caller-side contract below for wh
 
 | Field | Values | Read by |
 |---|---|---|
-| `surface_track` | `web` \| `ios` \| `android` \| `adaptive` | This skill — it derives `test`'s and `live`'s native skip reasons and names the platform on native dispatch. `platform: null` + `Surface: mobile` resolves to `adaptive` here while `platform` stays `null`; the two never collapse into one field. |
+| `surface_track` | `web` \| `ios` \| `android` \| `adaptive` \| `terminal` | This skill — it derives `test`'s and `live`'s native skip reasons and names the platform on native dispatch. `platform: null` + `Surface: mobile` resolves to `adaptive` here while `platform` stays `null`; the two never collapse into one field. |
 | `surface_track_override` | string, **only when `setup.platform` and `Surface:` implied different tracks** | The human, via whatever report the caller renders. Names both values and which won. Absent means they agreed or only one was present — never "the check didn't run." |
 
 See `_shared/design-wrapper-handling.md` for the canonical caller-side contract — the full return-shape categories (`ok` / `pass` / `advisory` / `fail` / `skipped` / `deferred`) and the "why skips don't fail" rationale shared by every caller of this wrapper.
