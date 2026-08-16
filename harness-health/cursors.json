@@ -34,5 +34,9 @@
   "skill:.claude/skills/upstream-drift/SKILL.md": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786864398288
+  },
+  "skill:build": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786865381718
   }
 }
