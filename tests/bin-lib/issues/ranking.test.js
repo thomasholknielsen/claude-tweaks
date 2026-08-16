@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { rankNextToBuild, blockersOf } = require('../../../bin/lib/issues/ranking');
+const { rankNextToBuild, blockersOf, findUnresolvedDependencyProse } = require('../../../bin/lib/issues/ranking');
 const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
 function candidate(overrides) {
@@ -141,4 +141,32 @@ test('rankNextToBuild: no blockedBy keys — body parsing result unchanged (regr
   ];
   const ranked = rankNextToBuild(candidates);
   assert.equal(ranked[0].id, 2);
+});
+
+// --- findUnresolvedDependencyProse (record #514) ---
+
+test('findUnresolvedDependencyProse: mid-line prose with empty resolved blockers is flagged, mention is the trimmed line', () => {
+  const c = { id: 418, facets: {}, body: 'Overview text.\n  Hard prerequisites, wired as Blocked by links: #418 and #419.  \nMore.' };
+  const hits = findUnresolvedDependencyProse([c]);
+  assert.deepEqual(hits, [{ id: 418, mention: 'Hard prerequisites, wired as Blocked by links: #418 and #419.' }]);
+});
+
+test('findUnresolvedDependencyProse: not flagged when blockedBy is attached non-empty', () => {
+  const c = { id: 420, blockedBy: [418, 419], facets: {}, body: 'wired as Blocked by links: #418 and #419' };
+  assert.deepEqual(findUnresolvedDependencyProse([c]), []);
+});
+
+test('findUnresolvedDependencyProse: not flagged when a canonical line-start declaration resolves via fallback', () => {
+  const c = { id: 5, facets: {}, body: 'Blocked by #418\nrest of body' };
+  assert.deepEqual(findUnresolvedDependencyProse([c]), []);
+});
+
+test('findUnresolvedDependencyProse: case-insensitive match', () => {
+  const c = { id: 6, facets: {}, body: 'This is BLOCKED BY #7 in prose only' };
+  assert.equal(findUnresolvedDependencyProse([c]).length, 1);
+});
+
+test('findUnresolvedDependencyProse: no prose mention, no flag (negative control)', () => {
+  const c = { id: 8, facets: {}, body: 'No dependencies at all.' };
+  assert.deepEqual(findUnresolvedDependencyProse([c]), []);
 });

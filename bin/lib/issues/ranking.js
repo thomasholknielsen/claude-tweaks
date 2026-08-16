@@ -64,6 +64,37 @@ function computeOverlapSet(candidates) {
   return overlapping;
 }
 
+// candidates[] -> [{id, mention}] for every candidate whose body mentions a
+// dependency anywhere (/blocked by\b[^\n#]*#\d+/i — deliberately broader than
+// record.js's line-anchored DEP_RE, mid-line prose included, and broader than
+// a bare "blocked by #N": same-line words between "blocked by" and the first
+// "#N" are allowed, e.g. "Blocked by links: #418", since that's real observed
+// incident prose, not a hypothetical) while blockersOf(c) resolves empty:
+// prose claims a dependency, but neither the native graph, the local driver,
+// nor a canonical line backs it — the ranker is about to treat this candidate
+// as unblocked, and the caller should say so loudly. The breadth is
+// deliberate: this only fires when resolved blockers are empty and only ever
+// renders a flag, never acts — an occasional false positive costs a human a
+// glance, while a false negative here is exactly the silent mis-ranking this
+// check exists to prevent, so it still never crosses a newline. Fires only on
+// EMPTY resolved blockers by design: a partially wired record (non-empty
+// blockedBy missing some prose-mentioned id) is not flagged — prose #N
+// mentions have no mechanical ground truth, so partial-coverage checking
+// would guess. `mention` is the trimmed full containing line of the first
+// match.
+const PROSE_DEP_RE = /blocked by\b[^\n#]*#\d+/i;
+function findUnresolvedDependencyProse(candidates) {
+  const hits = [];
+  for (const c of candidates) {
+    const body = c.body || '';
+    if (!PROSE_DEP_RE.test(body)) continue;
+    if (blockersOf(c).length > 0) continue;
+    const line = body.split('\n').find((l) => PROSE_DEP_RE.test(l));
+    hits.push({ id: c.id, mention: line.trim() });
+  }
+  return hits;
+}
+
 function rankNextToBuild(candidates) {
   const unblocksCountOf = computeUnblocksCount(candidates);
   const overlapping = computeOverlapSet(candidates);
@@ -76,4 +107,4 @@ function rankNextToBuild(candidates) {
   );
 }
 
-module.exports = { rankNextToBuild, blockersOf };
+module.exports = { rankNextToBuild, blockersOf, findUnresolvedDependencyProse };
