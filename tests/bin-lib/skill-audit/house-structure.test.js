@@ -50,6 +50,11 @@ const INTERACTION_STYLE =
 // `## Next Actions` block", so requiring the section would contradict the
 // skill's documented contract. The guard test below re-derives that
 // justification from the file, so the exemption cannot outlive its reason.
+//
+// routine-kickoff: machine-invoked only, by a routine kernel's closing line —
+// it is a wrapper that passes control entirely to its target skill, so the
+// terminal output the user sees is the target skill's own Next Actions (if
+// any), never this skill's.
 const NO_NEXT_ACTIONS = new Set(['assess-agent-autonomy', 'routine-kickoff']);
 
 const skills = fs

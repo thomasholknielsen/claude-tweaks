@@ -454,5 +454,20 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   merged tree, not by subtracting both deltas from 375, though the
   //   arithmetic happens to agree here (375 - 4 - 6 = 365) — the same
   //   `[IL-99]` pattern recorded above.
-  assert.strictEqual(total, 365);
+  //
+  //   365 -> 369, addition of `skills/routine-kickoff/SKILL.md` (#528). A
+  //   wholly new skill, not a compression pass — its Anti-Patterns table
+  //   contributes 4 rows ("Deriving the plugin root from step 2's
+  //   plugin-list output", "Falling back to manual execution on any
+  //   invocation failure", "Executing `dispatch` or `tidy` manually on the
+  //   fallback path", "Restating the kernel's contents ... here") and
+  //   nothing elsewhere in the corpus lost a row. Verified:
+  //   `git diff origin/main...HEAD -- 'skills/*/SKILL.md' | grep -E '^-\|'`
+  //   returns only two rows from `routine`/SKILL.md's `fleet` sub-table
+  //   (not an Anti-Patterns table — this parser only reads the section
+  //   between `## Anti-Patterns` and the next `## ` heading, so those rows
+  //   are outside its scope regardless). Measured by running the parser
+  //   against the working tree, not derived by adding 4 to 365 — the
+  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  assert.strictEqual(total, 369);
 });

@@ -49,7 +49,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:journey-health` | Recurring health check auditing `docs/journeys/*.md` for drift and journey-story coverage gaps (light tier); an interactive-only deep tier actually runs a journey's QA stories or walks it live. Scheduled Routine (light tier only). Never edits anything — always files a GitHub issue. | `[--target <journey-name>] [--budget <n>] [--deep] [--dry-run] [--root <dir>] [--min-confidence <low\|med\|high>]` |
 | `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low\|med\|high] [--dry-run] [--root <dir>]` |
 | `/claude-tweaks:demo` | Resolves one built thing per invocation — this session's own unrecorded work, or a specific `#N` record — briefs you on it and captures a human verdict, approve or request changes; discovery of what's outstanding is `/claude-tweaks:help`'s job | `[#N]` |
-| `/claude-tweaks:routine-kickoff` | Machine-invoked by routine kernels (firing-lifecycle wrapper); not for direct human use | — |
+| `/claude-tweaks:routine-kickoff` | Machine-invoked by routine kernels (firing-lifecycle wrapper); not for direct human use | `<skill> [args...]` |
 
 ## Recommended Companion Tools
 
