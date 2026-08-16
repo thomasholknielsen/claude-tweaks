@@ -80,7 +80,7 @@ test('AC 3: --run overlay wins for its keys; absent keys fall to policy, then de
   const out = runOk(['--run', runDir, 'dispatch-retry-ceiling', 'autonomy', 'tidy-aggressiveness'], tmp);
   assert.deepStrictEqual(out['dispatch-retry-ceiling'], { value: 7, source: 'run-config' });
   assert.deepStrictEqual(out.autonomy, { value: 'unattended', source: 'policy' });
-  assert.deepStrictEqual(out['tidy-aggressiveness'], { value: 'conservative', source: 'default' });
+  assert.deepStrictEqual(out['tidy-aggressiveness'], { value: 'moderate', source: 'default' });
 });
 
 test('AC 4: unknown key is a per-key error entry; siblings still resolve; exit 0', () => {
@@ -176,7 +176,7 @@ test('--values: one plain value per line in request order, native rendering', ()
   const res = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree.always', 'tidy-aggressiveness'], tmp);
   assert.strictEqual(res.status, 0);
   assert.strictEqual(res.stderr, '');
-  assert.strictEqual(res.stdout, 'unattended\n5\ntrue\nconservative\n');
+  assert.strictEqual(res.stdout, 'unattended\n5\ntrue\nmoderate\n');
 });
 
 test('--values: unknown key and unset no-default key each print an empty line', () => {
