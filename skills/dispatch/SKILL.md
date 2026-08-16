@@ -87,7 +87,7 @@ Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
-First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges the main checkout toward origin (`bin/lib/reconcile`, #407) so the queue pull below reads already-current state instead of racing a stale mirror. Dispatch runs from a worktree under `worktree.always`; the verb still converges the *main checkout's* mirror regardless (`mainCheckoutRoot` resolution), the same as `session-start.js`'s own in-process call. Log the JSON result to this firing's `decisions.md`. When the result's `console.ready` array is non-empty, follow `_shared/console-execution.md` for each entry before continuing to the queue pull — an answered console is real, actionable work this firing is well-positioned to pick up.
+First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges the main checkout toward origin (`bin/lib/reconcile`, #407) so the queue pull below reads already-current state instead of racing a stale mirror. Dispatch runs from a worktree under `worktree-always`; the verb still converges the *main checkout's* mirror regardless (`mainCheckoutRoot` resolution), the same as `session-start.js`'s own in-process call. Log the JSON result to this firing's `decisions.md`. When the result's `console.ready` array is non-empty, follow `_shared/console-execution.md` for each entry before continuing to the queue pull — an answered console is real, actionable work this firing is well-positioned to pick up.
 
 Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
@@ -234,8 +234,8 @@ These rows mirror `_shared/work-record-config.md`'s canonical key table (which e
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
-| `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
+| `auto-merge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
+| `auto-merge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-batch-size` | `3` | Maximum groups (bundles or singleton records) one firing processes sequentially, in the order Step 3's selection establishes; remaining groups stay unclaimed in the queue for a later firing to select. |
 | `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — the resolver applies its value and tags the envelope `"renamed-from"`; when present, surface one warn-tier notice per invocation (the resolver never writes stderr). Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 

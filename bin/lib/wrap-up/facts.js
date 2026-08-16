@@ -128,7 +128,7 @@ function resolveBudgets(cwd) {
     const scriptPath = path.join(__dirname, '..', '..', 'resolve-policy.js');
     const out = execFileSync(
       process.execPath,
-      [scriptPath, '--values', 'harness-health.scoped-rule-budget', 'harness-health.always-loaded-budget'],
+      [scriptPath, '--values', 'harness-health-scoped-rule-budget', 'harness-health-always-loaded-budget'],
       { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
     );
     const [scopedRuleBudget, alwaysLoadedBudget] = out.trim().split('\n').map(Number);
