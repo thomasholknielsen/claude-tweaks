@@ -232,7 +232,72 @@ verbatim when present — they are inlined into every critic's prompt in (e). Wh
 it: (e) sends the literal absence sentence instead, and Step 4's absence-nudge conditions read this
 result.
 
-Sub-steps (e) and (f) follow.
+**(e) Dispatch.** One `Task()` per available critic.
+
+> **Parallel execution:** Dispatch the available critics as parallel Task agents — each runs independently and returns findings in Template A format (with the extra `Target` column below). Assemble results after all agents complete.
+> **Contract:** Each agent follows the Subagent Contract (`../../_shared/subagent-output-contract.md`) — minimal input (scope + paths + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then the table. Profile: Standard (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract §Model Selection) — a review-style fan-out, never Frontier. Inline the template literally; reject and re-prompt on format violations.
+
+`subagent_type: general-purpose`. Do **not** pass `isolation: "worktree"` — this mode routinely runs
+inside a worktree already set up for the task, and a second one orphans everything written into it
+(Step 3.7's reason, and it holds here). Working-directory discipline: substitute the **resolved
+absolute** repository path into the prompt; never an unexpanded placeholder.
+
+The prompt body contains **only** the following, in this order — never conversation history, never
+this mode's other findings, never a path *to* the critic skill in place of its text:
+
+1. The critic's `SKILL.md` content, inlined verbatim (a path string reaches nothing — see
+   `../../_shared/design-craft.md`'s Subagent Contract compliance).
+2. Step 2's resolved file list, as absolute paths.
+3. The decisions layer from (d), inlined verbatim (`DESIGN.md`, then `.impeccable/design.json`) — or,
+   when absent, the literal sentence: "No DESIGN.md or sidecar exists for this project — emit no
+   `decisions` rows".
+4. The two questions, verbatim:
+   "1. Conformance: for each file, where does the diff fall short of what DESIGN.md decided, or of your
+   craft principles where DESIGN.md is silent? Report as `Target: code`. 2. Pushback: where is DESIGN.md
+   silent on a sub-topic this diff exercised, or where does a decision it records fall below your
+   principles? Report as `Target: decisions`, with `Path:Line` = `DESIGN.md` or `.impeccable/design.json`."
+5. The status-line protocol and the findings template — this literal block:
+
+```
+Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+
+OUTPUT FORMAT (required):
+Return ONLY a markdown table, no preamble:
+
+| Severity | Target | Path:Line | Finding | Evidence |
+|---|---|---|---|---|
+| high | code | src/routes/+page.svelte:42 | Body copy set at 13px, below DESIGN.md's 14px floor | `font-size: 13px` on `.lede` |
+| medium | decisions | DESIGN.md:18 | Type scale records no small-text floor while this diff ships captions | `typography:` block has no `min` |
+
+Target must be exactly `code` or `decisions`.
+Severity scale: critical / high / medium / low / info
+If no findings: return literal text "No findings."
+Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
+Do not add narration, headers, or summaries before or after the table.
+
+[Use: Standard model.]
+```
+
+**(f) Parse and encode — four outcomes.** Every dispatched critic gets exactly one `craft_critics`
+entry; the outcomes are distinct encodings, and none of them may be reported as a clean design review:
+
+| Outcome | How it looks | `craft_critics` entry | Log |
+|---|---|---|---|
+| **Failed** | `Task()` errored, or returned nothing | `{provider, ran: true, parsed: false, reason: "dispatch failed: <error text or 'empty reply'>"}` | `SCANNED` naming provider + reason |
+| **Refused** | First line `BLOCKED` or `NEEDS_CONTEXT` | `{provider, ran: true, parsed: false, reason: "<status>: <agent's own text>"}` | `SCANNED` naming provider + reason |
+| **Unparseable** | `DONE`/`DONE_WITH_CONCERNS`, but no table with the header above and no literal "No findings." | `{provider, ran: true, parsed: false, reason: "unparseable"}` — do **not** mine prose for something finding-shaped | `SCANNED` naming provider + reason |
+| **Parsed** | The table (or the literal "No findings.") | `{provider, ran: true, parsed: true}` — "No findings." is a real, clean result | — |
+
+Row hygiene on a parsed reply: a row whose `Target` cell is not exactly `code` or `decisions` is
+**dropped** and counted in `dropped_rows: <n>` on that critic's entry — never coerced, since a
+mis-targeted row could otherwise reach polish. If every row was dropped, encode the entry as
+`{provider, ran: true, parsed: false, reason: "unparseable"}` with the count still present. Surviving
+rows go to Step 4. Absence of output is not absence of findings, and the distinction lives in
+`parsed`, never in the finding count.
+
+Log lines for this step follow `../../_shared/auto-decision-log.md`: the one `AUTO` line from (a),
+and one `SCANNED` line for every non-`parsed` outcome in (c) and (f) —
+`SCANNED {time} — review Step 3.8: critic <provider> <unavailable | dispatch failed | refused | unparseable>: <reason>. Reversibility: n/a.`
 
 ### Step 4: Normalize findings
 
