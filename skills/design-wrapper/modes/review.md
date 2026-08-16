@@ -408,7 +408,7 @@ If a command's output has no matching Total row (malformed report, drifted forma
 
 ### Step 5: Write audit findings cache for polish mode
 
-Persist the **audit findings only** (not critique, not the finishing review) to a JSON file alongside the ledger. The widened `source` union from Step 4 deliberately stops here: `polish` mode dispatches a cached finding by the command its `suggestion` names, and a `finish-review` finding names none, so admitting one would only add an unclassified observation to the cache. Filter by `source === "audit"`, never by "everything that isn't critique."
+Persist the **audit findings and the craft critics' `code` findings** (not critique, not the finishing review, not `decisions` findings) to a JSON file alongside the ledger. Filter by `source === "audit" || (source === "craft-critic" && target === "code")`, never by "everything that isn't critique." A `finish-review` finding names no command, so admitting one would only add an unclassified observation. A `craft-critic` `code` finding names no command either — it enters the cache as **context** for polish's refinement dispatch (`modes/polish.md`'s three-way consumption table), never as a dispatch key. A `target: "decisions"` finding is **excluded** on purpose: it challenges `DESIGN.md`, which is upstream-owned and which polish must never act on; Step 5.5 routes it to a human instead.
 
 - **Primary path:** `docs/plans/YYYY-MM-DD-{feature}-audit.json` (matches the ledger filename `docs/plans/YYYY-MM-DD-{feature}-ledger.md`).
 - **Fallback (review invoked outside a flow context):** derive from the spec slug — `docs/plans/audit-{spec-slug}.json`.
@@ -419,18 +419,64 @@ Cache shape:
 {
   "spec": "<spec id or path>",
   "written_at": "<ISO timestamp>",
-  "findings": [ { "id": "...", "source": "audit", "file": "...", "category": "...", "severity": "...", "message": "...", "suggestion": "..." }, ... ]
+  "findings": [
+    { "id": "audit-1", "source": "audit", "file": "...", "category": "...", "severity": "...", "message": "...", "suggestion": "..." },
+    { "id": "craft-emil-design-eng-1", "source": "craft-critic", "provider": "emil-design-eng", "target": "code", "file": "...", "category": "craft", "severity": "...", "message": "...", "suggestion": null }
+  ]
 }
 ```
 
 Two fields exist for `polish` mode's benefit and must be written even when they look redundant:
 
 - **`suggestion`** — the command `audit` named for this finding, normalized to a bare command name. It is the *only* thing that selects a command in `polish` mode's suggestion-driven dispatch, so a finding cached without it is downgraded to an unclassified observation. When `audit`'s output gives no suggested command for an issue, write the field as `null` rather than omitting it, so the downgrade is visibly deliberate rather than looking like a cache-shape bug.
-- **`id`** — a per-run identifier, stable within one cache file: use the finding's own identifier when `audit` emits one, otherwise assign `audit-{n}` by position, 1-based. `polish` mode stages unclassified findings by `id`, and a human at the Review Console needs it to find the finding this cache came from.
+- **`id`** — a per-run identifier, stable within one cache file: use the finding's own identifier when `audit` emits one, otherwise assign `audit-{n}` by position, 1-based; a `craft-critic` entry gets `craft-{provider}-{n}`, 1-based per provider and **reset on every cache write** (the file is overwritten per invocation, so numbers never accumulate). `polish` mode stages unclassified findings by `id`, and a human at the Review Console needs it to find the finding this cache came from.
 
 Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. Cleanup is handled by `/claude-tweaks:wrap-up`'s Phase 4 cleanup alongside the ledger.
 
 If the cache write fails (disk full, permission denied), surface the failure as a one-time skip and continue — with the cache absent, `polish` mode runs its refinement set and intent dispatch, and skips suggestion-driven dispatch entirely.
+
+### Step 5.5: Stage decisions findings (pipeline runs only)
+
+Runs only when `$PIPELINE_RUN_DIR` is set. When it is unset (standalone `/claude-tweaks:review`), stage
+nothing — the `decisions` findings render in the review summary's **Decisions** sub-heading instead
+(`skills/review/review-summary-template.md`), and there is no run dir to stage into and no backlog
+record auto-filed: a human reading a standalone review acts on the `Remedy:` line or not. Never
+invent a mid-flow prompt for it.
+
+For each `target: "decisions"` finding from Step 4 (never a `code` finding, never a critique/audit
+finding), write one file to `{run-dir}/staged/` carrying: `Provider:`, `File:`, `Severity:`,
+`Message:`, `Evidence:` (the table row's Evidence cell), and a `Remedy:` line.
+
+**Filename and idempotency.**
+
+- The wrapper's absence-nudge (`provider: wrapper`, Step 4) always writes
+  `design-decision-nudge.md` — a fixed name, overwritten on every write. That is the nudge's whole
+  de-duplication mechanism (per Step 4: once per review invocation, never accumulating; a project
+  that does not want it says so once with `design-critique: off`).
+- Every other `decisions` finding writes `design-decision-{n}.md`, `n` 1-based per Step 5.5
+  invocation. Before allocating a number, look for an existing `design-decision-*.md` in this run
+  dir with identical `Provider:` + `File:` + `Message:` — if one exists, overwrite it in place rather
+  than allocating a new number (dedupe by content, so a re-review after polish's re-verify cycle never
+  duplicates a finding).
+- The `design-decision-` prefix is distinct from `polish-suggestion-{n}.md` by design; the Review
+  Console reads every file under `staged/` generically.
+
+**Remedy is mechanical, keyed on `provider` — never on message text:**
+
+| `provider` | `Remedy:` line |
+|---|---|
+| `wrapper` | `Remedy: /claude-tweaks:design-wrapper explore` — no scope argument; the nudge means no direction is locked at all |
+| any critic | `Remedy: /impeccable:impeccable document` — upstream's own `DESIGN.md` editor, the one command that can address silence or a weak decision on any sub-topic |
+
+No classification of the finding's prose into a command. The remedy names an *upstream* (or wrapper)
+command for a **human** to run; this mode never invokes either — the wrapper writes nothing outside
+`docs/plans/`, and `DESIGN.md` stays upstream-owned under every condition.
+
+Log one line per file written to `decisions.md`, per `../../_shared/auto-decision-log.md`:
+`STAGED {time} — review Step 5.5: decisions finding from {provider} on {file} staged at staged/{filename}. Remedy: {remedy}. Surface at Review Console.`
+
+The return gains `decisions_staged: <int>` — the number of files written this invocation — omitted
+entirely when zero (see Output to caller).
 
 ## Output to caller
 
@@ -447,7 +493,8 @@ If the cache write fails (disk full, permission denied), surface the failure as 
   "prior_critique": { "slug": "dashboard", "score": 78, "p0": 1, "p1": 4, "timestamp": "...", "file": ".impeccable/critique/..." },
   "design_contract": { "found": true, "file": "src/routes/+page.svelte", "seed": "a1b2c3d4", "recorded_on": 152 },
   "finish_review": { "ran": true, "parsed": true, "keep": "The masthead's asymmetry — do not centre it while fixing spacing." },
-  "craft_critics": [ { "provider": "emil-design-eng", "ran": true, "parsed": true }, { "provider": "review-animations", "ran": false, "missed": "not installed at either path" } ]
+  "craft_critics": [ { "provider": "emil-design-eng", "ran": true, "parsed": true }, { "provider": "review-animations", "ran": false, "missed": "not installed at either path" } ],
+  "decisions_staged": 2
 }
 ```
 
@@ -467,6 +514,12 @@ Unparseable outcomes `parsed: false` and a `reason` carry why; `dropped_rows` co
 on a parsed reply. That is the field a caller reads to learn that an absence of craft findings is an
 absence of *evidence* rather than a clean bill; without it, the two are indistinguishable in
 `findings`. The wrapper's absence-nudge is a finding, never an entry here.
+
+`decisions_staged` is built from Step 5.5 and is **omitted entirely** when that step wrote nothing —
+standalone `/claude-tweaks:review` (no run dir), lever `off`, or no `target: "decisions"` finding
+this invocation. When present it is the count of `staged/design-decision-*.md` files written (the
+fixed-name nudge counts once); `/claude-tweaks:review` Step 6.5 reads it to say "staged for the
+Review Console" versus "rendered below" in the Design Quality section.
 
 `design_contract` is built from Step 3.6 and is **omitted entirely** whenever that step's parse
 returned No-contract or Malformed — the two cases are one absence to a caller, and neither is an
