@@ -32,6 +32,8 @@ Scan `docs/superpowers/specs/*-design.md`.
 | No status, no matching specs | Run `/claude-tweaks:specify` |
 | Very old (4+ weeks), no specs | Delete |
 
+**The "Mark as specified" stamp** is one line — `Status: specified — decomposed to {record refs}` — inserted directly below the doc's title heading (`# {title}`), matching the existing convention in `docs/superpowers/specs/` (e.g. the 2026-08-07 prior-art design doc's `Status: specified — …` line). One stamp per doc; a doc that already carries a `Status:` line is not a "no status" case and never reaches this recommendation.
+
 → Collect each as: `[doc] {filename} — {recommendation}`
 
 ## Step 4: Audit Execution Plans
