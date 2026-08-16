@@ -186,14 +186,18 @@ node -e "
     const { kind, source } = resolveProvenance({ labels: issue.labels, body: issue.body });
     const row = rows.get(kind + ':' + source + '|' + riskBand(issue.labels));
     const permitted = permittedGrants({ ceiling, row });
+    // Fallback to the flat keys: repo-HEAD skill text can run against an older
+    // installed build's autonomy.js (no grants key yet). Remove with #647's
+    // transitional twin (see bin/lib/issues/autonomy.js module header).
+    const gBornReady = (permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason };
     out[issue.number] = {
       ceiling,
       provenance: row ? row.provenance : kind + ':' + source,
       band: riskBand(issue.labels),
       verdict: row ? row.verdict : 'no-cell',
       coverage: row ? row.coverage : null,
-      bornReady: permitted.bornReady,
-      reason: permitted.reason,
+      bornReady: gBornReady.granted,
+      reason: gBornReady.reason,
     };
   }
   console.log(JSON.stringify(out));

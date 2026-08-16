@@ -8,8 +8,10 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
 (Step 6.5's negative-evidence persist point — see Revocation below), `flow/manifesto.md` and
 `review/step3-routing.md` (the review-auto-apply-ceiling ceiling-conditional default's two
-computation sites — see that section below), and — for the
-bookkeeping capabilities this file also documents — `_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
+computation sites — see that section below), `bin/lib/policy-schema.js`
+(the `housekeeping-auto-merge` derived default — unset resolves `true` at `trusted`/`unattended`,
+#580), and — for the bookkeeping capabilities this file also documents —
+`_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
 route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve),
 `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge), and `_shared/console-execution.md`
 (the reconciler-side `consoleAutoResolve` caller — a second, later trigger point for the same
@@ -87,7 +89,7 @@ their actual build history.
 | Ceiling | Unlocks — only for classes that have earned it |
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
-| `trusted` | Three things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — the filing chains straight into `/claude-tweaks:specify --chained` shaping (headless), skipping the *human* shaping round-trip but never the shaping itself and never the human grant gate; the capture turn pays the shaping cost, only at this ceiling with a `clean` verdict. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). |
+| `trusted` | Four things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — the filing chains straight into `/claude-tweaks:specify --chained` shaping (headless), skipping the *human* shaping round-trip but never the shaping itself and never the human grant gate; the capture turn pays the shaping cost, only at this ceiling with a `clean` verdict. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). **(d)** The `housekeeping-auto-merge` derived default — while that key is unset, `/claude-tweaks:tidy`'s own green, marker-stamped Step-7 housekeeping PRs may arm `--auto` instead of staging for a human (`_shared/policy-schema.md`'s lever row; code twin `bin/lib/policy-schema.js`'s `deriveHousekeepingAutoMerge`, #580). Ceiling-only like (c), not trust-gated, and **not** one of the `bookkeepingPermissions` capabilities; an explicit `housekeeping-auto-merge` value in `policy.yml` wins over the derivation in both directions. |
 | `unattended` | Everything `trusted` allows, plus the `unattended`-only rows of the Bookkeeping capabilities table below (`opsAckAutoAcknowledge`, `consoleAutoResolve`, `ledgerRouteRemainder`) and machine-originated `auto:build`. **The `auto:build` half is shut behind its own opt-in** — see below. |
 
 ## Bookkeeping capabilities
@@ -210,6 +212,23 @@ own diff, excluded from tests and merge-sensitive paths, committed separately, a
 one `git revert`. Those caps are the gate. **Do not "fix" this by adding a trust-verdict
 requirement** — no cell would ever satisfy it, since an unfiled repair generates no record and
 therefore no verdict, and the budget would ship permanently inert.
+
+### Reading the result
+
+`permittedGrants` returns one `{ granted, reason }` object per grant, under `grants.bornReady` and
+`grants.bornAuthorized` — read those, never the flat top-level `bornReady` / `bornAuthorized` /
+`reason` keys beside them. The flat `reason` is a single string covering both decisions, so a
+*granted* `bornReady` could carry the withheld `bornAuthorized`'s denial text; the per-grant pair is
+what fixes that (refs #647). A granted decision's `reason` is the empty string — render nothing
+rather than a placeholder.
+
+The flat keys stay on as a dated transitional twin, because a skill's `node -e` block loads
+`$CLAUDE_PLUGIN_ROOT`'s modules — the *installed* build — while the skill text around it is the
+checkout's, so repo-HEAD prose can meet an older `autonomy.js` that has no `grants` key yet. That is
+why `capture/SKILL.md` and `backlog/refine-mode.md` each guard the read with a
+`(permitted.grants || {})` fallback. Removal condition: delete the flat keys, and those fallbacks
+with them, at the first release on or after **2026-11-16** — `bin/lib/issues/autonomy.js`'s module
+header carries the same condition.
 
 ## Why born-authorized is gated separately
 
