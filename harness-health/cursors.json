@@ -42,5 +42,9 @@
   "skill:dispatch": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786865387937
+  },
+  "skill:wrap-up": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786865393908
   }
 }
