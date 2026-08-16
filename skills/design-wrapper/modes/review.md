@@ -234,7 +234,7 @@ result.
 **(e) Dispatch.** One `Task()` per available critic.
 
 > **Parallel execution:** Dispatch the available critics as parallel Task agents — each runs independently and returns findings in Template A format (with the extra `Target` column below). Assemble results after all agents complete.
-> **Contract:** Each agent follows the Subagent Contract (`../../_shared/subagent-output-contract.md`) — minimal input (scope + paths + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then the table. Profile: Standard (`node bin/resolve-profile.js standard` from the checkout root, contract §Model Selection) — a review-style fan-out, never Frontier. Inline the template literally; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract (`../../_shared/subagent-output-contract.md`) — minimal input (scope + paths + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then the table. Profile: Standard (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` — the placeholder is model-resolved per `docs/skill-authoring.md`'s Plugin-root references; contract §Model Selection) — a review-style fan-out, never Frontier. Inline the template literally; reject and re-prompt on format violations.
 
 `subagent_type: general-purpose`. Do **not** pass `isolation: "worktree"` — this mode routinely runs
 inside a worktree already set up for the task, and a second one orphans everything written into it
