@@ -438,20 +438,21 @@ If the cache write fails (disk full, permission denied), surface the failure as 
 
 Runs only when `$PIPELINE_RUN_DIR` is set. When it is unset (standalone `/claude-tweaks:review`), stage
 nothing — the `decisions` findings render in the review summary's **Decisions** sub-heading instead
-(`skills/review/review-summary-template.md`), and there is no run dir to stage into and no backlog
-record auto-filed: a human reading a standalone review acts on the `Remedy:` line or not. Never
-invent a mid-flow prompt for it.
+(`skills/review/review-summary-template.md`), no run dir to stage into, no backlog record
+auto-filed — the human acts on the `Remedy:` line or not. Never invent a mid-flow prompt for it.
 
 For each `target: "decisions"` finding from Step 4 (never a `code` finding, never a critique/audit
 finding), write one file to `{run-dir}/staged/` carrying: `Provider:`, `File:`, `Severity:`,
-`Message:`, `Evidence:` (the table row's Evidence cell), and a `Remedy:` line.
+`Message:`, `Evidence:`, and a `Remedy:` line. Step 4 folds the Evidence cell into
+`message` as `<Finding> — <Evidence>`: split on that ` — ` separator (`Message:` before it,
+`Evidence:` after); omit `Evidence:` for `provider: wrapper` — the nudge has no table row, and its
+message's em dash is not a separator.
 
 **Filename and idempotency.**
 
 - The wrapper's absence-nudge (`provider: wrapper`, Step 4) always writes
   `design-decision-nudge.md` — a fixed name, overwritten on every write. That is the nudge's whole
-  de-duplication mechanism (per Step 4: once per review invocation, never accumulating; a project
-  that does not want it says so once with `design-critique: off`).
+  de-duplication mechanism (per Step 4 — once per invocation; opt out with `design-critique: off`).
 - Every other `decisions` finding writes `design-decision-{n}.md`, `n` 1-based per Step 5.5
   invocation. Before allocating a number, look for an existing `design-decision-*.md` in this run
   dir with identical `Provider:` + `File:` + `Message:` — if one exists, overwrite it in place rather
@@ -468,11 +469,15 @@ finding), write one file to `{run-dir}/staged/` carrying: `Provider:`, `File:`, 
 | any critic | `Remedy: /impeccable:impeccable document` — upstream's own `DESIGN.md` editor, the one command that can address silence or a weak decision on any sub-topic |
 
 No classification of the finding's prose into a command. The remedy names an *upstream* (or wrapper)
-command for a **human** to run; this mode never invokes either — the wrapper writes nothing outside
-`docs/plans/`, and `DESIGN.md` stays upstream-owned under every condition.
+command for a **human** to run; this mode never invokes either — the wrapper writes no design artifact
+— no `DESIGN.md`, no sidecar, nothing under `.impeccable/`; `DESIGN.md` stays upstream-owned under
+every condition.
 
 Log one line per file written to `decisions.md`, per `../../_shared/auto-decision-log.md`:
 `STAGED {time} — review Step 5.5: decisions finding from {provider} on {file} staged at staged/{filename}. Remedy: {remedy}. Surface at Review Console.`
+
+If a stage write fails, surface a one-time skip and continue (Step 5's cache-write recovery rule);
+the finding still renders in the summary, and `decisions_staged` counts only files actually written.
 
 The return gains `decisions_staged: <int>` — the number of files written this invocation — omitted
 entirely when zero (see Output to caller).

@@ -70,6 +70,8 @@ Possible QA statuses (the four canonical values from qa-reporting.md's Status de
 |------|--------|----------|----------|---------|------------|
 | {file} | {critique/audit/finish-review/critic:{provider}} | {info/warning/error} | {category} | {message} | {suggestion if present} |
 
+{`critic:{provider}` rows are `target: "code"` findings only — a `decisions` finding never renders in this table; it renders under the Decisions sub-heading below (standalone) or is staged for the Review Console (pipeline).}
+
 > Findings are advisory — they inform the verdict but were not auto-applied. To action them inline, route through Step 3 Routing's resolution flow with category `Design Quality`. The Phase 1 design wrapper is read-only by design — code-modifying behavior ships in Phase 2's polish phase.
 
 #### Decisions
@@ -82,7 +84,7 @@ These challenge the project's DESIGN.md, not the diff — the wrapper never edit
 |----------|------|----------|---------|--------|
 | {provider} | {DESIGN.md or .impeccable/design.json} | {info/warning/error} | {message} | {`/claude-tweaks:design-wrapper explore` for `wrapper`; `/impeccable:impeccable document` for any critic} |
 
-(or, when skipped: "Design Quality skipped — {skip reason from wrapper}.")
+(or, when the wrapper skipped entirely — this whole section, Decisions sub-heading included: "Design Quality skipped — {skip reason from wrapper}.")
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
