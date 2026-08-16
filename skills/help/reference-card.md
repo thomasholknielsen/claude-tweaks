@@ -141,7 +141,7 @@ Backlog record → Design Doc → Ready record(s) → Code → Stories → TEST_
 
 Consumed artifacts are deleted — specs and code are the durable outputs.
 
-Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-backed projects), a worktree run is born public: `/build`'s first phase opens a draft PR immediately, every later phase pushes and flips its own PR checklist row, and `/wrap-up`'s Review Console renders as PR checkboxes instead of a blocking chat prompt. A background reconciler converges local state (fast-forward, worktree reap, claim release, run-dir archive) at every shared-state read point, so no step depends on the session that started it still being alive. `local-merge` (no GitHub remote) keeps the artifact flow above unchanged.
+Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-backed projects), a worktree run is born public: `/build`'s first phase opens a draft PR immediately, every later phase pushes and flips its own PR checklist row, and `/wrap-up`'s Review Console renders as PR checkboxes instead of a blocking chat prompt. A background reconciler converges local state (fast-forward, worktree reap, claim release, run-dir archive, branch archival) at every shared-state read point, so no step depends on the session that started it still being alive. `local-merge` (no GitHub remote) keeps the artifact flow above unchanged.
 
 ## Bookend Architecture (v4.6+)
 

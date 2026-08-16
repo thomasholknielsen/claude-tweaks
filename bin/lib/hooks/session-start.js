@@ -131,6 +131,8 @@ function run(ctx) {
     if (released.length) summary.push(`${released.length} issue claim(s) released`);
     const archived = (result.runs || []).filter((r) => r.action === 'archived');
     if (archived.length) summary.push(`${archived.length} pipeline run(s) archived`);
+    const archivedBranches = (result.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete'));
+    if (archivedBranches.length) summary.push(`${archivedBranches.length} local branch(es) archived/deleted`);
     if (summary.length) {
       parts.push(`claude-tweaks: reconciled — ${summary.join('; ')}.`);
     }
