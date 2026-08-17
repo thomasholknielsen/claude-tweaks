@@ -392,6 +392,7 @@ AUTO {time} — Backlog refine: set priority:{tier} on #{n}.
 AUTO {time} — Backlog refine: updated **Related:** on #{n} to reference #{m}.
 AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, size:{sizeTier}). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
+AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
 FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
 ```
@@ -409,7 +410,7 @@ second bookkeeping channel:
    present, even at zero:
 
    ```
-   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 0 failed
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 failed
    ```
 
 2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
@@ -455,8 +456,13 @@ Always pass an explicit `--run <absolute-run-dir>` — the run directory itself:
 audit-trail line above names the `decisions.md` *file* inside it, so strip the trailing
 `/decisions.md` to get the directory `close-run` requires (it rejects a file path outright).
 Omitting `--run` falls back to the newest non-terminal run dir under the
-project's `.claude-tweaks/pipelines/`, which can belong to a different, still-active session, and
-closing that one would silently disarm that session's own worktree enforcement. `close-run`
+project's `.claude-tweaks/pipelines/` — `close-run` already refuses to close it when that run's
+`run-state.json` carries a `sessionId` stamp differing from the caller's own
+`CLAUDE_CODE_SESSION_ID`. The residual risk is narrower than a blanket "can belong to a different
+session": a fallback run whose `run-state.json` was never stamped with a `sessionId` (or a caller
+with no `CLAUDE_CODE_SESSION_ID` set) still closes silently even when it belongs to a different,
+still-active session, disarming that session's own worktree enforcement with no warning — passing
+an explicit `--run` avoids the ambiguity entirely regardless. `close-run`
 creates `run-state.json` when the run dir never had one — every refine standalone run — and stamps
 it `status: clean`, so no separate direct write is needed. A "no recorded wrap-up invocation"
 warning line is expected here and not an error; refine runs standalone and never invokes
