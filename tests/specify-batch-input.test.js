@@ -33,7 +33,7 @@ test('specify argument-hint opens with the comma-list record-reference group', (
   const hint = extractArgumentHint(SKILL);
   assert.ok(hint, 'skills/specify/SKILL.md declares no argument-hint');
   assert.ok(
-    hint.startsWith('<#N[,#M...]|record-id[,id...]|design-doc-path|topic|backlog-title>'),
+    hint.startsWith('<#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title>'),
     `argument-hint does not open with the comma-list group: ${hint}`,
   );
 });

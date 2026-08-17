@@ -38,6 +38,16 @@ test('specify SKILL.md caps the range form at 25 expanded elements with a hard-e
   assert.ok(src.includes('ranges are capped at 25'), 'range expansion cap (25 elements) hard-error message missing from SKILL.md');
 });
 
+test('specify SKILL.md rejects a malformed range at case 1 rather than silently falling through to topic resolution', () => {
+  const src = readFlat('skills/specify/SKILL.md');
+  assert.ok(src.includes('looks like a range but is not valid'), 'malformed-range hard-error message missing from SKILL.md');
+  assert.ok(src.includes('Range-shaped rejection point'), 'range-shaped rejection point clause missing from the batch-branch bullet');
+  assert.ok(
+    src.includes("it never falls through to case 2's path check or cases 3-5's topic/backlog resolution"),
+    'no-fallthrough-to-topic-resolution rule missing',
+  );
+});
+
 test('shaping-mode.md documents mandatory read-back verification after each record write', () => {
   const src = readFlat('skills/specify/shaping-mode.md');
   assert.ok(src.includes('### Read-back verification'), 'Read-back verification subsection missing from shaping-mode.md');
@@ -53,4 +63,7 @@ test('shaping-mode.md documents mandatory read-back verification after each reco
   // The `failed` outcome prefix (a write OR read-back failure) referenced by
   // Actions Performed's opening sentence:
   assert.ok(src.includes('or whose read-back verification (above) failed'), 'Actions Performed write-failure sentence missing its read-back-failure extension');
+  // The read-back check is symmetric on the framing verdict, not just the
+  // open-verdict absence check — it also asserts presence on solution-baked.
+  assert.ok(src.includes('the verdict was `solution-baked`, `solution:unjustified` is present instead'), 'read-back solution-baked presence assertion missing');
 });
