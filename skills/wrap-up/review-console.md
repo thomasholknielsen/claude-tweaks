@@ -87,8 +87,8 @@ Skip the blocking wait and merge directly — bypass the interactive
 `/superpowers:finishing-a-development-branch` handoff entirely; a verdict already exists.
 
 **`integration-model: pr-first` (`_shared/integration-model.md`):** run `_shared/pr-first-merge.md`'s
-procedure now — `tag: fast-lane` (distinct from dispatch's `auto-merge` tag; `/help`'s
-auto-merged-this-week count keys on both, `_shared/github-pr-scan.md` `triage-queue` item 3),
+procedure now — `tag: {tag}` (see `manifesto-authorized-merge.md`'s Tag selection section) (distinct from dispatch's `auto-merge` tag; `/help`'s
+auto-merged-this-week count keys on all three, `_shared/github-pr-scan.md` `triage-queue` item 3),
 `issue-list` this one record, `summary` the record's own title. No checkout is needed — `gh pr
 merge` runs directly, which is what retires this section's pre-#411 `git -C "$RUN_DIR"`
 worktree/branch resolution (#299: that resolution anchored against the run dir, not the worktree —
@@ -98,7 +98,7 @@ resolution it fixed). Still generate this console's full content (Auto-applied /
 Configuration updates sections, per "Present the console" below) and attach it to a
 `PushNotification` as a non-blocking FYI — nothing this console would have shown is discarded,
 only the wait for a live approval is skipped. Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}` — or, on the `manifesto-authorized-merge.md` path, its own tag and log line instead
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}`
 
 **`integration-model: local-merge`:** before merging, clear this run's worktree
 assignment as `flow/worktree-merge.md`'s reconciliation does

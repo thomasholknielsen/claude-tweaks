@@ -322,14 +322,14 @@ test('merge-authorization: unset everywhere resolves to the ask default', () => 
 test('merge-authorization: a run-config value (a live Manifesto override) wins', () => {
   const result = resolvePolicyKeys(['merge-authorization'], {
     policyRaw: null,
-    runConfigRaw: 'merge-authorization: merge-when-green\n',
+    runConfigRaw: 'merge-authorization: pre-authorized\n',
   });
-  assert.deepStrictEqual(result['merge-authorization'], { value: 'merge-when-green', source: 'run-config' });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'pre-authorized', source: 'run-config' });
 });
 
 test('merge-authorization: a policy.yml value is ignored — falls back to the default, not "policy"', () => {
   const result = resolvePolicyKeys(['merge-authorization'], {
-    policyRaw: 'merge-authorization: merge-when-green\n',
+    policyRaw: 'merge-authorization: pre-authorized\n',
     runConfigRaw: null,
   });
   assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'default' });
@@ -337,7 +337,7 @@ test('merge-authorization: a policy.yml value is ignored — falls back to the d
 
 test('merge-authorization: run-config still wins even when policy.yml also sets it (policy ignored, not merely lower-precedence)', () => {
   const result = resolvePolicyKeys(['merge-authorization'], {
-    policyRaw: 'merge-authorization: merge-when-green\n',
+    policyRaw: 'merge-authorization: pre-authorized\n',
     runConfigRaw: 'merge-authorization: ask\n',
   });
   assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'run-config' });

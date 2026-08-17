@@ -7,7 +7,7 @@ existing `auto:merge`-label branch is unchanged and does not need this file.
 ## Applicability (second, independent trigger)
 
 In addition to the existing condition (issue's live labels carry `auto:merge`), this short-circuit
-also applies when this run's `config.yml` resolves `merge-authorization` to `merge-when-green`:
+also applies when this run's `config.yml` resolves `merge-authorization` to `pre-authorized`:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-authorization
@@ -37,7 +37,7 @@ Both the `pr-first` and `local-merge` subsections of the Auto-merge short-circui
 `AUTO {time} — Manifesto-authorized auto-merge: issue #{n}, assess-agent-autonomy verdict
 auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit:
 {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).} [lever:
-merge-authorization=merge-when-green (run-config)]`
+merge-authorization=pre-authorized (run-config)]`
 
 Same shape, same placement, in both the `pr-first` and `local-merge` subsections — only the tag and
 the trailing `[lever: ...]` attribution differ from the `auto:merge`-label path's existing line.

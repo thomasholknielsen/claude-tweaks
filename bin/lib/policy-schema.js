@@ -44,7 +44,7 @@ const POLICY_KEYS = [
   // would remove the "a human decided, live, for this run" property the
   // interactive-human-only auto:* invariant depends on; see
   // _shared/auto-mode-contract.md's Bookend Architecture section.
-  { key: 'merge-authorization', type: 'enum', values: ['ask', 'merge-when-green'], default: 'ask', summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'merge-authorization', type: 'enum', values: ['ask', 'pre-authorized'], default: 'ask', summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3, summary: "Sets how many consecutive autonomous build failures a record tolerates before it is flagged blocked and pulled from auto-pilot.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-batch-size', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence before leaving the rest for next time.", category: 'merge-safety', tier: 'advanced' },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a

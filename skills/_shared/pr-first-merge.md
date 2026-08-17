@@ -241,10 +241,12 @@ gh pr merge {pr-number} --repo {owner}/{repo} --auto --merge \
 ```
 
 `{tag}` is `auto-merge` for the dispatch/headless path (`dispatch/settle-and-merge.md`'s Auto-merge
-gate) or `fast-lane` for the interactive single-record short-circuit
-(`wrap-up/review-console.md`) — preserving both tags' pre-#411 meanings, since `/help`'s
-auto-merged-this-week metric (`_shared/github-pr-scan.md` `triage-queue` item 3) still keys on
-them. `{issue-list}` is one `Fixes #{n}` per record — the exact same set the PR body's own
+gate), `fast-lane` for the interactive single-record short-circuit triggered by a live `auto:merge`
+label, or `manifesto-authorized` for the same short-circuit triggered instead by the
+`merge-authorization` Manifesto lever with no label present (`wrap-up/review-console.md`,
+`wrap-up/manifesto-authorized-merge.md`) — preserving all three tags' meanings — `/help`'s
+auto-merged-this-week metric (`_shared/github-pr-scan.md` `triage-queue` item 3) keys on all
+three. `{issue-list}` is one `Fixes #{n}` per record — the exact same set the PR body's own
 `Fixes` lines already carry (`_shared/pr-early-run-lifecycle.md`), restated here because the
 merge commit's own message is what GitHub scans for closing keywords on a non-default
 integration branch, where the PR body's keywords don't fire (GitHub only auto-closes from a
