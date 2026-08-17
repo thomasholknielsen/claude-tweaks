@@ -31,16 +31,21 @@ const SWEEP_SNIPPET = [
   '    for f in "$SHADOW"/staged/*; do',
   '      [ -e "$f" ] || continue',
   '      base=$(basename "$f")',
-  '      if [ -e "$RUN_DIR/staged/$base" ]; then',
-  '        mv "$f" "$RUN_DIR/staged/$base.shadow-dup" && echo "collision: $base (kept as $base.shadow-dup)"',
+  '      if [ -L "$f" ] || [ ! -f "$f" ]; then echo "sweep: skipped $base — not a regular file"; continue; fi',
+  '      dest="$RUN_DIR/staged/$base"',
+  '      if [ -e "$dest" ]; then',
+  '        dest="$dest.shadow-dup"; n=1',
+  '        while [ -e "$dest" ]; do dest="$RUN_DIR/staged/$base.shadow-dup-$n"; n=$((n+1)); done',
+  '        mv "$f" "$dest" && echo "collision: $base (kept as $(basename "$dest"))" || echo "sweep: FAILED to move $base — still in the shadow"',
   '      else',
-  '        mv "$f" "$RUN_DIR/staged/" && echo "relocated: $base"',
+  '        mv "$f" "$dest" && echo "relocated: $base" || echo "sweep: FAILED to move $base — still in the shadow"',
   '      fi',
   '    done',
-  '    rmdir "$SHADOW/staged" 2>/dev/null || true',
+  '    rmdir "$SHADOW/staged" 2>/dev/null || echo "sweep: shadow staged/ not empty after sweep — inspect $SHADOW/staged"',
   '  fi',
-  '  if [ ! "$SHADOW" -ef "$RUN_DIR" ] && [ -f "$SHADOW/decisions.md" ]; then',
-  '    grep \'^- \' "$SHADOW/decisions.md" >> "$RUN_DIR/decisions.md"; rm "$SHADOW/decisions.md" && echo "relocated: decisions.md (entries appended)"',
+  '  if [ ! "$SHADOW" -ef "$RUN_DIR" ] && [ -f "$SHADOW/decisions.md" ] && [ ! -L "$SHADOW/decisions.md" ]; then',
+  '    if grep \'^- \' "$SHADOW/decisions.md" >> "$RUN_DIR/decisions.md"; then echo "relocated: decisions.md (entries appended)"; else echo "sweep: shadow decisions.md had no entries — dropped"; fi',
+  '    rm "$SHADOW/decisions.md"',
   '  fi',
   'fi',
 ].join('\n');
@@ -182,4 +187,71 @@ test('probe: an unset WORKTREE is a loud diagnostic, not a silent no-op — noth
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /not swept/);
   assert.ok(fs.existsSync(path.join(shadow, 'staged', 'x.md')), 'nothing moved when misconfigured');
+});
+
+test('probe: a run dir outside RUN_ROOT is a loud diagnostic — nothing is moved', (t) => {
+  const { wt, shadow } = buildFixture(t);
+  const other = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'stagepath-other-')));
+  t.after(() => fs.rmSync(other, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(other, 'staged'));
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(shadow, 'staged', 'x.md'), 'x\n');
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: other, WORKTREE: wt });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /not under .* — not swept/);
+  assert.ok(fs.existsSync(path.join(shadow, 'staged', 'x.md')), 'nothing moved');
+});
+
+test('probe: a headers-only shadow decisions.md is dropped and reported as such, never as "entries appended"', (t) => {
+  const { wt, runDir, shadow } = buildFixture(t);
+  fs.mkdirSync(shadow, { recursive: true });
+  fs.writeFileSync(path.join(shadow, 'decisions.md'), '# Auto-Decision Log — x\n\n## /wrap-up\n');
+  const before = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /had no entries — dropped/);
+  assert.doesNotMatch(r.stdout, /entries appended/);
+  assert.equal(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), before, 'anchored log unchanged');
+  assert.ok(!fs.existsSync(path.join(shadow, 'decisions.md')), 'shadow file removed');
+});
+
+test('probe: a repeated collision keeps every earlier .shadow-dup — the second lands as .shadow-dup-1', (t) => {
+  const { wt, runDir, shadow } = buildFixture(t);
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md'), 'ANCHORED\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md.shadow-dup'), 'FIRST DUP — pending\n');
+  fs.writeFileSync(path.join(shadow, 'staged', 'wrap-up-skill-1.md'), 'second shadow copy\n');
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /collision: wrap-up-skill-1\.md \(kept as wrap-up-skill-1\.md\.shadow-dup-1\)/);
+  assert.equal(fs.readFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md.shadow-dup'), 'utf8'), 'FIRST DUP — pending\n', 'earlier dup untouched');
+  assert.equal(fs.readFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md.shadow-dup-1'), 'utf8'), 'second shadow copy\n');
+});
+
+test('probe: a symlink in the shadow staged/ is skipped with a diagnostic, never moved, and the shadow dir is left for inspection', (t) => {
+  const { wt, runDir, shadow } = buildFixture(t);
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(shadow, 'secret.txt'), 'outside staged\n');
+  fs.symlinkSync(path.join(shadow, 'secret.txt'), path.join(shadow, 'staged', 'link.md'));
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /skipped link\.md — not a regular file/);
+  assert.match(r.stdout, /shadow staged\/ not empty after sweep/);
+  assert.ok(!fs.existsSync(path.join(runDir, 'staged', 'link.md')), 'symlink never relocated');
+  assert.ok(fs.lstatSync(path.join(shadow, 'staged', 'link.md')).isSymbolicLink(), 'symlink left in place');
+});
+
+test('probe: an mv failure is a loud diagnostic, not a silent no-op', (t) => {
+  if (typeof process.getuid === 'function' && process.getuid() === 0) { t.skip('root ignores directory permissions'); return; }
+  const { wt, runDir, shadow } = buildFixture(t);
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(shadow, 'staged', 'x.md'), 'x\n');
+  fs.chmodSync(path.join(runDir, 'staged'), 0o555);
+  t.after(() => { if (fs.existsSync(path.join(runDir, 'staged'))) fs.chmodSync(path.join(runDir, 'staged'), 0o755); });
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /FAILED to move x\.md/);
+  assert.match(r.stdout, /shadow staged\/ not empty after sweep/);
+  assert.ok(fs.existsSync(path.join(shadow, 'staged', 'x.md')), 'file still in the shadow — nothing lost');
+  fs.chmodSync(path.join(runDir, 'staged'), 0o755);
 });
