@@ -75,7 +75,7 @@ test('transcript-judge.md documents the (self-assessment) header-tag mitigation'
 });
 
 test('transcript-judge.md documents the record-failure clause on terminal dispatch failure', () => {
-  assert.match(SHARED, /node bin\/resolve-profile\.js record-failure \{model\}/);
+  assert.match(SHARED, /node plugin\/bin\/resolve-profile\.js record-failure \{model\}/);
 });
 
 // --- 5. Slicing guidance and finding norms moved verbatim ---
