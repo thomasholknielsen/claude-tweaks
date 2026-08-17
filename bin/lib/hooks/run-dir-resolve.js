@@ -89,7 +89,7 @@ function resolve(opts = {}) {
   if (envVal) {
     const real = safeReal(envVal);
     if (real) {
-      if (real === mainRoot || real.startsWith(mainRoot + path.sep)) {
+      if (wtDetect.isAnchoredUnderRoot(real, mainRoot)) {
         return ok(real, false);
       }
       // Exists, but resolves OUTSIDE the main checkout — this is the #692/
