@@ -75,6 +75,8 @@ Per `auto-decision-log.md` schema:
 - STAGED {HH:MM:SS} — /review reproduction: finding {path}:{line} surfaced by one agent only. Stage path: staged/review-unconfirmed-{n}.patch.
 ```
 
+`staged/review-unconfirmed-{n}.patch` follows `_shared/staged-patch.md`: `Target:` / `Invariant:` / `Finding:` / `Staged-at:` preamble plus the diff, validated with `git apply --check` from the worktree before the `STAGED` entry above is written — a failing check is handled per that file's Staging-time gate and surfaced at staging, and the console re-derives from `Invariant:` when the diff has gone stale.
+
 ### Review Console staging format
 
 ```
