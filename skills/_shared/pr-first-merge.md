@@ -390,6 +390,36 @@ never a reason to report anything other than `merged`. **No `git merge`, `git co
 `mirrorFastForward` is a strict `--ff-only`, never a merge that could conflict, so it needs no
 worktree, no branch guard, and no close-run relief.
 
+## Step 5: Delete the remote branch (outcome merged, after worktree teardown)
+
+Applies only to outcome `merged` (never `armed`/`pending-review`), and only **after** the
+worktree has actually been removed. This step's trigger point is downstream of this file's own
+procedure — it is cited from `wrap-up/cleanup-procedures.md` Section C, which is where worktree
+removal actually happens; Step 4 above never tears down a worktree itself, so nothing in this
+file calls this step inline.
+
+```bash
+gh api -X DELETE "repos/{owner}/{repo}/git/refs/heads/{branch}"
+```
+
+Never `git push origin --delete {branch}` — Step 4's own no-`git push`-in-the-main-checkout rule
+stands, and the worktree-always gate denies the push there anyway. Never `gh pr merge
+--delete-branch` either: by the time this step runs the worktree is already gone, but the
+dedicated ref-delete call keeps this step decoupled from whichever merge command Step 3 actually
+ran — simpler to reason about than retrofitting `--delete-branch` onto Step 3's several
+merge-command variants.
+
+Guard: never delete `{integration-branch}` itself — assert the branch name differs before
+calling; a match here is a caller bug, not a runtime condition to branch on. Tolerate "reference
+does not exist" (already deleted — e.g. by GitHub's own branch-protection auto-delete setting,
+or a re-run of this step) as success, not a failure to report.
+
+`gh`-absent transport: no GitHub MCP tool for a ref/branch delete is confirmed to exist —
+`github-write-transport.md`'s CRUD mapping covers issue operations only, and the GitHub MCP
+server's own branch tools stop at `create_branch`/`list_branches`. Under `gh`-absent, skip the
+delete: the branch accumulates as a stale head for a future `/claude-tweaks:tidy` sweep to
+catch, rather than inventing a tool call that doesn't exist.
+
 ## Conflict path
 
 Exactly **one** update-from-base attempt, from inside the run's own worktree — never inside the
