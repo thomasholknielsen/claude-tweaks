@@ -156,7 +156,8 @@ Anchoring section (`git rev-parse --git-common-dir`, then its parent directory).
 **representative record** is its lowest-numbered member (the same rule
 `_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
 `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` — mkdir only: no
-`config.yml`, no `decisions.md`, and no claim written here either. Call the result
+`config.yml`, no `decisions.md`, and no claim written here either. `{ISO-timestamp}` is UTC, per
+`_shared/pipeline-run-dir.md`'s ISO-timestamp rule (`date -u`). Call the result
 `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
 `decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
 {$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
