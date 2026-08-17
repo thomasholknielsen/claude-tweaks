@@ -25,13 +25,13 @@ function isTestPath(path) {
   return TEST_PATH_RE.test(path) || TEST_SUFFIX_RE.test(path);
 }
 
-// Minimal glob support: '*' matches within a path segment (not '/'). Sufficient for this
-// project's own sensitive-path shapes (e.g. 'skills/_shared/*.md', 'bin/hooks.js' as a literal).
-// Every other ECMAScript regex metacharacter (including '?', which a maintainer
-// could plausibly write into a config value as a literal character, given '*'
-// and '?' are both standard single-char/wildcard shell-glob tokens elsewhere in
-// this codebase's own bash conventions) is escaped so it can never be
-// misinterpreted as regex syntax.
+// Glob support: '*' matches within a path segment (not '/'), while '**' crosses path segments.
+// Sufficient for this project's own sensitive-path shapes (e.g. 'skills/_shared/*.md',
+// 'skills/**' to match any depth, 'bin/hooks.js' as a literal). Every other ECMAScript
+// regex metacharacter (including '?', which a maintainer could plausibly write into a
+// config value as a literal character, given '*' and '?' are both standard single-char/
+// wildcard shell-glob tokens elsewhere in this codebase's own bash conventions) is
+// escaped so it can never be misinterpreted as regex syntax.
 //
 // Compiled RegExp objects are memoized per glob string: classifyDiffFiles calls
 // isSensitivePath once per changed file, and without this cache every file in a
@@ -42,8 +42,24 @@ const globRegExpCache = new Map();
 function globToRegExp(glob) {
   let re = globRegExpCache.get(glob);
   if (!re) {
-    const escaped = glob.replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '[^/]*');
-    re = new RegExp(`^${escaped}$`);
+    // Tokenised left-to-right so '**' can span path segments while '*' stays
+    // segment-bound (#727): '**/' matches zero or more whole segments, a
+    // trailing '/**' matches the bare parent or anything under it, and a glob
+    // that is exactly '**' matches everything. A '**' embedded mid-segment
+    // ('a**b', 'a**/b') is not a documented form and falls through to the
+    // single-'*' rule per star, preserving the pre-#727 behavior for that
+    // degenerate shape.
+    let source = '';
+    let i = 0;
+    while (i < glob.length) {
+      if (glob.startsWith('/**', i) && i + 3 === glob.length) { source += '(?:/.*)?'; i += 3; continue; }
+      if (glob.startsWith('**/', i) && (i === 0 || glob[i - 1] === '/')) { source += '(?:.*/)?'; i += 3; continue; }
+      if (glob === '**') { source = '.*'; break; }
+      const ch = glob[i];
+      source += ch === '*' ? '[^/]*' : ch.replace(/[.+^${}()|[\]\\?]/, '\\$&');
+      i += 1;
+    }
+    re = new RegExp(`^${source}$`);
     globRegExpCache.set(glob, re);
   }
   return re;
