@@ -20,6 +20,13 @@ alphabetically first side owns it. So a relationship involving `/review` may liv
 fragments, `bin/` modules, design docs, `agents/qa-agent.md` — sit with the skill that
 depends on them.
 
+**Payload paths in this file are relative to the payload root**, i.e. the repo's `plugin/`
+subtree (ADR-0015) — the same root the bare `_shared/x.md` and `{skill}/{file}.md`
+citations throughout already assume. So `bin/lib/issues/record.js` below is
+`plugin/bin/lib/issues/record.js` in a checkout, and `skills/_shared/integration-branch.md`
+is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`docs/…`,
+`tests/…`, `evals/…`) are written from the repo root and are unambiguous by their prefix.
+
 ## assess-agent-autonomy
 
 | Target | Relationship |

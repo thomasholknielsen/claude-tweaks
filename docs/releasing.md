@@ -14,6 +14,8 @@ A release touches **both** this repo and the separate marketplace repo (`thomash
 
 The mechanics live in `plugin/bin/release.js` (`--help`) and `plugin/bin/lib/release/`.
 
+**What the mirror writes** (since the #418 payload cutover — `docs/decisions/0015-*`): the catalog entry is `{"source": "git-subdir", "url": "https://github.com/thomasholknielsen/claude-tweaks", "path": "plugin", "sha": "<release commit>"}`. Two properties are load-bearing. The entry carries **no `version` field** — the payload's own `plugin/.claude-plugin/plugin.json` is the single version authority, and a catalog copy can only drift and mask a release; `composeMirroredCatalog` deletes the key outright, so hand-adding it back is reverted by the next release. (This is a different field from `metadata.version` above, which the mirror genuinely never touches.) And the entry is pinned by **`sha`, never `ref`** — a ref follows a moving branch, so an install would resolve whatever `main` holds at install time instead of the commit released; the mirror throws rather than write an unpinned entry. A stale or wrong entry makes an *update attempt* fail loudly and leaves any existing install byte-identical — that is the exposure ADR-0015 accepted, and it is the failure to expect if a release's mirror step is interrupted.
+
 ## After the push: the CI gate
 
 Every push to `main` (including the release script's own push) triggers the `test` workflow (`.github/workflows/test.yml`), which runs the full `npm test` suite on a full-history checkout. A red first run after a release means the shipped tree fails its own gates — check `gh run list --workflow test --limit 1` before shipping anything further.
