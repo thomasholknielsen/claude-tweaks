@@ -78,6 +78,18 @@ const DENY = (reason) => ({
   },
 });
 
+// Shared shape for the two `bornAuthorized`-denied-but-`bornReady`-may-still-be-
+// granted outcomes below: only the reason text differs between them.
+const DENY_AUTHORIZED = (bornReady, reason) => ({
+  bornReady,
+  bornAuthorized: false,
+  reason,
+  grants: {
+    bornReady: { granted: bornReady, reason: '' },
+    bornAuthorized: { granted: false, reason },
+  },
+});
+
 // `row` is one of trustRows()'s rows. `grantOriginationEnabled` is the separate,
 // explicit opt-in described below — never inferred from the ceiling.
 function permittedGrants(input) {
@@ -123,28 +135,10 @@ function permittedGrants(input) {
   // stays behind its own opt-in until that invariant is deliberately amended, and
   // reaching the top tier is never by itself that amendment.
   if (!atLeast(tier, 'unattended')) {
-    const reason = `class is clean and the ceiling is ${tier}`;
-    return {
-      bornReady,
-      bornAuthorized: false,
-      reason,
-      grants: {
-        bornReady: { granted: bornReady, reason: '' },
-        bornAuthorized: { granted: false, reason },
-      },
-    };
+    return DENY_AUTHORIZED(bornReady, `class is clean and the ceiling is ${tier}`);
   }
   if (grantOriginationEnabled !== true) {
-    const reason = 'ceiling is unattended, but machine-originated grants need their own explicit opt-in';
-    return {
-      bornReady,
-      bornAuthorized: false,
-      reason,
-      grants: {
-        bornReady: { granted: bornReady, reason: '' },
-        bornAuthorized: { granted: false, reason },
-      },
-    };
+    return DENY_AUTHORIZED(bornReady, 'ceiling is unattended, but machine-originated grants need their own explicit opt-in');
   }
   return {
     bornReady,
