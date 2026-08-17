@@ -84,3 +84,13 @@ pr-first-merge / flow closure: a merge swept into another session's version bump
 Filed via /claude-tweaks:feedback (session evaluation, self-referenced repo — routed to this project's own backlog).
 <!-- fingerprint: feedback-8e008cb9 -->
 
+
+## Architecture alignment (build, Common Step 4.5)
+
+Beneficial deviations applied to this materialized spec so it matches what shipped (auto-applied under `auto`; the two "spec premise was wrong" rows are staged separately at `staged/build-deviation-{1,2}.md`):
+
+- **Carrying release = oldest bump that still contains the merge**, not "the newest commit that changed `version`" (Deliverable 1a/1b). Walking newest→oldest with `--topo-order` and keeping the last bump that has the merge as an ancestor names the release that *first* carried the work; the newest bump is only the answer when it is also the first. `bin/lib/release/status.js` `carryingBump`/`iterBumpCommits`.
+- **JSON is a superset of AC 1's shape** — `{ shipped, version, bumpCommit, entryFound, named, missing }` with record numbers as numbers (they arrive numeric from `--records`); `{ shipped: false }` unchanged.
+- **Applicability + no-manifest hard-fail** — the subcommand throws (exit 1) when the ref carries no `.claude-plugin/plugin.json`, and Step 4.1 gates on the manifest + `CHANGELOG.md` existing at the ref (`n/a — no plugin manifest at {ref}`); a `pr-first` project without a plugin manifest never gets a false "bump pending".
+- **Range notation** — `#A-#B` / `#A-B` in a CHANGELOG entry names every member (capped at 500 per range), so this repo's `#620-#625` style entries do not trigger false backfills.
+- **`local-merge`** — Step 4.1 is reachable from the three citing files' own local-merge sections (Gotcha 4), invoked with `--ref {integration-branch}` against the recorded local merge commit.
