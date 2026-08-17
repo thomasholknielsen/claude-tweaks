@@ -3,10 +3,9 @@
 Every relationship between claude-tweaks skills, stated once.
 
 This file is maintainer documentation. It is **not** part of the shipped plugin —
-`evals/runner.js`'s `PLUGIN_SNAPSHOT_DIRS` covers `.claude-plugin`, `skills`, `agents`,
-`hooks`, `bin`, and `commands`, not `docs/`. No skill reads it at runtime, and consuming
-projects have no use for a map of this plugin's internal wiring. That is why the content
-could leave the `SKILL.md` files at all.
+`docs/` is outside the plugin payload, the `plugin/` subtree (ADR-0015). No skill reads
+it at runtime, and consuming projects have no use for a map of this plugin's internal
+wiring. That is why the content could leave the `SKILL.md` files at all.
 
 Edges are stated once, not once per direction. The per-skill `## Relationship to Other
 Skills` tables it replaces stated each edge twice, and the two copies drifted.
