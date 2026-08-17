@@ -66,5 +66,9 @@
   "skill:shared-contract-extraction": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1786995903394
+  },
+  "skill:work-record-facet-rename": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1786995944122
   }
 }
