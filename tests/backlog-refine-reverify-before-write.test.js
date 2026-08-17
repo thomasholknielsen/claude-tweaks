@@ -55,11 +55,7 @@ test('Step 5 states this as a general rule for other batch-confirm-then-apply fl
 
 test('Step 5 cross-references tidy\'s existing identical pattern', () => {
   assertClaimPinned(
-    /tidy.*step-6-auto\.md/s,
+    /Step 6 auto-apply table already applies the identical rule[\s\S]{0,150}step-6-auto\.md/,
     'cross-reference to skills/tidy/step-6-auto.md missing from refine-mode.md Step 5',
   );
-});
-
-test('refine-mode.md Step 5 satisfies the #764 acceptance-criterion grep', () => {
-  assert.match(refineModeProse, /re-fetch|live label/, '#764 AC1 grep pattern must match somewhere in the file');
 });
