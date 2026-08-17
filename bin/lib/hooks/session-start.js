@@ -122,17 +122,20 @@ async function run(ctx) {
     }
   } catch { /* best-effort */ }
   try {
-    // Surface a PRIOR session's background reconcile pass exactly once
-    // (#820, D8). The background pass (bin/hooks.js's `reconcile-background`
-    // subcommand, spawned below) writes its outcome to a status file with no
-    // reader of its own — this is that reader. `surfaced` flips to true the
-    // first time a SessionStart firing reports it, so a summary from three
-    // sessions ago doesn't reappear on every subsequent session start.
+    // Surface a PRIOR session's background reconcile pass exactly once, and
+    // decide whether to spawn a new one (#820, D8). Both read the same
+    // status file the background pass (bin/hooks.js's `reconcile-background`
+    // subcommand, spawned below) writes, so the read is done once and
+    // shared rather than twice.
     const root = wtDetect.mainCheckoutRoot(ctx.cwd);
     if (root) {
       const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
       let status = null;
       try { status = JSON.parse(fs.readFileSync(statusPath, 'utf8')); } catch { /* none yet */ }
+
+      // Surface once — `surfaced` flips to true the first time a
+      // SessionStart firing reports it, so a summary from three sessions
+      // ago doesn't reappear on every subsequent session start.
       if (status && status.surfaced === false) {
         const s = status.summary || {};
         const lines = [];
@@ -141,6 +144,15 @@ async function run(ctx) {
         if (s.archived) lines.push(`${s.archived} pipeline run(s) archived`);
         if (s.archivedBranches) lines.push(`${s.archivedBranches} local branch(es) archived/deleted`);
         if (s.prunedRemote) lines.push(`${s.prunedRemote} merged remote branch(es) deleted on origin`);
+        // Individually-named worktrees left in place and why — the same
+        // granular signal the pre-#820-D8 inline block used to render,
+        // pre-filtered by the background CLI through QUIET_SKIP_REASONS so
+        // routine/expected skips stay quiet here too.
+        if (Array.isArray(s.notableWorktrees) && s.notableWorktrees.length) {
+          lines.push(
+            `worktree(s) left in place: ${s.notableWorktrees.map((w) => `${path.basename(w.path)} (${w.reason})`).join(', ')}`,
+          );
+        }
         if (lines.length) {
           parts.push(`claude-tweaks: background reconcile (from a prior session) — ${lines.join('; ')}.`);
         }
@@ -148,30 +160,35 @@ async function run(ctx) {
           fs.writeFileSync(statusPath, JSON.stringify({ ...status, surfaced: true }));
         } catch { /* best-effort */ }
       }
-    }
-  } catch { /* best-effort */ }
-  try {
-    // Spawn the detached background pass — TTL-gated by the same
-    // skipIfFresh cache (bin/lib/reconcile/cache.js, Task 6/9) reconcile()
-    // itself uses, so near-simultaneous session starts don't each spawn a
-    // redundant background process. `detached: true` + `stdio: 'ignore'` +
-    // `child.unref()` together let this process exit without waiting on the
-    // child, and without the child dying alongside it.
-    const { spawn } = require('child_process');
-    const { readCache, isFresh } = require('../reconcile/cache');
-    const root = wtDetect.mainCheckoutRoot(ctx.cwd);
-    if (root) {
-      const cache = readCache(root);
-      if (!isFresh(cache, Date.now())) {
-        const child = spawn(
-          process.execPath,
-          [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
-          { cwd: ctx.cwd, detached: true, stdio: 'ignore' },
-        );
-        child.unref();
+
+      // Spawn the detached background pass — TTL-gated by THIS status
+      // file's own `completedAt`, deliberately never reconcile()'s shared
+      // reconcile-cache.json `lastRunAt` stamp: that stamp fires on ANY
+      // fully-completed pr-first pass, including the FAST_CHECKS call just
+      // above in this same function, which would make this gate see a
+      // false "fresh" from a pass that never ran the background checks at
+      // all and never spawn (#820 Task 10 fix-up, caught by task review).
+      // `detached: true` + `stdio: 'ignore'` + `child.unref()` together let
+      // this process exit without waiting on the child, and without the
+      // child dying alongside it.
+      const { isFresh } = require('../reconcile/cache');
+      const fresh = isFresh(
+        { lastRunAt: status && typeof status.completedAt === 'number' ? status.completedAt : null },
+        Date.now(),
+      );
+      if (!fresh) {
+        try {
+          const { spawn } = require('child_process');
+          const child = spawn(
+            process.execPath,
+            [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
+            { cwd: ctx.cwd, detached: true, stdio: 'ignore' },
+          );
+          child.unref();
+        } catch { /* best-effort — a failed spawn just means this session's background pass didn't fire; the next one tries again */ }
       }
     }
-  } catch { /* best-effort — a failed spawn just means this session's background pass didn't fire; the next one tries again */ }
+  } catch { /* best-effort */ }
   try {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
     // ancestor chain, there is definitely nothing to enforce — skip forking
@@ -201,4 +218,4 @@ async function run(ctx) {
   return { json: { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: parts.join('\n\n') } } };
 }
 
-module.exports = { run };
+module.exports = { run, FAST_CHECKS };

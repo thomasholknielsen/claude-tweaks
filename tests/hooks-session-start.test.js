@@ -311,23 +311,31 @@ test('verdict banner: no policy.yml anywhere in the ancestor chain — no verdic
 // `reconcile-background` child process, and SessionStart's job is only to
 // surface a PRIOR pass's already-written status file, once. A real detached
 // spawn's timing is too racy to depend on in a test (see the spawn-triggering
-// test below, which covers that separately) — this test instead writes the
+// tests below, which cover that separately) — this test instead writes the
 // status-file fixture directly, runs the hook twice, and asserts the summary
 // line appears on the first firing (and flips `surfaced` to true) but not on
-// the second.
+// the second. Includes a `notableWorktrees` entry (Task 10 review Important
+// #2 — the individually-named "worktree(s) left in place" line the original
+// inline block rendered, restored here on the background-summary path).
 test('SessionStart surfaces a prior background reconcile pass exactly once (#820, D8)', async () => {
   const project = gitProject();
   const statusDir = path.join(project, '.claude-tweaks');
   fs.mkdirSync(statusDir, { recursive: true });
   const statusPath = path.join(statusDir, 'reconcile-background-status.json');
   fs.writeFileSync(statusPath, JSON.stringify({
-    completedAt: Date.now(), surfaced: false, summary: { released: 2, archived: 1 },
+    completedAt: Date.now(),
+    surfaced: false,
+    summary: {
+      released: 2,
+      archived: 1,
+      notableWorktrees: [{ path: '/tmp/wt/foo', reason: 'pr-open' }],
+    },
   }));
 
   const first = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   assert.match(
     first.json.hookSpecificOutput.additionalContext,
-    /background reconcile \(from a prior session\).*2 issue claim\(s\) released.*1 pipeline run\(s\) archived/,
+    /background reconcile \(from a prior session\).*2 issue claim\(s\) released.*1 pipeline run\(s\) archived.*worktree\(s\) left in place: foo \(pr-open\)/,
   );
   const statusAfterFirst = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
   assert.strictEqual(statusAfterFirst.surfaced, true, 'the status file must be marked surfaced after the first firing');
@@ -338,29 +346,86 @@ test('SessionStart surfaces a prior background reconcile pass exactly once (#820
   }
 });
 
-test('SessionStart spawns a detached reconcile-background pass when the cache is stale, not when fresh (#820, D8)', async () => {
+// Task 10 review Critical finding: the spawn gate must key off the
+// `reconcile-background-status.json` file's OWN `completedAt`, never
+// reconcile()'s shared `reconcile-cache.json` `lastRunAt` stamp — that stamp
+// fires on ANY fully-completed pr-first pass, including SessionStart's own
+// FAST_CHECKS call, which (before this fix) made the gate see a false
+// "fresh" from a pass that never ran the background checks and never spawn
+// at all. Case (a) below (a fresh status file) is signal-agnostic and would
+// pass under either the buggy or the fixed implementation — it's here for
+// completeness. Case (b) is the one that actually discriminates the bug: it
+// uses a REAL pr-first remote (not a bare no-remote repo, which never
+// reaches reconcile()'s cache-stamping line at all and so could never
+// reproduce the contamination), so SessionStart's own FAST_CHECKS call
+// genuinely stamps reconcile-cache.json's lastRunAt moments before the gate
+// decision runs — under the old (buggy) `readCache`/`lastRunAt` gate this
+// case would incorrectly see "fresh" and skip the spawn; under the fix it
+// must still spawn, because the STATUS file (not the reconcile cache) is
+// absent/stale.
+function prFirstRemoteFixture() {
+  const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-spawn-origin-'));
+  git(['init', '-q', '--bare', '--initial-branch=main'], originDir);
+
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-spawn-seed-'));
+  git(['clone', '-q', originDir, seedDir]);
+  git(['config', 'user.email', 'test@example.com'], seedDir);
+  git(['config', 'user.name', 'Test'], seedDir);
+  fs.mkdirSync(path.join(seedDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], seedDir);
+  git(['commit', '-q', '-m', 'seed'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+
+  const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-spawn-main-'));
+  git(['clone', '-q', originDir, mainDir]);
+  git(['config', 'user.email', 'test@example.com'], mainDir);
+  git(['config', 'user.name', 'Test'], mainDir);
+  return mainDir;
+}
+
+test('SessionStart spawn gate: a fresh background-status file suppresses the spawn (#820, D8)', async () => {
   // Stubs `require('child_process').spawn` at the module-object level, the
   // same require.cache convention this file's #561 test uses to stub
   // reconcile() — session-start.js's `run(ctx)` is called directly
   // (in-process), never through a subprocess, so the stub is guaranteed to
-  // be observed by the code under test (a stub in this file's own process
-  // would have NO effect on a real `node bin/hooks.js session-start`
-  // subprocess, which is why this test avoids shelling out at all).
-  const cache = require('../bin/lib/reconcile/cache');
+  // be observed by the code under test.
   const cp = require('child_process');
   const originalSpawn = cp.spawn;
   let spawnedWith = null;
   cp.spawn = (...args) => { spawnedWith = args; return { unref() {} }; };
   try {
-    const freshProject = gitProject();
-    cache.writeCache(freshProject, { lastRunAt: Date.now(), claimShas: {} }); // fresh — must NOT spawn
-    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: freshProject });
-    assert.strictEqual(spawnedWith, null, 'a fresh cache must not trigger a background spawn');
+    const project = gitProject();
+    const statusDir = path.join(project, '.claude-tweaks');
+    fs.mkdirSync(statusDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(statusDir, 'reconcile-background-status.json'),
+      JSON.stringify({ completedAt: Date.now(), surfaced: true, summary: {} }),
+    );
+    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.strictEqual(spawnedWith, null, 'a fresh background-status file must not trigger a background spawn');
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
 
-    const staleProject = gitProject();
-    cache.writeCache(staleProject, { lastRunAt: Date.now() - 3600000, claimShas: {} }); // stale — must spawn
-    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: staleProject });
-    assert.ok(spawnedWith, 'a stale cache must trigger a background spawn');
+test('SessionStart spawn gate: fires against a real pr-first remote even though the fast pass itself stamps reconcile-cache.json (#820 Task 10 fix-up — the Critical finding\'s repro)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {} }; };
+  try {
+    const mainDir = prFirstRemoteFixture();
+    // No reconcile-background-status.json exists yet — this is the very
+    // first SessionStart firing in this repo. Also prove the fast pass
+    // really does reach reconcile()'s own cache stamp (the contamination
+    // source), so this case is not silently degrading to "no-remote skip".
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
+    const reconcileCache = require('../bin/lib/reconcile/cache');
+    const stampedCache = reconcileCache.readCache(fs.realpathSync(mainDir));
+    assert.strictEqual(typeof stampedCache.lastRunAt, 'number', 'the FAST_CHECKS pass must have completed and stamped reconcile-cache.json — otherwise this fixture is not reproducing the bug scenario');
+    assert.ok(out.json, 'a pr-first repo with no stale-run/policy signal still renders the worktree-always verdict banner');
+    assert.ok(spawnedWith, 'the background pass must still spawn — the status file (not reconcile-cache.json) is what must gate this decision');
     assert.strictEqual(spawnedWith[0], process.execPath);
     assert.ok(spawnedWith[1][0].endsWith(path.join('bin', 'hooks.js')));
     assert.strictEqual(spawnedWith[1][1], 'reconcile-background');

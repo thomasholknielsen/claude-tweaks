@@ -18,6 +18,14 @@ const resumeFreshness = require('./lib/hooks/resume-freshness');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
+// The write-only, janitorial half of reconcile/index.js's ALL_CHECKS — run
+// by the `reconcile-background` subcommand below, off session-start.js's hot
+// path (#820, D8). Exported (alongside session-start.js's own FAST_CHECKS
+// export) so a test can assert the two lists partition ALL_CHECKS exactly —
+// no overlap, nothing silently dropped when a check is added to one list and
+// not the other.
+const BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
+
 function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
 }
@@ -321,23 +329,61 @@ async function main(argv) {
     const cwd = process.cwd();
     const { reconcile } = require('./lib/reconcile');
     const { mainCheckoutRoot } = require('./lib/hooks/worktree-detect');
-    const BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
+    const { isFresh } = require('./lib/reconcile/cache');
+    const { QUIET_SKIP_REASONS } = require('./lib/hooks/worktree-reap');
+    const root = mainCheckoutRoot(cwd) || cwd;
+    const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
+
+    // Freshness is decided from THIS status file's own `completedAt` —
+    // deliberately NOT reconcile()'s shared reconcile-cache.json `lastRunAt`
+    // stamp. That stamp fires unconditionally at the end of ANY
+    // fully-completed pr-first pass regardless of which `checks` subset ran,
+    // so session-start.js's own FAST_CHECKS call (mirror/red-tip/console)
+    // also stamps it moments before this process starts — reusing it here
+    // would make this process (and the spawn-gate that decided to launch it)
+    // see a false "fresh" from a pass that never touched
+    // release/archive/archive-branches/remote-prune/reap, and the
+    // background checks would never run. Caught by task review against a
+    // real pr-first remote (#820 Task 10 fix-up); reconcile()'s own
+    // lastRunAt/cache.js contract is untouched by this fix.
+    let existingStatus = null;
+    try { existingStatus = JSON.parse(fs.readFileSync(statusPath, 'utf8')); } catch { /* none yet */ }
+    const alreadyFresh = isFresh(
+      { lastRunAt: existingStatus && typeof existingStatus.completedAt === 'number' ? existingStatus.completedAt : null },
+      Date.now(),
+    );
+    if (alreadyFresh) {
+      // A very recent background pass already ran — do nothing, not even a
+      // status-file touch (surfaced/completedAt are left exactly as they
+      // are), since nothing new happened. Same stdout line as a completed
+      // run: nothing reads this detached process's stdout or exit code, so
+      // there is no caller to distinguish the two for.
+      process.stdout.write('claude-tweaks: reconcile-background complete\n');
+      return 0;
+    }
+
     let summary = {};
     try {
-      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS, skipIfFresh: true, ttlMs: require('./lib/reconcile/cache').DEFAULT_TTL_MS });
+      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS });
       summary = {
         released: (r.claims || []).filter((c) => c.action === 'released').length,
         archived: (r.runs || []).filter((x) => x.action === 'archived').length,
         archivedBranches: (r.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete')).length,
         prunedRemote: (r.remoteBranches || []).filter((b) => b.action === 'delete').length,
         reaped: (r.worktrees || []).filter((w) => w.action === 'reaped').length,
+        // Individually-named worktrees left in place and why — a more
+        // granular signal than the check-level `skipped` array below.
+        // Restores the pre-#820-D8 inline block's diagnostic, filtered the
+        // same way that block filtered it (routine/expected skip reasons
+        // stay quiet — see worktree-reap.js's QUIET_SKIP_REASONS).
+        notableWorktrees: (r.worktrees || [])
+          .filter((w) => w.action === 'skipped' && !QUIET_SKIP_REASONS.has(w.reason))
+          .map((w) => ({ path: w.path, reason: w.reason })),
         skipped: r.skipped || [],
       };
     } catch {
       summary = { failed: true };
     }
-    const root = mainCheckoutRoot(cwd) || cwd;
-    const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
     try {
       fs.mkdirSync(path.dirname(statusPath), { recursive: true });
       fs.writeFileSync(statusPath, JSON.stringify({ completedAt: Date.now(), summary, surfaced: false }));
@@ -380,4 +426,4 @@ if (require.main === module) {
   main(process.argv).then((code) => process.exit(code)).catch(() => process.exit(0));
 }
 
-module.exports = { main };
+module.exports = { main, BACKGROUND_CHECKS };
