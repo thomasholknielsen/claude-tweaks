@@ -41,7 +41,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
-| `--full` | Presence-only, meaningful only for bare/`--queue` invocation (Step 0's session-evaluation gather): ignore any existing watermark for the resolved transcript, dispatch the full un-scoped judge (no offset clause), then overwrite the watermark with the fresh result exactly as a first-ever evaluation would. A no-op combined with free-text-only invocation — no session evaluation runs in that mode at all, the same rule Step 0 already states for `--queue`. |
+| `--full` | Presence-only, meaningful only for bare/`--queue` invocation (Step 0's session-evaluation gather): ignore any existing watermark for the resolved transcript, dispatch the full un-scoped judge (no offset clause), then overwrite the watermark with the fresh result exactly as a first-ever evaluation would. A no-op combined with free-text-only invocation — free-text invocation without `--queue` runs no session evaluation at all (Step 0's rule). |
 | `--pre-confirmed` | Presence-only like `--dry-run`; the caller passes the item's staged-file path and the approved snapshot body alongside it. Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
@@ -72,9 +72,11 @@ limit, state this in the summary rather than silently treating it as complete.)
 its judge dispatch (or its self-assessment degradation) against `_shared/feedback-objectives.md`'s
 rubric. Each returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a
 finding — session-evaluation.md's own rule — and never enters the batch. The two gathers are
-failure-isolated: a judge dispatch that errors or returns nothing usable never aborts the run —
-Gather 1's queue candidates proceed through the batch regardless, with the evaluation reported as
-failed in the run summary.
+failure-isolated in both directions: a judge dispatch that errors or returns nothing usable
+degrades to `session-evaluation.md`'s self-assessment path (noted in the run summary) and never
+aborts the run — Gather 1's queue candidates proceed through the batch regardless — and a Gather
+1 `gh` failure likewise never blocks the evaluation; the failed gather is reported in the run
+summary while the other proceeds.
 
 **Merging.** The two gathers feed **one merged batch by concatenation, no reconciliation** — each
 item keeps its own draft shape; nothing here reconciles a queue candidate against an evaluation
@@ -86,7 +88,7 @@ confirm self-reference doesn't apply, dedup search, draft, scrub), then call
 `_shared/upstream-feedback-batch.md`'s shared batch contract once — chunked per that file's own
 rule — instead of looping Step 7 individually per item. Step 4's dedup fingerprint basis stays the
 affected component plus the core symptom, exactly as today — the draft template's
-`**Objective:**`/`**Measurement:**` fields (Step 5) never join that basis.
+`**Objective:**`/`**Measurement:**`/`**Cost this session:**` fields (Step 5) never join that basis.
 
 Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one item that triggered it — drop that
 item from the batch (report why, alongside the others' results) and continue the loop for the
@@ -202,6 +204,8 @@ Title: `<component>: <symptom>`
 
 **Measurement:** <counts> (countable lenses only — omitted for judgment lenses)
 
+**Cost this session:** <one line, from the finding> (evaluation-sourced drafts only)
+
 **Repro steps:** (defect only)
 1. ...
 
@@ -224,8 +228,8 @@ Filed via /claude-tweaks:feedback.
 Resolve the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`,
 never from install metadata or `gitCommitSha` (`[IL-89]`).
 
-**Objective**/**Measurement** omission rule: both fields are omitted entirely on drafts no
-evaluation produced — free-text learnings and Step 0 queue candidates alike.
+**Objective**/**Measurement**/**Cost this session** omission rule: all three fields are omitted
+entirely on drafts no evaluation produced — free-text learnings and Step 0 queue candidates alike.
 
 ### Step 6: Scrub — HARD GATE
 
