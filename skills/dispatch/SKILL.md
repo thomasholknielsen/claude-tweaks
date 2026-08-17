@@ -169,6 +169,12 @@ comment all live in `/flow`'s Step 2.8 (`flow/claim-targets.md`), which the grou
 call reaches under the identity this mint establishes — handing both Task calls the same
 directory to claim under is this step's whole purpose. Proceed to Step 5.
 
+This group's own file-overlap membership was already fixed by Step 2's `groupByFileOverlap` queue
+pull (`queue-pull-script.md`) — the same primitive `bin/preflight-records.js`'s `overlapGroups`
+field derives, for a caller needing that grouping outside dispatch's own queue-pull path (e.g.
+`/flow`'s own multi-spec pre-flight, `multi-spec.md`'s Validation step 3). This step re-derives
+nothing; it only mints a directory for the group Step 2 already computed.
+
 ### Concurrency note (Preflight reads, not claim correctness)
 
 Two firings running close together each do their own unsynchronized Preflight read, so one can see different `work-backend` content than another purely from wall-clock timing. Accepted, not engineered around: it's self-correcting, and `/flow`'s Step 2.8 atomic claim write (inside the first Task call) — not the Preflight read, and not dispatch's own Step 4 mint — is the actual correctness boundary, so no concurrent Preflight check can cause a double-build. Read `design-notes.md` in this skill's directory.

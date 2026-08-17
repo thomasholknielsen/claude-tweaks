@@ -101,64 +101,70 @@ knowledge beyond this one warning check.
 ## Claim every named target, all-or-abort
 
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all** named targets before proceeding
-to Step 3 for any of them.
-
-**Before attempting to claim, per target:** check whether this run already owns it — read that
-target's claim blob (the same "Reading claim state" procedure the skip-guard above uses) and
-compare `claim.runId === basename($PIPELINE_RUN_DIR)`. If it matches, this run already holds the
-claim for that target: skip claiming it and move to the next target in the loop, rather than
-re-attempting a claim, since `classifyClaimBlob` has no self-claim exemption and would classify
-this run's own `'live'` blob as contested against itself. This is a per-target check inside the
-claiming loop, distinct from the skip-guard's own all-targets check above (which decides whether
-to enter Step 2.8 at all) — a multi-target run resumed after a partial interruption can have some
-targets already owned by this run and others not yet claimed, in which case the skip-guard's
-all-targets condition correctly doesn't fire (there is still real claiming work to do for the
-unowned targets) and this per-target check is what prevents a redundant, spuriously-contested
-reclaim of the targets already held.
-
-For each remaining target, read-classify-write exactly as
-`_shared/issue-claims.md`'s "The lock" section describes — its steps 1-2 are the canonical
-read + classify (not restated here). Two properties of that read are load-bearing: a failed
-`gh api` read (404 — a never-claimed target, a normal outcome) passes the `__ABSENT__` sentinel
-to `classifyClaimBlob`, never an empty file, so a fresh target classifies `'absent'` on the
-first read; and a successful read extracts `{content: (.content | @base64d), sha: .sha}` in one
-`jq` call, decoding GitHub's newline-embedded base64 correctly and keeping the blob sha the
-conditional write (step 4 there) needs. Both the `gh` and MCP paths are defined there — see
-`_shared/github-write-transport.md` for transport routing.
-
-Branch on the classification, per `_shared/issue-claims.md`'s "Failure posture" table (not
-restated here): `'absent'` → create-only write, succeeds. `'tombstone'`/`'stale'` → conditional
-write (sha from the read), succeeds — a legitimate re-claim, not a contest. `'live'` → contested.
-`'unreadable'` → fails closed to contested (treat as live).
-
-**On success for a target:** bootstrap-then-add `bot:in-progress` (per `_shared/label-bootstrap.md`),
-post the claim comment (`claimPayload`'s `commentBody`):
+to Step 3 for any of them. One invocation claims the whole list:
 
 ```bash
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
-  runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$(basename "$PIPELINE_RUN_DIR")" > /tmp/flow-claim-comment-${ISSUE}.md
-gh issue edit "$ISSUE" --add-label bot:in-progress
-gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
+node "${CLAUDE_PLUGIN_ROOT}/bin/claim-targets.js" --run-id "$(basename "$PIPELINE_RUN_DIR")" \
+  --targets {n}[,{m}…] [--keep-going]
 ```
 
-**On contest for a target** (rejected write, or classification `'live'`/`'unreadable'`):
+Pass `--keep-going` only when this run is in `keep-going` mode (below); a default-mode run
+(single- or multi-target) omits the flag. The CLI implements `_shared/issue-claims.md`'s "The
+lock" steps 1-6 — read, classify, and the create-only/conditional/contested branch — via
+`bin/lib/issues/claim-store.js`, the one contents-API implementation this CLI and
+`reconcile/release-merged.js`'s release path both delegate to: the `__ABSENT__`-sentinel absent
+branch (a 404 read, a normal outcome for a never-claimed target) and the `@base64d`+sha
+single-read (one `gh api` call decoding GitHub's newline-embedded base64 and keeping the blob sha
+the conditional write needs) live inside that one module, not restated here. It classifies each
+read exactly per `_shared/issue-claims.md`'s "Failure posture" table: `'absent'` → create-only
+write; `'tombstone'`/`'stale'` → conditional write (a legitimate re-claim, not a contest);
+`'live'` → contested, holder identity attached; `'unreadable'` → fails closed to contested with no
+holder identity (`null`). It also applies the per-target self-owned check first: a target whose
+claim blob already reads `claim.runId === basename($PIPELINE_RUN_DIR)` — this run resuming after
+a partial interruption — lands in the JSON envelope's `alreadyOwned` array rather than being
+reclaimed or contested against itself, since `classifyClaimBlob` has no self-claim exemption and
+would otherwise classify this run's own `'live'` blob as contested against itself. On a
+successful claim it bootstraps `bot:in-progress` (per `_shared/label-bootstrap.md`) and posts the
+claim comment (`claimPayload`'s `commentBody`) for that target — best-effort: a label or comment
+failure is logged to stderr and never un-claims the target.
 
-- **Single-target run** — release nothing (nothing else was claimed). When this invocation minted
-  the run dir itself (`PIPELINE_RUN_DIR` was unset on entry) and it still holds no `config.yml`
-  (never adopted), remove the minted directory immediately — an empty mint left in place sorts
-  newest and steals the hook fallback resolver's attribution until the reconciler's
-  `isOrphanedMint` sweep catches it (~24h); a dispatch-minted dir (`PIPELINE_RUN_DIR` set on
-  entry) belongs to the caller and is left in place. The same removal rule applies to the
-  multi-target abort and the transient-failure stop below. Then stop the pipeline before
-  Step 3 (no worktree, nothing else left behind). Before rendering the card, gather
-  holder-liveness evidence — read-only, best-effort, never more
-  than a few seconds; absence of any artifact is evidence, not an error, and the card must
-  render a verdict either way — never block on the lookup:
+This CLI is the `gh` transport only — its `deps.gh`/`deps.ghApi` shell to real `gh` (per
+`gh-api-module-pattern`'s injectable-runner convention). In a `gh`-absent environment
+(`_shared/github-write-transport.md`'s MCP routing), this CLI does not apply: follow
+`_shared/issue-claims.md`'s "The lock" steps 1-6 directly via the MCP contents-API calls, per
+target, exactly as before this CLI existed.
 
-  1. The blob's identity fields (`runId`, `sessionId`, `claimedAt`, `ttlHours`, `host`) are
-     already in hand from "Reading claim state."
+**Branch on exit code:**
+
+- **0** — every target claimed (default mode), or every non-skipped target claimed
+  (`--keep-going` — see below). Proceed to Step 3.
+- **3** — contested. The CLI ran without `--keep-going` and stopped at the first target it could
+  not claim; stdout carries `{contested: [{issue, holder}], released}` — `released` lists every
+  target *this invocation* had already claimed before hitting the contest (empty for a
+  single-target run, or when the contested target was first in the list). The CLI already
+  performed the all-or-abort release — nothing further to release here. Gather liveness evidence
+  (below) and render the contest card using the reported `holder`.
+- **4** — transient `gh` failure, same fail-fast/all-or-abort shape as exit 3: stdout carries
+  `{transient: [{issue, error}], released}`, release already performed. Render the
+  transient-failure card below.
+- **2** — malformed invocation or missing dependency (a bad `--run-id`/`--targets` value, or repo
+  resolution failed) — a bug in this call, not a claim outcome. Treat as a hard stop.
+
+**On exit 3 or 4** — release nothing further (the CLI's `released` already covers it). When this
+invocation minted the run dir itself (`PIPELINE_RUN_DIR` was unset on entry) and it still holds no
+`config.yml` (never adopted), remove the minted directory immediately — an empty mint left in
+place sorts newest and steals the hook fallback resolver's attribution until the reconciler's
+`isOrphanedMint` sweep catches it (~24h); a dispatch-minted dir (`PIPELINE_RUN_DIR` set on entry)
+belongs to the caller and is left in place. Then stop the pipeline before Step 3 (no worktree,
+nothing else left behind).
+
+Before rendering the exit-3 card, gather holder-liveness evidence — read-only, best-effort, never
+more than a few seconds; absence of any artifact is evidence, not an error, and the card must
+render a verdict either way — never block on the lookup:
+
+  1. The reported `holder` JSON already carries the identity fields (`runId`, `sessionId`,
+     `claimedAt`, `ttlHours`, `host`) — no extra read needed (`null` on `'unreadable'`; render
+     the card's holder fields as `unknown` in that case).
   2. **Same host?** Compare the blob's `host` to `hostname` — string equality only, no
      network probing. Different → verdict is **Remote holder**; skip steps 3-4.
   3. **Worktree match:** derive the bare `spec-{ids}` portion of the holder's `runId` (strip
@@ -201,27 +207,26 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
   No `AskUserQuestion` — there is nothing to choose between here; the pipeline cannot proceed
   with a target it cannot claim.
 
-- **Multi-target run, default (no `keep-going`)** — release every target this run *did* claim so
-  far this step (reason `never-started: file-overlap group partial claim`, per
-  `_shared/issue-claims.md`'s Failure-posture table), then stop with the same message shape as
-  above, naming every contested target — the liveness lookup (steps 1-5 above) runs per
-  contested target, and the card renders one verdict block per contested target, each drawn
-  from that target's own holder's evidence.
+The `released` array's write (default mode, no `--keep-going`) uses the reason
+`never-started: file-overlap group partial claim` internally, per `_shared/issue-claims.md`'s
+Failure-posture table — the CLI's own `ABORT_REASON`, not something this flow step writes itself.
 
-- **Multi-target run with `keep-going`** — downgrade the contested target to a skip (drop it from
-  the target list, note it, proceed with the remainder), consistent with `keep-going`'s existing
-  meaning elsewhere in flow (`multi-spec.md`) — continue past a per-target failure rather than
-  aborting the whole run.
+**`--keep-going`** — the CLI never exits 3 or 4; a per-target contest or transient failure is
+downgraded to a `skipped` entry in the exit-0 JSON envelope (`{issue, reason: 'contested', holder}`
+or `{issue, reason: 'transient', error}`) and the CLI proceeds to the remaining targets rather than
+releasing and aborting — consistent with `--keep-going`'s existing meaning elsewhere in flow
+(`multi-spec.md`): continue past a per-target failure rather than aborting the whole run. Drop each
+skipped target from the target list for Step 3 onward. For a `reason: 'contested'` entry, gather
+liveness evidence (steps 1-5 above) and render the contest card using that entry's `holder`; for a
+`reason: 'transient'` entry, render the transient-failure card below. Each renders as one
+informational block per skipped target, not a pipeline stop, since the run proceeds with the
+remainder.
 
-**A transient `gh`/MCP failure during claim (not a classification-based contest)** — a network
-timeout, a transport error, or any other unclassified failure while reading, writing, or posting
-for a target — gets the identical all-or-abort treatment as a classification-based contest above,
-not a silent skip-and-continue: **single-target run** releases nothing and stops before Step 3;
-**multi-target run, default** releases every target this run *did* claim so far this step and
-stops; **multi-target run with `keep-going`** downgrades just the failing target to a skip and
-proceeds with the remainder. Use the same three bullets above for the release/stop mechanics —
-the only difference is the message, which names the transient failure instead of a holder
-identity (there is no holder to report):
+**A transient `gh` failure during claim (exit 4, not a classification-based contest)** — a network
+timeout, a transport error, or any other unclassified failure the CLI hit while reading, writing,
+or posting for a target — gets the identical all-or-abort treatment as a classification-based
+contest above: the difference is only the message, which names the transient failure instead of a
+holder identity (there is no holder to report):
 
 ```markdown
 ## Flow: Claim failed

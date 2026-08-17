@@ -139,3 +139,20 @@ test('contest liveness lookup is evidence-gathering, never a gate or a prompt (#
   // the card remains a stop: the section still forbids AskUserQuestion
   assert.match(content, /No `AskUserQuestion`/);
 });
+
+test('claim step invokes bin/claim-targets.js — no per-target gh api snippet remains (#723)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  assert.match(content, /bin\/claim-targets\.js/);
+  const claimSection = content.split('## Claim every named target')[1];
+  assert.ok(claimSection, 'claim section heading must exist');
+  assert.doesNotMatch(claimSection, /gh api "repos/);
+  assert.doesNotMatch(claimSection, /gh issue edit "\$ISSUE"/);
+  // the canonical-read citation tokens survive (pinned by the #720 tests too)
+  assert.match(content, /__ABSENT__/);
+  assert.match(content, /@base64d/);
+});
+
+test('multi-spec pre-flight and dispatch cite bin/preflight-records.js (#723)', () => {
+  assert.match(read('skills/flow/multi-spec.md'), /bin\/preflight-records\.js/);
+  assert.match(read('skills/dispatch/SKILL.md'), /bin\/preflight-records\.js/);
+});
