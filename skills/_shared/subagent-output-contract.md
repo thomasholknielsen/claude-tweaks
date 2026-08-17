@@ -13,7 +13,7 @@ This contract is **dispatch correctness** discipline. A dispatched agent is not 
 3. **A result you cannot parse is a result you will paraphrase.** Free-form prose from three agents gets merged by the dispatcher's summary rather than by its content — inventing severities, dropping findings, smoothing over disagreement. Templates A/B/C keep aggregation mechanical.
 4. **A model mismatch surfaces as a wrong answer, not just a bill.** An under-powered agent on judgment work returns confident nonsense shaped exactly like a finding.
 
-The contract addresses all four — **input discipline** (below), **the status protocol**, **output templates** (Templates A/B/C), and **model selection** (per-dispatch profile guidance) — and adds **working-directory discipline**, the same principle applied to the filesystem: an agent whose CWD the dispatcher merely assumed lands real commits on the wrong branch while the dispatcher's own `git status` looks fine.
+The contract addresses all four — **input discipline** (below), **the status protocol**, **output templates** (Templates A/B/C), and **model selection** (per-dispatch profile guidance) — and adds **working-directory discipline**, the same principle applied to the filesystem: an agent whose CWD the dispatcher merely assumed lands real commits on the wrong branch while the dispatcher's own `git status` looks fine — and **waiting discipline**, the same principle applied to resume signals: a dispatcher that parks per-agent instead of trusting the notification wastes exactly the context this contract exists to conserve.
 
 Following it also costs less to run, and the templates are deliberately compact. Treat that as a welcome side effect, never as the justification: a dispatch that saves tokens while returning an unroutable, unparseable, or context-contaminated result has bought nothing. The one sizing rule here (inherited project context, under Input Discipline) exists to stop a fan-out from being wider than it is worth — not to price the protocol.
 
@@ -57,9 +57,9 @@ During worktree-mode pipeline runs this rule is mechanically enforced — the pl
 
 ## Waiting for Dispatched Agents
 
-The task-notification that arrives when a dispatched agent finishes is the **primary resume signal** — it is what actually wakes the dispatcher, not a park-and-poll loop. Treat it as the default: after dispatching a wave of parallel agents, let their completion notifications drive the next turn.
+The task-notification that arrives when a dispatched agent finishes is the **primary resume signal** — it is what actually wakes the dispatcher, not a per-agent `ScheduleWakeup` park-and-poll loop (a bounded slot-fill poll like `/test`'s QA dispatch is a different, still-valid pattern — see that skill's `qa-prompts.md`). Treat the notification as the default: after dispatching a wave of parallel agents, let their completion notifications drive the next turn.
 
-**Cap parking to one long-delay watchdog per dispatch wave, not one per dispatch.** A `ScheduleWakeup` call for every individual agent in a fan-out is redundant against the notification each one already sends on completion, and it inflates per-wave API-call and context overhead for no additional signal — a six-agent wave gains nothing over one agent's notification arriving six times. If a backstop against a hung or unusually slow wave is genuinely needed, schedule at most one long-delay watchdog for the whole wave, not one per agent dispatched into it.
+**Cap parking to one long-delay watchdog per dispatch wave, not one per dispatch.** A `ScheduleWakeup` call for every individual agent in a fan-out is redundant against the notification each one already sends on completion, and it inflates per-wave API-call and context overhead for no additional signal — six scheduled parks buy nothing that the six completion notifications don't already deliver on their own. If a backstop against a hung or unusually slow wave is genuinely needed, schedule at most one long-delay watchdog for the whole wave, not one per agent dispatched into it.
 
 ## Implementer Status Protocol
 
