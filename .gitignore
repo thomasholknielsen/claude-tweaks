@@ -33,5 +33,6 @@ node_modules/
 .claude-tweaks/feedback/
 .claude-tweaks/routine-environment-cache.yml
 .claude-tweaks/init-state.yml
+.claude-tweaks/reconcile-cache.json
 .claude-tweaks/wrap-up-outcomes.tsv
 **/__pycache__/
