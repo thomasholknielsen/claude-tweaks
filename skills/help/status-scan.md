@@ -138,9 +138,50 @@ node -e "
 " > /tmp/help-inflight-bodies.json
 ```
 
-`work-backend: local-files`: `queryRecords('specs', { stage: 'ready' })` returns matching records with `.body` already populated — no separate fetch.
+`work-backend: local-files`:
 
-Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every returned body — the same extraction `/claude-tweaks:specify` Step 1 performs — to build `/tmp/help-records-key-files.json` as `[{id, keyFiles}]` (`id` is the issue number, or the local record id). Then call the shared grouping primitive:
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  console.log(JSON.stringify(queryRecords('specs', { stage: 'ready' })));
+" > /tmp/help-inflight-bodies.json
+```
+
+Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every returned body — the same extraction `/claude-tweaks:specify` Step 1 performs — to build `/tmp/help-records-key-files.json` as `[{id, keyFiles}]` (`id` is the issue number, or the local record id). Never let the raw record bodies re-enter the model's context for this step — call the existing extractor and redirect its output:
+
+`work-backend: github-issues` (`extractKeyFiles` reads each record's raw `body`/`labels`, so origin-header records — code-health, harness-health, etc. — extract correctly alongside `/specify`-shaped ones):
+
+```bash
+node -e "
+  const { extractKeyFiles, expectsKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const inFlight = require('/tmp/help-inflight-bodies.json');
+  const items = inFlight.map((r) => ({ id: r.number, keyFiles: extractKeyFiles(r) }));
+  for (const [i, item] of items.entries()) {
+    if (item.keyFiles.length === 0 && expectsKeyFilesSection(inFlight[i])) {
+      console.error('Warning: ' + inFlight[i].facets.stage + ' record #' + item.id + ' has no ### Key Files subsection — overlap detection disabled for it.');
+    }
+  }
+  console.log(JSON.stringify(items));
+" > /tmp/help-records-key-files.json
+```
+
+`work-backend: local-files` (no `by:*` origin labels to key off — extract straight from `### Key Files`):
+
+```bash
+node -e "
+  const { extractKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const inFlight = require('/tmp/help-inflight-bodies.json');
+  const items = inFlight.map((r) => ({ id: r.id, keyFiles: extractKeyFilesSection(r.body) }));
+  for (const [i, item] of items.entries()) {
+    if (item.keyFiles.length === 0) {
+      console.error('Warning: record ' + item.id + ' has no ### Key Files subsection — overlap detection disabled for it.');
+    }
+  }
+  console.log(JSON.stringify(items));
+" > /tmp/help-records-key-files.json
+```
+
+Then call the shared grouping primitive:
 
 ```bash
 node -e "
