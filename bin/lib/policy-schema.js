@@ -37,6 +37,14 @@ const POLICY_KEYS = [
   // enforced cap of 12 (tests/policy-schema-metadata.test.js); by the decision
   // rule it is core-shaped (a merge default).
   { key: 'merge-verification', type: 'enum', values: ['merge-when-green', 'wait', 'off'], summary: "Sets how much CI verification a merge into the integration branch waits for — merge once green, wait for checks, or none.", category: 'merge-safety', tier: 'advanced' },
+  // merge-authorization (#715): lets a human present at Manifesto time
+  // pre-authorize "merge once every HARD-GATE is green" for this run only.
+  // Deliberately excluded from the policy.yml source below (see the
+  // resolvePolicyKeys special case) — a project-wide standing default here
+  // would remove the "a human decided, live, for this run" property the
+  // interactive-human-only auto:* invariant depends on; see
+  // _shared/auto-mode-contract.md's Bookend Architecture section.
+  { key: 'merge-authorization', type: 'enum', values: ['ask', 'merge-when-green'], default: 'ask', summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3, summary: "Sets how many consecutive autonomous build failures a record tolerates before it is flagged blocked and pulled from auto-pilot.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-batch-size', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence before leaving the rest for next time.", category: 'merge-safety', tier: 'advanced' },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
@@ -429,6 +437,15 @@ function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
     // same set-but-invalid posture resolveIntegrationModel documents.
     if (canonical === 'housekeeping-auto-merge' && resolved.source === 'default') {
       resolved = { ...resolved, value: deriveHousekeepingAutoMerge(sources) };
+    }
+    // merge-authorization (#715): policy.yml is never a valid source for this
+    // key — a standing project default would silently pre-authorize every
+    // future run's merge with no live human decision for that run. Only an
+    // explicit run-config value (a live Manifesto confirm/hybrid override
+    // answer) may set it; a policy.yml value is discarded, falling back to
+    // the schema default exactly as if nothing had set it at all.
+    if (canonical === 'merge-authorization' && resolved.source === 'policy') {
+      resolved = { value: defaultValue, source: 'default' };
     }
     result[requested] = resolved;
   }
