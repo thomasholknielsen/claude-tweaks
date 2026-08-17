@@ -86,6 +86,8 @@ Per the `/review` Step 3 Routing row in `_shared/auto-mode-contract.md`, severit
 When `review-auto-apply-ceiling: medium`: auto-apply Low AND Medium; stage High; prompt Critical.
 When `review-auto-apply-ceiling: none`: stage everything; never auto-apply.
 
+**Staging a patch — validate first, describe the invariant.** Every `staged/review-{n}.patch` written by the rows above follows `_shared/staged-patch.md`: the file opens with a `Target:` / `Invariant:` / `Finding:` / `Staged-at:` preamble (the target file plus the one-sentence property the fix establishes — the durable intent) followed by the unified diff, and is validated with `git apply --check` from the worktree **before** the `STAGED` log entry is written. A failing check is handled per that file's Staging-time gate and surfaces here, at staging time — never first at the console. This matters because `/simplify`, polish, and later fix waves legitimately move the target lines between now and the console; the console applies the diff when it still fits and otherwise re-derives the edit from `Invariant:` (that file's Console apply with description fallback), so a stale diff is expected, not an error.
+
 After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up`'s Phase 4 surfaces staged items for batch approval.
 
 ## Interactive mode (per-batch user input)

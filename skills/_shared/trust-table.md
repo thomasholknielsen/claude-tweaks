@@ -142,21 +142,34 @@ message can never be mistaken for a SHA or split across records. `trust.js`'s ow
 turns that raw dump into the `[{ sha, message }]` shape `trustRows` expects; never hand-roll the
 split, or two call sites can silently disagree about identical evidence:
 
+The git-log dump follows the same session-scoped freshness rule as the record snapshot below
+(`_shared/record-queue-fetch.md`'s Session-scoped record snapshot section) — reuse
+`/tmp/ct-gitlog-{session-id}.txt` (`record-snapshot.js`'s `gitLogPath($CLAUDE_CODE_SESSION_ID)`)
+when fresh, else regenerate it:
+
 ```bash
-git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/trust-table-git-log.txt
+GITLOG=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+if [ -n "$GITLOG" ] && node -e "
+  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
+" "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
+  cp "$GITLOG" /tmp/trust-table-git-log.txt
+else
+  git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/trust-table-git-log.txt
+  [ -n "$GITLOG" ] && cp /tmp/trust-table-git-log.txt "$GITLOG"
+fi
 ```
+
+`comments` carries each record's own comment bodies — the negative-evidence marker path (#268)
+reads `<!-- trust-negative-evidence: ... -->` back from here (`bin/lib/issues/retry.js`'s
+`hasNegativeEvidenceMarker`, consumed by `trust.js`); the session-scoped record snapshot's union
+field set already carries it. Read through the snapshot instead of a bare fetch:
 
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
-# `comments` carries each record's own comment bodies — the negative-evidence
-# marker path (#268) reads `<!-- trust-negative-evidence: ... -->` back from
-# here (bin/lib/issues/retry.js's hasNegativeEvidenceMarker, consumed by
-# trust.js). It flows through untouched below: the records map spreads `...i`
-# before overriding only `labels`/`hasParent`, so `comments` needs no
-# separate line to reach trustRows.
-gh issue list --state all --json number,labels,body,state,stateReason,closedAt,comments \
-  --limit "$LIMIT" > /tmp/trust-table-records.json
+{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md),
+ with {tmp-records-file} = /tmp/trust-table-records.json}
 node -e "
   const fs = require('fs');
   const { trustRows, parseGitLog } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');

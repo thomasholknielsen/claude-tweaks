@@ -41,6 +41,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" plan --run-dir "$MULTISPEC_PA
 
 Then the same `record` (once per open row) / `render --section trace` sequence `curation-engine.md` documents for the single-spec path — this file doesn't restate that mechanics, only the scope difference (parent dir, batch `--base`, batch `--signals`). Ordering is load-bearing exactly as it is per-spec: Memory and Upstream feedback rows are judged last, since their input is "learnings no earlier row claimed" — this holds across the aggregated batch signal set, not per-spec.
 
+**Shadow sweep after the batch fan-out.** The batch judges run inside the shared worktree, so `curation-engine.md` §4's post-fan-out shadow sweep runs here too — once against the parent run dir and once per `spec-{N}/` subdirectory a judge may have been handed (the registry pass itself stays parent-only — the per-spec sweeps clean up the *earlier* per-spec fan-outs) — before this file's `record` calls and before `multispec-review-console.md`'s step 2 reads any `staged/`. A judge that wrote its proposal to the worktree's relative shadow of `.claude-tweaks/pipelines/…/staged/` (observed in run 2026-08-16T164927's Skills judge, which then misreported sibling specs' staged files as dangling) is caught and relocated by that sweep as routine, not by chance inspection; its payload's `stagePath` is required to be the absolute anchored path per `curation-engine.md` §3, verified by the judge with `test -f`.
+
 The result is a single `$MULTISPEC_PARENT_DIR/engine-state.json`, alongside the parent's own `decisions.md`/`staged/` (already created by the Manifesto at run start).
 
 ## Feeding the consolidated console
