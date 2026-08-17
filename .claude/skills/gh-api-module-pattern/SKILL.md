@@ -11,6 +11,7 @@ How this repo writes Node modules that shell to `gh`. Two shipped instances defi
 
 - The module takes `runner(args)`, invoked as if `gh ${args.join(' ')}`, returning stdout; a throw is a failed call. Export `defaultRunner` = `execFileSync('gh', args, { encoding: 'utf8' })` — always an argv array, never a shell string (no injection surface, no quoting bugs).
 - Tests never touch real `gh`: fake runners branch on the `args` shape (`isGraphQL`, `isPost`-style lazy helpers) and `throw new Error('unexpected ' + args.join(' '))` on anything unhandled — a wrong endpoint fails loudly instead of passing silently. Record values inside the runner, assert after it returns (an `AssertionError` thrown *inside* a runner can be swallowed by the module's own try/catch).
+- **A module may carry two runner seams, and they have opposite failure contracts.** `bin/lib/claim-targets/claim-targets.js` takes both: `deps.ghApi` — the `bin/lib/issues/claim-store.js` contract, which *never throws* and returns `{stdout, failure, status}` so a 404/409/422 arrives as data — for contents-API reads and writes, and `deps.gh` — the throwing runner above — for everything else (`repo view`, `label list/create`, `issue edit`, `issue comment`). Decide which seam a call belongs to before writing it: a never-throwing runner wrapped in `try/catch` reads as success on every rejection, and a throwing one used bare escapes uncaught.
 
 ## The three `gh api` value mechanisms (the bug source)
 
