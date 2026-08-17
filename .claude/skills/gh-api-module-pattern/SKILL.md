@@ -29,6 +29,7 @@ URL *path* placeholders (`repos/{owner}/{repo}/…`) are a fourth thing: always 
 - Per-write calls are each independently try/caught into `{ok: [...], failed: [{…, error}]}` — one failed edge never aborts the batch. An "already exists" 422 is a re-run, not a failure: it lands in `ok` with `already: true` (live-confirmed wording: GitHub answers `Validation failed: Target issue has already been taken`).
 - Error text: join `err.message`/`err.stderr`/`err.stdout`, with a `String(err)` fallback so a non-Error throw never yields an empty `failed[].error`.
 - **Enumerate an operation's full documented error-status set in one sitting.** Adding one status per bug report ships the same misclassification serially: `bin/lib/issues/claim-store.js`'s Contents-API PUT got its 422 create-race branch in `75c8b3b6`, then the symmetric 409 sha-mismatch branch in `4ee0fbcc` — one defect class, found twice, the second time by a review lens. Read the endpoint's documented statuses first (Contents PUT: 404 read-miss, 409 sha-mismatch, 422 create-race) and branch on all of them in the same commit.
+- **Rate-limit recognition and burst pacing.** Classify a `gh api` rate-limit failure per `_shared/github-rate-limit.md`'s taxonomy before deciding whether to retry — a plain 403 under that file's rules is not transient and must not be retried. When a module issues a scripted sequence of mutative calls, follow that file's burst-shape rules.
 
 ## The CLI wrapper contract
 

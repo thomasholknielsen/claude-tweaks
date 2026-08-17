@@ -161,11 +161,12 @@ Anchor with `cd "{REPO_ROOT}" &&` / `cd "{RUN_ROOT}" &&` at the start of each co
 
 Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
 `gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
-use the MCP path instead. If the listing call itself fails mid-scan (rate limit, transient
-API error) after passing that pre-check, skip the rest of this step and note it in the
-report — per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy
-→ skip the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md`
-for the full protocol.
+use the MCP path instead. If the listing call itself fails mid-scan after passing that
+pre-check — recognized and classified per `_shared/github-rate-limit.md` for a rate limit,
+or any other transient API error — skip the rest of this step and note it in the report —
+per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy → skip
+the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md` for the
+full protocol.
 
 **Primary: list the `claims/` blob keyspace** (`_shared/issue-claims.md`'s "The lock" — "List
 all claims"). For each entry, read the blob and classify with `classifyClaimBlob`:
@@ -294,7 +295,7 @@ The `acceptance-gap` scope finds closed records with no acceptance label at all 
 
 The `parent-gate` scope finds decomposition parents whose every sub-issue has closed but which carry no acceptance disposition — the backstop for a parent that missed `/claude-tweaks:wrap-up`'s eager gate (a sub-issue closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches that eager path). Unlike `acceptance-gap`, its recommendation **is** one of the Action Vocabulary's atomic actions — `Open parent gate` — which composes and posts the parent's Verification Brief and applies `demo:pending`, reusing `wrap-up/verification-brief.md`'s Parent-Gate Procedure rather than a second copy of that logic (`tidy/actions-github-issues.md`'s `## Open parent gate`). It never applies `demo:approved`/`demo:changes-requested` — that verdict stays exclusively `/claude-tweaks:demo`'s job, so the finding still ends with "then run `/claude-tweaks:demo #{n}`" even once approved.
 
-GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. `acceptance-gap` findings are staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope for why. `parent-gate`'s `Open parent gate` action is staged the same way too, at every aggressiveness level: it posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope and `tidy/step-6-auto.md`'s Open parent gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
+GitHub mutations recommended here (Close (GitHub), Resolve thread), `acceptance-gap` findings, and `parent-gate`'s `Open parent gate` action all execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. See `_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope for why. `Open parent gate` posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope and `tidy/step-6-auto.md`'s Open parent gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`

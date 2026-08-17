@@ -11,7 +11,7 @@
 | CLAUDE.md | How to work in this codebase — stack, structure, conventions, philosophy, releasing, Don'ts | `.claude-plugin/plugin.json`, `package.json`, `skills/_shared/*.md` |
 | docs/getting-started.md | Full skill reference — every `/claude-tweaks:*` command with its behavior | `skills/**/*.md` |
 | docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `skills/**/*.md`, `bin/**/*.js` |
-| docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `skills/**/SKILL.md` |
+| docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `skills/**/SKILL.md`, `skills/_shared/*.md` |
 | docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
 | docs/hooks.md | Hook dispatcher contract — tiered posture, run-dir resolution and ownership, never-break-a-session invariant, consumers (extracted from CLAUDE.md's `### Hooks`, which now holds only a pointer) | `bin/hooks.js`, `bin/lib/hooks/**`, `hooks/hooks.json` |
 | docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts`, docs/donts.md |

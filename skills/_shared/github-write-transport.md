@@ -54,3 +54,10 @@ stale `sha` and it fails on mismatch. The claim lock uses this primitive against
 branch, gated on the same detection check above — see `_shared/issue-claims.md` for the full
 procedure. Health-state's cursor CAS is *not* this pattern (it is a plain non-force `git
 push`) — see the note at the top of this file before adding it back here.
+
+## Pacing scripted mutation sequences
+
+Any scripted sequence of mutative calls through either transport follows
+`_shared/github-rate-limit.md`'s burst-shape authoring rules. That file also owns recognizing
+and classifying a rate-limit failure encountered on either transport — this file's CRUD
+mapping and conditional-write pattern above are unaffected.
