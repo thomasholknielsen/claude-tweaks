@@ -27,89 +27,76 @@ When `--dry-run` was passed (see `SKILL.md`'s Phase 1 Flags subsection), run eve
 When this run's spec has a materialized header (`record:` field present in
 `${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND the issue's **live** labels
 carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:` field is
-a snapshot for audit only; `materialize.md`'s reader table requires this check to re-read live
-state, never the projection), check the two-layer gate below — the same concept
-`skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate" applies for a dispatched
-bundle; this is the single-record version wrap-up itself runs, whether or not
+a snapshot for audit only), check the two-layer gate below — the single-record version of
+`skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved:
 
 1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
-2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — was `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`, deleted `d83f0720`. The verdict must be `auto-merge` to proceed.
+2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically. The verdict must be `auto-merge` to proceed.
 
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
 Phase 4's execution step, which is where acceptance labeling normally happens, so this branch must
 perform it itself. Run `verification-brief.md` now, starting from its **Routing** section, exactly as
 execution would. This short-circuit closes exactly one record, so pass that record's own number as
 `$CLOSING_SUB_ISSUES` — the one-element closing sub-issue set that file's **Self-inclusion rule**
-reads (`/claude-tweaks:dispatch`'s group gate is the one caller whose set holds more than one). That
-file owns the routing: a record with a resolvable parent goes to its
+reads. That file owns the routing: a record with a resolvable parent goes to its
 Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), and
 everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the Step 2.5
 safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to this record
 independently of that routing: an `auto:merge`'d sub-issue is exactly the population
-`_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch, so gating it here
-would defeat the parent acceptance gate.
+`_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch.
 
 Order is load-bearing: the merge below carries the `Fixes #{issue}` closing keyword, so once it
-lands the record is closed and this branch has moved on. Labeling before the merge is what keeps
-the record's acceptance state correct on a path where no human ever sees the console.
+lands the record is closed. Labeling before the merge is what keeps the record's acceptance state
+correct on a path where no human ever sees the console.
 
 The record-mode precondition is satisfied by construction — this short-circuit already requires a
-materialized header with a `record:` field, which is the same condition the execution step's
-acceptance bullet gates on. `auto:merge` governs merge timing only and has no bearing on whether the record
-gets `demo:pending`; `_shared/work-record.md` states that an `auto:merge`'d record still gets it
-on its now-closed issue, enabling retrospective sign-off, and this branch is the only place that
-can honor it.
+materialized header with a `record:` field. `auto:merge` governs merge timing only and has no
+bearing on whether the record gets `demo:pending`; `_shared/work-record.md` states that an
+`auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and
+this branch is the only place that can honor it.
 
 **Dispatch-claim branch — check this before merging anything.** Read the claim blob at
 `claims/issue-${ISSUE}.json` on `claims-registry` (per `_shared/issue-claims.md`'s "The lock")
 and check whether its `runId` equals `basename($PIPELINE_RUN_DIR)`. A match means this record is
-claimed under the very run this session is executing — which only happens via
-`/claude-tweaks:dispatch` Step 4 minting `PIPELINE_RUN_DIR` before either Task call (both now
-receive that same value directly, per `dispatch/task-prompt.md`) or a human explicitly resuming
-that same claimed run (`dispatch/SKILL.md`'s "Resuming a parked run" note) — either way, this call
-is (or is standing in for) one of dispatch's own Task() calls: cwd-pinned to the worktree it
-inherited at launch, with no path to the main checkout (`dispatch/SKILL.md` Step 5's
-sequential-execution note). This is what routes a dispatched **singleton**'s merge decision
-through this file's own short-circuit rather than `settle-and-merge.md`'s group-scoped Auto-merge
-gate — the two-layer check above already ran on this record alone. No claim, or a claim held
-under a different run id, means this is a genuine top-level human-run session with nothing to
-short-circuit — fall through to the interactive path below.
+claimed under the very run this session is executing — either `/claude-tweaks:dispatch` Step 4
+minting `PIPELINE_RUN_DIR` before its Task calls, or a human resuming that same claimed run — this
+call is (or stands in for) one of dispatch's own Task() calls: cwd-pinned to the worktree it
+inherited, with no path to the main checkout. This is what routes a dispatched **singleton**'s
+merge decision through this file's own short-circuit rather than `settle-and-merge.md`'s
+group-scoped Auto-merge gate. No claim, or a claim held under a different run id, means this is a
+genuine top-level human-run session — fall through to the interactive path below.
 
 **`integration-model: pr-first`:** the checkout restriction below doesn't apply — `gh pr merge`
-needs no checkout, dispatched Task call or not. Run the merge procedure below exactly as the
-interactive path does; the dispatch-claim branch matching changes nothing about how this branch
-merges, only that `task-prompt.md`'s reporting format is what carries the outcome back
-(`merged`/`armed`/`pending-review`) instead of this file's own `PushNotification`.
+needs no checkout. Run the merge procedure below exactly as the interactive path does — the
+dispatch-claim branch matching changes nothing about how this branch merges, only that
+`task-prompt.md`'s reporting format carries the outcome back (`merged`/`armed`/`pending-review`)
+instead of this file's own `PushNotification`.
 
 **`integration-model: local-merge`:** the checkout restriction is real — do not run the merge
-procedure below. Stop here instead: report `OUTCOME: ready-to-merge` exactly as
-`task-prompt.md`'s second-call template directs — `dispatch/settle-and-merge.md`'s Dispatching-session
-merge execution (local-merge fallback) section is what actually merges, in dispatch's own thread.
+procedure below. Stop here instead: report `OUTCOME: ready-to-merge` per `task-prompt.md`'s
+second-call template — `dispatch/settle-and-merge.md`'s local-merge fallback is what actually
+merges, in dispatch's own thread.
 
 Everything from here through "Release-reason mapping" below applies when the dispatch-claim branch
-does **not** match (a genuine top-level, human-run session) **or** when it does match under
-`pr-first` (the checkout-free merge above) — the local-merge stop-and-relay branch is the one
-exception.
+does **not** match (a genuine top-level, human-run session) **or** matches under `pr-first` — the
+local-merge stop-and-relay branch above is the one exception.
 
-Skip the blocking wait and merge directly — bypass the
-interactive `/superpowers:finishing-a-development-branch` handoff entirely, since a verdict already
-exists and there is no useful human-in-the-loop step to route through.
+Skip the blocking wait and merge directly — bypass the interactive
+`/superpowers:finishing-a-development-branch` handoff entirely; a verdict already exists.
 
 **`integration-model: pr-first` (`_shared/integration-model.md`):** run `_shared/pr-first-merge.md`'s
-procedure now — `tag: fast-lane` (preserving this path's own metric semantics, distinct from
-dispatch's `auto-merge` tag — `/help`'s auto-merged-this-week count keys on both,
-`_shared/github-pr-scan.md` `triage-queue` item 3), `issue-list` this one record, `summary` the
-record's own title. No checkout is needed — `gh pr merge` runs directly, which is what retires
-this section's own pre-#411 `git -C "$RUN_DIR"` worktree/branch resolution (#299: that resolution
-anchored against the run dir, not the worktree — `_shared/pipeline-run-dir.md`'s own anchoring
-rule means `$RUN_DIR` sits inside the *main checkout*, so that command silently resolved the main
-checkout's own toplevel/branch instead of the feature branch's — a defect that simply cannot
-recur once there is no checkout resolution step to get wrong). Still generate this console's
-full content (Auto-applied / Skill updates / Configuration updates sections, per "Present the
-console" below) and attach it to a `PushNotification` as a non-blocking FYI, whatever the
-procedure's outcome — nothing this console would have shown is discarded, only the wait for a
-live approval is skipped. Log to `decisions.md`:
+procedure now — `tag: fast-lane` (distinct from dispatch's `auto-merge` tag; `/help`'s
+auto-merged-this-week count keys on both, `_shared/github-pr-scan.md` `triage-queue` item 3),
+`issue-list` this one record, `summary` the record's own title. No checkout is needed — `gh pr
+merge` runs directly, which is what retires this section's pre-#411 `git -C "$RUN_DIR"`
+worktree/branch resolution (#299: that resolution anchored against the run dir, not the worktree —
+a defect that simply cannot recur once there is no checkout resolution step to get wrong; see the
+local-merge branch below for that defect's full account, since local-merge still uses the
+resolution it fixed). Still generate this console's full content (Auto-applied / Skill updates /
+Configuration updates sections, per "Present the console" below) and attach it to a
+`PushNotification` as a non-blocking FYI — nothing this console would have shown is discarded,
+only the wait for a live approval is skipped. Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}`
 
 **`integration-model: local-merge`:** before merging, clear this run's worktree
@@ -141,20 +128,17 @@ gh api "repos/{owner}/{repo}" -q .default_branch # only when the line above came
 ```
 
 The first command reads `{worktree-path}` from `run-state.json`'s own `worktree` field —
-`record-worktree` (`build/worktree-setup.md` Step 4.5) is what stamped it there, and it is the
-one value that actually names the worktree, unlike `$RUN_DIR` itself (**#299**: `$RUN_DIR` sits
-inside the main checkout per `_shared/pipeline-run-dir.md`'s anchoring rule, so a bare
-`git -C "$RUN_DIR"` silently resolves the main checkout's own toplevel/branch — never the feature
-branch — which is exactly the defect this fix closes). The third and fourth commands together
-resolve `{integration-branch}` — the branch
-this project integrates work into, which is not always the GitHub default (see
-`skills/_shared/integration-branch.md` for the full precedence, including the CLAUDE.md
-and explicit-argument ranks this two-command shorthand collapses — and its git-inference
-rank, deliberately skipped here, which would consider whatever branch the main checkout
-currently has checked out; a concurrent session switching that is precisely what the guard
-below catches). Take the resolver's
-output when it is non-empty; otherwise fall back to `gh api`. Substituting the wrong one
-here merges into a branch nobody develops on (#132).
+`record-worktree` (`build/worktree-setup.md` Step 4.5) stamped it there; it is the one value that
+actually names the worktree, unlike `$RUN_DIR` itself (**#299**: `$RUN_DIR` sits inside the main
+checkout per `_shared/pipeline-run-dir.md`'s anchoring rule, so a bare `git -C "$RUN_DIR"`
+silently resolves the main checkout's own toplevel/branch — never the feature branch). The third
+and fourth commands together resolve `{integration-branch}` — the branch this project integrates
+work into, which is not always the GitHub default (see `skills/_shared/integration-branch.md` for
+the full precedence, including its git-inference rank, deliberately skipped here, which would
+consider whatever branch the main checkout currently has checked out — a concurrent session
+switching that is precisely what the guard below catches). Take the resolver's output when
+non-empty; otherwise fall back to `gh api`. Substituting the wrong one here merges into a branch
+nobody develops on (#132).
 
 **First call — merge, from the main checkout.** `{integration-branch}` is the value
 just resolved:
@@ -177,28 +161,20 @@ literal values read above:
 git -C "{worktree-path}" push origin {integration-branch}
 ```
 
-Naming the branch explicitly is required, not stylistic: a bare `git push` from
-the worktree would push the *feature* branch, since that is what is checked out
-there. The refs themselves are shared across worktrees, so pushing the integration
-branch from inside one publishes the merge the first call just made. It must be the
-same branch the first call merged into — pushing a different one publishes nothing
-and leaves the merge stranded in the local checkout.
+Naming the branch explicitly is required: a bare `git push` from the worktree would push the
+*feature* branch, since that is what is checked out there. Pushing the same branch the first call
+merged into is what publishes the merge; a different one leaves it stranded locally.
 
-The explicit `--no-ff` guarantees a real merge commit exists even when the
-branch would otherwise fast-forward — this is what the `[fast-lane]` tag
-lands on, and the same commit message carries the `Fixes #{issue}` closing
-keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still generate
-this console's full content (Auto-applied / Skill updates / Configuration
-updates sections, per "Present the console" below) and attach it to a
-`PushNotification` as a non-blocking FYI. Nothing this console would have
-shown is discarded — only the wait for a live approval is skipped.
+The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise
+fast-forward — this is what the `[fast-lane]` tag lands on, and the same commit message carries
+the `Fixes #{issue}` closing keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still
+generate this console's full content and attach it to a `PushNotification` as a non-blocking FYI —
+nothing this console would have shown is discarded, only the wait for a live approval is skipped.
 
-**That sentence is about console content, and console content is not all of Phase 4's execution
-step.** It was accurate when written and stayed accurate while going incomplete: acceptance
-labeling is neither console content nor one of `cleanup-procedures.md`'s cleanup items, so no
-completeness claim on this page covered it, and it was silently dropped on every auto-merge until
-the labeling step above was added. When adding anything else that execution step performs, check
-it against this branch explicitly — a claim that is true about one category is not evidence about another.
+Console content is not all of Phase 4's execution step — acceptance labeling is neither console
+content nor a `cleanup-procedures.md` cleanup item, which is why it was silently dropped from
+auto-merge until the labeling step above was added. Check any future addition to that execution
+step against this branch explicitly; a claim true about one category is not evidence about another.
 
 **If the merge conflicts:** conflict resolution requires judgment a headless
 run can't supply — abort the merge (`git merge --abort`) and fall back to
@@ -210,13 +186,11 @@ Log to `decisions.md`:
 
 **Release-reason mapping.** A `merged` outcome (either model) counts as Section E's `merged:`
 outcome (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane path never runs
-`/superpowers:finishing-a-development-branch`, so Section E's usual "map the outcome from that
-skill" instruction has nothing to read here; treat it exactly as if that skill had reported
+`/superpowers:finishing-a-development-branch`, so treat it exactly as if that skill had reported
 `merged`, with `$LINK` set to the merge commit sha (local-merge) or the PR url (pr-first). Grant
-removal (Section E step 6) follows the same `merged:` outcome — `auto:build` and `auto:merge`
-both come off once the merge actually lands. **`pr-first`'s `armed`/`pending-review` outcomes are
-not `merged`** — nothing in Section E runs yet on either; claim, worktree, and run-dir cleanup all
-wait for `merged` evidence, which the reconciler picks up convergently later
+removal (Section E step 6) follows the same `merged:` outcome. **`pr-first`'s `armed`/`pending-review`
+outcomes are not `merged`** — nothing in Section E runs yet on either; claim, worktree, and run-dir
+cleanup all wait for `merged` evidence, which the reconciler picks up convergently later
 (`_shared/pr-first-merge.md`), same as any other pr-first run whose merge hasn't landed
 synchronously.
 
@@ -224,16 +198,14 @@ synchronously.
 `auto:build`-only record would — no different from any other pipeline run.
 
 This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — an `auto:merge`-granted
-record that ends up inside a human-run multi-spec batch still gets the normal, fully-blocking
-consolidated Review Console, same as any other spec in the batch. No dispatch-claim branch or
-equivalent auto-merge gate exists for the multi-spec console today — it is exclusively a
-human-run-batch surface, never a dispatch one (`dispatch/SKILL.md` Step 5 dispatches groups one at
-a time; there is no dispatch path that produces a multi-spec batch for this console to defer).
-`skills/dispatch/SKILL.md`'s own "Auto-merge gate" is the mechanism a dispatched group — singleton
-or bundle — actually uses: a singleton via the dispatch-claim branch above, a bundle via
-`settle-and-merge.md`'s own group-scoped gate directly (never reaching this file's branch at all);
-this file's own direct-merge procedure is reachable only by an interactive, human-run
-single-record `/flow` (or, per the dispatch-claim branch above, a session standing in for one).
+record still gets the normal, fully-blocking consolidated Review Console, same as any other spec
+in the batch. No dispatch-claim branch or equivalent auto-merge gate exists for the multi-spec
+console today — it is exclusively a human-run-batch surface, never a dispatch one (dispatch
+Step 5 dispatches groups one at a time). `skills/dispatch/SKILL.md`'s own "Auto-merge gate" is
+the mechanism a dispatched group actually uses: a singleton via the dispatch-claim branch above,
+a bundle via `settle-and-merge.md`'s own group-scoped gate directly; this file's own direct-merge
+procedure is reachable only by an interactive, human-run single-record `/flow` (or, per the
+dispatch-claim branch above, a session standing in for one).
 
 ## Multi-spec defer protocol
 
@@ -286,7 +258,7 @@ Resolve the ceiling once — `CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-
 
 When granted, render the console as an **informational report**, not a prompt: every section below still appears (Auto-applied through Cleanup actions, `Q#`/`M#`/`U#`, Refused rows), each row stamped `AUTO-RESOLVED` — nothing dropped. Then resolve every item per its stated default, **zero** `AskUserQuestion` calls:
 
-- Every batch-section item (Auto-applied through Cleanup actions) resolves as if "Approve all" had been chosen.
+- Every batch-section item (Auto-applied through Cleanup actions) resolves as if "Approve all" had been chosen. **The merge half of that decision defaults to merge** (`integration-model: pr-first`'s "Approve all + merge" variant, never "leave PR open") — `unattended` authorizes full completion, not a park; `local-merge` proceeds to branch-finish the same way.
 - Every `Q#`/`M#` item resolves to `Apply` — its pre-checked default in `_shared/batched-item-drill.md`. Refused rows are never auto-resolved (`refused-proposals.md`).
 - Every `U#` item resolves to **filed**, not its usual unchecked/declined default. `consoleAutoResolve` means "apply the Approve-all default to everything," not "apply the Override-drill defaults" — and Thomas's explicit direction (#347's Decision Rationale) is that upstream feedback auto-files at `unattended` exactly like `M#`/`Q#`. This is the one point where `unattended`'s resolution diverges from what "Approve all" resolves at every other tier, where `U#` stays unchecked/declined by default (see Hard requirements below).
 
@@ -310,12 +282,15 @@ Read `console-template.md` and render that exact shape — every section's colum
 
 **Hard gate (restated):** the tables must be literal rendered markdown in THIS response, above this tool call — see the top-of-file gate.
 
-Immediately after presenting the console tables above, call `AskUserQuestion` with:
+Immediately after presenting the console tables above, call `AskUserQuestion` with `question`: `"How do you want to handle the Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`. Cleanup actions' worktree/branch-finish row is what makes the merge decision real (`cleanup-procedures.md` Section C) — folding it into these options is what keeps that row from becoming its own improvised stop (`_shared/auto-mode-contract.md`'s bookend rule).
 
-- `question`: `"How do you want to handle the Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates, execute cleanup (items 1-{N}); resolve every Q#/M# to Apply and every U# to declined — their own stated defaults, no further prompts"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 5, modify 7, revert 1\"); also the only path that drills Q#/M#/U# individually"`
-- Option 3 — `label`: `"Stop and re-engage"`, `description`: `"Pause the pipeline; resume after manual review"`
+**`integration-model: pr-first`** — four options:
+- Option 1 — `label`: `"Approve all + merge (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates, execute cleanup incl. merging the branch (items 1-{N}); resolve every Q#/M# to Apply and every U# to declined — their own stated defaults, no further prompts"`
+- Option 2 — `label`: `"Approve all, leave PR open"`, `description`: `"Same as above, but skip the branch-finish merge — the PR stays open for manual merge later"`
+- Option 3 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 5, modify 7, revert 1\"); also the only path that drills Q#/M#/U# individually"`
+- Option 4 — `label`: `"Stop and re-engage"`, `description`: `"Pause the pipeline; resume after manual review"`
+
+**`integration-model: local-merge`** — no PR to leave open, so the merge decision isn't split; unchanged three options: `"Approve all (Recommended)"` (apply pending items and execute cleanup, incl. branch-finish), `"Override specific items"`, `"Stop and re-engage"`, same descriptions as above minus the merge clause.
 
 If "Override specific items" is chosen, the skip/modify list is ordinary free-text chat in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field.
 
@@ -340,7 +315,7 @@ Applied to this example's two queue writes (one chunk, both pre-checked):
 3. Apply documentation updates (item 13, from the Docs curation row) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
 4. Apply journey updates (item 14, from the Journeys curation row) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
 5. Apply config updates (item 15: CLAUDE.md, rules, ADRs) — including any CLAUDE.md findings staged by the CLAUDE.md & rules curation row, which are always offered, never auto-applied
-6. Execute cleanup actions (items 18 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Phase 4's execution step picks these up
+6. Execute cleanup actions (items 18 onward — one per row in `cleanup-procedures.md`'s canonical list, which is what sets the last number) — Phase 4's execution step picks these up. Under `pr-first`, the worktree/branch-finish row (`cleanup-procedures.md` Section C) routes on which Approve-all variant was chosen: "Approve all + merge" runs `_shared/pr-first-merge.md`'s procedure (`tag: fast-lane`, no prompt — same procedure the Auto-merge short-circuit above uses); "Approve all, leave PR open" skips the merge attempt, landing on `pending-review` with the PR left ready. Under `local-merge`, cleanup runs unchanged (Section C's own `/superpowers:finishing-a-development-branch` handoff)
 7. For each `Q#` queue write, choosing Approve all resolves it to its pre-checked `Apply` default directly — no separate prompt; choosing Override instead resolves it via the multiSelect chunk (or the free-text Edit override). On Apply (or Edit, after the modification): run `refused-proposals.md`'s check first (a refused item is never created), then create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip (Override only) drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 8. For each `M#` memory update, choosing Approve all resolves it to its pre-checked `Apply` default directly — no separate prompt; choosing Override instead resolves it via the multiSelect chunk (or the free-text Edit override). On Apply (or Edit, after the modification): write the memory file and append its `MEMORY.md` index line per `_shared/learning-routing.md`'s "Memory write procedure (D4)" at batch approval (or auto-resolution — see the Auto-resolution short-circuit above), reading the proposed file and index line from the item's staged file (`staged/wrap-up-memory-{N}.md`). The memory directory comes from the invoking assistant's own system prompt — never derived or guessed. This write lands outside the repository, so it is not part of the wrap-up commit below. Skip (Override only) drops the proposal — log the decline as in step 7.
 9. For the `U#` upstream feedback rows, choosing Approve all resolves every row to its unchecked/declined default directly — no separate prompt, and nothing is filed (see Hard requirements below; the Auto-resolution short-circuit above is the one exception, where `unattended` files every `U#` row instead). Choosing Override instead presents them via `_shared/upstream-feedback-batch.md`'s shared batch contract (chunked `multiSelect` calls) — the body rendered in that table (read from `staged/wrap-up-upstream-{N}.md` when the table was built) **is** the approved snapshot. For each item checked in the resulting chunk(s): invoke `/claude-tweaks:feedback --pre-confirmed`, passing both the staged-file path and that approved snapshot for its drift check; its Step 6 scrub always reruns as a separate safety net regardless of the drift result; on drift it falls back to its own normal `AskUserQuestion` confirm for that one item. An item left unchecked (Override) or resolved by the Approve all default is declined per the shared contract's decline rule — log the decline as in step 7.
