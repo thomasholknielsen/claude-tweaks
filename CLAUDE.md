@@ -104,7 +104,7 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Strict rule:** skills MUST NOT invent new mid-flow stops in `auto` mode. If a decision is decision-worthy, stage it (log it, don't act) and surface at the Review Console. Mid-flow stops are reserved for HARD-GATEs (test failures, spec compliance, structural coupling, plan validation) and the explicit "not silenced" list in the contract.
 
-**Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
+**Per-pipeline run directory** (collision-safe across parallel agents): `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Resolve it — and `PIPELINE_RUN_DIR`, adoptable only once it resolves under `$RUN_ROOT` — per `skills/_shared/pipeline-run-dir.md`: `$RUN_ROOT` is the main checkout, never the cwd worktree, and a bare relative path silently shadows it `[IL-127]`. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
 
 ## Design integration
 
