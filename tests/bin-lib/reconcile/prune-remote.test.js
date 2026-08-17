@@ -51,6 +51,26 @@ function makeRepoWithOrigin() {
   return dir;
 }
 
+// Two independently prunable remote branches (both cherry-equivalent + MERGED),
+// built with the exact same steps as the single-branch delete test above,
+// looped over 'build/b1' and 'build/b2' — the batch-push tests need at least
+// two candidates in the same `pruneRemote()` pass to observe batching.
+function buildTwoPrunableBranchesFixture() {
+  const dir = makeRepoWithOrigin();
+  for (const name of ['build/b1', 'build/b2']) {
+    const file = `${name.replace('/', '-')}.txt`;
+    git(dir, 'checkout', '-b', name);
+    fs.writeFileSync(path.join(dir, file), `${name}\n`);
+    git(dir, 'add', file);
+    git(dir, 'commit', '-m', `change ${name}`);
+    git(dir, 'push', 'origin', name);
+    git(dir, 'checkout', 'main');
+    git(dir, 'cherry-pick', name); // merged in substance (squash-merge shape)
+    git(dir, 'branch', '-D', name); // local branch already disposed; remote lingers
+  }
+  return { root: dir, integration: 'main' };
+}
+
 test('pruneRemote: squash-merged remote build/* branch is deleted on origin; dry-run only reports', () => {
   const dir = makeRepoWithOrigin();
   git(dir, 'checkout', '-b', 'build/merged');
@@ -205,6 +225,71 @@ test('pruneRemote: branch attached to a live worktree is silently out of scope',
   const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/wt'), undefined);
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/wt'), /build\/wt/);
+});
+
+// gitExec.runGit = stub does NOT work here: prune-remote.js does
+// `const { runGit } = require('../hooks/git-exec')` once at module load,
+// which copies the function VALUE into a local const at that instant.
+// Reassigning `gitExec.runGit` afterward only changes what a fresh
+// `require('../hooks/git-exec').runGit` property lookup returns — the
+// already-bound local `runGit` inside prune-remote.js keeps pointing at the
+// original function (see tests/reconcile.test.js's identical note on
+// classify.js/shared-fetch.js, #820 D2). Intercept at the process-spawn
+// boundary instead: a `git` wrapper placed first on PATH.
+function installPushWrapper(failMultiBranch) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-gitwrap-'));
+  const logFile = path.join(wrapperDir, 'push-calls.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  // Real invocation shape is `git -C <cwd> push origin --delete <branch...>`,
+  // so $1=-C $2=<cwd> $3=push $4=origin $5=--delete $6=<branch1> $7=<branch2?>.
+  // When failMultiBranch is set, a push --delete naming 2+ branches (the
+  // batch) exits 1 without touching origin; a single-branch push --delete
+  // (the per-branch fallback) is let through to real git.
+  const failClause = failMultiBranch ? '\n  if [ -n "$7" ]; then\n    exit 1\n  fi' : '';
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\nif [ "$3" = "push" ]; then\n  echo "$@" >> "${logFile}"${failClause}\nfi\nexec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  return {
+    logFile,
+    restore: () => { process.env.PATH = originalPath; },
+  };
+}
+
+test('pruneRemote: multiple prunable branches are deleted with ONE push call, not one per branch', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const wrapper = installPushWrapper(false);
+  let result;
+  try {
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  } finally {
+    wrapper.restore();
+  }
+  const pushLines = fs.readFileSync(wrapper.logFile, 'utf8').split('\n').filter(Boolean);
+  assert.equal(pushLines.length, 1, `expected one batched push, saw ${pushLines.length}: ${JSON.stringify(pushLines)}`);
+  assert.match(pushLines[0], /build\/b1/);
+  assert.match(pushLines[0], /build\/b2/);
+  assert.equal(result.entries.filter((e) => e.action === 'delete').length, 2);
+});
+
+test('pruneRemote: a failed batch push falls back to per-branch deletes, one bad ref does not swallow the rest', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const wrapper = installPushWrapper(true);
+  let result;
+  try {
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  } finally {
+    wrapper.restore();
+  }
+  const pushLines = fs.readFileSync(wrapper.logFile, 'utf8').split('\n').filter(Boolean);
+  const batchAttempted = pushLines.some((l) => /build\/b1/.test(l) && /build\/b2/.test(l));
+  assert.equal(batchAttempted, true, `expected a batch attempt naming both branches, saw ${JSON.stringify(pushLines)}`);
+  assert.equal(result.entries.filter((e) => e.action === 'delete').length, 2, 'per-branch fallback still deletes both');
 });
 
 const { reconcile, ALL_CHECKS } = require('../../../bin/lib/reconcile');

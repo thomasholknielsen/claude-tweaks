@@ -77,6 +77,7 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch } = {}) {
   const refs = runGit(['for-each-ref', '--format=%(refname:lstrip=3)', 'refs/remotes/origin'], root);
   if (refs.failure) return { entries, failure: 'git-failure' };
 
+  const toDelete = [];
   for (const branch of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
     if (branch === 'HEAD' || branch === integration) continue;
     if (!inScope(branch, worktrees)) continue; // namespace + live-worktree guard — never reaches the decision fn
@@ -92,12 +93,31 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch } = {}) {
       entries.push({ name: branch, kind: 'remote-branch', action: decision.action, reason: decision.reason });
       continue;
     }
+    toDelete.push({ branch, reason: decision.reason });
+  }
+
+  if (toDelete.length === 0) return { entries, failure: null };
+
+  // One batched delete for every branch decided `delete` this pass — was one
+  // `push --delete` per branch, now the family's single pushed mutation
+  // (#820, D3).
+  const batch = runGit(['push', 'origin', '--delete', ...toDelete.map((d) => d.branch)], root);
+  if (!batch.failure) {
+    for (const { branch, reason } of toDelete) {
+      entries.push({ name: branch, kind: 'remote-branch', action: 'delete', reason });
+    }
+    return { entries, failure: null };
+  }
+
+  // Batch push failed (e.g. one ref already gone on origin) — fall back to
+  // per-branch pushes so one bad ref doesn't silently swallow every other
+  // deletion this pass would otherwise have made.
+  for (const { branch, reason } of toDelete) {
     const del = runGit(['push', 'origin', '--delete', branch], root);
     entries.push(del.failure
       ? { name: branch, kind: 'remote-branch', action: 'skip', reason: 'delete-failed' }
-      : { name: branch, kind: 'remote-branch', action: 'delete', reason: decision.reason });
+      : { name: branch, kind: 'remote-branch', action: 'delete', reason });
   }
-
   return { entries, failure: null };
 }
 
