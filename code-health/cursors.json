@@ -46,5 +46,9 @@
   "bin/lib/docs-health": {
     "lastSweptMs": 1786849977878,
     "lastHash": "bab16cd8fd04f48a962052fe5ea19f5ebf88627c"
+  },
+  "bin/lib/harness-health": {
+    "lastSweptMs": 1786936488770,
+    "lastHash": "2196625ae066d9d9839fd78dad2a685b3f25d28b"
   }
 }
