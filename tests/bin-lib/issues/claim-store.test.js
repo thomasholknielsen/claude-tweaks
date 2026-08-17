@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi,
+  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError,
 } = require('../../../bin/lib/issues/claim-store');
 
 // Fake ghApi functions mirror release-merged.js's own ghApi shape: a
@@ -113,4 +113,67 @@ test('listClaimNames: failure -> empty names, failure propagated', () => {
 
 test('defaultGhApi is exported (existence only — no real gh call)', () => {
   assert.equal(typeof defaultGhApi, 'function');
+});
+
+// classifyGhApiError is the pure text-matching classifier defaultGhApi's own
+// catch block delegates to — tested directly against synthetic error shapes
+// so the regexes are pinned without touching the real `gh` binary.
+
+test('classifyGhApiError: ENOENT -> gh-absent', () => {
+  const e = { code: 'ENOENT', message: 'spawn gh ENOENT' };
+  assert.deepEqual(classifyGhApiError(e), { failure: 'gh-absent', status: null });
+});
+
+test('classifyGhApiError: "HTTP 404" / "Not Found" text -> status 404, failure null', () => {
+  assert.deepEqual(classifyGhApiError(new Error('gh: Not Found (HTTP 404)')), { failure: null, status: 404 });
+});
+
+test('classifyGhApiError: "HTTP 422" status text -> write-conflict, status 422, failure null', () => {
+  const e = { message: '', stderr: 'gh: HTTP 422: Unprocessable Entity (...)', stdout: '' };
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 422 });
+});
+
+test('classifyGhApiError: "Unprocessable" reason phrase alone -> status 422', () => {
+  const e = { message: '', stderr: 'Unprocessable Entity', stdout: '' };
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 422 });
+});
+
+test('classifyGhApiError: live-confirmed "Validation failed" body wording -> status 422', () => {
+  // Live-confirmed wording (gh-api-module-pattern skill) for a lost
+  // create-only race: GitHub answers "Validation failed: Target issue has
+  // already been taken" — accepted even without the literal "HTTP 422" or
+  // "Unprocessable" substrings present.
+  const e = new Error('gh: Validation failed: Target issue has already been taken (HTTP 422)');
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 422 });
+});
+
+test('classifyGhApiError: 404 text wins over a coincidental 422 mention', () => {
+  const e = new Error('gh: Not Found (HTTP 404) — see HTTP 422 docs');
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 404 });
+});
+
+test('classifyGhApiError: generic error text -> network-failure, status null', () => {
+  assert.deepEqual(classifyGhApiError(new Error('connection reset by peer')), { failure: 'network-failure', status: null });
+});
+
+test('writeClaimBlob: write-conflict (status 422) -> ok:false, conflict:true, failure:null (lost race, not a transient failure)', () => {
+  const ghApi = (args) => {
+    if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 422 };
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
+  assert.deepEqual(r, { ok: false, conflict: true, failure: null });
+});
+
+test('writeClaimBlob: a ghApi that never sets status (release-merged.js\'s own) is unaffected by the 422 branch', () => {
+  // Mirrors release-merged.js's own local ghApi, which never sets `status`
+  // at all — proves the new `r.status === 422` branch can never fire for
+  // that consumer, so its `ok` computation (and release-race logging) stays
+  // exactly as it was before this change.
+  const ghApi = (args) => {
+    if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: 'network-failure' }; // no `status` key
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', message: 'x' });
+  assert.deepEqual(r, { ok: false, failure: 'network-failure' });
 });

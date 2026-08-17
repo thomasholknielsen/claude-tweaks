@@ -26,13 +26,39 @@ function claimPath(issueNumber) {
   return `claims/issue-${issueNumber}.json`;
 }
 
-// The real ghApi. `_shared/issue-claims.md`'s "The lock" step 1 documents a
-// 404 as a normal outcome ("file does not exist"), not an error — gh
-// reports it as `gh: Not Found (HTTP 404)` on stderr, so a thrown error
-// whose text contains "HTTP 404" or "Not Found" is reported as
-// `{status: 404, failure: null}` rather than folded into `network-failure`.
+// Pure: classify a caught execFileSync error into {failure, status} — split
+// out from defaultGhApi's catch block so the text-matching regexes below are
+// unit-testable without touching the real `gh` binary. `defaultGhApi` is the
+// only caller.
+//
+// `_shared/issue-claims.md`'s "The lock" step 1 documents a 404 as a normal
+// outcome ("file does not exist"), not an error — gh reports it as
+// `gh: Not Found (HTTP 404)` on stderr, so a thrown error whose text
+// contains "HTTP 404" or "Not Found" is reported as `{status: 404,
+// failure: null}` rather than folded into `network-failure`.
+//
+// A 422 is the other non-error rejection a claim write can hit: a lost race
+// on a create-only write (someone else's landed first) or a sha-mismatch on
+// a conditional write. Live-confirmed GitHub wording for the create-race
+// case (gh-api-module-pattern skill): `Validation failed: Target issue has
+// already been taken`. Accept the HTTP status text ("HTTP 422"), the reason
+// phrase ("Unprocessable"), and the observed body text ("Validation
+// failed") — any one of the three still classifies as a write-conflict
+// (`status: 422`) rather than falling through to a generic
+// `network-failure`, which is what `writeClaimBlob` uses to tell a lost
+// race apart from a real transient failure (see that function).
+//
 // ENOENT (no `gh` binary) is reported separately as `gh-absent` so a
 // preflight CLI can name the real fallback instead of a generic failure.
+function classifyGhApiError(e) {
+  if (e && e.code === 'ENOENT') return { failure: 'gh-absent', status: null };
+  const text = [e && e.message, e && e.stderr, e && e.stdout].filter(Boolean).map(String).join(' ');
+  if (/HTTP 404|Not Found/.test(text)) return { failure: null, status: 404 };
+  if (/HTTP 422|Unprocessable|Validation failed/.test(text)) return { failure: null, status: 422 };
+  return { failure: 'network-failure', status: null };
+}
+
+// The real ghApi.
 function defaultGhApi(args) {
   try {
     const stdout = execFileSync('gh', ['api', ...args], {
@@ -40,10 +66,8 @@ function defaultGhApi(args) {
     });
     return { stdout, failure: null, status: null };
   } catch (e) {
-    if (e && e.code === 'ENOENT') return { stdout: null, failure: 'gh-absent', status: null };
-    const text = [e && e.message, e && e.stderr, e && e.stdout].filter(Boolean).map(String).join(' ');
-    if (/HTTP 404|Not Found/.test(text)) return { stdout: null, failure: null, status: 404 };
-    return { stdout: null, failure: 'network-failure', status: null };
+    const { failure, status } = classifyGhApiError(e);
+    return { stdout: null, failure, status };
   }
 }
 
@@ -74,10 +98,23 @@ function readClaimBlob(ghApi, repoSlug, issueNumber) {
 }
 
 // (ghApi, repoSlug, issueNumber, { content, sha, message }) -> { ok, failure }
+// or, on a lost race, { ok: false, conflict: true, failure: null }.
 // `sha` included only when provided: omitted = create-only (PUT rejects if
 // the path already exists), present = conditional-update (must match the
 // blob's current sha) — the create-vs-reclaim split
 // `_shared/issue-claims.md`'s "The lock" steps 3-4 document.
+// A `status: 422` response (see `classifyGhApiError`) is a genuine
+// write-conflict — someone else's create-only write landed first, or a
+// conditional write's sha no longer matches — and must resolve `ok: false`
+// on its own, not fall through to the generic `status !== 404` formula
+// below (422 !== 404 would otherwise read as success). Callers distinguish
+// this from a transient `ghApi` failure via `conflict: true` vs a non-null
+// `failure` — `_shared/issue-claims.md`'s "the lock" step 3: "a rejection
+// on either transport is contested — same handling as `'live'`, not a
+// retry." A consumer supplying its own `ghApi` that never sets `status`
+// (e.g. `release-merged.js`) never sees `status === 422` here, so its `ok`
+// computation is unchanged by this branch — see that module's delegation
+// comments.
 function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message }) {
   const encoded = Buffer.from(content, 'utf8').toString('base64');
   const args = [
@@ -88,9 +125,10 @@ function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message })
   ];
   if (sha) args.push('-f', `sha=${sha}`);
   const r = ghApi(args);
+  if (r.status === 422) return { ok: false, conflict: true, failure: null };
   return { ok: r.failure === null && r.status !== 404, failure: r.failure };
 }
 
 module.exports = {
-  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, claimPath,
+  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, claimPath, classifyGhApiError,
 };

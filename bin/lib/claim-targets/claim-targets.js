@@ -90,6 +90,18 @@ function removeLabelBestEffort(gh, issue) {
   try { gh(['issue', 'edit', String(issue), '--remove-label', BOT_IN_PROGRESS]); } catch { /* best-effort, per issue-claims.md */ }
 }
 
+// Best-effort re-read to name a write-conflict's winner for the contested
+// report. Never throws (claimStore's ghApi contract never throws) and never
+// affects claim/contest state — a failed or absent re-read simply leaves
+// `holder` at `null`, same as an unreadable blob's holder.
+function holderFromFreshRead(deps, repoSlug, issue) {
+  const fresh = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+  if (fresh.failure || fresh.absent) return null;
+  const classified = classifyClaimBlob(fresh.content, deps.now());
+  if (classified.state !== 'live') return null;
+  try { return JSON.parse(fresh.content); } catch { return null; }
+}
+
 // All-or-abort release of every target this invocation claimed, before a
 // contest or transient failure aborts the run (`issue-claims.md`'s "Group
 // claiming" — a partial group claim must not leave a member built alone).
@@ -184,11 +196,17 @@ function run(argv, deps) {
     if (!write.ok) {
       // Rejected (race lost between this read and this write) — contested,
       // not a retry, per issue-claims.md step 3's "A rejection on either
-      // transport is contested." Holder identity is unknown without a fresh
-      // read; report the rejection itself rather than guessing.
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder: null }); continue; }
+      // transport is contested." `write.conflict` (a 422 the ghApi dep
+      // could positively identify — see claim-store.js's classifyGhApiError)
+      // is the expected shape of this branch; a bare `{ok:false,
+      // failure:null}` (a write-time 404, unusual but structurally possible)
+      // lands here too and is handled the same way. Holder identity is
+      // unknown from the write response itself, so re-read the blob once,
+      // best-effort, to name the winner in the contested report.
+      const holder = holderFromFreshRead(deps, repoSlug, issue);
+      if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
       const released = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ contested: [{ issue, holder: null }], released }));
+      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released }));
       return 3;
     }
 

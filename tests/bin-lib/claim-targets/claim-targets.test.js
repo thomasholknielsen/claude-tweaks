@@ -334,6 +334,83 @@ test('(j) label add failure: claim stands, recorded in labelFailures, exit 0', (
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '750'), 'comment still attempted after label failure');
 });
 
+// Write-time rejection (lost race) vs write-time transient failure — the
+// coordinator's ruling: a genuine write-conflict (claim-store.js's
+// `writeClaimBlob` now reports `{ok:false, conflict:true, failure:null}`
+// for a 422) is CONTESTED (exit 3), with a best-effort re-read to name the
+// winner; a real transient ghApi failure during the write stays TRANSIENT
+// (exit 4), same as a transient read failure.
+
+test('write conflict (lost race): contested exit 3, all-or-abort release, holder from a best-effort re-read', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: {
+      720: [readAbsent, readOk('irrelevant', 'sha720-release')], // 2nd = abort-release fresh read
+      721: [readAbsent, readOk(liveMarker('winnerRun'), 'sha721-after')], // 2nd = holder re-read after the lost race
+    },
+    writes: {
+      720: [writeOk, writeOk],
+      721: [{
+        stdout: null, failure: null, status: 422,
+      }],
+    },
+  });
+  const { gh, calls: ghCalls } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 3);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.released, [720]);
+  assert.equal(body.contested.length, 1);
+  assert.equal(body.contested[0].issue, 721);
+  assert.equal(body.contested[0].holder.runId, 'winnerRun');
+  assert.equal(calls.filter((a) => isRead(a, '721')).length, 2, 'expected the initial read plus one best-effort holder re-read');
+  assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
+});
+
+test('write conflict under --keep-going: recorded in skipped with holder, no release, exit 0', () => {
+  const { ghApi } = makeGhApi({
+    reads: {
+      720: [readAbsent],
+      721: [readAbsent, readOk(liveMarker('winnerRun'), 'sha721-after')],
+    },
+    writes: {
+      720: [writeOk],
+      721: [{ stdout: null, failure: null, status: 422 }],
+    },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, [720]);
+  assert.equal(body.skipped.length, 1);
+  assert.equal(body.skipped[0].issue, 721);
+  assert.equal(body.skipped[0].reason, 'contested');
+  assert.equal(body.skipped[0].holder.runId, 'winnerRun');
+});
+
+test('write network failure: transient exit 4, no holder (distinct from a write-conflict)', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 730: [readAbsent] },
+    writes: { 730: [{ stdout: null, failure: 'network-failure', status: null }] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '730'], deps);
+
+  assert.equal(code, 4);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transient, [{ issue: 730, error: 'network-failure' }]);
+  assert.equal(body.transient[0].holder, undefined);
+  assert.deepEqual(body.released, []);
+});
+
 test('--help short-circuits before any gh call, exit 0', () => {
   const gh = () => { throw new Error('must not be called'); };
   const ghApi = () => { throw new Error('must not be called'); };
