@@ -21,6 +21,24 @@ has been observed to resolve against a stale local branch ref rather than the
 freshly fetched `origin/<default-branch>` its own name implies, so a caller
 cannot assume which direction, if any, is stale.
 
+## Worktree name derivation
+
+Before Step 2 below invokes `/superpowers:using-git-worktrees` (or any caller invokes
+`EnterWorktree` / `git worktree add` directly), derive the worktree name and sanitize it.
+`EnterWorktree` accepts only letters, digits, dots, underscores, and dashes per `/`-segment,
+≤64 chars total, and rejects anything outside that set outright — mirror it exactly, don't
+approximate it (#689).
+
+**Pattern:** `{skill}-spec-{N1}-{N2}…` for a multi-spec run (see `flow/multi-spec.md`'s "Shared
+worktree" section for how `{N1}…` is assembled), or the record's own slug for a single-record
+run. Either source can carry characters `EnterWorktree` rejects — a `/`-separated branch-name
+convention, an ad hoc `+` join, spaces, a `#` from an issue reference — so **sanitize whichever
+slug is derived, every time, before it reaches `EnterWorktree`.** Use
+`bin/lib/worktree/name.js`'s `sanitizeWorktreeName()`: it maps every character outside
+`[A-Za-z0-9._-]` to `-`, collapses runs of `-` to one, and caps the result at 64 chars — the same
+rule stated above, as one canonical, unit-tested implementation rather than three independently
+re-derived regexes.
+
 ## Procedure
 
 0. **Capture the expected base** — before creating anything, record the commit the worktree should start from:
@@ -33,7 +51,9 @@ cannot assume which direction, if any, is stale.
    **Skip when already stamped by `/flow` (re-read cut).** When this invocation received `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` from `/flow`'s Step 2.5 (per `flow/validation.md`'s "Memo stamp" note), resolve `$UPSTREAM` the same way `_shared/worktree-setup.md`'s `## Pre-flight divergence check` does and compare `git rev-parse "$UPSTREAM"` against the stamped `{sha}`. A match means `/flow` already ran this exact check moments ago in this same run — skip the fetch and the divergence prompt entirely, and proceed straight to Step 2. A mismatch (the ref moved since the stamp — rare, but possible under a slow Manifesto or materialize step) or a missing stamp (standalone `/claude-tweaks:build`, no `/flow` parent) runs the full check below — **fail-open, never fail-skip**: an absent or stale stamp is not a reason to skip the safety check, only a matching one is.
 
    Otherwise, run `_shared/worktree-setup.md`'s `## Pre-flight divergence check` in full — the same procedure `/flow`'s own Step 2.5 runs (`flow/validation.md`), consolidated into one canonical copy rather than two independently maintained ones.
-2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace
+2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace — the name passed
+   through it to `EnterWorktree` is the sanitized name from "## Worktree name derivation" above,
+   never the raw branch/record slug
 3. The skill handles: branch creation, dependency install, baseline test verification
 4. **Catch up with the integration branch** — immediately after creation, before any commits, run `_shared/worktree-setup.md`'s `## Post-creation catch-up` unconditionally, passing Step 0's `{EXPECTED_BASE}` so both merges run (origin/{integration-branch} for the behind direction, `{EXPECTED_BASE}` for the ahead direction). This is the correctness net regardless of whether Step 1's divergence check ran or was skipped, and regardless of which direction (or neither, or both) `worktree.baseRef`'s actual behavior through `EnterWorktree` turned out stale. There is no separate base-ref verification-and-STOP step here anymore — the unconditional catch-up makes that moot rather than removing a safety net (the branch has no commits yet, so there is nothing either merge could destroy). Fetch/merge command failures (no network, no `origin` remote) fail open per that section's own note — don't block worktree setup on them. When either merge actually advances the branch, log it to `decisions.md` per that section's logging note.
 4.5. **Record the assignment** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "$RUN_DIR" "$WORKTREE"` so the working-directory hook (E1) can enforce commits land in this worktree. Pass `--run "$RUN_DIR"` explicitly — resolve `$RUN_DIR` per `_shared/pipeline-run-dir.md` immediately before this command, do not rely on the command's own fallback resolver (`resolveRunDir`'s "newest non-terminal run" heuristic), which any stale never-closed run elsewhere in the project can win over this one; a Bash tool call does not inherit environment exports from an earlier, separate call, so `$RUN_DIR` must be re-resolved (or read back from wherever this run tracked it) in the same command that invokes `record-worktree`, not assumed to already be in the process environment. Either cwd works — the main checkout or the worktree. Run-dir resolution is anchored to the main checkout (`bin/lib/hooks/context.js`'s `iterRunDirsWithState`, per `_shared/pipeline-run-dir.md`'s Anchoring section), so a session inside a linked worktree resolves the same run set as one in the main checkout, and the `worktree-always` gate's one exemption permits the resulting write to `.claude-tweaks/pipelines/` from either. (Before anchoring shipped, the worktree held no `.claude-tweaks/` directory at all and resolution failed from inside it — hence the older instruction to run this from the main checkout, which is no longer needed.) On success the command prints `claude-tweaks: worktree recorded for <run-id>` to stdout (or `claude-tweaks: no pipeline run dir found — worktree not recorded` if resolution failed); verify that confirmation line before proceeding. The command also stamps the current session as the run's owner (from `CLAUDE_CODE_SESSION_ID`), which scopes E1 enforcement to this session — commits from other sessions in the main checkout get a warning instead of a deny. If a different session later continues this pipeline (e.g. after a session fork), re-run `record-worktree --run "$RUN_DIR"` to reclaim ownership — from either cwd, for the anchoring reason above; it is an idempotent restamp.
