@@ -14,7 +14,7 @@ For this repo it is not safe, because the file being renamed is read by a build 
 
 ## Decision
 
-This repo's `policy.yml` carries **both** spellings — `worktree-always: true` and `worktree.always: true`, the old line commented as a transitional twin — with its removal condition recorded in `skills/_shared/policy-deprecations.md`: delete it once the installed build's `plugin.json` version is at or above the release that shipped #602.
+This repo's `policy.yml` carries **both** spellings — `worktree-always: true` and `worktree.always: true`, the old line commented as a transitional twin — with its removal condition recorded in `skills/_shared/policy-deprecations.md`: delete it once the **running** build's `plugin.json` version (`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`, not the install pointer `claude plugin update` moves) is at or above the release that shipped #602 — and only in a **fresh session** started on such a build, never mid-session after `claude plugin update`, since the running session keeps whatever build it started with regardless of where the install pointer moves. See `docs/incident-log.md` `[IL-133]`.
 
 The general rule this sets: renaming a policy key that this plugin's own hooks read is a two-build change, not a one-commit change. A branch may not assume the build reading its configuration is itself.
 
