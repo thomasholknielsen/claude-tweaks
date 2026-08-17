@@ -13,7 +13,10 @@ unchanged from before.
 > **Parallel execution:** Dispatch the selected persona(s) as parallel Task agents (a single agent
 > for `fast-lane`, three for `standard`) — each runs independently and returns Template-A findings
 > narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
-> complete.
+> complete. Per `_shared/subagent-output-contract.md`'s fan-out section: emit every persona's
+> `Task` call as one assistant message — one message per sub-issue's persona trio (`standard`),
+> or fold a `fast-lane` sub-issue's single Skeptical Reviewer into the next message rather than
+> giving it a message of its own.
 >
 > **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node bin/resolve-profile.js standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
 >
