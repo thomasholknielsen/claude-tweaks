@@ -41,7 +41,9 @@ function* iterBumpCommits(deps, ref) {
   }
 }
 
-const findBumpCommits = (deps, ref) => [...iterBumpCommits(deps, ref)];
+function findBumpCommits(deps, ref) {
+  return [...iterBumpCommits(deps, ref)];
+}
 
 function isAncestor(deps, ancestor, descendant) {
   try {
@@ -90,7 +92,8 @@ function changelogCoverage(changelogText, version, records) {
   const missing = [];
   for (const n of records) {
     const re = new RegExp(`(?<![0-9])#${n}(?![0-9])`);
-    (re.test(haystack) || ranges.has(n) ? named : missing).push(n);
+    if (re.test(haystack) || ranges.has(n)) named.push(n);
+    else missing.push(n);
   }
   return { entryFound: true, named, missing };
 }
