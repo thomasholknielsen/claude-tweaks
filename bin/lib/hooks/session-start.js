@@ -10,6 +10,7 @@ const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
 const runIntegrity = require('./run-integrity');
 const { reconcile } = require('../reconcile');
+const { DEFAULT_TTL_MS } = require('../reconcile/cache');
 
 const MAX_REPORTED = 3;
 // The fast/background split (#820, D8, corrected): SessionStart's own
@@ -83,7 +84,21 @@ async function run(ctx) {
     // the spawn block below), and their results are surfaced on a LATER
     // SessionStart firing via the status-file read below, not here (#820,
     // D8, corrected).
-    const result = await reconcile({ cwd: ctx.cwd, checks: FAST_CHECKS });
+    //
+    // `skipIfFresh` (#820, D7) makes near-simultaneous session starts in the
+    // same repo cost nothing at all: the second and later ones inside the TTL
+    // short-circuit before any git/gh I/O. This project's real operating
+    // pattern — many concurrent worktree sessions against one main checkout —
+    // is exactly the case D7 exists for, and this inline pass is the hot path
+    // #820 is about. The deliberate tradeoff is accepted staleness: for up to
+    // DEFAULT_TTL_MS, a session start may not observe a mirror fast-forward,
+    // a newly-red tip, or a newly-answered console. The background pass is
+    // NOT gated on this same stamp — it keys off
+    // reconcile-background-status.json's own `completedAt` (see the spawn
+    // block below and its comment for why conflating the two was a bug).
+    const result = await reconcile({
+      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS,
+    });
 
     // One added summary line for what the fast path did — today just mirror
     // ff, the only FAST_CHECKS member that ever populates it. The write-only
@@ -121,17 +136,28 @@ async function run(ctx) {
       );
     }
   } catch { /* best-effort */ }
+  // Surface a PRIOR session's background reconcile pass exactly once, then
+  // decide whether to spawn a new one (#820, D8). Both read the same status
+  // file the background pass (bin/hooks.js's `reconcile-background`
+  // subcommand, spawned below) writes — but they sit in SEPARATE try blocks
+  // on purpose: sharing one meant a throw while rendering the summary (a
+  // malformed `notableWorktrees[].path`, say) skipped the spawn decision
+  // entirely and never reset, wedging the background pass off permanently
+  // for that repo — every later SessionStart throwing at the same line
+  // before ever reaching the gate (#820 final review). The read is cheap and
+  // is simply done once per block rather than shared across them.
+  const bgStatusPath = (() => {
+    try {
+      const root = wtDetect.mainCheckoutRoot(ctx.cwd);
+      return root ? path.join(root, '.claude-tweaks', 'reconcile-background-status.json') : null;
+    } catch { return null; }
+  })();
+  function readBgStatus() {
+    try { return JSON.parse(fs.readFileSync(bgStatusPath, 'utf8')); } catch { return null; }
+  }
   try {
-    // Surface a PRIOR session's background reconcile pass exactly once, and
-    // decide whether to spawn a new one (#820, D8). Both read the same
-    // status file the background pass (bin/hooks.js's `reconcile-background`
-    // subcommand, spawned below) writes, so the read is done once and
-    // shared rather than twice.
-    const root = wtDetect.mainCheckoutRoot(ctx.cwd);
-    if (root) {
-      const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
-      let status = null;
-      try { status = JSON.parse(fs.readFileSync(statusPath, 'utf8')); } catch { /* none yet */ }
+    if (bgStatusPath) {
+      const status = readBgStatus();
 
       // Surface once — `surfaced` flips to true the first time a
       // SessionStart firing reports it, so a summary from three sessions
@@ -157,9 +183,17 @@ async function run(ctx) {
           parts.push(`claude-tweaks: background reconcile (from a prior session) — ${lines.join('; ')}.`);
         }
         try {
-          fs.writeFileSync(statusPath, JSON.stringify({ ...status, surfaced: true }));
+          fs.writeFileSync(bgStatusPath, JSON.stringify({ ...status, surfaced: true }));
         } catch { /* best-effort */ }
       }
+    }
+  } catch { /* best-effort */ }
+  try {
+    if (bgStatusPath) {
+      // Re-read rather than reuse the surfacing block's copy: the two blocks
+      // are deliberately independent (see the comment above them), so this
+      // gate must not depend on that block having reached its own read.
+      const status = readBgStatus();
 
       // Spawn the detached background pass — TTL-gated by THIS status
       // file's own `completedAt`, deliberately never reconcile()'s shared
@@ -184,6 +218,18 @@ async function run(ctx) {
             [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
             { cwd: ctx.cwd, detached: true, stdio: 'ignore' },
           );
+          // spawn() returns an EventEmitter, and an ASYNCHRONOUS spawn
+          // failure (EAGAIN under fork pressure — routine in a repo running
+          // many concurrent agent sessions) emits 'error' after this
+          // synchronous block has already returned. With no listener Node
+          // promotes that to an uncaught exception, which neither the
+          // surrounding try/catch (already exited) nor bin/hooks.js's
+          // top-level promise `.catch()` can absorb — it would take down the
+          // whole SessionStart hook process, breaking the never-break-a-
+          // session invariant. A no-op listener degrades it to exactly what
+          // a synchronous spawn failure already does here: this session's
+          // background pass simply didn't fire, and the next one retries.
+          child.on('error', () => { /* see above — silent degrade, never a throw */ });
           child.unref();
         } catch { /* best-effort — a failed spawn just means this session's background pass didn't fire; the next one tries again */ }
       }

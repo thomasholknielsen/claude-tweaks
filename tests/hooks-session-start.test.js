@@ -413,7 +413,20 @@ test('SessionStart spawn gate: fires against a real pr-first remote even though 
   const cp = require('child_process');
   const originalSpawn = cp.spawn;
   let spawnedWith = null;
-  cp.spawn = (...args) => { spawnedWith = args; return { unref() {} }; };
+  // The fake mirrors ChildProcess's EventEmitter surface (`on`) as well as
+  // `unref`, and records both, so this test also pins #820 final review's
+  // spawn hardening: an asynchronous spawn failure (EAGAIN under fork
+  // pressure) emits 'error', and with no listener Node turns that into an
+  // uncaught exception the surrounding try/catch cannot absorb — breaking
+  // the never-break-a-session invariant. A fake without `on` would make
+  // `child.on(...)` throw into that same catch, so `unrefCalls` is asserted
+  // too: it proves the spawn block ran to completion rather than bailing.
+  const listeners = [];
+  let unrefCalls = 0;
+  cp.spawn = (...args) => {
+    spawnedWith = args;
+    return { unref() { unrefCalls += 1; }, on(event, handler) { listeners.push([event, handler]); } };
+  };
   try {
     const mainDir = prFirstRemoteFixture();
     // No reconcile-background-status.json exists yet — this is the very
@@ -430,8 +443,120 @@ test('SessionStart spawn gate: fires against a real pr-first remote even though 
     assert.ok(spawnedWith[1][0].endsWith(path.join('bin', 'hooks.js')));
     assert.strictEqual(spawnedWith[1][1], 'reconcile-background');
     assert.strictEqual(spawnedWith[2].detached, true);
+    const errorListeners = listeners.filter(([event]) => event === 'error');
+    assert.strictEqual(errorListeners.length, 1, "the spawned child must carry an 'error' listener — without one, an async spawn failure becomes an uncaught exception");
+    assert.strictEqual(typeof errorListeners[0][1], 'function');
+    assert.doesNotThrow(() => errorListeners[0][1](Object.assign(new Error('spawn EAGAIN'), { code: 'EAGAIN' })), 'the error listener must swallow, never rethrow');
+    assert.strictEqual(unrefCalls, 1, 'the spawn block must run to completion — a throw inside it would leave the child un-unref-ed');
   } finally {
     cp.spawn = originalSpawn;
+  }
+});
+
+// #820 final review: a throw while RENDERING a prior background pass's
+// summary must not take the spawn gate down with it. The two used to share
+// one try block, so a malformed `notableWorktrees[].path` (path.basename
+// throws on a non-string) skipped the spawn permanently for that repo — the
+// status file never advanced, so every later SessionStart threw at the same
+// line and the background pass stayed wedged off forever.
+test('SessionStart: a throw while rendering the background summary still leaves the spawn gate reachable (#820 final review)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {}, on() {} }; };
+  try {
+    const project = gitProject();
+    const statusDir = path.join(project, '.claude-tweaks');
+    fs.mkdirSync(statusDir, { recursive: true });
+    // `path: 42` — path.basename throws TypeError on a non-string, inside the
+    // surfacing block's render. `completedAt` is deliberately absent, so the
+    // gate must resolve to not-fresh and spawn.
+    fs.writeFileSync(
+      path.join(statusDir, 'reconcile-background-status.json'),
+      JSON.stringify({ surfaced: false, summary: { notableWorktrees: [{ path: 42, reason: 'pr-open' }] } }),
+    );
+    let out;
+    await assert.doesNotReject(async () => {
+      out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    });
+    if (out && out.json) {
+      assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /background reconcile/, 'the render threw, so no summary line is produced');
+    }
+    assert.ok(spawnedWith, 'the spawn gate must still be reached after the surfacing block threw');
+    assert.strictEqual(spawnedWith[1][1], 'reconcile-background');
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
+
+// #820 final review finding 1: D7's freshness cache is wired into the INLINE
+// fast pass, not just the background one — near-simultaneous session starts
+// in the same repo skip the mirror/red-tip/console work inside the TTL.
+// Discriminating by observable effect rather than by a stub's arguments: the
+// repo is left strictly behind origin before EACH call, so an un-short-
+// circuited pass would fast-forward it (as the first call does) and say so.
+test('SessionStart: a second session start inside the TTL short-circuits the inline reconcile via D7\'s freshness cache (#820 final review)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  cp.spawn = () => ({ unref() {}, on() {} });
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  try {
+    const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-ttl-origin-'));
+    git(['init', '-q', '--bare', '--initial-branch=main'], originDir);
+    const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-ttl-seed-'));
+    git(['clone', '-q', originDir, seedDir]);
+    git(['config', 'user.email', 'test@example.com'], seedDir);
+    git(['config', 'user.name', 'Test'], seedDir);
+    fs.mkdirSync(path.join(seedDir, '.claude-tweaks'), { recursive: true });
+    fs.writeFileSync(path.join(seedDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+    // Mirrors this repo's own .gitignore. Without it the cache file the
+    // first pass writes makes `git status --porcelain` non-empty, and
+    // classifyMirror bails out on 'dirty' before ever reaching the
+    // fast-forward — masking the behavior under test with an artifact of
+    // the fixture.
+    fs.writeFileSync(path.join(seedDir, '.gitignore'), '.claude-tweaks/reconcile-cache.json\n.claude-tweaks/reconcile-background-status.json\n');
+    git(['add', '.claude-tweaks/policy.yml', '.gitignore'], seedDir);
+    git(['commit', '-q', '-m', 'seed'], seedDir);
+    git(['push', '-q', 'origin', 'main'], seedDir);
+
+    const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-ttl-main-'));
+    git(['clone', '-q', originDir, mainDir]);
+    git(['config', 'user.email', 'test@example.com'], mainDir);
+    git(['config', 'user.name', 'Test'], mainDir);
+
+    function advanceOrigin(name) {
+      fs.writeFileSync(path.join(seedDir, `${name}.txt`), `${name}\n`);
+      git(['add', `${name}.txt`], seedDir);
+      git(['commit', '-q', '-m', name], seedDir);
+      git(['push', '-q', 'origin', 'main'], seedDir);
+    }
+
+    advanceOrigin('second');
+    const first = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
+    const afterFirst = git(['rev-parse', 'HEAD'], mainDir).trim();
+    assert.match(first.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i, 'the first (cold-cache) pass must do the real work');
+
+    // Origin moves again; the local mirror is strictly behind once more.
+    advanceOrigin('third');
+    const second = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
+    assert.strictEqual(git(['rev-parse', 'HEAD'], mainDir).trim(), afterFirst, 'the second pass, inside the TTL, must short-circuit before any mirror work');
+    if (second.json) {
+      assert.doesNotMatch(second.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i);
+    }
+
+    // Age the freshness stamp past the TTL: the same call must now do the work.
+    const cacheLib = require('../bin/lib/reconcile/cache');
+    const root = fs.realpathSync(mainDir);
+    const aged = cacheLib.readCache(root);
+    cacheLib.writeCache(root, { ...aged, lastRunAt: Date.now() - (cacheLib.DEFAULT_TTL_MS * 2) });
+    const third = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
+    assert.notStrictEqual(git(['rev-parse', 'HEAD'], mainDir).trim(), afterFirst, 'past the TTL the inline pass must run again');
+    assert.match(third.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i);
+  } finally {
+    cp.spawn = originalSpawn;
+    preflight.ghHealthCheck = originalHealth;
   }
 });
 

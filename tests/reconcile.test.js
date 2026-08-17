@@ -677,6 +677,103 @@ test('reconcile(): mirror and remote-prune share one fetch, not two (D2)', async
   assert.equal(fetchCalls, 1, `expected exactly one fetch, saw ${fetchCalls}`);
 });
 
+// --- shared fetch: shape scoped to the requested checks (#820 final review) ---
+//
+// FAST_CHECKS (mirror) and BACKGROUND_CHECKS (remote-prune) are provably
+// disjoint, so each process must pay only for the fetch its own checks need:
+// a narrow single-ref fetch under mirror's tight hot-path cap, or the broad
+// `--prune` all-refs fetch on git-exec's own env-overridable budget.
+
+// Installs a `git` shim first on PATH that appends every `git fetch`
+// invocation's full argv to a log file, then execs the real git. Counting at
+// the process-spawn boundary rather than stubbing `runGit` is load-bearing
+// here for the same reason the D2 test above documents: classify.js,
+// prune-remote.js, and shared-fetch.js each destructure `runGit` at module
+// load, so a module-property stub would never be observed.
+function withFetchArgvLog(fn) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-fetchargv-'));
+  const logFile = path.join(wrapperDir, 'fetch-argv.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\nif [ "$3" = "fetch" ]; then\n  echo "$*" >> "${logFile}"\nfi\nexec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  try {
+    fn();
+  } finally {
+    process.env.PATH = originalPath;
+  }
+  return fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
+}
+
+test('sharedFetch: a mirror-only pass fetches the single integration ref, never --prune all-refs', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
+  const calls = withFetchArgvLog(() => {
+    const r = sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: false });
+    assert.equal(r.failure, null, 'the narrow fetch must succeed against the local bare origin');
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch origin main$/, `mirror-only must fetch a single ref, saw: ${calls[0]}`);
+  assert.doesNotMatch(calls[0], /--prune/, 'mirror-only must not pay for a --prune all-refs fetch');
+});
+
+test('sharedFetch: a remote-prune pass still fetches --prune all-refs', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
+  const calls = withFetchArgvLog(() => {
+    sharedFetch(mainDir, { integration: 'main', mirror: false, remotePrune: true });
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch --prune origin$/, `remote-prune must keep the --prune all-refs shape, saw: ${calls[0]}`);
+});
+
+test('sharedFetch: mirror + remote-prune together fall back to the broader --prune shape (superset serves both)', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
+  const calls = withFetchArgvLog(() => {
+    sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: true });
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch --prune origin$/, `both-requested must widen, never narrow, saw: ${calls[0]}`);
+});
+
+// The two timeout halves of the same fix, proven by the one observable
+// difference between "explicit timeoutMs" and "git-exec's own resolveTimeout":
+// only the latter honors CT_HOOKS_GIT_TIMEOUT_MS (see git-exec.js's
+// resolveTimeout — an explicit opts.timeoutMs short-circuits the env var).
+// A 1ms budget cannot survive even a process spawn, so an honored override
+// resolves to `timeout` and an ignored one resolves to a real fetch.
+function withGitTimeoutOverride(ms, fn) {
+  const original = process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+  process.env.CT_HOOKS_GIT_TIMEOUT_MS = String(ms);
+  try {
+    return fn();
+  } finally {
+    if (original === undefined) delete process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+    else process.env.CT_HOOKS_GIT_TIMEOUT_MS = original;
+  }
+}
+
+test('sharedFetch: the remote-prune shape passes no explicit timeout — CT_HOOKS_GIT_TIMEOUT_MS still applies (Task 4\'s ruling, now pinned)', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
+  const r = withGitTimeoutOverride(1, () => sharedFetch(mainDir, { integration: 'main', mirror: false, remotePrune: true }));
+  assert.equal(r.failure, 'timeout', 'a hardcoded timeoutMs on this shape would ignore the env override and let the fetch succeed');
+});
+
+test('sharedFetch: the mirror-only shape pins its own tight hot-path budget — CT_HOOKS_GIT_TIMEOUT_MS cannot shrink it', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
+  const r = withGitTimeoutOverride(1, () => sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: false }));
+  assert.equal(r.failure, null, 'the mirror shape must carry an explicit timeoutMs, which git-exec resolves ahead of the env override');
+});
+
 // --- session-level freshness TTL short-circuit (#820, D7) ---
 
 test('reconcile(): skipIfFresh=true short-circuits entirely when the cache is within TTL (D7)', async () => {

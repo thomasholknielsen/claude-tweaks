@@ -11,6 +11,13 @@ const { runGit } = require('../hooks/git-exec');
 // general-purpose DEFAULT_TIMEOUT_MS (10s) because this runs on hot paths
 // (session-start, dispatch queue pull) where a slow remote must not stall
 // the caller for the full general budget.
+//
+// It governs both places a mirror fetch is issued: this module's own fetch
+// below (the `!opts.skipFetch` path), and shared-fetch.js's mirror-only
+// shape, which imports this constant rather than redefining the same number
+// (#820 final review). reconcile() itself always passes `skipFetch: true`,
+// so in production this budget binds through shared-fetch.js; the fetch
+// below is what a direct classifyMirror/mirrorFastForward caller gets.
 const FETCH_TIMEOUT_MS = 5000;
 
 // repoRoot, integration branch name -> { state, failure }.

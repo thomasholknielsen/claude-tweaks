@@ -27,7 +27,14 @@ async function runWithConcurrency(items, worker, cap = DEFAULT_CONCURRENCY) {
       }
     }
   }
-  const workers = Array.from({ length: Math.min(cap, items.length) }, () => runOne());
+  // Floor the cap at 1 (and treat a non-finite cap as 1): an unclamped
+  // `Math.min(cap, items.length)` with cap <= 0 or NaN spawns ZERO workers
+  // and resolves to an all-`undefined` array — the whole batch silently
+  // dropped, with no error anywhere. No caller passes a bad cap today; this
+  // closes it by construction rather than by that assumption holding
+  // (CLAUDE.md: no silent caps).
+  const poolSize = Math.min(Number.isFinite(cap) ? Math.max(1, cap) : 1, items.length);
+  const workers = Array.from({ length: poolSize }, () => runOne());
   await Promise.all(workers);
   return results;
 }

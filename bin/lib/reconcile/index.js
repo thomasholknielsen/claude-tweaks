@@ -131,17 +131,23 @@ async function reconcile(opts = {}) {
   }
 
   if (overBudget(DISPATCH_ORDER.slice(0))) return result;
-  // One shared `git fetch --prune origin` for whichever of mirror/red-tip/
-  // remote-prune are requested — mirror (via classify.js) and remote-prune
-  // previously each ran their own separate fetch, two full round trips to
-  // the same remote per pass (#820, D2). `sharedFetchOk` gates all three
-  // dispatch blocks below: red-tip is included even though it triggers no
-  // fetch itself, because it reads the ref this fetch (formerly mirror's
-  // own) just refreshed — see the ordering comment on red-tip's dispatch
-  // below. A failed fetch is recorded once here rather than once per check.
+  // One shared `git fetch` for whichever of mirror/red-tip/remote-prune are
+  // requested — mirror (via classify.js) and remote-prune previously each
+  // ran their own separate fetch, two full round trips to the same remote
+  // per pass (#820, D2). Its SHAPE is scoped to what was actually requested
+  // (narrow single-ref + a tight hot-path cap for a mirror-only pass, full
+  // `--prune` all-refs on git-exec's own env-overridable budget once
+  // remote-prune is in the set) — see shared-fetch.js's header for why each
+  // shape is what it is. `sharedFetchOk` gates all three dispatch blocks
+  // below: red-tip is included even though it triggers no fetch itself,
+  // because it reads the ref this fetch (formerly mirror's own) just
+  // refreshed — see the ordering comment on red-tip's dispatch below. A
+  // failed fetch is recorded once here rather than once per check.
   let sharedFetchOk = true;
-  if (checks.includes('mirror') || checks.includes('remote-prune')) {
-    const fetched = sharedFetch(root);
+  const wantsMirror = checks.includes('mirror');
+  const wantsRemotePrune = checks.includes('remote-prune');
+  if (wantsMirror || wantsRemotePrune) {
+    const fetched = sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
     if (fetched.failure) {
       sharedFetchOk = false;
       const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));

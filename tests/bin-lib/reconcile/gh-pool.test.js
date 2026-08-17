@@ -36,3 +36,13 @@ test('runWithConcurrency: a rejected worker does not abort the rest of the batch
 test('runWithConcurrency: defaults to DEFAULT_CONCURRENCY when no cap is given', async () => {
   assert.equal(DEFAULT_CONCURRENCY, 6);
 });
+
+// #820 final review: an unclamped Math.min(cap, items.length) spawns zero
+// workers for cap <= 0 / NaN and returns an all-undefined array — the whole
+// batch dropped silently. Both cases must still process every item.
+test('runWithConcurrency: a zero/negative/NaN cap still runs at least one worker instead of dropping the batch', async () => {
+  const worker = async (i) => i * 2;
+  for (const cap of [0, -3, NaN]) {
+    assert.deepEqual(await runWithConcurrency([1, 2, 3], worker, cap), [2, 4, 6], `cap=${cap} must not drop the batch`);
+  }
+});

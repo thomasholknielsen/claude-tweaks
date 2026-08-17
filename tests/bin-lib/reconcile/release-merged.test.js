@@ -111,6 +111,60 @@ test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetche
   assert.equal(readCalls, 1, 'second pass must skip the read for an unchanged terminal-state sha');
 });
 
+// Task 7's Critical TOCTOU fix, pinned (#820 final review). Every other
+// fixture in this file gives the directory listing and the blob read the
+// SAME sha, so both would still pass if the cache write reverted to the
+// listing's `entry.sha` — the exact bug Task 7's review caught. Here the two
+// deliberately diverge (a race: another agent rewrote the claim between the
+// listing call and the read), and the cache must record the sha of the
+// content that was actually classified.
+//
+// Two independent discriminators, both red under `entry.sha`:
+//   (1) the written cache holds 'blob-sha', not 'listing-sha';
+//   (2) the next pass still RE-READS the claim — caching the listing's sha
+//       would make shouldSkipClaimRead match the (unchanged) listing entry
+//       forever, permanently freezing a claim on evidence never read.
+test('releaseMerged: caches the blob sha actually classified, not the directory listing\'s sha (Task 7 TOCTOU)', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  const { readCache } = require('../../../bin/lib/reconcile/cache');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-toctou-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
+
+  let readCalls = 0;
+  const ghApi = (args) => {
+    if (args[0].includes('/contents/claims?')) {
+      // The listing's sha — stale by the time the read below happens.
+      return { stdout: JSON.stringify([{ name: 'issue-9.json', sha: 'listing-sha' }]), failure: null, status: null };
+    }
+    if (args[0].includes('/contents/claims/issue-9.json')) {
+      readCalls += 1;
+      // The blob actually read and classified — terminal (tombstone), so it
+      // reaches the cache-write branch, but at a DIFFERENT sha.
+      return { stdout: JSON.stringify({ content: JSON.stringify({ released: true }), sha: 'blob-sha' }), failure: null, status: null };
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+
+  await releaseMerged({ cwd: root, ghApi });
+  assert.equal(readCalls, 1);
+  assert.equal(
+    readCache(root).claimShas[9],
+    'blob-sha',
+    'the cache must record the sha of the content that was classified, never the directory listing\'s',
+  );
+
+  await releaseMerged({ cwd: root, ghApi });
+  assert.equal(
+    readCalls,
+    2,
+    'the listing sha never matched a real read, so the claim must be re-read — caching entry.sha would freeze it on unread evidence',
+  );
+});
+
 // Guards against terminal-only caching silently widening to cover active
 // (live/stale) claims — the invariant this task exists to hold. A live
 // claim's PR/issue join can change pass-to-pass even when its content
