@@ -1,13 +1,28 @@
-# Specify — Shaping Mode (single record)
+# Specify — Shaping Mode (one or more records)
 
-Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference)
-or case 5 (a backlog reference with no matching design doc). The record already exists and IS the
-target — there is nothing to decompose, and none of decomposition mode's Steps 1-9
-(`decomposition-mode.md` in this skill's directory) ever run here. A comma-separated list of record references (`SKILL.md`'s `## Input`, batch paragraph) enters this procedure once per element, sequentially — nothing below changes for a list; only the Actions Performed table and the Next Actions hand-off at the end know a list happened.
+Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference,
+or a comma-joined batch of them — `SKILL.md`'s `## Input`, "Comma-list batch form") or case 5 (a
+backlog reference with no matching design doc). Each record already exists and IS the target —
+there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`decomposition-mode.md`
+in this skill's directory) ever run here.
+
+**Batch = the same procedure, once per record.** A comma-list invocation has already resolved every
+element (case 1's batch branch) before this file loads. Sniff every record's surface first (Step
+2.5a needs only the fetched content) and resolve the one batched design-intent question (Metadata
+block below), then run every section below independently for each record, in the order given: its
+own five sections + `## Original request`, its own metadata block, its own
+scoring/ceremony/framing/type stamps, its own compose-then-write-once call. Two things differ from a
+single-record run and are stated where they apply below: interactive decisions raised per record
+collapse into one batch table + one `AskUserQuestion` (Metadata block), and the Actions Performed
+table renders one row per record. A failure shaping record *k* does not roll back records 1..k-1 —
+each write already landed via the API (or on disk); report the failure on that record's own row and
+keep shaping the rest.
 
 This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
-block — except under `--chained`, which returns to the caller instead. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
-the primary input) and it has no use for decomposition mode's much larger body.
+block — except under `--chained`, which returns to the caller instead (a comma list never runs under
+`--chained` — `SKILL.md`'s `## Input` drops the flag with a notice first, so a batch always reaches
+`## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
+references are the primary input) and it has no use for decomposition mode's much larger body.
 
 ---
 
@@ -37,7 +52,7 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 
 ### Metadata block
 
-Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). On a comma-list batch, run the sniff per record but ask the design-intent question **once** for all frontend records together: render one batch table (record, sniffed surface, recommended intent pre-filled) followed by a single `AskUserQuestion` for apply-all/override, per the Interaction style directive — never one call per record; backend/infra records in the same batch appear in the table with `Design-intent: —` and are not asked. On a batch, both the sniff and that single question already ran once, upfront, per this file's opening paragraph — reaching this section for a given record in the per-record loop below only writes that record's already-resolved values into its own composed body; nothing here fires a second time. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
 Surface: web
@@ -117,7 +132,7 @@ node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/is
 " "$RECORD_PATH" "$TITLE" "$SHAPED_BODY" "$FACETS_JSON"
 ```
 
-then commit — a local record is a tracked file, unlike a GitHub issue edit:
+then commit — a local record is a tracked file, unlike a GitHub issue edit. On a comma-list batch, commit **once per record**, immediately after that record's `writeRecord` — never leave some records written and uncommitted while the next one is being shaped:
 
 ```bash
 git add "$RECORD_PATH"
@@ -128,12 +143,14 @@ Nothing to commit on the `github-issues` driver — the edit above already lande
 
 ### Actions Performed
 
+One row per record — a single-record run renders one row, a comma-list batch renders one row per shaped record (a record whose write failed renders its row with the failure in the Detail cell instead of the stamps):
+
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Operational | Shaped record {ref} into spec shape — stamped `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` and Type where each was absent, added `ready`, removed `parked` if present | `{hash}` (local-files) / `—` (github-issues — edit already landed via API, no commit) |
 
-For a comma-separated batch, render one row per attempted element, in list order, and prefix each Detail with its outcome: `shaped` (this run edited the record — the row above), `already shaped, no-op` (every section present and non-empty and every label family already stamped — nothing written, nothing to undo), or `skipped: {reason}` (the fetch failed; `{reason}` is the one-line `gh` / `readRecord` error). The Ref column follows the same per-driver rule on every row.
+For a comma-list batch, render one row per shaped element, in list order, and prefix each Detail with its outcome: `shaped` (this run edited the record — the row above) or `already shaped, no-op` (every section present and non-empty and every label family already stamped — nothing written, nothing to undo). There is no `skipped` outcome here — the batch branch's stop-all failure semantics (`SKILL.md`'s `## Input`, Comma-list batch form) mean an unresolvable element never reaches shaping mode at all; every row this table renders is an element that was actually shaped. The Ref column follows the same per-driver rule on every row.
 
-Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single ref, or the "Shaping mode — multiple records shaped in place" row for a batch, rendered once after the last element. Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
+Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single record, the "Shaping mode — multiple records shaped in place" row for a comma-list batch (its recommended command lists every successfully shaped record, in the order given). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
 
 `/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.

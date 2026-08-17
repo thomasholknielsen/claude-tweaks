@@ -10,7 +10,7 @@
 | README.md | Project overview, install, skill index | `.claude-plugin/plugin.json`, `skills/**/SKILL.md` |
 | CLAUDE.md | How to work in this codebase — stack, structure, conventions, philosophy, releasing, Don'ts | `.claude-plugin/plugin.json`, `package.json`, `skills/_shared/*.md` |
 | docs/getting-started.md | Full skill reference — every `/claude-tweaks:*` command with its behavior | `skills/**/SKILL.md` |
-| docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `skills/*/*.md`, `bin/*.js`, `bin/lib/*/*.js` |
+| docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `skills/**/*.md`, `bin/**/*.js` |
 | docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `skills/**/SKILL.md` |
 | docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
 | docs/hooks.md | Hook dispatcher contract — tiered posture, run-dir resolution and ownership, never-break-a-session invariant, consumers (extracted from CLAUDE.md's `### Hooks`, which now holds only a pointer) | `bin/hooks.js`, `bin/lib/hooks/**`, `hooks/hooks.json` |
