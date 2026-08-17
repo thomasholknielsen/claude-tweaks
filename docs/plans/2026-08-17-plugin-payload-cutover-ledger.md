@@ -12,3 +12,5 @@
 | 8 | review/hindsight | Extend #419 with two silent-degradation check classes (repo-root runnable text inside plugin/**; unresolvable journey frontmatter) — staged/reflect-1.md | deferred | Staged for Review Console (comment on #419) |
 | 9 | review/hindsight | reason-not-auto closed-vocabulary check before dictating qualifiers [route: D4] — staged/reflect-2.md | deferred | Staged for Review Console (memory update) |
 | 10 | review/hindsight | Two-class sweep grep lesson for directory moves — incident-log + donts candidate — staged/reflect-3.md | deferred | Staged for Review Console (doc row) |
+| 11 | wrap-up | Memory extension: claude plugin cache keys on version, not pin; update needs qualified name@marketplace — staged/reflect-4.md | deferred | Staged for Review Console (memory update) |
+| 12 | wrap-up | Worktree guard over-match (denies out-of-repo scratch commits by command text) — record proposal staged/reflect-5.md | deferred | Staged for Review Console (queue write) |
