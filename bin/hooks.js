@@ -15,6 +15,7 @@ const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
 const specStatusLib = require('./lib/flow/manifest');
 const resumeFreshness = require('./lib/hooks/resume-freshness');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -45,6 +46,18 @@ function resolveRunArg(args, cwd, env) {
   // exists at all.
   const isRealDir = candidate ? (() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })() : false;
   if (isRealDir) {
+    // #790/[IL-127]: a real directory is not enough — it must also resolve
+    // under the main checkout, never a worktree-relative shadow copy. Mirrors
+    // run-dir-resolve.js's identical adoption-time check for PIPELINE_RUN_DIR.
+    const mainRoot = wtDetect.mainCheckoutRoot(cwd);
+    if (!wtDetect.isAnchoredUnderRoot(path.resolve(candidate), mainRoot)) {
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (exists, but not anchored under the main checkout${mainRoot ? ` at ${mainRoot}` : ''} — refusing a worktree-relative shadow run dir; see resolve-run-dir)`,
+        rest,
+        explicit: true,
+      };
+    }
     return { runDir: candidate, invalidRunArg: null, rest, explicit: true };
   }
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };

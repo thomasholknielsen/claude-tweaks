@@ -23,6 +23,10 @@ function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  // #790: an explicit --run must resolve under a real git checkout (see
+  // bin/hooks.js's resolveRunArg anchoring check) — a bare, non-git tmp dir
+  // no longer counts as a valid anchor for any run dir nested under it.
+  execFileSync('git', ['-C', dir, 'init', '-q']);
   const run = path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   // #721: an unadopted mint (neither run-state.json nor decisions.md) is
@@ -82,6 +86,7 @@ test('close-run on a run dir with no pre-existing run-state.json creates one and
 
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  execFileSync('git', ['-C', project, 'init', '-q']); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
@@ -280,8 +285,7 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
 });
 
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
-  const project = tmpProject();
-  execFileSync('git', ['-C', project, 'init', '-q']);
+  const project = tmpProject(); // already a git repo (tmpProject inits one) — the "main checkout" this test's title refers to
   const worktree = gitRepo();
   runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
@@ -484,6 +488,7 @@ test('record-pr writes run-state.pr and prints a confirmation line', () => {
 
 test('record-pr --run pins the target run dir, same as record-worktree', () => {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  execFileSync('git', ['-C', project, 'init', '-q']); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
