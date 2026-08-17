@@ -119,10 +119,10 @@ function main(argv) {
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
     const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
-    const flagVal = (name) => {
+    function flagVal(name) {
       const idx = rest.indexOf(name);
       return idx === -1 ? null : rest[idx + 1];
-    };
+    }
     const specArg = flagVal('--spec');
     const statusArg = flagVal('--status');
     const phaseArg = flagVal('--phase');

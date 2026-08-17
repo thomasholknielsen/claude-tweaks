@@ -5,10 +5,11 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const manifestModule = require('../../../bin/lib/flow/manifest');
 const {
   parseManifestYaml, serializeManifestYaml, readManifest, writeManifest,
   formatElapsedMs, transitionSpec,
-} = require('../../../bin/lib/flow/manifest');
+} = manifestModule;
 
 function tmpRunDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-manifest-'));
@@ -149,7 +150,6 @@ test('transitionSpec is the module\'s only status-mutation entry point, and ever
   // transitionSpec, so the real entry point skills cite has exactly one
   // path from "write a status" to "produce a banner," and they are the
   // same call.
-  const manifestModule = require('../../../bin/lib/flow/manifest');
   assert.deepEqual(
     Object.keys(manifestModule).sort(),
     ['VALID_STATUSES', 'formatElapsedMs', 'parseManifestYaml', 'readManifest', 'serializeManifestYaml', 'transitionSpec', 'writeManifest'].sort(),

@@ -124,8 +124,10 @@ function transitionSpec({ runDir, specId, status, phase, now = new Date() }) {
   if (!phase) return { ok: false, reason: 'missing-phase' };
   const manifest = readManifest(runDir);
   if (!manifest) return { ok: false, reason: 'no-manifest' };
-  const wantId = coerceId(specId);
-  const index = manifest.multispec.specs.findIndex((s) => String(s.id) === String(wantId));
+  // specs[].id is a number or a string (see coerceId) and specId arrives as
+  // either — match on text so a CLI '159' finds a parsed 159.
+  const wantId = String(specId).trim();
+  const index = manifest.multispec.specs.findIndex((s) => String(s.id) === wantId);
   if (index === -1) return { ok: false, reason: 'unknown-spec' };
   const spec = manifest.multispec.specs[index];
   const nowDate = now instanceof Date ? now : new Date(now);
