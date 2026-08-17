@@ -105,11 +105,14 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
 ├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
 └── spec-{N}/           ← Per-record subdirectory (one per record; `work/{N}-spec.md` holds the materialized file — see `materialize.md`)
+    ├── config.yml      ← Copy of the parent's, written when the parent scaffolds this subdirectory (see below)
     ├── decisions.md
     └── staged/
 ```
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
+
+**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3, right after the Manifesto writes the parent's). Every per-spec skill resolves levers via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" …`, and `PIPELINE_RUN_DIR` is the per-spec subdirectory (table below) — a subdirectory without `config.yml` makes that call resolve `source: default` and silently drop the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). The copy is what keeps the per-spec resolution and the parent's Manifesto in agreement; a mid-run in-place edit to a lever (`/wrap-up`'s ceremony escape hatch downgrading `ceremony-profile`) lands in the spec's own copy and scopes to that spec, which is the intended reading.
 
 `manifest.yml` lists the records in execution order plus their status as the run progresses. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
@@ -245,6 +248,9 @@ After all specs complete (or one fails), present a consolidated summary:
 | {N} | passed | passed | PASS | re-verify failed | — | Stopped at re-verify |
 | {N} | passed | FAILED | — | — | — | Failed (test gate) — continued (keep-going) |
 | {N} | — | — | — | — | — | Not run (previous spec failed) |
+
+**Release status:** {one line for the run's single shared branch, from `_shared/pr-first-merge.md` Step 4.1, verbatim — same vocabulary as `summary-template.md`'s line; `n/a — not merged in this run (outcome: {armed | pending-review})` when the bundle PR did not merge in this run}
+{On either backfill form, `summary-template.md`'s same **Backfill:** line}
 
 ### Manual Steps Required (all specs)
 | # | Spec | What | Where |

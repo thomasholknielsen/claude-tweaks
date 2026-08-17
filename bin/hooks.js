@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
+const resumeFreshness = require('./lib/hooks/resume-freshness');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -163,6 +164,30 @@ function main(argv) {
       // chain. Without this branch, a call that can't resolve any run dir
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not closed\n');
+    }
+    return 0;
+  }
+  if (cmd === 'check-resume-freshness') {
+    // Read-only: never writes run-state.json. Skills call this immediately
+    // before any of the three resume paths' safe-to-resume ruling
+    // (skills/_shared/run-resume-freshness.md).
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — resume freshness not checked\n`);
+      return 0;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — resume freshness not checked\n');
+      return 0;
+    }
+    const result = resumeFreshness.checkResumeFreshness(runDir, {
+      sessionId: process.env.CLAUDE_CODE_SESSION_ID,
+    });
+    const runId = path.basename(runDir);
+    if (result.safe) {
+      process.stdout.write(`claude-tweaks: resume freshness OK for ${runId} (${result.verdict})\n`);
+    } else {
+      process.stdout.write(`claude-tweaks: resume freshness BLOCKED for ${runId} — run appears actively owned (${result.reason})\n`);
     }
     return 0;
   }
