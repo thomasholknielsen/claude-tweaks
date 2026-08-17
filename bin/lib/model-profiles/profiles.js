@@ -4,6 +4,11 @@
 // skills/_shared/subagent-output-contract.md §Model Selection is pinned to
 // PROFILES by tests/bin-lib/model-profiles/table-pinning.test.js — change
 // them together or the suite goes red.
+//
+// resolve() runs seven stages in fixed order — table default, policy row,
+// cliOverride, stance, model-ceiling, frontier gates, session-failure
+// avoidance (#763) — with the last stage that changed the result naming
+// `source`.
 'use strict';
 
 const PROFILES = {
@@ -40,6 +45,18 @@ function profileOfModel(model) {
   return name;
 }
 
+// Steps down PROFILE_ORDER from `model`'s own tier until it finds a model
+// not in `failedModels`, floored at 'fast' (index 0) — never goes below the
+// cheapest tier, even when fast's own model is also failed, since there is
+// nowhere lower to fall back to.
+function nextViableModel(model, failedModels) {
+  let idx = PROFILE_ORDER.indexOf(profileOfModel(model));
+  while (idx > 0 && failedModels.has(PROFILES[PROFILE_ORDER[idx]].model)) {
+    idx -= 1;
+  }
+  return PROFILE_ORDER[idx];
+}
+
 // Every degrade path lands on the same profile (capable) — only the reason
 // differs, so it becomes the `degraded:{reason}` source tag.
 function degrade(reason) {
@@ -47,9 +64,9 @@ function degrade(reason) {
 }
 
 // Pure: no fs, no process, no I/O. The CLI owns all of that.
-// Six stages in fixed order — table default, policy row, cliOverride, stance,
-// model-ceiling, frontier gates — with the last transform that changed the
-// result naming `source`.
+// Seven stages in fixed order — table default, policy row, cliOverride,
+// stance, model-ceiling, frontier gates, session-failure avoidance — with
+// the last transform that changed the result naming `source`.
 function resolve(profile, opts = {}) {
   if (!PROFILES[profile]) throw new Error(`unknown profile "${profile}"`);
   const policy = opts.policy || {};
@@ -118,6 +135,13 @@ function resolve(profile, opts = {}) {
     } else if ((opts.frontierUsed || 0) >= cap) {
       ({ model, effort, source } = degrade('cap'));
     }
+  }
+
+  const failedModels = opts.failedModels || new Set();
+  if (failedModels.has(model)) {
+    const tier = nextViableModel(model, failedModels);
+    ({ model, effort } = { ...PROFILES[tier] });
+    source = 'degraded:session-failure';
   }
 
   return { model, effort, source, effortLine: effortLine(effort) };
