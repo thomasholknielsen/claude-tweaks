@@ -46,7 +46,7 @@ depends on them.
 | `bin/lib/issues/grant-gate.js` | `grant` mode's extracted gate chain — `evaluateGrantGate(record, policy, trustVerdicts)`, the pure decision function `grant-mode.md`'s prose calls; owns the refusal matrix, `grant-mode.md` owns fetch/apply/audit around it. Reuses `bin/lib/issues/autonomy.js`'s `permittedGrants` for the final `auto:merge` decision rather than reimplementing it. |
 | `/routine` | `fleet.md`'s composition table row 9 (backlog grant) instantiates `skills/backlog/routine-template.yml` as the fleet's conditional grant unit — provisioned only when both `autonomy: unattended` and `grant-origination-enabled: true` hold, weekdays 09:00 UTC, staggered after the vertical/generalist finders and before the dispatch drain. A downgrade to `supervised` after provisioning is harmless-by-construction: `grant-gate.js`'s own gate chain re-checks the ceiling every firing and denies every candidate, regardless of whether the routine itself is paused or left running. |
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface `refine`'s pending-authorization count elsewhere. |
-| `/challenge` | `overview`'s bare-mode Needs-you lane composes a `/claude-tweaks:challenge --lens=1 #{N}` launcher as a paste line for `kind: 'unjustified'` records (live since #677's rename; `--lens` is the human-invoked form `/challenge` accepts); `/backlog` never invokes `/challenge` itself, only writes the command for a human to run. Reciprocal of `/challenge`'s own `/backlog` row. |
+| `/challenge` | `overview`'s bare-mode Needs-you lane composes a `/claude-tweaks:challenge #{N}` launcher as a paste line for `kind: 'unjustified'` records (the bare-`#N` evidence-or-accept-risk mode, live since #726); `/backlog` never invokes `/challenge` itself, only writes the command for a human to run. Reciprocal of `/challenge`'s own `/backlog` row. |
 
 ## browse
 
@@ -97,7 +97,7 @@ depends on them.
 |---|---|
 | `/specify` | Only caller — invokes `framing-check` inline (not a Task dispatch) from both record-creation paths (`shaping-mode.md`'s per-record loop, `record-creation.md`'s per-sub-issue loop), immediately alongside the existing `ceremony-check` call. `--lens` is never called by a pipeline orchestrator; it is human-invoked only. Reciprocal of `/specify`'s own `/challenge` row. |
 | `_shared/work-record.md` | Taxonomy home for the `solution:unjustified` label a `solution-baked` verdict stamps on the record — `framing-check` itself reads no stage; it does no fetch and works only from the body the caller already holds in memory (`challenge/SKILL.md`'s Step 1: Gather). |
-| `/backlog` | `overview`'s bare-mode Needs-you lane *composes* a `/claude-tweaks:challenge --lens=1 #{N}` launcher as a paste line for `kind: 'unjustified'` records (live since #677's rename) — this is text for a human to run, not an invocation; `/specify` above remains the only skill that actually calls `/challenge`. Reciprocal of `/backlog`'s own `/challenge` row. |
+| `/backlog` | `overview`'s bare-mode Needs-you lane *composes* a `/claude-tweaks:challenge #{N}` launcher as a paste line for `kind: 'unjustified'` records (the bare-`#N` evidence-or-accept-risk mode, live since #726) — this is text for a human to run, not an invocation; `/specify` above remains the only skill that actually calls `/challenge`. Reciprocal of `/backlog`'s own `/challenge` row. |
 
 ## code-health
 

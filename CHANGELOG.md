@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.92.0 — Post-merge release-carrier check + backfill journey (#678); premise-verified release row in flow's Next Actions (#680); argv-safe /feedback filing with read-back verification (#681); worktree-always twin keyed on the running build + session-start verdict banner (#682, IL-133); scratch-worktree teardown check + pr-first remote-branch cleanup (#683); /feedback evaluation watermark for delta re-judging (#679)
+
+Post-merge release-carrier check + backfill journey (#678); premise-verified release row in flow's Next Actions (#680); argv-safe /feedback filing with read-back verification (#681); worktree-always twin keyed on the running build + session-start verdict banner (#682, IL-133); scratch-worktree teardown check + pr-first remote-branch cleanup (#683); /feedback evaluation watermark for delta re-judging (#679).
+
 ## v6.91.0 — Terminal Next Actions on the auto-mode not-silenced list — navigation affordance outside consoleAutoResolve, recommended line is the actual next command (#716); reconcile remote-prune for merged plugin branches + tidy Mark-as-specified routing (#570)
 
 Terminal Next Actions on the auto-mode not-silenced list — navigation affordance outside consoleAutoResolve, recommended line is the actual next command (#716); reconcile remote-prune for merged plugin branches + tidy Mark-as-specified routing (#570).
