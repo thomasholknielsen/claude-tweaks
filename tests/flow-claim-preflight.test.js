@@ -9,6 +9,16 @@ function read(relativePath) {
   return fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
+function mdFilesUnder(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...mdFilesUnder(full));
+    else if (entry.name.endsWith('.md')) out.push(full);
+  }
+  return out;
+}
+
 test('claim-outcomes.md is deleted', () => {
   assert.strictEqual(fs.existsSync(path.join(REPO_ROOT, 'skills/dispatch/claim-outcomes.md')), false);
 });
@@ -78,22 +88,13 @@ test('claim-targets.md claim read cites issue-claims.md steps 1-2 — no raw bas
 });
 
 test('every base64 -d claim read under skills/ cites issue-claims.md or handles empty content (#720)', () => {
-  const skillsRoot = path.join(REPO_ROOT, 'skills');
   const offenders = [];
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith('.md')) {
-        const text = fs.readFileSync(full, 'utf8');
-        if (/ref=claims-registry/.test(text) && /base64 -d/.test(text)) {
-          const cites = /_shared\/issue-claims\.md/.test(text);
-          const absentBranch = /\|\| null/.test(text);
-          if (!cites && !absentBranch) offenders.push(path.relative(REPO_ROOT, full));
-        }
-      }
-    }
-  };
-  walk(skillsRoot);
+  for (const file of mdFilesUnder(path.join(REPO_ROOT, 'skills'))) {
+    const text = fs.readFileSync(file, 'utf8');
+    if (!/ref=claims-registry/.test(text) || !/base64 -d/.test(text)) continue;
+    const cites = /_shared\/issue-claims\.md/.test(text);
+    const absentBranch = /\|\| null/.test(text);
+    if (!cites && !absentBranch) offenders.push(path.relative(REPO_ROOT, file));
+  }
   assert.deepStrictEqual(offenders, []);
 });

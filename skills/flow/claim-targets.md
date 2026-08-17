@@ -116,15 +116,14 @@ unowned targets) and this per-target check is what prevents a redundant, spuriou
 reclaim of the targets already held.
 
 For each remaining target, read-classify-write exactly as
-`_shared/issue-claims.md`'s "The lock" section describes — its steps 1-2 are the one canonical
-read + classify, and this file deliberately carries no second copy of them. Two properties of
-that read are load-bearing here: a failed `gh api` read (404 — a never-claimed target, a normal
-outcome) passes the `__ABSENT__` sentinel to `classifyClaimBlob`, never an empty file, so a
-fresh target classifies `'absent'` on the first read; and a successful read extracts
-`{content: (.content | @base64d), sha: .sha}` in one `jq` call, decoding GitHub's
-newline-embedded base64 correctly and keeping the blob sha the conditional write (step 4 there)
-needs. `gh` path and MCP path are both defined there — see `_shared/github-write-transport.md`
-for transport routing.
+`_shared/issue-claims.md`'s "The lock" section describes — its steps 1-2 are the canonical
+read + classify (not restated here). Two properties of that read are load-bearing: a failed
+`gh api` read (404 — a never-claimed target, a normal outcome) passes the `__ABSENT__` sentinel
+to `classifyClaimBlob`, never an empty file, so a fresh target classifies `'absent'` on the
+first read; and a successful read extracts `{content: (.content | @base64d), sha: .sha}` in one
+`jq` call, decoding GitHub's newline-embedded base64 correctly and keeping the blob sha the
+conditional write (step 4 there) needs. Both the `gh` and MCP paths are defined there — see
+`_shared/github-write-transport.md` for transport routing.
 
 Branch on the classification, per `_shared/issue-claims.md`'s "Failure posture" table (not
 restated here): `'absent'` → create-only write, succeeds. `'tombstone'`/`'stale'` → conditional
