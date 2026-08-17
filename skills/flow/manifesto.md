@@ -103,7 +103,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
 | 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge waits for — derived per `_shared/policy-schema.md`'s `merge-verification` coverage block; explicit `policy.yml` value wins |
 | 12 | Design critique | **{resolved}** | off / **auto** / full | Governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` (JSON envelope; `source` available for the log line); Recommended = resolved `value`; log to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
-| 13 | Merge authorization | **ask** | **ask** / pre-authorized | Pre-authorizes, for this run only, that the run should merge itself once every HARD-GATE is green and the suite is proven — zero further clicks at the terminal Review Console. Never a standing project default; see Recommendation defaults below. |
+| 13 | Merge authorization | **ask** | **ask** / pre-authorized | Pre-authorizes this run to merge itself once every HARD-GATE is green and the suite is proven — zero further clicks at the terminal Review Console. |
 
 **Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records: none/none/quiet), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11, 12, 13.
 
@@ -150,20 +150,8 @@ If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the 
 | Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
 | Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
 | Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | The ladder in `_shared/policy-schema.md`'s coverage block already encodes the safe answer per repo shape; no hardcoded literal |
-| Merge authorization | `ask` | Safest: a human must live-answer via a Manifesto `confirm`/`hybrid` override to unlock zero-click merge — see the dedicated note below the table |
+| Merge authorization | `ask` | Never a `policy.yml` default — only a live `confirm`/`hybrid` override sets it; why: `wrap-up/manifesto-authorized-merge.md`'s "Why policy.yml is excluded" section |
 | Design critique | `auto` | Critics run when the project shows design investment (`DESIGN.md`) or the record asks (`Design-intent:`); `full`/`off` are explicit opt-in/opt-out |
-
-`merge-authorization` (lever 13) never reads `.claude-tweaks/policy.yml` — its resolver special case
-(`bin/lib/policy-schema.js`) discards a `policy.yml` value and falls back to the `ask` default as
-if nothing had set it. This is deliberate: every other lever's project-policy source is a standing
-default a human sets once, in the repo, on behalf of every future run. This lever specifically
-authorizes an irreversible action (a merge) with zero further human interaction once the run
-reaches its terminal step — collapsing that into a project-wide, no-longer-live default would
-recreate the exact non-interactive auto-grant `_shared/auto-mode-contract.md`'s `auto:*` invariant
-forbids. The only way to set it is a live answer: an explicit Manifesto override reply
-(`confirm`/`hybrid` mode, `13=pre-authorized`) — the default `auto` mode's read-only-FYI
-Manifesto never asks, so under plain `auto` this lever always resolves `ask` unless a prior step
-in *this same run* already wrote `pre-authorized` into `config.yml`.
 
 `ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
 `ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
