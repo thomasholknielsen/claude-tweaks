@@ -28,5 +28,8 @@
   },
   "doc:decisions/0009-guided-environment-creation-attaches-the-real-routine": {
     "lastAuditedMs": 1786860236496
+  },
+  "doc:decisions/0010-rules-and-their-evidence-live-in-separate-files": {
+    "lastAuditedMs": 1786946954387
   }
 }
