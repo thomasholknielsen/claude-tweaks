@@ -35,6 +35,10 @@ Phase 4" note) — this procedure states the ordering explicitly so it is never 
 
 ## Step 2: Mark the PR ready
 
+First, run `_shared/pr-early-run-lifecycle.md`'s "Pre-merge title/description refresh" section —
+an unconditional `AUTO` step, never a stop — so the title and phase checklist are current before
+the merge attempt below.
+
 The PR was opened as a draft at run start (`_shared/pr-early-run-lifecycle.md`). Undraft it —
 GitHub blocks merging (auto or immediate) on a draft PR by default, and this is the one
 procedure in the plugin that is allowed to clear that protection, since it only runs after both

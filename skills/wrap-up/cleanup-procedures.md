@@ -11,7 +11,7 @@ Eight cleanup actions, executed in order (Phase 4's execution step) and surfaced
 | 1 | Execution plans | Delete ephemeral plan files in `~/.claude/plans/` related to this spec (Claude Code's own native plan-mode scratch output). `docs/superpowers/plans/*.md` retention is policy-driven — see "Item 1's plan-retention policy" below, not an unconditional rule. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | record-based work | No (idempotent — leave to per-spec wrap-up) |
 | 2 | Open items ledger | Delete via `/ledger`'s delete operation, only after Phase 3's ledger gate confirms zero open items | ledger exists | No (idempotent) |
 | 3 | Design wrapper caches | Section A below — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` | design wrapper active | **Yes — defer to parent `/flow` console** |
-| 4 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
+| 4 | Git worktree | Section C below — complete feature branch (`pr-first`: already routed by the Review Console's own merge decision; `local-merge`: via `/superpowers:finishing-a-development-branch`), then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
 | 5 | Record lifecycle | `work-backend: github-issues`: no-op — closure is close-via-merge (items 4 and 7 stamp the carrier commit and release the claim). `work-backend: local-files`: on 100% completion (confirmed by `/claude-tweaks:review`), call `closeRecord(path)` (`bin/lib/issues/local-store.js`) on the record's file and commit — the record stays on disk as history, excluded from `queryRecords`' default results | record-based work | No (idempotent — does not interact with parent multi-spec archival either way) |
 | 6 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
 | 7 | Issue claim release | Section E below — release `claims/issue-{n}.json` on `claims-registry` for this spec's record | record-based work | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
@@ -126,7 +126,17 @@ If the build used worktree git strategy, clean up the worktree directory:
    merge commit or PR body. See "Close-via-merge" in `_shared/issue-claims.md` for the full
    contract, including the multi-terminal parallel path (`flow/worktree-merge.md`), which
    performs its own merge directly with `--no-ff` and does not need this carrier commit.
-3. Verify the feature branch reached an outcome (merged, PR created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
+3. **`integration-model: pr-first` (`_shared/integration-model.md`): skip this step entirely.** The
+   Review Console's own terminal decision already routed the merge — `review-console.md`'s "On
+   approval" step 6 ran `_shared/pr-first-merge.md` directly (or deliberately skipped it, "leave PR
+   open") before this cleanup step is reached. Calling `/superpowers:finishing-a-development-branch`
+   here too would re-ask a decision already made — the same improvised-third-stop pattern
+   `_shared/auto-mode-contract.md` forbids, mirroring the split `flow/worktree-merge.md` and
+   `flow/multispec-review-console.md`'s Shared teardown already state. Proceed to step 4 with
+   whichever outcome the Review Console's merge step produced.
+
+   **`integration-model: local-merge`:** verify the feature branch reached an outcome (merged, PR
+   created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
    - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
    - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
      - **Merged, PR created, or discarded** → proceed to step 4.
