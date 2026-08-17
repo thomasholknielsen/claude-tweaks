@@ -10,7 +10,7 @@ const CONTRACT = fs.readFileSync(
 
 function notSilencedSection() {
   const start = CONTRACT.indexOf('## What `auto` does NOT silence');
-  const end = CONTRACT.indexOf('## Forbidden under auto');
+  const end = CONTRACT.indexOf('## Forbidden under auto', start);
   assert.notStrictEqual(start, -1, 'not-silenced heading present');
   assert.ok(end > start, 'section delimited by the Forbidden heading');
   return CONTRACT.slice(start, end);
@@ -21,6 +21,7 @@ test('terminal Next Actions block is on the not-silenced list', () => {
   assert.match(section, /Terminal `## Next Actions`/);
   assert.match(section, /navigation affordance, not an approval gate/);
   assert.match(section, /outside `consoleAutoResolve`'s zero-click scope/);
+  assert.strictEqual((CONTRACT.match(/Next Actions/g) || []).length, 1, 'the phrase appears exactly once file-wide, keeping the acceptance grep unambiguous');
 });
 
 test('row defines the recommended line and the rendering convention', () => {

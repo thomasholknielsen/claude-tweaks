@@ -37,6 +37,7 @@ Regardless of `auto` state, these always require explicit user input — except 
 - Any skill's own local-files Preflight-stop or equivalent explicit authorization gate
 - Hard validation failures (uncommitted changes, missing prereqs, malformed input)
 - Final pipeline failure cards
+- Terminal `## Next Actions` block — always rendered, in every mode including `unattended`; plain markdown, outside `consoleAutoResolve`'s scope
 - Code modifications outside the skill's documented scope — except the narrow, capped pointer-repair carve-out under `trusted`/`unattended` autonomy
 - Resolution of merge conflicts in worktree finishing
 - Design intent, when the manifesto value is `none` AND the skill detects creative work
