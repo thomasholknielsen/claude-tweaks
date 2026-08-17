@@ -17,7 +17,7 @@ A run with `merge-verification: merge-when-green` (derived), `autonomy: unattend
 
 ## Deliverables
 
-- [ ] Add a merge-authorization lever to the Pipeline Config Manifesto (e.g. `merge-when-green: yes/no`) letting the human pre-authorize "merge automatically once every HARD-GATE is green and the full suite has just passed," answered interactively at run start
+- [ ] Add a merge-authorization lever to the Pipeline Config Manifesto (`ask` / `pre-authorized`, a string enum matching every other lever's convention rather than a boolean) letting the human pre-authorize "merge automatically once every HARD-GATE is green and the full suite has just passed," answered interactively at run start
 - [ ] When pre-authorized, the finishing step (`/superpowers:finishing-a-development-branch` / `design-wrapper` merge step, whichever owns the actual `gh pr merge` call) executes the merge automatically as soon as the last HARD-GATE clears, and logs the auto-resolution per `_shared/auto-decision-log.md`
 - [ ] When declined or left unanswered at Manifesto time, the terminal Wrap-Up Review Console offers a one-click Recommended `AskUserQuestion` merge option instead, so the just-proven green state is still current when the merge lands
 - [ ] Update `_shared/auto-mode-contract.md` and `_shared/autonomy-ceiling.md` to document both paths and make explicit that a Manifesto-time answer is a live, interactive human grant — not a headless auto-grant — so the existing `auto:*` invariant (interactive-human-only grants) is preserved under both paths
