@@ -80,7 +80,7 @@ function resolveRunArg(args, cwd, env) {
         explicit: true,
       };
     }
-    return { runDir: candidate, invalidRunArg: null, rest, explicit: true };
+    return { runDir: resolved, invalidRunArg: null, rest, explicit: true };
   }
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }

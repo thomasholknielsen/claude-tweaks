@@ -56,6 +56,7 @@ const realDeps = {
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
   cwd: () => process.cwd(),
   mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
+  isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
   mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFile: (file, content) => fs.writeFileSync(file, content),
   stdout: (s) => process.stdout.write(s),
@@ -84,7 +85,7 @@ function run(argv, deps = realDeps) {
       deps.stderr(`materialize.js: could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read\n`);
       return 2;
     }
-    if (!wtDetect.isAnchoredUnderRoot(path.resolve(cwd, opts.runDir), mainRoot)) {
+    if (!deps.isAnchored(path.resolve(cwd, opts.runDir), mainRoot)) {
       deps.stderr(`materialize.js: --run-dir ${opts.runDir} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`);
       return 2;
     }

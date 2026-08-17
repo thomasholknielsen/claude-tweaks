@@ -164,6 +164,7 @@ function cliDeps({ ghView, ghAvailable = true, remoteUrl = 'https://github.com/a
     deps: {
       ghView, ghAvailable: () => ghAvailable, remoteUrl: () => remoteUrl,
       cwd: () => process.cwd(), mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
+      isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
       mkdirp: () => {}, writeFile: (p, c) => { written[p] = c; },
       stdout: (s) => out.push(s), stderr: (s) => err.push(s),
     },

@@ -37,6 +37,7 @@ function fakeDeps(overrides = {}) {
     // exercise real gitRepo()/linkedWorktreeOf() fixtures end to end.
     cwd: () => process.cwd(),
     mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
+    isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
     mkdirp: () => { throw new Error('mkdirp should never be called when --run-dir is rejected'); },
     writeFile: () => { throw new Error('writeFile should never be called when --run-dir is rejected'); },
     stdout: () => {},
