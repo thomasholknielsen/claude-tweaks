@@ -24,14 +24,20 @@ result with --json, or the "### also carried in this build" subsection text
 with --backfill (empty when nothing is missing). Never calls gh; never guesses
 record numbers. Exit 0 on any resolved status, 2 on usage, 1 on a git failure.`;
 
+// A value that's empty/undefined (missing/trailing flag) or starts with `-` (would be parsed
+// by git as an option rather than a ref/sha) is never a legitimate --merge or --ref value.
+function isBadRefValue(v) {
+  return v === undefined || v === '' || v.startsWith('-');
+}
+
 function parseStatusArgs(args) {
   const opts = { ref: 'HEAD', json: false, backfill: false, merge: null, records: null };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--json') opts.json = true;
     else if (a === '--backfill') opts.backfill = true;
-    else if (a === '--merge') opts.merge = args[++i];
-    else if (a === '--ref') opts.ref = args[++i];
+    else if (a === '--merge') { opts.merge = args[++i]; if (isBadRefValue(opts.merge)) return null; }
+    else if (a === '--ref') { opts.ref = args[++i]; if (isBadRefValue(opts.ref)) return null; }
     else if (a === '--records') {
       opts.records = String(args[++i] || '').split(',').map((s) => s.trim()).filter(Boolean).map(Number);
     } else return null;

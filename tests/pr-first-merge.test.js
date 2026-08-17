@@ -154,9 +154,10 @@ test('Step 4 runs the release-status check before reconcile and stages — never
   assert.match(section, /staged\/release-backfill-v\{version\}\.md/, 'the already-carried outcome stages the backfill artifact');
   assert.match(section, /STAGED \{time\}/, 'the staged row is auto-decision-logged');
   assert.match(section, /never edits `CHANGELOG\.md`/i, 'Step 4 never writes CHANGELOG.md directly');
-  const status = MERGE.indexOf('node "${CLAUDE_PLUGIN_ROOT}/bin/release.js" status', step4);
-  const reconcile = MERGE.indexOf('bin/hooks.js" reconcile', step4);
-  assert.ok(status > 0 && reconcile > 0 && status < reconcile, 'the status check now runs before the reconcile call');
+  const status = section.indexOf('node "${CLAUDE_PLUGIN_ROOT}/bin/release.js" status');
+  const reconcile = section.indexOf('bin/hooks.js" reconcile');
+  assert.ok(status >= 0 && reconcile >= 0, 'both calls must be present within Step 4');
+  assert.ok(status < reconcile, 'the status check now runs before the reconcile call');
 });
 
 test('the three local-merge fallback sections route the post-merge release-status check to Step 4.1 (#678)', () => {

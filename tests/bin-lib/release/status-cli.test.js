@@ -126,3 +126,23 @@ test('status: a ref with no plugin manifest hard-fails rather than reporting "no
   assert.equal(res.code, 1);
   assert.match(res.stderr, /no plugin manifest/);
 });
+
+// R1(a)/R2: a --merge or --ref value that's missing or looks like an option must fail as
+// usage (exit 2), never reach git as a bare positional argument.
+test('status: --merge or --ref with a leading-`-` or missing value is a usage error, not a git call', () => {
+  const { cwd, merge } = buildFixture();
+  const badMerge = run(cwd, ['status', '--merge', '--output=x', '--records', '1']);
+  assert.equal(badMerge.code, 2, badMerge.stderr);
+  const badRef = run(cwd, ['status', '--merge', merge, '--records', '1', '--ref', '--output=x']);
+  assert.equal(badRef.code, 2, badRef.stderr);
+  const trailingRef = run(cwd, ['status', '--merge', merge, '--records', '1', '--ref']);
+  assert.equal(trailingRef.code, 2, trailingRef.stderr);
+});
+
+// R5: a bad --ref surfaces as "could not resolve", not misread as "no plugin manifest".
+test('status: a nonexistent --ref exits 1 with "could not resolve", not "no plugin manifest"', () => {
+  const { cwd, merge } = buildFixture();
+  const res = run(cwd, ['status', '--merge', merge, '--records', '1', '--ref', 'no-such-branch']);
+  assert.equal(res.code, 1);
+  assert.match(res.stderr, /could not resolve/);
+});

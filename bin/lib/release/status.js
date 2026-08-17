@@ -8,6 +8,13 @@ function manifestVersionAt(deps, spec) {
   return JSON.parse(deps.git(['show', `${spec}:${MANIFEST}`])).version;
 }
 
+// Defensive check for non-CLI callers of releaseStatus — the CLI (bin/release.js
+// parseStatusArgs) already rejects these, but a value beginning with `-` reaching git
+// as a bare positional would otherwise be parsed as an option.
+function isBadRefValue(v) {
+  return v === undefined || v === null || String(v).trim() === '' || String(v).startsWith('-');
+}
+
 // ref -> every commit reachable from it that changed the manifest's `version`,
 // newest first, lazily. A manifest edit that leaves `version` alone (description, keywords)
 // shows up in the path log but is not a bump — hence the parent comparison. A root
@@ -19,12 +26,23 @@ function* iterBumpCommits(deps, ref) {
   // claim than "this isn't a plugin repo."
   try {
     deps.git(['cat-file', '-e', `${ref}:${MANIFEST}`]);
-  } catch {
-    throw new Error(`no plugin manifest at ${ref} — nothing to judge`);
+  } catch (err) {
+    // `fatal: path '...' does not exist in '<ref>'` is a genuinely missing manifest — the
+    // condition this function documents. Anything else (e.g. `fatal: invalid object name
+    // '<ref>'` for a bad ref) is a resolution failure and must not be misread as "no manifest".
+    if (/does not exist in/i.test(String(err.message))) {
+      throw new Error(`no plugin manifest at ${ref} — nothing to judge`);
+    }
+    throw new Error(`could not resolve ${ref}: ${err.message}`);
   }
   const shas = deps.git(['log', '--format=%H', '--topo-order', ref, '--', MANIFEST]).split('\n').map((s) => s.trim()).filter(Boolean);
   for (const sha of shas) {
-    const version = manifestVersionAt(deps, sha);
+    let version;
+    try {
+      version = manifestVersionAt(deps, sha);
+    } catch (err) {
+      throw new Error(`could not read ${sha}'s manifest: ${err.message}`);
+    }
     let parentVersion = null;
     try {
       parentVersion = manifestVersionAt(deps, `${sha}^`);
@@ -49,7 +67,13 @@ function isAncestor(deps, ancestor, descendant) {
   try {
     deps.git(['merge-base', '--is-ancestor', ancestor, descendant]);
     return true;
-  } catch {
+  } catch (err) {
+    // execFileSync failures carry `.status`: exit 1 is the benign "not an ancestor" case,
+    // any other status (e.g. 128 — invalid commit name) is a real git failure and must not
+    // be swallowed as a false. Errors without a numeric `.status` (test fakes) read as exit 1.
+    if (err && typeof err.status === 'number' && err.status !== 1) {
+      throw new Error(`could not check ancestry of ${ancestor} in ${descendant}: ${err.message}`);
+    }
     return false; // non-zero exit = not an ancestor
   }
 }
@@ -102,6 +126,9 @@ function releaseStatus(deps, { ref = 'HEAD', merge, records } = {}) {
   if (!merge || !String(merge).trim()) throw new Error('merge commit is required (--merge <sha>)');
   if (!Array.isArray(records) || records.length === 0 || !records.every((n) => Number.isInteger(n) && n > 0)) {
     throw new Error('at least one record number is required (--records 603,604)');
+  }
+  if (isBadRefValue(merge) || isBadRefValue(ref)) {
+    throw new Error('merge commit and ref must not start with "-"');
   }
   const bump = carryingBump(deps, merge, iterBumpCommits(deps, ref));
   if (!bump) return { shipped: false };

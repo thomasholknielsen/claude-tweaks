@@ -172,6 +172,72 @@ test('releaseStatus validates its inputs', () => {
   assert.throws(() => releaseStatus(deps, { merge: 'M', records: ['x'] }), /at least one record number/);
 });
 
+// R1(b): defensive boundary check for non-CLI callers — a leading `-` would otherwise
+// reach git as a bare positional and be parsed as an option.
+test('releaseStatus rejects a --merge or --ref value that starts with "-"', () => {
+  const { deps } = makeDeps();
+  assert.throws(() => releaseStatus(deps, { merge: '-x', records: [1] }), /must not start with "-"/);
+  assert.throws(() => releaseStatus(deps, { merge: 'M', ref: '-x', records: [1] }), /must not start with "-"/);
+});
+
+// R3: a real git failure (exit 128, invalid commit name) must not be swallowed the same
+// way as the benign exit-1 "not an ancestor" case.
+test('releaseStatus rethrows a genuine merge-base failure instead of reading it as "not an ancestor"', () => {
+  const { deps } = makeDeps({ contains: { B2: ['M'], B1: ['M'] } });
+  const badGit = (args) => {
+    if (args.join(' ').startsWith('merge-base --is-ancestor')) {
+      throw Object.assign(new Error('fatal: Not a valid commit name'), { status: 128 });
+    }
+    return deps.git(args);
+  };
+  assert.throws(
+    () => releaseStatus({ ...deps, git: badGit }, { ref: 'main', merge: 'M', records: [603] }),
+    /could not check ancestry of M in B2/,
+  );
+});
+
+test('releaseStatus still reports not-shipped for a bare exit-1 ancestry failure (no .status)', () => {
+  const { deps } = makeDeps({ contains: {} });
+  const result = releaseStatus(deps, { ref: 'main', merge: 'M', records: [603] });
+  assert.deepEqual(result, { shipped: false });
+});
+
+// R4: the primary manifest read (not just the parent-lookup one) gets commit context on failure.
+test('iterBumpCommits wraps a malformed primary manifest with the commit it failed on', () => {
+  const git = (args) => {
+    const key = args.join(' ');
+    if (key.startsWith('cat-file -e ')) return '';
+    if (key.startsWith('log --format=%H ')) return 'X\n';
+    if (key === 'show X:.claude-plugin/plugin.json') return 'not-json';
+    throw new Error(`unexpected git: ${key}`);
+  };
+  const deps = { git, readFile: () => '' };
+  assert.throws(() => findBumpCommits(deps, 'main'), /could not read X's manifest/);
+});
+
+// R5: the `cat-file -e` catch must distinguish "bad ref" from "genuinely missing manifest".
+test('iterBumpCommits reports a bad ref as "could not resolve", not "no plugin manifest"', () => {
+  const git = (args) => {
+    if (args.join(' ').startsWith('cat-file -e ')) {
+      throw new Error("fatal: invalid object name 'bogus'.");
+    }
+    throw new Error('unreachable');
+  };
+  const deps = { git, readFile: () => '' };
+  assert.throws(() => findBumpCommits(deps, 'bogus'), /could not resolve bogus/);
+});
+
+test('iterBumpCommits still reports "no plugin manifest" for a genuinely missing path at a valid ref', () => {
+  const git = (args) => {
+    if (args.join(' ').startsWith('cat-file -e ')) {
+      throw new Error("fatal: path '.claude-plugin/plugin.json' does not exist in 'HEAD'");
+    }
+    throw new Error('unreachable');
+  };
+  const deps = { git, readFile: () => '' };
+  assert.throws(() => findBumpCommits(deps, 'HEAD'), /no plugin manifest at HEAD/);
+});
+
 test('formatBackfillSection renders the also-carried subsection naming only the missing records', () => {
   const result = { shipped: true, version: '1.1.0', bumpCommit: 'B1', entryFound: true, named: [604], missing: [603, 605] };
   const text = formatBackfillSection(result, { merge: 'f061ad86deadbeef' });
