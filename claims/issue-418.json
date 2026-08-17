@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-17T070940-record-418",
-  "sessionId": "ef8c907e-0f79-4d54-a8ce-c875a884c1c6",
-  "claimedAt": "2026-08-17T07:14:32.189Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: build-gate-task-plugin-root-premise-falsified",
+  "releasedAt": "2026-08-17T07:18:03.468Z"
 }
