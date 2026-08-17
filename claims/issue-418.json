@@ -1,7 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-16T172502-record-418",
-  "reason": "failed: build-gate-task-plugin-root-premise-falsified",
-  "releasedAt": "2026-08-16T17:45:21.322Z",
-  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/665"
+  "runId": "2026-08-17T062107-record-418",
+  "sessionId": "d66354e8-a371-5514-be54-b86c4a79b0f3",
+  "claimedAt": "2026-08-17T06:30:24.746Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
