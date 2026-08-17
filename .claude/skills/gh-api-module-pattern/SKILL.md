@@ -27,6 +27,7 @@ URL *path* placeholders (`repos/{owner}/{repo}/…`) are a fourth thing: always 
 - Resolve everything up front in one call where the API allows it (aliased GraphQL: one `i{N}: issue(number:{N}){ databaseId }` per distinct number); throw on a partial result rather than returning a partial map.
 - Per-write calls are each independently try/caught into `{ok: [...], failed: [{…, error}]}` — one failed edge never aborts the batch. An "already exists" 422 is a re-run, not a failure: it lands in `ok` with `already: true` (live-confirmed wording: GitHub answers `Validation failed: Target issue has already been taken`).
 - Error text: join `err.message`/`err.stderr`/`err.stdout`, with a `String(err)` fallback so a non-Error throw never yields an empty `failed[].error`.
+- **Enumerate an operation's full documented error-status set in one sitting.** Adding one status per bug report ships the same misclassification serially: `bin/lib/issues/claim-store.js`'s Contents-API PUT got its 422 create-race branch in `75c8b3b6`, then the symmetric 409 sha-mismatch branch in `4ee0fbcc` — one defect class, found twice, the second time by a review lens. Read the endpoint's documented statuses first (Contents PUT: 404 read-miss, 409 sha-mismatch, 422 create-race) and branch on all of them in the same commit.
 
 ## The CLI wrapper contract
 
