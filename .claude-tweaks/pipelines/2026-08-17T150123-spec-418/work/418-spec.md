@@ -47,3 +47,8 @@ Single PR, mostly `git mv` so history follows. Fresh `main` merge-up immediately
 
 <!-- work-fingerprint: plugin-payload-boundary:move-the-plugin-payload-into-plugin-behind-a-root-manifest-s -->
 
+
+## Blocked / Future Work
+
+- **AC 6 (release shipped + catalog flip + post-release fresh install) is deliberately not executed in this run** — attended-by-design (spec Gotcha) and structurally impossible from a worktree-isolated session. The handoff (exact commands, verification pointer) lives in PR #793's "Release handoff" section and ledger item 7. The PR carries `Refs #418` (not Fixes) so the record stays open until the release is verified; close manually afterward.
+- Unblocks: merging PR #793, then running the ledger-7 release procedure from clean main.
