@@ -25,12 +25,13 @@ test('specify argument-hint accepts a comma-separated record-ref list', () => {
   assert.ok(hint.startsWith('<#N[,#M...]|record-id[,id...]|'), `specify hint must open with the batch grammar, got: ${hint}`);
 });
 
-test('specify Input states the batch is shaping-mode-only, refs-only, and sequential', () => {
+test('specify Input states the batch is shaping-mode-only, refs-only, sequential, and stops on any unresolvable element', () => {
   const src = readFlat('skills/specify/SKILL.md');
-  assert.ok(src.includes('runs shaping mode once per element, in list order, sequentially'), 'sequential-per-element rule missing from specify Input');
-  assert.ok(src.includes('Batch applies to record references only'), 'refs-only rule missing from specify Input');
-  assert.ok(src.includes('stop before touching any record and name the offending element(s)'), 'mixed-list hard-error rule missing from specify Input');
-  assert.ok(src.includes('ordinary free text, resolved through cases 3-5 exactly as today'), 'no-refs free-text fallback missing from specify Input');
+  assert.ok(src.includes('a loop never a fan-out (no Task dispatch, one record at a time)'), 'sequential-per-element (loop, not fan-out) rule missing from specify Input');
+  assert.ok(src.includes('decomposition and topic resolution stay single-input'), 'refs-only rule missing from specify Input');
+  assert.ok(src.includes('a mixed list is a hard input error, rejected with a one-line message naming the offending element'), 'mixed-list hard-error rule missing from specify Input');
+  assert.ok(src.includes('ordinary free text, resolved through cases 3-5 exactly as for any other input'), 'no-refs free-text fallback missing from specify Input');
+  assert.ok(src.includes('stops the whole invocation before any record is shaped'), 'stop-all unresolvable-element rule missing from specify Input');
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-joined flow', () => {
@@ -39,11 +40,15 @@ test('specify Next Actions has a multiple-records-shaped row recommending a comm
   assert.ok(src.includes('`/claude-tweaks:flow #{N1},#{N2},...` — sequential pipeline for every record shaped this run **(Recommended)**'), 'multiple-records row must recommend the comma-joined flow command');
 });
 
-test('shaping-mode Actions Performed documents the per-element outcome vocabulary', () => {
+test('shaping-mode Actions Performed documents the per-element outcome vocabulary and rules out skipped rows', () => {
   const src = readFlat('skills/specify/shaping-mode.md');
-  for (const token of ['`shaped`', '`already shaped, no-op`', '`skipped: {reason}`']) {
+  for (const token of ['`shaped`', '`already shaped, no-op`']) {
     assert.ok(src.includes(token), `outcome token ${token} missing from shaping-mode.md Actions Performed`);
   }
+  // No `skipped` outcome: the batch branch's stop-all failure semantics mean an
+  // unresolvable element never reaches shaping mode at all (SKILL.md's Input,
+  // Comma-list batch form) — every Actions Performed row is a shaped element.
+  assert.ok(src.includes('no `skipped` outcome'), 'stop-all rationale for the missing skipped outcome not documented');
 });
 
 test('demo argument-hint accepts a comma-separated record-ref list', () => {
