@@ -50,14 +50,17 @@ function globToRegExp(glob) {
     // single-'*' rule per star, preserving the pre-#727 behavior for that
     // degenerate shape.
     let source = '';
-    let i = 0;
-    while (i < glob.length) {
-      if (glob.startsWith('/**', i) && i + 3 === glob.length) { source += '(?:/.*)?'; i += 3; continue; }
-      if (glob.startsWith('**/', i) && (i === 0 || glob[i - 1] === '/')) { source += '(?:.*/)?'; i += 3; continue; }
-      if (glob === '**') { source = '.*'; break; }
-      const ch = glob[i];
-      source += ch === '*' ? '[^/]*' : ch.replace(/[.+^${}()|[\]\\?]/, '\\$&');
-      i += 1;
+    if (glob === '**') {
+      source = '.*';
+    } else {
+      let i = 0;
+      while (i < glob.length) {
+        if (glob.startsWith('/**', i) && i + 3 === glob.length) { source += '(?:/.*)?'; i += 3; continue; }
+        if (glob.startsWith('**/', i) && (i === 0 || glob[i - 1] === '/')) { source += '(?:.*/)?'; i += 3; continue; }
+        const ch = glob[i];
+        source += ch === '*' ? '[^/]*' : ch.replace(/[.+^${}()|[\]\\?]/g, '\\$&');
+        i += 1;
+      }
     }
     re = new RegExp(`^${source}$`);
     globRegExpCache.set(glob, re);
