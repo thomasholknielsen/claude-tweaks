@@ -222,15 +222,15 @@ export function buildPluginSnapshot() {
 
 - [ ] **Step 4: perf/.** Same grep over `perf/`; fix hits; run `npm run test:perf 2>&1 | tail -5` — green.
 
-- [ ] **Step 5: Full-suite gate.** `npm test > /tmp/task5-full.log 2>&1; echo exit=$?; grep -E '^# (tests|pass|fail)' /tmp/task5-full.log | tail -3`. Expected: fail count == the release-family failures only (list them in your report by file). Anything else: fix here.
+- [ ] **Step 5: Full-suite gate.** `npm test > /tmp/task5-full.log 2>&1; echo exit=$?; grep -E '^# (tests|pass|fail)' /tmp/task5-full.log | tail -3`. Expected: fail count == the release-family failures (list them in your report by file) plus `tests/changelog-coverage.test.js` (upstream shipped v6.94.0 mid-run; clears at Task 9's merge — do not fix here). Anything else: fix here.
 
 - [ ] **Step 6: Commit** — `git add evals tools perf && git commit -m "Repoint evals/tools/perf at plugin/ payload paths — refs #418"`
 
 ### Task 6: Release machinery — manifest paths + git-subdir mirror composition (TDD)
 
 **Files:**
-- Modify: `plugin/bin/lib/release/compose.js`, `precheck.js`, `status.js`, `run.js`, `mirror.js`; `plugin/bin/lib/hooks/post-tool-use.js` (release-nudge wording, ~lines 176/274)
-- Test: `tests/bin-lib/release/compose.test.js`, `precheck.test.js`, `status.test.js`, `status-cli.test.js`, `run.test.js`, `mirror.test.js`, `tests/hooks-post-tool-use-plugin-version-bump.test.js`, `tests/changelog-coverage.test.js` (check)
+- Modify: `plugin/bin/lib/release/compose.js`, `precheck.js`, `status.js`, `run.js`, `mirror.js`; `plugin/bin/lib/hooks/post-tool-use.js` (release-nudge wording, ~lines 176/274); `plugin/bin/lib/changelog-git.js` (added by Task 4's scope finding — `MANIFEST_PATH` at line ~29 walks git HISTORY, where pre-cutover commits carry the manifest at the OLD root path: implement an explicit both-paths read — try `plugin/.claude-plugin/plugin.json` at a ref, fall back to `.claude-plugin/plugin.json` — so version-bump history walks stay correct across the cutover boundary; apply the same fallback anywhere in `status.js`/`precheck.js` that shows a manifest at an arbitrary historical ref, and update `tests/shipped-record.test.js`'s fixture, which was deliberately left matching the old path)
+- Test: `tests/bin-lib/release/compose.test.js`, `precheck.test.js`, `status.test.js`, `status-cli.test.js`, `run.test.js`, `mirror.test.js`, `tests/hooks-post-tool-use-plugin-version-bump.test.js`, `tests/changelog-coverage.test.js` (check), `tests/shipped-record.test.js`
 
 **Interfaces:**
 - Consumes: Probe 1's recorded catalog entry shape (`probe-1-findings.md`) — the mirror composition MUST use the field spellings the probe proved working; if the probe found no working pin field, compose without a pin, and say so in your report (deliverable deviation review must see).
@@ -247,6 +247,20 @@ export function buildPluginSnapshot() {
 - [ ] **Step 5: Run targeted suites** — `node --test tests/bin-lib/release tests/hooks-post-tool-use-plugin-version-bump.test.js tests/changelog-coverage.test.js 2>&1 | tail -5` — green.
 
 - [ ] **Step 6: Commit** — `git add plugin/bin/lib/release plugin/bin/lib/hooks/post-tool-use.js tests/bin-lib/release tests/hooks-post-tool-use-plugin-version-bump.test.js tests/changelog-coverage.test.js && git commit -m "Repoint release machinery at plugin/ manifest; mirror composes git-subdir sha-pinned catalog entry — refs #418"`
+
+### Task 6b: Self-referential path classifiers (added by Task 4's scope finding)
+
+**Files:**
+- Modify: `plugin/bin/lib/issues/acceptance.js`, `plugin/bin/lib/issues/blast-radius.js`, `plugin/bin/lib/issues/grant-gate.js` (path-prefix tables/patterns that classify THIS repo's work-record files and diffs — currently spelled `skills/`, `bin/`, etc.), plus any policy-glob values Task 4's report names as payload-path-coupled
+- Test: whichever `tests/bin-lib/issues/*` suites pin those prefix tables (derive by grep)
+
+**Interfaces:**
+- Consumes: Task 4's report section naming the classifier hits and policy globs.
+- Produces: classifiers that correctly match BOTH spellings — records/diffs predating the cutover cite `skills/...`; post-cutover ones cite `plugin/skills/...`. Matching both is the correctness requirement (old records stay classifiable); do not drop the old spellings.
+
+- [ ] **Step 1: Read Task 4's report** (`task-4-report.md`) for the exact hit list, then read each named module to understand what the prefix table drives (blast radius scoring, acceptance checks, grant gating).
+- [ ] **Step 2: Update tests first** for the new dual-spelling expectations (red), then extend the prefix tables/patterns to match `plugin/`-prefixed forms alongside the existing ones (green). If a module turns out NOT to consume repo-payload paths (false hit), record that with the evidence and leave it unchanged.
+- [ ] **Step 3: Targeted suites green** (`node --test` over the affected `tests/bin-lib/issues/*` files), then commit: `git commit -m "Teach record classifiers both payload-path spellings across the cutover — refs #418"`
 
 ### Task 7: Docs, CLAUDE.md, and config sweep (with shown no-op checks)
 
