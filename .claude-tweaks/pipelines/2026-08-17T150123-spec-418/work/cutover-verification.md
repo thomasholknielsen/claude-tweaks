@@ -526,6 +526,42 @@ exit=0
 
 **AC 4: PASS** — exit 0, fail 0, skipped 0.
 
+### 4d. A second sibling release landed mid-task — merged and re-verified
+
+While this record was being written, `origin/main` moved again to `63670e69` ("[fast-lane] specify:
+extractor-based Key Files reads"). Re-merged rather than declared done on a stale base — this is
+exactly the class that produced 4b.
+
+```
+$ git merge origin/main
+Auto-merging tests/bin-lib/issues/grouping.test.js
+CONFLICT (content): Merge conflict in tests/bin-lib/issues/grouping.test.js
+```
+
+One conflict, the same shape again: upstream added two exports to the require line while this branch
+had repointed its path. Resolved as upstream's import list + this branch's
+`../../../plugin/bin/lib/issues/grouping` path. Merge commit `78021afd`.
+
+```
+$ /usr/bin/grep -rnE "require\('(\.\./)+bin/" tests/ perf/ tools/ evals/ scripts/
+require-scan-exit=1   (none)
+
+$ npm test; echo exit=$?
+exit=0
+# tests 4539
+# pass 4539
+# fail 0
+# skipped 0
+```
+
+The AC 3 control grep was re-run on this tree too, with the same single CLAUDE.md prose false
+positive and nothing else.
+
+> Standing caveat for whoever merges this branch: two sibling releases landed inside this one task,
+> and both broke the branch in the same way (an upstream edit to a file this branch moved). Re-merge
+> `origin/main` and re-run the full suite immediately before merging, and expect the conflict to be a
+> require-path or path-literal line, not a semantic one.
+
 `tests/changelog-coverage.test.js` cleared as predicted. It appears in Task 8's pre-merge log
 (`…/scratchpad/task8-npmtest.log`) inside failure blocks at lines 64 and 141 of that suite; it appears
 nowhere in this run's log outside passing output, and the run's `fail` count is 0. v6.94.0's CHANGELOG
@@ -658,4 +694,5 @@ The exact release-mirror URL form (`https://github.com/thomasholknielsen/claude-
 installs correctly. No mirror change is needed.
 
 Commits from this task: `d591089b` (README + work/ spec sweep), `d38d5d0d` (origin/main merge),
-`f18d0efe` (repoint the two merged-in tests), plus this record.
+`f18d0efe` (repoint the two merged-in tests), `50c9d24b` (this record + ledger items 5-6),
+`78021afd` (second origin/main merge).
