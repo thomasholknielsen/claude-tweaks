@@ -151,8 +151,9 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
   newest and steals the hook fallback resolver's attribution until the reconciler's
   `isOrphanedMint` sweep catches it (~24h); a dispatch-minted dir (`PIPELINE_RUN_DIR` set on
   entry) belongs to the caller and is left in place. The same removal rule applies to the
-  multi-target abort and the transient-failure stop below. Then stop the pipeline before Step 3 (no worktree, nothing else left behind). Before
-  rendering the card, gather holder-liveness evidence — read-only, best-effort, never more
+  multi-target abort and the transient-failure stop below. Then stop the pipeline before
+  Step 3 (no worktree, nothing else left behind). Before rendering the card, gather
+  holder-liveness evidence — read-only, best-effort, never more
   than a few seconds; absence of any artifact is evidence, not an error, and the card must
   render a verdict either way — never block on the lookup:
 
@@ -160,9 +161,11 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
      already in hand from "Reading claim state."
   2. **Same host?** Compare the blob's `host` to `hostname` — string equality only, no
      network probing. Different → verdict is **Remote holder**; skip steps 3-4.
-  3. **Worktree match:** derive the holder's worktree slug from its `runId` (strip the
-     `{ISO-timestamp}-` prefix, prepend `flow-` — e.g. runId `…T210742-spec-686-687` →
-     `flow-spec-686-687`) and grep `git worktree list` for it, locked or not.
+  3. **Worktree match:** derive the bare `spec-{ids}` portion of the holder's `runId` (strip
+     the `{ISO-timestamp}-` prefix — e.g. runId `…T210742-spec-686-687` → `spec-686-687`) and
+     grep `git worktree list` for that substring, locked or not — it matches both the native
+     `.claude/worktrees/flow-spec-{ids}` naming (illustrated above) and the documented
+     git-fallback naming (`.worktrees/flow/spec-{ids}`, `.worktrees/spec-{ids}`).
   4. **Transcript freshness:** the holder's transcript lives at
      `~/.claude/projects/<project-slug>/<sessionId>.jsonl` (path rule per
      `feedback/session-evaluation.md` — slug is the session's absolute cwd with `/`, space,
@@ -172,7 +175,11 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
      transcript. Take the file's mtime.
   5. **Verdict:** transcript mtime within the last 60 minutes (a judgment default, not a
      protocol constant) → **Live sibling**; same host but no transcript activity within that
-     window (or no transcript found) → **Stale holder**; different host → **Remote holder**.
+     window (or no transcript found) → **Stale holder**; different host → **Remote holder**. The
+     worktree match from step 3 still counts for a Stale-holder verdict: a matched worktree
+     (locked or not) means the holder may still be alive even without a findable transcript, so
+     the card's Stale-holder next step must not recommend reclaim in that case — it directs the
+     user to inspect the matched worktree instead.
 
   ```markdown
   ## Flow: Claim contested
@@ -186,7 +193,9 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
     - Remote holder ({holder-host}). Next: inspect that session on its own machine, or wait
       for the claim to expire.
     - Stale holder — no activity since {transcript-mtime-or-"unknown (no transcript found)"}.
-      Next: `/claude-tweaks:tidy` to sweep and reclaim, or wait for the TTL to expire.}
+      Next: {if step 3 matched a worktree: a worktree for this run still exists — inspect it
+      before any reclaim; a locked worktree usually means a live session. | else:
+      `/claude-tweaks:tidy` to sweep and reclaim, or wait for the TTL to expire.}}
   ```
 
   No `AskUserQuestion` — there is nothing to choose between here; the pipeline cannot proceed
@@ -195,7 +204,9 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
 - **Multi-target run, default (no `keep-going`)** — release every target this run *did* claim so
   far this step (reason `never-started: file-overlap group partial claim`, per
   `_shared/issue-claims.md`'s Failure-posture table), then stop with the same message shape as
-  above, naming every contested target.
+  above, naming every contested target — the liveness lookup (steps 1-5 above) runs per
+  contested target, and the card renders one verdict block per contested target, each drawn
+  from that target's own holder's evidence.
 
 - **Multi-target run with `keep-going`** — downgrade the contested target to a skip (drop it from
   the target list, note it, proceed with the remainder), consistent with `keep-going`'s existing

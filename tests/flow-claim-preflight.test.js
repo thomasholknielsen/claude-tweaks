@@ -107,6 +107,29 @@ test('contest card renders holder liveness — three verdict variants, each with
   assert.match(content, /sessionId/);
   assert.match(content, /git worktree list/);
   assert.match(content, /~\/\.claude\/projects\//);
+
+  // Extract the card region (the fenced ```markdown block for "## Flow: Claim contested")
+  // and confirm each of the three verdict variants carries its own "Next:" step.
+  const cardStart = content.indexOf('## Flow: Claim contested');
+  assert.ok(cardStart !== -1, 'card region should exist');
+  const cardEnd = content.indexOf('```', cardStart);
+  const card = content.slice(cardStart, cardEnd);
+  const nextCount = (card.match(/Next:/g) || []).length;
+  assert.strictEqual(nextCount, 3, 'card should carry exactly one "Next:" step per verdict variant');
+  assert.match(card, /Live sibling on this machine[\s\S]*?Next: wait for it to finish or release/);
+  assert.match(card, /Remote holder \(\{holder-host\}\)\. Next: inspect that session/);
+  assert.match(card, /Stale holder — no activity since[\s\S]*?Next: \{if step 3 matched a worktree/);
+});
+
+test('contest card weighs worktree evidence before recommending reclaim on a Stale-holder verdict (#722)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  // Step 5's verdict rule must not let a matched (possibly-live) worktree be reclaimed on the
+  // strength of an absent transcript alone.
+  assert.match(content, /Stale-holder next step must not recommend reclaim/);
+  assert.match(content, /inspect the matched worktree/);
+  // The card's Stale variant must render that softened next step conditionally rather than
+  // unconditionally pointing at /tidy reclaim.
+  assert.match(content, /inspect it\s*\n\s*before any reclaim; a locked worktree usually means a live session/);
 });
 
 test('contest liveness lookup is evidence-gathering, never a gate or a prompt (#722)', () => {
