@@ -52,3 +52,20 @@ test('releasedEntry: null prState -> prNumber null, no throw', () => {
 test('releasedEntry: merged prState carries its number', () => {
   assert.deepStrictEqual(releasedEntry(42, 'run-x', { number: 9, state: 'MERGED' }), { issueNumber: 42, runId: 'run-x', prNumber: 9 });
 });
+
+// The reconciler's PUT is composed by the shared release-claim module — one write path
+// for every release (Section E CLI, reconciler). Pin the adapter's contract: it delegates
+// to release-claim's writeTombstone with owner/repo split from the slug and the issue
+// number parsed from the blob name, and maps any throw to false.
+test('writeTombstone adapter delegates to bin/lib/release-claim/release.js writeTombstone', () => {
+  const rm = require('../../../bin/lib/reconcile/release-merged');
+  assert.equal(typeof rm.writeTombstone, 'function', 'adapter is exported for this pin');
+  const seen = [];
+  const ok = rm.writeTombstone('acme/w', 'issue-42.json', 'sha42', '{"released":true}', 'merged: reconciled from PR #7', (args) => { seen.push(args); return '{}'; });
+  assert.equal(ok, true);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0].slice(0, 4), ['api', '--method', 'PUT', 'repos/acme/w/contents/claims/issue-42.json']);
+  assert.ok(seen[0].includes('sha=sha42'));
+  assert.ok(seen[0].some((a) => /^message=Release claim issue-42\.json — merged: reconciled from PR #7$/.test(a)));
+  assert.equal(rm.writeTombstone('acme/w', 'issue-42.json', 'sha42', '{}', 'r', () => { throw new Error('HTTP 422'); }), false);
+});

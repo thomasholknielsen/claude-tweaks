@@ -14,6 +14,7 @@ const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload, CLAIMS_BRANCH } = require('../issues/claims');
 const { resolvePrState } = require('./pr-state');
+const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
 
 const GH_TIMEOUT_MS = 5000;
 
@@ -107,20 +108,23 @@ function releasedEntry(issueNumber, runId, prState) {
 }
 
 // Conditional-update — sha = the target file's current blob sha from the
-// fresh read above, per `_shared/issue-claims.md`'s "The lock" step 4/5. A
-// sha mismatch (someone else already broke/re-claimed it) surfaces as an
-// ordinary write failure here; the caller logs it as a release race, exactly
-// the posture that file's Failure posture table documents.
-function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
-  const encoded = Buffer.from(tombstoneContent, 'utf8').toString('base64');
-  const r = ghApi([
-    '--method', 'PUT', `repos/${repoSlug}/contents/claims/${name}`,
-    '-f', `message=Release claim ${name} — ${reason}`,
-    '-f', `content=${encoded}`,
-    '-f', `branch=${CLAIMS_BRANCH}`,
-    '-f', `sha=${sha}`,
-  ]);
-  return r.failure === null;
+// fresh read above, per `_shared/issue-claims.md`'s "The lock" step 4/5. The
+// PUT itself is composed by bin/lib/release-claim/release.js's writeTombstone —
+// the one write path Section E's CLI and this reconciler share — so a sha
+// mismatch (someone else already broke/re-claimed it) surfaces as an ordinary
+// throw there and maps to false here; the caller logs it as a release race,
+// exactly the posture that file's Failure posture table documents. `runner`
+// is injectable for tests; the default keeps this module's 5s gh timeout.
+function writeTombstone(repoSlug, name, sha, tombstoneContent, reason, runner) {
+  const [owner, repo] = repoSlug.split('/');
+  const issueNumber = Number((/^issue-(\d+)\.json$/.exec(name) || [])[1]);
+  const gh = runner || ((args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS }));
+  try {
+    writeTombstoneShared({ owner, repo, issueNumber, sha, tombstoneContent, message: `Release claim ${name} — ${reason}`, runner: gh });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Best-effort in both directions per `_shared/issue-claims.md` — a failed
@@ -210,4 +214,4 @@ function releaseMerged({ cwd } = {}) {
   return { released, skipped };
 }
 
-module.exports = { releaseMerged, decideRelease, releasedEntry, repoSlugOf };
+module.exports = { releaseMerged, decideRelease, releasedEntry, repoSlugOf, writeTombstone };
