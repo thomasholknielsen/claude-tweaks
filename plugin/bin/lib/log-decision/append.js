@@ -76,9 +76,23 @@ function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
   if (!found || found.isFile) return { ok: false, reason: 'not-anchored' };
   const gitRoot = found.dir;
 
-  const root = mainRoot === undefined ? mainCheckoutRoot(cwd) : mainRoot;
-  if (root) {
-    const rootReal = safeReal(root) || root;
+  // `mainRoot: undefined` (production callers' default) means "compute the
+  // anchor" — if mainCheckoutRoot(cwd) can't determine one (cwd not in a git
+  // repo, e.g. a cron job/sandbox script), that's the unknown case this
+  // predicate is documented above to fail CLOSED on, not an invitation to
+  // accept whatever real checkout the run dir happens to sit in ([IL-127]-
+  // class bypass). An explicit `mainRoot: null` is a distinct, deliberate
+  // opt-out kept for callers that only want the .git-file structural gate
+  // above and never asked for a domain match.
+  if (mainRoot === undefined) {
+    const computed = mainCheckoutRoot(cwd);
+    if (!computed) return { ok: false, reason: 'not-anchored' };
+    const rootReal = safeReal(computed) || computed;
+    if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
+    return { ok: true, file: path.join(real, 'decisions.md') };
+  }
+  if (mainRoot) {
+    const rootReal = safeReal(mainRoot) || mainRoot;
     if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
   }
   return { ok: true, file: path.join(real, 'decisions.md') };

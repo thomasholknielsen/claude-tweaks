@@ -12,7 +12,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
+const { gitRepo, linkedWorktreeOf, harnessWorktreeOf } = require('./helpers/git-fixtures');
 const { resolve } = require('../plugin/bin/lib/hooks/run-dir-resolve');
 
 function mkRunDir(main, name) {
@@ -48,6 +48,16 @@ test('env var pointing into a linked worktree is rejected, not adopted', () => {
   assert.strictEqual(out.path, null);
   assert.match(out.message, /shadow|linked worktree/i);
   assert.match(out.message, new RegExp(trapped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+test('env var pointing into a linked worktree NESTED inside the main checkout (.claude/worktrees/<name>) is rejected, not adopted by a path-prefix false positive', () => {
+  const main = gitRepo();
+  const wt = harnessWorktreeOf(main, 'nested-wt');
+  const trapped = mkRunDir(wt, '2026-01-01T000000-spec-8'); // physically under `main` on disk, but inside the linked worktree's own checkout
+  const out = resolve({ cwd: wt, env: { PIPELINE_RUN_DIR: trapped }, specSlug: 'spec-8' });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.path, null);
+  assert.match(out.message, /shadow|linked worktree/i);
 });
 
 test('env var anchored under the main checkout is accepted, even when invoked from a worktree', () => {

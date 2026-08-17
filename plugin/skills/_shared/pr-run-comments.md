@@ -74,7 +74,7 @@ plugin's PR-comment surface that edits rather than always-appends.
    gh pr comment {pr-number} --repo {owner}/{repo} --body-file /tmp/{kind}-comment-{n}.md
    ```
 
-**On failure of either the find or the write** (network, auth, rate limit): log to `decisions.md`
+**On failure of either the find or the write** (network, auth, or a rate limit classified per `_shared/github-rate-limit.md`): log to `decisions.md`
 as a retryable failure per the gate section above and fall back to the issue-only post for that
 call — never silently drop the content.
 

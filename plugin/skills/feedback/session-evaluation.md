@@ -87,7 +87,8 @@ NOT EVALUATED — {reason}
 — or —
 **Finding:** {symptom, one sentence}
 **Evidence:** {transcript excerpt or precise pointer}
-**Measurement:** {counts — countable lenses only; omit the line for judgment lenses}
+**Measurement:** {counts with a session-sizing denominator — countable lenses only; omit the line for judgment lenses}
+**Cost this session:** {one line — retries, hand-work, a reverted decision; "unclear" is valid}
 **Proposed fix:** {concrete solution idea}
 
 Template note (applies to the Avoidable interactions block only, whichever outcome it renders):
@@ -101,9 +102,10 @@ first line, per `_shared/subagent-output-contract.md`.
 
 ## Degradation: self-assessment
 
-Some cloud sandboxes resolve no transcript file at all (Transcript resolution's fallback finds
-nothing in the project-slug directory, or the directory itself doesn't exist). When that happens,
-skip the Task dispatch and evaluate in the main thread instead, over its own conversational
+Two routes land here: no transcript file resolves at all (Transcript resolution's fallback finds
+nothing in the project-slug directory, or the directory itself doesn't exist — skip the Task
+dispatch entirely), or the judge dispatch terminally failed (see After the judge returns). Either
+way, evaluate in the main thread instead, over its own conversational
 context. Reuse the identical per-objective output template, with `(self-assessment)` appended to
 each block's header line — e.g. `## Avoidable interactions (self-assessment)`.
 
@@ -122,10 +124,11 @@ from self-assessment. A `NOT EVALUATED` block is not a finding: report it in the
 never file it.
 
 A reply that violates the template — missing the status line, or missing per-objective blocks —
-is re-prompted once on format, per `_shared/subagent-output-contract.md`. A terminal failure
-(the retry also fails, or the re-dispatch above was already spent) reports the evaluation as
-failed in the run summary; the run proceeds on the queue gather alone, per `skills/feedback/SKILL.md`'s
-failure-isolation rule.
+is re-prompted once on format, per `_shared/subagent-output-contract.md`. A terminal failure —
+the format retry also fails, the re-dispatch above was already spent, or the dispatch itself
+hard-errors (e.g. a model usage-limit failure) — degrades to the self-assessment path above,
+noted in the run summary: the evaluation is never silently dropped, and the queue gather proceeds
+unaffected either way, per `skills/feedback/SKILL.md`'s failure-isolation rule.
 
 **Watermark write.** On a `DONE` or `DONE_WITH_CONCERNS` return from the judge (not
 `NEEDS_CONTEXT`/`BLOCKED`, and not the self-assessment degradation path above), call
