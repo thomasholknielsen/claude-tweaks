@@ -55,6 +55,12 @@ During worktree-mode pipeline runs this rule is mechanically enforced — the pl
 
 **Never run `git stash` in any form.** A dispatched agent shares its worktree with the dispatcher and possibly sibling agents, and `git stash` (worse, `--include-untracked`) sweeps *their* in-flight state — staged edits, untracked files it never saw created — into a stash entry nothing else knows exists; an agent that finishes without restoring it has silently deleted sibling work, and the loss surfaces only when the dispatcher next looks for those files. The stash stack is also shared repo-wide across every worktree, so even a restore can collide with another session's entries. To compare against a clean baseline, read it without mutating the tree: `git show HEAD:<path>` for file contents, `git diff HEAD -- <path>` for what changed. To set your own work aside, make a WIP commit on the branch instead.
 
+## Waiting for Dispatched Agents
+
+The task-notification that arrives when a dispatched agent finishes is the **primary resume signal** — it is what actually wakes the dispatcher, not a park-and-poll loop. Treat it as the default: after dispatching a wave of parallel agents, let their completion notifications drive the next turn.
+
+**Cap parking to one long-delay watchdog per dispatch wave, not one per dispatch.** A `ScheduleWakeup` call for every individual agent in a fan-out is redundant against the notification each one already sends on completion, and it inflates per-wave API-call and context overhead for no additional signal — a six-agent wave gains nothing over one agent's notification arriving six times. If a backstop against a hung or unusually slow wave is genuinely needed, schedule at most one long-delay watchdog for the whole wave, not one per agent dispatched into it.
+
 ## Implementer Status Protocol
 
 Every dispatched agent reports one of four statuses as the first line of its reply (before the output template):
