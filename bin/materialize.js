@@ -19,6 +19,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { parseRecordFacets, extractFingerprint, parseDependencies } = require('./lib/issues/record');
 const { shapeGate, liftMetadata, composeHeader, composeFile } = require('./lib/issues/materialize-format');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]\n';
 
@@ -64,6 +65,17 @@ function run(argv, deps = realDeps) {
   if (opts.help) { deps.stdout(USAGE); return 0; }
   if (!isPos(opts.n)) { deps.stderr('malformed <n> — must be a positive integer\n' + USAGE); return 2; }
   if (!opts.runDir) { deps.stderr('missing required --run-dir\n' + USAGE); return 2; }
+  {
+    // #790/[IL-127]: reject an unanchored --run-dir before any gh/git/fs work.
+    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    if (!wtDetect.isAnchoredUnderRoot(path.resolve(opts.runDir), mainRoot)) {
+      deps.stderr(
+        `materialize.js: --run-dir ${opts.runDir} resolves outside the main checkout`
+        + `${mainRoot ? ` (${mainRoot})` : ''} — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`,
+      );
+      return 2;
+    }
+  }
   if (opts.ceremony && opts.ceremony !== 'fast-lane' && opts.ceremony !== 'standard') { deps.stderr('--ceremony must be fast-lane or standard\n' + USAGE); return 2; }
   if (!deps.ghAvailable()) { deps.stderr('materialize.js: `gh` is required (work-backend: github-issues)\n'); return 2; }
 
