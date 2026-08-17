@@ -59,7 +59,7 @@ Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEE
 `/claude-tweaks:specify` shaping immediately after filing (`Skill(skill: "claude-tweaks:specify",
 args: "#{n} --chained")` — headless, no Next Actions), so the record lands spec-shaped, scored,
 and `ready` under specify's own authority — able to pass `/claude-tweaks:backlog refine` Step
-3.5's spec-shape gate, which a bare `ready` stamp on a 5-line stub never could (#575). See
+3.5's spec-shape gate, which a bare `ready` stamp on a raw stub never could (#575). See
 `_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of any repo that has not
 opted in, this never fires and the paragraph above holds unchanged. A filing that took the
 Shaped-body branch (below) never chains either — there is nothing left to shape.
@@ -240,9 +240,9 @@ Add `needsDefinition: true` to the `facets` object literal above, parallel to `t
 
 ## Shaped-body branch
 
-**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and none of the three placeholder markers `_shared/work-record.md`'s Spec-shaped body section names appears anywhere. Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch below with one line saying why. The deferral check below runs regardless of which branch is taken — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the 5-line stub and today's behavior.
+**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and none of the three placeholder markers `_shared/work-record.md`'s Spec-shaped body section names appears anywhere. Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch below with one line saying why. The deferral check below runs regardless of which branch is taken — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the stub and today's behavior.
 
-On match, skip Entry Format's stub assembly and its 5-line cap, and run this precedence:
+On match, skip Entry Format's stub assembly and its character-budget cap, and run this precedence:
 
 1. **Judging Definition first — and it wins.** `needs:definition` (judged, or `--needs-definition`, or an `## Open Question` section present) → compose via `specShapedBody` with `openQuestion`, `filedBy: 'capture'`, footer `_Filed by \`capture\` via specShapedBody._`, and file with `needs:definition`, no `ready`, no scoring (an undecided record is never born-ready). `--defer-reason=` is **not** required here — a needs-you record is not a deferral; when supplied it is still rendered via `provenance.deferReason`.
 2. **The deferral check.** The filing is a deferral when the body carries an `Origin:` line, `--origin=` was supplied (both content signals — either way the composed body carries provenance), **or** any `--source` value was given — the rule keys on "any `--source`", not named producers. A deferral with no `--defer-reason=` and no `Defer-reason:` line in the text → **stop and report the missing reason; file nothing** (the same hard gate `wrap-up/refused-proposals.md` enforces at the console). This check is evaluated before branch selection — a supplied `--defer-reason=` is never silently dropped on the stub path (a stub deferral's validated value is passed to `recordPayload({deferReason})`, which inserts the body line). This is the one deliberate content-keyed exception where invoker identity enters (`--source` as the headless-caller equivalent of the `Origin:` content signal), named as such.
@@ -268,9 +268,16 @@ Scope: Rough sense of what it might involve (can be vague)
 
 **`work-backend: local-files`** — this becomes the record body under the frontmatter; `local-store.js`'s `writeRecord` composes the `# {title}` heading above it automatically.
 
-### Hard cap: ~5 lines per entry
+### Hard cap: ~400 characters per entry
 
-If it takes more than 5 lines to describe, it's past the raw-capture stage — run `/superpowers:brainstorming` on it instead. Applies to both drivers. The cap governs the stub branch only — a supplied shaped body (see Shaped-body branch above) is exempt by design.
+Measured over the `Context:` + `Scope:` field content combined (the prose after each label, not the labels themselves, not `**Related:**`) — a character budget, not a line count. Line count is gameable: a long paragraph wrapped or packed onto exactly 5 lines is not shorter than the same words spread across ten, and a naive line-count cap lets it through uncapped. Roughly 400 characters matches the two one-line "Good entries" examples below.
+
+When the combined content exceeds the budget, it's past the raw-capture stage — branch on what kind of "past raw-capture" it is:
+
+- **Genuinely undecided, half-formed thinking** (the common case) — run `/superpowers:brainstorming` on it instead.
+- **Already-decided, evidence-carrying content** (an audit- or health-sweep-derived finding that already names a file/line and a determined fix, and would just be padded to fit the stub fields otherwise) — compose it as a spec-shaped body (`## Current State` / `## Deliverables` / `## Acceptance Criteria`) and pass that as `$BODY` instead of the stub fields. This takes the Shaped-body branch above, which has no length cap and files the record scored and `ready` — the sanctioned exception path, not a workaround of this cap.
+
+Applies to both drivers. The cap governs the stub branch only — a supplied shaped body (see Shaped-body branch above) is exempt by design, which is also where the second case above lands.
 
 ## Adding an Entry
 
@@ -395,7 +402,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | Pattern | Why It Fails |
 |---------|-------------|
 | Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec so it stays the source of truth |
-| A *human brain-dump* growing past 5 lines to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
+| A *human brain-dump* growing past the character budget to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
 | Never reviewing the backlog | Without periodic `/claude-tweaks:tidy` triage the backlog becomes a graveyard and ideas lose context |
 | Adding implementation details to a backlog record | A record captures *what* and *why* — *how* is brainstorming + spec territory and shifts faster than the idea |
 | Skipping `/superpowers:brainstorming` and jumping straight to specs | Specs encode unchallenged premises without the assumptions and constraints brainstorming surfaces |
