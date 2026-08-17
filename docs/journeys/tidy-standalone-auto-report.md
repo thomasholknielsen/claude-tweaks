@@ -6,6 +6,7 @@ files:
   - skills/tidy/scan-procedures.md
   - bin/lib/reconcile/release-merged.js
   - bin/lib/reconcile/archive-branches.js
+  - bin/lib/reconcile/prune-remote.js
   - bin/lib/reconcile/reap-merged.js
 ---
 
@@ -19,7 +20,7 @@ files:
 ## Steps
 
 ### 1. Scans run — reconcile converges first
-- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
+- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, the remote-prune check deletes remote plugin-owned branches carrying both signals (a MERGED PR and cherry-equivalence) after refreshing origin, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
 - **Expect:** No approval prompt for any of this — these are reconcile's background-convergence writes, outside the skill-side auto-mode contract; tidy only reports the results.
 
 ### 2. Findings route by the table, not judgment

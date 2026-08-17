@@ -17,16 +17,17 @@ const { reapMerged } = require('./reap-merged');
 const { releaseMerged } = require('./release-merged');
 const { archiveMerged } = require('./archive-merged');
 const { archiveBranches } = require('./archive-branches');
+const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 
 // Execution order (mirror, red-tip, console, release, archive,
-// archive-branches, reap) is significant — see the ordering comment above
-// the release/archive/archive-branches/reap dispatch below. red-tip runs
-// immediately after mirror specifically so it reads the ref mirror-ff.js's
-// own fetch just refreshed, rather than fetching a second time (#561). This
-// array is the requested-subset default only; it is never iterated to
-// determine dispatch order.
-const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'console'];
+// archive-branches, remote-prune, reap) is significant — see the ordering
+// comment above the release/archive/archive-branches/reap dispatch below.
+// red-tip runs immediately after mirror specifically so it reads the ref
+// mirror-ff.js's own fetch just refreshed, rather than fetching a second
+// time (#561). This array is the requested-subset default only; it is never
+// iterated to determine dispatch order.
+const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
 // -> { mirror, worktrees, claims, runs, branches, console, skipped }
@@ -38,7 +39,7 @@ function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
-  const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, console: null, skipped: [] };
+  const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
 
   const root = mainCheckoutRoot(cwd);
   if (!root) {
@@ -72,7 +73,7 @@ function reconcile(opts = {}) {
         result.skipped.push({ check: 'reap', reason: 'deferred', count: legacy.deferred });
       }
     }
-    result.skipped.push({ check: 'mirror,release,archive,archive-branches,console', reason: 'local-merge-model' });
+    result.skipped.push({ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' });
     return result;
   }
 
@@ -144,6 +145,19 @@ function reconcile(opts = {}) {
       result.skipped.push({ check: 'archive-branches', reason: r.failure });
     } else {
       result.branches = r.entries;
+    }
+  }
+
+  // The family's one pushed mutation (see prune-remote.js's header for the
+  // two-signal evidence bar). Same live-ref dependency as archive-branches:
+  // the worktree-attachment guard must read worktrees reap has not yet
+  // removed, so this too runs before reap (which stays last — see above).
+  if (checks.includes('remote-prune')) {
+    const r = pruneRemote({ cwd: root, integration, dryRun });
+    if (r.failure) {
+      result.skipped.push({ check: 'remote-prune', reason: r.failure });
+    } else {
+      result.remoteBranches = r.entries;
     }
   }
 
