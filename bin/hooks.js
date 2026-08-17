@@ -309,6 +309,42 @@ async function main(argv) {
     process.stdout.write(JSON.stringify(out) + '\n');
     return 0;
   }
+  if (cmd === 'reconcile-background') {
+    // Detached-process counterpart to the `reconcile` subcommand above:
+    // session-start.js's fast path spawns this (see that file's own header
+    // comment on the fast/background split, #820 D8) to run only the
+    // write-only janitorial checks off the hot path. Never a session-
+    // blocking failure — this process is detached (spawn'd with
+    // `detached: true, stdio: 'ignore'` and unref'd) and nothing reads its
+    // exit code or stdout, so every path below returns 0 and best-effort
+    // swallows its own errors rather than surfacing them anywhere.
+    const cwd = process.cwd();
+    const { reconcile } = require('./lib/reconcile');
+    const { mainCheckoutRoot } = require('./lib/hooks/worktree-detect');
+    const BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
+    let summary = {};
+    try {
+      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS, skipIfFresh: true, ttlMs: require('./lib/reconcile/cache').DEFAULT_TTL_MS });
+      summary = {
+        released: (r.claims || []).filter((c) => c.action === 'released').length,
+        archived: (r.runs || []).filter((x) => x.action === 'archived').length,
+        archivedBranches: (r.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete')).length,
+        prunedRemote: (r.remoteBranches || []).filter((b) => b.action === 'delete').length,
+        reaped: (r.worktrees || []).filter((w) => w.action === 'reaped').length,
+        skipped: r.skipped || [],
+      };
+    } catch {
+      summary = { failed: true };
+    }
+    const root = mainCheckoutRoot(cwd) || cwd;
+    const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
+    try {
+      fs.mkdirSync(path.dirname(statusPath), { recursive: true });
+      fs.writeFileSync(statusPath, JSON.stringify({ completedAt: Date.now(), summary, surfaced: false }));
+    } catch { /* best-effort — this process is detached and unwatched either way */ }
+    process.stdout.write('claude-tweaks: reconcile-background complete\n');
+    return 0;
+  }
   if (!EVENTS.includes(cmd)) return 0;
   const mod = loadModule(cmd);
   if (!mod || typeof mod.run !== 'function') return 0;

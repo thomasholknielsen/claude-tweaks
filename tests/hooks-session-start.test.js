@@ -305,6 +305,71 @@ test('verdict banner: no policy.yml anywhere in the ancestor chain — no verdic
   else assert.deepStrictEqual(out, {});
 });
 
+// #820 D8 (corrected): the write-only janitorial checks (release, archive,
+// archive-branches, remote-prune, reap) no longer run inline as part of
+// SessionStart's own reconcile() call — they run in a detached
+// `reconcile-background` child process, and SessionStart's job is only to
+// surface a PRIOR pass's already-written status file, once. A real detached
+// spawn's timing is too racy to depend on in a test (see the spawn-triggering
+// test below, which covers that separately) — this test instead writes the
+// status-file fixture directly, runs the hook twice, and asserts the summary
+// line appears on the first firing (and flips `surfaced` to true) but not on
+// the second.
+test('SessionStart surfaces a prior background reconcile pass exactly once (#820, D8)', async () => {
+  const project = gitProject();
+  const statusDir = path.join(project, '.claude-tweaks');
+  fs.mkdirSync(statusDir, { recursive: true });
+  const statusPath = path.join(statusDir, 'reconcile-background-status.json');
+  fs.writeFileSync(statusPath, JSON.stringify({
+    completedAt: Date.now(), surfaced: false, summary: { released: 2, archived: 1 },
+  }));
+
+  const first = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(
+    first.json.hookSpecificOutput.additionalContext,
+    /background reconcile \(from a prior session\).*2 issue claim\(s\) released.*1 pipeline run\(s\) archived/,
+  );
+  const statusAfterFirst = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+  assert.strictEqual(statusAfterFirst.surfaced, true, 'the status file must be marked surfaced after the first firing');
+
+  const second = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (second.json) {
+    assert.doesNotMatch(second.json.hookSpecificOutput.additionalContext, /background reconcile/);
+  }
+});
+
+test('SessionStart spawns a detached reconcile-background pass when the cache is stale, not when fresh (#820, D8)', async () => {
+  // Stubs `require('child_process').spawn` at the module-object level, the
+  // same require.cache convention this file's #561 test uses to stub
+  // reconcile() — session-start.js's `run(ctx)` is called directly
+  // (in-process), never through a subprocess, so the stub is guaranteed to
+  // be observed by the code under test (a stub in this file's own process
+  // would have NO effect on a real `node bin/hooks.js session-start`
+  // subprocess, which is why this test avoids shelling out at all).
+  const cache = require('../bin/lib/reconcile/cache');
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {} }; };
+  try {
+    const freshProject = gitProject();
+    cache.writeCache(freshProject, { lastRunAt: Date.now(), claimShas: {} }); // fresh — must NOT spawn
+    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: freshProject });
+    assert.strictEqual(spawnedWith, null, 'a fresh cache must not trigger a background spawn');
+
+    const staleProject = gitProject();
+    cache.writeCache(staleProject, { lastRunAt: Date.now() - 3600000, claimShas: {} }); // stale — must spawn
+    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: staleProject });
+    assert.ok(spawnedWith, 'a stale cache must trigger a background spawn');
+    assert.strictEqual(spawnedWith[0], process.execPath);
+    assert.ok(spawnedWith[1][0].endsWith(path.join('bin', 'hooks.js')));
+    assert.strictEqual(spawnedWith[1][1], 'reconcile-background');
+    assert.strictEqual(spawnedWith[2].detached, true);
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
+
 test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed — no verdict line, hook does not throw', async () => {
   // readPolicyFile/parseFlatLines already fail safe for garbled *content* (a
   // directory at .claude-tweaks/policy.yml resolves to `{}` via the internal

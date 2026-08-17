@@ -2,16 +2,26 @@
 // detection + advisory nudge toward worktree setup when the project's
 // policy requires it.
 'use strict';
+const fs = require('fs');
 const path = require('path');
 const deps = require('../deps');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
-const reaper = require('./worktree-reap');
 const runIntegrity = require('./run-integrity');
 const { reconcile } = require('../reconcile');
 
 const MAX_REPORTED = 3;
+// The fast/background split (#820, D8, corrected): SessionStart's own
+// process runs only the cheap read/detect checks inline — everything
+// write-only and janitorial (release/archive/archive-branches/remote-prune/
+// reap) is deferred to a detached `reconcile-background` child process (see
+// bin/hooks.js's `reconcile-background` subcommand), whose result is
+// surfaced on a LATER SessionStart firing via the status-file read below.
+// This corrects the original issue's premise (hooks.json's `async: true`
+// discards a hook's stdout/JSON output entirely — unusable for a check
+// whose whole point is to report what it did).
+const FAST_CHECKS = ['mirror', 'red-tip', 'console'];
 
 async function run(ctx) {
   const parts = [];
@@ -66,75 +76,24 @@ async function run(ctx) {
     // the pre-#408 direct reaper.reapWorktrees call did (mainCheckoutRoot,
     // never repoInfo().repoRoot — see `_shared/integration-branch.md`'s named
     // anti-pattern for why a linked worktree's own HEAD must never stand in
-    // for the shared trunk). Under pr-first this replaces the old block with
-    // mirror-ff + release + archive + reap, in that order — reap dispatches
-    // last inside the module precisely so a just-reaped worktree can't starve
-    // release/archive's own branch derivation (the ordering hazard this
-    // block used to guard by hand, now the module's own contract, asserted
-    // by `tests/reconcile.test.js`'s dispatch-order pin rather than a comment
-    // here). Under local-merge, the module falls back to the same
-    // ancestry-based reap this block always ran, so a project that has not
-    // opted into pr-first sees no behavior change.
-    const result = await reconcile({ cwd: ctx.cwd });
-    const reaped = (result.worktrees || []).filter((w) => w.action === 'reaped').map((w) => w.path);
-    const skippedWorktrees = (result.worktrees || []).filter((w) => w.action === 'skipped');
+    // for the shared trunk). FAST_CHECKS restricts this inline call to the
+    // cheap read/detect checks only (mirror, red-tip, console) — the
+    // write-only janitorial checks (release/archive/archive-branches/
+    // remote-prune/reap) run in a detached background process instead (see
+    // the spawn block below), and their results are surfaced on a LATER
+    // SessionStart firing via the status-file read below, not here (#820,
+    // D8, corrected).
+    const result = await reconcile({ cwd: ctx.cwd, checks: FAST_CHECKS });
 
-    // log tier (CLAUDE.md Hooks: block/warn/inform/log) — write to
-    // ctx.ownedRun, NOT ctx.runDir. runDir is the enforcement-scoped "newest
-    // non-terminal run regardless of owner"; ownedRun is the narrower run
-    // this session may actually write to (#62). post-tool-use.js's E2
-    // commit-breadcrumb block follows the identical pattern.
-    const ownedRun = ctx.ownedRun || {};
-    if (ownedRun.dir) {
-      for (const p of reaped) {
-        ctxLib.appendEvent(ownedRun.dir, 'worktree-reaped', { path: p }, ownedRun.attribution);
-      }
-      for (const s of skippedWorktrees) {
-        ctxLib.appendEvent(ownedRun.dir, 'worktree-reap-skipped', { path: s.path, reason: s.reason }, ownedRun.attribution);
-      }
-      // Candidates the per-run cap never examined (local-merge fallback
-      // only — the pr-first reap check has no such cap). Without this the
-      // audit trail cannot distinguish "nothing else to consider" from
-      // "stopped counting" — a silent truncation reads as full coverage
-      // (CLAUDE.md: no silent caps).
-      const deferredEntry = (result.skipped || []).find((s) => s.check === 'reap' && s.reason === 'deferred');
-      if (deferredEntry) {
-        ctxLib.appendEvent(ownedRun.dir, 'worktree-reap-deferred', { count: deferredEntry.count, cap: reaper.MAX_EXAMINED_PER_RUN }, ownedRun.attribution);
-      }
-    }
-    if (reaped.length) {
-      parts.push(
-        `claude-tweaks: removed ${reaped.length} finished worktree(s) whose work is already merged:\n` +
-          reaped.map((p) => `- ${path.basename(p)}`).join('\n'),
-      );
-    }
-    // Reasons that describe the normal state of a healthy repo (a live
-    // session's own worktree, the `.worktrees/` domain this reaper does not
-    // own, a stale-pid lock still inside its grace period) are logged but not
-    // reprinted on every session start — see QUIET_SKIP_REASONS.
-    const notableWorktrees = skippedWorktrees.filter((s) => !reaper.QUIET_SKIP_REASONS.has(s.reason));
-    if (notableWorktrees.length) {
-      parts.push(
-        'claude-tweaks: worktree(s) left in place:\n' +
-          notableWorktrees.map((s) => `- ${path.basename(s.path)} — ${s.reason}`).join('\n'),
-      );
-    }
-
-    // One added summary line for what reconcile() did beyond reap — mirror
-    // ff, claim releases, run-dir archival. An addition within the existing
-    // additionalContext shape, not a reshape: silent when nothing changed.
+    // One added summary line for what the fast path did — today just mirror
+    // ff, the only FAST_CHECKS member that ever populates it. The write-only
+    // checks that used to contribute to this same line (claim releases,
+    // run-dir archival, branch/remote-branch pruning) moved to the
+    // background pass and are surfaced separately below.
     const summary = [];
     if (result.mirror && result.mirror.action === 'fast-forwarded') {
       summary.push('integration branch fast-forwarded to origin');
     }
-    const released = (result.claims || []).filter((c) => c.action === 'released');
-    if (released.length) summary.push(`${released.length} issue claim(s) released`);
-    const archived = (result.runs || []).filter((r) => r.action === 'archived');
-    if (archived.length) summary.push(`${archived.length} pipeline run(s) archived`);
-    const archivedBranches = (result.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete'));
-    if (archivedBranches.length) summary.push(`${archivedBranches.length} local branch(es) archived/deleted`);
-    const prunedRemote = (result.remoteBranches || []).filter((b) => b.action === 'delete');
-    if (prunedRemote.length) summary.push(`${prunedRemote.length} merged remote branch(es) deleted on origin`);
     if (summary.length) {
       parts.push(`claude-tweaks: reconciled — ${summary.join('; ')}.`);
     }
@@ -162,6 +121,57 @@ async function run(ctx) {
       );
     }
   } catch { /* best-effort */ }
+  try {
+    // Surface a PRIOR session's background reconcile pass exactly once
+    // (#820, D8). The background pass (bin/hooks.js's `reconcile-background`
+    // subcommand, spawned below) writes its outcome to a status file with no
+    // reader of its own — this is that reader. `surfaced` flips to true the
+    // first time a SessionStart firing reports it, so a summary from three
+    // sessions ago doesn't reappear on every subsequent session start.
+    const root = wtDetect.mainCheckoutRoot(ctx.cwd);
+    if (root) {
+      const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
+      let status = null;
+      try { status = JSON.parse(fs.readFileSync(statusPath, 'utf8')); } catch { /* none yet */ }
+      if (status && status.surfaced === false) {
+        const s = status.summary || {};
+        const lines = [];
+        if (s.reaped) lines.push(`${s.reaped} finished worktree(s) removed (already merged)`);
+        if (s.released) lines.push(`${s.released} issue claim(s) released`);
+        if (s.archived) lines.push(`${s.archived} pipeline run(s) archived`);
+        if (s.archivedBranches) lines.push(`${s.archivedBranches} local branch(es) archived/deleted`);
+        if (s.prunedRemote) lines.push(`${s.prunedRemote} merged remote branch(es) deleted on origin`);
+        if (lines.length) {
+          parts.push(`claude-tweaks: background reconcile (from a prior session) — ${lines.join('; ')}.`);
+        }
+        try {
+          fs.writeFileSync(statusPath, JSON.stringify({ ...status, surfaced: true }));
+        } catch { /* best-effort */ }
+      }
+    }
+  } catch { /* best-effort */ }
+  try {
+    // Spawn the detached background pass — TTL-gated by the same
+    // skipIfFresh cache (bin/lib/reconcile/cache.js, Task 6/9) reconcile()
+    // itself uses, so near-simultaneous session starts don't each spawn a
+    // redundant background process. `detached: true` + `stdio: 'ignore'` +
+    // `child.unref()` together let this process exit without waiting on the
+    // child, and without the child dying alongside it.
+    const { spawn } = require('child_process');
+    const { readCache, isFresh } = require('../reconcile/cache');
+    const root = wtDetect.mainCheckoutRoot(ctx.cwd);
+    if (root) {
+      const cache = readCache(root);
+      if (!isFresh(cache, Date.now())) {
+        const child = spawn(
+          process.execPath,
+          [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
+          { cwd: ctx.cwd, detached: true, stdio: 'ignore' },
+        );
+        child.unref();
+      }
+    }
+  } catch { /* best-effort — a failed spawn just means this session's background pass didn't fire; the next one tries again */ }
   try {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
     // ancestor chain, there is definitely nothing to enforce — skip forking
