@@ -87,7 +87,7 @@ test('step-6-auto.md: Report rules state the 40-line digest rule and the report.
   const rules = section(STEP6, '### Report rules', '#### Conformance scan');
   assert.match(rules, /\*\*40 lines\*\*/);
   assert.match(rules, /\{run-dir\}\/report\.md/);
-  assert.match(rules, /Below 40 lines nothing extra is written/);
+  assert.match(rules, /At 40 lines or fewer nothing extra is written/);
 });
 
 test('step-6-auto.md: a conformance scan sits between Report rules and the Hard gate, one row per rule with a remedy', () => {
