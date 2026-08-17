@@ -1,6 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-14T213255-dispatch-standalone",
-  "reason": "merged: reconciled from PR #444",
-  "releasedAt": "2026-08-14T22:29:05.722Z"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:31:56.887Z"
 }
