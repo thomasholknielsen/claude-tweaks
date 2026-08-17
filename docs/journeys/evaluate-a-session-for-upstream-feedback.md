@@ -19,8 +19,8 @@ files:
 - **URL:** `/claude-tweaks:feedback`
 - **Action:** Invoke with no arguments. The skill resolves the session transcript (`~/.claude/projects/<project-slug>/<session-id>.jsonl`) and dispatches one judge agent with the rubric and output template inlined; it also gathers any waiting `upstream-candidate` queue items into the same batch.
 - **Should feel:** Hands-off — after the invocation, nothing asks for input until the single confirmation at the end.
-- **Should understand:** The judge reads the main session's transcript only — work done inside dispatched Task agents is a named coverage gap, not silently included. When `$CLAUDE_CODE_SESSION_ID` is unset and several recent transcripts exist, the report names the file it chose (with mtime) and lists the siblings it ignored.
-- **Red flags:** A second `AskUserQuestion` appearing mid-flow; a transcript picked silently when siblings were modified within the last 24 hours.
+- **Should understand:** The judge reads the main session's transcript only — work done inside dispatched Task agents is a named coverage gap, not silently included. When `$CLAUDE_CODE_SESSION_ID` is unset and several recent transcripts exist, the report names the file it chose (with mtime) and lists the siblings it ignored. A prior run against this same transcript left a watermark (byte offset); by default this invocation evaluates only the content since that offset, omitting findings the watermark already covers — pass `--full` to ignore the watermark, run the un-scoped judge over the whole transcript, and overwrite the watermark with the fresh result.
+- **Red flags:** A second `AskUserQuestion` appearing mid-flow; a transcript picked silently when siblings were modified within the last 24 hours; a re-run silently re-surfacing findings the watermark should have already covered with no `--full` passed.
 
 ### 2. Read the evaluation — terminal
 - **URL:** same session, when the judge returns
@@ -46,4 +46,6 @@ files:
 ## Origin
 - Created during build of #509 (bare `/claude-tweaks:feedback` evaluates the session against the maintainer-objective rubric via a dispatched transcript judge)
 - Steps 1-4 built in this session
+- Updated during build of #679 (`bin/lib/feedback/watermark.js` — evaluation watermark read/write) — Step 1 now documents the default incremental-since-watermark behavior and the `--full` override.
 - Related journeys: `file-upstream-feedback-in-batch` (the batch confirmation contract this flow shares)
+- Related specs: #679

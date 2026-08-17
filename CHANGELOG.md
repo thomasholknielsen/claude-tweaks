@@ -39,6 +39,14 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.92.0 — Post-merge release-carrier check + backfill journey (#678); premise-verified release row in flow's Next Actions (#680); argv-safe /feedback filing with read-back verification (#681); worktree-always twin keyed on the running build + session-start verdict banner (#682, IL-133); scratch-worktree teardown check + pr-first remote-branch cleanup (#683); /feedback evaluation watermark for delta re-judging (#679)
+
+Post-merge release-carrier check + backfill journey (#678); premise-verified release row in flow's Next Actions (#680); argv-safe /feedback filing with read-back verification (#681); worktree-always twin keyed on the running build + session-start verdict banner (#682, IL-133); scratch-worktree teardown check + pr-first remote-branch cleanup (#683); /feedback evaluation watermark for delta re-judging (#679).
+
+## v6.91.0 — Terminal Next Actions on the auto-mode not-silenced list — navigation affordance outside consoleAutoResolve, recommended line is the actual next command (#716); reconcile remote-prune for merged plugin branches + tidy Mark-as-specified routing (#570)
+
+Terminal Next Actions on the auto-mode not-silenced list — navigation affordance outside consoleAutoResolve, recommended line is the actual next command (#716); reconcile remote-prune for merged plugin branches + tidy Mark-as-specified routing (#570).
+
 ## v6.90.0 — Staged-patch stage-time validation + description fallback (#674), curation-judge stagePath verification + shadow sweep (#675), framing:baked → solution:unjustified rename un-dormanting the backlog needs-you lane (#677), specify/demo #N,#M batch argument (#695), tidy report rendering width discipline + batch-pasteable commands (#685), consolidated console AUTO-RESOLVED rendering under consoleAutoResolve (#714), Next Actions omission-only recommended-slot rule (#730)
 
 Staged-patch stage-time validation + description fallback (#674), curation-judge stagePath verification + shadow sweep (#675), framing:baked → solution:unjustified rename un-dormanting the backlog needs-you lane (#677), specify/demo #N,#M batch argument (#695), tidy report rendering width discipline + batch-pasteable commands (#685), consolidated console AUTO-RESOLVED rendering under consoleAutoResolve (#714), Next Actions omission-only recommended-slot rule (#730).

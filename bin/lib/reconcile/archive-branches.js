@@ -3,8 +3,10 @@
 // tags the archival path creates. Pure decision functions with I/O at the
 // edges, matching release-merged.js's pattern. All mutations are local to
 // this checkout — never a pushed deletion, never a pushed tag; different
-// checkouts converge independently (origin-side cleanup belongs to PR
-// merges and tidy's remote-ref pruning).
+// checkouts converge independently. Origin-side cleanup belongs to PR
+// merges, tidy's remote-ref pruning, and — for plugin-owned branches
+// proven merged (MERGED PR + cherry-equivalence) — the sibling
+// prune-remote.js check, the family's one pushed mutation.
 //
 // Tags created here are annotated local tags (`git tag -a -f`), aged from
 // their own tagger date — the clock starts when the tag is created, not
@@ -149,4 +151,4 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   return { entries, failure: null };
 }
 
-module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS };
+module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, isCherryEquivalent };

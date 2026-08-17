@@ -141,3 +141,39 @@ test('AC4: every remaining "ready-to-merge" mention across skills/ is local-merg
   walk(path.join(ROOT, 'skills'));
   assert.deepStrictEqual(offenders, [], `files mentioning ready-to-merge without local-merge scoping: ${offenders.join(', ')}`);
 });
+
+test('Step 4 runs the release-status check before reconcile and stages — never writes — the CHANGELOG backfill (#678)', () => {
+  const step4 = MERGE.indexOf('## Step 4: Post-merge reconcile');
+  const conflict = MERGE.indexOf('## Conflict path');
+  assert.ok(step4 > 0 && conflict > step4, 'Step 4 must precede the Conflict path');
+  const section = MERGE.slice(step4, conflict);
+  assert.match(section, /### Step 4\.1: Which release carried this\?/, 'Step 4.1 subheading exists');
+  assert.match(section, /### Step 4\.2: Reconcile/, 'Step 4.2 subheading exists');
+  assert.match(section, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/release\.js" status --merge/, 'Step 4.1 invokes the status subcommand');
+  assert.match(section, /--records/, 'record numbers are passed explicitly');
+  assert.match(section, /staged\/release-backfill-v\{version\}\.md/, 'the already-carried outcome stages the backfill artifact');
+  assert.match(section, /STAGED \{time\}/, 'the staged row is auto-decision-logged');
+  assert.match(section, /never edits `CHANGELOG\.md`/i, 'Step 4 never writes CHANGELOG.md directly');
+  const status = section.indexOf('node "${CLAUDE_PLUGIN_ROOT}/bin/release.js" status');
+  const reconcile = section.indexOf('bin/hooks.js" reconcile');
+  assert.ok(status >= 0 && reconcile >= 0, 'both calls must be present within Step 4');
+  assert.ok(status < reconcile, 'the status check now runs before the reconcile call');
+});
+
+test('the three local-merge fallback sections route the post-merge release-status check to Step 4.1 (#678)', () => {
+  assert.match(SETTLE, /pr-first-merge\.md` Step 4\.1/);
+  assert.match(WORKTREE_MERGE, /pr-first-merge\.md` Step 4\.1/);
+  assert.match(CONSOLE, /pr-first-merge\.md` Step 4\.1/);
+});
+
+test('/flow closing reports carry the release-status line verbatim (#678)', () => {
+  const summary = read('skills', 'flow', 'summary-template.md');
+  // The multi-spec closing template moved to multispec-summary.md in #724's
+  // 20KB extraction — the release-status line travels with it.
+  const multi = read('skills', 'flow', 'multispec-summary.md');
+  const comments = read('skills', '_shared', 'pr-run-comments.md');
+  assert.match(summary, /\*\*Release status:\*\* \{/, 'single-spec summary renders the release-status line');
+  assert.match(multi, /\*\*Release status:\*\* \{/, 'multi-spec summary template renders the release-status line');
+  assert.match(summary, /not yet in a release — bump pending/, 'the human form is quoted verbatim');
+  assert.match(comments, /`release-status`/, 'pr-run-comments.md lists the release-status comment kind');
+});

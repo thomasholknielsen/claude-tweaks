@@ -2,6 +2,8 @@
 
 One shared procedure, referenced by both `/claude-tweaks:flow` and `/claude-tweaks:build` wherever either accepts a work record reference (`#N` / `#A,#B`) as input. It resolves the record, hard-gates on spec shape, and writes the one build-time file everything downstream (`/superpowers:writing-plans`, execution, verification, review) then treats exactly as it treated a spec file. This is the single definition of the materialized header — every consumer of `surface:`/`design-intent:`/`size:`/etc. reads it from here; nothing else restates the format.
 
+**`bin/materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>]`** implements this file's resolution (`work-backend: github-issues`), the Materialization hard gate, header composition (`bin/lib/issues/materialize-format.js`), and the write, mechanically — `/flow`/`/build` invoke it for `github-issues` records instead of hand-composing the header inline per run. `--ceremony` is required only as a fallback when the record carries no `ceremony:*` label (the CLI cannot itself invoke the `assess-agent-autonomy` `ceremony-check` LLM judgment call below — the caller runs that first and passes the verdict through). `work-backend: local-files` is not yet wired into this CLI; that driver still reads inline per the procedure below.
+
 ## Resolution
 
 Input is one or more record references: `#N` (single) or `#A,#B,...` (comma-joined, no spaces — mirrors the existing multi-spec-number convention). Resolve each record independently, the same way regardless of how many are in the batch.

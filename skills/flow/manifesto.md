@@ -22,9 +22,9 @@ Walk the precedence chain (see `_shared/auto-mode-contract.md`):
 
 For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
 
-**Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree-always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered or accepted. This is enforced mechanically by a `PreToolUse` gate (see `_shared/git-discipline.md`), so a stale/overridden config value would simply get every edit denied; the Manifesto short-circuits to `worktree` here to avoid presenting a choice that can't actually be honored.
+**Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree-always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered. This is enforced mechanically by a `PreToolUse` gate (`_shared/git-discipline.md`); the Manifesto short-circuits to `worktree` to avoid presenting a choice that can't be honored.
 
-**Ceremony profile computation.** Unlike the other levers (policy preferences resolved via the precedence chain above), `ceremony-profile`'s value is computed by folding every record's materialized `ceremony:` header field (`materialize.md`) with a logical AND: `fast-lane` only when every record in this run has `ceremony: fast-lane`; any record missing the field (defaults to `standard`) or carrying an explicit `standard` sends the whole run's `ceremony-profile` to `standard` — mirrors the auto-merge gate's existing "every member of the group must carry `auto:merge`" rule (`dispatch/SKILL.md`'s Auto-merge gate). Source is always `header`. The computed value still becomes this lever's Recommended value, which the human can override via the normal `9=value` mechanism below — unlike Design intent (a prior human decision from `/specify`, not re-litigated here), `ceremony-check`'s verdict is itself a fresh automated judgment call, and this Manifesto is the first point a human sees it.
+**Ceremony profile computation.** Unlike the other levers (policy preferences resolved via the precedence chain above), `ceremony-profile`'s value is computed by folding every record's materialized `ceremony:` header field (`materialize.md`) with a logical AND: `fast-lane` only when every record in this run has `ceremony: fast-lane`; any record missing the field (defaults to `standard`) or carrying an explicit `standard` sends the whole run's `ceremony-profile` to `standard` — mirrors the auto-merge gate's existing "every member of the group must carry `auto:merge`" rule (`dispatch/SKILL.md`'s Auto-merge gate). Source is always `header`. The computed value still becomes this lever's Recommended value, overridable via the normal `9=value` mechanism below — unlike Design intent (locked in from `/specify`), `ceremony-check`'s verdict is a fresh automated judgment call, and this Manifesto is the first point a human sees it.
 
 ## Compute per-spec preview
 
@@ -97,44 +97,24 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 2 | Scope-creep | **add-to-plan** | **add-to-plan** / stop-and-ask / drop | Files outside plan auto-added; nothing dropped silently |
 | 5 | Leftover routing | **defer** | **defer** / backlog / drop | Unfinished sections → a new work record (parked), reversible at Review Console |
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
-| 7 | Review auto-apply ceiling | **{computed}** | none / low / medium | Computed ceiling-conditionally per the Recommendation-defaults row: `medium` under an `unattended` autonomy ceiling, `low` otherwise. At `low`: LOW findings auto-applied, MED staged, HIGH still prompts; at `medium`: MED auto-applies too |
+| 7 | Review auto-apply ceiling | **{computed}** | none / low / medium | Ceiling-conditional (see Recommendation defaults below): `low` — LOW auto-applied, MED staged, HIGH prompts; `medium` — MED also auto-applies |
 | 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
-| 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge into the integration branch waits for — derived per `_shared/policy-schema.md`'s `merge-verification` coverage block (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification`); explicit `policy.yml` value wins. Merge sites act on it from #560 onward |
-| 12 | Design critique | **{resolved}** | off / **auto** / full | `off (never) / auto (critics when DESIGN.md exists or the record asks) / full (always)` — governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` (the JSON envelope, so `source` is available for the log line); Recommended = the resolved `value`; log its resolution to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
+| 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge waits for — derived per `_shared/policy-schema.md`'s `merge-verification` coverage block; explicit `policy.yml` value wins |
+| 12 | Design critique | **{resolved}** | off / **auto** / full | Governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` (JSON envelope; `source` available for the log line); Recommended = resolved `value`; log to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
 
 **Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records: none/none/quiet), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11, 12.
 
-#### Override semantics (read before overriding)
+#### Override semantics
 
-| Lever | Option | What changes |
-|---|---|---|
-| Mode | `hybrid` | Same as auto but skills still prompt when reversibility/confidence/severity floors fail |
-| Mode | `interactive` | Skips the Manifesto pipeline-wide; every skill presents decisions in-flow as today |
-| Scope-creep | `stop-and-ask` | Pipeline pauses inline when files outside plan are referenced |
-| Scope-creep | `drop` | Files outside plan are noted in `decisions.md` but not added |
-| Leftover routing | `backlog` | Unfinished sections route to a new work record with no stage label, instead of `parked` |
-| Leftover routing | `drop` | Unfinished sections are noted in `decisions.md` but no work record staged |
-| Auto-fix threshold | `lint-only` | Type errors surface as prompts; tests always surface |
-| Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
-| Review auto-apply ceiling | `none` | All findings auto-applied (lowest friction, highest revert load) |
-| Review auto-apply ceiling | `medium` | LOW + MED auto-applied; only HIGH prompts |
-| Ceremony profile | `standard` | Forces full-depth wrap-up ceremony (reflect full mode, unrestricted skill-curation scan, doc/CLAUDE.md/ADR sub-scans) even though `ceremony-check` verdicted `fast-lane` for every record |
-| Ceremony profile | `fast-lane` | Forces the fast-lane shape even if a record's `ceremony:` header was `standard` (or one member of a bundle was) — an active, informed human override, not the automated default |
-| Model stance | `economy` | Every profile's resolved effort drops one notch on `EFFORT_SCALE`; a Frontier resolution additionally degrades to Capable — lower cost, lower rigor |
-| Model stance | `max-rigor` | Every profile's resolved effort rises one notch, capped at `max`; never promotes a profile's model upward |
-| Merge verification | `merge-when-green` | Merge sites arm `--auto` and let the forge merge once checks are green (the derived recommendation on a default-branch pr-first repo with PR CI) |
-| Merge verification | `wait` | Merge sites block on the checks before merging — explicit-config-only, never derived |
-| Merge verification | `off` | Merge sites merge without consulting CI (the derived value for local-merge, no-PR-CI, or non-default-integration-branch repos) |
-| Design critique | `full` | Every web-track UI diff gets the full critic roster at review time regardless of `DESIGN.md` presence |
-| Design critique | `off` | No project-local critics run at review time; Impeccable's own `critique`/`audit` and the finish reviewer are unaffected |
+{Override semantics: see manifesto-overrides.md — loaded on Override in confirm/hybrid}
 ```
 
 Immediately after presenting the Manifesto table above, call `AskUserQuestion` with:
 
 - `question`: `"Approve these pipeline levers, override specific ones, or cancel the pipeline?"`, `header`: `"Pipeline Config Manifesto"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Run the pipeline with the recommended lever values shown above."`
-- Option 2 — `label`: `"Override"`, `description`: `"Reply with one or more #=value pairs from the valid-overrides list (e.g., 2=stop-and-ask, 7=medium) — see Override semantics below."`
+- Option 2 — `label`: `"Override"`, `description`: `"Reply with one or more #=value pairs from the valid-overrides list (e.g., 2=stop-and-ask, 7=medium) — see Override semantics (manifesto-overrides.md)."`
 - Option 3 — `label`: `"Cancel pipeline"`, `description`: `"Abort; do not create the run directory."`
 
 If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field. At least one pair is required; a bare selection with no pairs is invalid and will re-prompt for the pair(s).
@@ -204,7 +184,7 @@ Suppressed levers are still written to `config.yml` with their default values �
 
 Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
 
-**On override (option 2):** parse the user's `#=value` pairs, apply them to the recommendation set, validate each value against the lever's option vocabulary (reject typos with an inline retry), write the final config to `config.yml`. Do not loop on the Manifesto itself — the user gives all overrides in one reply. If validation fails on any pair, present a single retry line listing the invalid pairs only (`Invalid: 2=foo (must be add-to-plan / stop-and-ask / drop)`).
+**On override (option 2):** read `manifesto-overrides.md` in this skill's directory for each pair's semantics, then parse the user's `#=value` pairs, apply them to the recommendation set, validate each value against the lever's option vocabulary (reject typos with an inline retry), write the final config to `config.yml`. Do not loop on the Manifesto itself — the user gives all overrides in one reply. If validation fails on any pair, present a single retry line listing the invalid pairs only (`Invalid: 2=foo (must be add-to-plan / stop-and-ask / drop)`).
 
 **On cancel (option 3):** abort the pipeline. Do not create the run directory.
 
@@ -221,7 +201,7 @@ Initialize `decisions.md` in the same directory with the config snapshot header 
   Resolve `$RUN_ROOT` once, before creating anything, and build every path in this section from
   it — `cd`-ing into the run directory afterward for convenience is fine, resolving the *path*
   relative to cwd is not.
-- `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesystems)
+- `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` in UTC (no colons; portable across filesystems) — per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule (`date -u`), which mint sites cite rather than restate
 - `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for the canonical SPEC_SLUG conventions.
 - Collisions never happen — multiple parallel agents in the same checkout each get their own run directory
 - The run directory and its path are exposed to downstream skills via the `PIPELINE_RUN_DIR` env var (set in the skill chain)

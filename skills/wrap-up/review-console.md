@@ -113,25 +113,25 @@ live approval is skipped. Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}`
 
 **`integration-model: local-merge`:** before merging, clear this run's worktree
-assignment the same way `flow/worktree-merge.md`'s reconciliation does
+assignment as `flow/worktree-merge.md`'s reconciliation does
 (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so
-the merge itself, landing in the main checkout, isn't denied as a
-wrong-checkout commit.
+the merge, landing in the main checkout, isn't denied as a wrong-checkout
+commit.
 
 `close-run` satisfies E1 only. Under `worktree-always: true` the separate,
-run-independent policy gate still applies, and it covers `git push` as well as
-`git commit` — so the push below **cannot** run from the main checkout, and
-**must not** be chained onto the merge (the gate inspects the whole command
-string up front, so one compound call is denied entirely and the merge never
-runs either). `git merge` itself is not covered, so it runs in the main
-checkout normally. This is the same two-call shape `dispatch/settle-and-merge.md`'s
-local-merge fallback already uses; see the `worktree-always` coverage block in
-`_shared/policy-schema.md` for what the gate does and does not intercept.
+run-independent gate applies, covering `git push` and `git commit` — so
+the push below **cannot** run from the main checkout and **must not** be
+chained onto the merge (the gate inspects the whole command string up front,
+so a compound call is denied and the merge never runs either). `git merge`
+itself isn't covered, so it runs in the main checkout normally. Same two-call
+shape as `dispatch/settle-and-merge.md`'s local-merge fallback;
+`_shared/policy-schema.md`'s `worktree-always` block lists what the gate
+intercepts.
 
-**Shell state does not survive between the two calls** — each Bash invocation
-gets a fresh shell, so a variable assigned in the first is empty in the second.
-Read the values you need first and substitute them **literally** into the
-second call; do not carry them in shell variables.
+**Shell state does not survive between the two calls** — each Bash call gets
+a fresh shell, so a variable set in the first is empty in the second. Read
+the values first and substitute them **literally** into the second call;
+don't carry them in shell variables.
 
 ```bash
 node -e "console.log(require('$RUN_DIR/run-state.json').worktree)"   # -> {worktree-path}
@@ -191,7 +191,8 @@ keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still generate
 this console's full content (Auto-applied / Skill updates / Configuration
 updates sections, per "Present the console" below) and attach it to a
 `PushNotification` as a non-blocking FYI. Nothing this console would have
-shown is discarded — only the wait for a live approval is skipped.
+shown is discarded — only the wait for a live approval is skipped. After the
+push, run `_shared/pr-first-merge.md` Step 4.1 with `--ref {integration-branch}` (staged file + closing-report line only).
 
 **That sentence is about console content, and console content is not all of Phase 4's execution
 step.** It was accurate when written and stayed accurate while going incomplete: acceptance
