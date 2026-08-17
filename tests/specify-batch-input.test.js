@@ -42,8 +42,8 @@ test('specify ## Input documents the comma-list batch form', () => {
   assert.ok(body.includes('#N[,#M...]'), '## Input does not show the literal #N[,#M...] leaf');
   assert.ok(body.includes('comma-joined'), '## Input does not say "comma-joined"');
   assert.ok(/shaping-mode-only/i.test(body), '## Input does not state the comma list is shaping-mode-only');
-  assert.ok(/--chained/.test(body) && /comma list.*--chained|--chained.*comma list/is.test(body),
-    '## Input does not state how --chained interacts with a comma list');
+  assert.ok(/`--chained` on a comma list is rejected — the flag is ignored with a one-line notice/.test(body),
+    '## Input does not state that --chained on a comma list is rejected (flag ignored with a notice)');
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-list /flow', () => {

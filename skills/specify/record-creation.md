@@ -130,7 +130,7 @@ parent record once its sub-issues are accepted.
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
-**Scoring** — judge each sub-issue's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per sub-issue; the tiers become `$SUB_ISSUE_RISK`/`$SUB_ISSUE_SIZE` below.
+**Scoring** — judge each sub-issue's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to each shaped record, run here once per sub-issue; the tiers become `$SUB_ISSUE_RISK`/`$SUB_ISSUE_SIZE` below.
 
 **Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this sub-issue's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/size-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$SUB_ISSUE_CEREMONY` below.
 

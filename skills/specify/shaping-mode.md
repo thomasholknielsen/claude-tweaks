@@ -7,20 +7,22 @@ there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`deco
 in this skill's directory) ever run here.
 
 **Batch = the same procedure, once per record.** A comma-list invocation has already resolved every
-element (case 1's batch branch) before this file loads. Run every section below independently for
-each record, in the order given: its own five sections + `## Original request`, its own metadata
-block, its own scoring/ceremony/framing/type stamps, its own compose-then-write-once call. Two
-things differ from a single-record run and are stated where they apply below: interactive decisions
-raised per record collapse into one batch table + one `AskUserQuestion` (Metadata block), and the
-Actions Performed table renders one row per record. A failure shaping record *k* does not roll back
-records 1..k-1 — each write already landed via the API (or on disk); report the failure on that
-record's own row and keep shaping the rest.
+element (case 1's batch branch) before this file loads. Sniff every record's surface first (Step
+2.5a needs only the fetched content) and resolve the one batched design-intent question (Metadata
+block below), then run every section below independently for each record, in the order given: its
+own five sections + `## Original request`, its own metadata block, its own
+scoring/ceremony/framing/type stamps, its own compose-then-write-once call. Two things differ from a
+single-record run and are stated where they apply below: interactive decisions raised per record
+collapse into one batch table + one `AskUserQuestion` (Metadata block), and the Actions Performed
+table renders one row per record. A failure shaping record *k* does not roll back records 1..k-1 —
+each write already landed via the API (or on disk); report the failure on that record's own row and
+keep shaping the rest.
 
 This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
-block — except under `--chained`, which returns to the caller instead (a comma list under
-`--chained` never reaches here — `SKILL.md`'s `## Input` rejects it). Kept out of `SKILL.md`
-because shaping is now the primary path (`#N` record references are the primary input) and it has
-no use for decomposition mode's much larger body.
+block — except under `--chained`, which returns to the caller instead (a comma list never runs under
+`--chained` — `SKILL.md`'s `## Input` drops the flag with a notice first, so a batch always reaches
+`## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
+references are the primary input) and it has no use for decomposition mode's much larger body.
 
 ---
 
