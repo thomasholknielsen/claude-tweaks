@@ -97,18 +97,32 @@ async function fetchPrComments(repoRoot, prNumber) {
   return { ok: true, comments };
 }
 
+// Pure: consoleJson + now -> the pre-fetch skip reason, or null when
+// eligible. Shared by decideConsoleExecute below (the full post-fetch
+// decision) and consoleExecuteDetect's synchronous scan further down — the
+// two-phase split (#820, D5) needs the scan to reject everything it can
+// BEFORE issuing a `gh pr view` fetch, using exactly the same checks
+// decideConsoleExecute re-applies once comments are in hand. One ladder
+// instead of two copies that could drift.
+function preFetchSkipReason(consoleJson, now) {
+  if (consoleJson === null) return 'no-console';
+  if (consoleJson === undefined) return 'unparseable-console-json';
+  if (consoleJson.resolved === true) return 'already-resolved';
+  if (!isClaimReclaimable(consoleJson.executingAt, now)) return 'claimed';
+  const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
+  if (!commentIds.length) return 'no-comment-ids';
+  if (!consoleJson.prNumber) return 'no-pr-number';
+  return null;
+}
+
 // Pure: consoleJson + fetched comments + now -> a detection verdict. No I/O,
 // so the race/claim/idempotence logic is unit-testable without gh.
 //   { action: 'ready', prNumber, commentIds, items } | { action: 'skip', reason }
 function decideConsoleExecute(consoleJson, comments, now) {
-  if (consoleJson === null) return { action: 'skip', reason: 'no-console' };
-  if (consoleJson === undefined) return { action: 'skip', reason: 'unparseable-console-json' };
-  if (consoleJson.resolved === true) return { action: 'skip', reason: 'already-resolved' };
-  if (!isClaimReclaimable(consoleJson.executingAt, now)) return { action: 'skip', reason: 'claimed' };
+  const skipReason = preFetchSkipReason(consoleJson, now);
+  if (skipReason) return { action: 'skip', reason: skipReason };
 
-  const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
-  if (!commentIds.length) return { action: 'skip', reason: 'no-comment-ids' };
-  if (!consoleJson.prNumber) return { action: 'skip', reason: 'no-pr-number' };
+  const commentIds = consoleJson.commentIds;
 
   const byId = new Map();
   for (const c of comments || []) {
@@ -155,13 +169,8 @@ async function consoleExecuteDetect(opts = {}) {
   const candidates = [];
   for (const { dir } of iterRunDirsWithState(root)) {
     const consoleJson = readConsoleJson(dir);
-    if (consoleJson === null) { skipped.push({ runDir: dir, reason: 'no-console' }); continue; }
-    if (consoleJson === undefined) { skipped.push({ runDir: dir, reason: 'unparseable-console-json' }); continue; }
-    if (consoleJson.resolved === true) { skipped.push({ runDir: dir, reason: 'already-resolved' }); continue; }
-    if (!isClaimReclaimable(consoleJson.executingAt, now)) { skipped.push({ runDir: dir, reason: 'claimed' }); continue; }
-    const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
-    if (!commentIds.length) { skipped.push({ runDir: dir, reason: 'no-comment-ids' }); continue; }
-    if (!consoleJson.prNumber) { skipped.push({ runDir: dir, reason: 'no-pr-number' }); continue; }
+    const skipReason = preFetchSkipReason(consoleJson, now);
+    if (skipReason) { skipped.push({ runDir: dir, reason: skipReason }); continue; }
     candidates.push({ dir, consoleJson });
   }
 

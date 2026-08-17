@@ -30,6 +30,15 @@ function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
 }
 
+// Shared by the resolve-run-dir and spec-status subcommands below — each
+// previously defined its own identical `--flag value` lookup closure over a
+// different local array (`args` vs `rest`); one function taking the array
+// explicitly instead of two copies that could drift.
+function flagVal(args, name) {
+  const i = args.indexOf(name);
+  return i === -1 ? null : args[i + 1];
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -103,18 +112,14 @@ async function main(argv) {
     // event), and a skill step needs a real signal to branch on when nothing
     // resolves or an inherited PIPELINE_RUN_DIR turns out to be a shadow.
     const args = argv.slice(3);
-    function flagVal(name) {
-      const i = args.indexOf(name);
-      return i === -1 ? null : args[i + 1];
-    }
     let result;
     try {
       result = require('./lib/hooks/run-dir-resolve').resolve({
         cwd: process.cwd(),
         env: process.env,
-        specSlug: flagVal('--spec-slug'),
-        mode: flagVal('--mode'),
-        standalone: flagVal('--standalone'),
+        specSlug: flagVal(args, '--spec-slug'),
+        mode: flagVal(args, '--mode'),
+        standalone: flagVal(args, '--standalone'),
         create: args.includes('--create'),
         rootOnly: args.includes('--root-only'),
       });
@@ -165,14 +170,10 @@ async function main(argv) {
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
     const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
-    function flagVal(name) {
-      const idx = rest.indexOf(name);
-      return idx === -1 ? null : rest[idx + 1];
-    }
-    const specArg = flagVal('--spec');
-    const statusArg = flagVal('--status');
-    const phaseArg = flagVal('--phase');
-    const nowArg = flagVal('--now'); // test-only clock override; real callers omit it
+    const specArg = flagVal(rest, '--spec');
+    const statusArg = flagVal(rest, '--status');
+    const phaseArg = flagVal(rest, '--phase');
+    const nowArg = flagVal(rest, '--now'); // test-only clock override; real callers omit it
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — spec status not recorded\n`);
     } else if (!runDir) {

@@ -76,6 +76,13 @@ function shouldSkipClaimRead(entry, cachedSha) {
   return entry.sha === cachedSha;
 }
 
+// Shared by ghApi and ghApiAsync below — both catch blocks classified a
+// caught exec error identically (ENOENT = no `gh` binary, anything else =
+// network-failure); one classifier instead of two copies that could drift.
+function classifyGhExecError(e) {
+  return e && e.code === 'ENOENT' ? 'gh-absent' : 'network-failure';
+}
+
 function ghApi(args) {
   try {
     const stdout = execFileSync('gh', ['api', ...args], {
@@ -83,8 +90,7 @@ function ghApi(args) {
     });
     return { stdout, failure: null };
   } catch (e) {
-    if (e && e.code === 'ENOENT') return { stdout: null, failure: 'gh-absent' };
-    return { stdout: null, failure: 'network-failure' };
+    return { stdout: null, failure: classifyGhExecError(e) };
   }
 }
 
@@ -140,8 +146,7 @@ async function ghApiAsync(args) {
     const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS });
     return { stdout, failure: null };
   } catch (e) {
-    if (e && e.code === 'ENOENT') return { stdout: null, failure: 'gh-absent' };
-    return { stdout: null, failure: 'network-failure' };
+    return { stdout: null, failure: classifyGhExecError(e) };
   }
 }
 
