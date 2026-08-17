@@ -347,7 +347,7 @@ stated.
 |---|---|
 | `/claude-tweaks:dispatch` | Selects each authorized record's whole file-overlap group, mints the run directory, and hands off to `/flow` (which claims at Step 2.8); the settle procedure it dispatches releases + revokes on failure (per the retry-ceiling procedure) |
 | `/claude-tweaks:flow` (issue-reference mode) | Claims its named targets at Step 2.8 (`flow/claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly. Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. |
-| `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / Section E) | Releases claims with the branch outcome as reason |
+| `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / `cleanup-procedures-execution.md` Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 
 **Non-consumers (deliberate):** `/code-health` files issues but never works them — a concurrent-

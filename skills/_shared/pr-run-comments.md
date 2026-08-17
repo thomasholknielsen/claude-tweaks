@@ -85,7 +85,7 @@ call — never silently drop the content.
 | `/claude-tweaks:review` (verdict-rendering step) | `verdict` | Top findings by severity, max 5, reusing review's own findings-table shape |
 | `/claude-tweaks:wrap-up` (`verification-brief.md` Step 4) | `brief` | Full brief posts to the PR; the issue gets a one-line pointer comment instead (unmarkered — it is not itself a `run-comment` kind, since nothing ever needs to find-and-update it by marker) |
 | `/claude-tweaks:dispatch` (`settle-and-merge.md` Step 6, step 5) | `failure` | Content unchanged from today's issue-only comment (`bin/lib/issues/retry.js`'s `attemptFailedCommentBody`); posts to the PR and closes it. The comment's own `<!-- trust-negative-evidence: ... -->` line (when present) is *also* posted standalone to the issue — `bin/lib/issues/trust.js` reads only the issue's comments and is not modified. Retry-ceiling **counting** (`countFailedAttempts`/`hasHitRetryCeiling`) reads from the **PR's** comments under this gate, not the issue's — the "Attempt N failed" comments it counts now live there |
-| `_shared/pr-first-merge.md` (Step 4.1) | `release-status` | Body: the human line, then the `--backfill` section, then one line pointing at `docs/releasing.md` "After the merge"; posted only on the backfill outcome, never on `not yet in a release` or `every record named` |
+| `_shared/pr-first-merge-post-merge.md` (Step 4.1) | `release-status` | Body: the human line, then the `--backfill` section, then one line pointing at `docs/releasing.md` "After the merge"; posted only on the backfill outcome, never on `not yet in a release` or `every record named` |
 
 ## Anti-Patterns
 
