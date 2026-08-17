@@ -221,13 +221,13 @@ test('readConsoleJson: unparseable content reads as undefined, distinct from abs
 // --- consoleExecuteDetect: real repo fixture, no live gh/PR (mirrors
 // pr-state.js's own consumers — no test in this suite hits a real PR) ---
 
-test('consoleExecuteDetect: outside any repo returns empty ready/skipped, never throws', () => {
+test('consoleExecuteDetect: outside any repo returns empty ready/skipped, never throws', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-norepo-'));
-  const result = consoleExecuteDetect({ cwd: dir });
+  const result = await consoleExecuteDetect({ cwd: dir });
   assert.deepStrictEqual(result, { ready: [], skipped: [] });
 });
 
-test('consoleExecuteDetect: a run dir with no console.json is reported as no-console, never crashes', () => {
+test('consoleExecuteDetect: a run dir with no console.json is reported as no-console, never crashes', async () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-run-')));
   git(['init', '-q', '--initial-branch=main'], dir);
   git(['config', 'user.email', 'test@example.com'], dir);
@@ -240,12 +240,12 @@ test('consoleExecuteDetect: a run dir with no console.json is reported as no-con
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
 
-  const result = consoleExecuteDetect({ cwd: dir });
+  const result = await consoleExecuteDetect({ cwd: dir });
   assert.deepStrictEqual(result.ready, []);
   assert.ok(result.skipped.some((s) => s.reason === 'no-console'));
 });
 
-test('consoleExecuteDetect: a run with console.json but no reachable PR is reported skipped (gh-absent or network-failure), never crashes or reports ready', () => {
+test('consoleExecuteDetect: a run with console.json but no reachable PR is reported skipped (gh-absent or network-failure), never crashes or reports ready', async () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ce-run2-')));
   git(['init', '-q', '--initial-branch=main'], dir);
   git(['config', 'user.email', 'test@example.com'], dir);
@@ -261,7 +261,7 @@ test('consoleExecuteDetect: a run with console.json but no reachable PR is repor
     resolved: false, commentIds: ['IC_fake'], prNumber: 999999, items: [],
   }));
 
-  const result = consoleExecuteDetect({ cwd: dir });
+  const result = await consoleExecuteDetect({ cwd: dir });
   assert.deepStrictEqual(result.ready, []);
   const entry = result.skipped.find((s) => s.runDir === runDir);
   assert.ok(entry, 'the run must be reported, not silently dropped');

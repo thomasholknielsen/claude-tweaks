@@ -156,7 +156,7 @@ async function reconcile(opts = {}) {
   // worktree-list join nor merged-PR evidence, unlike the three that follow.
   if (overBudget(DISPATCH_ORDER.slice(2))) return result;
   if (checks.includes('console')) {
-    result.console = consoleExecuteDetect({ cwd: root });
+    result.console = await consoleExecuteDetect({ cwd: root });
   }
 
   // Ordering is load-bearing, not incidental: release, archive, and
@@ -180,7 +180,7 @@ async function reconcile(opts = {}) {
     if (dryRun) {
       result.skipped.push({ check: 'release', reason: 'dry-run-not-supported' });
     } else {
-      const r = releaseMerged({ cwd: root });
+      const r = await releaseMerged({ cwd: root });
       if (r.failure) {
         result.skipped.push({ check: 'release', reason: r.failure });
       } else {

@@ -84,7 +84,7 @@ test('shouldSkipClaimRead: no cached entry (undefined) does not skip — first s
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, undefined), false);
 });
 
-test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetched on the next pass', () => {
+test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetched on the next pass', async () => {
   const fs = require('fs');
   const os = require('os');
   const path = require('path');
@@ -105,9 +105,9 @@ test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetche
     throw new Error(`unexpected ${args.join(' ')}`);
   };
 
-  releaseMerged({ cwd: root, ghApi }); // first pass: reads and caches the tombstone's sha
+  await releaseMerged({ cwd: root, ghApi }); // first pass: reads and caches the tombstone's sha
   assert.equal(readCalls, 1);
-  releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, must not re-read
+  await releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, must not re-read
   assert.equal(readCalls, 1, 'second pass must skip the read for an unchanged terminal-state sha');
 });
 
@@ -115,7 +115,7 @@ test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetche
 // (live/stale) claims — the invariant this task exists to hold. A live
 // claim's PR/issue join can change pass-to-pass even when its content
 // hasn't, so it must never be cached/skipped, unlike the tombstone above.
-test('releaseMerged: a live claim with an unchanged sha is still re-fetched every pass', () => {
+test('releaseMerged: a live claim with an unchanged sha is still re-fetched every pass', async () => {
   const fs = require('fs');
   const os = require('os');
   const path = require('path');
@@ -150,8 +150,8 @@ test('releaseMerged: a live claim with an unchanged sha is still re-fetched ever
     throw new Error(`unexpected ${args.join(' ')}`);
   };
 
-  releaseMerged({ cwd: root, ghApi });
+  await releaseMerged({ cwd: root, ghApi });
   assert.equal(readCalls, 1);
-  releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, but the claim is live — must still re-read
+  await releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, but the claim is live — must still re-read
   assert.equal(readCalls, 2, 'a live claim must never be cached/skipped, even with an unchanged sha');
 });

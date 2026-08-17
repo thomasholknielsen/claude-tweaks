@@ -8,7 +8,8 @@
 // pass picks up exactly where this one left off.
 'use strict';
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
+const { promisify } = require('util');
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
@@ -17,6 +18,9 @@ const claimStore = require('../issues/claim-store');
 const { resolvePrState } = require('./pr-state');
 const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
 const { readCache, writeCache } = require('./cache');
+const { runWithConcurrency } = require('./gh-pool');
+
+const execFileAsync = promisify(execFile);
 
 const GH_TIMEOUT_MS = 5000;
 
@@ -123,10 +127,34 @@ function readClaim(repoSlug, name, api = ghApi) {
   return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
-// Issue-state lookup — same ghApi pattern (5s timeout). Unknown/errored
-// state returns undefined: fail closed, never releases on missing evidence.
-function readIssueState(repoSlug, issueNumber, api = ghApi) {
-  const r = api([`repos/${repoSlug}/issues/${issueNumber}`, '-q', '.state']);
+// Async counterpart of ghApi above, used only for the one remaining
+// per-active-claim gh call this module parallelizes (readIssueStateAsync,
+// via gh-pool's runWithConcurrency below) — listClaims/readClaim stay on
+// the sync ghApi, since Task 7 already showed most entries now cache-skip,
+// leaving little to gain there. A real (non-blocking) execFile is what lets
+// runWithConcurrency's cap actually run calls concurrently, unlike
+// execFileSync, which blocks the whole event loop regardless of how the
+// calling code is structured.
+async function ghApiAsync(args) {
+  try {
+    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS });
+    return { stdout, failure: null };
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return { stdout: null, failure: 'gh-absent' };
+    return { stdout: null, failure: 'network-failure' };
+  }
+}
+
+// Issue-state lookup, async — same contract/timeout as the rest of this
+// module. Unknown/errored state returns undefined: fail closed, never
+// releases on missing evidence. `apiAsync` defaults to the real
+// `ghApiAsync` above but accepts an injectable override — releaseMerged
+// derives one from its own `ghApi` opt (see `apiAsync` below) so the same
+// single injectable-ghApi seam this module already uses for
+// listClaims/readClaim covers this call too, rather than adding a second
+// override parameter.
+async function readIssueStateAsync(repoSlug, issueNumber, apiAsync = ghApiAsync) {
+  const r = await apiAsync([`repos/${repoSlug}/issues/${issueNumber}`, '-q', '.state']);
   if (r.failure || !r.stdout) return undefined;
   const s = r.stdout.trim().toUpperCase();
   return s === 'OPEN' || s === 'CLOSED' ? s : undefined;
@@ -169,7 +197,20 @@ function removeInProgressLabel(repoSlug, issueNumber, api = ghApi) {
 // module's own gh-api calls (listing, per-claim reads, issue-state, label
 // removal), mirroring claim-store.js's seam, so tests never shell to the
 // real `gh` binary. Defaults to the module-level `ghApi` above.
-function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
+//
+// Runs in three phases (#820, D5 — parallelizing the one remaining
+// per-active-claim gh call, issue-state reads, through gh-pool's
+// concurrency-capped `runWithConcurrency`):
+//   Phase 1 (sync) — read/classify/join every claim not cache-skipped,
+//     collecting active (live/stale) candidates with their PR-join result.
+//   Phase 2 (parallel) — one runWithConcurrency batch resolving every
+//     candidate's issue-state fetch (only for candidates PR evidence alone
+//     can't decide — see needsIssueEvidence).
+//   Phase 3 (sync) — decide + write. Writes stay serial: each is its own
+//     conditional-update with its own sha, so there's no benefit to
+//     parallelizing them, and serial writes keep this module's existing
+//     one-write-at-a-time posture.
+async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
   const released = [];
   const skipped = [];
   const root = cwd || process.cwd();
@@ -177,6 +218,12 @@ function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
   if (!repoSlug) return { released, skipped, failure: 'no-remote' };
 
   const api = ghApiOverride || ghApi;
+  // Async-compatible counterpart of `api` for Phase 2's readIssueStateAsync
+  // calls — reuses the same single injectable `ghApi` opt rather than
+  // adding a second override parameter. A sync test fake's return value is
+  // simply wrapped in an already-resolved promise; production defaults to
+  // the real (non-blocking) ghApiAsync.
+  const apiAsync = ghApiOverride ? (args) => Promise.resolve(ghApiOverride(args)) : ghApiAsync;
 
   const { entries, failure } = listClaims(repoSlug, api);
   if (failure) return { released, skipped, failure };
@@ -187,6 +234,8 @@ function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
   const worktrees = wtList.failure ? [] : parseWorktreeList(wtList.stdout);
 
+  // Phase 1: synchronous read/classify/join for every claim not cache-skipped.
+  const candidates = [];
   for (const entry of entries) {
     const m = /^issue-(\d+)\.json$/.exec(entry.name);
     if (!m) continue;
@@ -240,48 +289,62 @@ function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
 
     let prState = null;
     let joinFailure = null; // 'no-run-state' | 'no-branch' — preserved as the skip reason when no evidence releases
-    if (runId) {
-      const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
-      const runState = readRunState(runDir);
-      const wtEntry = runState && runState.worktree
-        ? worktrees.find((w) => path.resolve(w.path) === path.resolve(runState.worktree))
-        : null;
-      const branch = wtEntry ? wtEntry.branch : null;
-      if (!runState || !runState.worktree) {
-        joinFailure = 'no-run-state'; // archived/gone run dir — issue-closed evidence below may still release
-      } else if (!branch) {
-        joinFailure = 'no-branch';
-      } else {
-        prState = resolvePrState(root, branch);
-      }
+    const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+    const runState = readRunState(runDir);
+    const wtEntry = runState && runState.worktree
+      ? worktrees.find((w) => path.resolve(w.path) === path.resolve(runState.worktree))
+      : null;
+    const branch = wtEntry ? wtEntry.branch : null;
+    if (!runState || !runState.worktree) {
+      joinFailure = 'no-run-state'; // archived/gone run dir — issue-closed evidence below may still release
+    } else if (!branch) {
+      joinFailure = 'no-branch';
+    } else {
+      prState = resolvePrState(root, branch);
     }
 
-    // Fetch issue state only for release candidates where PR evidence alone
-    // cannot release: the no-pr and pr-closed-unmerged join results (incl.
-    // join failures above). Gated on live/stale first — tombstones persist
-    // forever (overwrites, not deletions), so an ungated fetch here would be
-    // a growing per-pass gh api cost with zero effect on non-candidates.
-    let issueState;
-    if (needsIssueEvidence(prState)) {
-      // One gh api call per candidate, per pass — intentional; bounded by the
-      // open claim count (typically small), not by repo or issue history size.
-      issueState = readIssueState(repoSlug, issueNumber, api);
-    }
+    // `sha` here is claim.sha (this fresh read's blob sha, NOT the earlier
+    // listing's entry.sha) — the same sha writeTombstone below treats as
+    // authoritative for its conditional write, and the same distinction
+    // the `!isActive` cache-write above draws for exactly the same reason.
+    candidates.push({
+      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState, joinFailure,
+    });
+  }
 
-    const decision = decideRelease(classified.state, prState, issueState);
+  // Phase 2: parallel issue-state fetches, capped, only for candidates that
+  // need one (needsIssueEvidence) — gated the same way the prior serial
+  // loop gated its per-candidate fetch, so non-candidates cost nothing.
+  const needIssue = candidates.filter((c) => needsIssueEvidence(c.prState));
+  const issueStates = await runWithConcurrency(
+    needIssue,
+    (c) => readIssueStateAsync(repoSlug, c.issueNumber, apiAsync),
+  );
+  const issueStateByIssue = new Map(
+    needIssue.map((c, i) => [c.issueNumber, issueStates[i] instanceof Error ? undefined : issueStates[i]]),
+  );
+
+  // Phase 3: decide + write, synchronous (writes stay serial — see header comment).
+  for (const c of candidates) {
+    const issueState = issueStateByIssue.get(c.issueNumber);
+    const decision = decideRelease(c.classifiedState, c.prState, issueState);
     if (decision.action === 'skip') {
-      skipped.push({ issueNumber, runId, reason: joinFailure || decision.reason });
+      // No nextClaimShas write here: an active (live/stale) claim's PR/issue
+      // join can change pass-to-pass even when its content hasn't, so it
+      // must never be cached/skipped — only the two TERMINAL-state
+      // continue branches in Phase 1 above ever populate nextClaimShas.
+      skipped.push({ issueNumber: c.issueNumber, runId: c.runId, reason: c.joinFailure || decision.reason });
       continue;
     }
 
     const reason = decision.reason === 'issue-closed'
-      ? `issue-closed: reconciled from #${issueNumber}`
+      ? `issue-closed: reconciled from #${c.issueNumber}`
       : decision.reason;
-    const payload = releasePayload({ issueNumber, runId, reason, now: Date.now() });
-    const ok = writeTombstone(repoSlug, entry.name, claim.sha, payload.tombstoneContent, reason);
-    if (!ok) { skipped.push({ issueNumber, runId, reason: 'release-write-failed' }); continue; }
-    removeInProgressLabel(repoSlug, issueNumber, api); // best-effort, never gates the release
-    released.push(releasedEntry(issueNumber, runId, prState));
+    const payload = releasePayload({ issueNumber: c.issueNumber, runId: c.runId, reason, now: Date.now() });
+    const ok = writeTombstone(repoSlug, c.name, c.sha, payload.tombstoneContent, reason);
+    if (!ok) { skipped.push({ issueNumber: c.issueNumber, runId: c.runId, reason: 'release-write-failed' }); continue; }
+    removeInProgressLabel(repoSlug, c.issueNumber, api); // best-effort, never gates the release
+    released.push(releasedEntry(c.issueNumber, c.runId, c.prState));
   }
 
   writeCache(root, { ...cache, claimShas: nextClaimShas });
