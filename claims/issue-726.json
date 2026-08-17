@@ -1,7 +1,7 @@
 {
+  "released": true,
   "runId": "2026-08-17T074020-spec-726-727",
-  "sessionId": "b20ba5b4-7a23-40bc-9d32-0fc6609452bd",
-  "claimedAt": "2026-08-17T06:02:10.582Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "pr-opened: spec 726",
+  "releasedAt": "2026-08-17T07:24:09.592Z",
+  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/754"
 }
