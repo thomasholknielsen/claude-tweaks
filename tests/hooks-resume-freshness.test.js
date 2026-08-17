@@ -79,17 +79,20 @@ test('checkResumeFreshness: interrupted + a commit older than the threshold, no 
   assert.equal(result.verdict, 'stale');
 });
 
-test('checkResumeFreshness: interrupted + a worktree path that exists but is not a git repo fails closed to blocked', () => {
+test('checkResumeFreshness: interrupted + a worktree path that exists but is not a git repo fails closed to indeterminate, not locked', () => {
   // Exists on disk (passes the existence check) but has no `.git` anywhere
-  // above it in the temp-dir tree, so BOTH isWorktreeLocked (mainCheckoutRoot
-  // resolves null -> fails closed to locked, per worktree-reap.js's own
-  // header comment) and a `git log` call would fail. Which specific check
-  // trips first is an implementation detail; what must hold is `safe: false`
-  // — the probe never reads "I could not determine anything" as "proceed".
+  // above it in the temp-dir tree, so mainCheckoutRoot cannot resolve a root
+  // for it. That is "could not determine", not "confirmed locked by a live
+  // process" — the two must stay distinguishable because every call site
+  // reports `reason` to a human verbatim (#676's final review, Important
+  // finding #1). Before that fix this fell through the collapsed
+  // isWorktreeLocked boolean and reported `verdict: 'locked'`, which is
+  // simply false: there is no lock and no process here.
   const notAWorktree = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-resume-freshness-not-git-'));
   const runDir = tmpRunDir({ status: 'interrupted', sessionId: 'sess-a', worktree: notAWorktree });
   const result = checkResumeFreshness(runDir, { sessionId: 'sess-b' });
   assert.equal(result.safe, false);
+  assert.equal(result.verdict, 'indeterminate');
 });
 
 test('RESUME_FRESHNESS_THRESHOLD_MS is on the order of minutes', () => {

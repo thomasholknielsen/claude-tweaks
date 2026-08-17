@@ -60,11 +60,11 @@ The command writes exactly one line to stdout, and always exits `0`:
   ({reason})` — **do not proceed.** Report the line verbatim instead of the resume's normal
   outcome, and stop; do not fall through to conversation-based work.
 
-**On a safe verdict that came from a genuinely `interrupted` state** (i.e. `verdict` is
-`'locked'`/`'recent-commit'`/`'indeterminate'` never returned, and the run *was* `interrupted`
-before this check — every safe verdict other than `not-interrupted`/`own-session` implies this):
-immediately reclaim ownership so the stale stamp does not linger and a later re-entry within the
-same session is not re-probed for no reason:
+**When the verdict is `stale`** (the only safe verdict that means the run genuinely was
+`interrupted` and is now confirmed quiet — `no-state`, `no-worktree`, and `worktree-gone` are also
+safe, but mean there was nothing to probe in the first place, never that an `interrupted` run was
+cleared): immediately reclaim ownership so the stale stamp does not linger and a later re-entry
+within the same session is not re-probed for no reason:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "{run-dir}" "{worktree-path}"
@@ -74,6 +74,31 @@ This is the same idempotent restamp `build/worktree-setup.md` already documents 
 session later continues this pipeline" — it flips `status` back to `active` under the current
 session's identity, which is also what makes the "Own session" fast path above correct for any
 further probing inside the same now-resumed run.
+
+## When blocked
+
+A `BLOCKED` result stops the resume; it does not mean the run is unrecoverable.
+
+- **`recent-commit`**: the recorded worktree committed inside the last 10 minutes. Wait past the
+  threshold and re-run the probe — the age keeps advancing regardless of which session is asking,
+  so this also resolves the common case of a session that crashed moments after its own last
+  commit.
+- **`locked`**: a live process holds the worktree lock. This is usually a genuine sibling session,
+  but if this resume path itself just entered the worktree (e.g. via `EnterWorktree`) before
+  probing, the lock the probe sees can be this session's own fresh entry rather than a stranger's
+  — a lock alone cannot distinguish the two. Confirm first, don't assume: run
+  `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-sibling-sessions --record "{record-number}"`
+  (when this run corresponds to a claimed record) or otherwise verify with the human that no other
+  session is working this run. Once confirmed clear, claim ownership explicitly —
+  `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "{run-dir}" "{worktree-path}"`
+  — which stamps this session as owner, so the next probe call returns `own-session`.
+- **`indeterminate`**: the probe could not resolve the worktree's lock state or its last-commit
+  timestamp. Investigate directly (`git -C "{worktree-path}" worktree list --porcelain`, `git -C
+  "{worktree-path}" log -1`) rather than retrying blindly — this verdict means the check itself
+  failed, not that the run is busy.
+
+Never bypass a `BLOCKED` result by skipping the probe on a later attempt — always re-run it after
+taking one of the actions above, and only proceed once it reports `OK`.
 
 ## What this does not gate
 

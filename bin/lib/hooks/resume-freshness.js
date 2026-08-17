@@ -30,7 +30,8 @@
 'use strict';
 const fs = require('fs');
 const ctxLib = require('./context');
-const { isWorktreeLocked } = require('./worktree-reap');
+const { parseWorktreeList, lockVerdict } = require('./worktree-reap');
+const { mainCheckoutRoot, safeReal } = require('./worktree-detect');
 const { runGit } = require('./git-exec');
 
 // "On the order of minutes" (the spec's own phrasing): long enough that a
@@ -71,11 +72,24 @@ function checkResumeFreshness(runDir, opts = {}) {
   if (!worktree) return { safe: true, verdict: 'no-worktree' };
   if (!fs.existsSync(worktree)) return { safe: true, verdict: 'worktree-gone' };
 
-  // (b) worktree lock-file pid liveness. isWorktreeLocked already fails
-  // closed (an unresolvable root or a failed `git worktree list` reads as
-  // "cannot confirm free" -> true) — this probe inherits that posture
-  // directly rather than re-deciding it.
-  if (isWorktreeLocked(worktree)) {
+  // (b) worktree lock-file pid liveness. Resolve the lock verdict directly
+  // (rather than through isWorktreeLocked's collapsed boolean) so an
+  // unresolvable root or a failed `git worktree list` reads as
+  // `indeterminate` rather than being reported to a human as a confirmed
+  // live lock — see #676's final review, Important finding #1.
+  const wtRoot = mainCheckoutRoot(worktree);
+  if (!wtRoot) {
+    return { safe: false, verdict: 'indeterminate', reason: 'could not resolve the recorded worktree\'s main checkout to check its lock state' };
+  }
+  const { stdout: wtListOut, failure: wtListFailure } = runGit(['worktree', 'list', '--porcelain'], wtRoot);
+  if (wtListFailure) {
+    return { safe: false, verdict: 'indeterminate', reason: 'could not list worktrees to check lock state' };
+  }
+  const target = safeReal(worktree) || worktree;
+  const entry = parseWorktreeList(wtListOut).find(
+    (e) => (safeReal(e.path) || e.path) === target || e.path === worktree
+  );
+  if (entry && lockVerdict(entry) === 'in-use') {
     return { safe: false, verdict: 'locked', reason: 'worktree lock held by a live process' };
   }
 
