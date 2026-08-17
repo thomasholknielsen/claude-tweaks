@@ -14,6 +14,8 @@ Full reference for every skill in the claude-tweaks plugin, grouped by where it 
 
 **Polymorphic input:** `/specify` accepts a work record reference (`#N`, an issue URL, or a local record id) to shape in place, a design doc path or topic name (invokes `/superpowers:brainstorming` when no doc exists yet) to decompose, or a backlog reference (title keywords) that resolves to whichever mode applies. When the target is (or becomes) a frontend record, `/specify` runs the Impeccable `shape` pre-step and asks a design-intent question (bold / quiet / minimal / delightful / onboarding / none) to populate the body metadata.
 
+**Batch shaping:** A comma-joined, no-spaces list of record references shapes each one in place in a single call — `/claude-tweaks:specify #701,#702` (`work-backend: github-issues`) or `/claude-tweaks:specify 701,702` (`work-backend: local-files`), mirroring `/claude-tweaks:flow`'s own `42,45,48` form. Shaping mode only: every element must be a record reference, and a list containing a design-doc path or a topic is rejected with a one-line error naming the offending element before anything is shaped — decomposition and topic resolution stay single-input.
+
 ### Pipeline (automated by `/claude-tweaks:flow`)
 
 **`/claude-tweaks:build`** — Implements a work record or spec end-to-end (`#N` record reference is the primary input; a spec number is the legacy alias — both materialize into the same build-time file via `skills/flow/materialize.md`). Two orthogonal choices:
