@@ -69,8 +69,11 @@ test('POLICY_KEYS entries are unique', () => {
   // into the integration branch, default derived by bin/lib/merge-verification.js.
   // 49 -> 50, #595 (design-critique lever): off | auto | full, default auto —
   // governs whether project-local design critics run at review time.
-  assert.strictEqual(POLICY_KEYS.length, 50);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 50);
+  // 50 -> 51, #645 (session-scoped record snapshot): record-snapshot-ttl-seconds
+  // — freshness window for /tmp/ct-records-{session-id}.json, shared by
+  // backlog/capture/specify/trust-table/help/tidy/visualize.
+  assert.strictEqual(POLICY_KEYS.length, 51);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 51);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
