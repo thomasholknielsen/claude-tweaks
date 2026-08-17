@@ -22,7 +22,7 @@ fetch ends up skipped (ceiling below `trusted` and no `--trust`) is accepted ove
 canonical read is simpler than conditioning the resolve call itself on the value it exists to
 produce.
 
-**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`, `{EXTRA_FIELDS}` = `,body` — this pass needs bodies for synthesis). Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
+**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`) — reading through the session-scoped record snapshot, whose union field set always carries `body` (no `{EXTRA_FIELDS}` request needed) for this pass's synthesis. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
 
 ```bash
 node -e "

@@ -59,7 +59,20 @@ gh issue list --label ready --state open --json number,title,body,labels,created
 if [ "$(node -e "console.log(require('/tmp/backlog-grant-ready.json').length)")" = "$LIMIT" ]; then
   echo "WARNING: fetched exactly $LIMIT ready-labeled issues (backlog-fetch-limit) — there may be more. See .claude-tweaks/policy.yml." >&2
 fi
-gh issue list --state open --json number --limit 500 > /tmp/backlog-grant-open-numbers.json
+```
+
+The `ready`-labeled fetch above stays a dedicated server-side-filtered call — GitHub does that
+narrowing cheaper than pulling the whole queue and filtering client-side. The open-issue-number
+set below, though, is data every session-scoped record snapshot already carries (`number` +
+`state` on every row) — read it from there instead of a second bare fetch:
+
+```bash
+{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md),
+ with {tmp-records-file} = /tmp/backlog-grant-all-records.json}
+node -e "
+  const records = require('/tmp/backlog-grant-all-records.json').filter((i) => i.state === 'OPEN');
+  require('fs').writeFileSync('/tmp/backlog-grant-open-numbers.json', JSON.stringify(records.map((i) => ({ number: i.number }))));
+"
 node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/backlog-grant-ready.json');
