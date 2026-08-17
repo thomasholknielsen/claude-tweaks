@@ -67,6 +67,12 @@ function ghApi(args) {
   }
 }
 
+// Raw `gh` runner for the shared write path below (ghApi prepends `api` and
+// swallows failures; writeTombstoneShared composes its own argv and needs the throw).
+function ghRunner(args) {
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS });
+}
+
 function repoSlugOf(repoRoot) {
   const remote = runGit(['remote', 'get-url', 'origin'], repoRoot);
   if (remote.failure || !remote.stdout) return null;
@@ -115,12 +121,11 @@ function releasedEntry(issueNumber, runId, prState) {
 // throw there and maps to false here; the caller logs it as a release race,
 // exactly the posture that file's Failure posture table documents. `runner`
 // is injectable for tests; the default keeps this module's 5s gh timeout.
-function writeTombstone(repoSlug, name, sha, tombstoneContent, reason, runner) {
+function writeTombstone(repoSlug, name, sha, tombstoneContent, reason, runner = ghRunner) {
   const [owner, repo] = repoSlug.split('/');
   const issueNumber = Number((/^issue-(\d+)\.json$/.exec(name) || [])[1]);
-  const gh = runner || ((args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS }));
   try {
-    writeTombstoneShared({ owner, repo, issueNumber, sha, tombstoneContent, message: `Release claim ${name} — ${reason}`, runner: gh });
+    writeTombstoneShared({ owner, repo, issueNumber, sha, tombstoneContent, message: `Release claim ${name} — ${reason}`, runner });
     return true;
   } catch {
     return false;

@@ -82,12 +82,13 @@ function releaseClaim({ owner, repo, issueNumber, runId, reason, link, removeGra
   result.calls.push('read');
   const classified = classifyClaimBlob(blob.content, now);
   if (classified.state === 'unreadable') { result.outcome = 'skipped-not-owner'; result.holder = 'unreadable'; return result; }
-  if (classified.state === 'live' || classified.state === 'stale') {
+  const isHeld = classified.state === 'live' || classified.state === 'stale';
+  if (isHeld) {
     const holder = JSON.parse(blob.content).runId;
     if (holder !== runId) { result.outcome = 'skipped-not-owner'; result.holder = holder; return result; }
   }
   const payload = releasePayload({ issueNumber, runId, reason, link: link || undefined, now });
-  if (classified.state === 'live' || classified.state === 'stale') {
+  if (isHeld) {
     try {
       writeTombstone({ owner, repo, issueNumber, sha: blob.sha, tombstoneContent: payload.tombstoneContent, message: `Release claim on issue #${issueNumber}`, runner });
       result.calls.push('put');

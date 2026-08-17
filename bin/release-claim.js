@@ -68,8 +68,8 @@ function decisionText(issue, r, reason, link) {
   if (r.outcome === 'skipped-not-owner') return `skipped release of issue #${issue}: claim held by run ${r.holder}`;
   const detail = r.outcome === 'already-released' ? ' — already released or swept' : '';
   let text = `released claim on #${issue} (${reason})${link ? `; link ${link}` : ''}${detail}`;
-  if (r.labelsRemoved && r.labelsRemoved.length) text += `; labels removed: ${r.labelsRemoved.join(', ')}`;
-  if (r.labelsFailed && r.labelsFailed.length) text += `; label removal failed: ${r.labelsFailed.join(', ')}`;
+  if (r.labelsRemoved.length) text += `; labels removed: ${r.labelsRemoved.join(', ')}`;
+  if (r.labelsFailed.length) text += `; label removal failed: ${r.labelsFailed.join(', ')}`;
   return text;
 }
 
@@ -90,28 +90,29 @@ function run(argv, deps = realDeps) {
   if (!o.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
   const repoSpec = o.repo ? parseRepo(`github.com/${o.repo}`) : parseRepo(remote);
   if (!repoSpec) { deps.stderr('release-claim.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
-  const runDir = o.run.replace(/[\/]+$/, '');
+  const runDir = o.run.replace(/\/+$/, '');
   const runId = path.basename(runDir);
+  const reason = o.reason.trim();
   const r = release.releaseClaim({
-    owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason: o.reason.trim(), link: o.link || undefined,
+    owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason, link: o.link || undefined,
     removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, now: deps.now(),
   });
-  for (const label of r.labelsFailed || []) {
+  for (const label of r.labelsFailed) {
     deps.stderr(`release-claim.js: warning — could not remove label ${label} on #${issue} (best-effort, continuing)\n`);
   }
   let logged = false;
   let target;
-  try { target = resolveTarget({ runDir, cwd: deps.cwd ? deps.cwd() : process.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
+  try { target = resolveTarget({ runDir, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
   if (target.ok) {
     const reversibility = (r.outcome === 'skipped-not-owner' || r.outcome === 'failed') ? 'n/a' : 'high';
-    const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, o.reason.trim(), o.link), reversibility });
+    const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, reason, o.link), reversibility });
     try { appendEntry({ runDir, section: o.section, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
   } else if (target.reason === 'not-anchored') {
     deps.stderr(`release-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
   } else {
     deps.stderr(`release-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
   }
-  deps.stdout(JSON.stringify({ issue, runId, reason: o.reason.trim(), link: o.link || null, outcome: r.outcome, holder: r.holder || null, commentPosted: r.commentPosted, labelsRemoved: r.labelsRemoved, labelsFailed: r.labelsFailed, note: r.note || null, error: r.error || null, logged }, null, 2) + '\n');
+  deps.stdout(JSON.stringify({ issue, runId, reason, link: o.link || null, outcome: r.outcome, holder: r.holder || null, commentPosted: r.commentPosted, labelsRemoved: r.labelsRemoved, labelsFailed: r.labelsFailed, note: r.note || null, error: r.error || null, logged }, null, 2) + '\n');
   return EXIT[r.outcome] ?? 1;
 }
 

@@ -38,10 +38,11 @@ function formatEntry({ status, now, step, spec, text, reversibility = 'n/a', lev
   if (!STATUSES.includes(status)) throw new Error(`invalid status: ${status} (expected ${STATUSES.join('|')})`);
   const body = String(text || '').trim();
   if (!body) throw new Error('text is required');
+  const hasSpec = spec !== undefined && spec !== null && spec !== '';
   let location;
-  if (step && spec !== undefined && spec !== null && spec !== '') location = `spec #${spec} — ${step}`;
+  if (step && hasSpec) location = `spec #${spec} — ${step}`;
   else if (step) location = String(step);
-  else if (spec !== undefined && spec !== null && spec !== '') location = `spec #${spec}`;
+  else if (hasSpec) location = `spec #${spec}`;
   else location = 'log-decision';
   const action = /[.!?]$/.test(body) ? body : `${body}.`;
   let line = `- ${status} ${hms(now)} — ${location}: ${action} Reversibility: ${reversibility}.`;

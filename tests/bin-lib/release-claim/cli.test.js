@@ -13,6 +13,13 @@ const isGet = (a) => a[0] === 'api' && String(a[1]).startsWith('repos/acme/w/con
 const isPut = (a) => a[0] === 'api' && a[1] === '--method' && a[2] === 'PUT';
 const isComment = (a) => a[0] === 'issue' && a[1] === 'comment';
 const isEdit = (a) => a[0] === 'issue' && a[1] === 'edit';
+// One gh call -> its step name; a label edit reports the label it removed.
+function callKind(a) {
+  if (isGet(a)) return 'get';
+  if (isPut(a)) return 'put';
+  if (isComment(a)) return 'comment';
+  return a[a.indexOf('--remove-label') + 1];
+}
 
 function mkRun() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rc-'));
@@ -42,7 +49,9 @@ function deps({ content, putThrows, gh = true, out, mainRoot, editFailLabel }) {
   };
   return { calls, d: { runner, ghAvailable: () => gh, remoteUrl: () => 'git@github.com:acme/w.git', now: () => NOW, cwd: () => process.cwd(), mainRoot, stdout: (s) => out.push(['out', s]), stderr: (s) => out.push(['err', s]) } };
 }
-const envelope = (out) => JSON.parse(out.filter((o) => o[0] === 'out').map((o) => o[1]).join(''));
+const streamOf = (out, kind) => out.filter((o) => o[0] === kind).map((o) => o[1]).join('');
+const stderrOf = (out) => streamOf(out, 'err');
+const envelope = (out) => JSON.parse(streamOf(out, 'out'));
 
 test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label removals; exit 0; logs to decisions.md', () => {
   const runDir = mkRun();
@@ -50,7 +59,7 @@ test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label re
   const { calls, d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir) });
   const code = run(['999', '--run', runDir + '/', '--reason', 'merged: spec 999', '--link', 'https://x/1', '--remove-grants'], d);
   assert.equal(code, 0);
-  assert.deepEqual(calls.map((a) => (isGet(a) ? 'get' : isPut(a) ? 'put' : isComment(a) ? 'comment' : a[a.indexOf('--remove-label') + 1])), ['get', 'put', 'comment', 'auto:build', 'auto:merge']);
+  assert.deepEqual(calls.map(callKind), ['get', 'put', 'comment', 'auto:build', 'auto:merge']);
   const put = calls.find(isPut);
   assert.ok(put.includes('sha=blobsha1'), 'PUT carries the read sha');
   const env = envelope(out);
@@ -67,7 +76,7 @@ test('a failed label removal (issue edit throws) warns to stderr and logs "label
   const { d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir), editFailLabel: 'auto:merge' });
   const code = run(['999', '--run', runDir, '--reason', 'merged: spec 999', '--remove-grants'], d);
   assert.equal(code, 0, 'a best-effort label failure never changes the release outcome/exit code');
-  const err = out.filter((o) => o[0] === 'err').map((o) => o[1]).join('');
+  const err = stderrOf(out);
   assert.match(err, /release-claim\.js: warning — could not remove label auto:merge on #999 \(best-effort, continuing\)/);
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
   assert.match(log, /labels removed: auto:build; label removal failed: auto:merge\./);
@@ -116,7 +125,7 @@ test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing ru
   // Same basename (so the ownership check still matches) under a directory that does not exist.
   assert.equal(run(['999', '--run', path.join(os.tmpdir(), 'rc-none-' + process.pid, RUN_DIR_NAME), '--reason', 'r'], d2), 0);
   assert.equal(envelope(out2).logged, false);
-  assert.match(out2.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /decisions\.md not written/);
+  assert.match(stderrOf(out2), /decisions\.md not written/);
 
   // A run dir that exists but sits under a worktree-local shadow (a linked
   // worktree's `.git` is a FILE, not a directory) must be refused, never
@@ -130,7 +139,7 @@ test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing ru
   const { d: d3 } = deps({ content: live(RUN_DIR_NAME), out: out3 });
   assert.equal(run(['999', '--run', shadowRunDir, '--reason', 'r'], d3), 0);
   assert.equal(envelope(out3).logged, false);
-  assert.match(out3.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /not anchored/);
+  assert.match(stderrOf(out3), /not anchored/);
   assert.equal(fs.existsSync(path.join(shadowRunDir, 'decisions.md')), false);
 });
 
@@ -139,13 +148,13 @@ test('malformed invocation / gh absent exit 2 with the MCP fallback named; --hel
   const out = [];
   const { d } = deps({ content: live(RUN_DIR_NAME), out });
   assert.equal(run(['--run', runDir, '--reason', 'r'], d), 2, 'issue missing');
-  assert.match(out.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /<issue> is required/);
+  assert.match(stderrOf(out), /<issue> is required/);
   assert.equal(run(['abc', '--run', runDir, '--reason', 'r'], d), 2, 'issue not a number');
   assert.equal(run(['999', '--reason', 'r'], d), 2, '--run missing');
   assert.equal(run(['999', '--run', runDir], d), 2, '--reason missing');
   const { d: noGh } = deps({ content: live(RUN_DIR_NAME), gh: false, out });
   assert.equal(run(['999', '--run', runDir, '--reason', 'r'], noGh), 2);
-  assert.match(out.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /github-write-transport\.md/);
+  assert.match(stderrOf(out), /github-write-transport\.md/);
   const help = [];
   const { d: h } = deps({ content: null, out: help });
   assert.equal(run(['--help'], h), 0);

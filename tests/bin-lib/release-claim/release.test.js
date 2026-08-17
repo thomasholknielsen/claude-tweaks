@@ -19,7 +19,7 @@ function fakeRunner({ content, sha = 'blobsha1', putThrows, commentThrows, editT
   const runner = (args) => {
     calls.push(args);
     if (isGet(args)) {
-      if (content === null) { const e = new Error('gh: Not Found (HTTP 404)'); throw e; }
+      if (content === null) throw new Error('gh: Not Found (HTTP 404)');
       return JSON.stringify({ content, sha });
     }
     if (isPut(args)) { if (putThrows) throw new Error(putThrows); return '{"content":{"sha":"newsha"}}'; }

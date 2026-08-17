@@ -27,6 +27,8 @@ function deps(main, out) {
   return { now: () => NOW, cwd: () => main, mainRoot: main, stdout: (s) => out.push(['out', s]), stderr: (s) => out.push(['err', s]) };
 }
 
+const streamOf = (out, kind) => out.filter((o) => o[0] === kind).map((o) => o[1]).join('');
+
 test('appends a schema-valid AUTO line and prints it', () => {
   const { main, run: runDir } = fixture();
   const out = [];
@@ -35,7 +37,7 @@ test('appends a schema-valid AUTO line and prints it', () => {
   const text = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
   assert.equal(text, '- AUTO 09:05:07 — spec #12: x. Reversibility: n/a.\n');
   assert.match(text.trim(), SCHEMA);
-  assert.equal(out.filter((o) => o[0] === 'out').map((o) => o[1]).join(''), text);
+  assert.equal(streamOf(out, 'out'), text);
 });
 
 test('--section places the entry under the heading; --lever/--reversibility carried', () => {
@@ -53,7 +55,7 @@ test('a --run inside a linked-worktree path is rejected non-zero and names the s
   const out = [];
   const code = run(['--run', shadow, '--status', 'AUTO', '--text', 'x'], deps(main, out));
   assert.equal(code, 3);
-  const err = out.filter((o) => o[0] === 'err').map((o) => o[1]).join('');
+  const err = streamOf(out, 'err');
   assert.match(err, /not anchored/);
   assert.match(err, /pipeline-run-dir\.md/);
   assert.equal(fs.existsSync(path.join(shadow, 'decisions.md')), false, 'nothing written to the shadow');
@@ -65,9 +67,9 @@ test("appendEntry write failure maps to exit 3 (decisions.md is a directory, not
   const out = [];
   const code = run(['--run', runDir, '--status', 'AUTO', '--text', 'x'], deps(main, out));
   assert.equal(code, 3);
-  const err = out.filter((o) => o[0] === 'err').map((o) => o[1]).join('');
+  const err = streamOf(out, 'err');
   assert.match(err, /could not write decisions\.md/);
-  assert.equal(out.filter((o) => o[0] === 'out').length, 0, 'nothing printed to stdout');
+  assert.equal(streamOf(out, 'out'), '', 'nothing printed to stdout');
 });
 
 test('malformed invocations exit 2: missing --run, bad status, empty text, missing dir exits 3', () => {
