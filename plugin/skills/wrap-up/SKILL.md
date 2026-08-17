@@ -183,6 +183,8 @@ Otherwise: read `curation-engine.md` in this skill's directory and execute its i
 
 Classify once, before `plan`, over Phase 1's whole insight set. The counts open the gate; the Memory and Upstream judges then narrow to whatever earlier rows left unclaimed, which is why they run last.
 
+Every reflect insight in this whole-insight-set carries its own `Evidence:` and `Cost this session:` lines (`reflect/full-mode.md` etc., #858) — no signal here strips them. Reflect's own `staged/reflect-{n}.md` template (`reflect/SKILL.md`'s `## Finding` body) carries both lines as part of that prose, with no new field added; Phase 2's judges (Skills, Memory, Upstream feedback rows) read that same insight text as their input, so whatever each stages downstream still traces back to a source naming what it's anchored to and what it cost, not a compressed recommendation with the anchor stripped.
+
 **Engine failure is never permission to skip a row.** The prose fallback in `curation-engine.md` section 6 is unconditional and takes no diagnosis, and the report states which path ran.
 
 ---
@@ -319,6 +321,6 @@ When **this run created** its own run directory, `/claude-tweaks:wrap-up` runs s
 | Skipping a registry row because its gate looks obviously closed | The engine evaluates gates — a hand-skipped row is the silent skip render --strict exists to catch |
 | Composing the Phase 2 trace or SCANNED lines by hand when the engine is available | Seven hand-maintained formats drifting was this architecture's motivating failure — render owns the format |
 | Treating engine failure as permission to skip curation | The prose fallback in curation-engine.md is unconditional — the report states which path ran |
-| Proposing generic skill updates with no concrete anchor | Every update must trace to a ledger entry, a reflection insight, or a changed-file observation — unanchored ones read as hallucinated |
+| Proposing generic skill updates with no concrete anchor | Every update must trace to a ledger entry, a reflection insight, or a changed-file observation — unanchored ones read as hallucinated; a reflect insight's own `Evidence:` line (#858) is the mechanical carrier of that anchor |
 | Writing an ADR for every decision | ADRs are valuable because rare — the Decision records row's three-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so; zero per wrap-up is normal |
 | Treating `demo:pending` as optional for "trivial" record-mode work | Triviality is not an exemption — it gets a fast path at `/demo`'s verdict step, not wrap-up's labeling step. The one record class that *does* skip its own label is a sub-issue with a resolvable parent, and that is the gate moving to the parent, not going away |

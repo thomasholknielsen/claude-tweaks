@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const watermark = require('../../../plugin/bin/lib/feedback/watermark');
+const watermark = require('../../../plugin/bin/lib/transcript-judge/watermark');
 
 // Fake deps are plain objects backed by an in-memory `store` keyed by the
 // path a real fs call would use, matching tests/bin-lib/feedback/
@@ -24,7 +24,7 @@ const WATERMARK_REL = path.join('.claude-tweaks', 'feedback', 'watermarks', 'ses
 
 // ---- watermarkPath ---------------------------------------------------------
 
-test('watermarkPath: strips directory and .jsonl extension, keeps the session-id form', () => {
+test('watermarkPath: default consumer is feedback (byte-identical to pre-#856 path)', () => {
   assert.equal(watermark.watermarkPath(TRANSCRIPT), WATERMARK_REL);
 });
 
@@ -32,6 +32,13 @@ test('watermarkPath: two different transcripts derive two different watermark pa
   const a = watermark.watermarkPath('/a/session-one.jsonl');
   const b = watermark.watermarkPath('/b/session-two.jsonl');
   assert.notEqual(a, b);
+});
+
+test('watermarkPath: consumer option produces a disjoint path', () => {
+  const feedbackPath = watermark.watermarkPath(TRANSCRIPT, { consumer: 'feedback' });
+  const reflectPath = watermark.watermarkPath(TRANSCRIPT, { consumer: 'reflect' });
+  assert.notEqual(feedbackPath, reflectPath);
+  assert.equal(reflectPath, path.join('.claude-tweaks', 'reflect', 'watermarks', 'session-abc123.json'));
 });
 
 // ---- readWatermark: degrade-open -------------------------------------------
@@ -105,36 +112,44 @@ test('writeWatermark: propagates a real write failure to the caller rather than 
   );
 });
 
+test('readWatermark/writeWatermark: consumer round-trip is isolated per consumer', () => {
+  const { mkdirSync, writeFile, readFile } = makeStore();
+  const feedbackData = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 10, evaluatedAt: 'a', filedRecords: [], dismissedFingerprints: [] };
+  const reflectData = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 20, evaluatedAt: 'b', filedRecords: ['insight-1'] };
+
+  watermark.writeWatermark(TRANSCRIPT, feedbackData, { consumer: 'feedback', mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, reflectData, { consumer: 'reflect', mkdirSync, writeFile });
+
+  assert.deepEqual(watermark.readWatermark(TRANSCRIPT, { consumer: 'feedback', readFile }), feedbackData);
+  assert.deepEqual(watermark.readWatermark(TRANSCRIPT, { consumer: 'reflect', readFile }), reflectData);
+});
+
 // ---- byteOffsetToLine -------------------------------------------------------
 // Fixture: 'aaa\nbbb\nccc\n' — 12 bytes, newlines at byte indices 3, 7, 11.
 const FIXTURE = 'aaa\nbbb\nccc\n';
+const readFixture = () => Buffer.from(FIXTURE, 'utf8');
 
 test('byteOffsetToLine: offset 0 -> line 1', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 0, { readFile }), 1);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 0, { readFile: readFixture }), 1);
 });
 
 test('byteOffsetToLine: offset mid-line -> the line containing that byte', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
   // byte 5 is inside "bbb" (line 2), after the first newline at byte 3.
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 5, { readFile }), 2);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 5, { readFile: readFixture }), 2);
 });
 
 test('byteOffsetToLine: offset exactly on a newline byte -> still the line it terminates', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
   // byte 3 IS the first newline; it has not yet been consumed by the slice.
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 3, { readFile }), 1);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 3, { readFile: readFixture }), 1);
 });
 
 test('byteOffsetToLine: offset one past a newline -> the next line', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
   // byte 4 is the first byte of "bbb" (line 2), right after the newline at byte 3.
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 4, { readFile }), 2);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 4, { readFile: readFixture }), 2);
 });
 
 test('byteOffsetToLine: offset past EOF -> one past the last complete line, no throw', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 1000, { readFile }), 4);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 1000, { readFile: readFixture }), 4);
 });
 
 test('byteOffsetToLine: readFile returning a plain string (not a Buffer) still works', () => {
