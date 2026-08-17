@@ -366,9 +366,9 @@ Branch on the JSON:
 
   Log `STAGED {time} — pr-first-merge Step 4.1: release status — already carried by v{version} —
   CHANGELOG backfill needed: #{a}, #{b}. Reversibility: high; stage path:
-  staged/release-backfill-v{version}.md.` under the invoking merge site's own `## /{skill}`
-  heading (the site that entered this procedure — `/dispatch`, `/wrap-up`, or `/flow`) — and carry
-  the human line into the closing report.
+  staged/release-backfill-v{version}.md.` under the invoking merge site's own decisions.md heading
+  (`## /dispatch`, `## /wrap-up`, or `## /flow` — whichever skill entered this procedure) — and
+  carry the human line into the closing report.
 
 Like reconcile, this is convergent bookkeeping, not owed: a `git fetch` failure or a non-zero
 exit from the subcommand is logged (`AUTO {time} — pr-first-merge Step 4.1: release status
