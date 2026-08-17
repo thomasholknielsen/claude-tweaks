@@ -42,7 +42,7 @@ Read-only — never writes `run-state.json`. Reads `run-state.json`'s `status`, 
    A live pid holding the worktree lock blocks — "run appears actively owned".
 5. **Last-commit age** — `git -C {worktree} log -1 --format=%ct`, compared against a 10-minute
    threshold ("on the order of minutes" — long enough that one working session's normal commit
-   cadence doesn't read as a stranger, short enough that a genuinely dead run isn't gated for an
+   cadence does not read as a stranger, short enough that a genuinely dead run isn't gated for an
    unreasonable stretch; see `bin/lib/hooks/resume-freshness.js`'s own header comment for the
    full rationale). A commit inside the threshold blocks.
 6. Otherwise: safe (`stale`) — the run is genuinely quiet.
