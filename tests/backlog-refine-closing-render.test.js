@@ -40,7 +40,7 @@ test('Step 5 closing summary requires a per-type tally line with an always-prese
 
 test('Step 5 closing summary requires a paste-ready retry command per failed write', () => {
   assertClaimPinned(
-    /followed by a paste-ready retry\n\s*command on its own line/,
+    /followed by a paste-ready retry\s+command on its own line/,
     'paste-ready retry-command requirement missing',
   );
 });

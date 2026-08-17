@@ -396,14 +396,16 @@ second bookkeeping channel:
    gh issue edit 123 --add-label priority:high
    ```
 
-   For a priority write specifically, re-derive the conditional swap from the failure point — a
-   blind `--add-label` retry after a partial failure (old tier already removed, new tier's add
-   failed) is safe, but retrying the same way after the write failed *before* any removal risks
-   leaving two contradictory `priority:*` labels, exactly what the swap in this section's
-   Priority/Related rows exists to prevent. Re-check the record's current `priority:*` label state
-   before emitting the retry command; only add-only when no prior-tier label remains. Grant rows
-   (up to four chained `gh` calls) and Related/Flag-back rows (a `--body-file` edit) retry as the
-   single failed call from that row's own mechanics above, not the whole row.
+   (shown assuming the removal already landed and only the add failed — see the swap-safety
+   caveat immediately below before pasting this literally)
+
+   For a priority write, re-derive the conditional swap from the failure point: re-read the
+   record's current `priority:*` label state, and emit the add-only form only when no prior-tier
+   label remains. Add-only is safe when the removal already landed and the add is what failed;
+   after a failure *before* any removal it leaves two contradictory `priority:*` labels — exactly
+   what the **Priority/Related rows** swap above exists to prevent. Grant rows (up to four chained
+   `gh` calls) and Related/Flag-back rows (a `--body-file` edit) retry as the single failed call
+   from that row's own mechanics above, not the whole row.
 
 3. **The run-directory path, absolute** — never relative (a bare relative
    `.claude-tweaks/pipelines/` path silently shadows the main-checkout copy when run from a
