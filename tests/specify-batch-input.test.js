@@ -22,9 +22,10 @@ const SHAPING = fs.readFileSync(path.join(ROOT, 'skills', 'specify', 'shaping-mo
 
 function inputSection(content) {
   const headings = [...content.matchAll(/^## .*$/gm)];
-  const start = headings.find((m) => m[0] === '## Input');
-  assert.ok(start, 'skills/specify/SKILL.md has no ## Input section');
-  const next = headings.find((m) => m.index > start.index);
+  const idx = headings.findIndex((m) => m[0] === '## Input');
+  assert.ok(idx !== -1, 'skills/specify/SKILL.md has no ## Input section');
+  const start = headings[idx];
+  const next = headings[idx + 1];
   return content.slice(start.index + start[0].length, next ? next.index : content.length);
 }
 
