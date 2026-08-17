@@ -27,7 +27,30 @@ When Step 9 completes, return to `SKILL.md`'s `## Next Actions` block.
 
 ### File Reference Map
 
-Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every open record's body to build a file→record map:
+Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every open record's body to build a file→record map. Never let the raw record bodies re-enter the model's context for this step — call the existing extractor and redirect its output:
+
+`work-backend: github-issues` (reads `/tmp/specify-all-issues.json`, the same `--state all` snapshot Step 1 above already fetched):
+
+```bash
+node -e "
+  const { extractKeyFiles } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const issues = require('/tmp/specify-all-issues.json').filter((i) => i.state === 'OPEN');
+  console.log(JSON.stringify(issues.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }))));
+" > /tmp/specify-key-files.json
+```
+
+`work-backend: local-files` (over every file `queryRecords('specs', {})` returns, reference by record id instead of `#N`):
+
+```bash
+node -e "
+  const { extractKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const records = queryRecords('specs', {});
+  console.log(JSON.stringify(records.map((r) => ({ id: r.id, keyFiles: extractKeyFilesSection(r.body) }))));
+" > /tmp/specify-key-files.json
+```
+
+`/tmp/specify-key-files.json` is `[{id, keyFiles}]` — feed this into the file→record map, e.g.:
 
 ```
 src/components/ShoppingList.tsx → #41, #45
@@ -35,7 +58,7 @@ src/api/items.ts → #41
 src/pages/shopping.tsx → #45, #52
 ```
 
-Records without a `Key Files` subsection contribute nothing to the map — a record still in `backlog` or `parked` isn't spec-shaped yet, so it has no such section; skip it silently rather than treating the absence as an error. `work-backend: local-files` — same extraction, over every file `queryRecords('specs', {})` returns; reference by record id instead of `#N`. "Non-completed" is automatic for local records: `queryRecords(dir, facetFilter)` (`bin/lib/issues/local-store.js`) auto-excludes closed records whenever the caller's `facetFilter` doesn't itself filter on the `closed` key, and this step's `queryRecords('specs', {})` call passes an empty filter, so it hits that default-exclude path — every file the query returns is by definition still open.
+Records without a `Key Files` subsection contribute an empty `keyFiles` array and nothing to the map — a record still in `backlog` or `parked` isn't spec-shaped yet, so it has no such section; this is the documented absence case, not an error. "Non-completed" is automatic for local records: `queryRecords(dir, facetFilter)` (`bin/lib/issues/local-store.js`) auto-excludes closed records whenever the caller's `facetFilter` doesn't itself filter on the `closed` key, and this step's `queryRecords('specs', {})` call passes an empty filter, so it hits that default-exclude path — every file the query returns is by definition still open.
 
 This map is used in Step 2 to detect implicit file-based dependencies when creating new sub-issues. If a new sub-issue will touch files that an open record also touches, that's an implicit dependency — even if neither one names the other yet.
 
