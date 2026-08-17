@@ -18,6 +18,13 @@ This is an **action gate** — findings lead to changes, not just observations.
 
 For **structural debt** (evaluation 2): when the debt is module-level — a shallow abstraction, a leaky interface, a pass-through wrapper, or a wrong boundary that a depth refactor would address — recommend `/claude-tweaks:deepen` as the follow-up rather than trying to resolve module restructuring inline. Line-level cleanup still routes to `/claude-tweaks:simplify`; reserve the `/claude-tweaks:deepen` recommendation for genuine interface/depth issues.
 
+### Finding Shape (Evidence + Cost)
+
+Every finding any evaluation produces carries two lines beyond its description: an `Evidence:` line and a `Cost this session:` line (one line; `unclear` is valid — retries, hand-work, a reverted decision). **"No finding" is the expected common answer** — an evaluation that cannot be evidenced renders that explicitly rather than manufacturing a finding to look thorough.
+
+**Evidence format is path-specific, and hindsight mode's own timing constrains which pointers are even available:** hindsight mode runs mid-pipeline (during `/claude-tweaks:review`, before the run's later phases — test's full verification, wrap-up's own passes — have happened), so its evidence pointers can only reference the **partial session state visible at that point** — never end-of-run knowledge the rest of the pipeline hasn't produced yet.
+- **Inline path** (this evaluation ran in the main thread, no transcript read — hindsight mode's only path, since it never dispatches its own singleton) — a pointer into the session's own context so far: a named tool call, an error message, a file:line, or a user turn already visible at hindsight's point in the run. Never a transcript byte offset — there is no transcript read on this path.
+
 For skill-worthy patterns: if yes, **be prescriptive** — name the target skill and section for an update, or a proposed name and one-line scope for a new skill. Vague "this might be skill-worthy" notes don't survive `/wrap-up`'s analysis; a named target does. Use the phase from Step 4's routing table (`review/hindsight` when invoked by /review, `wrap-up` when invoked by /wrap-up, `reflect` when standalone). Tag the entry body with `[skill: existing-skill-name]` for findings that target a specific skill, or `[skill: NEW - {suggested-name}]` for patterns that don't fit any existing skill (hyphen, not em-dash, for tooling friendliness). `/wrap-up`'s Skills curation row picks these up by scanning ledger entry bodies for the `[skill: …]` tag — phase doesn't have to be `*/skill` for the entry to be skill-routed.
 
 ## Step 3: Route Findings — Hindsight Mode

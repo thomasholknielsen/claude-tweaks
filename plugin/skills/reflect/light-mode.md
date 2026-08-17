@@ -14,6 +14,14 @@ Light mode is a narrowed subset of full mode — see `full-mode.md` for the Near
 
 Surprises and Approach are skipped — light mode exists specifically to trim ceremony for a `fast-lane`-profiled record. If this run's escape hatch fires mid-pass (see below), the *next* wrap-up steps run at standard depth — this pass itself is not retroactively widened.
 
+### Finding Shape (Evidence + Cost)
+
+Every finding any lens produces carries two lines beyond its description: an `Evidence:` line and a `Cost this session:` line (one line; `unclear` is valid — retries, hand-work, a reverted decision). **"No finding" is the expected common answer** — a lens that cannot be evidenced renders that explicitly rather than manufacturing an insight to look thorough.
+
+**Evidence format is path-specific:**
+- **Inline path** (this lens ran in the main thread, no transcript read) — a pointer into the session's own context: a named tool call, an error message, a file:line, or a user turn. Never a transcript byte offset — there is no transcript read on this path.
+- **Dispatched path** (the standalone `[Use: Frontier]` singleton, which reads the transcript via `_shared/transcript-judge.md`, #857) — a transcript-anchored pointer per that file's finding norms: a quoted excerpt or a precise location reference.
+
 ### Seed from Review Learnings (pipeline context)
 
 Same as full mode: check the `/claude-tweaks:review` summary's **Key Learnings** section and use it as a starting point for the three lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the three lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.

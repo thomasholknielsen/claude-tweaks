@@ -16,6 +16,14 @@ Runs all five reflection lenses plus a tradeoff review.
 | **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives; route via _shared/learning-routing.md |
 | **5. Friction** | "Did the pipeline itself get in the way?" — Was every hook denial and AskUserQuestion stop this run actually necessary? | Upstream feedback (D5) via `_shared/learning-routing.md` |
 
+### Finding Shape (Evidence + Cost)
+
+Every finding any lens produces carries two lines beyond its description: an `Evidence:` line and a `Cost this session:` line (one line; `unclear` is valid — retries, hand-work, a reverted decision). **"No finding" is the expected common answer** — a lens that cannot be evidenced renders that explicitly rather than manufacturing an insight to look thorough.
+
+**Evidence format is path-specific:**
+- **Inline path** (this lens ran in the main thread, no transcript read) — a pointer into the session's own context: a named tool call, an error message, a file:line, or a user turn. Never a transcript byte offset — there is no transcript read on this path.
+- **Dispatched path** (the standalone `[Use: Frontier]` singleton, which reads the transcript via `_shared/transcript-judge.md`, #857) — a transcript-anchored pointer per that file's finding norms: a quoted excerpt or a precise location reference.
+
 ### Near-misses Chain Walk
 
 Before routing (Step 3), walk each Near-misses finding through `_shared/causal-depth.md`'s why-chain: the near-miss is the input, the chain asks "why was this possible?" up to 3 times, and the resulting `CAUSAL: terminal | systemic` verdict travels with the finding into Step 3's routing — a `systemic` verdict is itself insight-worthy alongside the near-miss it came from, not a separate item.
