@@ -123,13 +123,13 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 
 1. Parse the user's overrides — `#`s map to consolidated table rows; resolve back to the originating spec's subdirectory for each
 2. Apply (per step 1), skip, or modify per item
-3. **If the branch-finish row (Cleanup actions) is skipped or reverted:** auto-skip every per-spec claim-release/grant-removal/label-cleanup row for this run — render each as "skipped — depends on branch-finish" rather than executing it against a branch-finish outcome that never happened, and rather than leaving it pending or orphaned. Log the auto-skip to the parent run dir's `decisions.md`. Dev-server teardown is unaffected — it has no dependency on branch-finish and executes (or is skipped) per the user's own choice for that row alone.
+3. **If the branch-finish row (Cleanup actions) is skipped or reverted:** auto-skip every per-spec claim-release/grant-removal/label-cleanup row for this run, and the shared worktree-removal row (Shared teardown step 6) — render each as "skipped — depends on branch-finish" rather than executing it against a branch-finish outcome that never happened, and rather than leaving it pending or orphaned. Log the auto-skip to the parent run dir's `decisions.md`. Dev-server teardown is unaffected — it has no dependency on branch-finish and executes (or is skipped) per the user's own choice for that row alone.
 4. Queue writes (`Q#`) and Memory updates (`M#`) resolve via a per-item prompt under override — the one path where they resolve individually instead of by their Approve-all default; Upstream feedback (`U#`) resolves via the shared batch contract under override, the same way — see "Present the consolidated console" above; the user can Skip or Edit any of them, but none of the three can be bulk-resolved across specs either
 5. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
 6. Execute the Cleanup actions rows the user did not skip, respecting the dependency order established in step 3 above. "Shared teardown" below documents these steps' mechanics.
 7. Archive the parent run dir
 
-### Shared teardown (dev server, branch finish, claim release, grants)
+### Shared teardown (dev server, branch finish, claim release, grants, worktree removal)
 
 These steps appear as visible, numbered Cleanup actions rows in the console template above — that is what the user sees and approves/overrides, and it decides which rows actually run. This section documents only their mechanics, which apply identically after both "On approval" step 8 and "On override" step 6; only what triggered them differs:
 
@@ -141,12 +141,16 @@ These steps appear as visible, numbered Cleanup actions rows in the console temp
    terminal decision's two Approve-all variants was chosen (above) governs the outcome: "leave PR
    open" skips the merge attempt entirely (Step 3), landing on `pending-review` with the PR left
    ready. `integration-model: local-merge`: complete it via `/superpowers:finishing-a-development-branch`
-   (merge / PR / discard) — reserved for `local-merge` only, mirroring the same split. Either way,
-   the outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the
-   next step.
+   (merge / PR / discard) — tell it explicitly **not** to remove the worktree; step 6 below
+   (`ExitWorktree`, per the Teardown ordering invariant in `wrap-up/cleanup-procedures.md` Section C)
+   owns that, never that skill's own git mechanics (its bundled script's `cd`-then-`git worktree
+   remove` is exactly the raw-removal shape the invariant forbids) — reserved for `local-merge`
+   only, mirroring the same split. Either way, the outcome decides each spec's release reason and
+   `$LINK` (merge commit sha or PR URL) for the next step.
 3. Release each issue claim this run holds — enumerate via `manifest.yml`'s `specs[].id` list (every record targeted by this run, regardless of status), not by globbing `spec-*/work/*-spec.md` alone — a record-mode spec whose build never started (e.g. `status: not-run` under default failure handling, per `multi-spec.md`) has no `work/` file to glob and would otherwise be silently left un-enumerated. For each `id` whose `spec-{id}/work/{id}-spec.md` exists (materialized from a record via `materialize.md`), read its header `record:` field to confirm the issue number. The materialized file is never deleted before this point — only archived once the run dir is archived — so it's read directly here; there is no separate pre-deletion capture. For an `id` with `status: not-run` and no `work/` file, the manifest's own `id` IS the record/issue number — release it with the same `bin/release-claim.js` command below, reason `never-started: spec {spec} not run` and no `--link` (the same `never-started:` reason vocabulary `dispatch/SKILL.md`'s partial-claim abort uses), since it never reached a mergeable/abandonable state. Every other status uses the outcome-mapped reason from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`) and its one-command release — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" "$ISSUE" --run "$MULTISPEC_PARENT_DIR" --reason "$REASON" --link "$LINK" --remove-in-progress [--remove-grants] --section "/flow"` — which ownership-checks (a successor's claim is never deleted), writes the tombstone, posts the comment, and logs one `AUTO` line to the parent's `decisions.md`. `$LINK` is the branch-finish outcome's merge commit sha or PR URL. **`--run` is `$MULTISPEC_PARENT_DIR`, never a per-spec `$PIPELINE_RUN_DIR`.**
 4. **Remove grants** — pass `--remove-grants` for each issue released with a `merged:` or `pr-opened:` outcome (strips `auto:build`/`auto:merge`, best-effort per label); omit it for `abandoned:` (the grant is the standing retry request). See "Grant revocation" in `_shared/issue-claims.md`.
 5. **Remove `bot:in-progress`; restore `parked` if applicable** — see "Per-issue label cleanup" below.
+6. **Remove the shared worktree** — `wrap-up/cleanup-procedures.md` Section C step 4; the run occupies exactly one (`multi-spec.md`'s "Shared worktree"). Per that Section's Teardown ordering invariant: only once steps 2-5 above have completed — step 3's claim release reads each spec's materialized header from inside this worktree — and only via `ExitWorktree`, never a raw `git worktree remove` nor a `cd`-then-remove compound. Run `close-run` first (Section C step 3.6) if the parent run dir is not already closed. Skip when the branch-finish outcome left work pending: `pr-first`'s "leave PR open" (no merge attempted) or `local-merge`'s "kept as-is" — the worktree stays for that continued work, mirroring Section C step 3's own skip.
 
 ### Per-issue label cleanup
 

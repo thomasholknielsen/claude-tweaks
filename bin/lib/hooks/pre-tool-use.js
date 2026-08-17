@@ -273,13 +273,19 @@ function denyResult(reason) {
 // not extend the compound-command surface #174 tracks. Any other flags,
 // multiple positionals, or parse doubt skip that segment; never fabricate a
 // target — ambiguity resolves to allow.
+// Each entry carries `source` ('exitworktree' | 'bash') alongside the
+// resolved `path` — checkTeardownGate's own-cwd guard (#693) below applies
+// ONLY to the 'bash' source: ExitWorktree always resolves to ctx.cwd's own
+// toplevel (see the block comment above this function) and IS the sanctioned
+// own-cwd removal path, so the same "target is my own cwd" shape must never
+// deny it the way it denies a raw `git worktree remove`.
 function teardownTargets(ctx) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
   if (GATE_COVERAGE.teardownTools.includes(toolName)) {
     if (!toolInput || toolInput.action !== 'remove') return [];
     const top = toplevel(ctx.cwd || process.cwd());
-    return top ? [top] : [];
+    return top ? [{ path: top, source: 'exitworktree' }] : [];
   }
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
@@ -302,7 +308,7 @@ function teardownTargets(ctx) {
     // `--`, like `--force`/`-f`, is a flag/terminator, never the path itself.
     const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f' && t !== '--');
     if (rest.length !== 1 || rest[0].startsWith('-')) return; // unconfident -> allow
-    out.push(path.resolve(dir, rest[0]));
+    out.push({ path: path.resolve(dir, rest[0]), source: 'bash' });
   });
   return out;
 }
@@ -332,8 +338,34 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
   // at least one target, since it costs an fs walk on every hook call
   // otherwise.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(ctx.cwd || process.cwd()));
-  for (const target of targets) {
+  // Own-cwd guard (#693): resolved once per call, reused across targets.
+  const cwdReal = safeReal(ctx.cwd || process.cwd());
+  for (const { path: target, source } of targets) {
     if (mainRoot && safeReal(target) === mainRoot) continue;
+
+    // A raw Bash `git worktree remove` (never ExitWorktree — see teardownTargets'
+    // header comment) whose target IS the session's own cwd, or a directory
+    // containing it, deletes the shell's live working directory out from
+    // under itself: the incident #693 documents. This fires independent of
+    // any pipeline-run assignment below — a `close-run` already having run
+    // (which lifts the assignment-based deny further down, see AC2 in
+    // tests/teardown-gate.test.js) does nothing to stop the shell's own cwd
+    // being pulled out from under it, which is exactly the gap that let the
+    // incident's raw remove through. Ambiguity (unresolvable target or cwd)
+    // still resolves to allow, matching this file's own posture throughout.
+    if (source === 'bash') {
+      const targetReal = safeReal(target);
+      if (targetReal && cwdReal && (cwdReal === targetReal || cwdReal.startsWith(targetReal + path.sep))) {
+        return denyResult(
+          `claude-tweaks teardown gate: this \`git worktree remove\` targets ${target}, which is the ` +
+          `current session's own working directory (or an ancestor of it). Removing it deletes the ` +
+          `shell's live cwd and leaves the session with no git context. Use \`ExitWorktree\` instead — ` +
+          `it is the only sanctioned way to remove the worktree a session is standing in ` +
+          `(skills/wrap-up/cleanup-procedures.md Section C's Teardown ordering invariant).`,
+        );
+      }
+    }
+
     let exists = false;
     try { fs.statSync(target); exists = true; } catch { /* gone */ }
     // Recorded-or-target path already gone from disk -> allow (fail-open).

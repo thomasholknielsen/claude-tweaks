@@ -82,6 +82,19 @@ A run directory always exists from Phase 1 onward, so this section always applie
 
 If the build used worktree git strategy, clean up the worktree directory:
 
+### Teardown ordering invariant
+
+Worktree removal is always the **last** action taken against a worktree — only after every
+git-needing step still pending against it (branch finish/merge, push, branch delete, issue claim
+release reading a materialized header from inside it) has completed, never interleaved before one.
+For the worktree the session is standing in, removal is `ExitWorktree` **only**: never a raw `git
+worktree remove`, and never a `cd`-then-remove compound — a `cd` out of the worktree denied by
+`worktree-always` must never fall back to running `git worktree remove` from inside it, which
+deletes the shell's own cwd and leaves the session with no git context. `bin/lib/hooks/pre-tool-use.js`'s
+teardown gate denies that raw-command/own-cwd shape directly. Step 4 below is that removal; step
+3.6 (`close-run`) MUST precede it, unchanged (`[IL-116]`). `flow/multispec-review-console.md`'s
+Shared teardown and `flow/worktree-merge.md` cite this invariant rather than restating it.
+
 1. Run `git worktree list` to find worktrees associated with this spec's feature branch.
 2. **Stamp the closing-keyword carrier commit — worktree strategy, single-terminal path only.**
    Skip this step entirely when this run is part of a multi-terminal-parallel dispatch destined
