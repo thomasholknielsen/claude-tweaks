@@ -77,6 +77,50 @@ test('fetchNativeDependencies: a closed-only blockedBy list still reports the nu
   assert.deepEqual(deps.get(720), { blockedBy: [700], openBlocker: false });
 });
 
+// A missing `data.repository` (null, or the key absent entirely) must never
+// silently yield `blockedBy: [], openBlocker: false` for every candidate —
+// same "throw on a partial result rather than returning a partial map" rule
+// bin/lib/issues/link.js's resolveDatabaseIds follows (#723).
+test('fetchNativeDependencies: data.repository null throws, naming every candidate record', () => {
+  const runner = () => JSON.stringify({ data: { repository: null } });
+  assert.throws(
+    () => fetchNativeDependencies({ numbers: [720, 721], owner: 'a', repo: 'b', runner }),
+    /#720.*#721|#721.*#720/s,
+  );
+});
+
+test('fetchNativeDependencies: data.repository absent (malformed response) throws, naming every candidate record', () => {
+  const runner = () => JSON.stringify({ data: {} });
+  assert.throws(
+    () => fetchNativeDependencies({ numbers: [720], owner: 'a', repo: 'b', runner }),
+    /#720/,
+  );
+});
+
+// A missing `i{n}` alias (repository present, one candidate's field absent
+// from the response) must throw naming only the affected record — a
+// resolvable sibling record must never be silently dropped from the throw.
+test('fetchNativeDependencies: a missing i{n} alias throws, naming just that record', () => {
+  const runner = () => JSON.stringify({
+    data: { repository: { i720: { number: 720, blockedBy: { nodes: [] } } } },
+  });
+  assert.throws(
+    () => fetchNativeDependencies({ numbers: [720, 721], owner: 'a', repo: 'b', runner }),
+    (err) => /#721/.test(err.message) && !/#720/.test(err.message),
+  );
+});
+
+test('fetchNativeDependencies: a GraphQL errors[] array is folded into the thrown message when present', () => {
+  const runner = () => JSON.stringify({
+    data: { repository: null },
+    errors: [{ message: 'Field "repository" must not be null' }],
+  });
+  assert.throws(
+    () => fetchNativeDependencies({ numbers: [720], owner: 'a', repo: 'b', runner }),
+    /Field "repository" must not be null/,
+  );
+});
+
 // --- lib: buildRecords / buildOverlapGroups ----------------------------
 
 const specBody = (files) => [
@@ -233,6 +277,25 @@ test('(d) CLI: fetch failure on one of three records exits 1, all failures named
   assert.match(errText, /500/);
 });
 
+test('CLI native mode: a missing i{n} alias in the batched graphql response exits 1, the affected record named (#723)', () => {
+  const runner = (args) => {
+    if (isIssueView(args, 720)) return JSON.stringify(issue({ number: 720, title: 'A', body: specBody(['a.js']) }));
+    if (isIssueView(args, 721)) return JSON.stringify(issue({ number: 721, title: 'B', body: specBody(['b.js']) }));
+    if (isGraphQL(args)) {
+      // i721 alias is absent from the response entirely.
+      return JSON.stringify({
+        data: { repository: { i720: { number: 720, blockedBy: { nodes: [] } } } },
+      });
+    }
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const { deps, err, out } = cliDeps({ runner, workLinks: 'native' });
+  const code = run(['720', '721'], deps);
+  assert.equal(code, 1);
+  assert.equal(out.length, 0, 'no JSON printed on failure');
+  assert.match(err.join(''), /#721/);
+});
+
 test('(e) CLI: no args exits 2', () => {
   const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
   const code = run([], deps);
@@ -240,7 +303,7 @@ test('(e) CLI: no args exits 2', () => {
   assert.match(err.join(''), /usage:/);
 });
 
-test('(e) CLI: non-positive/non-numeric arguments exit 2', () => {
+test('(f) CLI: non-positive/non-numeric arguments exit 2', () => {
   const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
   assert.equal(run(['0'], deps), 2);
   assert.equal(run(['-5'], deps), 2);
@@ -248,7 +311,7 @@ test('(e) CLI: non-positive/non-numeric arguments exit 2', () => {
   assert.match(err.join(''), /positive integer/);
 });
 
-test('(f) CLI: --work-links flag overrides the deps-resolved policy value', () => {
+test('(g) CLI: --work-links flag overrides the deps-resolved policy value', () => {
   const calls = [];
   const runner = (args) => {
     calls.push(args);

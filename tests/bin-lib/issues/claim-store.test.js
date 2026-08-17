@@ -152,6 +152,32 @@ test('classifyGhApiError: 404 text wins over a coincidental 422 mention', () => 
   assert.deepEqual(classifyGhApiError(e), { failure: null, status: 404 });
 });
 
+// A 409 is the Contents API's rejection for a conditional-write sha
+// mismatch — someone else's write landed between this read and this write.
+// Same write-conflict classification as a 422 (see the 422 block above):
+// live-confirmed wording varies ("HTTP 409", the "Conflict" reason phrase,
+// or the body's "...does not match..." text), so all three are accepted
+// case-insensitively, symmetric with the 422 regex's three-way accept.
+test('classifyGhApiError: "HTTP 409" status text -> write-conflict, status 409, failure null', () => {
+  const e = { message: '', stderr: 'gh: HTTP 409: Conflict (...)', stdout: '' };
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 409 });
+});
+
+test('classifyGhApiError: "Conflict" reason phrase alone -> status 409', () => {
+  const e = { message: '', stderr: 'Conflict', stdout: '' };
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 409 });
+});
+
+test('classifyGhApiError: sha-mismatch body wording ("does not match") -> status 409', () => {
+  const e = new Error('gh: sha does not match (HTTP 409)');
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 409 });
+});
+
+test('classifyGhApiError: 404 text wins over a coincidental 409 mention', () => {
+  const e = new Error('gh: Not Found (HTTP 404) — see HTTP 409 docs');
+  assert.deepEqual(classifyGhApiError(e), { failure: null, status: 404 });
+});
+
 test('classifyGhApiError: generic error text -> network-failure, status null', () => {
   assert.deepEqual(classifyGhApiError(new Error('connection reset by peer')), { failure: 'network-failure', status: null });
 });
@@ -159,6 +185,15 @@ test('classifyGhApiError: generic error text -> network-failure, status null', (
 test('writeClaimBlob: write-conflict (status 422) -> ok:false, conflict:true, failure:null (lost race, not a transient failure)', () => {
   const ghApi = (args) => {
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 422 };
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
+  assert.deepEqual(r, { ok: false, conflict: true, failure: null });
+});
+
+test('writeClaimBlob: write-conflict (status 409, sha-mismatch) -> ok:false, conflict:true, failure:null — same signal as a 422 (#723)', () => {
+  const ghApi = (args) => {
+    if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 409 };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
   const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });

@@ -48,6 +48,17 @@ function claimPath(issueNumber) {
 // `network-failure`, which is what `writeClaimBlob` uses to tell a lost
 // race apart from a real transient failure (see that function).
 //
+// A 409 is the Contents API's own rejection for a conditional-write sha
+// mismatch — the RECLAIM-path equivalent of the 422 create-race above (a
+// stale/tombstone target someone else re-claimed between this read and this
+// write). Symmetric with the 422 block: accept the HTTP status text ("HTTP
+// 409"), the reason phrase ("Conflict"), or the sha-mismatch body wording
+// ("does not match") — any one classifies as `status: 409`, the same
+// write-conflict signal `writeClaimBlob` folds into `conflict: true`.
+// Without this branch a lost reclaim race fell through to
+// `network-failure`, routing `bin/claim-targets.js` to transient (exit 4)
+// instead of contested (exit 3) — #723.
+//
 // ENOENT (no `gh` binary) is reported separately as `gh-absent` so a
 // preflight CLI can name the real fallback instead of a generic failure.
 function classifyGhApiError(e) {
@@ -55,6 +66,7 @@ function classifyGhApiError(e) {
   const text = [e && e.message, e && e.stderr, e && e.stdout].filter(Boolean).map(String).join(' ');
   if (/HTTP 404|Not Found/.test(text)) return { failure: null, status: 404 };
   if (/HTTP 422|Unprocessable|Validation failed/.test(text)) return { failure: null, status: 422 };
+  if (/HTTP 409|Conflict|does not match/i.test(text)) return { failure: null, status: 409 };
   return { failure: 'network-failure', status: null };
 }
 
@@ -103,18 +115,19 @@ function readClaimBlob(ghApi, repoSlug, issueNumber) {
 // the path already exists), present = conditional-update (must match the
 // blob's current sha) — the create-vs-reclaim split
 // `_shared/issue-claims.md`'s "The lock" steps 3-4 document.
-// A `status: 422` response (see `classifyGhApiError`) is a genuine
-// write-conflict — someone else's create-only write landed first, or a
-// conditional write's sha no longer matches — and must resolve `ok: false`
-// on its own, not fall through to the generic `status !== 404` formula
-// below (422 !== 404 would otherwise read as success). Callers distinguish
-// this from a transient `ghApi` failure via `conflict: true` vs a non-null
+// A `status: 422` or `status: 409` response (see `classifyGhApiError`) is a
+// genuine write-conflict — someone else's create-only write landed first
+// (422), or a conditional write's sha no longer matches because someone
+// else's reclaim landed first (409) — and must resolve `ok: false` on its
+// own, not fall through to the generic `status !== 404` formula below (422
+// / 409 !== 404 would otherwise read as success). Callers distinguish this
+// from a transient `ghApi` failure via `conflict: true` vs a non-null
 // `failure` — `_shared/issue-claims.md`'s "the lock" step 3: "a rejection
 // on either transport is contested — same handling as `'live'`, not a
 // retry." A consumer supplying its own `ghApi` that never sets `status`
-// (e.g. `release-merged.js`) never sees `status === 422` here, so its `ok`
-// computation is unchanged by this branch — see that module's delegation
-// comments.
+// (e.g. `release-merged.js`) never sees `status === 422` or `status === 409`
+// here, so its `ok` computation is unchanged by this branch — see that
+// module's delegation comments.
 function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message }) {
   const encoded = Buffer.from(content, 'utf8').toString('base64');
   const args = [
@@ -125,7 +138,7 @@ function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message })
   ];
   if (sha) args.push('-f', `sha=${sha}`);
   const r = ghApi(args);
-  if (r.status === 422) return { ok: false, conflict: true, failure: null };
+  if (r.status === 422 || r.status === 409) return { ok: false, conflict: true, failure: null };
   return { ok: r.failure === null && r.status !== 404, failure: r.failure };
 }
 

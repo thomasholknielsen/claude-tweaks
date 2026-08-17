@@ -274,6 +274,28 @@ test('(g) self-owned target: already-owned, no write attempted', () => {
   assert.ok(!calls.some((a) => isWrite(a, '730')), 'self-owned target must never be re-claimed');
 });
 
+// (g2) self-owned, STALE (blob runId == --run-id, but past TTL) -> still
+// already-owned, not reclaimed — the self-owned guard covers `live` OR
+// `stale` (see run()'s combined `classified.state === 'live' ||
+// classified.state === 'stale'` check), but only the `live` case had a test.
+test('(g2) self-owned target, stale (past TTL): already-owned, no write attempted', () => {
+  const staleClaimedAt = new Date(NOW - 100 * 3600 * 1000).toISOString(); // 100h ago, ttl 72h
+  const { ghApi, calls } = makeGhApi({
+    reads: { 731: [readOk(liveMarker('r1', staleClaimedAt), 'sha731')] },
+    writes: {},
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '731'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, []);
+  assert.deepEqual(body.alreadyOwned, [731]);
+  assert.ok(!calls.some((a) => isWrite(a, '731')), 'self-owned stale target must never be re-claimed');
+});
+
 // (h) unreadable blob -> contested (fail-closed)
 test('(h) unreadable blob: fails closed to contested, exit 3', () => {
   const { ghApi } = makeGhApi({
@@ -351,6 +373,35 @@ test('write conflict (lost race): contested exit 3, all-or-abort release, holder
       720: [writeOk, writeOk],
       721: [{
         stdout: null, failure: null, status: 422,
+      }],
+    },
+  });
+  const { gh, calls: ghCalls } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 3);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.released, [720]);
+  assert.equal(body.contested.length, 1);
+  assert.equal(body.contested[0].issue, 721);
+  assert.equal(body.contested[0].holder.runId, 'winnerRun');
+  assert.equal(calls.filter((a) => isRead(a, '721')).length, 2, 'expected the initial read plus one best-effort holder re-read');
+  assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
+});
+
+test('write conflict (409 sha-mismatch on the conditional write): contested exit 3, same handling as a 422 lost race (#723)', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: {
+      720: [readAbsent, readOk('irrelevant', 'sha720-release')], // 2nd = abort-release fresh read
+      721: [readOk(liveMarker('otherRun', new Date(NOW - 100 * 3600 * 1000).toISOString()), 'sha721'), // stale -> reclaim attempt
+        readOk(liveMarker('winnerRun'), 'sha721-after')], // holder re-read after the lost race
+    },
+    writes: {
+      720: [writeOk, writeOk],
+      721: [{
+        stdout: null, failure: null, status: 409,
       }],
     },
   });

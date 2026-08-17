@@ -55,6 +55,16 @@ function fetchIssues({ numbers, runner = defaultRunner } = {}) {
 // every candidate's native blockedBy connection at once — work-links: native.
 // owner/repo are already-resolved String! values, so -f (never -F — -F would
 // type-coerce an all-numeric name, gh-api-module-pattern's flag table).
+//
+// Throws — never returns a partial map — when `data.repository` is
+// null/missing, or any candidate's `i{n}` alias is absent from the
+// response: the same "throw on a partial result rather than returning a
+// partial map" rule bin/lib/issues/link.js's resolveDatabaseIds follows.
+// Without this, a malformed/error GraphQL response silently read as
+// `blockedBy: [], openBlocker: false` for every affected record — a
+// dependency-satisfied false positive (#723). The CLI's existing try/catch
+// around this call routes the thrown message to the same exit-1,
+// all-failures-named path `fetchIssues`' `failed[]` already uses.
 function fetchNativeDependencies({ numbers, owner, repo, runner = defaultRunner } = {}) {
   const result = new Map();
   const query = buildNativeDependencyQuery(numbers);
@@ -62,9 +72,16 @@ function fetchNativeDependencies({ numbers, owner, repo, runner = defaultRunner 
   const out = runner(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `repo=${repo}`]);
   const parsed = JSON.parse(out);
   const repository = parsed && parsed.data && parsed.data.repository;
+  const missing = repository ? numbers.filter((n) => !repository[`i${n}`]) : numbers.slice();
+  if (missing.length) {
+    const errs = Array.isArray(parsed && parsed.errors) ? parsed.errors.map((e) => e && e.message).filter(Boolean) : [];
+    const suffix = errs.length ? ` (GraphQL: ${errs.join('; ')})` : '';
+    const reason = repository ? 'missing dependency data for' : 'missing repository — no dependency data for';
+    throw new Error(`${reason} ${missing.map((n) => `#${n}`).join(', ')}${suffix}`);
+  }
   for (const n of numbers) {
-    const node = repository ? repository[`i${n}`] : null;
-    const nodes = (node && node.blockedBy && node.blockedBy.nodes) || [];
+    const node = repository[`i${n}`];
+    const nodes = (node.blockedBy && node.blockedBy.nodes) || [];
     result.set(n, {
       blockedBy: nodes.map((b) => b && b.number).filter((v) => v !== undefined),
       openBlocker: hasOpenNativeBlocker(node),
