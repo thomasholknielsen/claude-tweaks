@@ -387,12 +387,23 @@ second bookkeeping channel:
    ```
 
 2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
-   command on its own line (this repo's report-line convention: no inline/same-line comments):
+   command on its own line (this repo's report-line convention: no inline/same-line comments).
+   The retry command reproduces that write type's own Step 5 mechanics above, not a generic
+   `gh issue edit --add-label`:
 
    ```
    #123 — priority write failed: {error}
    gh issue edit 123 --add-label priority:high
    ```
+
+   For a priority write specifically, re-derive the conditional swap from the failure point — a
+   blind `--add-label` retry after a partial failure (old tier already removed, new tier's add
+   failed) is safe, but retrying the same way after the write failed *before* any removal risks
+   leaving two contradictory `priority:*` labels, exactly what the swap in this section's
+   Priority/Related rows exists to prevent. Re-check the record's current `priority:*` label state
+   before emitting the retry command; only add-only when no prior-tier label remains. Grant rows
+   (up to four chained `gh` calls) and Related/Flag-back rows (a `--body-file` edit) retry as the
+   single failed call from that row's own mechanics above, not the whole row.
 
 3. **The run-directory path, absolute** — never relative (a bare relative
    `.claude-tweaks/pipelines/` path silently shadows the main-checkout copy when run from a
