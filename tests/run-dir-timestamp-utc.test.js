@@ -73,9 +73,15 @@ test('flow SKILL.md defers the manifesto.md read until Step 2.8 passes (#724)', 
 });
 
 test('manifesto.md and multi-spec.md each fit the ~20KB read budget (#724)', () => {
-  for (const p of ['skills/flow/manifesto.md', 'skills/flow/multi-spec.md']) {
+  // manifesto.md's ceiling was bumped 20480 -> 21504 in #715: a 13th Manifesto
+  // lever (merge-authorization) costs ~600 irreducible structural bytes (table
+  // row, suppression row, Recommendation defaults row, canonical numbering
+  // entry) even at parity terseness with sibling levers 11/12 — there was no
+  // slack left to absorb it under the 12-lever budget.
+  const BUDGETS = { 'skills/flow/manifesto.md': 21504, 'skills/flow/multi-spec.md': 20480 };
+  for (const [p, budget] of Object.entries(BUDGETS)) {
     const bytes = fs.statSync(path.join(REPO_ROOT, p)).size;
-    assert.ok(bytes < 20480, `${p} is ${bytes} bytes — must stay under 20480`);
+    assert.ok(bytes < budget, `${p} is ${bytes} bytes — must stay under ${budget}`);
   }
 });
 

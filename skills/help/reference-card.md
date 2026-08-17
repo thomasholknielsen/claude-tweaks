@@ -152,7 +152,7 @@ Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-back
 
 | Stop | Where | What |
 |---|---|---|
-| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
+| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique, merge-authorization) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
 | **Wrap-Up Review Console** | `/wrap-up` Phase 4 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
 
 **Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` — read via `bin/resolve-policy.js`, `_shared/policy-schema.md`'s Canonical read path — and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.

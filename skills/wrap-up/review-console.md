@@ -25,13 +25,14 @@ When `--dry-run` was passed (see `SKILL.md`'s Phase 1 Flags subsection), run eve
 ## Auto-merge short-circuit
 
 When this run's spec has a materialized header (`record:` field present in
-`${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND the issue's **live** labels
-carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:` field is
-a snapshot for audit only), check the two-layer gate below — the single-record version of
-`skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
+`${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND EITHER the issue's **live**
+labels carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:`
+field is a snapshot for audit only) OR `manifesto-authorized-merge.md`'s applicability check
+passes (the `merge-authorization` lever, #715), check the two-layer gate below — the single-record
+version of `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved:
 
-1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
+1. **Authorization** — `auto:merge` is present on the live-fetched labels, OR `manifesto-authorized-merge.md`'s applicability check passed (true by construction once this branch is reached under either condition)
 2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically. The verdict must be `auto-merge` to proceed.
 
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
@@ -86,8 +87,8 @@ Skip the blocking wait and merge directly — bypass the interactive
 `/superpowers:finishing-a-development-branch` handoff entirely; a verdict already exists.
 
 **`integration-model: pr-first` (`_shared/integration-model.md`):** run `_shared/pr-first-merge.md`'s
-procedure now — `tag: fast-lane` (distinct from dispatch's `auto-merge` tag; `/help`'s
-auto-merged-this-week count keys on both, `_shared/github-pr-scan.md` `triage-queue` item 3),
+procedure now — `tag: {tag}` (see `manifesto-authorized-merge.md`'s Tag selection section) (distinct from dispatch's `auto-merge` tag; `/help`'s
+auto-merged-this-week count keys on all three, `_shared/github-pr-scan.md` `triage-queue` item 3),
 `issue-list` this one record, `summary` the record's own title. No checkout is needed — `gh pr
 merge` runs directly, which is what retires this section's pre-#411 `git -C "$RUN_DIR"`
 worktree/branch resolution (#299: that resolution anchored against the run dir, not the worktree —
@@ -149,7 +150,7 @@ if [ "$CURRENT" != "{integration-branch}" ]; then
   echo "Main checkout is on '$CURRENT', not '{integration-branch}' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
-git merge --no-ff {branch} -m "[fast-lane] {one-line summary}
+git merge --no-ff {branch} -m "[{tag}] {one-line summary}
 
 Fixes #{issue}"
 ```
@@ -166,7 +167,7 @@ Naming the branch explicitly is required: a bare `git push` from the worktree wo
 merged into is what publishes the merge; a different one leaves it stranded locally.
 
 The explicit `--no-ff` guarantees a real merge commit exists even when the
-branch would otherwise fast-forward — this is what the `[fast-lane]` tag
+branch would otherwise fast-forward — this is what the `{tag}` tag
 lands on, and the same commit message carries the `Fixes #{issue}` closing
 keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still generate
 this console's full content (Auto-applied / Skill updates / Configuration
@@ -186,7 +187,7 @@ rendering the console normally, exactly as an `auto:build`-only record would,
 logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).` — or, on the `manifesto-authorized-merge.md` path, its own tag and log line instead
 
 **Release-reason mapping.** A `merged` outcome (either model) counts as Section E's `merged:`
 outcome (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane path never runs

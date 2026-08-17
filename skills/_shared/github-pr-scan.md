@@ -268,19 +268,22 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
-3. **Auto-merged this week** — `[fast-lane]`-tagged or `[auto-merge]`-tagged commits on the *default*
-   branch (never the current worktree's own branch — see the note on `worktree-always` below), last
-   7 days. Both skip the interactive finish-branch prompt because `merge-check` already cleared it —
-   that is what this metric counts, not headlessness: `[auto-merge]` is always dispatch-originated
-   (singleton or bundle, both via `dispatch/settle-and-merge.md`'s Dispatching-session merge
-   execution — genuinely headless); `[fast-lane]` (`wrap-up/review-console.md`'s Auto-merge
-   short-circuit) is reachable only by an interactive, human-run single-record `/flow` — its own
-   dispatch-claim branch redirects a dispatch-originated singleton to `[auto-merge]` instead, so a
-   `[fast-lane]` commit is never headless.
+3. **Auto-merged this week** — `[fast-lane]`-tagged, `[auto-merge]`-tagged, or
+   `[manifesto-authorized]`-tagged commits on the *default* branch (never the current worktree's
+   own branch — see the note on `worktree-always` below), last 7 days. All three skip the
+   interactive finish-branch prompt because `merge-check` already cleared it — that is what this
+   metric counts, not headlessness: `[auto-merge]` is always dispatch-originated (singleton or
+   bundle, both via `dispatch/settle-and-merge.md`'s Dispatching-session merge execution —
+   genuinely headless); `[fast-lane]` (`wrap-up/review-console.md`'s Auto-merge short-circuit) is
+   reachable only by an interactive, human-run single-record `/flow` — its own dispatch-claim
+   branch redirects a dispatch-originated singleton to `[auto-merge]` instead, so a `[fast-lane]`
+   commit is never headless; `[manifesto-authorized]` (`wrap-up/manifesto-authorized-merge.md`,
+   the `merge-authorization` lever) is likewise never headless — it requires a live Manifesto
+   `confirm`/`hybrid` override, the same interactive precondition as `[fast-lane]`.
 
    ```bash
    SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")
-   gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]") or contains("[auto-merge]"))] | length'
+   gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]") or contains("[auto-merge]") or contains("[manifesto-authorized]"))] | length'
    ```
 
    The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree-always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
