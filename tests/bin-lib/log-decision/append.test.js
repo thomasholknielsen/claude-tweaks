@@ -94,6 +94,25 @@ test('resolveTarget: with mainRoot explicitly null, the .git-is-a-FILE check alo
   assert.deepEqual(resolveTarget({ runDir: orphanRun2, mainRoot: null }), { ok: false, reason: 'not-anchored' });
 });
 
+// Production callers (bin/log-decision.js, bin/release-claim.js) always pass
+// `mainRoot: undefined` — resolveTarget is documented to compute the anchor
+// itself and fail CLOSED if mainCheckoutRoot(cwd) can't determine one. Before
+// this fix, `if (root)` silently skipped the domain-match comparison
+// whenever computation failed, accepting a run dir inside ANY real (non-
+// worktree) git checkout regardless of its relation to cwd — an [IL-127]-
+// class bypass distinct from the deliberate `mainRoot: null` opt-out covered
+// by the test above.
+test('resolveTarget: mainRoot undefined + cwd where mainCheckoutRoot cannot be determined fails closed, not open', () => {
+  const foreignRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-foreign-'));
+  const foreignRun = path.join(foreignRoot, '.claude-tweaks', 'pipelines', 'run-a');
+  fs.mkdirSync(foreignRun, { recursive: true });
+  fs.mkdirSync(path.join(foreignRoot, '.git')); // a real, but unrelated, checkout
+
+  const cwdNoGit = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-nogit-cwd-'));
+  // mainRoot omitted entirely -> undefined, the production default.
+  assert.deepEqual(resolveTarget({ runDir: foreignRun, cwd: cwdNoGit }), { ok: false, reason: 'not-anchored' });
+});
+
 test('appendEntry: creates the file, then inserts under the named section before the next heading', () => {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-run-'));
   const r1 = appendEntry({ runDir, section: '/build', entry: '- AUTO 10:00:00 — a: b. Reversibility: high.' });

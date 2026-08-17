@@ -156,4 +156,30 @@ function findPolicyFile(p) {
   return null;
 }
 
-module.exports = { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot };
+// Structural anchoring check: is `p`'s nearest `.git` ancestor a DIRECTORY
+// (a real checkout, not a linked worktree/submodule `.git` FILE pointer)
+// whose resolved path equals `root`? A path-prefix check alone can't tell
+// "a subdirectory of the main checkout's own working tree" apart from "a
+// linked worktree nested under it" — both domains (ADR-0004: `.claude/worktrees/`
+// and `.worktrees/`) live physically on disk under the main checkout root, so
+// `p.startsWith(root)` is true for both even though only the former is
+// actually anchored. Walking up to the nearest `.git` and checking file-vs-
+// directory is what distinguishes them.
+function isAnchoredUnderRoot(p, root) {
+  if (!root) return false;
+  let dir = nearestExistingDir(p);
+  while (dir) {
+    let st;
+    try { st = fs.statSync(path.join(dir, '.git')); } catch { st = null; }
+    if (st) {
+      if (!st.isDirectory()) return false; // .git FILE => linked worktree/submodule, never anchored
+      return safeReal(dir) === root;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+  return false;
+}
+
+module.exports = { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot, isAnchoredUnderRoot };
