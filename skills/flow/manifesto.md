@@ -107,7 +107,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 
 #### Override semantics
 
-Read `manifesto-overrides.md` in this skill's directory — loaded only under `confirm`/`hybrid` when the user picks Override; the FYI path never needs it.
+{Override semantics: see manifesto-overrides.md — loaded on Override in confirm/hybrid}
 ```
 
 Immediately after presenting the Manifesto table above, call `AskUserQuestion` with:
@@ -184,7 +184,7 @@ Suppressed levers are still written to `config.yml` with their default values �
 
 Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
 
-**On override (option 2):** parse the user's `#=value` pairs, apply them to the recommendation set, validate each value against the lever's option vocabulary (reject typos with an inline retry), write the final config to `config.yml`. Do not loop on the Manifesto itself — the user gives all overrides in one reply. If validation fails on any pair, present a single retry line listing the invalid pairs only (`Invalid: 2=foo (must be add-to-plan / stop-and-ask / drop)`).
+**On override (option 2):** read `manifesto-overrides.md` in this skill's directory for each pair's semantics, then parse the user's `#=value` pairs, apply them to the recommendation set, validate each value against the lever's option vocabulary (reject typos with an inline retry), write the final config to `config.yml`. Do not loop on the Manifesto itself — the user gives all overrides in one reply. If validation fails on any pair, present a single retry line listing the invalid pairs only (`Invalid: 2=foo (must be add-to-plan / stop-and-ask / drop)`).
 
 **On cancel (option 3):** abort the pipeline. Do not create the run directory.
 
