@@ -144,6 +144,15 @@ const POLICY_KEYS = [
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
 
+// execution.always's migrate function, named out of the RENAMED_KEYS literal
+// below to avoid a nested ternary: a valid lock value migrates to its -only
+// lock form, anything else null-migrates to the schema default.
+function migrateExecutionAlways(value) {
+  if (value === 'subagent') return 'subagent-only';
+  if (value === 'batched') return 'batched-only';
+  return null;
+}
+
 // Keys retired from POLICY_KEYS but still worth detecting in a project's live
 // policy.yml, so a stray value migrates instead of silently reporting as an
 // unrecognized typo. `migrate` maps the retired key's old value to a suggested
@@ -178,7 +187,7 @@ const RENAMED_KEYS = [
   {
     key: 'execution.always',
     replacedBy: 'execution-strategy',
-    migrate: (value) => (value === 'subagent' ? 'subagent-only' : value === 'batched' ? 'batched-only' : null),
+    migrate: migrateExecutionAlways,
   },
   // Renamed in #331 (boolean semantics unchanged — identity migrate); the old
   // name collided with assess-agent-autonomy's merge-check verdict mode.
@@ -536,7 +545,7 @@ function auditPolicy(repoRoot) {
   // policy.yml-only, since that's the only file code ever reads.
   const renamedKeys = [];
   for (const entry of RENAMED_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(policyEntries, entry.key)) {
+    if (hasOwn(policyEntries, entry.key)) {
       const value = policyEntries[entry.key];
       renamedKeys.push({
         key: entry.key,
@@ -544,8 +553,7 @@ function auditPolicy(repoRoot) {
         replacedBy: entry.replacedBy,
         suggestedValue: entry.migrate(value),
         // A retirement (replacedBy: null) has no replacement key to look up.
-        currentReplacementValue: entry.replacedBy !== null
-          && Object.prototype.hasOwnProperty.call(policyEntries, entry.replacedBy)
+        currentReplacementValue: entry.replacedBy !== null && hasOwn(policyEntries, entry.replacedBy)
           ? policyEntries[entry.replacedBy]
           : null,
       });
@@ -574,7 +582,7 @@ function auditPolicy(repoRoot) {
     migratableKeys.push({
       key,
       value,
-      alsoInPolicy: Object.prototype.hasOwnProperty.call(policyEntries, key),
+      alsoInPolicy: hasOwn(policyEntries, key),
     });
   }
 
