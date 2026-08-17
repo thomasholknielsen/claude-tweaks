@@ -1,6 +1,6 @@
 # Forge Detection Ladder (fail-open)
 
-Canonical home of the three-check GitHub reachability gate, extracted out of `_shared/github-pr-scan.md` (which owns the PR/issue scan scopes that build on top of it) so a consumer that needs only these three booleans — `/claude-tweaks:dispatch` Preflight chief among them — never has to load that file's full 39 KB to get them.
+Canonical home of the three-check GitHub reachability gate, extracted out of `_shared/github-pr-scan.md` (which owns the PR/issue scan scopes that build on top of it). A consumer that needs only these three booleans — `/claude-tweaks:dispatch` Preflight chief among them — never has to load that file's full 39 KB to get them.
 
 Run these checks in order before any scan or `gh`/MCP call. On the first failure, emit the single info row shown and stop — a skipped GitHub scan is normal, never a `BLOCKED` status, never a hard gate.
 
@@ -12,7 +12,7 @@ Run these checks in order before any scan or `gh`/MCP call. On the first failure
 
 The skip row uses severity `info` and Path:Line `(github)`.
 
-Individual `gh` command failures mid-scan (rate limit, network, transient API errors) degrade to a `DONE_WITH_CONCERNS` status line with whatever partial results exist — never `BLOCKED`.
+Individual `gh` command failures mid-scan degrade to a `DONE_WITH_CONCERNS` status line with whatever partial results exist — never `BLOCKED`. Recognize and classify a rate-limit failure per `_shared/github-rate-limit.md`; network and other transient API errors degrade the same way without needing that classification.
 
 `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before the agent fires (see Working Directory Discipline in `_shared/subagent-output-contract.md`).
 

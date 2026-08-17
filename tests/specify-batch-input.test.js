@@ -33,7 +33,7 @@ test('specify argument-hint opens with the comma-list record-reference group', (
   const hint = extractArgumentHint(SKILL);
   assert.ok(hint, 'skills/specify/SKILL.md declares no argument-hint');
   assert.ok(
-    hint.startsWith('<#N[,#M...]|record-id[,id...]|design-doc-path|topic|backlog-title>'),
+    hint.startsWith('<#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title>'),
     `argument-hint does not open with the comma-list group: ${hint}`,
   );
 });
@@ -57,4 +57,16 @@ test('specify Next Actions has a multiple-records-shaped row recommending a comm
 test('shaping-mode.md states the per-record loop', () => {
   assert.ok(/one row per record/.test(SHAPING), 'shaping-mode.md does not say "one row per record"');
   assert.ok(/comma-joined/.test(SHAPING), 'shaping-mode.md does not name the comma-joined batch form');
+});
+
+test('shaping-mode.md documents github-issues parallel-safety and the local-files contrast (refs #782)', () => {
+  assert.ok(/\*\*Parallel-safety\.\*\*/.test(SHAPING), 'shaping-mode.md has no Parallel-safety callout');
+  assert.ok(
+    /shaping a record writes no local files — it edits the GitHub issue directly via `gh`, so no worktree is required and multiple records may be shaped concurrently/.test(SHAPING),
+    'shaping-mode.md does not state the github-issues no-worktree/concurrency-safe property',
+  );
+  assert.ok(
+    /`work-backend: local-files` does write a tracked file \(`writeRecord`\) and is not safe to parallelize without isolation/.test(SHAPING),
+    'shaping-mode.md does not state the local-files contrast (tracked file, needs isolation)',
+  );
 });

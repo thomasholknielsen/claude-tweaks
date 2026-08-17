@@ -16,11 +16,11 @@ files:
 ## Steps
 
 ### 1. Append a decision line and inspect the schema — terminal + a scratch run dir
-- **URL:** `mkdir -p /tmp/ld-journey/.git && node bin/log-decision.js --run /tmp/ld-journey --status AUTO --step "Section E" --text "released claim on #999" --reversibility high --section "/wrap-up"`
-- **Action:** Run the command from the checkout root — note the `.git` directory created first, so the run dir is anchored to a real (if tiny) checkout rather than a bare tmp path.
+- **URL:** `PLUGIN_ROOT=$(pwd) && mkdir -p /tmp/ld-journey/.git && cd /tmp/ld-journey && node "$PLUGIN_ROOT/bin/log-decision.js" --run /tmp/ld-journey --status AUTO --step "Section E" --text "released claim on #999" --reversibility high --section "/wrap-up"`
+- **Action:** Run with cwd inside the scratch checkout (`/tmp/ld-journey`), not the plugin checkout root — the anchoring guard matches the run dir's checkout root against the one computed from cwd, so invoking `log-decision.js` from the plugin checkout root against a `/tmp/ld-journey` run dir is `not-anchored` by design and exits `3`. Capture the plugin root first (`PLUGIN_ROOT=$(pwd)`) so the script itself can still be invoked by absolute path after `cd`.
 - **Should feel:** Instant and unambiguous — one echoed schema line, no configuration needed.
 - **Should understand:** `cat /tmp/ld-journey/decisions.md` shows the line under a `## /wrap-up` heading — `- AUTO {HH:MM:SS} — Section E: released claim on #999. Reversibility: high.` — exactly the shape `_shared/auto-decision-log.md`'s Entry schema documents. Re-run with `--status STAGED --step "Step 3"` and the second line lands under the same heading, below the first — the Append protocol's per-skill grouping, not append-anywhere.
-- **Red flags:** A stack trace instead of exit `2`/`3` on a bad invocation; the entry landing outside `## /wrap-up` on the second call (heading-matching regressed); a run pointed at a path with no `.git` above it succeeding instead of exiting `3`.
+- **Red flags:** A stack trace instead of exit `2`/`3` on a bad invocation; the entry landing outside `## /wrap-up` on the second call (heading-matching regressed); a run pointed at a path with no `.git` above it succeeding instead of exiting `3`; the command run from the plugin checkout root succeeding — that combination is `not-anchored` by design.
 
 ### 2. Watch the anchoring guard refuse a worktree-local shadow — terminal
 - **URL:** `mkdir -p /tmp/ld-journey/.claude/worktrees/wt && printf 'gitdir: ../../../.git/worktrees/wt\n' > /tmp/ld-journey/.claude/worktrees/wt/.git && mkdir -p /tmp/ld-journey/.claude/worktrees/wt/.claude-tweaks/pipelines/run-a && node bin/log-decision.js --run /tmp/ld-journey/.claude/worktrees/wt/.claude-tweaks/pipelines/run-a --status AUTO --text "should be refused"`

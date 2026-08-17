@@ -24,11 +24,42 @@ block — except under `--chained`, which returns to the caller instead (a comma
 `## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
 references are the primary input) and it has no use for decomposition mode's much larger body.
 
+**Parallel-safety.** Under `work-backend: github-issues`, shaping a record writes no local files — it edits the GitHub issue directly via `gh`, so no worktree is required and multiple records may be shaped concurrently with zero collision risk. `work-backend: local-files` does write a tracked file (`writeRecord`) and is not safe to parallelize without isolation.
+
 ---
 
 ### Edit the body into spec shape
 
-Rewrite the record's body into five sections: `## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, and `## Gotchas`. These are the core of the record body template `spec-template.md` documents — Current State, Deliverables, and Acceptance Criteria are the structural minimum (`_shared/work-record.md`'s spec-shaped-body check re-verifies exactly these three are present and non-empty before the authorization gate will grant anything); Technical Approach and Gotchas can stay brief for a small record. The template's fuller section list (Overview, Non-Goals, Prerequisites, and so on) is decomposition-mode scaffolding for multi-record output — a single shaped record doesn't need it.
+Rewrite the record's body into six sections, in this literal shape (`spec-template.md`'s own placement — `### Key Files` nested under `## Technical Approach`):
+
+```
+## Current State
+
+{...}
+
+## Deliverables
+
+{...}
+
+## Acceptance Criteria
+
+{...}
+
+## Technical Approach
+
+{...}
+
+### Key Files
+
+- `{path}` — {what changes or new file purpose}
+- `{path}` — {what changes}
+
+## Gotchas
+
+{...}
+```
+
+`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, and `## Gotchas` are the core of the record body template `spec-template.md` documents — Current State, Deliverables, and Acceptance Criteria are the structural minimum (`_shared/work-record.md`'s spec-shaped-body check re-verifies exactly these three are present and non-empty before the authorization gate will grant anything); Technical Approach and Gotchas can stay brief for a small record. `### Key Files` is populated from whichever files the shaped Technical Approach names — every file path the composed Technical Approach section references belongs here, one bullet per path, in `spec-template.md`'s `- \`{path}\` — {what changes}` format; this is what `/flow`, `/dispatch`, and `/help` read for cross-spec file-overlap detection (`bin/lib/issues/grouping.js`'s `extractKeyFilesSection`) — omitting it silently disables that detection for this record (see Cross-spec conflict detection in `flow/multi-spec.md`). The template's fuller section list (Overview, Non-Goals, Prerequisites, and so on) is decomposition-mode scaffolding for multi-record output — a single shaped record doesn't need it.
 
 Absorb the record's existing content into whichever section it belongs in — a human-filed or captured record's raw text usually becomes Current State plus Deliverables context, with Acceptance Criteria freshly written since raw captures rarely state them explicitly. A record already filed in this shape — every `by:code-health`/`by:harness-health`/`by:journey-health`/`by:docs-health` record is spec-shaped and agent-sized by construction, per `_shared/work-record.md`'s born-ready rule — needs near-zero translation: verify the sections are present and non-empty and move on rather than rewriting content that's already correct.
 
@@ -141,15 +172,31 @@ git commit -m "Shape record {id} into spec shape — ready"
 
 Nothing to commit on the `github-issues` driver — the edit above already landed via the API.
 
+### Read-back verification
+
+Immediately after each record's write lands — the `gh issue edit`/`writeRecord` call above, for that record specifically, before moving to the next record in the batch — re-fetch the record fresh (never trust the write call's own response) and assert it landed correctly:
+
+- **`work-backend: github-issues`:** `gh issue view {n} --json labels,body`.
+- **`work-backend: local-files`:** `readRecord(path)` (`bin/lib/issues/local-store.js`), re-reading from disk.
+
+Assert, against the re-fetched result:
+- `ready` is present, plus every scoring label this record's stamp step (above) added or already carried (`risk:*`, `size:*`, `ceremony:*`, Type).
+- The five spec-shaped sections (`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, `## Gotchas`) plus `## Original request` are all present in the re-fetched body.
+- No unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) survived into the written body (these exact literals — assertion targets, not composed-body mentions — see the placeholder-token rule above).
+- `parked` is absent from the re-fetched labels — the stamp step above always removes it on promotion.
+- When this record's framing verdict (stamp step above) was `open`, `solution:unjustified` (and the pre-rename spelling `framing:baked`) are absent. When the verdict was `solution-baked`, `solution:unjustified` is present instead, and the Gotchas section carries the folded assumption bullets the stamp step wrote.
+
+A read-back failure does **not** roll back the write or stop the batch — it follows the same per-record failure-isolation posture as a write failure (above): note the specific assertion(s) that failed, keep shaping the rest of the batch, and surface every record's read-back failure together in Actions Performed below rather than stopping on the first one (`flow/materialize.md`'s Materialization hard gate uses the same all-at-once reporting convention for its own record-level failures).
+
 ### Actions Performed
 
-One row per record — a single-record run renders one row, a comma-list batch renders one row per shaped record (a record whose write failed renders its row with the failure in the Detail cell instead of the stamps):
+One row per record — a single-record run renders one row, a comma-list batch renders one row per shaped record (a record whose write failed, or whose read-back verification (above) failed, renders its row with the failure in the Detail cell instead of the stamps):
 
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Operational | Shaped record {ref} into spec shape — stamped `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` and Type where each was absent, added `ready`, removed `parked` if present | `{hash}` (local-files) / `—` (github-issues — edit already landed via API, no commit) |
 
-For a comma-list batch, render one row per shaped element, in list order, and prefix each Detail with its outcome: `shaped` (this run edited the record — the row above) or `already shaped, no-op` (every section present and non-empty and every label family already stamped — nothing written, nothing to undo). There is no `skipped` outcome here — the batch branch's stop-all failure semantics (`SKILL.md`'s `## Input`, Comma-list batch form) mean an unresolvable element never reaches shaping mode at all; every row this table renders is an element that was actually shaped. The Ref column follows the same per-driver rule on every row.
+For a comma-list batch, render one row per shaped element, in list order, and prefix each Detail with its outcome: `shaped` (this run edited the record — the row above), `already shaped, no-op` (every section present and non-empty and every label family already stamped — nothing written, nothing to undo), or `failed` (either the write call itself failed, or the read-back verification (above) failed — the Detail cell's own text names which one). There is no `skipped` outcome here — the batch branch's stop-all failure semantics (`SKILL.md`'s `## Input`, Comma-list batch form) mean an unresolvable element never reaches shaping mode at all; every row this table renders is an element that was actually shaped. The Ref column follows the same per-driver rule on every row.
 
 Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single record, the "Shaping mode — multiple records shaped in place" row for a comma-list batch (its recommended command lists every successfully shaped record, in the order given). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
 
