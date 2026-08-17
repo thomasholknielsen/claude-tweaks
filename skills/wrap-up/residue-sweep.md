@@ -60,11 +60,15 @@ does for every other ledger producer (build, test, review, reflect):
 ## `remedy: auto` findings and the scratch worktree
 
 A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a merged-but-undeleted
-branch, a claim blob for a closed issue, a missing release-triple entry) is naturally a Phase 1
-fix-now candidate — its `Item` description should say so. When Phase 1 (or a user's "Fix anyway"
-choice in Phase 2) applies it and the write is not legal from wherever this session currently
-sits, provision a worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own
-commit, then merge back, and record the resulting sha as that item's `fixed` resolution.
+branch, a claim blob for a closed issue, a missing release-triple entry, an un-archived pipeline
+run dir whose `run-state.json` reached `status: clean`) is naturally a Phase 1 fix-now candidate —
+its `Item` description should say so. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
+applies it and the write is not legal from wherever this session currently sits, provision a
+worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit, then
+merge back, and record the resulting sha as that item's `fixed` resolution. This applies to the
+pipeline-run-dir finding too: the directory lives in the main checkout, so the move (archive it
+under `.claude-tweaks/pipelines/archive/`) is usually illegal from wherever the run currently
+sits.
 
 ## `remedy: record` findings
 
