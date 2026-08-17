@@ -16,9 +16,18 @@ const SKILLS = path.join(__dirname, '..', 'skills');
 const ENGINE = fs.readFileSync(path.join(SKILLS, 'wrap-up', 'curation-engine.md'), 'utf8');
 const BATCH = fs.readFileSync(path.join(SKILLS, 'flow', 'multispec-batch-curation.md'), 'utf8');
 
+// #692: the sweep snippet's RUN_ROOT line now shells out to
+// `node bin/hooks.js resolve-run-dir --root-only`, so a live spawn needs
+// CLAUDE_PLUGIN_ROOT pointing at THIS repo (where bin/hooks.js physically
+// lives) — independent of whatever temp git repo a given probe's `cwd` is.
+// Every spawnSync below spreads `...process.env`, so setting it once here
+// propagates everywhere; guarded so a real value (an actual plugin-hosted
+// run) is never clobbered.
+if (!process.env.CLAUDE_PLUGIN_ROOT) process.env.CLAUDE_PLUGIN_ROOT = path.join(__dirname, '..');
+
 // The documented sweep — must appear verbatim inside a ```bash fence in curation-engine.md §4.
 const SWEEP_SNIPPET = [
-  'RUN_ROOT=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd -P)',
+  'RUN_ROOT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only)',
   'RUN_DIR=$( [ -n "$PIPELINE_RUN_DIR" ] && cd "$PIPELINE_RUN_DIR" 2>/dev/null && pwd -P )',
   'WT=$( [ -n "$WORKTREE" ] && cd "$WORKTREE" 2>/dev/null && pwd -P )',
   'if [ -z "$RUN_DIR" ] || [ -z "$WT" ]; then',

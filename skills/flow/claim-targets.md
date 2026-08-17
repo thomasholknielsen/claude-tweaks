@@ -70,13 +70,12 @@ directory, so the claim needs an identity to claim under before one necessarily 
   anything; Step 3 will adopt this same directory per `steps-and-gates.md`'s
   Adopting-an-inherited-run-directory case 1 or 2.
 - **`$PIPELINE_RUN_DIR` unset** (a direct human invocation) — mint it now, the same mkdir-only
-  operation `dispatch/SKILL.md` Step 4 performs for a dispatched group: derive `$RUN_ROOT` via
-  `_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-common-dir`, then its
-  parent directory), create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`
-  (mkdir only — no `config.yml`, no `decisions.md`; Step 3 writes those when it adopts the now-set
-  `PIPELINE_RUN_DIR` per case 2). Export it as `PIPELINE_RUN_DIR` for the rest of this pipeline
-  invocation. `{spec-slug}` follows `manifesto.md`'s Path conventions (`spec-{N}` single, dash-joined
-  multi, or a topic slug).
+  operation `dispatch/SKILL.md` Step 4 performs for a dispatched group: run
+  `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`
+  (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir only; Step 3 writes `config.yml`/
+  `decisions.md` when it adopts the now-set `PIPELINE_RUN_DIR` per case 2). Export the printed
+  path as `PIPELINE_RUN_DIR` for the rest of this pipeline invocation. `{spec-slug}` follows
+  `manifesto.md`'s Path conventions (`spec-{N}` single, dash-joined multi, or a topic slug).
 
 Either way, `basename($PIPELINE_RUN_DIR)` is this run's claim identity for every target below.
 

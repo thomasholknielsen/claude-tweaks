@@ -210,17 +210,17 @@ Initialize `decisions.md` in the same directory with the config snapshot header 
 
 ## Path conventions
 
-- Run directory: `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` — `$RUN_ROOT`
-  resolved per `_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse
-  --git-common-dir`, then its parent directory), **never the current directory**. This is not
-  optional bookkeeping: `/claude-tweaks:dispatch` Step 5 enters a group's worktree *before*
-  dispatching this Manifesto step, so a bare relative path here would create the run directory
-  inside that worktree — exactly the state `_shared/pipeline-run-dir.md`'s Anchoring section
+- Run directory: `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` — created via
+  `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`
+  (`_shared/pipeline-run-dir.md`'s Anchoring section), **never** by composing `$RUN_ROOT` from the
+  current directory. This is not optional bookkeeping: `/claude-tweaks:dispatch` Step 5 enters a group's worktree *before*
+  dispatching this Manifesto step, so a bare relative path here would
+  create the run directory inside that worktree — exactly the state the Anchoring section
   exists to prevent, since a worktree removal later would then permanently destroy
   `config.yml`/`decisions.md`/`staged/` with no git history to recover from (`[IL-46]`'s shape).
-  Resolve `$RUN_ROOT` once, before creating anything, and build every path in this section from
-  it — `cd`-ing into the run directory afterward for convenience is fine, resolving the *path*
-  relative to cwd is not.
+  Call the command once, before creating anything else, and build every later path in this
+  section from its printed output — `cd`-ing into the run directory afterward for convenience is
+  fine, resolving the *path* relative to cwd is not.
 - `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesystems)
 - `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for the canonical SPEC_SLUG conventions.
 - Collisions never happen — multiple parallel agents in the same checkout each get their own run directory

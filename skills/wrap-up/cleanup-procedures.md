@@ -155,12 +155,13 @@ If the build used worktree git strategy, clean up the worktree directory:
    same shape as `[IL-46]`. Copy them out first, from inside the worktree:
 
    ```bash
-   # pwd -P on every side: on macOS the same directory reaches you as both
-   # /var/... and /private/var/..., and an unresolved prefix test silently
-   # never matches — the guard then looks like a clean no-op while the state
-   # it exists to save is still inside the worktree.
+   # pwd -P on the WT/RUN_REAL sides: on macOS the same directory reaches you as
+   # both /var/... and /private/var/..., and an unresolved prefix test silently
+   # never matches — the guard then looks like a clean no-op while the state it
+   # exists to save is still inside the worktree. resolve-run-dir --root-only
+   # already returns a realpath'd MAIN, so it needs no separate pwd -P here.
    WT=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
-   MAIN=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd -P)
+   MAIN=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only)
    RUN_REAL=$(cd "$RUN_DIR" 2>/dev/null && pwd -P)
    case "${RUN_REAL:+$RUN_REAL/}" in
      "$WT"/*)

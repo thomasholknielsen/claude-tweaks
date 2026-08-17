@@ -133,7 +133,7 @@ SCANNED {ISO-time} — {target}: gate {open|closed} ({gateReason}); read {N} ({p
 **Post-fan-out shadow sweep (routine, after every judged fan-out or singleton).** It runs after the agents return and **before any `record` call** — it can rewrite a payload's `stagePath` (below), and `record` must see the final value. Independently of what the payloads claim, sweep the current worktree's shadow of the run-dir path for stray staged files and relocate them to the anchored run directory — from the worktree, with `PIPELINE_RUN_DIR` set to the anchored run dir and `WORKTREE` to the worktree root:
 
 ```bash
-RUN_ROOT=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd -P)
+RUN_ROOT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only)
 RUN_DIR=$( [ -n "$PIPELINE_RUN_DIR" ] && cd "$PIPELINE_RUN_DIR" 2>/dev/null && pwd -P )
 WT=$( [ -n "$WORKTREE" ] && cd "$WORKTREE" 2>/dev/null && pwd -P )
 if [ -z "$RUN_DIR" ] || [ -z "$WT" ]; then

@@ -79,7 +79,7 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/
 ```
 
 `$RUN_ROOT` is the main checkout root, resolved per `_shared/pipeline-run-dir.md`'s Anchoring
-section (`git rev-parse --git-common-dir`, then its parent) — **never the current directory**.
+section via `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only` — **never the current directory**.
 This matters whenever the creating invocation runs from inside a linked worktree (e.g.
 `/claude-tweaks:dispatch` Step 5 enters a group's worktree before dispatching `/flow`): a
 relative path there would create the run directory inside that worktree, which a later worktree

@@ -87,29 +87,15 @@ Summarize what was done — do not re-verify. Spec compliance (deliverables + ac
 
 **Every wrap-up run has a run directory from Phase 1 on.** This is a rule, not a branch: standalone or pipeline, record or conversation mode, one code path for staging, the audit log, and the Review Console in every mode.
 
-Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section. When neither resolves, create one — the same shape as that file's step-4 snippet, plus the `run-state.json` stamp:
+Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section, via `resolve-run-dir`. When neither resolves, create one — the standalone-fallback shape (`--standalone`, never gated on `--mode`, since wrap-up creates in every mode), plus the `run-state.json` stamp:
 
 ```bash
-RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
-RUN_DIR="${PIPELINE_RUN_DIR:-}"
-if [ -n "$RUN_DIR" ]; then
-  # Adoption-time anchoring check (pipeline-run-dir.md step 1): an inherited value must
-  # resolve under $RUN_ROOT, not inside whatever worktree happens to be cwd — treat a
-  # worktree-trapped path as unset and fall through, same as a missing directory ([IL-127]).
-  REAL_RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd)
-  case "$REAL_RUN_DIR" in
-    "$RUN_ROOT"/*) : ;;      # anchored to the main checkout — keep it
-    *) RUN_DIR="" ;;         # missing, or resolves outside $RUN_ROOT (e.g. inside a worktree)
-  esac
-fi
+RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "$SPEC_SLUG" 2>/dev/null)
 if [ -z "$RUN_DIR" ]; then
-  RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
-fi
-if [ -z "$RUN_DIR" ]; then
-  TS=$(date -u +%Y-%m-%dT%H%M%S)
-  RUN_DIR="$RUN_ROOT/.claude-tweaks/pipelines/${TS}-${SPEC_SLUG}-standalone"
-  mkdir -p "$RUN_DIR/staged"
-  touch "$RUN_DIR/decisions.md"
+  # Steps 1-2 found nothing (or step 1's adoption-time anchoring check rejected a
+  # worktree-trapped PIPELINE_RUN_DIR, [IL-127]) — clear it for this second call so a
+  # rejected value is never re-consulted, then mint the standalone fallback.
+  RUN_DIR=$(PIPELINE_RUN_DIR= node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "$SPEC_SLUG" --standalone "$SPEC_SLUG" --create)
   printf '{"status":"active","createdBy":"wrap-up-standalone"}\n' > "$RUN_DIR/run-state.json"
 fi
 echo "$RUN_DIR"

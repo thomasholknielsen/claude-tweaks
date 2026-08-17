@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
+const { gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -369,6 +369,70 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
   return {};
 }
 
+// Pipeline-shadow guard (#692): refuses to CREATE `.claude-tweaks/pipelines/`
+// state inside a linked worktree at all — see _shared/pipeline-run-dir.md's
+// Anchoring section, and `node bin/hooks.js resolve-run-dir`, the command that
+// section now points callers at instead of composing $RUN_ROOT inline. Unlike
+// checkWorktreeRequired below, this guard is UNCONDITIONAL: it does not check
+// `worktree-always` policy, because run-dir anchoring is a plugin-architecture
+// invariant every project gets, not something a project opts into.
+//
+// Flags only a NEW creation — the run-dir-level path (the first path segment
+// under `.claude-tweaks/pipelines/`) does not already exist on disk. A
+// pre-anchoring run directory already sitting in a worktree is left alone
+// (tolerated transitionally by wrap-up/cleanup-procedures.md Section C step
+// 3.5's copy-out guard, sunset 2026-11-07): that guard only ever READS from
+// the worktree and WRITES to the main checkout, so it never trips this guard
+// itself, and further writes into an already-existing worktree-trapped run
+// dir (e.g. a still-running pre-anchoring pipeline appending events.jsonl)
+// must not be newly denied by a guard shipped after that pipeline started.
+function shadowPipelineRunDir(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath || !path.isAbsolute(targetPath)) return null;
+  const resolved = path.resolve(targetPath);
+  const { repoRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(resolved);
+  if (indeterminate || !repoRoot || !isLinkedWorktree) return null;
+  const pipelinesDir = path.join(repoRoot, PIPELINE_STATE_DIR);
+  // realTarget follows an existing symlink chain the same way the policy.yml
+  // exemption does; falls back to the literal resolved path when nothing
+  // exists yet (a brand-new mkdir target has no leaf, sometimes not even a
+  // parent, to realpath).
+  const real = realTarget(resolved) || resolved;
+  const relFromPipelines = path.relative(pipelinesDir, real);
+  if (!relFromPipelines || relFromPipelines.startsWith('..') || path.isAbsolute(relFromPipelines)) return null;
+  const runDirName = relFromPipelines.split(path.sep)[0];
+  const runDirCandidate = path.join(pipelinesDir, runDirName);
+  let exists = false;
+  try { exists = fs.statSync(runDirCandidate).isDirectory(); } catch { /* not there yet — a genuinely new shadow */ }
+  if (exists) return null;
+  return { worktreeRoot: repoRoot, runDirCandidate };
+}
+
+function checkPipelineShadowGuard(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const toolInput = ctx.input && ctx.input.tool_input;
+  const candidates = [];
+  if (GATE_COVERAGE.tools.includes(toolName)) {
+    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+    if (toolInput && typeof toolInput[field] === 'string') candidates.push(toolInput[field]);
+  } else if (toolName === 'Bash' && toolInput && typeof toolInput.command === 'string') {
+    const command = toolInput.command;
+    for (const t of fileWriteTargets(command, ctx.cwd)) candidates.push(t.file);
+    for (const t of mkdirTargets(command, ctx.cwd)) candidates.push(t.file);
+  }
+  for (const candidate of candidates) {
+    const shadow = shadowPipelineRunDir(candidate);
+    if (!shadow) continue;
+    return denyResult(
+      `claude-tweaks: refusing to create ${shadow.runDirCandidate} — a NEW pipeline run directory inside a ` +
+      `linked worktree (${shadow.worktreeRoot}). Run directories are anchored to the main checkout ` +
+      `(_shared/pipeline-run-dir.md's Anchoring section); creating one here would be a worktree-local shadow that ` +
+      `a later \`git worktree remove\` can silently destroy ([IL-127]). Resolve the correct path instead: ` +
+      `node "${pluginRoot()}/bin/hooks.js" resolve-run-dir --create (see pipeline-run-dir.md for the full flag set).`,
+    );
+  }
+  return {};
+}
+
 // worktree-required policy gate: unlike E1 below, this needs no pipeline run
 // state at all — it fires on the first Edit/Write/NotebookEdit/commit of a
 // session, before any skill has ever run, whenever the target repo has opted
@@ -531,6 +595,9 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
   const teardown = checkTeardownGate(ctx, teardownWarnings);
   if (teardown.json) return teardown;
 
+  const shadow = checkPipelineShadowGuard(ctx);
+  if (shadow.json) return shadow;
+
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
   // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
@@ -653,4 +720,6 @@ module.exports = {
   isPolicyFile,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
+  shadowPipelineRunDir,
+  checkPipelineShadowGuard,
 };

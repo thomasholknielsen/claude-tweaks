@@ -67,7 +67,7 @@ If no ports responded (or to validate the best match), check project configurati
 
 A responding port is **not** proof that the server is serving *this* checkout. When the pipeline runs inside a git worktree (the default for `/flow` and `/build`), a dev server on a common port is most likely the **main checkout's** server — pointing the browser at it would review the wrong code and report false confidence.
 
-Detect a linked worktree (CWD is a worktree, not the primary checkout) by reusing this repo's own linked-worktree heuristic — `bin/lib/hooks/worktree-detect.js`'s `repoInfo()`, the same submodule guard and symlink-safe path resolution the `worktree-always` policy gate relies on — rather than hand-rolling the `git rev-parse --git-dir`/`--git-common-dir` comparison in raw bash:
+Detect a linked worktree (CWD is a worktree, not the primary checkout) by reusing this repo's own linked-worktree heuristic — `bin/lib/hooks/worktree-detect.js`'s `repoInfo()`, the same submodule guard and symlink-safe path resolution the `worktree-always` policy gate relies on — rather than hand-rolling git's own worktree-vs-primary-checkout comparison in raw bash:
 
 ```bash
 node -e "const { repoInfo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"

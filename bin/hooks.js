@@ -83,6 +83,43 @@ function main(argv) {
     }
     return 0;
   }
+  if (cmd === 'resolve-run-dir') {
+    // #692: the tool _shared/pipeline-run-dir.md's Anchoring section points
+    // callers at, so a skill step gets the anchored $RUN_ROOT/run directory
+    // as one command instead of composing `git rev-parse --git-common-dir`
+    // inline — the composition that produced the worktree-local shadow
+    // ([IL-127]) this command exists to stop happening again. Unlike every
+    // other subcommand in this dispatcher, this one has a genuine non-zero
+    // exit code: it is invoked directly from skill prose (never as a hook
+    // event), and a skill step needs a real signal to branch on when nothing
+    // resolves or an inherited PIPELINE_RUN_DIR turns out to be a shadow.
+    const args = argv.slice(3);
+    function flagVal(name) {
+      const i = args.indexOf(name);
+      return i === -1 ? null : args[i + 1];
+    }
+    let result;
+    try {
+      result = require('./lib/hooks/run-dir-resolve').resolve({
+        cwd: process.cwd(),
+        env: process.env,
+        specSlug: flagVal('--spec-slug'),
+        mode: flagVal('--mode'),
+        standalone: flagVal('--standalone'),
+        create: args.includes('--create'),
+        rootOnly: args.includes('--root-only'),
+      });
+    } catch (e) {
+      process.stderr.write(`claude-tweaks: resolve-run-dir: unexpected error — ${e && e.message ? e.message : e}\n`);
+      return 1;
+    }
+    if (result.ok) {
+      process.stdout.write(result.path + '\n');
+      return 0;
+    }
+    process.stderr.write(`claude-tweaks: resolve-run-dir: ${result.message}\n`);
+    return 1;
+  }
   if (cmd === 'record-pr') {
     // Mirrors record-worktree's shape: --run <path> pins the target run dir
     // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan

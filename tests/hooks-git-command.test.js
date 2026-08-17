@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { gitTargets, fileWriteTargets } = require('../bin/lib/hooks/git-command');
+const { gitTargets, fileWriteTargets, mkdirTargets } = require('../bin/lib/hooks/git-command');
 
 test('plain commit resolves to cwd', () => {
   assert.deepStrictEqual(gitTargets('git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
@@ -262,4 +262,48 @@ test('fileWriteTargets: cp/mv --target-directory=DIR and --target-directory DIR 
 
 test('fileWriteTargets: a tee argument formed by a quoted prefix glued to an unresolvable unquoted suffix yields no target', () => {
   assert.deepStrictEqual(fileWriteTargets('tee "/safe/"$X', '/repo'), []);
+});
+
+// mkdirTargets — deliberately NOT part of WRITE_SHAPES/fileWriteTargets (#692):
+// widening WRITE_SHAPES would also widen the worktree-always Bash-write gate's
+// coverage, which tests/hooks-gate-coverage.test.js pins against
+// skills/_shared/policy-schema.md's prose. The pipeline-shadow guard needs its
+// own, separate mkdir target parser instead.
+test('mkdirTargets: resolves a plain absolute target', () => {
+  assert.deepStrictEqual(mkdirTargets('mkdir /worktree/.claude-tweaks/pipelines/x', '/repo'), [
+    { action: 'mkdir', file: '/worktree/.claude-tweaks/pipelines/x' },
+  ]);
+});
+
+test('mkdirTargets: -p and other bare flags are skipped, not mistaken for a target', () => {
+  assert.deepStrictEqual(mkdirTargets('mkdir -p /worktree/.claude-tweaks/pipelines/x', '/repo'), [
+    { action: 'mkdir', file: '/worktree/.claude-tweaks/pipelines/x' },
+  ]);
+});
+
+test('mkdirTargets: every positional is a target — mkdir can create multiple directories at once', () => {
+  assert.deepStrictEqual(mkdirTargets('mkdir -p a b', '/repo'), [
+    { action: 'mkdir', file: '/repo/a' },
+    { action: 'mkdir', file: '/repo/b' },
+  ]);
+});
+
+test('mkdirTargets: -m MODE consumes its value, not a positional', () => {
+  assert.deepStrictEqual(mkdirTargets('mkdir -m 0755 /worktree/x', '/repo'), [
+    { action: 'mkdir', file: '/worktree/x' },
+  ]);
+});
+
+test('mkdirTargets: a relative path resolves against cwd, cd chains update it', () => {
+  assert.deepStrictEqual(mkdirTargets('cd /worktree && mkdir sub', '/repo'), [
+    { action: 'mkdir', file: '/worktree/sub' },
+  ]);
+});
+
+test('mkdirTargets: an unresolvable target (variable, backtick, tilde) yields no target', () => {
+  assert.deepStrictEqual(mkdirTargets('mkdir "$DIR"', '/repo'), []);
+});
+
+test('mkdirTargets: a non-mkdir command yields no target', () => {
+  assert.deepStrictEqual(mkdirTargets('cp a b', '/repo'), []);
 });

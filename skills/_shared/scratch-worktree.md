@@ -73,9 +73,9 @@ inside the harness-owned directory is the exact hazard that ADR rejects: the har
 bookkeeping never learns about it, so a later `git worktree remove` — raw, or via the
 harness's own reaper — can remove it out from under whoever is standing in it.
 
-Detect or enumerate existing worktrees via `git worktree list`, or by comparing
-`git rev-parse --git-dir` against `--git-common-dir`, never by asserting a directory name
-(same ADR).
+Detect or enumerate existing worktrees via `git worktree list`, or via
+`bin/lib/hooks/worktree-detect.js`'s `repoInfo()` (the same git-dir-vs-common-dir comparison,
+already wrapped), never by asserting a directory name (same ADR).
 
 ## 3. First action inside: catch up with the integration branch
 

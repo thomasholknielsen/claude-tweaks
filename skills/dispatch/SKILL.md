@@ -151,12 +151,11 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 member and branch on its output; read `sibling-session-check.md` in this skill's directory and
 follow it.
 
-**Mint this group's run directory.** Derive `$RUN_ROOT` via `_shared/pipeline-run-dir.md`'s
-Anchoring section (`git rev-parse --git-common-dir`, then its parent directory). This group's
-**representative record** is its lowest-numbered member (the same rule
-`_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
-`$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` — mkdir only: no
-`config.yml`, no `decisions.md`, and no claim written here either. Call the result
+**Mint this group's run directory.** This group's **representative record** is its
+lowest-numbered member (the same rule `_shared/pr-early-run-lifecycle.md` already uses for a
+bundle's PR title). Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug
+"record-{representative}" --create` (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir
+only: no `config.yml`, no `decisions.md`, and no claim written here either). Call the result
 `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
 `decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
 {$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
