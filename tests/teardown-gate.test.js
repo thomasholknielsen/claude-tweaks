@@ -78,6 +78,12 @@ function makeRun(root, state) {
   fs.mkdirSync(runDir, { recursive: true });
   if (state !== undefined) {
     fs.writeFileSync(path.join(runDir, 'run-state.json'), state);
+  } else {
+    // #721: an unadopted mint (neither run-state.json nor decisions.md) is
+    // invisible to resolveRun's fallback — touch decisions.md so callers that
+    // deliberately start from an empty run dir (record-worktree's first claim)
+    // stay reachable.
+    fs.writeFileSync(path.join(runDir, 'decisions.md'), '');
   }
   return runDir;
 }

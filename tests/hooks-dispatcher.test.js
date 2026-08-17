@@ -23,7 +23,13 @@ function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
-  fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1'), { recursive: true });
+  const run = path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  // #721: an unadopted mint (neither run-state.json nor decisions.md) is
+  // invisible to resolveRun's fallback — touch decisions.md so this fixture's
+  // pre-record-worktree run dir stays reachable, matching a real flow-initialized
+  // run at this stage (config.yml/decisions.md exist, run-state.json doesn't yet).
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   return dir;
 }
 
@@ -383,6 +389,9 @@ function policyRepoWithRun() {
   fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
+  // #721: touch decisions.md so this run dir is adopted and reachable by
+  // resolveRun's fallback (see tmpProject() above for the full rationale).
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   return { project, run };
 }
 
