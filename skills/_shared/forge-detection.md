@@ -1,6 +1,6 @@
 # Forge Detection Ladder (fail-open)
 
-Canonical home of the three-check GitHub reachability gate, extracted out of `_shared/github-pr-scan.md` (which owns the PR/issue scan scopes that build on top of it) so a consumer that needs only these three booleans — `/claude-tweaks:dispatch` Preflight chief among them — never has to load that file's full 39 KB to get them.
+Canonical home of the three-check GitHub reachability gate, extracted out of `_shared/github-pr-scan.md` (which owns the PR/issue scan scopes that build on top of it). A consumer that needs only these three booleans — `/claude-tweaks:dispatch` Preflight chief among them — never has to load that file's full 39 KB to get them.
 
 Run these checks in order before any scan or `gh`/MCP call. On the first failure, emit the single info row shown and stop — a skipped GitHub scan is normal, never a `BLOCKED` status, never a hard gate.
 
