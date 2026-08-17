@@ -13,6 +13,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const CONSOLE_ON_PR = read('skills', '_shared', 'console-on-pr.md');
 const REVIEW_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
+const REVIEW_CONSOLE_INTERACTIVE = read('skills', 'wrap-up', 'review-console-interactive.md');
 const MULTISPEC_CONSOLE = read('skills', 'flow', 'multispec-review-console.md');
 
 test('the gate is integration-model: pr-first AND a pr object on run-state.json', () => {
@@ -111,17 +112,17 @@ test('headless conclusion reports pending-review with no blocking wait and no As
 });
 
 test('review-console.md routes pr-first through Console-on-PR before "Present the console", local-merge unchanged', () => {
-  assert.match(REVIEW_CONSOLE, /## Console-on-PR \(`integration-model: pr-first` only\)/);
-  const idx = REVIEW_CONSOLE.indexOf('## Console-on-PR');
-  const presentIdx = REVIEW_CONSOLE.indexOf('## Present the console');
+  assert.match(REVIEW_CONSOLE_INTERACTIVE, /## Console-on-PR \(`integration-model: pr-first` only\)/);
+  const idx = REVIEW_CONSOLE_INTERACTIVE.indexOf('## Console-on-PR');
+  const presentIdx = REVIEW_CONSOLE_INTERACTIVE.indexOf('## Present the console');
   assert.ok(idx > 0 && presentIdx > 0 && idx < presentIdx, 'Console-on-PR must be checked before Present the console');
-  assert.match(REVIEW_CONSOLE, /local-merge.*→ skip to "Present the console" below, unchanged/s);
+  assert.match(REVIEW_CONSOLE_INTERACTIVE, /local-merge.*→ skip to "Present the console" below, unchanged/s);
 });
 
 test('review-console.md never renders both consoles on the pr-first path', () => {
-  const section = REVIEW_CONSOLE.slice(
-    REVIEW_CONSOLE.indexOf('## Console-on-PR'),
-    REVIEW_CONSOLE.indexOf('## Present the console'),
+  const section = REVIEW_CONSOLE_INTERACTIVE.slice(
+    REVIEW_CONSOLE_INTERACTIVE.indexOf('## Console-on-PR'),
+    REVIEW_CONSOLE_INTERACTIVE.indexOf('## Present the console'),
   );
   assert.match(section, /Never also render "Present the console"/);
 });
@@ -147,9 +148,9 @@ test('multispec-review-console.md delegates its item-id scheme to console-on-pr.
 });
 
 test('both review-console.md and multispec-review-console.md cite the shared integration-model fragment from their new sections', () => {
-  const rcSection = REVIEW_CONSOLE.slice(
-    REVIEW_CONSOLE.indexOf('## Console-on-PR'),
-    REVIEW_CONSOLE.indexOf('## Present the console'),
+  const rcSection = REVIEW_CONSOLE_INTERACTIVE.slice(
+    REVIEW_CONSOLE_INTERACTIVE.indexOf('## Console-on-PR'),
+    REVIEW_CONSOLE_INTERACTIVE.indexOf('## Present the console'),
   );
   const mcSection = MULTISPEC_CONSOLE.slice(
     MULTISPEC_CONSOLE.indexOf('## Console-on-PR'),

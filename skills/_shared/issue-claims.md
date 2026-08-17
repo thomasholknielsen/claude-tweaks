@@ -173,7 +173,7 @@ is atomic regardless of whether the label add/remove succeeds.
   canonical snippet and the full work-record `LABELS_JSON`; `/dispatch` is the
   claim-acquiring consumer).
 - **Removed** alongside claim release — every release removes it, regardless of outcome
-  (`wrap-up/cleanup-procedures.md` Section E, its duplicate in `flow/multispec-review-console.md`,
+  (`wrap-up/cleanup-procedures-execution.md` Section E, its duplicate in `flow/multispec-review-console.md`,
   and — for a single-spec issue-mode run the user chooses not to merge — the same Section E
   `abandoned:` path any single-spec `/wrap-up` already uses).
 - Best-effort in both directions: a failed add/remove never blocks the claim, the release, or
@@ -231,7 +231,7 @@ and let `/tidy`'s sweep surface it for human judgment.
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:dispatch` settle step (automatic, unconditional) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
-| Grant removal (`auto:build`/`auto:merge`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up`'s `cleanup-procedures.md` Section E step 6 (single-spec) | — (label edit, not a claim release) |
+| Grant removal (`auto:build`/`auto:merge`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up`'s `cleanup-procedures-execution.md` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
 
 **Ownership rule.** Before a this-run release overwrites the blob, read it fresh and confirm
@@ -245,7 +245,7 @@ the first Task call's own `/claude-tweaks:flow` invocation claims it at Step 2.8
 successful run's release happens inside `/wrap-up` (cleanup Section E) under that same
 directory — `/flow` adopts it
 directly as `$PIPELINE_RUN_DIR` rather than creating a separate one of its own, so
-`cleanup-procedures.md` Section E resolves `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`
+`cleanup-procedures-execution.md` Section E resolves `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`
 directly, no separate variable to thread through. A dispatched bundle is the one exception:
 each spec's own `$PIPELINE_RUN_DIR` is a `spec-{N}/` subdirectory of the group's minted
 parent, so Section E is deferred per-spec and the actual release happens once, at end-of-run,

@@ -3,7 +3,7 @@
 The canonical check-then-create loop every label-filing skill in this codebase uses.
 Referenced by the work-record consumers (`_shared/work-record.md` is the taxonomy home —
 health skills, `/capture`, `/specify`, `/backlog`, `/dispatch`, `/tidy`,
-`wrap-up/cleanup-procedures.md` Section E and `flow/multispec-review-console.md` for the
+`wrap-up/cleanup-procedures-execution.md` Section E and `flow/multispec-review-console.md` for the
 shared `parked` restoration step). Consumers reference this file; do not restate the loop
 inline.
 

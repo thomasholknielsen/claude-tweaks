@@ -14,7 +14,9 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const SCRATCH = read('skills', '_shared', 'scratch-worktree.md');
 const SETUP = read('skills', '_shared', 'worktree-setup.md');
 const MERGE = read('skills', '_shared', 'pr-first-merge.md');
+const MERGE_POST_MERGE = read('skills', '_shared', 'pr-first-merge-post-merge.md');
 const CLEANUP = read('skills', 'wrap-up', 'cleanup-procedures.md');
+const CLEANUP_PROCEDURES_EXECUTION = read('skills', 'wrap-up', 'cleanup-procedures-execution.md');
 
 // --- 1. scratch-worktree.md §6: ancestry check + both outcomes ---
 
@@ -44,7 +46,7 @@ test('scratch-worktree.md §6 hands off to pr-first-merge.md Step 5 rather than 
   const step6 = SCRATCH.slice(SCRATCH.indexOf('## 6. Tearing down'), SCRATCH.indexOf('## 7. Shell constraint'));
   assert.match(
     step6,
-    /pr-first-merge\.md`'s `## Step 5: Delete the remote branch \(outcome merged, after worktree teardown\)`/,
+    /pr-first-merge-post-merge\.md`'s `## Step 5: Delete the remote branch \(after worktree teardown\)`/,
   );
 });
 
@@ -82,27 +84,26 @@ test('scratch-worktree.md §2 also states never git checkout / git pull in the s
 // --- 3. pr-first-merge.md Step 5: exactly one gh api -X DELETE, never --delete-branch, guard ---
 
 test('pr-first-merge.md Step 5 exists and contains exactly one gh api -X DELETE call', () => {
-  const step5 = MERGE.indexOf('## Step 5: Delete the remote branch');
-  const conflict = MERGE.indexOf('## Conflict path');
-  assert.ok(step5 > 0 && conflict > step5, 'Step 5 must exist and precede the Conflict path');
-  const matches = MERGE.match(/gh api -X DELETE/g) || [];
+  const step5 = MERGE_POST_MERGE.indexOf('## Step 5: Delete the remote branch');
+  assert.ok(step5 > 0, 'Step 5 must exist');
+  const matches = MERGE_POST_MERGE.match(/gh api -X DELETE/g) || [];
   assert.strictEqual(matches.length, 1, `expected exactly one "gh api -X DELETE" statement, found ${matches.length}`);
-  const section = MERGE.slice(step5, conflict);
+  const section = MERGE_POST_MERGE.slice(step5);
   assert.match(section, /gh api -X DELETE "repos\/\{owner\}\/\{repo\}\/git\/refs\/heads\/\{branch\}"/);
 });
 
 test('pr-first-merge.md Step 5 names never `gh pr merge --delete-branch`', () => {
-  const step5 = MERGE.slice(MERGE.indexOf('## Step 5: Delete the remote branch'), MERGE.indexOf('## Conflict path'));
+  const step5 = MERGE_POST_MERGE.slice(MERGE_POST_MERGE.indexOf('## Step 5: Delete the remote branch'));
   assert.match(step5, /Never `gh pr merge\s*\n?\s*--delete-branch` either/);
 });
 
 test('pr-first-merge.md Step 5 guards against deleting {integration-branch} itself', () => {
-  const step5 = MERGE.slice(MERGE.indexOf('## Step 5: Delete the remote branch'), MERGE.indexOf('## Conflict path'));
+  const step5 = MERGE_POST_MERGE.slice(MERGE_POST_MERGE.indexOf('## Step 5: Delete the remote branch'));
   assert.match(step5, /Guard: never delete `\{integration-branch\}` itself/);
 });
 
 test('pr-first-merge.md Step 5 also never uses git push origin --delete, and tolerates an already-deleted ref', () => {
-  const step5 = MERGE.slice(MERGE.indexOf('## Step 5: Delete the remote branch'), MERGE.indexOf('## Conflict path'));
+  const step5 = MERGE_POST_MERGE.slice(MERGE_POST_MERGE.indexOf('## Step 5: Delete the remote branch'));
   assert.match(step5, /Never `git push origin --delete \{branch\}`/);
   assert.match(step5, /Tolerate "reference\s*\n?\s*does not exist"/);
 });
@@ -110,13 +111,13 @@ test('pr-first-merge.md Step 5 also never uses git push origin --delete, and tol
 // --- 4. cleanup-procedures.md Section C step 6: cites Step 5, never duplicates it ---
 
 test('cleanup-procedures.md Section C step 6 cites pr-first-merge.md Step 5 rather than duplicating the delete command', () => {
-  const sectionC = CLEANUP.indexOf('## C. Git Worktree');
-  const sectionD = CLEANUP.indexOf('## D. Ephemeral dev server');
+  const sectionC = CLEANUP_PROCEDURES_EXECUTION.indexOf('## C. Git Worktree');
+  const sectionD = CLEANUP_PROCEDURES_EXECUTION.indexOf('## D. Ephemeral dev server');
   assert.ok(sectionC > 0 && sectionD > sectionC, 'Section C must exist and precede Section D');
-  const section = CLEANUP.slice(sectionC, sectionD);
+  const section = CLEANUP_PROCEDURES_EXECUTION.slice(sectionC, sectionD);
   assert.match(
     section,
-    /`_shared\/pr-first-merge\.md`'s `## Step 5: Delete the remote\s*\n?\s*branch` against `\{branch\}`/,
+    /`_shared\/pr-first-merge-post-merge\.md`'s `## Step 5: Delete the remote\s*\n?\s*branch` against `\{branch\}`/,
   );
   assert.doesNotMatch(
     section,
@@ -125,11 +126,12 @@ test('cleanup-procedures.md Section C step 6 cites pr-first-merge.md Step 5 rath
   );
 });
 
-test('the literal git/refs/heads ref-delete command is stated exactly once, canonically, in pr-first-merge.md', () => {
-  // Sweeps all four files touched by #683 — the citation discipline this
-  // record's prose asserts (CLAUDE.md's "state once" rule) should hold
-  // structurally, not just by the one Section C check above.
-  const files = { SCRATCH, SETUP, MERGE, CLEANUP };
+test('the literal git/refs/heads ref-delete command is stated exactly once, canonically, in pr-first-merge-post-merge.md', () => {
+  // Sweeps all files touched by #683 (plus #851's split of pr-first-merge.md
+  // and cleanup-procedures.md) — the citation discipline this record's prose
+  // asserts (CLAUDE.md's "state once" rule) should hold structurally, not
+  // just by the one Section C check above.
+  const files = { SCRATCH, SETUP, MERGE, MERGE_POST_MERGE, CLEANUP, CLEANUP_PROCEDURES_EXECUTION };
   const hits = Object.entries(files).filter(([, text]) => /git\/refs\/heads/.test(text)).map(([name]) => name);
-  assert.deepStrictEqual(hits, ['MERGE'], `git/refs/heads must appear only in pr-first-merge.md, found in: ${hits.join(', ')}`);
+  assert.deepStrictEqual(hits, ['MERGE_POST_MERGE'], `git/refs/heads must appear only in pr-first-merge-post-merge.md, found in: ${hits.join(', ')}`);
 });

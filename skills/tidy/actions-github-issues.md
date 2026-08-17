@@ -30,9 +30,9 @@ not on the driver. The `local-files` driver has its own twin of this action
 instead; both run the same Parent-Gate Procedure, and the finding prefix is identical on either
 driver.
 
-Approving a `[parent-gate]` finding runs `wrap-up/verification-brief.md`'s Parent-Gate
-Procedure from **Enumerate the parent's sub-issues** onward, using the **parent-side** entry shape
-that section documents (`$PARENT_NUM` is already known from the scan; re-fetch sub-issue state
+Approving a `[parent-gate]` finding runs `wrap-up/verification-brief-parent-gate.md`
+(`verification-brief.md`'s Parent-Gate Procedure) from **Enumerate the parent's sub-issues** onward,
+using the **parent-side** entry shape that section documents (`$PARENT_NUM` is already known from the scan; re-fetch sub-issue state
 and the parent's labels fresh, and re-run **Evaluate the gate** — do not reuse the scan's own
 snapshot, since time has passed since Step 4.8 ran). If the re-verified gate no longer reads
 `due` (another process already gated the parent, or a sub-issue reopened), this is a silent no-op —

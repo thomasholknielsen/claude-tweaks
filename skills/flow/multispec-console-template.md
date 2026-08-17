@@ -91,7 +91,7 @@ Render this section whenever any spec's broken-reference sweep found a surviving
 
 #### Cleanup actions (executed after approval, per row — branch-finish gates the per-spec rows below it)
 
-Render 2 run-level rows (no `Spec` value, rendered as `—`) plus 3 rows per spec with a populated `Spec` column, drawn from `wrap-up/cleanup-procedures.md`'s Section D (ephemeral dev server) and Section E (issue claim release, grant removal, per-issue label cleanup) — the same steps "Shared teardown" below performs, made visible and individually overridable before they execute.
+Render 2 run-level rows (no `Spec` value, rendered as `—`) plus 3 rows per spec with a populated `Spec` column, drawn from `wrap-up/cleanup-procedures-execution.md`'s Section D (ephemeral dev server) and Section E (issue claim release, grant removal, per-issue label cleanup) — the same steps "Shared teardown" below performs, made visible and individually overridable before they execute.
 
 **Branch-finish is a hard prerequisite for every per-spec row below it.** Claim release needs branch-finish's outcome ($LINK — merge commit sha or PR URL) to release each issue correctly; grant removal and label cleanup key off the same outcome. Dev-server teardown has no such dependency and may be skipped independently of every other row.
 

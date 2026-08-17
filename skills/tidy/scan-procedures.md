@@ -203,7 +203,7 @@ execute only after Step 6 batch approval — breaking a lock is never autonomous
 
 Find materialized build-time headers (`flow/materialize.md`) that recorded `parked-at-shaping:
 true` but never got the restoration finished — a defense-in-depth flag for a mutation that
-silently failed at claim release (`wrap-up/cleanup-procedures.md` Section E, step 7), same shape
+silently failed at claim release (`wrap-up/cleanup-procedures-execution.md` Section E, step 7), same shape
 as the `bot:in-progress` missed-removal backstop below. Both checks below are flagged only —
 recommendations execute after Step 6 batch approval, same as every other Step 4.7 mutation.
 
