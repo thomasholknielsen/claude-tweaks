@@ -257,6 +257,77 @@ test('worktree-always nudge is absent when the session is already inside a linke
   const wt = path.join(parent, 'wt');
   execFileSync('git', ['-C', project, 'worktree', 'add', '-q', wt, '-b', 'wt-branch']);
   const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: fs.realpathSync(wt) });
-  if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree-always/);
+  // The verdict banner fires unconditionally whenever a policy file exists — including
+  // inside a linked worktree — so `additionalContext` legitimately contains the substring
+  // `worktree-always` (from the verdict line itself). Only the *nudge* is suppressed by
+  // isLinkedWorktree; prove that specifically, plus that the policy correctly reads ON.
+  assert.ok(out.json, 'a policy file exists, so the verdict banner must render');
+  assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /using-git-worktrees/);
+  assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree-always\)/);
+});
+
+// IL-133 verdict-banner coverage: policy.resolveWorktreeAlways drives the banner text
+// directly, so these pin the exact literal line for each alias-resolution outcome.
+
+test('verdict banner: old key only (worktree.always) resolves ON with matched key worktree.always', () => {
+  const project = gitProject();
+  withPolicy(project, 'worktree.always: true\n');
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree\.always\)/);
+});
+
+test('verdict banner: new key only (worktree-always) resolves ON with matched key worktree-always', () => {
+  const project = gitProject();
+  withPolicy(project, 'worktree-always: true\n');
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree-always\)/);
+});
+
+test('verdict banner: both keys present — new key wins over old', () => {
+  const project = gitProject();
+  withPolicy(project, 'worktree.always: true\nworktree-always: true\n');
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree-always\)/);
+  assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /matched key: worktree\.always/);
+});
+
+test('verdict banner: policy.yml exists but neither key is present — OFF (no key)', () => {
+  const project = gitProject();
+  withPolicy(project, 'integration-branch: main\n');
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: OFF \(no key\)/);
+});
+
+test('verdict banner: no policy.yml anywhere in the ancestor chain — no verdict line at all', () => {
+  const project = gitProject();
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree-always:/);
   else assert.deepStrictEqual(out, {});
+});
+
+test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed — no verdict line, hook does not throw', () => {
+  // readPolicyFile/parseFlatLines already fail safe for garbled *content* (a
+  // directory at .claude-tweaks/policy.yml resolves to `{}` via the internal
+  // try/catch in readPolicyFile, which reads as OFF/no-key, not a throw) — so a
+  // throw has to be simulated at the resolver call site itself. `policy` is a
+  // module-object property access in session-start.js (`policy.resolveWorktreeAlways(...)`),
+  // not a destructured local binding, so mutating the shared module's export in
+  // place is observed immediately by the already-required session-start module —
+  // no require.cache-busting needed (contrast the reconcile() stub above, which
+  // IS destructured and does need it).
+  const project = gitProject();
+  withPolicy(project, 'worktree-always: true\n');
+  const policyMod = require('../bin/lib/policy');
+  const original = policyMod.resolveWorktreeAlways;
+  policyMod.resolveWorktreeAlways = () => { throw new Error('simulated malformed policy state'); };
+  try {
+    let out;
+    assert.doesNotThrow(() => {
+      out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    });
+    if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree-always:/);
+    else assert.deepStrictEqual(out, {});
+  } finally {
+    policyMod.resolveWorktreeAlways = original;
+  }
 });

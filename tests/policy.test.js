@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { isWorktreeAlwaysOn, readIntegrationBranch, readListKey } = require('../bin/lib/policy');
+const { isWorktreeAlwaysOn, resolveWorktreeAlways, readIntegrationBranch, readListKey } = require('../bin/lib/policy');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-policy-'));
@@ -98,6 +98,38 @@ test('isWorktreeAlwaysOn: an invalid new-name value beside a valid old-name line
   const repo = tmpRepo();
   writePolicy(repo, 'worktree-always: yes\nworktree.always: true\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+});
+
+// resolveWorktreeAlways: direct unit coverage of the {on, matchedKey} pair
+// session-start.js's verdict banner and isWorktreeAlwaysOn's gate both consume
+// (IL-133) — cheaper to keep green than the session-start integration tests alone.
+
+test('resolveWorktreeAlways: old key only -> {on: true, matchedKey: "worktree.always"}', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: true, matchedKey: 'worktree.always' });
+});
+
+test('resolveWorktreeAlways: new key only -> {on: true, matchedKey: "worktree-always"}', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: true\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: true, matchedKey: 'worktree-always' });
+});
+
+test('resolveWorktreeAlways: both keys present -> new key wins, matchedKey is "worktree-always"', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: false\nworktree-always: true\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: true, matchedKey: 'worktree-always' });
+});
+
+test('resolveWorktreeAlways: neither key present -> {on: false, matchedKey: null}', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'integration-branch: main\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: false, matchedKey: null });
+});
+
+test('resolveWorktreeAlways: no policy.yml at all -> {on: false, matchedKey: null}', () => {
+  assert.deepStrictEqual(resolveWorktreeAlways(tmpRepo()), { on: false, matchedKey: null });
 });
 
 test('readIntegrationBranch: key present -> returns the branch name', () => {
