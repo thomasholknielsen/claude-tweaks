@@ -151,16 +151,42 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
   newest and steals the hook fallback resolver's attribution until the reconciler's
   `isOrphanedMint` sweep catches it (~24h); a dispatch-minted dir (`PIPELINE_RUN_DIR` set on
   entry) belongs to the caller and is left in place. The same removal rule applies to the
-  multi-target abort and the transient-failure stop below. Then stop the pipeline before Step 3
-  (no worktree, nothing else left behind):
+  multi-target abort and the transient-failure stop below. Then stop the pipeline before Step 3 (no worktree, nothing else left behind). Before
+  rendering the card, gather holder-liveness evidence — read-only, best-effort, never more
+  than a few seconds; absence of any artifact is evidence, not an error, and the card must
+  render a verdict either way — never block on the lookup:
+
+  1. The blob's identity fields (`runId`, `sessionId`, `claimedAt`, `ttlHours`, `host`) are
+     already in hand from "Reading claim state."
+  2. **Same host?** Compare the blob's `host` to `hostname` — string equality only, no
+     network probing. Different → verdict is **Remote holder**; skip steps 3-4.
+  3. **Worktree match:** derive the holder's worktree slug from its `runId` (strip the
+     `{ISO-timestamp}-` prefix, prepend `flow-` — e.g. runId `…T210742-spec-686-687` →
+     `flow-spec-686-687`) and grep `git worktree list` for it, locked or not.
+  4. **Transcript freshness:** the holder's transcript lives at
+     `~/.claude/projects/<project-slug>/<sessionId>.jsonl` (path rule per
+     `feedback/session-evaluation.md` — slug is the session's absolute cwd with `/`, space,
+     and `.` each replaced by `-`). A session inside a linked worktree writes under the
+     *worktree's* slug, not the main checkout's — check the main-checkout slug AND the
+     worktree-derived slug (from step 3's match, when one exists) before declaring no
+     transcript. Take the file's mtime.
+  5. **Verdict:** transcript mtime within the last 60 minutes (a judgment default, not a
+     protocol constant) → **Live sibling**; same host but no transcript activity within that
+     window (or no transcript found) → **Stale holder**; different host → **Remote holder**.
 
   ```markdown
   ## Flow: Claim contested
 
-  #{target} is already claimed by run {holder-runId} (host: {holder-host}, claimed
-  {holder-claimedAt}, expires {holder-claimedAt + holder-ttlHours}).
+  #{target} is already claimed by run {holder-runId} (session {holder-sessionId}, host:
+  {holder-host}, claimed {holder-claimedAt}, expires {holder-claimedAt + holder-ttlHours}).
 
-  Wait for the claim to expire, or resume once it releases.
+  {one of:
+    - Live sibling on this machine — {worktree-path-or-"no worktree found"}, last active
+      {age}. Next: wait for it to finish or release; re-run afterward.
+    - Remote holder ({holder-host}). Next: inspect that session on its own machine, or wait
+      for the claim to expire.
+    - Stale holder — no activity since {transcript-mtime-or-"unknown (no transcript found)"}.
+      Next: `/claude-tweaks:tidy` to sweep and reclaim, or wait for the TTL to expire.}
   ```
 
   No `AskUserQuestion` — there is nothing to choose between here; the pipeline cannot proceed

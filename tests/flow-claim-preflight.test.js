@@ -98,3 +98,21 @@ test('every base64 -d claim read under skills/ cites issue-claims.md or handles 
   }
   assert.deepStrictEqual(offenders, []);
 });
+
+test('contest card renders holder liveness — three verdict variants, each with a next step (#722)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  assert.match(content, /Live sibling on this machine/);
+  assert.match(content, /Remote holder/);
+  assert.match(content, /Stale holder — no activity since/);
+  assert.match(content, /sessionId/);
+  assert.match(content, /git worktree list/);
+  assert.match(content, /~\/\.claude\/projects\//);
+});
+
+test('contest liveness lookup is evidence-gathering, never a gate or a prompt (#722)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  assert.match(content, /never block on the lookup|evidence, not an error/);
+  assert.match(content, /session-evaluation\.md/);
+  // the card remains a stop: the section still forbids AskUserQuestion
+  assert.match(content, /No `AskUserQuestion`/);
+});
