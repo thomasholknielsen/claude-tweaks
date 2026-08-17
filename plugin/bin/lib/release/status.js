@@ -1,14 +1,10 @@
 'use strict';
 const { parseChangelogVersions } = require('../changelog.js');
-const { MANIFEST_PATH: MANIFEST, MANIFEST_PATHS, readManifestAtRef } = require('../manifest-path.js');
+const {
+  MANIFEST_PATH: MANIFEST, MANIFEST_PATHS, readManifestAtRef, manifestVersionAtRef, NOT_FOUND_ERROR_RE,
+} = require('../manifest-path.js');
 
 const CHANGELOG = 'CHANGELOG.md';
-
-// Every read below is at a historical commit, so both sides of the #418 payload
-// move are in scope — see bin/lib/manifest-path.js.
-function manifestVersionAt(deps, spec) {
-  return JSON.parse(readManifestAtRef((p) => deps.git(['show', `${spec}:${p}`])).text).version;
-}
 
 // Defensive check for non-CLI callers of releaseStatus — the CLI (bin/release.js
 // parseStatusArgs) already rejects these, but a value beginning with `-` reaching git
@@ -43,17 +39,17 @@ function* iterBumpCommits(deps, ref) {
   for (const sha of shas) {
     let version;
     try {
-      version = manifestVersionAt(deps, sha);
+      version = manifestVersionAtRef(deps, sha);
     } catch (err) {
       throw new Error(`could not read ${sha}'s manifest: ${err.message}`);
     }
     let parentVersion = null;
     try {
-      parentVersion = manifestVersionAt(deps, `${sha}^`);
+      parentVersion = manifestVersionAtRef(deps, `${sha}^`);
     } catch (err) {
       // Only a genuinely absent parent is "root commit" — any other failure
       // (git error, malformed manifest JSON) aborts rather than silently treating it as a root.
-      if (/does not exist|exists on disk, but not in|invalid object name/i.test(String(err.message))) {
+      if (NOT_FOUND_ERROR_RE.test(String(err.message))) {
         parentVersion = null; // root commit — nothing to compare against
       } else {
         throw new Error(`could not read ${sha}^'s manifest: ${err.message}`);

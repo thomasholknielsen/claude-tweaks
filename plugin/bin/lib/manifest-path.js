@@ -45,4 +45,22 @@ function readManifestAtRef(read) {
   return { path: MANIFEST_PATH, text: null };
 }
 
-module.exports = { MANIFEST_PATH, LEGACY_MANIFEST_PATH, MANIFEST_PATHS, readManifestAtRef };
+// A git error meaning "this path/ref genuinely does not exist" — as opposed to a
+// git resolution failure (bad ref, corrupt object) that must not be misread as
+// absence. Shared by every reader of a readManifestAtRef-driven git error: the
+// release pre-check's worktree-branch and shipped-versions-tsv absence checks,
+// and the release status walk's root-commit check.
+const NOT_FOUND_ERROR_RE = /does not exist|exists on disk, but not in|invalid object name/i;
+
+// Version at an arbitrary ref, trying both manifest spellings there — every
+// caller targets an arbitrary ref (origin/main, local main, a sibling
+// worktree's branch, a bump commit or its parent), any of which can predate
+// the plugin/ payload move (#418).
+function manifestVersionAtRef(deps, ref) {
+  return JSON.parse(readManifestAtRef((p) => deps.git(['show', `${ref}:${p}`])).text).version;
+}
+
+module.exports = {
+  MANIFEST_PATH, LEGACY_MANIFEST_PATH, MANIFEST_PATHS, readManifestAtRef,
+  NOT_FOUND_ERROR_RE, manifestVersionAtRef,
+};

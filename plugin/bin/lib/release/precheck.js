@@ -1,19 +1,9 @@
 'use strict';
 const { compareVersions } = require('../changelog.js');
 const { nextVersion } = require('./compose.js');
-const { readManifestAtRef } = require('../manifest-path.js');
+const { manifestVersionAtRef, NOT_FOUND_ERROR_RE } = require('../manifest-path.js');
 
 const VERSION_IN_TEXT = /\bv?(\d+\.\d+\.\d+)\b/g;
-
-function manifestVersion(text) {
-  return JSON.parse(text).version;
-}
-
-// Every read here targets an arbitrary ref — origin/main, local main, or a sibling
-// worktree's branch — any of which can predate the plugin/ payload move (#418).
-function manifestVersionAtRef(deps, ref) {
-  return manifestVersion(readManifestAtRef((p) => deps.git(['show', `${ref}:${p}`])).text);
-}
 
 function collectClaims(deps) {
   const originMain = manifestVersionAtRef(deps, 'origin/main');
@@ -30,7 +20,7 @@ function collectClaims(deps) {
     } catch (err) {
       // Only a genuinely absent manifest is "not a claim" — any other failure
       // (git error, malformed manifest JSON) aborts rather than silently weakening the check.
-      if (/does not exist|exists on disk, but not in|invalid object name/i.test(String(err.message))) {
+      if (NOT_FOUND_ERROR_RE.test(String(err.message))) {
         continue;
       }
       throw new Error(`pre-check could not read ${m[1]}'s manifest: ${err.message}`);
@@ -65,7 +55,7 @@ function collectClaims(deps) {
       if (/^\d+\.\d+\.\d+$/.test(v) && (!tsvTip || compareVersions(v, tsvTip) > 0)) tsvTip = v;
     }
   } catch (err) {
-    if (!/does not exist|exists on disk, but not in|invalid object name/i.test(String(err.message))) {
+    if (!NOT_FOUND_ERROR_RE.test(String(err.message))) {
       throw new Error(`pre-check could not read docs/shipped-versions.tsv: ${err.message}`);
     }
   }
