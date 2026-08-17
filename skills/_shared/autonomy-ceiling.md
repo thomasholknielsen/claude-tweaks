@@ -110,6 +110,20 @@ The narrow, opt-in, logged, fully reversible bookkeeping behaviors in the table 
 None of the bookkeeping capabilities touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
 conditions, or merge-conflict resolution — those stay fully human-gated at every tier.
 
+### Orthogonal to the ceiling: the Manifesto's `merge-authorization` lever
+
+`flow/manifesto.md`'s `merge-authorization` lever (#715) is **not** one of the bookkeeping
+capabilities above and is **not** gated by the `autonomy` ceiling at all — it is available at
+every ceiling tier, including `supervised`. The two mechanisms solve different problems:
+`consoleAutoResolve` (above) is a **standing, ceiling-gated** capability that, once the project
+opts into `unattended`, applies to every future run without further per-run action. This lever is
+the opposite shape: **per-run, always requiring a live answer** (an explicit Manifesto
+`confirm`/`hybrid` override — never a `policy.yml` default, per `flow/manifesto.md`'s
+Recommendation defaults note), regardless of the project's ceiling setting. A `supervised`-ceiling
+project can still pre-authorize one specific run's merge this way; an `unattended`-ceiling project
+still needs `consoleAutoResolve` (or this lever) to actually skip the terminal click — raising the
+ceiling alone does not, by itself, answer this lever.
+
 ### Floor rule (ledger narrowing)
 
 `ledgerNarrowing` only narrows an item whose Phase 1 blocker reason matches one of the four
