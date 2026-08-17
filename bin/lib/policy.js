@@ -37,11 +37,21 @@ function parsePolicy(repoRoot) {
 // alias a hook reads is today; a null-migrating alias would read as unset
 // here — i.e. gate OFF — so a future non-identity alias for a hook-read key
 // must extend this helper rather than rely on it.
-function rawValue(parsed, key) {
-  if (Object.prototype.hasOwnProperty.call(parsed, key)) return parsed[key];
-  const alias = RENAMED_KEYS.find((entry) => entry.replacedBy === key);
-  if (alias && Object.prototype.hasOwnProperty.call(parsed, alias.key)) return alias.migrate(parsed[alias.key]);
-  return undefined;
+//
+// { on: boolean, matchedKey: 'worktree-always' | 'worktree.always' | null } —
+// the same alias-aware lookup isWorktreeAlwaysOn always did, now exposing
+// WHICH key resolved it. session-start.js's verdict banner and this gate
+// must never disagree, so both call this — see docs/incident-log.md IL-133.
+function resolveWorktreeAlways(repoRoot) {
+  const parsed = parsePolicy(repoRoot);
+  if (Object.prototype.hasOwnProperty.call(parsed, 'worktree-always')) {
+    return { on: parsed['worktree-always'] === 'true', matchedKey: 'worktree-always' };
+  }
+  const alias = RENAMED_KEYS.find((entry) => entry.replacedBy === 'worktree-always');
+  if (alias && Object.prototype.hasOwnProperty.call(parsed, alias.key)) {
+    return { on: alias.migrate(parsed[alias.key]) === 'true', matchedKey: alias.key };
+  }
+  return { on: false, matchedKey: null };
 }
 
 // `worktree-always: true` — anything else (absent, `false`, trailing garbage
@@ -50,10 +60,11 @@ function rawValue(parsed, key) {
 // hand-editable (skills/_shared/git-discipline.md, skills/init/SKILL.md), and
 // a user who hand-writes `worktree-always: true  # enabled after the incident
 // on 2026-07-10` must not have that natural annotation silently read as
-// policy-OFF. The pre-#602 spelling `worktree.always` reads through rawValue's
-// alias path (skills/_shared/policy-deprecations.md holds its removal condition).
+// policy-OFF. The pre-#602 spelling `worktree.always` reads through
+// resolveWorktreeAlways's alias path (skills/_shared/policy-deprecations.md
+// holds its removal condition).
 function isWorktreeAlwaysOn(repoRoot) {
-  return rawValue(parsePolicy(repoRoot), 'worktree-always') === 'true';
+  return resolveWorktreeAlways(repoRoot).on;
 }
 
 // `integration-branch: <name>` — where finished work lands. Unset on most
@@ -83,4 +94,4 @@ function readListKey(repoRoot, key) {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-module.exports = { isWorktreeAlwaysOn, readIntegrationBranch, readListKey };
+module.exports = { isWorktreeAlwaysOn, resolveWorktreeAlways, readIntegrationBranch, readListKey };

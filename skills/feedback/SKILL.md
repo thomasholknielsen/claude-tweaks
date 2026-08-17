@@ -1,7 +1,7 @@
 ---
 name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files a GitHub issue against claude-tweaks after an explicit scrub and confirmation.
-argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--pre-confirmed]"
+argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--full] [--pre-confirmed]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -32,7 +32,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue] [--pre-confirmed]`:
+`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue] [--full] [--pre-confirmed]`:
 
 | Argument | Behavior |
 |----------|----------|
@@ -41,6 +41,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
+| `--full` | Presence-only, meaningful only for bare/`--queue` invocation (Step 0's session-evaluation gather): ignore any existing watermark for the resolved transcript, dispatch the full un-scoped judge (no offset clause), then overwrite the watermark with the fresh result exactly as a first-ever evaluation would. A no-op combined with free-text-only invocation — no session evaluation runs in that mode at all, the same rule Step 0 already states for `--queue`. |
 | `--pre-confirmed` | Presence-only like `--dry-run`; the caller passes the item's staged-file path and the approved snapshot body alongside it. Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
@@ -178,9 +179,13 @@ has no dedicated batch-mode option; a human who wants that outcome uses the cont
 edit channel (naming the item and requesting "comment on #{N} instead of filing") rather than a
 third checkbox state.
 
-Reuse `bin/lib/health-core/fingerprint.js` (`createFingerprint`, `normalizeText`)
-for the fingerprint marker embedded in the body, so a later run recognizes its
-own prior filing.
+Derive `fingerprintBasis: { component, summary }` for the drafted item — the same
+affected-component-plus-core-symptom inputs used for the search above — and carry it
+into the drafts file built for Step 8. Computing the fingerprint marker embedded in
+the body is not this step's job: `bin/file-feedback.js` derives it via
+`fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when
+it processes the draft, so a later run recognizes its own prior filing. Never call
+`createFingerprint` directly here.
 
 ### Step 5: Draft
 
@@ -295,7 +300,10 @@ post-scrub content directly.
 
 **`--dry-run`:** render every draft, state the classified destination and kind, then **stop here**
 — no `AskUserQuestion` call of any kind, and nothing filed. This holds whether or not
-`--pre-confirmed` was also passed: `--dry-run` takes precedence over it.
+`--pre-confirmed` was also passed: `--dry-run` takes precedence over it. Separately,
+`bin/file-feedback.js` (Step 8's filing CLI) accepts its own `--dry-run` flag — independent of
+this gate, for exercising the CLI directly without going through this human-gated flow; this
+skill's own flow never reaches Step 8 while this gate holds.
 
 ### Step 8: File
 
@@ -315,41 +323,57 @@ also bootstrap `needs:definition` per `_shared/label-bootstrap.md`'s check-then-
 reaching ready"]`) and pass `--label needs:definition`. This is the **single named exception** to
 the internal-taxonomy rule below — every other label in that taxonomy stays off-limits here.
 
-**Then** file, appending the resolved `--label` argument(s) if and only if the
-previous checks confirmed them:
-
-```bash
-BODY_FILE=$(mktemp)
-cat > "$BODY_FILE" <<'BODY'
-<body>
-BODY
-gh issue create --repo thomasholknielsen/claude-tweaks \
-  --title '<title>' \
-  --body-file "$BODY_FILE"
-```
-
 Omit `--label bug`/`--label enhancement` entirely when unconfirmed and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
 which belongs to records that moved through its in-repo pipeline — `needs:definition` above is
-the one deliberate, named exception to this rule.
+the one deliberate, named exception to this rule. This CLI files against another repo, and it
+never bootstraps labels there — the label-resolution checks above stay in the skill, run before
+the drafts file is built; the CLI only ever receives the labels the drafts file names and does
+not compute label policy itself.
 
-**On success when invoked via `--pre-confirmed`:** delete the staged file at
-`staged/wrap-up-upstream-{N}.md` immediately after `gh issue create` returns the new issue URL —
-this is what makes Step 7's drift check "file not found" branch mean "already filed" rather than
-an error, and prevents a `/claude-tweaks:wrap-up resume` (or the multi-spec console's own resume)
-from re-rendering and re-filing an item whose chunk already succeeded before an interruption. A
-direct (non-`--pre-confirmed`) invocation has no staged file to clean up — this step is a no-op in
-that path.
+**Then** file via `bin/file-feedback.js`, not a shell recipe: `gh` has no `--title-file`, so a
+title interpolated into a shell string is corruptible by backticks or `$(...)` — the CLI instead
+passes the title through its runner's argv array, never string-interpolated, while the body still
+goes via `--body-file`.
 
-On failure, do not silently drop the payload. Report the `gh` error verbatim,
-write the drafted body to the run directory's `staged/` as
-`upstream-unfiled-{N}.md` when a run directory exists — deliberately outside
-the `staged/wrap-up-upstream-*.md` aggregation glob `review-console.md` and
-`multispec-review-console.md` both scan, so a stop-and-resume never
-re-enumerates a failed draft as a fresh upstream proposal — and tell the
-user the filing did not happen and the draft is preserved. There is no
-automatic retry for upstream filings.
+1. Write the drafts file via the **Write tool** — never `echo`, which mangles `\n` in zsh — to
+   `{run-dir}/staged/feedback-drafts.json` when a run directory exists, or a scratch path
+   otherwise. Each entry is `{ title, body, labels, fingerprintBasis }`: `labels` is exactly the
+   `--label` argument(s) resolved above (an omitted label stays omitted), and `fingerprintBasis`
+   is Step 4's `{ component, summary }`.
+2. Invoke:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/file-feedback.js" --drafts <path> --repo thomasholknielsen/claude-tweaks
+   ```
+
+   `--repo` is explicit and hardcoded here, matching every other `gh` call in this step and Step
+   4 above — the CLI's own `--repo` default resolves the invoking project's `origin` remote, which
+   is the host project `/feedback` is running from, not the upstream `claude-tweaks` repo the
+   learning is filed against. (No `--dry-run` here — Step 7's own dry-run gate already stopped
+   before Step 8 is ever reached; the CLI's `--dry-run` flag noted in Step 7 is a separate,
+   direct-invocation-only affordance.)
+3. Report its per-draft result table verbatim — `filed #{n}` / `dedup-hit #{n}` /
+   `filing-failure: {reason}` per line, in input order. This table **is** Step 9's per-item report
+   source now, not a paraphrase.
+4. On any `filing-failure` row, follow the existing "do not silently drop the payload" rule: the
+   CLI's own stderr/table already states the `gh` error and which draft failed, so this step adds
+   only the existing staged-fallback behavior — write that draft's body to the run directory's
+   `staged/` as `upstream-unfiled-{N}.md` when a run directory exists, deliberately outside the
+   `staged/wrap-up-upstream-*.md` aggregation glob `review-console.md` and
+   `multispec-review-console.md` both scan, so a stop-and-resume never re-enumerates a failed
+   draft as a fresh upstream proposal — and tell the user the filing did not happen and the draft
+   is preserved. There is no automatic retry for upstream filings.
+5. **On success when invoked via `--pre-confirmed`:** delete the staged file at
+   `staged/wrap-up-upstream-{N}.md` for each draft the CLI table reports as `status: filed` or
+   `status: dedup-hit` — condition on the table's status, not on `gh issue create`'s own exit code
+   directly — immediately after the CLI returns. This is what makes Step 7's drift check "file not
+   found" branch mean "already filed" rather than an error, and prevents a
+   `/claude-tweaks:wrap-up resume` (or the multi-spec console's own resume) from re-rendering and
+   re-filing an item whose chunk already succeeded before an interruption. A direct
+   (non-`--pre-confirmed`) invocation has no staged file to clean up — this step is a no-op in
+   that path.
 
 ### Step 9: Report
 
