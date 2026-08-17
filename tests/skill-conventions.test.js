@@ -117,4 +117,17 @@ test('no skill carries a Relationship section any more', () => {
   }
 });
 
+test('challenge SKILL.md Input section names all three input forms', () => {
+  const body = read('challenge');
+  const input = body.split(/^## Input$/m)[1].split(/^## /m)[0];
+  assert.ok(/framing-check/.test(input), 'Input section must name framing-check');
+  assert.ok(/bare record reference/.test(input), 'Input section must name the bare record-reference form');
+  assert.ok(/--lens=/.test(input), 'Input section must name --lens');
+});
+
+test('challenge SKILL.md keeps the bare-#N mode section', () => {
+  const body = read('challenge');
+  assert.ok(/^## Mode: bare `#N` \(evidence-or-accept-risk\)$/m.test(body), 'the bare-#N mode section must exist');
+});
+
 module.exports = { CANONICAL_DIRECTIVE, skillNames, read, SKILLS_DIR, LINEAR_DIAGRAM_SKILLS };

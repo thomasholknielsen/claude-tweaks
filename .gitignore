@@ -30,6 +30,7 @@ node_modules/
 .claude-tweaks/harness-health/
 .claude-tweaks/journey-health/
 .claude-tweaks/docs-health/
+.claude-tweaks/feedback/
 .claude-tweaks/routine-environment-cache.yml
 .claude-tweaks/init-state.yml
 .claude-tweaks/wrap-up-outcomes.tsv

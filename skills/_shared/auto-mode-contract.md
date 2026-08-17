@@ -236,7 +236,7 @@ Extending the Manifesto with a new lever touches more files than the lever's own
 
 1. **This file** — add the lever name to the Bookend Architecture's computed-levers list (above); add its row(s) to "What `auto` silences" / "does NOT silence" if it changes either list; add a caveat anywhere an existing table row's guarantee narrows.
 2. **`flow/SKILL.md`** Step 3 — add the lever name to the levers-computed sentence.
-3. **`flow/manifesto.md`** — the lever needs an entry in *every* one of: the suppression-rules table, the canonical numbering line, the illustrative Policy Levers example table, the Suppressed/Valid-overrides footer, the Override Semantics table, the Recommendation Defaults table, and the `config.yml` schema example.
+3. **`flow/manifesto.md`** — the lever needs an entry in *every* one of: the suppression-rules table, the canonical numbering line, the illustrative Policy Levers example table, the Suppressed/Valid-overrides footer, the Recommendation Defaults table, and the `config.yml` schema example. The Override Semantics table itself lives in **`flow/manifesto-overrides.md`** — update it there.
 4. **`help/reference-card.md`** and **`help/context-flow.md`** — both files independently enumerate the full lever list ("every policy lever" / the `config.yml` consumer row) and sit outside the Manifesto's own file tree — easy to miss entirely, and the only two gaps a whole-branch review caught that no task-level review touching the Manifesto files themselves could have seen.
 5. **The enforcement skill file(s)** the lever actually gates — where the new behavior lives.
 
