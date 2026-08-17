@@ -15,10 +15,27 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
+// Manual recursive directory walk — fs.readdirSync's `{ recursive: true }`
+// option requires Node >=18.17.0/>=20.1.0, a minor-version floor this
+// project doesn't otherwise declare (CLAUDE.md and package.json both say
+// only "Node 18+", no engines field — see #790 Finding 4). Returns relative
+// path strings from `root`, files only (directories are recursed into, not
+// themselves returned) — sufficient for this scanner's `.endsWith('.md')`
+// filter below.
+function walkFilesRelative(root, relBase = '') {
+  const out = [];
+  for (const entry of fs.readdirSync(path.join(root, relBase), { withFileTypes: true })) {
+    const rel = relBase ? path.join(relBase, entry.name) : entry.name;
+    if (entry.isDirectory()) out.push(...walkFilesRelative(root, rel));
+    else out.push(rel);
+  }
+  return out;
+}
+
 // Dynamically scan all .md files under skills/ recursively
 function getAllSkillFiles() {
   const skillsDir = path.join(ROOT, 'skills');
-  const files = fs.readdirSync(skillsDir, { recursive: true });
+  const files = walkFilesRelative(skillsDir);
   return files
     .filter(f => f.endsWith('.md'))
     .map(f => path.join('skills', f));

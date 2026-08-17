@@ -12,6 +12,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
@@ -59,4 +60,18 @@ test('accept: --run-dir is absolute and anchored under the main checkout', () =>
   // Whatever happens downstream (gatherFacts against a minimal fixture repo),
   // the anchoring gate itself must not be what rejects it.
   assert.doesNotMatch(out.stderr, /resolves outside the main checkout/i);
+});
+
+test('reject: --run-dir resolves under a directory with no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
+  // #790 Finding 5: mainCheckoutRoot() returning null (no .git anywhere up
+  // the ancestor chain) is a DIFFERENT failure than "exists, but resolves
+  // outside a KNOWN main checkout" — a bare mkdtempSync dir with no git init
+  // reproduces it without needing a git-repo fixture at all.
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wrapup-norepo-'));
+  const abs = path.join(bare, '.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-793');
+  const out = runPlan(['--run-dir', abs, '--base', 'HEAD'], bare);
+  assert.strictEqual(out.code, 2);
+  assert.match(out.stderr, /could not determine the git repository root/i);
+  assert.doesNotMatch(out.stderr, /resolves outside the main checkout/i);
+  assert.ok(!fs.existsSync(abs), 'the shadow directory must never be created');
 });

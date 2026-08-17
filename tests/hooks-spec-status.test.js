@@ -97,7 +97,7 @@ test('spec-status with a non-existent --run path fails loudly instead of falling
   const bogus = path.join(path.dirname(run), 'does-not-exist');
   const result = runHook(['spec-status', '--run', bogus, '--spec', '1', '--status', 'running', '--phase', 'build']);
   assert.equal(result.code, 0);
-  assert.match(result.stdout, /--run path not found/);
+  assert.match(result.stdout, /--run path rejected/);
 });
 
 test('spec-status without a resolvable run dir exits 0 and prints a not-recorded notice', () => {

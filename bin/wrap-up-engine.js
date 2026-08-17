@@ -9,11 +9,13 @@
 // failure is the one deliberate exception — see below); 1 when the
 // invocation shape was fine but the payload/content was not (a `record`
 // payload that fails validation, or JSON that doesn't parse); 2 only for a
-// malformed invocation (missing/unknown flags, an unknown verb, bad
-// `--signals` JSON at plan time — since --signals is parsed before any
-// engine work starts, an unparseable value is invocation shape, not
-// payload). `render --strict` is documented separately: it prints first,
-// THEN exits 2 when rows are missing, so the hole is visible AND fatal.
+// malformed invocation (missing/unknown flags, an unknown verb, an
+// unanchored --run-dir (#790/[IL-127] — a worktree-relative shadow, or a
+// path with no determinable git repository root), bad `--signals` JSON at
+// plan time — since --signals is parsed before any engine work starts, an
+// unparseable value is invocation shape, not payload). `render --strict` is
+// documented separately: it prints first, THEN exits 2 when rows are
+// missing, so the hole is visible AND fatal.
 'use strict';
 
 const { execFileSync } = require('node:child_process');
@@ -297,11 +299,21 @@ function main() {
   // fs.mkdirSync(args.runDir) means the target often doesn't exist yet, and
   // isAnchoredUnderRoot already walks up to whichever ancestor does.
   if (args.runDir) {
-    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    const cwd = process.cwd();
+    const mainRoot = wtDetect.mainCheckoutRoot(cwd);
+    if (!mainRoot) {
+      // Distinct from the anchoring-rejection case below: no git repo could
+      // be determined at all (not a repo, an unreadable ancestor, an
+      // unparseable .git file) — misdiagnosing this as a worktree-shadow
+      // rejection would send a reader hunting for the wrong problem.
+      process.stderr.write(
+        `wrap-up-engine.js: could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read\n`,
+      );
+      process.exit(2);
+    }
     if (!wtDetect.isAnchoredUnderRoot(path.resolve(args.runDir), mainRoot)) {
       process.stderr.write(
-        `wrap-up-engine.js: --run-dir ${args.runDir} resolves outside the main checkout`
-        + `${mainRoot ? ` (${mainRoot})` : ''} — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`,
+        `wrap-up-engine.js: --run-dir ${args.runDir} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`,
       );
       process.exit(2);
     }

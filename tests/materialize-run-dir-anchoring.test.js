@@ -11,8 +11,11 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
+const wtDetect = require('../bin/lib/hooks/worktree-detect');
 const { run } = require('../bin/materialize');
 
 function withCwd(dir, fn) {
@@ -28,6 +31,12 @@ function fakeDeps(overrides = {}) {
     ghAvailable: () => { calls.ghAvailable += 1; return false; }, // stop right after, if reached
     ghView: () => { throw new Error('ghView should never be called in these tests'); },
     remoteUrl: () => { throw new Error('remoteUrl should never be called in these tests'); },
+    // #790 Finding 1: cwd/mainRoot now come through deps, mirroring
+    // bin/release-claim.js's seam — the default here is the real thing
+    // (chdir'd per test below), same as realDeps, so these tests still
+    // exercise real gitRepo()/linkedWorktreeOf() fixtures end to end.
+    cwd: () => process.cwd(),
+    mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
     mkdirp: () => { throw new Error('mkdirp should never be called when --run-dir is rejected'); },
     writeFile: () => { throw new Error('writeFile should never be called when --run-dir is rejected'); },
     stdout: () => {},
@@ -73,4 +82,21 @@ test('accept: --run-dir is absolute and anchored under the main checkout', () =>
   assert.strictEqual(code, 2);
   assert.doesNotMatch(stderrText, /resolves outside the main checkout/i);
   assert.strictEqual(deps.calls.ghAvailable, 1, 'a correctly anchored --run-dir must reach the gh-availability check');
+});
+
+test('reject: --run-dir has no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
+  // #790 Finding 5: mainCheckoutRoot() returning null (no .git anywhere up
+  // the ancestor chain) is a DIFFERENT failure than "exists, but resolves
+  // outside a KNOWN main checkout" — a bare mkdtempSync dir with no git init
+  // reproduces it without needing a git-repo fixture at all.
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-materialize-norepo-'));
+  const deps = fakeDeps();
+  let stderrText = '';
+  deps.stderr = (s) => { stderrText += s; };
+  const abs = path.join(bare, '.claude-tweaks', 'pipelines', 'x');
+  const code = withCwd(bare, () => run(['1', '--run-dir', abs], deps));
+  assert.strictEqual(code, 2);
+  assert.match(stderrText, /could not determine the git repository root/i);
+  assert.doesNotMatch(stderrText, /resolves outside the main checkout/i);
+  assert.strictEqual(deps.calls.ghAvailable, 0, 'must reject before ever checking gh availability');
 });

@@ -10,8 +10,10 @@
 // branch here); that driver still uses the skill's own inline read.
 // Prints one JSON envelope on success. Exit 0 on success; 1 when the
 // record's own body fails the shape gate (points at /claude-tweaks:specify,
-// same as the skill does); 2 on a malformed invocation, an unresolved
-// record, or when `gh` is absent.
+// same as the skill does); 2 on a malformed invocation, an unanchored
+// --run-dir (#790/[IL-127] — a worktree-relative shadow, or a path with no
+// determinable git repository root), an unresolved record, or when `gh` is
+// absent.
 'use strict';
 
 const fs = require('fs');
@@ -52,6 +54,8 @@ const realDeps = {
   ghView: (owner, repo, n) => execFileSync('gh', ['issue', 'view', String(n), '--repo', `${owner}/${repo}`, '--json', 'number,title,body,labels,url'], { encoding: 'utf8' }),
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  cwd: () => process.cwd(),
+  mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
   mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFile: (file, content) => fs.writeFileSync(file, content),
   stdout: (s) => process.stdout.write(s),
@@ -66,13 +70,22 @@ function run(argv, deps = realDeps) {
   if (!isPos(opts.n)) { deps.stderr('malformed <n> — must be a positive integer\n' + USAGE); return 2; }
   if (!opts.runDir) { deps.stderr('missing required --run-dir\n' + USAGE); return 2; }
   {
-    // #790/[IL-127]: reject an unanchored --run-dir before any gh/git/fs work.
-    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
-    if (!wtDetect.isAnchoredUnderRoot(path.resolve(opts.runDir), mainRoot)) {
-      deps.stderr(
-        `materialize.js: --run-dir ${opts.runDir} resolves outside the main checkout`
-        + `${mainRoot ? ` (${mainRoot})` : ''} — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`,
-      );
+    // #790/[IL-127]: reject an unanchored --run-dir before any gh/git/fs
+    // work. cwd/mainRoot are read through deps (not process.cwd()/wtDetect
+    // directly) so this guard honors the "all I/O through deps" seam this
+    // file's own header comment promises.
+    const cwd = deps.cwd();
+    const mainRoot = deps.mainRoot(cwd);
+    if (!mainRoot) {
+      // Distinct from the anchoring-rejection case below: no git repo could
+      // be determined at all (not a repo, an unreadable ancestor, an
+      // unparseable .git file) — misdiagnosing this as a worktree-shadow
+      // rejection would send a reader hunting for the wrong problem.
+      deps.stderr(`materialize.js: could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read\n`);
+      return 2;
+    }
+    if (!wtDetect.isAnchoredUnderRoot(path.resolve(cwd, opts.runDir), mainRoot)) {
+      deps.stderr(`materialize.js: --run-dir ${opts.runDir} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`);
       return 2;
     }
   }

@@ -11,6 +11,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
@@ -66,4 +67,17 @@ test('accept: --run is an absolute path correctly anchored under the main checko
   // check must accept a --run value that genuinely resolves under $RUN_ROOT.
   const out = runRecordWorktree(['--run', anchored, wt], wt);
   assert.match(out.stdout, /worktree recorded/);
+});
+
+test('reject: --run resolves under a directory with no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
+  // #790 Finding 5: mainCheckoutRoot() returning null (no .git anywhere up
+  // the ancestor chain) is a DIFFERENT failure than "exists, but resolves
+  // outside a KNOWN main checkout" — a bare mkdtempSync dir with no git init
+  // reproduces it without needing a git-repo fixture at all.
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-hooks-norepo-'));
+  const runDirPath = mkRunDir(bare, ['.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-793']);
+  const out = runRecordWorktree(['--run', runDirPath, bare], bare);
+  assert.match(out.stdout, /could not determine the git repository root/i);
+  assert.doesNotMatch(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
 });

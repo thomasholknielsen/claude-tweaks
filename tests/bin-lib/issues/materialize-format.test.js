@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../bin/lib/issues/materialize-format');
+const wtDetect = require('../../../bin/lib/hooks/worktree-detect');
 
 const SHAPED_BODY = [
   'Surface: backend',
@@ -131,14 +131,18 @@ const { run: cliRun } = require('../../../bin/materialize');
 
 // #790/[IL-127]: materialize.js's run() now rejects a --run-dir that doesn't
 // resolve under the main checkout (bin/lib/hooks/worktree-detect.js's
-// isAnchoredUnderRoot), checked against process.cwd() directly. repoRoot
-// below is that main checkout (git-init'd once for this suite); every CLI
-// test below runs with cwd chdir'd into it and a run-dir nested under it —
-// a bare os.tmpdir() literal like the old '/tmp/run-1' no longer anchors.
+// isAnchoredUnderRoot), read through deps.cwd()/deps.mainRoot() (#790
+// Finding 1) rather than process.cwd()/wtDetect directly. repoRoot below is
+// that main checkout; every CLI test below runs with cwd chdir'd into it and
+// a run-dir nested under it — a bare os.tmpdir() literal like the old
+// '/tmp/run-1' no longer anchors. worktree-detect.js's checks are purely
+// structural (`fs.statSync(...).isDirectory()`), not real git plumbing, so a
+// bare `.git` directory — no `git init` subprocess — is enough, mirroring
+// tests/bin-lib/release-claim/cli.test.js's `mkRun()` fixture.
 let repoRoot;
 before(() => {
   repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-materialize-cli-'));
-  execFileSync('git', ['-C', repoRoot, 'init', '-q']);
+  fs.mkdirSync(path.join(repoRoot, '.git'));
 });
 after(() => {
   fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -155,6 +159,7 @@ function cliDeps({ ghView, ghAvailable = true, remoteUrl = 'https://github.com/a
   return {
     deps: {
       ghView, ghAvailable: () => ghAvailable, remoteUrl: () => remoteUrl,
+      cwd: () => process.cwd(), mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
       mkdirp: () => {}, writeFile: (p, c) => { written[p] = c; },
       stdout: (s) => out.push(s), stderr: (s) => err.push(s),
     },
