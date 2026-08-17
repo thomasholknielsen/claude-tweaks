@@ -85,11 +85,15 @@ function listClaims(repoSlug) {
   return claimStore.listClaimNames(ghApi, repoSlug);
 }
 
+// claim-store.js keys on the issue number, not the blob filename. Callers
+// pre-filter `name` on this same regex before calling — see releaseMerged's
+// loop below — so the match is always non-null here.
+function issueNumberOf(name) {
+  return Number(/^issue-(\d+)\.json$/.exec(name)[1]);
+}
+
 function readClaim(repoSlug, name) {
-  // Callers pre-filter `name` on this same regex before calling — see
-  // releaseMerged's loop below — so the match is always non-null here.
-  const issueNumber = Number(/^issue-(\d+)\.json$/.exec(name)[1]);
-  const r = claimStore.readClaimBlob(ghApi, repoSlug, issueNumber);
+  const r = claimStore.readClaimBlob(ghApi, repoSlug, issueNumberOf(name));
   return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
@@ -115,9 +119,7 @@ function releasedEntry(issueNumber, runId, prState) {
 // ordinary write failure here; the caller logs it as a release race, exactly
 // the posture that file's Failure posture table documents.
 function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
-  // Same pre-filtered-name guarantee as readClaim above.
-  const issueNumber = Number(/^issue-(\d+)\.json$/.exec(name)[1]);
-  const r = claimStore.writeClaimBlob(ghApi, repoSlug, issueNumber, {
+  const r = claimStore.writeClaimBlob(ghApi, repoSlug, issueNumberOf(name), {
     content: tombstoneContent, sha, message: `Release claim ${name} — ${reason}`,
   });
   return r.ok;

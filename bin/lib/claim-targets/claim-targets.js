@@ -37,6 +37,13 @@ function errText(e) {
   return String((e && e.message) || e);
 }
 
+// Claim blobs are remote data: an unparseable one is classified 'unreadable'
+// by classifyClaimBlob and never fatal here, so every identity read yields
+// null rather than throwing.
+function parseJsonOrNull(text) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 function parseArgs(argv) {
   const opts = {
     runId: null, targetsRaw: null, keepGoing: false, help: false,
@@ -99,7 +106,7 @@ function holderFromFreshRead(deps, repoSlug, issue) {
   if (fresh.failure || fresh.absent) return null;
   const classified = classifyClaimBlob(fresh.content, deps.now());
   if (classified.state !== 'live') return null;
-  try { return JSON.parse(fresh.content); } catch { return null; }
+  return parseJsonOrNull(fresh.content);
 }
 
 // All-or-abort release of every target this invocation claimed, before a
@@ -158,22 +165,31 @@ function run(argv, deps) {
   const skipped = [];
   const labelFailures = [];
 
+  // Every non---keep-going stop shares one shape: release everything this run
+  // claimed (all-or-abort), then report the stop alongside what was released
+  // and what could not be. Stated once so the four stop sites below cannot
+  // drift from each other. `exitCode` is 3 for a `contested` envelope, 4 for
+  // a `transient` one.
+  function abort(envelope, exitCode) {
+    const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
+    deps.stdout(JSON.stringify({ ...envelope, released, releaseFailed }));
+    return exitCode;
+  }
+
   for (const issue of targets) {
     const read = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
     if (read.failure) {
       if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: read.failure }); continue; }
-      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ transient: [{ issue, error: read.failure }], released, releaseFailed }));
-      return 4;
+      return abort({ transient: [{ issue, error: read.failure }] }, 4);
     }
 
     const content = read.absent ? null : read.content;
     const classified = classifyClaimBlob(content, deps.now());
 
-    let identity = null;
-    if (classified.state === 'live' || classified.state === 'stale' || classified.state === 'tombstone') {
-      try { identity = JSON.parse(content); } catch { identity = null; }
-    }
+    // Only a readable blob carries an identity — 'absent' has no content and
+    // 'unreadable' has nothing parseable.
+    const readable = classified.state === 'live' || classified.state === 'stale' || classified.state === 'tombstone';
+    const identity = readable ? parseJsonOrNull(content) : null;
 
     if ((classified.state === 'live' || classified.state === 'stale') && identity && identity.runId === opts.runId) {
       alreadyOwned.push(issue);
@@ -183,9 +199,7 @@ function run(argv, deps) {
     if (classified.state === 'live' || classified.state === 'unreadable') {
       const holder = classified.state === 'live' ? identity : null;
       if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released, releaseFailed }));
-      return 3;
+      return abort({ contested: [{ issue, holder }] }, 3);
     }
 
     // Reclaimable: 'absent' (create-only) or 'tombstone'/'stale' not self-owned
@@ -199,9 +213,7 @@ function run(argv, deps) {
 
     if (write.failure) {
       if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: write.failure }); continue; }
-      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ transient: [{ issue, error: write.failure }], released, releaseFailed }));
-      return 4;
+      return abort({ transient: [{ issue, error: write.failure }] }, 4);
     }
     if (!write.ok) {
       // Rejected (race lost between this read and this write) — contested,
@@ -215,9 +227,7 @@ function run(argv, deps) {
       // best-effort, to name the winner in the contested report.
       const holder = holderFromFreshRead(deps, repoSlug, issue);
       if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released, releaseFailed }));
-      return 3;
+      return abort({ contested: [{ issue, holder }] }, 3);
     }
 
     claimedThisRun.push(issue);
