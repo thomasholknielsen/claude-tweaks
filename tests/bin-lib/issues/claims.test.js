@@ -9,7 +9,7 @@ const {
   releasePayload,
   isStale,
   classifyClaimBlob,
-} = require('../../../bin/lib/issues/claims');
+} = require('../../../plugin/bin/lib/issues/claims');
 
 const T0 = 1720000000000; // fixed epoch ms for deterministic tests
 

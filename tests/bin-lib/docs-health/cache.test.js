@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { cachePath, readCache, writeCache, readDurableState, writeDurableState } = require('../../../bin/lib/docs-health/cache');
+const { cachePath, readCache, writeCache, readDurableState, writeDurableState } = require('../../../plugin/bin/lib/docs-health/cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-cache-')); }
 

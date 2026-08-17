@@ -13,7 +13,7 @@ const {
   shouldEscalate,
   casBackoffMs,
   createDurableState,
-} = require('../../../bin/lib/health-core/durable-state');
+} = require('../../../plugin/bin/lib/health-core/durable-state');
 
 test('constants', () => {
   assert.strictEqual(HEALTH_STATE_BRANCH, 'health-state');

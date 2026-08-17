@@ -2,7 +2,7 @@
 
 // tools/upstream-drift/manifest.js — a hand-rolled parser and schema
 // validator for tools/upstream-drift/manifest.yml. No YAML dependency: the
-// plugin ships zero runtime npm deps (same posture as bin/lib/policy.js),
+// plugin ships zero runtime npm deps (same posture as plugin/bin/lib/policy.js),
 // so only the small YAML subset this manifest actually uses is supported.
 //
 // Anything outside that subset throws, naming the 1-based line number.

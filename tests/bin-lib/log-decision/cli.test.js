@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { run } = require('../../../bin/log-decision');
+const { run } = require('../../../plugin/bin/log-decision');
 
 const SCHEMA = /^- (AUTO|STAGED|KEPT-PROMPT|SCANNED) (\d{2}:\d{2}:\d{2}) — (.+?): (.+)\. Reversibility: (high|med|low|n\/a)\.(?: \[lever: .+\])?$/;
 const NOW = new Date(2026, 7, 16, 9, 5, 7).getTime();

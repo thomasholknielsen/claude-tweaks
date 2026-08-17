@@ -10,7 +10,7 @@ const {
   registerRequiredTokenTests,
 } = require('../health-core/skill-md-house-checks');
 
-const SKILL = path.resolve(__dirname, '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
+const SKILL = path.resolve(__dirname, '..', '..', '..', 'plugin', 'skills', 'code-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('frontmatter declares the canonical name', () => {
@@ -47,7 +47,7 @@ test('docs/skill-graph.md records the edges to /specify, /capture, /tidy, /flow'
 
 // ── v2 code-health SKILL.md anchors ─────────────────────────────────────────
 
-const skillMdPath = path.join(__dirname, '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
+const skillMdPath = path.join(__dirname, '..', '..', '..', 'plugin', 'skills', 'code-health', 'SKILL.md');
 
 test('v2 SKILL.md: exists', () => {
   assert.ok(fs.existsSync(skillMdPath), `SKILL.md not found at ${skillMdPath}`);

@@ -7,7 +7,7 @@ judgment's current behavior, i.e. exactly the signal these evals exist to produc
 
 ## research-consequence-filter-matrix
 
-- **Current baseline: 5/6** — measured 2026-08-09 against plugin 6.73.0 plus this branch's calibrated filter prose (`skills/research/verify-mode.md` as of commit `4979d9ed`). ≈ $0.95–1.15/case per run.
+- **Current baseline: 5/6** — measured 2026-08-09 against plugin 6.73.0 plus this branch's calibrated filter prose (`plugin/skills/research/verify-mode.md` as of commit `4979d9ed`). ≈ $0.95–1.15/case per run.
 - **Remaining failure:** `convergence-boundary` — filter states **keep** for `Q-DBTYPE` despite the brief's stated infra-policy constraint fixing the choice. The subtlest corpus case; deliberately recorded rather than iterated further (calibration was capped at two prose passes).
 - **Calibration history (same day, three runs):**
   1. Uncalibrated v6.73.0 prose: **4/6** — under-keeping (`clear-keep`'s `Q-WEBHOOK` and green-ground's `Q-RETRY` dropped against design intent).

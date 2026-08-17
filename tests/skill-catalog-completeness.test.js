@@ -24,10 +24,10 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { listSkillDirs, mentionsSkill } = require('../bin/lib/skill-audit/skill-catalog');
+const { listSkillDirs, mentionsSkill } = require('../plugin/bin/lib/skill-audit/skill-catalog');
 
 const ROOT = path.join(__dirname, '..');
-const SKILLS = listSkillDirs(ROOT);
+const SKILLS = listSkillDirs(path.join(ROOT, 'plugin'));
 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
@@ -51,7 +51,7 @@ test('docs/skill-graph.md carries a `## {name}` section for every skill', () => 
 });
 
 test('skills/help/reference-card.md mentions every skill', () => {
-  const body = read('skills/help/reference-card.md');
+  const body = read('plugin/skills/help/reference-card.md');
   for (const name of SKILLS) {
     assert.ok(
       mentionsSkill(body, name),
@@ -61,7 +61,7 @@ test('skills/help/reference-card.md mentions every skill', () => {
 });
 
 test("skills/help/context-flow.md mentions every skill in its Artifact Flow table", () => {
-  const body = read('skills/help/context-flow.md');
+  const body = read('plugin/skills/help/context-flow.md');
   for (const name of SKILLS) {
     assert.ok(
       mentionsSkill(body, name),

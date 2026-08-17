@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { makeCmdStatus } = require('../../../bin/lib/health-core/remembered-status');
+const { makeCmdStatus } = require('../../../plugin/bin/lib/health-core/remembered-status');
 
 function captureStdout(fn) {
   const orig = process.stdout.write;

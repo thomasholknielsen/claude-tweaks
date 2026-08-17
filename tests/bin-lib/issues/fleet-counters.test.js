@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   WEEK_MS, weeklyWindow, GRANT_AUDIT_RE, fleetPosture, deriveFleetCounters,
-} = require('../../../bin/lib/issues/fleet-counters.js');
+} = require('../../../plugin/bin/lib/issues/fleet-counters.js');
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
 

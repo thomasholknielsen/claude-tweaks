@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
   try {

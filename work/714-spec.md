@@ -23,7 +23,7 @@ At `autonomy: unattended`, `consoleAutoResolve` collapsed a six-spec consolidate
 
 ## Acceptance Criteria
 
-1. `grep -n "AUTO-RESOLVED" skills/wrap-up/review-console.md skills/flow/multispec-review-console.md` matches both short-circuit sections.
+1. `grep -n "AUTO-RESOLVED" plugin/skills/wrap-up/review-console.md plugin/skills/flow/multispec-review-console.md` matches both short-circuit sections.
 2. An `unattended` run’s terminal output contains the console’s section tables (verify on the next live unattended run; the summary-template renders them).
 
 _Filed by `capture` via specShapedBody._

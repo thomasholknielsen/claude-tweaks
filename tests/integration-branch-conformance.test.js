@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const FRAGMENT = '_shared/integration-branch.md';
 // Identifiers a real resolver uses, deliberately NOT the English phrase "default
 // branch" — that appears as ordinary prose in eleven files that resolve nothing,

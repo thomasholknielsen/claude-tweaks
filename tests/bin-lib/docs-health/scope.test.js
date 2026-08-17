@@ -4,10 +4,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { listDocs, extractDomainPaths, domainChurn, selectTarget } = require('../../../bin/lib/docs-health/scope');
-const { listTargets } = require('../../../bin/lib/harness-health/scope');
-const { listJourneys } = require('../../../bin/lib/journey-health/scope');
-const { STALE_DAYS } = require('../../../bin/lib/docs-health/score');
+const { listDocs, extractDomainPaths, domainChurn, selectTarget } = require('../../../plugin/bin/lib/docs-health/scope');
+const { listTargets } = require('../../../plugin/bin/lib/harness-health/scope');
+const { listJourneys } = require('../../../plugin/bin/lib/journey-health/scope');
+const { STALE_DAYS } = require('../../../plugin/bin/lib/docs-health/score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-scope-')); }
 

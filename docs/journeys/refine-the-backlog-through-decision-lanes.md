@@ -1,9 +1,9 @@
 ---
 files:
-  - skills/backlog/refine-mode.md
-  - skills/backlog/refine-lanes.md
-  - skills/backlog/SKILL.md
-  - bin/lib/issues/backlog.js
+  - plugin/skills/backlog/refine-mode.md
+  - plugin/skills/backlog/refine-lanes.md
+  - plugin/skills/backlog/SKILL.md
+  - plugin/bin/lib/issues/backlog.js
 ---
 
 # Refine the Backlog Through Decision Lanes

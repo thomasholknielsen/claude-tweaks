@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { buildRelatedBlocks } = require('../../../bin/lib/issues/related-blocks');
+const { buildRelatedBlocks } = require('../../../plugin/bin/lib/issues/related-blocks');
 
 test('buildRelatedBlocks returns [] when relatedSections is undefined', () => {
   assert.deepStrictEqual(buildRelatedBlocks(undefined), []);
@@ -29,9 +29,9 @@ test('buildRelatedBlocks handles a single-element array without a trailing comma
 // journey-health/issue-payload.js, and docs-health/issue-payload.js —
 // previously a byte-identical inline block duplicated across all three.
 test('buildRelatedBlocks is the single shared implementation across every consumer issue-payload.js', () => {
-  const harnessPayload = require('../../../bin/lib/harness-health/issue-payload');
-  const journeyPayload = require('../../../bin/lib/journey-health/issue-payload');
-  const docsPayload = require('../../../bin/lib/docs-health/issue-payload');
+  const harnessPayload = require('../../../plugin/bin/lib/harness-health/issue-payload');
+  const journeyPayload = require('../../../plugin/bin/lib/journey-health/issue-payload');
+  const docsPayload = require('../../../plugin/bin/lib/docs-health/issue-payload');
   // Each module wraps buildRelatedBlocks internally (not re-exported), so
   // prove sharing indirectly: a bundled finding in each domain renders the
   // identical "Also affects" line shape for the identical input.

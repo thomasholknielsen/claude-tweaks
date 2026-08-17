@@ -6,10 +6,10 @@ const path = require('node:path');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 function readShared(name) {
-  return fs.readFileSync(path.join(REPO_ROOT, 'skills', '_shared', name), 'utf8');
+  return fs.readFileSync(path.join(REPO_ROOT, 'plugin', 'skills', '_shared', name), 'utf8');
 }
 function readSkill(skill, file = 'SKILL.md') {
-  return fs.readFileSync(path.join(REPO_ROOT, 'skills', skill, file), 'utf8');
+  return fs.readFileSync(path.join(REPO_ROOT, 'plugin', 'skills', skill, file), 'utf8');
 }
 
 const FRAGMENTS = [
@@ -21,7 +21,7 @@ const FRAGMENTS = [
 test('all three criteria fragments exist', () => {
   for (const f of FRAGMENTS) {
     assert.ok(
-      fs.existsSync(path.join(REPO_ROOT, 'skills', '_shared', f)),
+      fs.existsSync(path.join(REPO_ROOT, 'plugin', 'skills', '_shared', f)),
       `expected skills/_shared/${f} to exist`
     );
   }

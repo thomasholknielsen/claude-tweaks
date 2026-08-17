@@ -10,7 +10,7 @@ description: >
   that depends on claude-tweaks as a plugin. It is the wrong answer here,
   because _shared/learning-routing.md's self-reference check exists for
   exactly this fixture's situation: before returning a D5 verdict,
-  skills/feedback/SKILL.md Step 3 runs `git remote get-url origin`; when the
+  plugin/skills/feedback/SKILL.md Step 3 runs `git remote get-url origin`; when the
   remote resolves to the claude-tweaks repository itself, D5 collapses and
   the classifier re-runs from rule 4 — landing on D1, because the plugin
   never files issues against itself through this path. A classifier that

@@ -1,8 +1,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const feedback = require('../../../bin/lib/feedback/file-feedback');
-const { run, parseArgs, parseRepo, validateDraft } = require('../../../bin/file-feedback');
+const feedback = require('../../../plugin/bin/lib/feedback/file-feedback');
+const { run, parseArgs, parseRepo, validateDraft } = require('../../../plugin/bin/file-feedback');
 
 // Fake runners are lazy functions inspecting `args` only when called (CLAUDE.md's
 // eager-IIFE ban) and throw on any unhandled args shape rather than silently

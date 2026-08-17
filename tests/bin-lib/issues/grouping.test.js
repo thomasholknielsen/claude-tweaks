@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../bin/lib/issues/grouping');
+const { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../plugin/bin/lib/issues/grouping');
 
 // ── groupByFileOverlap ──────────────────────────────────────────────────────
 

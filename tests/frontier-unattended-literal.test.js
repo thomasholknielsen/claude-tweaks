@@ -29,9 +29,9 @@ test('no unguarded "frontier --unattended" literal in skills/ (whitespace-spanni
   // Explicit allowlist of the one legitimate written headless-context command
   // (skills/init/claude-md-template.md), because proximity heuristic's discrimination
   // was coincidental (measured margin: 72 chars at the protected site).
-  const ALLOWED = new Set(['skills/init/claude-md-template.md']);
+  const ALLOWED = new Set(['plugin/skills/init/claude-md-template.md']);
 
-  const root = path.join(__dirname, '..', 'skills');
+  const root = path.join(__dirname, '..', 'plugin', 'skills');
   const offenders = [];
   for (const file of mdFilesUnder(root)) {
     const rel = path.relative(path.join(__dirname, '..'), file).split(path.sep).join('/');

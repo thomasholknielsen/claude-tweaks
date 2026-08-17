@@ -6,7 +6,7 @@ const {
   dedupeNewestByName,
   parseCheckRunLines,
   redTipCheck,
-} = require('../../../bin/lib/reconcile/red-tip');
+} = require('../../../plugin/bin/lib/reconcile/red-tip');
 
 // --- dedupeNewestByName: highest id per name wins ---
 

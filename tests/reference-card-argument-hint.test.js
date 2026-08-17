@@ -5,12 +5,12 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { extractArgumentHint } = require('./argument-hint-input.test.js');
-const { listSkillDirs } = require('../bin/lib/skill-audit/skill-catalog');
+const { listSkillDirs } = require('../plugin/bin/lib/skill-audit/skill-catalog');
 
 const ROOT = path.join(__dirname, '..');
-const CARD_PATH = path.join(ROOT, 'skills', 'help', 'reference-card.md');
-const SKILLS_DIR = path.join(ROOT, 'skills');
-const SKILLS = new Set(listSkillDirs(ROOT));
+const CARD_PATH = path.join(ROOT, 'plugin', 'skills', 'help', 'reference-card.md');
+const SKILLS_DIR = path.join(ROOT, 'plugin', 'skills');
+const SKILLS = new Set(listSkillDirs(path.join(ROOT, 'plugin')));
 
 // Rows that legitimately diverge from their skill's argument-hint. Empty by
 // design (refs #564) -- every row in the corpus today is either already

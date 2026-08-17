@@ -1,8 +1,8 @@
 ---
 files:
-  - skills/design-wrapper/modes/explore.md
-  - skills/design-wrapper/SKILL.md
-  - skills/design-wrapper/impeccable-plugin.md
+  - plugin/skills/design-wrapper/modes/explore.md
+  - plugin/skills/design-wrapper/SKILL.md
+  - plugin/skills/design-wrapper/impeccable-plugin.md
 ---
 
 # Explore Competing Design Identities at a Project's Genesis

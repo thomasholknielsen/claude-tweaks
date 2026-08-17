@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { hasTestScript } = require('../../../bin/lib/residue/detect-test-script');
+const { hasTestScript } = require('../../../plugin/bin/lib/residue/detect-test-script');
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'residue-detect-test-'));

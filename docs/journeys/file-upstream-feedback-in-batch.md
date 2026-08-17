@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/_shared/upstream-feedback-batch.md
-  - skills/feedback/SKILL.md
-  - skills/feedback/session-evaluation.md
-  - skills/wrap-up/review-console.md
-  - skills/wrap-up/upstream-feedback.md
+  - plugin/skills/_shared/upstream-feedback-batch.md
+  - plugin/skills/feedback/SKILL.md
+  - plugin/skills/feedback/session-evaluation.md
+  - plugin/skills/wrap-up/review-console.md
+  - plugin/skills/wrap-up/upstream-feedback.md
 ---
 
 # File Upstream Feedback in Batch

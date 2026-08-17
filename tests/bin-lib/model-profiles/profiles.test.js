@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { PROFILES, EFFORT_SCALE, POLICY_KEYS_READ, effortLine } = require('../../../bin/lib/model-profiles/profiles');
+const { PROFILES, EFFORT_SCALE, POLICY_KEYS_READ, effortLine } = require('../../../plugin/bin/lib/model-profiles/profiles');
 
 test('PROFILES carries the four canonical rows with family-alias models', () => {
   assert.deepStrictEqual(Object.keys(PROFILES), ['fast', 'standard', 'capable', 'frontier']);

@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runRelease } = require('../../../bin/lib/release/run.js');
+const { runRelease } = require('../../../plugin/bin/lib/release/run.js');
 
 const manifest = (v) => JSON.stringify({ name: 'claude-tweaks', version: v, description: 'Desc' }, null, 2);
 const CHANGELOG = '# Changelog\n\nProse.\n\n## v6.70.1 — Prior\n\nBody.\n';
@@ -9,7 +9,7 @@ const CHANGELOG = '# Changelog\n\nProse.\n\n## v6.70.1 — Prior\n\nBody.\n';
 function makeDeps(overrides = {}) {
   const state = {
     files: {
-      '.claude-plugin/plugin.json': manifest('6.70.1'),
+      'plugin/.claude-plugin/plugin.json': manifest('6.70.1'),
       'CHANGELOG.md': CHANGELOG,
     },
     gitCalls: [], writes: [], appended: [], ghCalls: [],
@@ -17,6 +17,7 @@ function makeDeps(overrides = {}) {
     branch: overrides.branch || 'main',
     dirty: overrides.dirty || '',
     ancestorOk: overrides.ancestorOk !== false,
+    headSha: overrides.headSha || 'cafebabecafebabecafebabecafebabecafebabe',
   };
   const deps = {
     repoRoot: '/repo',
@@ -34,9 +35,10 @@ function makeDeps(overrides = {}) {
       if (key.startsWith('worktree list')) return 'worktree /repo\nbranch refs/heads/main\n';
       if (key.startsWith('add ')) return '';
       if (key === 'diff --cached --name-only') {
-        return (state.staged || ['.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv']).join('\n');
+        return (state.staged || ['plugin/.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv']).join('\n');
       }
       if (key.startsWith('commit')) return '';
+      if (key === 'rev-parse HEAD') return `${state.headSha}\n`;
       if (key.startsWith('merge-base --is-ancestor')) {
         if (!state.ancestorOk) throw new Error('not an ancestor');
         return '';
@@ -73,7 +75,7 @@ test('live run: write → add → verify staged → commit → ancestor check �
   const out = runRelease(deps, { part: 'minor', summary: 'S', date: '2026-08-08', dryRun: false, log: () => {} });
   assert.strictEqual(out.pushed, true);
   assert.strictEqual(out.mirrored, true);
-  assert.deepStrictEqual(state.writes, ['.claude-plugin/plugin.json', 'CHANGELOG.md']);
+  assert.deepStrictEqual(state.writes, ['plugin/.claude-plugin/plugin.json', 'CHANGELOG.md']);
   assert.deepStrictEqual(state.appended, ['6.71.0@2026-08-08']);
   const order = ['diff --cached --name-only', 'commit', 'merge-base --is-ancestor', 'push'].map(
     (needle) => state.gitCalls.findIndex((c) => c.startsWith(needle)),
@@ -82,13 +84,35 @@ test('live run: write → add → verify staged → commit → ancestor check �
   assert.strictEqual(state.ghCalls.filter((c) => c.includes('PUT')).length, 1);
 });
 
+// The mirror can only pin what the release commit actually is, so the sha has to be
+// read after the commit lands — a pre-commit read names the previous release.
+test('the release commit sha is captured after the commit and pinned into the mirror', () => {
+  const { deps, state } = makeDeps({ headSha: '0f1e2d3c4b5a69788796a5b4c3d2e1f001122334' });
+  runRelease(deps, { part: 'minor', summary: 'S', date: '2026-08-08', dryRun: false, log: () => {} });
+  const revParseIndex = state.gitCalls.indexOf('rev-parse HEAD');
+  const commitIndex = state.gitCalls.findIndex((c) => c.startsWith('commit'));
+  assert.ok(revParseIndex !== -1, `never read HEAD: ${state.gitCalls.join(' | ')}`);
+  assert.ok(revParseIndex > commitIndex, 'HEAD must be read after the release commit lands');
+
+  const put = state.ghCalls.find((c) => c.includes('PUT'));
+  const contentArg = put.split(' ').find((a) => a.startsWith('content='));
+  const written = JSON.parse(Buffer.from(contentArg.slice('content='.length), 'base64').toString('utf8'));
+  assert.deepStrictEqual(written.plugins[0].source, {
+    source: 'git-subdir',
+    url: 'https://github.com/thomasholknielsen/claude-tweaks',
+    path: 'plugin',
+    sha: '0f1e2d3c4b5a69788796a5b4c3d2e1f001122334',
+  });
+  assert.ok(!('version' in written.plugins[0]));
+});
+
 test('refuses to run off main or with a dirty tree', () => {
   assert.throws(() => runRelease(makeDeps({ branch: 'feature' }).deps, { part: 'patch', summary: 'S', date: '2026-08-08', dryRun: true, log: () => {} }), /main/);
   assert.throws(() => runRelease(makeDeps({ dirty: ' M x.js' }).deps, { part: 'patch', summary: 'S', date: '2026-08-08', dryRun: true, log: () => {} }), /tracked modifications/i);
 });
 
 test('aborts before commit when the staged set is not exactly the release trio [IL-42]', () => {
-  const { deps, state } = makeDeps({ staged: ['.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv', 'stray.js'] });
+  const { deps, state } = makeDeps({ staged: ['plugin/.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv', 'stray.js'] });
   assert.throws(() => runRelease(deps, { part: 'minor', summary: 'S', date: '2026-08-08', dryRun: false, log: () => {} }), /staged/i);
   assert.ok(!state.gitCalls.some((c) => c.startsWith('commit')), 'must not commit a stray index');
 });

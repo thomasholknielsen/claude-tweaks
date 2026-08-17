@@ -6,8 +6,8 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const sessionStart = require('../bin/lib/hooks/session-start');
-const deps = require('../bin/lib/deps');
+const sessionStart = require('../plugin/bin/lib/hooks/session-start');
+const deps = require('../plugin/bin/lib/deps');
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-'));
@@ -217,15 +217,15 @@ test('#561: a redTip finding from reconcile() renders as its own additionalConte
   // top-level destructure re-runs against the now-patched export. Same
   // require.cache-busting convention tests/bin-lib/code-health/
   // focus-generators.test.js already uses for a require-order concern.
-  const reconcileMod = require('../bin/lib/reconcile');
+  const reconcileMod = require('../plugin/bin/lib/reconcile');
   const original = reconcileMod.reconcile;
   reconcileMod.reconcile = () => ({
     mirror: null, redTip: { branch: 'main', sha: '0123456789abcdef', failing: ['ci/tests'], message: 'CI is red on main tip at 0123456 — ci/tests' },
     worktrees: null, claims: null, runs: null, branches: null, console: null, skipped: [],
   });
-  delete require.cache[require.resolve('../bin/lib/hooks/session-start')];
+  delete require.cache[require.resolve('../plugin/bin/lib/hooks/session-start')];
   try {
-    const freshSessionStart = require('../bin/lib/hooks/session-start');
+    const freshSessionStart = require('../plugin/bin/lib/hooks/session-start');
     const out = freshSessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     assert.ok(out.json, 'a redTip finding must render additionalContext');
     assert.match(out.json.hookSpecificOutput.additionalContext, /CI is red on main tip at 0123456 — ci\/tests/);
@@ -235,8 +235,8 @@ test('#561: a redTip finding from reconcile() renders as its own additionalConte
     // every later test in this file — including ones already holding the
     // original top-of-file `sessionStart` binding, which is unaffected
     // either way — sees the real reconcile() again if it re-requires fresh.
-    delete require.cache[require.resolve('../bin/lib/hooks/session-start')];
-    require('../bin/lib/hooks/session-start');
+    delete require.cache[require.resolve('../plugin/bin/lib/hooks/session-start')];
+    require('../plugin/bin/lib/hooks/session-start');
   }
 });
 
@@ -317,7 +317,7 @@ test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed —
   // IS destructured and does need it).
   const project = gitProject();
   withPolicy(project, 'worktree-always: true\n');
-  const policyMod = require('../bin/lib/policy');
+  const policyMod = require('../plugin/bin/lib/policy');
   const original = policyMod.resolveWorktreeAlways;
   policyMod.resolveWorktreeAlways = () => { throw new Error('simulated malformed policy state'); };
   try {

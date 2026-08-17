@@ -33,8 +33,8 @@ promised by three files and read by none.
 Delete the `## Relationship to Other Skills` section from all 32 skills. Record every
 edge **once** in `docs/skill-graph.md`. Retire the bidirectionality convention.
 
-`docs/` is outside `PLUGIN_SNAPSHOT_DIRS` (`.claude-plugin`, `skills`, `agents`, `hooks`,
-`bin`, `commands`), so the graph ships to nobody. That is the whole mechanism: the content
+`docs/` is outside the plugin payload — the `plugin/` subtree (ADR-0015) — so the graph
+ships to nobody. That is the whole mechanism: the content
 is maintainer documentation, and moving it to a maintainer-only location removes it from
 every invocation's context without losing it.
 

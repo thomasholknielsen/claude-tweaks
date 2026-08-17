@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { classifyDiffFiles, blastRadiusSummary } = require('../../../bin/lib/issues/blast-radius');
+const { classifyDiffFiles, blastRadiusSummary } = require('../../../plugin/bin/lib/issues/blast-radius');
 
 test('classifyDiffFiles marks files under a tests/ directory as isTest', () => {
   const files = [{ path: 'bin/lib/issues/tests/grouping.test.js', additions: 38, deletions: 1 }];

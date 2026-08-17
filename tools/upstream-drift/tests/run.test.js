@@ -185,7 +185,7 @@ test('buildFindings: an unmatched assertion is medium and names its citing file 
     assertions: {
       status: 'drift',
       results: [{
-        file: 'skills/design-wrapper/command-map.md',
+        file: 'plugin/skills/design-wrapper/command-map.md',
         claims: 'the plugin exposes a polish command',
         upstreamPath: 'skills/impeccable/SKILL.md',
         status: 'unmatched',
@@ -196,7 +196,7 @@ test('buildFindings: an unmatched assertion is medium and names its citing file 
   const drift = findings.find((f) => f.kind === 'assertion-drift');
   assert.ok(drift);
   assert.strictEqual(drift.severity, 'medium');
-  assert.match(drift.detail, /skills\/design-wrapper\/command-map\.md/);
+  assert.match(drift.detail, /plugin\/skills\/design-wrapper\/command-map\.md/);
   assert.match(drift.detail, /the plugin exposes a polish command/);
 });
 
@@ -205,7 +205,7 @@ test('buildFindings: a missing upstream file outranks a merely unmatched literal
     assertions: {
       status: 'drift',
       results: [{
-        file: 'skills/design-wrapper/modes/live.md',
+        file: 'plugin/skills/design-wrapper/modes/live.md',
         claims: 'live mode boots a server',
         upstreamPath: 'skills/impeccable/scripts/live.mjs',
         status: 'missing-file',
@@ -549,8 +549,8 @@ test('hasUpgrade: due, findings, and the due-report all agree on the same predic
 
 // ─── AC7: the one-way import boundary ────────────────────────────────────
 
-test('nothing under bin/ imports from tools/ (AC7)', () => {
-  const binRoot = path.resolve(__dirname, '..', '..', '..', 'bin');
+test('nothing under plugin/bin/ imports from tools/ (AC7)', () => {
+  const binRoot = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin');
   const offenders = [];
   (function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -564,7 +564,7 @@ test('nothing under bin/ imports from tools/ (AC7)', () => {
       if (/require\(\s*['"][^'"]*(?:^|\/)tools\//m.test(src)) offenders.push(path.relative(binRoot, full));
     }
   })(binRoot);
-  assert.deepStrictEqual(offenders, [], 'bin/ -> tools/ imports break the one-way boundary');
+  assert.deepStrictEqual(offenders, [], 'plugin/bin/ -> tools/ imports break the one-way boundary');
 });
 
 test('the runner imports health-core rather than reimplementing dedup', () => {

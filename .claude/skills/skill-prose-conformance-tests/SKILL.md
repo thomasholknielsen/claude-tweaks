@@ -1,21 +1,21 @@
 ---
 name: skill-prose-conformance-tests
-description: Use when adding or changing a `node --test` suite that pins the prose in `skills/**/*.md` — when reading live skill text is legitimate versus when to freeze a fixture, how to prove an assertion can actually go red, and how to byte-pin an executable snippet and run it. Keywords - prose test, conformance test, byte-pin, live corpus, fixture, skill markdown, live probe, IL-80.
+description: Use when adding or changing a `node --test` suite that pins the prose in `plugin/skills/**/*.md` — when reading live skill text is legitimate versus when to freeze a fixture, how to prove an assertion can actually go red, and how to byte-pin an executable snippet and run it. Keywords - prose test, conformance test, byte-pin, live corpus, fixture, skill markdown, live probe, IL-80.
 ---
 
 # Skill-prose conformance tests
 
 ## Overview
 
-This repo ships markdown as its product: `skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — 36 of the 78 suites under `tests/` read a skill file and assert on its text. That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
+This repo ships markdown as its product: `plugin/skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — a large share of the suites under `tests/` read a skill file and assert on its text. That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
 
 ## Key Patterns
 
 ### Read live prose only when the prose is the declared contract
 
-`tests/wrap-up-registry-pin.test.js` binds `skills/wrap-up/SKILL.md`'s Phase 2 registry table to the code registry it documents (`bin/lib/wrap-up/registry.js`). Reading the live file is correct there because updating that table *is* the intended response to a registry change. `tests/hooks-gate-coverage.test.js` states the same carve-out for the same reason; the two cite each other as the house pattern.
+`tests/wrap-up-registry-pin.test.js` binds `plugin/skills/wrap-up/SKILL.md`'s Phase 2 registry table to the code registry it documents (`plugin/bin/lib/wrap-up/registry.js`). Reading the live file is correct there because updating that table *is* the intended response to a registry change. `tests/hooks-gate-coverage.test.js` states the same carve-out for the same reason; the two cite each other as the house pattern.
 
-Everywhere else, freeze the input. `[IL-80]`: a test opened `skills/review/SKILL.md`, deleted its `## Relationship to Other Skills` section in memory, and asserted the loss checker reported ≥95% of the section's identifiers lost. It passed at 100% — and then the migration it was gating deleted that section from all 32 skills, and the test failed on its own precondition. It was not broken by a regression; it was invalidated by its own subject matter succeeding. The fix was to commit the file verbatim at the last pre-deletion commit as a fixture under `tests/fixtures/`, so the experiment keeps running on exactly the bytes that produced the recorded numbers.
+Everywhere else, freeze the input. `[IL-80]`: a test opened `plugin/skills/review/SKILL.md`, deleted its `## Relationship to Other Skills` section in memory, and asserted the loss checker reported ≥95% of the section's identifiers lost. It passed at 100% — and then the migration it was gating deleted that section from all 32 skills, and the test failed on its own precondition. It was not broken by a regression; it was invalidated by its own subject matter succeeding. The fix was to commit the file verbatim at the last pre-deletion commit as a fixture under `tests/fixtures/`, so the experiment keeps running on exactly the bytes that produced the recorded numbers.
 
 ### Prove go-red with a frozen pre-change excerpt beside the live file
 

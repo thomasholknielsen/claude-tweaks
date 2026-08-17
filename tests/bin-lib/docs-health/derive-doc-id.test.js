@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { deriveDocId } = require('../../../bin/docs-health');
+const { deriveDocId } = require('../../../plugin/bin/docs-health');
 
 // Regression coverage for a bug where deriveDocId resolved a relative
 // targetPath against process.cwd() instead of the supplied `root` argument

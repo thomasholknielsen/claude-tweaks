@@ -17,8 +17,8 @@ const path = require('node:path');
 const { extractArgumentHint } = require('./argument-hint-input.test.js');
 
 const ROOT = path.join(__dirname, '..');
-const SKILL = fs.readFileSync(path.join(ROOT, 'skills', 'specify', 'SKILL.md'), 'utf8');
-const SHAPING = fs.readFileSync(path.join(ROOT, 'skills', 'specify', 'shaping-mode.md'), 'utf8');
+const SKILL = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'specify', 'SKILL.md'), 'utf8');
+const SHAPING = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'specify', 'shaping-mode.md'), 'utf8');
 
 function inputSection(content) {
   const headings = [...content.matchAll(/^## .*$/gm)];

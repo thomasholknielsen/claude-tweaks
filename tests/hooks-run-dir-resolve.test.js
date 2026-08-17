@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { gitRepo, linkedWorktreeOf, harnessWorktreeOf } = require('./helpers/git-fixtures');
-const { resolve } = require('../bin/lib/hooks/run-dir-resolve');
+const { resolve } = require('../plugin/bin/lib/hooks/run-dir-resolve');
 
 function mkRunDir(main, name) {
   const dir = path.join(main, '.claude-tweaks', 'pipelines', name);

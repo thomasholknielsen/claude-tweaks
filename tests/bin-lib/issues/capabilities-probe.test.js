@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeCapabilities } = require('../../../bin/lib/issues/capabilities-probe');
+const { probeCapabilities } = require('../../../plugin/bin/lib/issues/capabilities-probe');
 
 // Fakes are lazy functions: the runner only inspects/branches on `args` when
 // the code under test actually calls it — nothing here is computed at

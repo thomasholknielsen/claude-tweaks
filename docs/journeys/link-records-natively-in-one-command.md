@@ -1,8 +1,8 @@
 ---
 files:
-  - bin/link-records.js
-  - bin/lib/issues/link.js
-  - skills/specify/record-creation.md
+  - plugin/bin/link-records.js
+  - plugin/bin/lib/issues/link.js
+  - plugin/skills/specify/record-creation.md
 ---
 
 # Link a Decomposition's Records Natively in One Command
@@ -39,5 +39,5 @@ files:
 - **URL:** the same command in a sandbox without `gh` on `PATH`
 - **Action:** Invoke the CLI.
 - **Should feel:** A clear stop with a named alternative, not a mystery failure.
-- **Should understand:** Exit 2 with a message that these two endpoints have no GitHub MCP equivalent and that the fallback is `work-links: body-text` (`skills/specify/record-creation.md` Step 4's text-based linking, which needs only `issue_write`). `_shared/github-write-transport.md` deliberately carries no MCP row for them.
+- **Should understand:** Exit 2 with a message that these two endpoints have no GitHub MCP equivalent and that the fallback is `work-links: body-text` (`plugin/skills/specify/record-creation.md` Step 4's text-based linking, which needs only `issue_write`). `_shared/github-write-transport.md` deliberately carries no MCP row for them.
 - **Red flags:** Any attempt to invent an MCP path for these endpoints; `--help` probing `gh` (it must not — `--help` exits 0 before the availability check).

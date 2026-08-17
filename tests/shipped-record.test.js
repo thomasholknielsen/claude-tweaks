@@ -14,17 +14,19 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { fixtureGit, FIXTURE_TIMEOUT_MS } = require('./helpers/git-fixtures.js');
-const { walkedVersions, shippedVersions } = require('../bin/lib/changelog-git.js');
-const { RECORD_PATH, readShippedRecord, recordedVersions, appendShippedVersion } = require('../bin/lib/shipped-record.js');
+const { walkedVersions, shippedVersions } = require('../plugin/bin/lib/changelog-git.js');
+const { RECORD_PATH, readShippedRecord, recordedVersions, appendShippedVersion } = require('../plugin/bin/lib/shipped-record.js');
 
-function writeManifest(dir, version) {
-  const manifestDir = path.join(dir, '.claude-plugin');
+// `payloadDir` is the payload root relative to the repo — `plugin` post-#418, `''`
+// for a pre-cutover commit whose manifest still sits at the repo root.
+function writeManifest(dir, version, payloadDir = 'plugin') {
+  const manifestDir = path.join(dir, payloadDir, '.claude-plugin');
   fs.mkdirSync(manifestDir, { recursive: true });
   fs.writeFileSync(path.join(manifestDir, 'plugin.json'), JSON.stringify({ name: 'fixture', version }, null, 2));
 }
 
-function commitVersion(dir, version, message) {
-  writeManifest(dir, version);
+function commitVersion(dir, version, message, payloadDir = 'plugin') {
+  writeManifest(dir, version, payloadDir);
   fixtureGit(['-C', dir, 'add', '-A']);
   fixtureGit(['-C', dir, 'commit', '-q', '-m', message]);
 }
@@ -114,6 +116,36 @@ test('the walk still adds versions the record is missing', { timeout: FIXTURE_TI
   // record-only lookup would report the version as never shipped.
   writeRecord(repo, ['1.0.0\t2026-01-01\trelease']);
   assert.ok(shippedVersions(repo, 'main').includes('1.3.0'), 'walk-visible versions must survive a short record');
+});
+
+// #418 moved the payload under plugin/. Every commit older than that move carries the
+// manifest at the repo root, and the walk is exactly the code that reads arbitrary
+// historical commits — reading only the new path reports the whole pre-cutover history
+// as versionless, which reads as "these versions never shipped".
+test('the walk reads versions across the plugin/ payload cutover', { timeout: FIXTURE_TIMEOUT_MS }, () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-cutover-')));
+  fixtureGit(['-C', dir, 'init', '-q', '-b', 'main']);
+  fixtureGit(['-C', dir, 'config', 'user.email', 'fixture@example.com']);
+  fixtureGit(['-C', dir, 'config', 'user.name', 'Fixture']);
+
+  commitVersion(dir, '1.0.0', 'v1.0.0 (pre-cutover)', '');
+  commitVersion(dir, '1.1.0', 'v1.1.0 (pre-cutover)', '');
+  fixtureGit(['-C', dir, 'rm', '-q', '.claude-plugin/plugin.json']);
+  commitVersion(dir, '1.1.0', 'Move plugin payload into plugin/');
+  commitVersion(dir, '1.2.0', 'v1.2.0 (post-cutover)');
+
+  const walked = walkedVersions(dir, 'main');
+  assert.deepStrictEqual(walked, ['1.0.0', '1.1.0', '1.2.0'], `walk lost a version across the cutover: ${walked.join(', ')}`);
+});
+
+test('a walk over a repo that never cut over still reads the root manifest', { timeout: FIXTURE_TIMEOUT_MS }, () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-legacy-')));
+  fixtureGit(['-C', dir, 'init', '-q', '-b', 'main']);
+  fixtureGit(['-C', dir, 'config', 'user.email', 'fixture@example.com']);
+  fixtureGit(['-C', dir, 'config', 'user.name', 'Fixture']);
+  commitVersion(dir, '1.0.0', 'v1.0.0', '');
+  commitVersion(dir, '1.1.0', 'v1.1.0', '');
+  assert.deepStrictEqual(walkedVersions(dir, 'main'), ['1.0.0', '1.1.0']);
 });
 
 test('a malformed record line is reported, never silently dropped', () => {

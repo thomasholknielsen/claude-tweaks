@@ -20,7 +20,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const post = require('../bin/lib/hooks/post-tool-use');
+const post = require('../plugin/bin/lib/hooks/post-tool-use');
 
 function readEvents(runDir) {
   const raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');

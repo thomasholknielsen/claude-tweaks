@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug } = require('../../../bin/lib/issues/local-store');
+const { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug } = require('../../../plugin/bin/lib/issues/local-store');
 
 function tmp(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-store-'));

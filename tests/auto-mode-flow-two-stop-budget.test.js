@@ -21,7 +21,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILLS = path.join(__dirname, '..', 'skills');
+const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const FLOW_SKILL = path.join(SKILLS, 'flow', 'SKILL.md');
 const MANIFESTO = path.join(SKILLS, 'flow', 'manifesto.md');
 const REVIEW_CONSOLE = path.join(SKILLS, 'wrap-up', 'review-console.md');

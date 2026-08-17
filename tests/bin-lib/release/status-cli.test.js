@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const CLI = path.resolve(__dirname, '../../../bin/release.js');
+const CLI = path.resolve(__dirname, '../../../plugin/bin/release.js');
 
 function git(cwd, args) {
   return execFileSync('git', args, {
@@ -26,7 +26,7 @@ const changelog = (entries) => '# Changelog\n\n' + entries.map(([v, t]) => `## v
 function buildFixture() {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'release-status-'));
   git(cwd, ['init', '-q', '-b', 'main']);
-  write(cwd, '.claude-plugin/plugin.json', manifest('1.0.0'));
+  write(cwd, 'plugin/.claude-plugin/plugin.json', manifest('1.0.0'));
   write(cwd, 'CHANGELOG.md', changelog([['1.0.0', 'Initial']]));
   git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Release v1.0.0 — Initial']);
   git(cwd, ['checkout', '-q', '-b', 'feature']);
@@ -35,7 +35,7 @@ function buildFixture() {
   git(cwd, ['checkout', '-q', 'main']);
   git(cwd, ['merge', '-q', '--no-ff', '-m', 'Merge pull request #900 from feature', 'feature']);
   const merge = git(cwd, ['rev-parse', 'HEAD']);
-  write(cwd, '.claude-plugin/plugin.json', manifest('1.1.0'));
+  write(cwd, 'plugin/.claude-plugin/plugin.json', manifest('1.1.0'));
   write(cwd, 'CHANGELOG.md', changelog([['1.1.0', 'Statusline fix (#604)'], ['1.0.0', 'Initial']]));
   git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Release v1.1.0 — Statusline fix (#604)']);
   const bump = git(cwd, ['rev-parse', 'HEAD']);
@@ -114,6 +114,43 @@ test('status: a nonexistent 40-hex sha exits 1 — plain `git rev-parse` echoes 
   const { cwd } = buildFixture();
   const bad = run(cwd, ['status', '--merge', '0123456789abcdef0123456789abcdef01234567', '--records', '1']);
   assert.equal(bad.code, 1, bad.stdout);
+});
+
+// #418's payload move is inside the history the walk reads: commits before it carry
+// the manifest at the repo root, commits after it under plugin/. A single-path read
+// sees only one side of that boundary and reports the other side's release as never
+// having happened.
+test('status: a history spanning the plugin/ payload cutover still resolves the carrying bump', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'release-status-cutover-'));
+  git(cwd, ['init', '-q', '-b', 'main']);
+  // Pre-cutover: manifest at the repo root.
+  write(cwd, '.claude-plugin/plugin.json', manifest('1.0.0'));
+  write(cwd, 'CHANGELOG.md', changelog([['1.0.0', 'Initial']]));
+  git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Release v1.0.0 — Initial']);
+
+  git(cwd, ['checkout', '-q', '-b', 'feature']);
+  write(cwd, 'feature.txt', 'work for #603\n');
+  git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Feature work (refs #603)']);
+  git(cwd, ['checkout', '-q', 'main']);
+  git(cwd, ['merge', '-q', '--no-ff', '-m', 'Merge pull request #900 from feature', 'feature']);
+  const merge = git(cwd, ['rev-parse', 'HEAD']);
+
+  // The cutover itself: same version, new location.
+  git(cwd, ['rm', '-q', '.claude-plugin/plugin.json']);
+  write(cwd, 'plugin/.claude-plugin/plugin.json', manifest('1.0.0'));
+  git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Move plugin payload into plugin/']);
+
+  // Post-cutover release, at the new path only.
+  write(cwd, 'plugin/.claude-plugin/plugin.json', manifest('1.1.0'));
+  write(cwd, 'CHANGELOG.md', changelog([['1.1.0', 'Post-cutover release (#604)'], ['1.0.0', 'Initial']]));
+  git(cwd, ['add', '-A']); git(cwd, ['commit', '-q', '-m', 'Release v1.1.0 — Post-cutover release (#604)']);
+  const bump = git(cwd, ['rev-parse', 'HEAD']);
+
+  const json = run(cwd, ['status', '--merge', merge, '--records', '603,604', '--json']);
+  assert.equal(json.code, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout), {
+    shipped: true, version: '1.1.0', bumpCommit: bump, entryFound: true, named: [604], missing: [603],
+  });
 });
 
 test('status: a ref with no plugin manifest hard-fails rather than reporting "not yet in a release"', () => {

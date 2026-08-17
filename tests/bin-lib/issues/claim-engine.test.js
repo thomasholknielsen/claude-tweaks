@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const {
   isHttp404, isHttp422, ensureClaimsBranch, readClaimBlob, writeClaimBlob,
   claimOne, releaseOne, claimGroup, claimFilePath,
-} = require('../../../bin/lib/issues/claim-engine');
+} = require('../../../plugin/bin/lib/issues/claim-engine');
 
 const T0 = 1720000000000;
 
@@ -331,7 +331,7 @@ test('claimGroup: every target absent -> all claimed, nothing released', () => {
 
 // ---- claims.js CLI ----------------------------------------------------------
 
-const { run: cliRun } = require('../../../bin/claims');
+const { run: cliRun } = require('../../../plugin/bin/claims');
 
 function cliDeps({ runner, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git', now = T0 } = {}) {
   const out = []; const err = [];

@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { collectClaims, checkCollisions, precheck } = require('../../../bin/lib/release/precheck.js');
+const { collectClaims, checkCollisions, precheck } = require('../../../plugin/bin/lib/release/precheck.js');
 
 // Lazily-evaluated canned git — a function per invocation, never an IIFE [IL-30].
 function fakeGit(responses) {
@@ -24,10 +24,10 @@ function baseDeps(overrides = {}) {
   return {
     git: fakeGit([
       ['fetch origin main', () => ''],
-      ['show origin/main:.claude-plugin/plugin.json', () => manifest(overrides.origin || '6.70.1')],
-      ['show main:.claude-plugin/plugin.json', () => manifest(overrides.local || '6.70.1')],
+      ['show origin/main:plugin/.claude-plugin/plugin.json', () => manifest(overrides.origin || '6.70.1')],
+      ['show main:plugin/.claude-plugin/plugin.json', () => manifest(overrides.local || '6.70.1')],
       ['worktree list --porcelain', () => overrides.worktrees || 'worktree /repo\nbranch refs/heads/main\n'],
-      ['show wt-feature:.claude-plugin/plugin.json', () => manifest(overrides.wtVersion || '6.70.1')],
+      ['show wt-feature:plugin/.claude-plugin/plugin.json', () => manifest(overrides.wtVersion || '6.70.1')],
       ['show main:docs/shipped-versions.tsv', () => {
         if (overrides.tsv === undefined) throw new Error("fatal: path 'docs/shipped-versions.tsv' does not exist in 'main'");
         return overrides.tsv;
@@ -123,9 +123,12 @@ test('a branch with no manifest is skipped silently — not a claim', () => {
   const deps = baseDeps();
   deps.git = fakeGit([
     ['fetch origin main', () => ''],
-    ['show origin/main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
-    ['show main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show origin/main:plugin/.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show main:plugin/.claude-plugin/plugin.json', () => manifest('6.70.1')],
     ['worktree list --porcelain', () => SIBLING_WORKTREES],
+    ['show wt-feature:plugin/.claude-plugin/plugin.json', () => {
+      throw new Error("fatal: path 'plugin/.claude-plugin/plugin.json' does not exist in 'wt-feature'");
+    }],
     ['show wt-feature:.claude-plugin/plugin.json', () => {
       throw new Error("fatal: path '.claude-plugin/plugin.json' does not exist in 'wt-feature'");
     }],
@@ -137,14 +140,62 @@ test('a branch with no manifest is skipped silently — not a claim', () => {
   assert.strictEqual(result.ok, true);
 });
 
+// The payload moved to plugin/ in #418. A sibling worktree branched before that
+// cutover still carries its manifest at the repo root, and its committed bump is
+// exactly the collision the pre-check exists to catch — reading only the new path
+// would silently drop it and let the release land on the same number.
+test('a pre-cutover branch whose manifest is at the OLD root path is still a claim', () => {
+  const deps = baseDeps();
+  deps.git = fakeGit([
+    ['fetch origin main', () => ''],
+    ['show origin/main:plugin/.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show main:plugin/.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['worktree list --porcelain', () => SIBLING_WORKTREES],
+    ['show wt-feature:plugin/.claude-plugin/plugin.json', () => {
+      throw new Error("fatal: path 'plugin/.claude-plugin/plugin.json' does not exist in 'wt-feature'");
+    }],
+    ['show wt-feature:.claude-plugin/plugin.json', () => manifest('6.71.0')],
+    ['show main:docs/shipped-versions.tsv', () => {
+      throw new Error("fatal: path 'docs/shipped-versions.tsv' does not exist in 'main'");
+    }],
+  ]);
+  const { result } = precheck(deps, 'minor');
+  assert.strictEqual(result.ok, false, 'the legacy-path bump must still register as a collision');
+  assert.strictEqual(result.conflicts[0].source, 'worktree-branch');
+  assert.strictEqual(result.conflicts[0].version, '6.71.0');
+  assert.strictEqual(result.suggested, '6.72.0');
+});
+
+// The other direction of the same boundary: origin/main may still be pre-cutover
+// while this branch has already moved the payload. Deriving the base from the old
+// path is what keeps the candidate ahead of what actually shipped.
+test('a pre-cutover origin/main manifest still sets the base', () => {
+  const deps = baseDeps();
+  deps.git = fakeGit([
+    ['fetch origin main', () => ''],
+    ['show origin/main:plugin/.claude-plugin/plugin.json', () => {
+      throw new Error("fatal: path 'plugin/.claude-plugin/plugin.json' does not exist in 'origin/main'");
+    }],
+    ['show origin/main:.claude-plugin/plugin.json', () => manifest('6.94.0')],
+    ['show main:plugin/.claude-plugin/plugin.json', () => manifest('6.94.0')],
+    ['worktree list --porcelain', () => 'worktree /repo\nbranch refs/heads/main\n'],
+    ['show main:docs/shipped-versions.tsv', () => {
+      throw new Error("fatal: path 'docs/shipped-versions.tsv' does not exist in 'main'");
+    }],
+  ]);
+  const { candidate, result } = precheck(deps, 'minor');
+  assert.strictEqual(candidate, '6.95.0');
+  assert.strictEqual(result.ok, true);
+});
+
 test('any other branch-manifest read failure aborts naming the branch — never silently weakens the check', () => {
   const deps = baseDeps();
   deps.git = fakeGit([
     ['fetch origin main', () => ''],
-    ['show origin/main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
-    ['show main:.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show origin/main:plugin/.claude-plugin/plugin.json', () => manifest('6.70.1')],
+    ['show main:plugin/.claude-plugin/plugin.json', () => manifest('6.70.1')],
     ['worktree list --porcelain', () => SIBLING_WORKTREES],
-    ['show wt-feature:.claude-plugin/plugin.json', () => 'not valid json'],
+    ['show wt-feature:plugin/.claude-plugin/plugin.json', () => 'not valid json'],
   ]);
   assert.throws(() => precheck(deps, 'minor'), /wt-feature/);
 });

@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError,
-} = require('../../../bin/lib/issues/claim-store');
+} = require('../../../plugin/bin/lib/issues/claim-store');
 
 // Fake ghApi functions mirror release-merged.js's own ghApi shape: a
 // non-throwing function returning {stdout, failure, status} — never the

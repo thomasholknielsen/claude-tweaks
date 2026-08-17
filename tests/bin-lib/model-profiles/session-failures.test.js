@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   failurePath, readFailedModels, recordFailure,
-} = require('../../../bin/lib/model-profiles/session-failures');
+} = require('../../../plugin/bin/lib/model-profiles/session-failures');
 
 function cleanup(sessionId) {
   const p = failurePath(sessionId);

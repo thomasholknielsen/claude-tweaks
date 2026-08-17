@@ -5,7 +5,7 @@ const assert = require('node:assert');
 
 // ── v2 Finding shape ───────────────────────────────────────────────────────
 
-const { validateFindingV2 } = require('../../../bin/lib/code-health/validate-finding');
+const { validateFindingV2 } = require('../../../plugin/bin/lib/code-health/validate-finding');
 
 function validV2Finding(overrides = {}) {
   return {
@@ -165,7 +165,7 @@ test('validateFindingV2: valid result carries likelihood and effort', () => {
 test('SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES, and TIER_VALUES all contain the exact same members', () => {
   const {
     TIER_VALUES, SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES,
-  } = require('../../../bin/lib/code-health/validate-finding');
+  } = require('../../../plugin/bin/lib/code-health/validate-finding');
   const expected = [...TIER_VALUES].sort();
   for (const [name, set] of [
     ['SEVERITY_VALUES', SEVERITY_VALUES],

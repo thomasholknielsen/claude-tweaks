@@ -4,8 +4,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive, sourceFiles } = require('../../../bin/lib/code-health/scope');
-const { MAX_STALE_DAYS } = require('../../../bin/lib/code-health/score');
+const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive, sourceFiles } = require('../../../plugin/bin/lib/code-health/scope');
+const { MAX_STALE_DAYS } = require('../../../plugin/bin/lib/code-health/score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-scope-')); }
 

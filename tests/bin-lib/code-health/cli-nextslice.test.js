@@ -4,9 +4,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { contentHash, sliceRecursive } = require('../../../bin/lib/code-health/scope');
+const { contentHash, sliceRecursive } = require('../../../plugin/bin/lib/code-health/scope');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'code-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-ns-')); }
 function runNextSlice(args, root) {

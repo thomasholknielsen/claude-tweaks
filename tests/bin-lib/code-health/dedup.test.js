@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decide, RISK_RANK } = require('../../../bin/lib/code-health/dedup');
+const { decide, RISK_RANK } = require('../../../plugin/bin/lib/code-health/dedup');
 
 // issueIndex shape (contract): { "<fingerprint>": { number, state, labels } }
 const F = (id, risk = 'high') => ({ id, risk });

@@ -15,8 +15,8 @@ const {
   readConsoleJson,
   consoleExecuteDetect,
   RECLAIM_STALE_MS,
-} = require('../bin/lib/reconcile/console-execute');
-const { reconcile } = require('../bin/lib/reconcile');
+} = require('../plugin/bin/lib/reconcile/console-execute');
+const { reconcile } = require('../plugin/bin/lib/reconcile');
 
 function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });

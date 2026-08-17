@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parsePolicyModelConfig } = require('../../../bin/lib/model-profiles/policy-fragment');
+const { parsePolicyModelConfig } = require('../../../plugin/bin/lib/model-profiles/policy-fragment');
 
 const SAMPLE = [
   'worktree-always: true',

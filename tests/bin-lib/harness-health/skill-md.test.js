@@ -10,7 +10,7 @@ const {
   registerRequiredTokenTests,
 } = require('../health-core/skill-md-house-checks');
 
-const SKILL = path.resolve(__dirname, '..', '..', '..', 'skills', 'harness-health', 'SKILL.md');
+const SKILL = path.resolve(__dirname, '..', '..', '..', 'plugin', 'skills', 'harness-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('exists', () => {
@@ -66,7 +66,7 @@ registerRequiredTokenTests(test, assert, read, [
 // 40 KB soft ceiling. The tokens below moved with it — assert them against the
 // file that now owns them, not against SKILL.md.
 
-const FILING = path.resolve(__dirname, '..', '..', '..', 'skills', 'harness-health', 'filing.md');
+const FILING = path.resolve(__dirname, '..', '..', '..', 'plugin', 'skills', 'harness-health', 'filing.md');
 const readFiling = () => fs.readFileSync(FILING, 'utf8');
 
 test('filing.md exists and SKILL.md Step 7 delegates to it', () => {
@@ -127,7 +127,7 @@ test('documents the wontfix suppression and the dual fingerprint marker (legacy 
 // the much larger _shared/harness-health-analysis.md. Mirrors the same pair of tests in
 // bin/lib/docs-health/tests/skill-md.test.js.
 
-const JUDGE = path.resolve(__dirname, '..', '..', '..', 'skills', 'harness-health', 'judge-procedure.md');
+const JUDGE = path.resolve(__dirname, '..', '..', '..', 'plugin', 'skills', 'harness-health', 'judge-procedure.md');
 const readJudge = () => fs.readFileSync(JUDGE, 'utf8');
 // The inlinable body is everything below the first horizontal rule; the lead
 // above it is meta ("how this file is used") and is NOT sent to agents.
