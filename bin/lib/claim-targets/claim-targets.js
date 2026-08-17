@@ -106,22 +106,32 @@ function holderFromFreshRead(deps, repoSlug, issue) {
 // contest or transient failure aborts the run (`issue-claims.md`'s "Group
 // claiming" — a partial group claim must not leave a member built alone).
 // Best-effort throughout: a release-write failure here is logged by the
-// caller via the returned list omitting that issue, never a second abort.
+// caller via the returned `releaseFailed` list (never a second abort) so a
+// target left claimed under this run's identity is named on stdout instead
+// of silently riding out its TTL unlabeled.
 function releaseClaimedThisRun(deps, repoSlug, runId, issues) {
   const released = [];
+  const releaseFailed = [];
   for (const issue of issues) {
     const fresh = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
-    if (fresh.failure || fresh.absent) continue; // nothing we can safely overwrite
+    if (fresh.failure || fresh.absent) {
+      releaseFailed.push({ issue, error: fresh.failure || 'absent' });
+      continue; // nothing we can safely overwrite
+    }
     const payload = releasePayload({
       issueNumber: issue, runId, reason: ABORT_REASON, now: deps.now(),
     });
     const w = claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, {
       content: payload.tombstoneContent, sha: fresh.sha, message: `Release issue #${issue} — ${ABORT_REASON}`,
     });
-    if (w.ok) released.push(issue);
+    if (w.ok) {
+      released.push(issue);
+    } else {
+      releaseFailed.push({ issue, error: w.failure || (w.conflict ? 'conflict' : 'unknown') });
+    }
     removeLabelBestEffort(deps.gh, issue);
   }
-  return released;
+  return { released, releaseFailed };
 }
 
 // argv -> exit code. All I/O through deps so tests never touch gh.
@@ -152,8 +162,8 @@ function run(argv, deps) {
     const read = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
     if (read.failure) {
       if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: read.failure }); continue; }
-      const released = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ transient: [{ issue, error: read.failure }], released }));
+      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
+      deps.stdout(JSON.stringify({ transient: [{ issue, error: read.failure }], released, releaseFailed }));
       return 4;
     }
 
@@ -173,8 +183,8 @@ function run(argv, deps) {
     if (classified.state === 'live' || classified.state === 'unreadable') {
       const holder = classified.state === 'live' ? identity : null;
       if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      const released = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released }));
+      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
+      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released, releaseFailed }));
       return 3;
     }
 
@@ -189,8 +199,8 @@ function run(argv, deps) {
 
     if (write.failure) {
       if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: write.failure }); continue; }
-      const released = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ transient: [{ issue, error: write.failure }], released }));
+      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
+      deps.stdout(JSON.stringify({ transient: [{ issue, error: write.failure }], released, releaseFailed }));
       return 4;
     }
     if (!write.ok) {
@@ -205,8 +215,8 @@ function run(argv, deps) {
       // best-effort, to name the winner in the contested report.
       const holder = holderFromFreshRead(deps, repoSlug, issue);
       if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      const released = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
-      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released }));
+      const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
+      deps.stdout(JSON.stringify({ contested: [{ issue, holder }], released, releaseFailed }));
       return 3;
     }
 

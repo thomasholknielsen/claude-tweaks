@@ -86,8 +86,10 @@ function listClaims(repoSlug) {
 }
 
 function readClaim(repoSlug, name) {
-  const m = /^issue-(\d+)\.json$/.exec(name);
-  const r = claimStore.readClaimBlob(ghApi, repoSlug, m ? Number(m[1]) : name);
+  // Callers pre-filter `name` on this same regex before calling — see
+  // releaseMerged's loop below — so the match is always non-null here.
+  const issueNumber = Number(/^issue-(\d+)\.json$/.exec(name)[1]);
+  const r = claimStore.readClaimBlob(ghApi, repoSlug, issueNumber);
   return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
@@ -113,8 +115,9 @@ function releasedEntry(issueNumber, runId, prState) {
 // ordinary write failure here; the caller logs it as a release race, exactly
 // the posture that file's Failure posture table documents.
 function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
-  const m = /^issue-(\d+)\.json$/.exec(name);
-  const r = claimStore.writeClaimBlob(ghApi, repoSlug, m ? Number(m[1]) : name, {
+  // Same pre-filtered-name guarantee as readClaim above.
+  const issueNumber = Number(/^issue-(\d+)\.json$/.exec(name)[1]);
+  const r = claimStore.writeClaimBlob(ghApi, repoSlug, issueNumber, {
     content: tombstoneContent, sha, message: `Release claim ${name} — ${reason}`,
   });
   return r.ok;

@@ -83,10 +83,19 @@ Either way, `basename($PIPELINE_RUN_DIR)` is this run's claim identity for every
 
 ## File-overlap warning (never a gate)
 
-Before claiming, check whether any named target file-overlaps an open, unclaimed record via
-`groupByFileOverlap` (`bin/lib/issues/grouping.js`) run against the same open-queue read
-`dispatch/SKILL.md` Step 2 uses (open + no `bot:*`, not filtered to `auto:build` here — this is
-informational, not a selection). On a hit, surface one line per overlapping pair:
+Before claiming, check whether any named target file-overlaps an open, unclaimed record. Read
+the same open-queue set `dispatch/SKILL.md` Step 2 uses (open + no `bot:*`, not filtered to
+`auto:build` here — this is informational, not a selection), then run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/preflight-records.js" {target}[,{target}…] {other-open-issue}[,…] [--repo owner/name]
+```
+
+passing every named target together with that open-queue's issue numbers as positional
+arguments — its `overlapGroups` output field (`groupByFileOverlap`, `bin/lib/issues/grouping.js`,
+run over each fetched record's key files) is this computation; read the CLI's `--help` for the
+remaining flags. On a hit — an `overlapGroups` entry pairing a named target with a number that
+isn't one — surface one line per overlapping pair:
 
 ```
 Note: #{target} overlaps open #{other} (untracked file overlap) — consider
@@ -95,8 +104,8 @@ Note: #{target} overlaps open #{other} (untracked file overlap) — consider
 
 Proceed with only the named target(s) regardless — this is a warning, never a gate, and never
 auto-expands the human's explicitly named list. No new grouping computation is added to flow:
-this reuses the existing module dispatch and `/help` already call; flow gains no queue-wide
-knowledge beyond this one warning check.
+this reuses the same `bin/preflight-records.js` primitive dispatch's queue pull and `/help`
+already call; flow gains no queue-wide knowledge beyond this one warning check.
 
 ## Claim every named target, all-or-abort
 
@@ -112,18 +121,24 @@ Pass `--keep-going` only when this run is in `keep-going` mode (below); a defaul
 (single- or multi-target) omits the flag. The CLI implements `_shared/issue-claims.md`'s "The
 lock" steps 1-6 — read, classify, and the create-only/conditional/contested branch — via
 `bin/lib/issues/claim-store.js`, the one contents-API implementation this CLI and
-`reconcile/release-merged.js`'s release path both delegate to: the `__ABSENT__`-sentinel absent
-branch (a 404 read, a normal outcome for a never-claimed target) and the `@base64d`+sha
-single-read (one `gh api` call decoding GitHub's newline-embedded base64 and keeping the blob sha
-the conditional write needs) live inside that one module, not restated here. It classifies each
+`reconcile/release-merged.js`'s release path both delegate to: the absent branch that
+`_shared/issue-claims.md`'s bash prose renders as the `__ABSENT__` sentinel is, inside the CLI, a
+404-status read (a normal outcome for a never-claimed target) — same classification, different
+mechanism — and the `@base64d`+sha single-read (one `gh api` call decoding GitHub's
+newline-embedded base64 and keeping the blob sha the conditional write needs) live inside that
+one module, not restated here. It classifies each
 read exactly per `_shared/issue-claims.md`'s "Failure posture" table: `'absent'` → create-only
 write; `'tombstone'`/`'stale'` → conditional write (a legitimate re-claim, not a contest);
 `'live'` → contested, holder identity attached; `'unreadable'` → fails closed to contested with no
-holder identity (`null`). It also applies the per-target self-owned check first: a target whose
-claim blob already reads `claim.runId === basename($PIPELINE_RUN_DIR)` — this run resuming after
-a partial interruption — lands in the JSON envelope's `alreadyOwned` array rather than being
-reclaimed or contested against itself, since `classifyClaimBlob` has no self-claim exemption and
-would otherwise classify this run's own `'live'` blob as contested against itself. On a
+holder identity (`null`). It also applies the per-target self-owned check first, scoped to
+`'live'`/`'stale'` blobs: a target whose live or stale claim blob already reads
+`claim.runId === basename($PIPELINE_RUN_DIR)` — this run resuming after a partial interruption —
+lands in the JSON envelope's `alreadyOwned` array rather than being reclaimed or contested against
+itself, since `classifyClaimBlob` has no self-claim exemption and would otherwise classify this
+run's own `'live'` blob as contested against itself. A self-owned `'tombstone'` is not routed to
+`alreadyOwned` — a released claim is not still held, so it falls through to the ordinary
+`'tombstone'`/`'stale'` conditional-write branch and is legitimately re-claimed like any other
+tombstone. On a
 successful claim it bootstraps `bot:in-progress` (per `_shared/label-bootstrap.md`) and posts the
 claim comment (`claimPayload`'s `commentBody`) for that target — best-effort: a label or comment
 failure is logged to stderr and never un-claims the target.
@@ -139,18 +154,23 @@ target, exactly as before this CLI existed.
 - **0** — every target claimed (default mode), or every non-skipped target claimed
   (`--keep-going` — see below). Proceed to Step 3.
 - **3** — contested. The CLI ran without `--keep-going` and stopped at the first target it could
-  not claim; stdout carries `{contested: [{issue, holder}], released}` — `released` lists every
-  target *this invocation* had already claimed before hitting the contest (empty for a
-  single-target run, or when the contested target was first in the list). The CLI already
-  performed the all-or-abort release — nothing further to release here. Gather liveness evidence
-  (below) and render the contest card using the reported `holder`.
+  not claim; stdout carries `{contested: [{issue, holder}], released, releaseFailed}` —
+  `released` lists every target *this invocation* had already claimed and successfully released
+  before hitting the contest (empty for a single-target run, or when the contested target was
+  first in the list); `releaseFailed` (`[{issue, error}]`, empty when none) names any of those
+  targets whose fresh read or tombstone write failed during that release — still claimed under
+  this run's identity, left to expire via the claim's own TTL rather than dropped silently. The
+  CLI already attempted the all-or-abort release — nothing further to release here. Gather
+  liveness evidence (below) and render the contest card using the reported `holder`.
 - **4** — transient `gh` failure, same fail-fast/all-or-abort shape as exit 3: stdout carries
-  `{transient: [{issue, error}], released}`, release already performed. Render the
+  `{transient: [{issue, error}], released, releaseFailed}`, release already attempted. Render the
   transient-failure card below.
 - **2** — malformed invocation or missing dependency (a bad `--run-id`/`--targets` value, or repo
   resolution failed) — a bug in this call, not a claim outcome. Treat as a hard stop.
 
-**On exit 3 or 4** — release nothing further (the CLI's `released` already covers it). When this
+**On exit 3 or 4** — release nothing further (the CLI's `released`/`releaseFailed` already covers
+the attempt; a non-empty `releaseFailed` is not this step's problem to retry — the named claim
+simply rides out its TTL). When this
 invocation minted the run dir itself (`PIPELINE_RUN_DIR` was unset on entry) and it still holds no
 `config.yml` (never adopted), remove the minted directory immediately — an empty mint left in
 place sorts newest and steals the hook fallback resolver's attribution until the reconciler's

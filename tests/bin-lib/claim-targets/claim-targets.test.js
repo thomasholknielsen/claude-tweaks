@@ -411,6 +411,36 @@ test('write network failure: transient exit 4, no holder (distinct from a write-
   assert.deepEqual(body.released, []);
 });
 
+// abort-release write failure: a target the release step can't safely tombstone
+// must be named in releaseFailed (not silently dropped from the envelope), and
+// the exit code stays the classification's own (3 here) — not a second abort.
+test('abort-release write failure: target lands in releaseFailed, not released, exit code unchanged (#723)', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: {
+      720: [readAbsent, readOk('irrelevant', 'sha720-release')], // 2nd = release's fresh read
+      721: [readOk(liveMarker('otherRun'), 'sha721')],
+    },
+    writes: {
+      720: [writeOk, writeFail('network-failure')], // 1st = claim, 2nd = abort-release tombstone fails
+    },
+  });
+  const { gh, calls: ghCalls } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 3);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.released, []);
+  assert.deepEqual(body.releaseFailed, [{ issue: 720, error: 'network-failure' }]);
+  assert.equal(body.contested.length, 1);
+  assert.equal(body.contested[0].issue, 721);
+  const releaseWrite = calls.filter((a) => isWrite(a, '720'))[1];
+  assert.match(fieldOf(releaseWrite, 'message'), new RegExp(ABORT_REASON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  // best-effort label removal is still attempted even though the release write failed
+  assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
+});
+
 test('--help short-circuits before any gh call, exit 0', () => {
   const gh = () => { throw new Error('must not be called'); };
   const ghApi = () => { throw new Error('must not be called'); };
