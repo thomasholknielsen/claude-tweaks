@@ -71,13 +71,14 @@ Run `/claude-tweaks:deepen <changed-paths>` to act on these — it presents cand
 
 ### Next Actions
 
-Close the template's fence above, then assemble the applicable lines (the base 2 always; the three conditional lines only when their trigger condition holds) and render them as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
+Close the template's fence above, then assemble the applicable lines (the base 2 always; the four conditional lines only when their trigger condition holds) and render them as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
 
 **`/claude-tweaks:flow {next spec}`** — full pipeline on spec {N}: "{title}" (recommended)
 `/claude-tweaks:help` — full pipeline status
 `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked — when unblocked specs exist
 `/claude-tweaks:deepen {changed-paths}` — act on the {N} depth opportunit{y/ies} surfaced above — when the depth survey surfaced candidates
 `node plugin/bin/release.js {minor|patch} "{summary}"` — cut the release, this merge is not yet in a shipped version | `{backfill command}` — already shipped in vX.Y.Z, the CHANGELOG is missing this record — when this project has a documented release procedure
+`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up` — resume to re-offer the merge decision, PR #{n} is ready — when this run's own outcome is armed/pending-review under pr-first
 
 **Release row.** Render only when the project has a documented release procedure (here: `docs/releasing.md` and `plugin/bin/release.js`) and the ancestry check that decides between the two forms actually ran and produced a result — never render a release row from an unverified premise, and never render one at all when the check couldn't run. This project already ran that check in `wrap-up` (`_shared/pr-first-merge.md` Step 4.1) and printed its one-line result as the fenced template's **Release status:** field above — reuse that value verbatim rather than re-running the check:
 
@@ -89,3 +90,9 @@ Close the template's fence above, then assemble the applicable lines (the base 2
 A project with a release procedure but no `plugin/bin/release.js status`-shaped subcommand has no Release status field to reuse — render the row from the two inline git commands the check itself is: `git fetch origin && git merge-base --is-ancestor <merge> <newest-bump-commit>` (exit 0 = already shipped, use the "already shipped" form; non-zero = the "cut the release" form). Still omit the row if that check cannot be run (no merge commit resolvable, no prior release to compare against).
 
 **Recommended slot.** The release row is never marked `(recommended)` while `/claude-tweaks:flow {next spec}` is present — the next spec's pipeline is the standing default. When this run has no next spec (the last spec of a batch, or a standalone run), the "cut the release" form takes the `(recommended)` slot instead of `/claude-tweaks:help`; the "backfill the CHANGELOG" form is never marked `(recommended)` — it's housekeeping, not the primary next step, in either position.
+
+**Resume-to-merge row.** Render only under `integration-model: pr-first` (`_shared/integration-model.md`), only when this run's own merge outcome is `armed` or `pending-review` (the run ended without a confirmed `merged` result — whether because the Auto-merge short-circuit never triggered, its content judgment declined, or the terminal Review Console's own merge option was answered "leave PR open" / the console was stopped). Never render this row when the outcome is `merged` (nothing left to resume) or under `local-merge` (no PR, no resume-to-merge shape — the branch-finish handoff already ran inline). The row:
+
+`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up` — resume to re-offer the merge decision, PR #{n} is ready
+
+This is the recommended slot only when no next spec exists in this run (same precedence rule the release row's own "Recommended slot" note above already states — resume-to-merge and the release row never both claim `(recommended)`; resume-to-merge wins when both would otherwise apply, since a run that hasn't merged yet has nothing to release into a version bump).

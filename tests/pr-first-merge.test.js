@@ -35,8 +35,8 @@ test('the precondition gate is the same one condition pr-run-comments.md already
   assert.match(MERGE, /run-state\.json.*carries a `pr` object.*AND\s*\n?\s*`integration-model` resolves `pr-first`/s);
 });
 
-test('the tag mapping preserves both pre-#411 tags for /help\'s metric', () => {
-  assert.match(MERGE, /`\{tag\}` is `auto-merge`.*or `fast-lane`/s);
+test('the tag mapping preserves both pre-#411 tags plus #715\'s manifesto-authorized tag for /help\'s metric', () => {
+  assert.match(MERGE, /`\{tag\}` is `auto-merge`.*`fast-lane`.*`manifesto-authorized`/s);
   assert.match(MERGE, /github-pr-scan\.md.*triage-queue.*item 3/s);
 });
 

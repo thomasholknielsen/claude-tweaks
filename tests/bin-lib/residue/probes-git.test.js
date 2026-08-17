@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeWorktrees } = require('../../../plugin/bin/lib/residue/probes/worktrees');
+const { probeWorktrees, extractPid } = require('../../../plugin/bin/lib/residue/probes/worktrees');
 const { probeBranches } = require('../../../plugin/bin/lib/residue/probes/branches');
 
 function stubRunner(responses) {
@@ -158,4 +158,59 @@ test('the integration branch itself is never a finding, even when passed bare', 
   });
   const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'main', run });
   assert.ok(!findings.some((f) => f.subject === 'origin/main'), 'deleting the integration branch would be catastrophic');
+});
+
+// #225: a locked worktree's evidence must distinguish a live session from an
+// abandoned lock, not report every lock identically.
+const PID_SCOPE = {
+  ran: true, reason: null, base: 'a1b2c3d', headBranch: 'worktree-feat',
+  branches: [],
+  worktrees: [
+    { path: '/repo', branch: 'main', locked: false },
+    { path: '/repo/.claude/worktrees/live', branch: 'worktree-live', locked: true, lockReason: 'claude session foo (pid 16478, host vm)' },
+    { path: '/repo/.claude/worktrees/dead', branch: 'worktree-dead', locked: true, lockReason: 'claude session bar (pid 99999, host vm)' },
+    { path: '/repo/.claude/worktrees/nopid', branch: 'worktree-nopid', locked: true, lockReason: 'manual lock, no pid recorded' },
+  ],
+};
+
+test('extractPid reads the pid out of a lockReason string', () => {
+  assert.strictEqual(extractPid('claude session foo (pid 16478, host vm)'), 16478);
+  assert.strictEqual(extractPid('manual lock, no pid recorded'), null);
+  assert.strictEqual(extractPid(null), null);
+  assert.strictEqual(extractPid(undefined), null);
+});
+
+test('a locked worktree whose pid is running shows a live-session verdict with the pid', () => {
+  const isPidAlive = (pid) => pid === 16478;
+  const { findings } = probeWorktrees({ scope: PID_SCOPE, isPidAlive });
+  const live = findings.find((f) => f.subject === '/repo/.claude/worktrees/live');
+  assert.match(live.evidence, /live session/);
+  assert.match(live.evidence, /pid 16478/);
+  assert.strictEqual(live.remedy, 'record', 'still a human call — liveness does not change the remedy');
+});
+
+test('a locked worktree whose pid is not running shows an abandoned-lock verdict, distinct from a live one', () => {
+  const isPidAlive = (pid) => pid === 16478; // only the "live" fixture's pid is alive
+  const { findings } = probeWorktrees({ scope: PID_SCOPE, isPidAlive });
+  const dead = findings.find((f) => f.subject === '/repo/.claude/worktrees/dead');
+  assert.match(dead.evidence, /abandoned lock/);
+  assert.match(dead.evidence, /pid 99999/);
+  assert.strictEqual(dead.remedy, 'record');
+
+  const live = findings.find((f) => f.subject === '/repo/.claude/worktrees/live');
+  assert.notStrictEqual(dead.evidence, live.evidence, 'a live pid and a dead pid must render differently');
+});
+
+test('an unparseable lock reason reports pid unknown rather than crashing', () => {
+  const { findings } = probeWorktrees({ scope: PID_SCOPE, isPidAlive: () => true });
+  const nopid = findings.find((f) => f.subject === '/repo/.claude/worktrees/nopid');
+  assert.match(nopid.evidence, /pid unknown/);
+});
+
+test('a liveness check that throws fails toward "could not be confirmed" rather than crashing the sweep', () => {
+  const isPidAlive = () => { throw new Error('ps unavailable'); };
+  const { findings } = probeWorktrees({ scope: PID_SCOPE, isPidAlive });
+  const live = findings.find((f) => f.subject === '/repo/.claude/worktrees/live');
+  assert.match(live.evidence, /could not be confirmed/);
+  assert.strictEqual(live.remedy, 'record');
 });

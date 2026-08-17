@@ -42,5 +42,5 @@ test('summary-template.md: neither release-row form is unconditionally Recommend
 });
 
 test('summary-template.md: Next Actions still documents assembling only applicable lines, base 2 plus conditionals', () => {
-  assert.match(SUMMARY, /the base 2 always; the three conditional lines only when their trigger condition holds/);
+  assert.match(SUMMARY, /the base 2 always; the four conditional lines only when their trigger condition holds/);
 });

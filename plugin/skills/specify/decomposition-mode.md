@@ -331,6 +331,8 @@ Present a summary:
 
 `{ref}` is `#{N}` under `work-backend: github-issues`, the bare record id under `local-files` — same convention as Step 1's Overlap Analysis.
 
+**`needs:definition` origin closure.** When `$ORIGIN_RECORD_NUM` is set (this run was reached via the `needs:definition` redirect — `specify/SKILL.md`'s Resolve-the-input case 1), close that origin record now that the parent and every sub-issue this run produced exist, using the same number list the Work Units Created table above already assembled: post a comment on `$ORIGIN_RECORD_NUM` in that table's own list format, e.g. "Superseded by decomposition: #{parent}, #{sub1}, #{sub2}, ..." (`work-backend: github-issues`: `gh issue comment "$ORIGIN_RECORD_NUM" --body "..."` then `gh issue close "$ORIGIN_RECORD_NUM"`; `local-files`: append the note to the record body and mark it closed via `local-store.js`). When `$ORIGIN_RECORD_NUM` is unset (every other entry path — cases 2-5), this is a no-op: decomposition mode unconditionally produces exactly one parent record every run, so there is never a produced-sub-issues-with-no-parent case this needs to special-case.
+
 ### Actions Performed
 
 | Action | Detail | Ref |

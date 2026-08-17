@@ -87,6 +87,8 @@ node -e "
 
 **Justification flag:** flag every `backlog`-bucket record carrying an unjustified-solution verdict — under `work-backend: github-issues` the `solution:unjustified` label (or its pre-rename spelling `framing:baked`), under `work-backend: local-files` `facets.solutionUnjustified === true` (already present on the fetched record above — no extra call either way) — the verdict `/claude-tweaks:specify` stamped via `/claude-tweaks:challenge`'s `framing-check` mode when it shaped the record. Flag matches in the Needs Attention table with a pointer to read the record's `## Gotchas`, where framing-check wrote the surfaced assumptions, and the live remedy: `/claude-tweaks:challenge #{n}` — the human-invoked evidence-or-accept-risk mode that supplies evidence or accepts the risk and clears the label in one step.
 
+**Definition flag:** flag every `backlog`-bucket record carrying `needs:definition` — under `work-backend: github-issues` the label, under `work-backend: local-files` `facets.needsDefinition === true` (already present on the fetched record above — no extra call either way) — stamped by `/claude-tweaks:capture` or `/claude-tweaks:feedback` at filing time when the record names an open choice with no tradeoff made yet. Flag matches in the Needs Attention table with the concrete next step: `run /claude-tweaks:specify {ref} to route through brainstorming`.
+
 ### PR-state join (in-flight runs and tombstones)
 
 `work-backend: github-issues` only (`local-files` has no PR concept — skip this sub-section
@@ -208,7 +210,7 @@ node -e "
 
 The table below renders in this ranked order, not the fetch's own order.
 
-Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per `solution:unjustified` backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
+Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per `solution:unjustified` backlog record, one row per `needs:definition` backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
 
 There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 4.7, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
 

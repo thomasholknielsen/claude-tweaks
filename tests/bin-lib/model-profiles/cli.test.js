@@ -8,8 +8,22 @@ const path = require('node:path');
 
 const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'resolve-profile.js');
 
+// Every pre-#763 test predates resolve-profile.js reading
+// CLAUDE_CODE_SESSION_ID at all, so none of them isolate from it. Now that a
+// normal (non-record-failure) resolution reads the session's failure
+// blacklist, an ambient CLAUDE_CODE_SESSION_ID (this dev session has a real
+// one; per the Subagent Contract, parallel Task dispatches can share one
+// parent session id) would let a genuine sibling-recorded failure make these
+// tests nondeterministic. Strip it by default so these subprocess calls are
+// hermetic regardless of the caller's environment.
+function isolatedEnv() {
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  return env;
+}
+
 function run(args, cwd) {
-  return JSON.parse(execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' }));
+  return JSON.parse(execFileSync('node', [CLI, ...args], { cwd, env: isolatedEnv(), encoding: 'utf8' }));
 }
 
 function tmpProject(policyText) {
@@ -75,7 +89,7 @@ test('--unattended degrades frontier and appends nothing', () => {
 test('unknown profile exits non-zero naming it', () => {
   const dir = tmpProject(null);
   assert.throws(
-    () => execFileSync('node', [CLI, 'turbo'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'turbo'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => /turbo/.test(String(e.stderr)),
   );
 });
@@ -83,11 +97,11 @@ test('unknown profile exits non-zero naming it', () => {
 test('a value-taking flag at end-of-args exits 1 naming the flag', () => {
   const dir = tmpProject(null);
   assert.throws(
-    () => execFileSync('node', [CLI, 'standard', '--stance'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'standard', '--stance'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => e.status === 1 && /--stance requires a value/.test(String(e.stderr)),
   );
   assert.throws(
-    () => execFileSync('node', [CLI, 'standard', '--run-dir'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'standard', '--run-dir'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => e.status === 1 && /--run-dir requires a value/.test(String(e.stderr)),
   );
 });
@@ -97,7 +111,7 @@ test('a value-taking flag does not swallow the following flag as its value', () 
   assert.throws(
     () => execFileSync(
       'node', [CLI, 'frontier', '--stance', '--unattended', '--run-dir', '/tmp/x'],
-      { cwd: dir, encoding: 'utf8' },
+      { cwd: dir, env: isolatedEnv(), encoding: 'utf8' },
     ),
     (e) => e.status === 1 && /--stance requires a value/.test(String(e.stderr)),
   );
@@ -107,7 +121,7 @@ test('a failing tally append exits 1 naming the problem, with no stack trace', (
   const dir = tmpProject(null);
   const missing = path.join(dir, 'no', 'such', 'dir');
   assert.throws(
-    () => execFileSync('node', [CLI, 'frontier', '--run-dir', missing], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'frontier', '--run-dir', missing], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => {
       const err = String(e.stderr);
       return e.status === 1
@@ -120,7 +134,73 @@ test('a failing tally append exits 1 naming the problem, with no stack trace', (
 test('malformed policy exits non-zero naming the problem', () => {
   const dir = tmpProject('frontier-run-cap: soon\n');
   assert.throws(
-    () => execFileSync('node', [CLI, 'standard'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'standard'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => /soon/.test(String(e.stderr)),
   );
+});
+
+test('a resolution avoids a model recorded as failed this session, via CLAUDE_CODE_SESSION_ID', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-fail-avoid`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  execFileSync('node', [CLI, 'record-failure', 'fable'], { cwd: dir, env, encoding: 'utf8' });
+  const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(r.model, 'opus');
+  assert.strictEqual(r.source, 'degraded:session-failure');
+  // cleanup — do not leak this test's blacklist file to a later run
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
+});
+
+test('a resolution with no CLAUDE_CODE_SESSION_ID set is unaffected by any blacklist', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(r.model, 'fable');
+});
+
+test('record-failure with no model name exits 1 naming the problem', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: `cli-test-${process.pid}-no-model` };
+  assert.throws(
+    () => execFileSync('node', [CLI, 'record-failure'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /record-failure requires a model name/.test(String(e.stderr)),
+  );
+});
+
+test('record-failure with no CLAUDE_CODE_SESSION_ID exits 1 naming the problem, records nothing', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  assert.throws(
+    () => execFileSync('node', [CLI, 'record-failure', 'fable'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /CLAUDE_CODE_SESSION_ID/.test(String(e.stderr)),
+  );
+});
+
+test('record-failure prints a JSON confirmation on success', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-confirm`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  const out = JSON.parse(execFileSync('node', [CLI, 'record-failure', 'opus'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.deepStrictEqual(out, { recorded: true, model: 'opus', sessionId });
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
+});
+
+test('record-failure rejects a model name that is not a real family alias, and records nothing', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-invalid-model`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  assert.throws(
+    () => execFileSync('node', [CLI, 'record-failure', 'fable-5'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /"fable-5" is not a known model family alias/.test(String(e.stderr)),
+  );
+  // Prove nothing was written: a subsequent frontier resolution is unaffected.
+  const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(r.model, 'fable');
+  assert.strictEqual(r.source, 'default');
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
 });

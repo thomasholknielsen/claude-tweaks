@@ -72,8 +72,12 @@ test('POLICY_KEYS entries are unique', () => {
   // 50 -> 51, #645 (session-scoped record snapshot): record-snapshot-ttl-seconds
   // — freshness window for /tmp/ct-records-{session-id}.json, shared by
   // backlog/capture/specify/trust-table/help/tidy/visualize.
-  assert.strictEqual(POLICY_KEYS.length, 51);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 51);
+  // 51 -> 52, #715 (merge-authorization lever): lets a human pre-authorize,
+  // at Manifesto time, that this run should merge itself once every
+  // HARD-GATE is green — policy.yml is deliberately excluded as a source
+  // (see resolvePolicyKeys' merge-authorization special case).
+  assert.strictEqual(POLICY_KEYS.length, 52);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 52);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

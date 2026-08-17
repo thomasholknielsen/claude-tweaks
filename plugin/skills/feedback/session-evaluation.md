@@ -126,9 +126,11 @@ never file it.
 A reply that violates the template — missing the status line, or missing per-objective blocks —
 is re-prompted once on format, per `_shared/subagent-output-contract.md`. A terminal failure —
 the format retry also fails, the re-dispatch above was already spent, or the dispatch itself
-hard-errors (e.g. a model usage-limit failure) — degrades to the self-assessment path above,
-noted in the run summary: the evaluation is never silently dropped, and the queue gather proceeds
-unaffected either way, per `skills/feedback/SKILL.md`'s failure-isolation rule.
+hard-errors (e.g. a model usage-limit failure) — records the failed model via
+`node plugin/bin/resolve-profile.js record-failure {model}` per `_shared/subagent-output-contract.md`'s
+Model Selection section, then degrades to the self-assessment path above, noted in the run
+summary: the evaluation is never silently dropped, and the queue gather proceeds unaffected
+either way, per `skills/feedback/SKILL.md`'s failure-isolation rule.
 
 **Watermark write.** On a `DONE` or `DONE_WITH_CONCERNS` return from the judge (not
 `NEEDS_CONTEXT`/`BLOCKED`, and not the self-assessment degradation path above), call
