@@ -11,7 +11,7 @@ files:
 **Persona:** claude-tweaks user who ran `/claude-tweaks:flow "#157,#159,#160"` (or similar, `auto`/`hybrid` mode) across several linked GitHub issues and now needs to review everything the pipeline auto-resolved or staged before it merges/finishes the shared branch.
 **Goal:** Work through one consolidated batch table covering every spec in the run and make the terminal approve/override/stop decision — Approve all resolves every `Q#`/`M#`/`U#` proposal to its own stated default in the same click, with confidence that nothing any spec's pipeline decided was silently dropped from view.
 **Entry point:** The last spec in the run reaches `/wrap-up`'s Phase 4 execution step (each spec's own per-spec Review Console was deferred via `MULTISPEC_REVIEW_DEFER=1`), triggering `/flow`'s consolidated Multi-Spec Review Console.
-**Success state:** The batch decision is made (approved, or specific items overridden), every `Q#`/`M#`/`U#` proposal has a resolution — its own default under Approve all, or an explicit per-item answer under Override — the shared branch reaches an outcome (merged / PR / discarded), and the parent run directory is archived.
+**Success state:** The batch decision is made (approved, or specific items overridden), every `Q#`/`M#`/`U#` proposal has a resolution — its own default under Approve all, or an explicit per-item answer under Override — the shared branch reaches an outcome (merged / PR / discarded), the parent run directory is archived, and the run's final turn closes with a plain-markdown `## Next Actions` block whose bold first line is the paste-ready next command.
 
 ## Steps
 
