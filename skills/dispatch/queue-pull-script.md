@@ -69,13 +69,12 @@ node -e "
   const repoData = require('/tmp/dispatch-native-deps.json').data.repository;
   const finalEligible = eligible.filter((i) => !hasOpenNativeBlocker(repoData['i' + i.number]));
   const items = finalEligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
-  const byIssue = new Map(finalEligible.map((i) => [i.number, i]));
+  const byId = new Map(finalEligible.map((i) => [i.number, i]));
   for (const item of items) {
-    if (item.keyFiles.length === 0 && expectsKeyFilesSection(byIssue.get(item.id))) {
+    if (item.keyFiles.length === 0 && expectsKeyFilesSection(byId.get(item.id))) {
       console.error('Warning: eligible record #' + item.id + ' has no ### Key Files subsection — overlap detection disabled for it.');
     }
   }
-  const byId = new Map(finalEligible.map((i) => [i.number, i]));
   const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
   console.log(JSON.stringify(groups));
 " > /tmp/dispatch-groups.json
