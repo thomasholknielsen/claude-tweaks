@@ -43,7 +43,7 @@ A `memory` target skips `_shared/harness-health-analysis.md`'s Step 2 dimension 
    Where a claim genuinely cannot be checked mechanically, skip it — the same opportunistic-assist caveat `_shared/harness-health-analysis.md` Step 1 already states for its own checks 1-2. A contradicted claim is high-confidence evidence for a `drift` finding.
 3. **Duplication-with-checked-in-content check.** Grep the memory file's distinctive phrases (named files, function names, specific facts) against skill/rule content:
    ```bash
-   grep -rl "<distinctive phrase from the memory file>" skills/ .claude/rules/ 2>/dev/null
+   grep -rl "<distinctive phrase from the memory file>" plugin/skills/ .claude/rules/ 2>/dev/null
    ```
    A hit is evidence for a `drift` finding recommending the memory entry shrink to a pointer/reference rather than a restated copy.
 4. **Runbook-shape heuristic** (informational only — this phase detects and flags, it does not promote). Count fenced code blocks:

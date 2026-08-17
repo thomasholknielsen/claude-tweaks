@@ -32,7 +32,7 @@ agent-browser batch --session <session> \
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim below.
 >
-> **Model profile:** [Use: Standard] — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
+> **Model profile:** [Use: Standard] — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
 >
 > **Output template (each agent must follow exactly):**
 >

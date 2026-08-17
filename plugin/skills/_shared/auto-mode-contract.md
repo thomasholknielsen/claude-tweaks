@@ -242,7 +242,7 @@ Extending the Manifesto with a new lever touches more files than the lever's own
 4. **`help/reference-card.md`** and **`help/context-flow.md`** — both files independently enumerate the full lever list ("every policy lever" / the `config.yml` consumer row) and sit outside the Manifesto's own file tree — easy to miss entirely, and the only two gaps a whole-branch review caught that no task-level review touching the Manifesto files themselves could have seen.
 5. **The enforcement skill file(s)** the lever actually gates — where the new behavior lives.
 
-Verify with a grep for the lever's kebab-case name across `skills/` and root `CLAUDE.md` before considering the addition complete — a zero-hit file that should have one is the failure mode this checklist exists to prevent.
+Verify with a grep for the lever's kebab-case name across `plugin/skills/` and root `CLAUDE.md` before considering the addition complete — a zero-hit file that should have one is the failure mode this checklist exists to prevent.
 
 ## Skill integration pattern
 

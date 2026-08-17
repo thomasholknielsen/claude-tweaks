@@ -16,7 +16,7 @@ Runs when the plan or design doc declares `Scope keywords:`. When the plan or de
 
 ```bash
 # Example for a removal/migration plan
-grep -rln -E "playwright-cli|claude_in_chrome|PLAYWRIGHT_MCP" skills/ agents/ hooks/ README.md .claude-plugin/ CLAUDE.md docs/ 2>/dev/null
+grep -rln -E "playwright-cli|claude_in_chrome|PLAYWRIGHT_MCP" plugin/skills/ plugin/agents/ plugin/hooks/ plugin/.claude-plugin/ README.md CLAUDE.md docs/ 2>/dev/null
 ```
 
 Resolve the `scope-keywords-required` setting — `SCOPE_KEYWORDS_REQUIRED=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values scope-keywords-required)`:

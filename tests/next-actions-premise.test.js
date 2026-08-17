@@ -32,7 +32,7 @@ test('summary-template.md: the release row is conditional and mutually exclusive
 
 test('summary-template.md: the release row cites the #678 release-status subcommand as its source, falling back to inline git commands', () => {
   assert.match(SUMMARY, /reuse that value verbatim rather than re-running the check/);
-  assert.match(SUMMARY, /no `bin\/release\.js status`-shaped subcommand.*render the row from the two inline git commands/s);
+  assert.match(SUMMARY, /no `plugin\/bin\/release\.js status`-shaped subcommand.*render the row from the two inline git commands/s);
   assert.match(SUMMARY, /git merge-base --is-ancestor <merge> <newest-bump-commit>/);
 });
 

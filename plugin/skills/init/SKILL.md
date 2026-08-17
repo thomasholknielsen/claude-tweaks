@@ -274,7 +274,7 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 >
 > **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
 >
-> **Model profile:** [Use: Standard] — three-dimension judgment against Phase 2 evidence; not mechanical enough for Fast, not synthesis-heavy enough for Capable. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
+> **Model profile:** [Use: Standard] — three-dimension judgment against Phase 2 evidence; not mechanical enough for Fast, not synthesis-heavy enough for Capable. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
 
 Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become backlog work records with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
@@ -300,7 +300,7 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 
 > **Parallel execution (conditional):** Under Update Mode, when the drift-patch audit's read set (`_shared/harness-health-analysis.md`) covers ≥ 8 existing skills, dispatch the per-skill audit as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`) — the same threshold and pattern Phase 4 already uses for scoring. Otherwise, run the audit inline in the main thread.
 >
-> **Model profile:** [Use: Standard] — format-sensitive conformance checking, not synthesis-heavy; defaulting to Capable across 8+ agents costs ~5x for no judgment gain. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
+> **Model profile:** [Use: Standard] — format-sensitive conformance checking, not synthesis-heavy; defaulting to Capable across 8+ agents costs ~5x for no judgment gain. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
 
 **Initial Mode** generates full SKILL.md files for each approved skill. **Update Mode** produces targeted patches for drifted skills and full SKILL.md for gap skills. Each generated skill must pass quality gates (codebase-grounded examples, working commands, project-specific anti-patterns). Skill depth scales with complexity score.
 

@@ -327,10 +327,12 @@ history, so ask, once, before it runs.
 
 This check applies only when the ref carries a plugin manifest and a changelog — this file is
 canonical for every pr-first project, but the check is only meaningful for a plugin repo whose
-version of record is `.claude-plugin/plugin.json`:
+version of record is a `.claude-plugin/plugin.json`. Probe BOTH spellings of that manifest path:
+a payload-cutover repo carries it under `plugin/`, pre-cutover history carries it at the repo
+root, and probing only one spelling silently reports "no plugin manifest" for the other:
 
 ```bash
-git cat-file -e origin/{integration-branch}:.claude-plugin/plugin.json && git cat-file -e origin/{integration-branch}:CHANGELOG.md
+(git cat-file -e origin/{integration-branch}:plugin/.claude-plugin/plugin.json || git cat-file -e origin/{integration-branch}:.claude-plugin/plugin.json) && git cat-file -e origin/{integration-branch}:CHANGELOG.md
 ```
 
 When either is absent, log `AUTO {time} — pr-first-merge Step 4.1: release status — n/a — no

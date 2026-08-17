@@ -86,7 +86,7 @@ Without `--budget`, behavior is unchanged — proceed to walk all `{N}` candidat
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim below.
 >
-> **Model profile:** [Use: Standard] — discover-mode journey walkers do multi-step navigation, snapshot interpretation, and "should feel" inference from live experience. Upgrade to Capable only when the candidate journey hinges on subjective UX synthesis that Standard would flatten. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
+> **Model profile:** [Use: Standard] — discover-mode journey walkers do multi-step navigation, snapshot interpretation, and "should feel" inference from live experience. Upgrade to Capable only when the candidate journey hinges on subjective UX synthesis that Standard would flatten. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
 >
 > **Output template (each agent must follow exactly):**
 >

@@ -51,7 +51,7 @@ One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
 
 [Use: Standard] -- this dispatch wraps build+test execution, not analysis; the pipeline's own
-steps select their own models as usual. Resolve via `node bin/resolve-profile.js standard`
+steps select their own models as usual. Resolve via `node plugin/bin/resolve-profile.js standard`
 (contract § Model Selection).
 ```
 
@@ -134,7 +134,7 @@ how long the PR has already existed.
 
 [Use: Standard] -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual. Resolve via
-`node bin/resolve-profile.js standard` (contract § Model Selection).
+`node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
 ```
 
 None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.

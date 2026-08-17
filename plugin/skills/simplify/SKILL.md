@@ -64,7 +64,7 @@ If no files are in scope, state: "No changed files to simplify." and stop.
 
 ## Step 2: Run Code Simplifier
 
-Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), `[Use: Standard]` (resolve via `node bin/resolve-profile.js standard`, contract § Model Selection), and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
+Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), `[Use: Standard]` (resolve via `node plugin/bin/resolve-profile.js standard`, contract § Model Selection), and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
 
 ```
 SCOPE (required):

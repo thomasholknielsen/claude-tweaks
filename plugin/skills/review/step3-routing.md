@@ -147,7 +147,7 @@ If any findings are "Fix now", make the changes, re-verify per `_shared/deferral
 
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 >
-> **Model profile:** [Use: Standard] — fix agents make targeted code edits constrained to their assigned files. Upgrade to Capable only when the fix requires architectural redesign rather than localized correction. Resolve via `node bin/resolve-profile.js standard` (contract § Model Selection).
+> **Model profile:** [Use: Standard] — fix agents make targeted code edits constrained to their assigned files. Upgrade to Capable only when the fix requires architectural redesign rather than localized correction. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
 >
 > **Output template (each agent must follow exactly):**
 >

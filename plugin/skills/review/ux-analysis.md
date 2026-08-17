@@ -59,7 +59,7 @@ When page inventories from multiple pages are available, compare patterns across
 
 > **Parallel execution (conditional):** When more than 5 screenshots exist across the QA run, dispatch a screenshot review Task agent that reads the screenshots using the Read tool (multimodal) and returns visual observations. When 5 or fewer, review screenshots inline in the main thread.
 >
-> **Model profile:** [Use: Capable] — judgment-heavy visual/UX synthesis across screenshots, matching lens 3h's profile in `skills/review/SKILL.md`. Resolve via `node bin/resolve-profile.js capable` (contract § Model Selection).
+> **Model profile:** [Use: Capable] — judgment-heavy visual/UX synthesis across screenshots, matching lens 3h's profile in `skills/review/SKILL.md`. Resolve via `node plugin/bin/resolve-profile.js capable` (contract § Model Selection).
 >
 > **Output template (inline this into the Task() prompt verbatim):**
 >

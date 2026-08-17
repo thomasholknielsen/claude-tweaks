@@ -64,7 +64,7 @@ Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Fast] (resolved as stated in the Model profile line below).
 >
-> **Model profile:** [Use: Fast] — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, `bin/residue.js` + local branches, issue-claim blobs + comments, gh PR/issue queries, recent git history). No cross-cutting analysis at the per-scan level; Step 5 does the synthesis sequentially in the main thread after the parallel batch (including Step 5.5) completes. Resolve via `node bin/resolve-profile.js fast` (contract § Model Selection).
+> **Model profile:** [Use: Fast] — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, `bin/residue.js` + local branches, issue-claim blobs + comments, gh PR/issue queries, recent git history). No cross-cutting analysis at the per-scan level; Step 5 does the synthesis sequentially in the main thread after the parallel batch (including Step 5.5) completes. Resolve via `node plugin/bin/resolve-profile.js fast` (contract § Model Selection).
 >
 > **Output template (each agent must follow exactly):**
 >
