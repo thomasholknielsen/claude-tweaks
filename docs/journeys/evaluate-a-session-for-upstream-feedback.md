@@ -46,7 +46,7 @@ files:
 ## Origin
 - Created during build of #509 (bare `/claude-tweaks:feedback` evaluates the session against the maintainer-objective rubric via a dispatched transcript judge)
 - Steps 1-4 built in this session
-- Updated during build of #679 (`bin/lib/feedback/watermark.js` — evaluation watermark read/write) — Step 1 now documents the default incremental-since-watermark behavior and the `--full` override.
+- Updated during build of #679 (`plugin/bin/lib/feedback/watermark.js` — evaluation watermark read/write) — Step 1 now documents the default incremental-since-watermark behavior and the `--full` override.
 - Updated while addressing #785 — terminal judge failure now degrades to self-assessment instead of dropping the evaluation (Step 4), and findings carry a one-line cost (Steps 2-3).
 - Related journeys: `file-upstream-feedback-in-batch` (the batch confirmation contract this flow shares)
 - Related specs: #679

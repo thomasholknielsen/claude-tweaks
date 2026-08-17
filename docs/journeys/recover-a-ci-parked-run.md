@@ -20,7 +20,7 @@ files:
 - **URL:** the work-record issue (`gh issue view {n}`) and its linked PR (`gh pr view {pr}`)
 - **Action:** Read the gate's comment and the label set: `bot:blocked` present, `auto:*` grants still present.
 - **Should feel:** Informative, not alarming — a CI outcome, not a broken build.
-- **Should understand:** Grants intact + `bot:blocked` = parked by `skills/_shared/pr-first-merge.md`'s Step 2.5 red path, never by the retry ceiling (which removes `auto:*`). No Settle classification ran, no retry was counted, no attempt comment was posted — this run did not "fail". `/claude-tweaks:backlog refine`'s re-triage row says the same: re-triage means checking the PR's checks, not re-authorizing a build.
+- **Should understand:** Grants intact + `bot:blocked` = parked by `plugin/skills/_shared/pr-first-merge.md`'s Step 2.5 red path, never by the retry ceiling (which removes `auto:*`). No Settle classification ran, no retry was counted, no attempt comment was posted — this run did not "fail". `/claude-tweaks:backlog refine`'s re-triage row says the same: re-triage means checking the PR's checks, not re-authorizing a build.
 - **Red flags:** `auto:*` gone alongside `bot:blocked` (that is the retry ceiling — a different recovery); a park comment naming no check and no reason.
 
 ### 2. Fix or re-run the check — GitHub / the branch

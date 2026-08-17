@@ -23,7 +23,7 @@ files:
    - **Check:** The rendered table is byte-identical in shape to the one `/claude-tweaks:backlog overview` Step 1.5 renders for the same project — never a third, independently-coded rendering of trust classes.
 
 3. **Weekly counters — posture first** — Before deriving any counter, the skill determines the fleet's posture.
-   - **Action:** Computes `fleetPosture` (`bin/lib/issues/fleet-counters.js`) from whether `{REPO_SLUG}-backlog-grant-weekdays.yml` is fleet-marked present, plus `autonomy` / `grant-origination-enabled` read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled`.
+   - **Action:** Computes `fleetPosture` (`plugin/bin/lib/issues/fleet-counters.js`) from whether `{REPO_SLUG}-backlog-grant-weekdays.yml` is fleet-marked present, plus `autonomy` / `grant-origination-enabled` read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled`.
    - **Check:** A supervised project (no grant unit provisioned, or the two unattended keys unset) renders no numeric grant counters and states literally: "supervised fleet — no grant unit provisioned (or unattended keys unset); grant counters not applicable." An unattended project with the grant unit provisioned instead shows a numeric `Grants issued` row split machine/human.
 
 4. **Read the counters honestly** — The skill derives and renders the five weekly counters.
