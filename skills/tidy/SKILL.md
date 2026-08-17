@@ -224,12 +224,12 @@ This resolves the account- and project-specific values a portable template can't
 
 ## Next Actions
 
-Derive the lines from the report's **Approve ({N})** and **Yours ({N})** sections: when **Approve ({N})** is non-empty, put an "Approve ({N})" line first, bolded, suffixed `(recommended)` — not a slash command; it instructs executing Step 7 over the {N} staged items in the report's Approve ({N}) section, resolved directly in this session. Then take Yours items, in report order, one line each — the annotation names the item's action (≤5 words), the line itself carrying the item's own paste-ready command verbatim (fully-qualified `/claude-tweaks:{skill}` form): up to three when the Approve line is absent, capped at two when it is present, keeping the handoff to at most four lines. The first Yours line is bolded and suffixed `(recommended)` only when the Approve line is absent. The final line is always the help dashboard. When both **Approve** and **Yours** are empty, render the fixed block below unchanged.
+Derive the lines from the report's **Approve ({N})** and **Yours ({N})** sections: when **Approve ({N})** is non-empty, put an "Approve ({N})" line first, bolded, suffixed `(recommended)` — not a slash command; it instructs executing Step 7 over the {N} staged items in the report's Approve ({N}) section, resolved directly in this session. Then take Yours **groups** (`step-6-auto.md`'s Yours grouping), in report order, one line each — the annotation names the group's command (≤5 words), the line itself carrying the group's batch command verbatim, or a paste-block group's first line verbatim, or its ref-less line (the report holds the rest; fully-qualified `/claude-tweaks:{skill}` form): up to three when the Approve line is absent, capped at two when it is present, keeping the handoff to at most four lines. The first Yours line is bolded and suffixed `(recommended)` only when the Approve line is absent. The final line is always the help dashboard. When both **Approve** and **Yours** are empty, render the fixed block below unchanged.
 
 Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
 **Execute Step 7 over the {N} staged items in the report's Approve ({N}) section** (recommended) — not a slash command; resolve directly in this session — render only when Approve ({N}) is non-empty
-`{Yours item's own paste-ready command}` — {item's action, ≤5 words} — bold this line and suffix `(recommended)` only when the Approve line above is absent, and only on the first Yours line
+`{Yours group's batch command, first paste line, or ref-less line}` — {group's command, ≤5 words} — bold this line and suffix `(recommended)` only when the Approve line above is absent, and only on the first Yours line
 `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup
 
 Empty fallback — Approve and Yours both empty (the fixed block, unchanged from before this derivation rule existed):

@@ -24,7 +24,7 @@ node -e "
 "
 ```
 
-If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to fetching it fresh: `gh issue list --state all --json number,title,labels,body,state --limit 500 > /tmp/specify-all-issues.json` (same `--limit 500` as Step 1's fetch — see its rationale there).
+If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to reading through the session-scoped record snapshot the same way Step 1 does — `{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md), with {tmp-records-file} = /tmp/specify-all-issues.json}`. A resumed session usually still has its own snapshot fresh at `/tmp/ct-records-{session-id}.json` (same session id, same TTL window), so this fallback is typically a cache hit, not a fresh `gh` round-trip.
 
 `work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker). `queryRecords('specs', {})` alone excludes closed records by default (its `filtersOnClosed` check treats an empty filter object as "open, as today," per `local-store.js`'s own header comment on the function) — this map needs both open and closed, mirroring the github driver's `--state all` fetch above: a fingerprint match against an already-closed local record still means "already exists" and must not be recreated on a resumed decomposition. Merge a default (open) query with an explicit `{ closed: true }` query — the same two-call idiom `tests/bin-lib/issues/local-store.test.js` demonstrates:
 
@@ -134,7 +134,7 @@ parent record once its sub-issues are accepted.
 
 **Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this sub-issue's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/size-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$SUB_ISSUE_CEREMONY` below.
 
-**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `framing:baked` on the sub-issue and fold the RATIONALE's named assumptions into that sub-issue's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Sub-issues have no `## Original request` block, so the composed body is the whole input here.
+**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `solution:unjustified` on the sub-issue and fold the RATIONALE's named assumptions into that sub-issue's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Sub-issues have no `## Original request` block, so the composed body is the whole input here.
 
 **Slug derivation** — `$UNIT_SLUG` is `deriveSlug(title, existingSlugs)` (`bin/lib/issues/local-store.js`) — the same deterministic algorithm `/claude-tweaks:capture` and `/claude-tweaks:demo` use for their own record creation, not a hand-derived slugification. Seed `existingSlugs` with the literal string `'parent'` (a sub-issue slug must never collide with the parent's reserved fingerprint suffix — see above) plus, under `work-backend: local-files`, the current `specs/` directory listing (same scan `/claude-tweaks:capture`'s local-files branch uses — since each sub-issue's `createRecord` call below writes its file before the next one runs, this rescan also naturally dedupes against slugs already assigned earlier in this same decomposition loop):
 
@@ -167,9 +167,9 @@ node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-sub-iss
 
 `recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-sub-issue-body.md` above already carries it, so both drivers below write the same fingerprinted text.
 
-Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` pair in use, plus `framing:baked` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
+Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` pair in use, plus `solution:unjustified` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
-**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `framing` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `size:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `framing:baked` is added separately, below the create blocks, once the Framing verdict is known:
+**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `solutionUnjustified` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `size:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `solution:unjustified` is added separately, below the create blocks, once the Framing verdict is known:
 
 ```bash
 # work-types: native
@@ -185,7 +185,7 @@ SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file /tmp/spec
 SUB_ISSUE_NUM=$(basename "$SUB_ISSUE_URL")
 ```
 
-When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label "framing:baked"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most sub-issues are `open`.
+When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label "solution:unjustified"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most sub-issues are `open`.
 
 **`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-sub-issue-body.md` already carries the fingerprint marker, so the local write preserves it:
 
@@ -201,13 +201,23 @@ SUB_ISSUE_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_R
   console.log(record.id)" "$UNIT_SLUG" "$SUB_ISSUE_TITLE" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY")
 ```
 
-Add a `facets.framing: true` key to the object above only when this sub-issue's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.framing` is genuinely absent on the common `open` case.
+Add a `facets.solutionUnjustified: true` key to the object above only when this sub-issue's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.solutionUnjustified` is genuinely absent on the common `open` case.
 
 Capture `$SUB_ISSUE_NUM` / `$SUB_ISSUE_ID` for every sub-issue (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
 
 **Write-path resilience.** A `gh` create failure for one sub-issue (the parent already exists on GitHub) falls back to `local-store.js` for that sub-issue only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed sub-issue. `/tidy`'s Sync finding reconciles the local sub-issue onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
 
 **Body size ceiling.** A sub-issue body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized sub-issue.
+
+**Snapshot invalidation.** Once every `gh issue create` call in this step's batch (parent and
+every sub-issue) has run, invalidate the session-scoped record snapshot once — this step's own
+Idempotency map stays correct in-memory for the rest of the batch without it, so there is no need
+to invalidate after each individual create, only after the whole batch, before Step 4 or any later
+consumer reads the queue again:
+
+```bash
+node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+```
 
 ### Rules
 
