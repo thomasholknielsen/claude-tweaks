@@ -125,4 +125,9 @@ test('challenge SKILL.md Input section names all three input forms', () => {
   assert.ok(/--lens=/.test(input), 'Input section must name --lens');
 });
 
+test('challenge SKILL.md keeps the bare-#N mode section', () => {
+  const body = read('challenge');
+  assert.ok(/^## Mode: bare `#N` \(evidence-or-accept-risk\)$/m.test(body), 'the bare-#N mode section must exist');
+});
+
 module.exports = { CANONICAL_DIRECTIVE, skillNames, read, SKILLS_DIR, LINEAR_DIAGRAM_SKILLS };
