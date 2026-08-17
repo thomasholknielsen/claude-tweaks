@@ -19,16 +19,16 @@ Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — 
 One cheap list for the dashboard's Acceptance Queue section — deliberately `--state all`, unlike
 every other count in this file, since `demo:pending` persists independent of open/closed state
 (an `auto:merge`'d record's issue can already be closed while still awaiting sign-off). `/demo`
-no longer sweeps this backlog itself (it resolves one item per invocation), so this is the sole
-place the outstanding set is enumerated.
+no longer sweeps this backlog itself (it resolves only the items you name — a bare ref or an
+explicit `#N,#M` list, never a scan), so this is the sole place the outstanding set is enumerated.
 
 ```bash
 gh issue list --label demo:pending --state all --json number,title --limit 200
 ```
 
 Render as one line listing every matching record: `Awaiting sign-off: **{N} records** — #{n1}
-({title1}), #{n2} ({title2}), ... — run /demo #N on any of these` — omit entirely when the count
-is 0.
+({title1}), #{n2} ({title2}), ... — run /demo #{n1},#{n2},... to review them all` (a single ref
+when `{N}` is 1: `run /demo #{n1}`) — omit entirely when the count is 0.
 
 ## Scope: `acceptance-gap` (consumed by /tidy Step 4.8)
 
