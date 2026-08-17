@@ -168,10 +168,12 @@ test('the three local-merge fallback sections route the post-merge release-statu
 
 test('/flow closing reports carry the release-status line verbatim (#678)', () => {
   const summary = read('skills', 'flow', 'summary-template.md');
-  const multi = read('skills', 'flow', 'multi-spec.md');
+  // The multi-spec closing template moved to multispec-summary.md in #724's
+  // 20KB extraction — the release-status line travels with it.
+  const multi = read('skills', 'flow', 'multispec-summary.md');
   const comments = read('skills', '_shared', 'pr-run-comments.md');
   assert.match(summary, /\*\*Release status:\*\* \{/, 'single-spec summary renders the release-status line');
-  assert.match(multi, /\*\*Release status:\*\* \{/, 'multi-spec summary renders the release-status line');
+  assert.match(multi, /\*\*Release status:\*\* \{/, 'multi-spec summary template renders the release-status line');
   assert.match(summary, /not yet in a release — bump pending/, 'the human form is quoted verbatim');
   assert.match(comments, /`release-status`/, 'pr-run-comments.md lists the release-status comment kind');
 });

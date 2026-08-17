@@ -23,7 +23,13 @@ function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
-  fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1'), { recursive: true });
+  const run = path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  // #721: an unadopted mint (neither run-state.json nor decisions.md) is
+  // invisible to resolveRun's fallback — touch decisions.md so this fixture's
+  // pre-record-worktree run dir stays reachable, matching a real flow-initialized
+  // run at this stage (config.yml/decisions.md exist, run-state.json doesn't yet).
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   return dir;
 }
 
@@ -397,6 +403,9 @@ function policyRepoWithRun() {
   fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
+  // #721: touch decisions.md so this run dir is adopted and reachable by
+  // resolveRun's fallback (see tmpProject() above for the full rationale).
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   return { project, run };
 }
 
@@ -512,4 +521,33 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
     assert.match(result.stdout, /usage: record-pr/);
     assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
   }
+});
+
+test('check-resume-freshness: reports OK when the run is not interrupted', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active', sessionId: 'other' }));
+  const result = runHook(['check-resume-freshness', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'me' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /freshness OK for 2026-08-01T000000-record-1 \(not-interrupted\)/);
+});
+
+test('check-resume-freshness: reports BLOCKED with a reason when the run is interrupted and the recorded worktree has a fresh commit', () => {
+  const project = tmpProject();
+  const wt = gitRepo();
+  execFileSync('git', ['-C', wt, 'commit', '--allow-empty', '-m', 'recent', '-q']);
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-2');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'interrupted', sessionId: 'other', worktree: wt }));
+  const result = runHook(['check-resume-freshness', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'me' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /freshness BLOCKED for 2026-08-01T000000-record-2 — run appears actively owned \(worktree committed to within the last \d+ minutes\)/);
+});
+
+test('check-resume-freshness: no resolvable --run path reports the not-found line', () => {
+  const project = tmpProject();
+  const result = runHook(['check-resume-freshness', '--run', path.join(project, 'nope')], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path not found/);
 });

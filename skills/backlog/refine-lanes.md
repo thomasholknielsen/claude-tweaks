@@ -239,7 +239,7 @@ interactive launcher, fully qualified:
 
 - `needs:definition` → `/claude-tweaks:specify #{n}`, with a `#`-comment naming the label and
   waiting-age.
-- `solution:unjustified` confirmation → `/claude-tweaks:challenge --lens=1 #{n}` (the human-invoked form `/challenge` accepts; its own Next Actions route to `/claude-tweaks:specify #{n}`, which re-runs `framing-check` and clears the label on an `open` verdict), with a `#`-comment naming the
+- `solution:unjustified` confirmation → `/claude-tweaks:challenge #{n}` (the evidence-or-accept-risk mode: per-assumption evidence findings, then supply-evidence / accept-risk / leave — either resolving choice clears the label), with a `#`-comment naming the
   one-line evidence call pending.
 - Judgment-required dependency repair → `/claude-tweaks:backlog refine #{n}`, with a `#`-comment
   naming why the repair can't apply mechanically.
