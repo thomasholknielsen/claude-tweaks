@@ -1,13 +1,28 @@
-# Specify — Shaping Mode (single record)
+# Specify — Shaping Mode (one or more records)
 
-Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference)
-or case 5 (a backlog reference with no matching design doc). The record already exists and IS the
-target — there is nothing to decompose, and none of decomposition mode's Steps 1-9
-(`decomposition-mode.md` in this skill's directory) ever run here.
+Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference,
+or a comma-joined batch of them — `SKILL.md`'s `## Input`, "Comma-list batch form") or case 5 (a
+backlog reference with no matching design doc). Each record already exists and IS the target —
+there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`decomposition-mode.md`
+in this skill's directory) ever run here.
+
+**Batch = the same procedure, once per record.** A comma-list invocation has already resolved every
+element (case 1's batch branch) before this file loads. Sniff every record's surface first (Step
+2.5a needs only the fetched content) and resolve the one batched design-intent question (Metadata
+block below), then run every section below independently for each record, in the order given: its
+own five sections + `## Original request`, its own metadata block, its own
+scoring/ceremony/framing/type stamps, its own compose-then-write-once call. Two things differ from a
+single-record run and are stated where they apply below: interactive decisions raised per record
+collapse into one batch table + one `AskUserQuestion` (Metadata block), and the Actions Performed
+table renders one row per record. A failure shaping record *k* does not roll back records 1..k-1 —
+each write already landed via the API (or on disk); report the failure on that record's own row and
+keep shaping the rest.
 
 This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
-block — except under `--chained`, which returns to the caller instead. Kept out of `SKILL.md` because shaping is now the primary path (`#N` record references are
-the primary input) and it has no use for decomposition mode's much larger body.
+block — except under `--chained`, which returns to the caller instead (a comma list never runs under
+`--chained` — `SKILL.md`'s `## Input` drops the flag with a notice first, so a batch always reaches
+`## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
+references are the primary input) and it has no use for decomposition mode's much larger body.
 
 ---
 
@@ -37,7 +52,7 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 
 ### Metadata block
 
-Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). On a comma-list batch, run the sniff per record but ask the design-intent question **once** for all frontend records together: render one batch table (record, sniffed surface, recommended intent pre-filled) followed by a single `AskUserQuestion` for apply-all/override, per the Interaction style directive — never one call per record; backend/infra records in the same batch appear in the table with `Design-intent: —` and are not asked. On a batch, both the sniff and that single question already ran once, upfront, per this file's opening paragraph — reaching this section for a given record in the per-record loop below only writes that record's already-resolved values into its own composed body; nothing here fires a second time. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
 Surface: web
@@ -59,7 +74,7 @@ Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets`
 - **`risk:*` absent** — judge low/medium/high from the now-shaped Deliverables and Acceptance Criteria (blast radius, reversibility), per `_shared/work-record.md`'s Scoring axis, then stamp it.
 - **`size:*` absent** — judge low/medium/high the same way (estimated size), then stamp it.
 - **`ceremony:*` absent** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`) against the now-shaped body — the same input a fresh fetch would use, but already in memory here. Stamp the verdict as an explicit label, `ceremony:fast-lane` or `ceremony:standard` — never omit it, unlike `risk:*`/`size:*`'s omit-when-unscored convention (this axis has no unscored state; every record gets a verdict the first time it's shaped). Bootstrap both label values per `_shared/label-bootstrap.md` before the first write, same as any new label pair.
-- **Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against the now-shaped body **and** the `## Original request` block preserved above. On `FRAMING: solution-baked`, stamp the `framing:baked` label and fold the RATIONALE's named assumptions into the body's `## Gotchas` section as bullets, each carrying its validation status. On `FRAMING: open`, stamp nothing and add nothing — absence is the clean state. If the record already carries `framing:baked` from an earlier shaping pass (a parked-then-re-promoted record whose framing has since been resolved), **remove** it — the same promotion-time cleanup shaping mode already applies to `parked`, below. Never stamp `framing:baked` on an `open` verdict, and there is no `framing:open` counterpart to fall back to. Bootstrap `framing:baked` per `_shared/label-bootstrap.md` before the first write. Both the Gotchas bullets and the label add/remove ride the single compose-then-write-once pass below — never a second edit.
+- **Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against the now-shaped body **and** the `## Original request` block preserved above. On `FRAMING: solution-baked`, stamp the `solution:unjustified` label and fold the RATIONALE's named assumptions into the body's `## Gotchas` section as bullets, each carrying its validation status. On `FRAMING: open`, stamp nothing and add nothing — absence is the clean state. If the record already carries `solution:unjustified` (or its pre-rename spelling `framing:baked`) from an earlier shaping pass (a parked-then-re-promoted record whose framing has since been resolved), **remove** it — the same promotion-time cleanup shaping mode already applies to `parked`, below. Never stamp `solution:unjustified` on an `open` verdict, and there is no `solution:justified` counterpart to fall back to. Bootstrap `solution:unjustified` per `_shared/label-bootstrap.md` before the first write. Both the Gotchas bullets and the label add/remove ride the single compose-then-write-once pass below — never a second edit.
 - **Type absent** — judge `bug | feature | task` from the now-shaped content (defect vs. new capability vs. maintenance/refactor/docs/chore), per `_shared/work-record.md`'s Type axis, then stamp it: `work-backend: github-issues` — `work-types: native` applies the native Issue Type (`--type {t}` on the edit call below); `work-types: labels` adds the matching label instead (`--add-label "type:{t}"`, pair lives in `record.js`'s `TYPE_LABELS` — bootstrap it first per `_shared/label-bootstrap.md`, as decomposition mode does). `work-backend: local-files` — set `facets.type` in the `writeRecord` call below.
 - **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.
 - **`ready`** — add it (idempotent when already present, e.g. a born-ready record).
@@ -107,9 +122,9 @@ gh issue edit {n} \
   --remove-label parked
 ```
 
-Omit `--add-label "risk:{tier}"` / `--add-label "size:{tier}"` / `--add-label "ceremony:{tier}"` for whichever family was already stamped; omit `--type {t}` (or the `--add-label "type:{t}"` swap) when Type was already present; omit `--remove-label parked` when the record never carried it. `--add-label "framing:baked"` follows a different rule from the three above: it is never about a family already being stamped, and it does not appear in the call by default — add it only when the Framing verdict (above) was `solution-baked`; on `open` add nothing. The label is presence-only and absence IS the clean state — most records are `open`, so absence is the common case, not the exception; there is no `framing:open` counterpart to fall back to. The reverse case needs its own flag: when the verdict is `open` **and** the record already carries `framing:baked` from an earlier pass, add `--remove-label "framing:baked"` to the same call — the identical cleanup-on-promotion idiom as `--remove-label parked`, omitted when the record never carried the label.
+Omit `--add-label "risk:{tier}"` / `--add-label "size:{tier}"` / `--add-label "ceremony:{tier}"` for whichever family was already stamped; omit `--type {t}` (or the `--add-label "type:{t}"` swap) when Type was already present; omit `--remove-label parked` when the record never carried it. `--add-label "solution:unjustified"` follows a different rule from the three above: it is never about a family already being stamped, and it does not appear in the call by default — add it only when the Framing verdict (above) was `solution-baked`; on `open` add nothing. The label is presence-only and absence IS the clean state — most records are `open`, so absence is the common case, not the exception; there is no `solution:justified` counterpart to fall back to. The reverse case needs its own flag: when the verdict is `open` **and** the record already carries `solution:unjustified` from an earlier pass, add `--remove-label "solution:unjustified"` (and `--remove-label "framing:baked"` when the pre-rename spelling is what the record carries) to the same call — the identical cleanup-on-promotion idiom as `--remove-label parked`, omitted when the record never carried the label.
 
-**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.size`/`facets.ceremony`/`facets.type` when they were `null` (`facets.ceremony` always gets a value the first time a record is shaped — no null/unscored state for this axis, unlike `risk`/`size`) and `facets.framing` (unlike `facets.ceremony`, this one is written ONLY on a `solution-baked` verdict — left absent, not null-then-filled, whenever the verdict was `open`). When the verdict is `open` and the record's existing `facets` already carry `framing: true` from an earlier pass, clear it — set `facets.framing` to `false` in the same `writeRecord` call rather than leaving a stale `true` on a record that has since re-shaped clean:
+**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.size`/`facets.ceremony`/`facets.type` when they were `null` (`facets.ceremony` always gets a value the first time a record is shaped — no null/unscored state for this axis, unlike `risk`/`size`) and `facets.solutionUnjustified` (unlike `facets.ceremony`, this one is written ONLY on a `solution-baked` verdict — left absent, not null-then-filled, whenever the verdict was `open`). When the verdict is `open` and the record's existing `facets` already carry `solutionUnjustified: true` from an earlier pass, clear it — set `facets.solutionUnjustified` to `false` in the same `writeRecord` call rather than leaving a stale `true` on a record that has since re-shaped clean:
 
 ```bash
 node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
@@ -117,7 +132,7 @@ node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/is
 " "$RECORD_PATH" "$TITLE" "$SHAPED_BODY" "$FACETS_JSON"
 ```
 
-then commit — a local record is a tracked file, unlike a GitHub issue edit:
+then commit — a local record is a tracked file, unlike a GitHub issue edit. On a comma-list batch, commit **once per record**, immediately after that record's `writeRecord` — never leave some records written and uncommitted while the next one is being shaped:
 
 ```bash
 git add "$RECORD_PATH"
@@ -128,10 +143,14 @@ Nothing to commit on the `github-issues` driver — the edit above already lande
 
 ### Actions Performed
 
+One row per record — a single-record run renders one row, a comma-list batch renders one row per shaped record (a record whose write failed renders its row with the failure in the Detail cell instead of the stamps):
+
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Operational | Shaped record {ref} into spec shape — stamped `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` and Type where each was absent, added `ready`, removed `parked` if present | `{hash}` (local-files) / `—` (github-issues — edit already landed via API, no commit) |
 
-Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block (the "Shaping mode — one record shaped in place" row of its Situation table). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
+For a comma-list batch, render one row per shaped element, in list order, and prefix each Detail with its outcome: `shaped` (this run edited the record — the row above) or `already shaped, no-op` (every section present and non-empty and every label family already stamped — nothing written, nothing to undo). There is no `skipped` outcome here — the batch branch's stop-all failure semantics (`SKILL.md`'s `## Input`, Comma-list batch form) mean an unresolvable element never reaches shaping mode at all; every row this table renders is an element that was actually shaped. The Ref column follows the same per-driver rule on every row.
+
+Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single record, the "Shaping mode — multiple records shaped in place" row for a comma-list batch (its recommended command lists every successfully shaped record, in the order given). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
 
 `/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.

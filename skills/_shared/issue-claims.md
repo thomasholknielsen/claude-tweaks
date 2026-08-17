@@ -13,6 +13,12 @@ record contract defines what the labels mean.
 
 ## The lock
 
+**`bin/claims.js claim|release <n,n,...> --run-id <id>`** (`bin/lib/issues/claim-engine.js`) is
+the gh-CLI-transport implementation of every read-classify-write step below, plus the group-claim-
+all-or-abort semantics `flow/claim-targets.md`'s Step 2.8 needs — the command every `gh`-present
+consumer of this section runs instead of hand-scripting the loop per pipeline run. The MCP
+transport (`gh` absent) still runs the algorithm as written below, over the MCP tools.
+
 **One keyspace, one classifier, both transports.** `claims/issue-<number>.json`, a blob on the
 `claims-registry` branch, is the *only* lock — checked and written identically whether this run
 has `gh` on PATH or is going through the MCP bridge. `bin/lib/issues/claims.js`'s

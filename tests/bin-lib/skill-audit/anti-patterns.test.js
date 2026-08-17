@@ -500,5 +500,25 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   #528). Neither side's 369 covers the other's rows, so the value below
   //   was re-derived by RUNNING the parser on the merged tree — the same
   //   [IL-99] rule the 365 entry above records.
-  assert.strictEqual(total, 373);
+  //
+  //   373 -> 376, bare-`#N` evidence-or-accept-risk mode (#726) merged with
+  //   origin/main (#745 worktree-flow-spec-716). Own-branch side: three rows
+  //   ADDED to skills/challenge/SKILL.md's Anti-Patterns table guarding the
+  //   new bare-`#N` mode ("Dispatching the bare-`#N` evidence search to
+  //   subagents", "Escalating the evidence search past its stated caps 'to be
+  //   thorough'", "Treating `solution:unjustified` as a gate in the bare-`#N`
+  //   mode"). Verified: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^[-+]\|'` returns exactly these three `+` lines, all inside
+  //   challenge/SKILL.md's `## Anti-Patterns` section (line 121) — no other
+  //   file in that diff has a nonzero delta. origin/main side: net zero —
+  //   `git diff cd4261dd...origin/main -- 'skills/*/SKILL.md' | grep -E
+  //   '^[-+]\|'` returns one line reworded in place inside demo/SKILL.md's
+  //   Anti-Patterns table (no row count change) plus one row added to
+  //   specify/SKILL.md's `## Next Actions` table (line 109, before the `##
+  //   Anti-Patterns` heading at line 123) — out of this parser's scope, same
+  //   precedent as routine-kickoff's #528 entry above. Measured by RUNNING
+  //   the parser on the merged working tree (actual 376), not by adding 3 to
+  //   373 — the arithmetic agreeing here is a check, not the evidence
+  //   (`[IL-99]`).
+  assert.strictEqual(total, 376);
 });

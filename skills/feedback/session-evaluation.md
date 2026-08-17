@@ -29,6 +29,10 @@ dispatched during this session wrote its own separate transcript file, which is 
 — a named coverage gap, so a reader of the judge's output does not infer that dispatched-agent
 work was evaluated.
 
+**Watermark key:** the path resolved above is also the lookup key for
+`bin/lib/feedback/watermark.js`'s watermark — key on path, not session id, since a worktree switch
+changes the transcript directory slug mid-session.
+
 ## The judge dispatch
 
 Exactly one Task agent per invocation.
@@ -59,6 +63,16 @@ a second failure degrades to the self-assessment path below rather than dispatch
      text.
    - An objective the available slicing genuinely cannot reach renders `NOT EVALUATED — {reason}`,
      not a guess.
+5. **Conditional — the watermark offset clause.** When `bin/lib/feedback/watermark.js`'s
+   `readWatermark` returns non-null for the resolved transcript path, append
+   `formatOffsetClause(...)`'s literal output as this 5th item, verbatim:
+
+   ```
+   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist: {filedRecords joined by ", ", or "none" if empty}; omit findings they cover.
+   ```
+
+   When no watermark exists (first invocation) or `--full` was passed, item 5 is omitted
+   entirely — no offset clause, no empty placeholder.
 
 **Output template (fenced below, inlined into the dispatch prompt verbatim — one block per rubric
 objective, in rubric order):**
@@ -97,6 +111,9 @@ The `(self-assessment)` tag is the full mitigation, deliberately. No separate co
 machinery, no lowered evidentiary bar: every finding this mode produces still passes through
 `/feedback`'s human-gated Step 7 confirm exactly like a transcript-judged finding does.
 
+The self-assessment path never reads or writes a watermark — there is no resolved transcript path
+to key one on.
+
 ## After the judge returns
 
 Hand each returned finding to `skills/feedback/SKILL.md`'s existing per-finding routing —
@@ -109,3 +126,26 @@ is re-prompted once on format, per `_shared/subagent-output-contract.md`. A term
 (the retry also fails, or the re-dispatch above was already spent) reports the evaluation as
 failed in the run summary; the run proceeds on the queue gather alone, per `skills/feedback/SKILL.md`'s
 failure-isolation rule.
+
+**Watermark write.** On a `DONE` or `DONE_WITH_CONCERNS` return from the judge (not
+`NEEDS_CONTEXT`/`BLOCKED`, and not the self-assessment degradation path above), call
+`writeWatermark` with:
+
+```
+{
+  transcriptPath,
+  bytesAtDispatch,        // captured BEFORE dispatch — the judge's own tool calls append
+                           // to the transcript while it runs, so re-stat-ing after return
+                           // would race
+  evaluatedAt,             // now
+  filedRecords,            // the record numbers this run actually filed, from Step 8
+  dismissedFingerprints,   // fingerprints of findings the human declined at Step 7, if
+                           // tracked; nothing in this skill currently tracks declined-
+                           // finding fingerprints, so this is an empty array today, not
+                           // an invented data source
+}
+```
+
+On a write failure: degrade open — the evaluation result itself is unaffected, report the write
+failure in Step 0's output as a one-line note, and never abort or retry the evaluation because the
+watermark write failed.

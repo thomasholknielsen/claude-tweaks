@@ -68,7 +68,7 @@ For each completed branch (in order):
 
    Otherwise a plain `git merge {branch}` is fine. The issues close when the user pushes the
    base branch to the default remote branch.
-2. **If merge succeeds** — continue to the next branch
+2. **If merge succeeds** — record the merge commit (`git rev-parse {integration-branch}`) and continue to the next branch. Once every branch is merged and the base branch has been pushed (the separate push the paragraph above describes), run `_shared/pr-first-merge.md` Step 4.1 against each recorded merge commit with `--ref {integration-branch}` — same outcomes and staged file, closing-report line only (no PR to comment on).
 3. **If merge conflicts** — present the conflicts:
    ```
    Merge conflict merging {branch}:
@@ -108,5 +108,5 @@ For each completed branch (in order):
 
 Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-`/claude-tweaks:flow {spec} worktree {remaining steps}` — re-run for any failed specs
+**`/claude-tweaks:flow {spec} worktree {remaining steps}`** — re-run for any failed specs (recommended)
 `/claude-tweaks:help` — full pipeline status

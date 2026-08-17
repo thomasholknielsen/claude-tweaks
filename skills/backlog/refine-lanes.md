@@ -2,7 +2,7 @@
 
 Loaded by `refine-mode.md`'s Step 4 at render time — this file is the full rendering procedure the
 stub there points to. Holds the one-lane-per-record precedence rule, the six lane table/paste-block
-templates, the consequence-line trust and `framing:baked` annotation templates, the count-summary
+templates, the consequence-line trust and `solution:unjustified` annotation templates, the count-summary
 line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line rule, and the
 confirm gate.
 
@@ -111,16 +111,16 @@ anyway.
 Omit trust consequence lines entirely under `work-backend: local-files`, where the grant sub-stage
 does not run.
 
-**`framing:baked` annotation.** Any lane's row whose record carries the `framing:baked` label
-(github) / `facets.framing === true` (local-files) gets one annotation line beneath it, the literal
+**`solution:unjustified` annotation.** Any lane's row whose record carries the `solution:unjustified` label
+(github — or its pre-rename spelling `framing:baked`, still read) / `facets.solutionUnjustified === true` (local-files) gets one annotation line beneath it, the literal
 template:
 
 ```
-  # framing:baked — read the record's Gotchas before approving
+  # solution:unjustified — read the record's Gotchas before approving
 ```
 
 Like the trust consequence line, this is informational only — it rides along with whichever lane
-the row is in, is never gated behind its own confirm, and is never written by this skill. A `baked`
+the row is in, is never gated behind its own confirm, and is never written by this skill. An `unjustified`
 row is not a reason to withhold a grant; it is a prompt to read the record's `## Gotchas` before
 approving one.
 
@@ -231,7 +231,7 @@ instead.
 ## Needs you
 
 Population, in order: records carrying `needs:definition` in this run's fetch, then
-judgment-required rows with no batchable command anywhere above — `framing:baked` confirmations,
+judgment-required rows with no batchable command anywhere above — `solution:unjustified` confirmations,
 judgment-required dependency repairs (previous lane). Exempt from paste blocks. Mirrors
 `/claude-tweaks:backlog overview`'s Needs-you lane (`skills/backlog/overview-mode.md`'s Needs you
 section) — read that for row format and ordering; not restated here. Every row carries an
@@ -239,7 +239,7 @@ interactive launcher, fully qualified:
 
 - `needs:definition` → `/claude-tweaks:specify #{n}`, with a `#`-comment naming the label and
   waiting-age.
-- `framing:baked` confirmation → `/claude-tweaks:challenge #{n}`, with a `#`-comment naming the
+- `solution:unjustified` confirmation → `/claude-tweaks:challenge #{n}` (the evidence-or-accept-risk mode: per-assumption evidence findings, then supply-evidence / accept-risk / leave — either resolving choice clears the label), with a `#`-comment naming the
   one-line evidence call pending.
 - Judgment-required dependency repair → `/claude-tweaks:backlog refine #{n}`, with a `#`-comment
   naming why the repair can't apply mechanically.

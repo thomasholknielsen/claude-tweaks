@@ -32,6 +32,8 @@ Scan `docs/superpowers/specs/*-design.md`.
 | No status, no matching specs | Run `/claude-tweaks:specify` |
 | Very old (4+ weeks), no specs | Delete |
 
+**The "Mark as specified" stamp** is one line — `Status: specified — decomposed to {record refs}` — inserted directly below the doc's title heading (`# {title}`), matching the existing convention in `docs/superpowers/specs/` (e.g. the 2026-08-07 prior-art design doc's `Status: specified — …` line). One stamp per doc; a doc that already carries a `Status:` line is not a "no status" case and never reaches this recommendation.
+
 → Collect each as: `[doc] {filename} — {recommendation}`
 
 ## Step 4: Audit Execution Plans
@@ -116,7 +118,7 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 | `{branch}` is checked out in another worktree | **`checked out in {worktree-path} — remove worktree first, then re-run`**. `-D` would refuse for the same reason `-d` did; this is not a merge-state question |
 | `-d` succeeds | Deleted — no further action |
 | `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
-| `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** (unchanged) — this is the only case that actually means unmerged work |
+| `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
 
 Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 

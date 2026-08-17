@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
+const resumeFreshness = require('./lib/hooks/resume-freshness');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -166,6 +167,30 @@ function main(argv) {
     }
     return 0;
   }
+  if (cmd === 'check-resume-freshness') {
+    // Read-only: never writes run-state.json. Skills call this immediately
+    // before any of the three resume paths' safe-to-resume ruling
+    // (skills/_shared/run-resume-freshness.md).
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — resume freshness not checked\n`);
+      return 0;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — resume freshness not checked\n');
+      return 0;
+    }
+    const result = resumeFreshness.checkResumeFreshness(runDir, {
+      sessionId: process.env.CLAUDE_CODE_SESSION_ID,
+    });
+    const runId = path.basename(runDir);
+    if (result.safe) {
+      process.stdout.write(`claude-tweaks: resume freshness OK for ${runId} (${result.verdict})\n`);
+    } else {
+      process.stdout.write(`claude-tweaks: resume freshness BLOCKED for ${runId} — run appears actively owned (${result.reason})\n`);
+    }
+    return 0;
+  }
   if (cmd === 'check-sibling-sessions') {
     // [IL-107]: before claiming a record, enumerate live worktrees and their
     // lock-owning pids, not just branches/claims/labels — those are the
@@ -204,7 +229,7 @@ function main(argv) {
     try {
       out = require('./lib/reconcile').reconcile(opts);
     } catch {
-      out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
+      out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
     process.stdout.write(JSON.stringify(out) + '\n');
     return 0;

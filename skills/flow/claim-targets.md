@@ -115,9 +115,26 @@ all-targets condition correctly doesn't fire (there is still real claiming work 
 unowned targets) and this per-target check is what prevents a redundant, spuriously-contested
 reclaim of the targets already held.
 
-For each remaining target, read-classify-write exactly as
-`_shared/issue-claims.md`'s "The lock" section describes (`gh` path shown; MCP path is the same
-read-then-classify-then-write over the MCP tools — see `_shared/github-write-transport.md`):
+For every remaining target in one call, run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/claims.js" claim "$(IFS=,; echo "${TARGETS[*]}")" --run-id "$(basename "$PIPELINE_RUN_DIR")" ${KEEP_GOING:+--keep-going}
+```
+
+`bin/claims.js claim` (`bin/lib/issues/claim-engine.js`) is the read-classify-write loop in one
+command: branch bootstrap, the read-classify-write per target described below, the bootstrap-then-add
+`bot:in-progress` label + claim-comment mirror on success, and this section's own
+group-claim-all-or-abort release-and-stop (or, with `--keep-going`, the downgrade-to-skip) — all
+mechanical, replacing the hand-scripted per-run loop this section used to describe inline. It
+prints one JSON envelope (`{claimed, contested, errored, released}`) — branch the pipeline's own
+success/contest handling on that envelope rather than re-deriving classification state by hand.
+`gh` absent falls back to the MCP path: the same read-then-classify-then-write over the MCP tools
+— see `_shared/github-write-transport.md`.
+
+The read-classify-write mechanics the CLI implements, unchanged from before it existed (kept here
+as the contract of record — `_shared/issue-claims.md`'s "The lock" section is the canonical
+description; this is not a second, independently-maintained copy of the algorithm, only of the
+call shape a manual/MCP-fallback session would need):
 
 ```bash
 gh api "repos/{owner}/{repo}/contents/claims/issue-${ISSUE}.json?ref=claims-registry" -q '.content' | base64 -d > "/tmp/flow-claim-${ISSUE}.json"
@@ -132,7 +149,8 @@ write (sha from the read), succeeds — a legitimate re-claim, not a contest. `'
 `'unreadable'` → fails closed to contested (treat as live).
 
 **On success for a target:** bootstrap-then-add `bot:in-progress` (per `_shared/label-bootstrap.md`),
-post the claim comment (`claimPayload`'s `commentBody`):
+post the claim comment (`claimPayload`'s `commentBody`) — both best-effort mirror steps `bin/claims.js`
+already performs for you:
 
 ```bash
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
