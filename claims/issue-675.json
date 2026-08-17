@@ -1,7 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-16T221740-spec-674-675",
-  "reason": "merged: spec 675",
-  "releasedAt": "2026-08-17T06:15:21.171Z",
-  "link": "644e122ef939dd295d2228501be7a61def8cb78a"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:35:13.905Z"
 }
