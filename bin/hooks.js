@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
+const specStatusLib = require('./lib/flow/manifest');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -105,6 +106,43 @@ function main(argv) {
         process.stdout.write(`claude-tweaks: PR #${number} recorded for ${path.basename(runDir)}\n`);
       } else {
         process.stdout.write(`claude-tweaks: failed to record PR for ${path.basename(runDir)} — run-state.json could not be written\n`);
+      }
+    }
+    return 0;
+  }
+  if (cmd === 'spec-status') {
+    // Couples a multi-spec manifest.yml status transition to the
+    // `## Flow: Running ...` progress banner (#690) — one call does both,
+    // so a phase transition can't happen without the banner (and vice
+    // versa). --run mirrors record-worktree/record-pr's shape: it names
+    // the multi-spec PARENT run dir (where manifest.yml lives — see
+    // multi-spec.md's "Run directory layout"), never a per-spec
+    // PIPELINE_RUN_DIR subdirectory.
+    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const flagVal = (name) => {
+      const idx = rest.indexOf(name);
+      return idx === -1 ? null : rest[idx + 1];
+    };
+    const specArg = flagVal('--spec');
+    const statusArg = flagVal('--status');
+    const phaseArg = flagVal('--phase');
+    const nowArg = flagVal('--now'); // test-only clock override; real callers omit it
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — spec status not recorded\n`);
+    } else if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — spec status not recorded\n');
+    } else if (!specArg || !statusArg || !phaseArg) {
+      process.stdout.write('claude-tweaks: usage: spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase> — spec status not recorded\n');
+    } else {
+      const result = specStatusLib.transitionSpec({
+        runDir, specId: specArg, status: statusArg, phase: phaseArg,
+        now: nowArg ? new Date(nowArg) : new Date(),
+      });
+      if (!result.ok) {
+        process.stdout.write(`claude-tweaks: spec status not recorded for spec #${specArg} (${result.reason}) — no manifest.yml at ${path.basename(runDir)}, or spec/status/phase invalid\n`);
+      } else {
+        process.stdout.write(result.banner + '\n');
+        if (result.summaryLine) process.stdout.write(result.summaryLine + '\n');
       }
     }
     return 0;
