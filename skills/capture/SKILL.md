@@ -1,7 +1,7 @@
 ---
 name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
-argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition]'
+argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition] [--batch <path>]'
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -23,11 +23,12 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpow
 
 ## Input
 
-`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>] [--needs-definition|--no-needs-definition]`:
+`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>] [--needs-definition|--no-needs-definition] [--batch <path>]`:
 
 | Argument | Behavior |
 |----------|----------|
-| Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). |
+| Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). Mutually exclusive with `--batch` — a batch invocation has no single idea text. |
+| `--batch <path>` | Multi-entry filing — see Batch Mode below. `<path>` is a JSON file listing `{title, body, type?}` entries; each files through the same per-entry pipeline a single invocation runs, in one routing/confirmation pass for the whole set. Every other flag in this table applies uniformly across the batch unless an individual entry object supplies its own same-named field, which wins for that entry only. |
 | `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
 | `--title="..."` | Override the auto-derived title. |
 | `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
@@ -45,6 +46,10 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 | 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below; a spec-shaped `$BODY` takes the Shaped-body branch (files scored + `ready`, skips the cap and the chain); under the born-ready condition, chains `/claude-tweaks:specify #{n} --chained` immediately after the record exists — see Backend Selection. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
 | 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
+
+## Batch Mode
+
+Reached only when `--batch <path>` is supplied — files multiple entries from one JSON file through the same per-entry pipeline Workflow Step 1 runs for a single invocation, with one routing/confirmation pass and one summary table for the whole set. Read `batch-mode.md` in this skill's directory for the full procedure: the entry-file shape, the per-entry loop and its fail-safe batching, over-cap entry handling, batch-level routing, and the Batch Summary template.
 
 ## Backend Selection
 
