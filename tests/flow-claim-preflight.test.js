@@ -69,3 +69,31 @@ test('mcp-transport.md no longer carries claim-write sections', () => {
   assert.doesNotMatch(content, /## Step 4 — claiming a group/);
   assert.doesNotMatch(content, /## Step 4 — `--claim-only` release/);
 });
+
+test('claim-targets.md claim read cites issue-claims.md steps 1-2 — no raw base64 -d pipe (#720)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  assert.doesNotMatch(content, /base64 -d/);
+  assert.match(content, /__ABSENT__/);
+  assert.match(content, /@base64d/);
+});
+
+test('every base64 -d claim read under skills/ cites issue-claims.md or handles empty content (#720)', () => {
+  const skillsRoot = path.join(REPO_ROOT, 'skills');
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.md')) {
+        const text = fs.readFileSync(full, 'utf8');
+        if (/ref=claims-registry/.test(text) && /base64 -d/.test(text)) {
+          const cites = /_shared\/issue-claims\.md/.test(text);
+          const absentBranch = /\|\| null/.test(text);
+          if (!cites && !absentBranch) offenders.push(path.relative(REPO_ROOT, full));
+        }
+      }
+    }
+  };
+  walk(skillsRoot);
+  assert.deepStrictEqual(offenders, []);
+});
