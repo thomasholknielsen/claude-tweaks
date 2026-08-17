@@ -8,7 +8,7 @@
 const { createFingerprint } = require('../health-core/fingerprint');
 const { requireNonEmptyStrings } = require('../health-core/finding-validation');
 
-const KINDS = Object.freeze(['worktree', 'branch', 'pr', 'suite', 'release']);
+const KINDS = Object.freeze(['worktree', 'branch', 'pr', 'suite', 'release', 'pipeline-run']);
 const REMEDIES = Object.freeze(['auto', 'record']);
 
 const { fingerprint } = createFingerprint('residue', ['kind', 'scope', 'subject']);
