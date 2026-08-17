@@ -508,3 +508,32 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
     assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
   }
 });
+
+test('check-resume-freshness: reports OK when the run is not interrupted', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active', sessionId: 'other' }));
+  const result = runHook(['check-resume-freshness', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'me' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /freshness OK for 2026-08-01T000000-record-1 \(not-interrupted\)/);
+});
+
+test('check-resume-freshness: reports BLOCKED with a reason when the run is interrupted and the recorded worktree has a fresh commit', () => {
+  const project = tmpProject();
+  const wt = gitRepo();
+  execFileSync('git', ['-C', wt, 'commit', '--allow-empty', '-m', 'recent', '-q']);
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-2');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'interrupted', sessionId: 'other', worktree: wt }));
+  const result = runHook(['check-resume-freshness', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'me' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /freshness BLOCKED for 2026-08-01T000000-record-2 — run appears actively owned \(worktree committed to within the last \d+ minutes\)/);
+});
+
+test('check-resume-freshness: no resolvable --run path reports the not-found line', () => {
+  const project = tmpProject();
+  const result = runHook(['check-resume-freshness', '--run', path.join(project, 'nope')], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path not found/);
+});

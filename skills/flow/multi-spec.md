@@ -13,7 +13,7 @@ Before starting, validate the list:
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
-3. **Pre-flight** — collect each target's set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (see "Cross-spec conflict detection" below). These feed the ordering check, Pipeline Preview, and conflict detection (Step 5). `bin/preflight-records.js <n> [<n> ...] [--work-links native|body-text] [--repo owner/name]` mechanizes this whole step — and Step 5's conflict detection — as one command: it fetches every target, derives facets/keyFiles/fingerprint, resolves `blocked-by` (body text or one batched native GraphQL call), groups records sharing key files (`groupByFileOverlap`), and prints one JSON envelope (`{records, overlapGroups, workLinks}`); exit 0 success, 1 any record fetch failed (every failing record named), 2 malformed invocation.
+3. **Pre-flight** — collect each target's set from `materialize.md`'s Resolution (facets + body, read-only): `blocked-by:` dependencies, `surface:`/`design-intent:` via the lift rule, and key files from the body's `### Key Files` subsection. These feed the ordering check, Pipeline Preview, and conflict detection (Step 5). `bin/preflight-records.js <n> [<n> ...] [--work-links native|body-text] [--repo owner/name]` mechanizes this step — and Step 5's conflict detection — in one command, printing `{records, overlapGroups, workLinks}` (exit 0 success, 1 any fetch failed with every failing record named, 2 malformed); see its `--help` for details.
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
 5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`### Key Files` in each record body).
 
@@ -81,11 +81,7 @@ If `auto` mode is set and conflicts are detected, the Manifesto still renders (a
 
 ### Anti-patterns
 
-| Anti-pattern | Why it fails |
-|---|---|
-| Treating any file overlap as a hard fail | Many specs legitimately touch the same file (e.g., adding new tests to the same test file). False positives would block real work. |
-| Suppressing the warning when conflicts are detected | Conflict footer is the user's only signal that spec interdependencies exist. Silent compounding is the bug to avoid. |
-| Auto-reordering specs to avoid conflicts | Conflicts are not the same as dependencies — re-ordering only helps if a `blocked-by:` edge actually exists. Don't conflate the two. |
+Never hard-fail on file overlap (specs legitimately share files — false positives block real work), never suppress the conflict footer (it is the user's only interdependency signal), and never auto-reorder to dodge a conflict — re-ordering only helps when a real `blocked-by:` edge exists; conflicts and dependencies are different things.
 
 ## Run directory layout
 
@@ -105,11 +101,14 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
 ├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
 └── spec-{N}/           ← Per-record subdirectory (one per record; `work/{N}-spec.md` holds the materialized file — see `materialize.md`)
+    ├── config.yml      ← Copy of the parent's, written when the parent scaffolds this subdirectory (see below)
     ├── decisions.md
     └── staged/
 ```
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
+
+**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3). Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). A mid-run in-place lever edit (the ceremony escape hatch) lands in the spec's own copy and scopes to that spec — intended.
 
 `manifest.yml` lists the records in execution order plus their status as the run progresses. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
@@ -161,7 +160,7 @@ Note on claim ownership for a dispatched bundle: each spec's own `PIPELINE_RUN_D
 When `worktree` is specified, a sequential run uses **one shared worktree for the whole run — NOT one per record.** All records build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
 
 1. **Create once, up front** — `/flow` creates a single worktree from the current local HEAD following `skills/build/worktree-setup.md` (including its Step 4 unconditional catch-up with the integration branch). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the record id, the same keying as the run directory layout above. `/flow` then `cd`s into the worktree.
-2. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. Every record — the first included — materializes as part of its own build step, writing `{parent}/spec-{N}/work/{N}-spec.md` directly into the already-existing shared worktree. This is just `materialize.md`'s worktree-first ordering applied once at the run level instead of once per record: the worktree exists before any materialization, so no record is a special case. It does NOT call `/superpowers:finishing-a-development-branch` between records.
+2. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by the env var) and **skips creation**, committing into the shared branch. Every record — the first included — materializes in its own build step, writing `{parent}/spec-{N}/work/{N}-spec.md` into the existing worktree (`materialize.md`'s worktree-first ordering applied once at run level; no record is a special case). It does NOT call `/superpowers:finishing-a-development-branch` between records.
 3. **Finish once at the end** — after the last record's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard). Re-check `main` divergence immediately before this step, not just at the Step 2.5 pre-flight (a point-in-time check at pipeline *start*) — a long-running multi-record run has a real window for `main` to move again while records 2..N build. If it has, rebase onto the new tip inside the worktree first (checking for real file overlap, not just presence in the diff — see the git-diff-merge-base gotcha in CLAUDE.md's Don'ts) so the branch stays fast-forward-mergeable, then proceed with the finish.
 
 Why shared, not per-record: sequential records in one run are one logical unit of work on one base. Per-record worktrees would each branch from that base and need N separate merges unable to see each other's commits — the divergence/stale-base problem worktrees exist to avoid. One branch accumulates the records in dependency order and merges back as a single reconciled changeset.

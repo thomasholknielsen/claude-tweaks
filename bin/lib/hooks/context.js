@@ -282,5 +282,5 @@ function appendEvent(runDir, type, data, attribution) {
 
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath,
+  readRunState, writeRunState, appendEvent, findRunByWorktreePath, RUN_ID_RE,
 };
