@@ -19,7 +19,9 @@ logs) — already in the calling agent's context from the run that just failed.
 
 ## Step 2: Judge
 
-- **Transient signatures**: `gh api` rate-limit (HTTP 429) responses, network timeouts,
+- **Transient signatures**: a `gh api` rate-limit response classified per
+  `_shared/github-rate-limit.md` as secondary/abuse or primary exhaustion (a plain 403 under
+  that file's taxonomy is NOT transient), network timeouts,
   `ECONNREFUSED`, or a test failure the calling agent can independently confirm is pre-existing and
   unrelated to this run's diff (e.g., rerunning the same test against unchanged code on the default
   branch also fails intermittently). Do not classify a test as flaky from memory of a specific test
