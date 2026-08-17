@@ -8,8 +8,22 @@ const path = require('node:path');
 
 const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'resolve-profile.js');
 
+// Every pre-#763 test predates resolve-profile.js reading
+// CLAUDE_CODE_SESSION_ID at all, so none of them isolate from it. Now that a
+// normal (non-record-failure) resolution reads the session's failure
+// blacklist, an ambient CLAUDE_CODE_SESSION_ID (this dev session has a real
+// one; per the Subagent Contract, parallel Task dispatches can share one
+// parent session id) would let a genuine sibling-recorded failure make these
+// tests nondeterministic. Strip it by default so these subprocess calls are
+// hermetic regardless of the caller's environment.
+function isolatedEnv() {
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  return env;
+}
+
 function run(args, cwd) {
-  return JSON.parse(execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' }));
+  return JSON.parse(execFileSync('node', [CLI, ...args], { cwd, env: isolatedEnv(), encoding: 'utf8' }));
 }
 
 function tmpProject(policyText) {
@@ -75,7 +89,7 @@ test('--unattended degrades frontier and appends nothing', () => {
 test('unknown profile exits non-zero naming it', () => {
   const dir = tmpProject(null);
   assert.throws(
-    () => execFileSync('node', [CLI, 'turbo'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'turbo'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => /turbo/.test(String(e.stderr)),
   );
 });
@@ -83,11 +97,11 @@ test('unknown profile exits non-zero naming it', () => {
 test('a value-taking flag at end-of-args exits 1 naming the flag', () => {
   const dir = tmpProject(null);
   assert.throws(
-    () => execFileSync('node', [CLI, 'standard', '--stance'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'standard', '--stance'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => e.status === 1 && /--stance requires a value/.test(String(e.stderr)),
   );
   assert.throws(
-    () => execFileSync('node', [CLI, 'standard', '--run-dir'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'standard', '--run-dir'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => e.status === 1 && /--run-dir requires a value/.test(String(e.stderr)),
   );
 });
@@ -97,7 +111,7 @@ test('a value-taking flag does not swallow the following flag as its value', () 
   assert.throws(
     () => execFileSync(
       'node', [CLI, 'frontier', '--stance', '--unattended', '--run-dir', '/tmp/x'],
-      { cwd: dir, encoding: 'utf8' },
+      { cwd: dir, env: isolatedEnv(), encoding: 'utf8' },
     ),
     (e) => e.status === 1 && /--stance requires a value/.test(String(e.stderr)),
   );
@@ -107,7 +121,7 @@ test('a failing tally append exits 1 naming the problem, with no stack trace', (
   const dir = tmpProject(null);
   const missing = path.join(dir, 'no', 'such', 'dir');
   assert.throws(
-    () => execFileSync('node', [CLI, 'frontier', '--run-dir', missing], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'frontier', '--run-dir', missing], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => {
       const err = String(e.stderr);
       return e.status === 1
@@ -120,7 +134,7 @@ test('a failing tally append exits 1 naming the problem, with no stack trace', (
 test('malformed policy exits non-zero naming the problem', () => {
   const dir = tmpProject('frontier-run-cap: soon\n');
   assert.throws(
-    () => execFileSync('node', [CLI, 'standard'], { cwd: dir, encoding: 'utf8' }),
+    () => execFileSync('node', [CLI, 'standard'], { cwd: dir, env: isolatedEnv(), encoding: 'utf8' }),
     (e) => /soon/.test(String(e.stderr)),
   );
 });
