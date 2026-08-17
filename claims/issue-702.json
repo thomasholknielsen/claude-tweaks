@@ -1,6 +1,7 @@
 {
   "released": true,
   "runId": "2026-08-16T232102-spec-702",
-  "reason": "issue-closed: reconciled from #702",
-  "releasedAt": "2026-08-17T07:02:09.878Z"
+  "reason": "merged: spec 702",
+  "releasedAt": "2026-08-17T07:10:06.851Z",
+  "link": "49ca0bfaf9c3b093956b4412cb4b9b2e3ea8fed9"
 }
