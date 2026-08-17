@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.89.0 — Refine funnel redesign — refineWorklist helper with priority-keyed budget (#654, absorbs #460), ceiling-gated trust fetch with --trust, Step 4 decision lanes in refine-lanes.md with consequence-line trust and the first refine journey (#655, parent #574); reference-card --chained sync; deferral gate contract (#620-#625); terminal Next Actions as paste-ready markdown (#646)
+
+Refine funnel redesign — refineWorklist helper with priority-keyed budget (#654, absorbs #460), ceiling-gated trust fetch with --trust, Step 4 decision lanes in refine-lanes.md with consequence-line trust and the first refine journey (#655, parent #574); reference-card --chained sync; deferral gate contract (#620-#625); terminal Next Actions as paste-ready markdown (#646).
+
 ## v6.88.0 — Routine fleet status/off + routine-kickoff kernel (#276, #528-530), reconcile red-tip detection (#561), --unattended reserved for headless invocations (#648), specify native sub_issues/blocked_by linking (#608, #610), backlog overview funnel + refine worklist fixes (#563, #575, #576), housekeeping-auto-merge ceiling-derived default
 
 Routine fleet status/off + routine-kickoff kernel (#276, #528-530), reconcile red-tip detection (#561), --unattended reserved for headless invocations (#648), specify native sub_issues/blocked_by linking (#608, #610), backlog overview funnel + refine worklist fixes (#563, #575, #576), housekeeping-auto-merge ceiling-derived default.
