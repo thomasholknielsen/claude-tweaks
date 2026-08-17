@@ -14,3 +14,4 @@
 | 10 | review/hindsight | Two-class sweep grep lesson for directory moves — incident-log + donts candidate — staged/reflect-3.md | deferred | Staged for Review Console (doc row) |
 | 11 | wrap-up | Memory extension: claude plugin cache keys on version, not pin; update needs qualified name@marketplace — staged/reflect-4.md | deferred | Staged for Review Console (memory update) |
 | 12 | wrap-up | Worktree guard over-match (denies out-of-repo scratch commits by command text) — record proposal staged/reflect-5.md | deferred | Staged for Review Console (queue write) |
+| 13 | ops | Residue sweep: merged remote branch origin/worktree-flow-record-715 deleted (remedy auto). origin/worktree-flow-record-764 also merged-undeleted but its worktree has a LIVE session (pid 90646) — left for that session, not touched. PR #793 open = this work, tracked by item 7. | fixed | Branch deleted; 764 deliberately skipped (live sibling); PR is the intended outcome |
