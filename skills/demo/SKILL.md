@@ -1,7 +1,7 @@
 ---
 name: demo
-description: Use for a human verdict on one built thing: this conversation's unrecorded work, or a specific `#N` record. Distinct from /test and /review. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
-argument-hint: "[#N]"
+description: Use for a human verdict on one built thing at a time: unrecorded work, a `#N` record, or a `#N,#M` list. Distinct from /test and /review. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
+argument-hint: "[#N[,#M...]]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -10,8 +10,8 @@ argument-hint: "[#N]"
 Gives one built thing a real human verdict — approve or request changes: either this
 conversation's own unrecorded work, or a specific `#N` record. Sits after wrap-up when a record
 exists; independent of it entirely for conversation-based work with no record to wait on. This
-skill resolves one item per invocation — it never discovers or lists what's outstanding across
-the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list lives:
+skill resolves one item at a time — a bare `#N`, or a `#N[,#M...]` list taken in order, never
+combined — and it never discovers or lists what's outstanding across the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list lives:
 
 ```
 /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
@@ -51,14 +51,28 @@ Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help
 `$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
 `#N` resolves that single record's Verification Brief, falling back — when no `demo:pending`
 label exists on it — first to the record's closing commit in git history, then to session-recall
-scoped to that `#N` (Step 1). Never sweeps the backlog — `/claude-tweaks:help` (Stage 4.7) is
-where the full outstanding list lives.
+scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record refs, no spaces
+(a space after a comma is tolerated and trimmed) — is an explicit human-supplied batch: each ref
+runs the `#N` path in list order,
+Step 1 → Step 2 → Step 3 to completion before the next ref begins, so a batch aborted part-way
+has already applied every verdict given so far and lost nothing.
+Per-item failure isolation: a ref that resolves to nothing — no such record, wrong repo, a
+malformed or empty token from a stray comma — is reported and skipped, and the remaining
+refs still run; the batch never aborts on one bad element. One verdict question per item —
+never a combined verdict, never cross-item merging, never a Task fan-out.
+A batch is the human's own list — never a sweep: `/demo` still never scans the backlog for what
+to include, and the no-argument session-recall path cannot be combined with refs. Never sweeps
+the backlog — `/claude-tweaks:help` (Stage 4.7) is where the full outstanding list lives.
+The Interaction style directive's multi-item batch table does not apply to a batch here — a
+verdict is the human judgment being collected, not a recommendation to confirm, so each item
+gets its own verdict question.
 
 ## Step 1: Resolve the one item
 
-`/claude-tweaks:demo` resolves one item at a time — never a sweep. `$ARGUMENTS` selects which path
+`/claude-tweaks:demo` resolves one item at a time — never a sweep; a `#N[,#M...]` list is still
+one item at a time, repeated in list order (`## Input`). `$ARGUMENTS` selects which path
 runs — read only the matching branch in `entry-paths.md` in this skill's directory: no arguments
-(session-recall) or `#N` given (single-record lookup).
+(session-recall) or `#N` given (single-record lookup — entered once per ref for a list).
 
 ## Step 2: Per-item walkthrough
 
@@ -200,7 +214,7 @@ live-or-manual sub-choice — in place of the Show-first walkthrough above; read
 
 If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
 existing behavior — a new feature, a change beyond what Prepare/Validate needed to make the
-environment checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
+environment checkable — stop once per item (the first time this happens for the record being demoed — a `#N,#M` batch resets the once-per-item stop for each ref) before doing it. Call
 `AskUserQuestion` with `question`: `"That's new scope beyond what's being demoed here. Want me to
 capture it as a backlog item now and come back to your sign-off decision, or build it now as its
 own thing outside /claude-tweaks:demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
@@ -225,6 +239,10 @@ this record's decision is still outstanding and offer to resume. Never end a `/c
 record left mid-decision and unmentioned.
 
 ## Step 3: Apply verdicts
+
+For a `#N[,#M...]` batch this step runs per item, immediately after that item's verdict — never
+batched across items — so the next ref's Step 1 starts only once this ref's label swap (or
+follow-up filing) has landed.
 
 **Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved` and
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
@@ -278,11 +296,11 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 ## Next Actions
 
-Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — exactly once, after the last item of a `#N[,#M...]` batch; each conditional line keys on the batch as a whole. Exactly one of these three outcome branches applies per invocation — render only that branch's line, bolded and suffixed `(recommended)`:
 
-**`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed (recommended)
-`/claude-tweaks:help` — full pipeline status
-`/claude-tweaks:help` — lists every #N still awaiting sign-off (Stage 4.7); renders only when this record remains `demo:pending` after Skip
+- **A `demo:changes-requested` follow-up was filed for any item this run** (Request-changes outcome): **`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item (recommended)
+- **No follow-up was filed, and any item this run remains `demo:pending` after Skip:** **`/claude-tweaks:help`** — lists every #N still awaiting sign-off (Stage 4.7) (recommended)
+- **Approved, or Skip resolved with nothing left pending across the batch:** **`/claude-tweaks:help`** — full pipeline status (recommended)
 
 ## Component-Skill Contract
 
@@ -306,7 +324,7 @@ always renders.
 | Debugging or fixing an application bug a Prepare/Validate check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
 | Leaving a live browser session open after Validate or Show finishes | Leaked sessions consume resources — Validate's own session must close before Show runs; Show's `open`/`xdg-open` hands the browser off to the human, it never holds a session open itself |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
-| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item per invocation |
+| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7 lists every outstanding `#N`) — `/demo` resolves one item at a time — never a sweep; a `#N,#M` list is the human's own explicit list, never a backlog scan |
 | Summarizing, re-wording, or reordering the direction contract's five blocks | The blocks are the pre-build promise the human is checking the result against; a paraphrase is one more reading of the result, which is exactly the circularity this section exists to break |
 | Rendering the design-contract heading when no contract resolved, or with only the blocks that parsed | Most records have no contract — an empty section is noise on all of them, and a partial one is worse, because it reads as complete (`_shared/design-contract.md` collapses malformed into absent for this reason) |
 | Dropping a malformed contract silently because the section is omitted either way | Omitting the section is right; omitting the *trace* is not. `/demo` has no run dir to log to, so its one plain line is the only place an upstream block rename becomes visible instead of looking like a record that never had a contract |
