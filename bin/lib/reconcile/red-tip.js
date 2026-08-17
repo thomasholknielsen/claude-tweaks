@@ -106,8 +106,9 @@ function fetchCheckRuns(repoRoot, sha) {
 // repoRoot, already-resolved integration branch name, optional { onSkip } ->
 // finding or null. Reads origin/{integration}'s tip sha from the LOCAL ref —
 // deliberately no fetch of its own; this check is wired immediately after
-// `mirror` in index.js's ALL_CHECKS specifically so it reads the ref
-// mirror-ff.js's own fetch just refreshed (see index.js's header comment).
+// `mirror` in index.js's ALL_CHECKS specifically so it reads the ref the
+// shared fetch (shared-fetch.js, #820 D2 — formerly mirror-ff.js's own
+// fetch) just refreshed (see index.js's header comment).
 // Every failure mode (no such ref, gh absent, API error, unparseable
 // response) still degrades the RETURN VALUE to null — silent no-op, never a
 // thrown exception out of the hook path, and unchanged from before (#561's

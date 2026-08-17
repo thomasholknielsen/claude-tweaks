@@ -24,10 +24,11 @@ const { sharedFetch } = require('./shared-fetch');
 // Execution order (mirror, red-tip, console, release, archive,
 // archive-branches, remote-prune, reap) is significant — see the ordering
 // comment above the release/archive/archive-branches/reap dispatch below.
-// red-tip runs immediately after mirror specifically so it reads the ref
-// mirror-ff.js's own fetch just refreshed, rather than fetching a second
-// time (#561). This array is the requested-subset default only; it is never
-// iterated to determine dispatch order.
+// red-tip runs immediately after mirror specifically so it reads the ref the
+// shared fetch (shared-fetch.js, #820 D2 — formerly mirror-ff.js's own
+// fetch) just refreshed, rather than fetching a second time (#561). This
+// array is the requested-subset default only; it is never iterated to
+// determine dispatch order.
 const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
