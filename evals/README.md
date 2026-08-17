@@ -230,6 +230,9 @@ entirely this way, at zero additional API cost.
 | `research-consequence-filter-matrix` | Runs every frozen `consequence-filter-cases.json` entry through one `/claude-tweaks:research verify` invocation each; selection is by exclusion so a later corpus addition runs automatically, enforced by `evals/tests/consequence-filter-coverage.test.js` |
 | `wrap-up-fix-now-not-file` | Deferral-gate runtime pin (#621): a wrap-up run whose ledger holds four small in-diff items must FIX all four in-branch per `_shared/deferral-gate.md`'s fix-now criteria — not file them as records; pinned by ledger deletion, passing seeded tests, and zero new records or staged proposals |
 | `wrap-up-refuses-reasonless-proposal` | Deferral-gate enforcement pin (#622): the Review Console must refuse a staged queue-write proposal whose `Defer-reason:` is missing or invalid, and file only the valid one |
+| `capture-shaped-body-born-ready` | Runtime pin for #697 AC 1: `/claude-tweaks:capture`'s Shaped-body branch scores and files a well-formed idea body as a born-ready local record (`stage: 'ready'`, risk/size stamped, the `Defer-reason:` line composed into the body) with no human gate needed |
+| `capture-shaped-body-needs-definition` | Runtime pin for #697 AC 2: a shaped body carrying `## Open Question` in place of `## Acceptance Criteria` takes the needs:definition branch — filed unscored with `needsDefinition: true` — even though `--source` alone would otherwise trigger the deferral hard stop |
+| `capture-shaped-body-missing-reason` | Runtime pin for #697 AC 3: a shaped body whose `Origin:` line signals a deferral, passed with no `--defer-reason=` and no `Defer-reason:` line, must file nothing and report the missing reason — the same hard gate `wrap-up-refuses-reasonless-proposal` enforces at the Review Console |
 
 ## Fixture seed steps
 
