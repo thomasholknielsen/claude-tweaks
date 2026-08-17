@@ -22,7 +22,7 @@ const TASK_PROMPT = read('plugin', 'skills', 'dispatch', 'task-prompt.md');
 const FLOW_SKILL = read('plugin', 'skills', 'flow', 'SKILL.md');
 const STEPS_AND_GATES = read('plugin', 'skills', 'flow', 'steps-and-gates.md');
 const DISPATCH_SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
-const CLEANUP_PROCEDURES = read('plugin', 'skills', 'wrap-up', 'cleanup-procedures.md');
+const CLEANUP_PROCEDURES_EXECUTION = read('plugin', 'skills', 'wrap-up', 'cleanup-procedures-execution.md');
 
 test('task-prompt.md: the second call\'s literal command line carries PIPELINE_RUN_DIR', () => {
   const start = TASK_PROMPT.indexOf('## Second call');
@@ -162,9 +162,9 @@ test('dispatch/SKILL.md Step 4: mints the group run directory only, with no clai
 });
 
 test('wrap-up/cleanup-procedures.md Section E: ownership check resolves basename($PIPELINE_RUN_DIR) directly, no CLAIM_RUN_ID fallback', () => {
-  const start = CLEANUP_PROCEDURES.indexOf('## E. Issue claim release');
-  assert.notStrictEqual(start, -1, 'cleanup-procedures.md no longer has an "## E. Issue claim release" heading — this guard has lost its anchor');
-  const region = CLEANUP_PROCEDURES.slice(start);
+  const start = CLEANUP_PROCEDURES_EXECUTION.indexOf('## E. Issue claim release');
+  assert.notStrictEqual(start, -1, 'cleanup-procedures-execution.md no longer has an "## E. Issue claim release" heading — this guard has lost its anchor');
+  const region = CLEANUP_PROCEDURES_EXECUTION.slice(start);
 
   assert.match(
     region,

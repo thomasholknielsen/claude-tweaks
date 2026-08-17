@@ -177,7 +177,7 @@ git merge-base --is-ancestor HEAD origin/{integration-branch}
 
 This is what makes `discard_changes: true` a proven claim instead of an improvised one. Once
 `ExitWorktree` succeeds and the branch was actually merged (not just abandoned), the next
-action is `pr-first-merge.md`'s `## Step 5: Delete the remote branch (outcome merged, after worktree teardown)` — cited here rather than restated, per the state-once rule; this
+action is `pr-first-merge-post-merge.md`'s `## Step 5: Delete the remote branch (after worktree teardown)` — cited here rather than restated, per the state-once rule; this
 section is about whether it's safe to discard the worktree, not about remote branch cleanup,
 which stays canonically stated in `pr-first-merge.md`.
 

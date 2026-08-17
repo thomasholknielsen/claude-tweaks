@@ -71,7 +71,7 @@ Two consequences, both load-bearing:
   `events.jsonl` or `staged/`. Removing a worktree therefore cannot destroy pipeline
   state, which is what makes automatic reaping (`bin/lib/hooks/worktree-reap.js`, fired from
   `session-start.js`) safe. Run directories that predate anchoring are the one exception, and
-  `skills/wrap-up/cleanup-procedures.md` Section C step 3.5 carries the transitional guard that
+  `skills/wrap-up/cleanup-procedures-execution.md` Section C step 3.5 carries the transitional guard that
   copies them out before a worktree is removed.
 - **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
   and must be committed onto the feature branch; it reaches the main checkout by merge.
@@ -85,7 +85,7 @@ A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
 Edit/Write/NotebookEdit or Bash write/mkdir that would CREATE a *new* `.claude-tweaks/pipelines/`
 run directory inside a linked worktree — a shadow, the exact split this file's Anchoring section
 exists to prevent. It flags only a genuinely new creation; a pre-anchoring run directory already
-sitting in a worktree (`wrap-up/cleanup-procedures.md` Section C step 3.5's transitional guard,
+sitting in a worktree (`wrap-up/cleanup-procedures-execution.md` Section C step 3.5's transitional guard,
 sunset 2026-11-07) is left alone.
 
 A third guard sits at the **CLI-argument boundary** — the one path neither of the two above

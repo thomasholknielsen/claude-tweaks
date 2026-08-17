@@ -29,8 +29,9 @@ queries the `parent-issue` label and so returns nothing here, and its file is sk
 whenever `gh` is absent, which is why the local sweep lives in the record scan instead. Same
 finding prefix, same action; only the scan and the store differ.
 
-Approving one runs `wrap-up/verification-brief.md`'s Parent-Gate Procedure from **Enumerate the
-parent's sub-issues** onward, using the **parent-side** entry shape that section documents, on its
+Approving one runs `wrap-up/verification-brief-parent-gate.md` (`verification-brief.md`'s Parent-Gate
+Procedure) from **Enumerate the parent's sub-issues** onward, using the **parent-side** entry shape
+that section documents, on its
 `work-backend: local-files` branches. `$PARENT_NUM` is the parent record's own id, already known
 from the scan. Re-enumerate the sub-issues (the open+closed `queryRecords` merge) and re-read the
 parent's `facets.acceptance` fresh, then re-run **Evaluate the gate** — never reuse the scan's

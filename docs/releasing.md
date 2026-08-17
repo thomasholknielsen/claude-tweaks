@@ -22,7 +22,7 @@ Every push to `main` (including the release script's own push) triggers the `tes
 
 ## After the merge: which release carried it
 
-A pr-first merge that lands minutes before another session's bump is swept into that build with no CHANGELOG line of its own — nothing in the release step notices, because the release step never ran for it. `_shared/pr-first-merge.md` Step 4.1 asks the question once, before reconcile:
+A pr-first merge that lands minutes before another session's bump is swept into that build with no CHANGELOG line of its own — nothing in the release step notices, because the release step never ran for it. `_shared/pr-first-merge-post-merge.md` Step 4.1 asks the question once, before reconcile:
 
 ```
 node plugin/bin/release.js status --merge <merge-sha> --records <n>[,<m>...] --ref origin/main [--json | --backfill]
