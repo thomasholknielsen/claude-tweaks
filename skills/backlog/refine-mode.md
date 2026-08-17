@@ -4,6 +4,8 @@ The comprehensive "ensure every issue has the right labels" sweep: `priority:*`/
 
 ## Step 1: Fetch
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line, per `overview-mode.md`'s convention this file shares.)*
+
 Resolve the `autonomy` ceiling and `trust-revert-window-days` once, before any fetch below — the
 same canonical read the Trust signal section further down and Step 3.6's born-ready check both
 need, so resolving it here means neither has to run its own `resolve-policy.js` call:
@@ -98,6 +100,8 @@ When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIG
 
 ## Step 2: Priority/Related synthesis (bounded)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 Over the **missing-priority** population — records carrying no `priority:*` label at all, the
 population Step 1's compute block actually keys on via `refineWorklist`'s `missingPriority` (refs
 #460: the old split kept scored-on-any-facet records out of this pass even when they still lacked
@@ -116,6 +120,8 @@ Read every selected body in one pass and produce:
 If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}` more records missing priority exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
 
 ## Step 3: Grant-check (bounded, `work-backend: github-issues` only)
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
 `.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
@@ -233,6 +239,8 @@ the ceiling does change is described in Step 3.6.
 
 ## Step 3.5: Body-shape re-verification (before granting)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at `/tmp/assess-grant-{n}.json`; reuse it instead of a second API round-trip).
 
 ```bash
@@ -262,6 +270,8 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 
 ## Step 3.6: Ceiling-authorized born-ready (`autonomy: trusted`+)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
 on what is recommended for them once here. At `trusted` or higher, a record `/claude-tweaks:capture`
 filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied by
@@ -281,6 +291,8 @@ born-`ready` by this path and this step does nothing.
 
 ## Step 4: Decision lanes
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
 Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
 suggestion as an annotation line under its row — a suggestion is never silently dropped.
@@ -291,6 +303,8 @@ count-summary line, the Needs-you lane, the ceiling/skip-case footers, the closi
 rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 
 ## Step 5: Apply
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line; the closing summary below is the report, not narration.)*
 
 **Priority/Related rows:** For every record the priority decision resolved to apply:
 
