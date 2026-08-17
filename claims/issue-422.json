@@ -1,7 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-14T175655-dispatch-standalone",
-  "reason": "pr-opened: spec 422",
-  "releasedAt": "2026-08-14T20:07:59.511Z",
-  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/430"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:32:24.473Z"
 }
