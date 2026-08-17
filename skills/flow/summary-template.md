@@ -18,6 +18,9 @@ On successful completion of all steps (`wrap-up` in the step list):
 | polish | {Invoked N commands ({list}); re-verify passed | Skipped — non-frontend | Skipped — no-polish | Skipped — Impeccable not installed | No changes to apply | re-verify failed (see failure card)} |
 | wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
 
+**Release status:** {the one-line human form from `_shared/pr-first-merge.md` Step 4.1, verbatim — `not yet in a release — bump pending` | `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` | `already carried by vX.Y.Z — CHANGELOG has no vX.Y.Z entry; backfill needed: #A, #B` | `already carried by vX.Y.Z — every record named in CHANGELOG` | `n/a — no plugin manifest at {ref}` | `release status unavailable — {reason}` | `n/a — not merged in this run (outcome: {armed | pending-review})`}
+{On either backfill form, one more line: **Backfill:** staged at `staged/release-backfill-vX.Y.Z.md` (archived with the run); posted as PR #{n}'s `release-status` comment — drop the PR clause under local-merge.}
+
 ### Key Outputs
 - {summary of what was built}
 - {summary of review findings, if any}
@@ -68,9 +71,21 @@ Run `/claude-tweaks:deepen <changed-paths>` to act on these — it presents cand
 
 ### Next Actions
 
-Close the template's fence above, then assemble the applicable lines (the base 2 always; the two conditional lines only when their trigger condition holds) and render them as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
+Close the template's fence above, then assemble the applicable lines (the base 2 always; the three conditional lines only when their trigger condition holds) and render them as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
 
 **`/claude-tweaks:flow {next spec}`** — full pipeline on spec {N}: "{title}" (recommended)
 `/claude-tweaks:help` — full pipeline status
 `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked — when unblocked specs exist
 `/claude-tweaks:deepen {changed-paths}` — act on the {N} depth opportunit{y/ies} surfaced above — when the depth survey surfaced candidates
+`node bin/release.js {minor|patch} "{summary}"` — cut the release, this merge is not yet in a shipped version | `{backfill command}` — already shipped in vX.Y.Z, the CHANGELOG is missing this record — when this project has a documented release procedure
+
+**Release row.** Render only when the project has a documented release procedure (here: `docs/releasing.md` and `bin/release.js`) and the ancestry check that decides between the two forms actually ran and produced a result — never render a release row from an unverified premise, and never render one at all when the check couldn't run. This project already ran that check in `wrap-up` (`_shared/pr-first-merge.md` Step 4.1) and printed its one-line result as the fenced template's **Release status:** field above — reuse that value verbatim rather than re-running the check:
+
+- `not yet in a release — bump pending` → render **`node bin/release.js {minor|patch} "{summary}"`** — cut the release.
+- `already carried by vX.Y.Z — CHANGELOG backfill needed: …` or `…has no vX.Y.Z entry; backfill needed: …` → render `{apply the staged staged/release-backfill-vX.Y.Z.md content}` — already shipped in vX.Y.Z, backfill the CHANGELOG.
+- `already carried by vX.Y.Z — every record named in CHANGELOG` → nothing to do; omit the release row entirely.
+- `n/a — …` or `release status unavailable — …` → the check didn't resolve; omit the release row entirely.
+
+A project with a release procedure but no `bin/release.js status`-shaped subcommand has no Release status field to reuse — render the row from the two inline git commands the check itself is: `git fetch origin && git merge-base --is-ancestor <merge> <newest-bump-commit>` (exit 0 = already shipped, use the "already shipped" form; non-zero = the "cut the release" form). Still omit the row if that check cannot be run (no merge commit resolvable, no prior release to compare against).
+
+**Recommended slot.** The release row is never marked `(recommended)` while `/claude-tweaks:flow {next spec}` is present — the next spec's pipeline is the standing default. When this run has no next spec (the last spec of a batch, or a standalone run), the "cut the release" form takes the `(recommended)` slot instead of `/claude-tweaks:help`; the "backfill the CHANGELOG" form is never marked `(recommended)` — it's housekeeping, not the primary next step, in either position.

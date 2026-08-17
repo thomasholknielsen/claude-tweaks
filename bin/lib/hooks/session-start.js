@@ -171,13 +171,19 @@ function run(ctx) {
     // previously forked git on every single SessionStart regardless.
     if (wtDetect.findPolicyFile(ctx.cwd)) {
       const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(ctx.cwd);
-      if (repoRoot && policy.isWorktreeAlwaysOn(repoRoot) && !isLinkedWorktree) {
+      if (repoRoot) {
+        const { on, matchedKey } = policy.resolveWorktreeAlways(repoRoot);
         parts.push(
-          'claude-tweaks: this project requires an isolated worktree for all work ' +
-            '(policy: worktree-always in .claude-tweaks/policy.yml). Before making any edits, ' +
-            'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
-            "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
+          `claude-tweaks: worktree-always: ${on ? 'ON' : 'OFF'} (${matchedKey ? `matched key: ${matchedKey}` : 'no key'})`,
         );
+        if (on && !isLinkedWorktree) {
+          parts.push(
+            'claude-tweaks: this project requires an isolated worktree for all work ' +
+              '(policy: worktree-always in .claude-tweaks/policy.yml). Before making any edits, ' +
+              'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
+              "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
+          );
+        }
       }
     }
   } catch { /* best-effort */ }
