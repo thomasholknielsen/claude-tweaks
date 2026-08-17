@@ -81,6 +81,15 @@ Rules that follow:
 - The substituted root points at the **installed** build, which can lag a claude-tweaks dev checkout — when the running build matters, resolve it from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (CLAUDE.md `[IL-89]`, `[IL-119]`).
 - A `Cannot find module '/bin/…'` / `'undefined/bin/…'` failure means the placeholder reached the shell unsubstituted — re-issue with the resolved absolute path; do not diagnose the CLI itself.
 
+## Executable snippets in skill prose
+
+A fenced `bash` block a skill tells an agent to run verbatim is code, and it drifts like code: a later prose edit changes the documented procedure while nothing re-checks that the changed procedure still works. Every such block in `skills/**` today is bound to a `node --test` file that both pins the snippet and executes it against a fixture — see the two forms below. Bind each new one the same way.
+
+- **Extract and run** — the test pulls the block out of the doc with a heading-anchored regex and runs exactly that string (`tests/pipeline-run-dir-adoption-anchoring.test.js`, which does this for `skills/_shared/pipeline-run-dir.md` and for `skills/wrap-up/SKILL.md`'s own copy of the same resolution). The doc is the only source of the executed text, so the two cannot drift, and the test fails loudly — *"extraction pattern is out of sync with the doc"* — when the heading or fence moves. Prefer this form.
+- **Byte-pin and run** — the test holds the snippet as a literal constant, asserts the doc's fence is byte-identical to it, then runs the constant (`tests/curation-judge-stagepath.test.js`). Use it when the probe must wrap the snippet in fixture-specific surroundings, and accept that a deliberate doc edit has to be mirrored in the constant.
+
+Either way the string must actually be **executed**, not only matched. Two whole-branch reviews caught real defects in one such snippet — a silent `mv` collision and a silent `mv` failure — only because a live probe ran it; a snippet asserted by shape alone is untested prose.
+
 ## Harness-level worktree Bash guard vs. the plugin's PreToolUse gate
 
 A session working inside a worktree created by `EnterWorktree` (or entered into one) is subject to a Claude Code CLI harness-level guard on the Bash tool — separate from, and unrelated to, this plugin's own `worktree-always` PreToolUse gate (`bin/lib/hooks/pre-tool-use.js`). The two are easy to conflate when triaging feedback (`#174` was originally filed against the wrong one). When the harness cannot cheaply verify that a command's effects stay inside the worktree, it refuses the whole call outright: `this command is too complex to verify that it stays inside the worktree; break it into plain, separate commands.` This is harness code the plugin has no access to and cannot alter from `bin/hooks.js` or any hook — the plugin's own gate produces entirely different deny text (`claude-tweaks: this project requires an isolated worktree for...`, `claude-tweaks working-directory discipline: ...`), which is how the two are told apart in practice.
