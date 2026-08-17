@@ -85,8 +85,7 @@ test('close-run on a run dir with no pre-existing run-state.json creates one and
 });
 
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
-  execFileSync('git', ['-C', project, 'init', '-q']); // #790: --run must resolve under a real git checkout
+  const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
@@ -487,8 +486,7 @@ test('record-pr writes run-state.pr and prints a confirmation line', () => {
 });
 
 test('record-pr --run pins the target run dir, same as record-worktree', () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
-  execFileSync('git', ['-C', project, 'init', '-q']); // #790: --run must resolve under a real git checkout
+  const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
