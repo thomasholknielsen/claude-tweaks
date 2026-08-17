@@ -5,9 +5,15 @@ const fs = require('fs');
 const path = require('path');
 
 // #679: session-evaluation watermark — pins the prose/doc deliverables that
-// ship no runtime code of their own (bin/lib/feedback/watermark.js already
-// has its own unit tests in tests/bin-lib/feedback/watermark.test.js — not
-// duplicated here).
+// ship no runtime code of their own (plugin/bin/lib/transcript-judge/
+// watermark.js already has its own unit tests in tests/bin-lib/
+// transcript-judge/watermark.test.js — not duplicated here).
+//
+// #856 moved the transcript-resolution/dispatch/degradation/watermark
+// mechanics out of session-evaluation.md into plugin/skills/_shared/
+// transcript-judge.md (pinned by tests/transcript-judge-prose.test.js).
+// This file keeps only feedback-specific prose: the --full flag surface
+// and the gitignore suggestion for the (now per-consumer) watermark cache.
 //
 // Read live, not frozen fixtures: this is just-shipped feature prose that is
 // expected to keep evolving in place (more flags, more prompt items) rather
@@ -26,45 +32,28 @@ const GITIGNORE = read('.gitignore');
 const STEP04 = read('plugin', 'skills', 'init', 'bootstrap', 'step-04-gitignore-suggestions.md');
 const PLUGIN_STRUCTURE = read('docs', 'plugin-structure.md');
 
-// --- 1. session-evaluation.md: 5th prompt item, conditional watermark offset clause ---
+// --- 1. session-evaluation.md cites the shared transcript-judge contract, doesn't restate it ---
 
-test('session-evaluation.md: "Prompt contents, in this order" gains a 5th, conditional watermark-offset item', () => {
-  assert.match(
-    SESSION_EVAL,
-    /5\. \*\*Conditional — the watermark offset clause\.\*\* When `bin\/lib\/feedback\/watermark\.js`'s\s*\n\s*`readWatermark` returns non-null for the resolved transcript path/,
-  );
+test('session-evaluation.md cites _shared/transcript-judge.md for the moved dispatch mechanics', () => {
+  assert.match(SESSION_EVAL, /_shared\/transcript-judge\.md/);
 });
 
-test('session-evaluation.md: item 5 is explicitly omitted when no watermark exists or --full was passed', () => {
-  assert.match(
-    SESSION_EVAL,
-    /When no watermark exists \(first invocation\) or `--full` was passed, item 5 is omitted\s*\n\s*entirely — no offset clause, no empty placeholder/,
-  );
+test('session-evaluation.md no longer restates transcript resolution mechanics (moved, not duplicated)', () => {
+  assert.doesNotMatch(SESSION_EVAL, /derived from the session's absolute working-directory path/);
 });
 
-test('session-evaluation.md: the omission sentence follows the fenced offset-clause template, inside item 5 (ordering, not just presence)', () => {
-  const item5 = SESSION_EVAL.indexOf('5. **Conditional — the watermark offset clause.**');
-  const fence = SESSION_EVAL.indexOf('Evaluate from byte offset {bytesAtDispatch}');
-  const omitted = SESSION_EVAL.indexOf('item 5 is omitted');
-  assert.ok(item5 > 0, 'item 5 heading must exist');
-  assert.ok(fence > item5, 'the offset-clause fence must come after the item 5 heading');
-  assert.ok(omitted > fence, 'the omission sentence must come after the fence, still inside item 5');
+test('session-evaluation.md documents its four consumer parameters (rubric, template, profile, watermark key)', () => {
+  assert.match(SESSION_EVAL, /\*\*Rubric\*\*/);
+  assert.match(SESSION_EVAL, /\*\*Output template\*\*/);
+  assert.match(SESSION_EVAL, /\*\*Model profile\*\*/);
+  assert.match(SESSION_EVAL, /\*\*Watermark consumer key\*\*.*`feedback`/);
 });
 
-// --- 2. session-evaluation.md: bytesAtDispatch captured before dispatch + write-failure degrade-open ---
+// --- 2. session-evaluation.md: feedback's own watermark payload shape survives the migration ---
 
-test('session-evaluation.md: bytesAtDispatch is documented as captured BEFORE dispatch, not after', () => {
-  assert.match(
-    SESSION_EVAL,
-    /bytesAtDispatch,\s*\/\/ captured BEFORE dispatch — the judge's own tool calls append\s*\n\s*\/\/ to the transcript while it runs, so re-stat-ing after return\s*\n\s*\/\/ would race/,
-  );
-});
-
-test('session-evaluation.md: a watermark write failure degrades open — evaluation unaffected, reported not silent', () => {
-  assert.match(
-    SESSION_EVAL,
-    /On a write failure: degrade open — the evaluation result itself is unaffected, report the write\s*\n\s*failure in Step 0's output as a one-line note, and never abort or retry the evaluation because the\s*\n\s*watermark write failed/,
-  );
+test('session-evaluation.md still documents the filedRecords/dismissedFingerprints watermark payload', () => {
+  assert.match(SESSION_EVAL, /filedRecords,\s*\/\/ the record numbers this run actually filed/);
+  assert.match(SESSION_EVAL, /dismissedFingerprints,\s*\/\/ fingerprints of findings the human declined/);
 });
 
 // --- 3. SKILL.md: --full at all three sites (table row, argument-hint frontmatter, $ARGUMENTS intro line) ---
@@ -106,39 +95,45 @@ test('SKILL.md: --full is present at all three sites together (frontmatter, intr
   assert.deepStrictEqual(missing, [], `--full missing at: ${missing.join(', ')}`);
 });
 
-// --- 4. .gitignore and step-04-gitignore-suggestions.md's fenced block both carry the ignore line ---
+// --- 4. .gitignore keeps its feedback-specific blanket line; step-04's suggestion is generalized ---
 
 test('.gitignore contains the literal line .claude-tweaks/feedback/', () => {
   assert.match(GITIGNORE, /^\.claude-tweaks\/feedback\/$/m);
 });
 
-test("step-04-gitignore-suggestions.md's fenced suggestion block contains the literal line .claude-tweaks/feedback/", () => {
+test("step-04-gitignore-suggestions.md's fenced suggestion block contains the generalized per-consumer watermark line", () => {
   const fenceStart = STEP04.indexOf('```gitignore');
   assert.ok(fenceStart >= 0, 'fenced gitignore block must exist');
   const fenceEnd = STEP04.indexOf('```', fenceStart + 3);
   assert.ok(fenceEnd > fenceStart, 'fenced gitignore block must be closed');
   const block = STEP04.slice(fenceStart, fenceEnd);
-  assert.match(block, /^\.claude-tweaks\/feedback\/$/m);
+  assert.match(block, /^\.claude-tweaks\/\*\/watermarks\/\*\.json$/m);
 });
 
-test('.gitignore and step-04-gitignore-suggestions.md carry the byte-identical ignore line, not merely both-present variants', () => {
+// #856 deliberately makes these two lines diverge: root .gitignore keeps the
+// feedback-specific blanket line (existing on-disk state, unmigrated), while
+// step-04's suggestion for *new* projects is generalized to cover every
+// consumer's watermark cache. The pre-#856 byte-identical assumption no
+// longer holds — this test pins the divergence itself, not a coincidence.
+test('.gitignore and step-04 intentionally diverge post-#856 (feedback-specific vs generalized)', () => {
   const gitignoreLine = GITIGNORE.split('\n').find((l) => l.includes('.claude-tweaks/feedback'));
   const fenceStart = STEP04.indexOf('```gitignore');
   const fenceEnd = STEP04.indexOf('```', fenceStart + 3);
   const block = STEP04.slice(fenceStart, fenceEnd);
-  const stepLine = block.split('\n').find((l) => l.includes('.claude-tweaks/feedback'));
+  const stepLine = block.split('\n').find((l) => l.includes('watermarks'));
   assert.strictEqual(gitignoreLine, '.claude-tweaks/feedback/');
-  assert.strictEqual(stepLine, '.claude-tweaks/feedback/');
-  assert.strictEqual(gitignoreLine, stepLine);
+  assert.strictEqual(stepLine, '.claude-tweaks/*/watermarks/*.json');
+  assert.notStrictEqual(gitignoreLine, stepLine);
 });
 
-// --- 5. docs/plugin-structure.md: bin/lib/feedback/ family line names both modules ---
+// --- 5. docs/plugin-structure.md: bin/lib/transcript-judge/ family line names the module ---
 
-test('docs/plugin-structure.md: a bin/lib/feedback/ family line names both file-feedback.js and watermark.js', () => {
-  // The payload moved under `plugin/` (#418); the doc's tree spells the family
-  // line repo-root-relative, so the pin tracks the new spelling.
-  const match = PLUGIN_STRUCTURE.match(/^plugin\/bin\/lib\/feedback\/\s+→.*$/m);
-  assert.ok(match, 'bin/lib/feedback/ family line must exist');
-  assert.match(match[0], /file-feedback\.js/, 'family line must mention file-feedback.js');
+test('docs/plugin-structure.md: a bin/lib/transcript-judge/ family line names watermark.js', () => {
+  const match = PLUGIN_STRUCTURE.match(/^plugin\/bin\/lib\/transcript-judge\/\s+→.*$/m);
+  assert.ok(match, 'plugin/bin/lib/transcript-judge/ family line must exist');
   assert.match(match[0], /watermark\.js/, 'family line must mention watermark.js');
+});
+
+test('docs/plugin-structure.md: no stale bin/lib/feedback/ watermark.js reference remains', () => {
+  assert.doesNotMatch(PLUGIN_STRUCTURE, /bin\/lib\/feedback\/watermark\.js/);
 });
