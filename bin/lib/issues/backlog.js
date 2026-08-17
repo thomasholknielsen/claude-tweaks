@@ -146,13 +146,27 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
   return records.map((r) => ({ ...r, createdAt: dateByPath[r.path] || new Date().toISOString() }));
 }
 
+// records[] -> the ready+granted subset only — the exact candidate set
+// overview-mode.md Step 2's native blockedBy pre-attach fetch must target
+// (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
+// granted) — this runs BEFORE funnelBuckets has produced those buckets, so
+// "granted" here is computed independently of the in-set-blockers split
+// that native resolution is meant to correct. It also doesn't exclude
+// `isParentIssue` records, which funnelBuckets routes to `parents` rather than
+// `granted`/`dispatchable` — harmless, since a parent is never `ready`
+// (`_shared/work-record.md`'s Decomposition rules), so this stays the
+// buildable candidate set on any conforming repo.
+function readyGrantedSubset(records) {
+  return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+}
+
 // records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
-// parked, notPlanned, parents }. The nine stage keys (captured..parents)
-// are mutually exclusive buckets over the post-merge faceted set (github +
-// unsynced); needsYou is a separate overlay, not a bucket — see the overlay
-// loop's comment below. Together they form the funnel decision surface
-// /claude-tweaks:backlog overview's bare mode renders. First match wins, in
-// this order for the nine stage keys; the precedence
+// parked, notPlanned, parents, needsYou }. The nine stage keys
+// (captured..parents) are mutually exclusive buckets over the post-merge
+// faceted set (github + unsynced); needsYou is a separate overlay, not a
+// bucket — see the overlay loop's comment below. Together they form the funnel
+// decision surface /claude-tweaks:backlog overview's bare mode renders. First
+// match wins, in this order for the nine stage keys; the precedence
 // rationale: bot-state outranks stage labels because live work reflects current
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
 // toward what is actually happening right now), and granted is checked before
@@ -169,22 +183,6 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // splitScoredUnscored's scored means FULLY scored — both risk and size — for
 // the lens views. Deliberate, not drift: the funnel tracks "has triage
 // started?" while the lenses need "is there enough signal to rank on?".
-// needsYou is an overlay, not a bucket — see the overlay loop's comment.
-// records[] -> the ready+granted subset only — the exact candidate set
-// overview-mode.md Step 2's native blockedBy pre-attach fetch must target
-// (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
-// granted) — this runs BEFORE funnelBuckets has produced those buckets, so
-// "granted" here is computed independently of the in-set-blockers split
-// that native resolution is meant to correct. This filter doesn't exclude
-// `isParentIssue` records, so a hypothetical ready+granted parent would
-// still land here even though funnelBuckets routes it to `parents`, not
-// `granted`/`dispatchable` (in practice `isParentIssue` records are never
-// `ready` — `_shared/work-record.md`'s Decomposition rules — so this remains
-// the buildable candidate set on any conforming repo).
-function readyGrantedSubset(records) {
-  return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
-}
-
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],

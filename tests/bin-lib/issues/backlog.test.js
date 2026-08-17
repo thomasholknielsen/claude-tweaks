@@ -304,22 +304,19 @@ test('funnelBuckets: a parent record is never shaped, granted, or dispatchable e
   assert.deepEqual(b.granted, []);
 });
 
-test('funnelBuckets: bot:in-progress still outranks isParentIssue (existing precedence unchanged)', () => {
-  const b = funnelBuckets([rec(1, { isParentIssue: true, bot: { inProgress: true, blocked: false } })]);
-  assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
-  assert.deepEqual(b.parents, []);
-});
-
-test('funnelBuckets: parked still outranks isParentIssue', () => {
-  const b = funnelBuckets([rec(1, { isParentIssue: true, stage: 'parked' })]);
-  assert.deepEqual(b.parked.map((r) => r.number), [1]);
-  assert.deepEqual(b.parents, []);
-});
-
-test('funnelBuckets: notPlanned still outranks isParentIssue', () => {
-  const b = funnelBuckets([rec(1, { isParentIssue: true, notPlanned: true })]);
-  assert.deepEqual(b.notPlanned.map((r) => r.number), [1]);
-  assert.deepEqual(b.parents, []);
+test('funnelBuckets: the three buckets above parents still outrank isParentIssue', () => {
+  // parents sits fourth in the if-chain: existing precedence is unchanged, so a
+  // parent that is also in-flight, parked, or not-planned keeps that bucket.
+  const cases = [
+    ['inFlight', { bot: { inProgress: true, blocked: false } }],
+    ['parked', { stage: 'parked' }],
+    ['notPlanned', { notPlanned: true }],
+  ];
+  for (const [bucket, facetOverrides] of cases) {
+    const b = funnelBuckets([rec(1, { isParentIssue: true, ...facetOverrides })]);
+    assert.deepEqual(b[bucket].map((r) => r.number), [1], `parent record should land in ${bucket}`);
+    assert.deepEqual(b.parents, [], `parents should stay empty for the ${bucket} case`);
+  }
 });
 
 // Adjacent-precedence pins (spec Deliverables): bot-state outranks stage labels;
