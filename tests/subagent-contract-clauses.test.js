@@ -159,3 +159,66 @@ test('the exempt dispatch names itself in both the contract and the call site (#
       'the dispatch and wonders why it carries no status line lands on the carve-out in one hop.',
   );
 });
+
+// #649: the fan-out prose said "parallel" without ever stating the mechanism — a
+// harness only runs tool calls concurrently when they arrive as multiple tool_use
+// blocks in one assistant message. A red-team run emitted 18 Agent calls one per
+// message, ~7s apart, serialized despite the prose calling it parallel. These pins
+// guard the fixed contract sentence plus every fan-out site's citation of it.
+
+test('the contract states the single-assistant-message fan-out rule exactly once (#649)', () => {
+  const contract = FILES['skills/_shared/subagent-output-contract.md'];
+  const matches = contract.match(/single assistant message/gi) || [];
+  assert.strictEqual(
+    matches.length,
+    1,
+    'skills/_shared/subagent-output-contract.md must state the fan-out single-assistant-' +
+      'message rule exactly once — a call per message is a serialized dispatch even when the ' +
+      'prose says "parallel" (the harness only runs tool_use blocks concurrently when they ' +
+      'arrive in one assistant message).',
+  );
+  assert.match(
+    contract,
+    /one message per record'?s? [\w /]*persona[\w /]*set|one message per record'?s? [\w /]*set,? never one (message )?per (individual )?agent/i,
+    'the fan-out section must also state the batching unit for large fan-outs: one message ' +
+      "per record's persona/agent set, never one message per individual agent.",
+  );
+});
+
+const FAN_OUT_SITES = {
+  'skills/specify/red-team.md': "the contract's batching unit (one message per sub-issue trio; a fast-lane sub-issue's single Skeptical Reviewer joins the next message)",
+  'skills/browse/SKILL.md': null,
+  'skills/dispatch/SKILL.md': null,
+  'skills/help/status-scan.md': null,
+  'skills/init/SKILL.md': null,
+  'skills/review/step3-lens-dispatch.md': null,
+  'skills/test/qa-prompts.md': null,
+  'skills/tidy/SKILL.md': null,
+  'skills/visual-review/page-mode.md': null,
+};
+
+for (const relPath of Object.keys(FAN_OUT_SITES)) {
+  test(`${relPath}: cites the contract's fan-out section (#649)`, () => {
+    const text = fs.readFileSync(path.join(ROOT, ...relPath.split('/')), 'utf8');
+    assert.match(
+      text,
+      /subagent-output-contract\.md[^\n]{0,60}fan-out section|fan-out section[^\n]{0,60}subagent-output-contract\.md/i,
+      `${relPath} must cite \`_shared/subagent-output-contract.md\`'s fan-out section at its ` +
+        'primary parallel-dispatch blockquote, rather than leaving "parallel" undefined.',
+    );
+  });
+}
+
+test("skills/specify/red-team.md states its own fan-out batching unit (#649)", () => {
+  const text = fs.readFileSync(
+    path.join(ROOT, 'skills', 'specify', 'red-team.md'),
+    'utf8',
+  );
+  assert.match(
+    text,
+    /sub-issue'?s? persona trio|one message per sub-issue/i,
+    "red-team.md must state its own dispatch's batching unit: one message per sub-issue's " +
+      "persona trio, with a fast-lane sub-issue's single Skeptical Reviewer folded into the " +
+      'next message rather than getting one of its own.',
+  );
+});

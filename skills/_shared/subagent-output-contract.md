@@ -220,6 +220,13 @@ Cap at one retry. If still malformed, accept what you got and move on (do not lo
 
 ## How to integrate at a dispatch site
 
+**Emit all N `Agent`/`Task` calls of a fan-out as `tool_use` blocks in a single assistant message;
+a call per message is a serialized dispatch even when the prose says parallel.** The harness runs
+tool calls concurrently only when they arrive as multiple `tool_use` blocks in one message —
+calling a dispatch "parallel" in prose does not make it so on its own. For a fan-out too large for
+one practical batch, the unit is one message per record's persona/agent set, never one message per
+individual agent.
+
 In a Form B blockquote:
 
 ```
