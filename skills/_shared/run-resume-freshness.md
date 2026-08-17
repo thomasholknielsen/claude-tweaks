@@ -38,8 +38,13 @@ Read-only — never writes `run-state.json`. Reads `run-state.json`'s `status`, 
    probe; safe.
 3. **No recorded worktree, or the recorded worktree no longer exists on disk** — nothing to
    probe; safe.
-4. **Worktree lock-file pid liveness** — `bin/lib/hooks/worktree-reap.js`'s `isWorktreeLocked`.
-   A live pid holding the worktree lock blocks — "run appears actively owned".
+4. **Worktree lock-file pid liveness** — resolves the lock verdict directly via
+   `bin/lib/hooks/worktree-reap.js`'s `parseWorktreeList`/`lockVerdict`, not that module's
+   `isWorktreeLocked` — its collapsed boolean cannot distinguish a confirmed lock from an
+   unresolvable check (#676's final review, Important finding #1). A live pid holding the
+   worktree lock blocks (`locked`) — "run appears actively owned". An unresolvable main-checkout
+   root or a failed `git worktree list` fails **closed** to `indeterminate`, never a false "not
+   locked".
 5. **Last-commit age** — `git -C {worktree} log -1 --format=%ct`, compared against a 10-minute
    threshold ("on the order of minutes" — long enough that one working session's normal commit
    cadence does not read as a stranger, short enough that a genuinely dead run isn't gated for an
@@ -47,8 +52,8 @@ Read-only — never writes `run-state.json`. Reads `run-state.json`'s `status`, 
    full rationale). A commit inside the threshold blocks.
 6. Otherwise: safe (`stale`) — the run is genuinely quiet.
 
-An unresolvable git call at step 5 (while status is genuinely `interrupted`) fails **closed** —
-blocked, not safe-by-default.
+An unresolvable git call at step 4 or step 5 (while status is genuinely `interrupted`) fails
+**closed** — blocked (`indeterminate`), not safe-by-default.
 
 ## Branching on the result
 
