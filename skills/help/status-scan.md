@@ -48,7 +48,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Its `version` field is 
 
 Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, and Specs-In-Progress scan — all four read `specs/backlog/*.md` frontmatter or the old spec index and `specs/*.md` files directly. The record store is the current landscape now; there is no separate index file or backlog directory to read (`_shared/work-record.md`). One list call + one facet parse computes every count below.
 
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands, and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/help-records.json`, `{tmp-faceted-file}` = `/tmp/help-records-faceted.json`, and `{EXTRA_FIELDS}` = `,body` on the `github-issues` driver — `body` rides along on this one `gh issue list --state open` round-trip because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
+Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands (including the Session-scoped record snapshot section, so this fetch shares one `gh issue list --state all` pull per session with `/backlog`/`/capture`/`/specify`/`/tidy`/`/visualize` instead of paying for its own), and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/help-records.json`, `{tmp-faceted-file}` = `/tmp/help-records-faceted.json` — `body` rides along on the shared snapshot's union field set (no `{EXTRA_FIELDS}` to request anymore) because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
 
 **Fail-open behavior** (`work-backend: github-issues` only): if the `gh issue list` fetch fails — `gh` unavailable, unauthenticated, or the repo has no GitHub remote — Stage 1 fails open, the same posture as Stages 4.5/4.6/4.7 below: emit a single info row (`Work-record scan skipped — {reason}`) instead of BLOCKED. All six counts and the Conflict-detection sub-section are treated as unavailable for this run, and the dashboard's Work Records and Ready-to-Build sections are omitted (same omission convention already used for an empty pipeline) rather than rendering zeros. `work-backend: local-files` has no equivalent failure mode — its fetch reads the local record store directly, not `gh`.
 
@@ -201,9 +201,10 @@ Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher i
 ## Stage 4.7: Acceptance Queue (GitHub)
 
 Cheap list only — the walkthrough stays `/claude-tweaks:demo`'s job, not `/help`'s. `/demo` no
-longer sweeps the `demo:pending` backlog itself (it resolves a single item per invocation — this
-session's own recall-detected work, or one explicit `#N`), so this stage is the sole discovery
-surface for which records are outstanding. Skip silently (same fail-open detection ladder as
+longer sweeps the `demo:pending` backlog itself (it resolves only the items you name — this
+session's own recall-detected work, one explicit `#N`, or an explicit `#N,#M` list taken one at
+a time — never a scan), so this stage is the sole discovery surface for which records are
+outstanding. Skip silently (same fail-open detection ladder as
 Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 Scan per `_shared/github-pr-scan-acceptance.md`, **`acceptance-queue`** scope (extracted from

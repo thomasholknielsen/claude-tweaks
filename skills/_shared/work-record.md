@@ -216,7 +216,8 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   `parent-issue` label, which no local record carries, and its file is skipped entirely whenever
   `gh` is absent, so the local sweep cannot live there.
 - `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
-  record's brief per invocation (open or closed) and resolves the label to `demo:approved` or
+  record's brief at a time (open or closed) — a bare `#N`, or an explicit `#N,#M` list taken in
+  list order, never a backlog sweep — and resolves the label to `demo:approved` or
   `demo:changes-requested` — `/claude-tweaks:help` (Stage 4.7) is the sole discovery surface for
   which records are outstanding. On the latter, it files a linked follow-up backlog record.
 - The three values are mutually exclusive by construction — `/claude-tweaks:demo` always removes
