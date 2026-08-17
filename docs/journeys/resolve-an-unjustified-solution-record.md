@@ -2,7 +2,6 @@
 files:
   - skills/challenge/SKILL.md
   - skills/backlog/overview-mode.md
-  - skills/help/status-scan.md
 ---
 
 # Resolve an Unjustified-Solution Record in One Call
@@ -44,4 +43,5 @@ files:
 
 ## Origin
 
-Built for #726 (bare-`#N` evidence-or-accept-risk mode), which replaced the `--lens=1 #N` launcher proxy shipped by #677.
+- Created during build of #726 (bare-`#N` evidence-or-accept-risk mode)
+- Related specs: #677 (shipped the retired `--lens=1 #N` launcher proxy this replaces)
