@@ -12,7 +12,8 @@ const { execFileSync } = require('child_process');
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
-const { classifyClaimBlob, releasePayload, CLAIMS_BRANCH } = require('../issues/claims');
+const { classifyClaimBlob, releasePayload } = require('../issues/claims');
+const claimStore = require('../issues/claim-store');
 const { resolvePrState } = require('./pr-state');
 
 const GH_TIMEOUT_MS = 5000;
@@ -73,21 +74,21 @@ function repoSlugOf(repoRoot) {
   return m ? m[1] : null;
 }
 
+// Both delegate to claim-store.js's one contents-API implementation.
+// This module's own `ghApi` never sets `status` (unlike claim-store's
+// `defaultGhApi`), so `readClaimBlob`'s `absent: true` branch never fires
+// here — every failure still surfaces as `gh-absent`/`network-failure`
+// exactly as before this extraction (a 404 mid-iteration is a race with
+// another release pass, indistinguishable from any other read failure, and
+// was never distinguished here pre-extraction either).
 function listClaims(repoSlug) {
-  const r = ghApi([`repos/${repoSlug}/contents/claims?ref=${CLAIMS_BRANCH}`, '-q', '.[].name']);
-  if (r.failure) return { names: [], failure: r.failure };
-  return { names: r.stdout.split('\n').map((s) => s.trim()).filter(Boolean), failure: null };
+  return claimStore.listClaimNames(ghApi, repoSlug);
 }
 
 function readClaim(repoSlug, name) {
-  const r = ghApi([`repos/${repoSlug}/contents/claims/${name}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
-  if (r.failure) return { content: null, sha: null, failure: r.failure };
-  try {
-    const parsed = JSON.parse(r.stdout);
-    return { content: parsed.content, sha: parsed.sha, failure: null };
-  } catch {
-    return { content: null, sha: null, failure: 'network-failure' };
-  }
+  const m = /^issue-(\d+)\.json$/.exec(name);
+  const r = claimStore.readClaimBlob(ghApi, repoSlug, m ? Number(m[1]) : name);
+  return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
 // Issue-state lookup — same ghApi pattern (5s timeout). Unknown/errored
@@ -112,15 +113,11 @@ function releasedEntry(issueNumber, runId, prState) {
 // ordinary write failure here; the caller logs it as a release race, exactly
 // the posture that file's Failure posture table documents.
 function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
-  const encoded = Buffer.from(tombstoneContent, 'utf8').toString('base64');
-  const r = ghApi([
-    '--method', 'PUT', `repos/${repoSlug}/contents/claims/${name}`,
-    '-f', `message=Release claim ${name} — ${reason}`,
-    '-f', `content=${encoded}`,
-    '-f', `branch=${CLAIMS_BRANCH}`,
-    '-f', `sha=${sha}`,
-  ]);
-  return r.failure === null;
+  const m = /^issue-(\d+)\.json$/.exec(name);
+  const r = claimStore.writeClaimBlob(ghApi, repoSlug, m ? Number(m[1]) : name, {
+    content: tombstoneContent, sha, message: `Release claim ${name} — ${reason}`,
+  });
+  return r.ok;
 }
 
 // Best-effort in both directions per `_shared/issue-claims.md` — a failed
