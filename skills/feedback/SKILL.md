@@ -123,7 +123,7 @@ current behavior does not support it.
 Also judge Definition: does this learning name a genuine open choice with no
 tradeoff made yet — two or more viable directions, no stated preference — or a
 single clear ask? This is a content call made in this same turn, not a
-structural heuristic (the same posture `framing:baked`'s judgment takes).
+structural heuristic (the same posture `solution:unjustified`'s judgment takes).
 `Needed` only when the learning genuinely names an undecided choice; default
 `Clear` otherwise. When `Needed`, form a one-line rationale naming the open
 choice — this and the verdict feed Step 5's draft.
