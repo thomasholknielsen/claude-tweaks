@@ -1,6 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-14T213300-dispatch-standalone",
-  "reason": "blocked: dispatching session structurally unable to pin its working directory to a worktree (EnterWorktree refuses both create-new and switch-to-existing for a subagent whose cwd is pinned at launch); no build work started",
-  "releasedAt": "2026-08-14T21:40:47.390Z"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:31:59.730Z"
 }
