@@ -35,6 +35,28 @@ test('verificationSurface treats docs, skills, bin and config as non-interactive
   assert.equal(verificationSurface(['.claude-plugin/plugin.json']), 'non-interactive');
 });
 
+// #418 — the plugin payload moved under `plugin/`. A work record or diff predating that
+// cutover cites `skills/…`/`bin/…`; one after it cites `plugin/skills/…`/`plugin/bin/…`.
+// Both spellings must classify identically: the test above pins the pre-cutover spelling,
+// this one the post-cutover spelling, so an old record stays classifiable and a new
+// payload-only diff does not read as an interactive UI surface (which would send /demo
+// off on a browser walk with nothing to walk).
+test('verificationSurface classifies the post-cutover plugin/ payload spelling the same way', () => {
+  assert.equal(verificationSurface(['plugin/skills/tidy/SKILL.md']), 'non-interactive');
+  assert.equal(verificationSurface(['plugin/bin/lib/issues/acceptance.js']), 'non-interactive');
+  assert.equal(verificationSurface(['plugin/.claude-plugin/plugin.json']), 'non-interactive');
+  assert.equal(verificationSurface(['plugin/bin/hooks.js', 'plugin/hooks/hooks.json']), 'non-interactive');
+});
+
+// Negative control for the test above: only the payload directories gain the `plugin/`
+// spelling. A consumer project that happens to keep UI code under its own `plugin/`
+// directory must still read as interactive — a blanket `^plugin/` rule would silently
+// skip acceptance verification for it.
+test('a non-payload plugin/ path in a consumer project is still interactive', () => {
+  assert.equal(verificationSurface(['plugin/src/components/Button.tsx']), 'interactive');
+  assert.equal(verificationSurface(['plugin/app/dashboard/page.tsx']), 'interactive');
+});
+
 test('verificationSurface treats stories and journeys as interactive despite being markdown', () => {
   assert.equal(verificationSurface(['docs/journeys/checkout.md']), 'interactive');
   assert.equal(verificationSurface(['stories/login.md']), 'interactive');

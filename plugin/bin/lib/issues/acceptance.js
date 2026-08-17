@@ -23,11 +23,22 @@ const ACCEPTANCE_BY_LABEL = [
 // `interactive` — that costs a browser walk which finds nothing, whereas a wrong
 // non-interactive match skips acceptance verification silently. That asymmetry is why the
 // category stays out rather than being half-covered by prefixes.
+//
+// Payload paths are spelled two ways across this plugin's own `plugin/` payload cutover
+// (#418): a record or diff predating it cites `skills/…`/`bin/…`/`.claude-plugin/…`, one
+// after it cites `plugin/skills/…`/`plugin/bin/…`/`plugin/.claude-plugin/…`. Both spellings
+// are listed explicitly rather than folded into an optional-prefix regex, because the
+// prefix is NOT generic: only the payload directories moved. `docs/`, `tests/` and `perf/`
+// stayed at the repo root, and a consumer project's own `plugin/src/...` must keep falling
+// through to `interactive`.
 const NON_INTERACTIVE = [
   /^docs\//,
   /^\.claude/,
+  /^plugin\/\.claude/,
   /^skills\/.*\.md$/,
+  /^plugin\/skills\/.*\.md$/,
   /^bin\//,
+  /^plugin\/bin\//,
   /^tests\//,
   /^perf\//,
   /\.(ya?ml|json|toml|tsv)$/,

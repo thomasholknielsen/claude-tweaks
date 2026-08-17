@@ -132,6 +132,84 @@ test('detectEntrypoints: bin/lib/hooks/*.js is NOT an implicit entrypoint when b
   assert.ok(!eps.has('bin/lib/hooks/session-start.js'), 'a literal (non-computed) require must not trigger the implicit-entrypoint carve-out');
 });
 
+// ── detectEntrypoints, nested `plugin/` payload layout (#418) ────────────────
+//
+// This repo moved its whole plugin payload one level down, so a self-sweep now
+// lists `plugin/bin/cli.js`, `plugin/hooks/hooks.json`, `plugin/.claude-plugin/
+// plugin.json` and `plugin/bin/lib/hooks/*.js`. Every rule above is anchored at
+// the repo root, so without the nested spelling each of those reads as dead code.
+// The root-layout tests above stay: a consumer repo (and this repo's own history)
+// still keeps the payload at the root, so both spellings have to work.
+
+test('detectEntrypoints: direct children of plugin/bin/ are entrypoints, nested plugin/bin/lib files are not', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'plugin', 'bin', 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'plugin', 'bin', 'cli.js'), 'module.exports = {};\n');
+  fs.writeFileSync(path.join(root, 'plugin', 'bin', 'lib', 'helper.js'), 'module.exports = {};\n');
+  const files = ['plugin/bin/cli.js', 'plugin/bin/lib/helper.js'];
+  const eps = detectEntrypoints(root, files);
+  assert.ok(eps.has('plugin/bin/cli.js'));
+  assert.ok(!eps.has('plugin/bin/lib/helper.js'), 'the direct-child restriction must survive the nested spelling');
+});
+
+// The manifests under plugin/ still spell their own references plugin-root-relative
+// ("${CLAUDE_PLUGIN_ROOT}/bin/hooks.js"), so the extracted "bin/hooks.js" has to be
+// resolved against the manifest's own payload root, not the repo root.
+test('detectEntrypoints: a plugin/hooks/hooks.json reference resolves against the nested payload root', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'plugin', 'hooks'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'plugin', 'scripts'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'plugin', 'hooks', 'hooks.json'),
+    JSON.stringify({
+      hooks: {
+        PostToolUse: [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/notify.js" post-tool-use' }] }],
+      },
+    }),
+  );
+  fs.writeFileSync(path.join(root, 'plugin', 'scripts', 'notify.js'), 'module.exports = {};\n');
+  const files = ['plugin/scripts/notify.js', 'plugin/hooks/hooks.json'];
+  const eps = detectEntrypoints(root, files);
+  assert.ok(eps.has('plugin/scripts/notify.js'));
+});
+
+test('detectEntrypoints: files referenced inside plugin/.claude-plugin/plugin.json are entrypoints', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'plugin', '.claude-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'plugin', 'agents'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'plugin', '.claude-plugin', 'plugin.json'),
+    JSON.stringify({ name: 'x', agents: ['./agents/qa-agent.js'] }),
+  );
+  fs.writeFileSync(path.join(root, 'plugin', 'agents', 'qa-agent.js'), 'module.exports = {};\n');
+  const files = ['plugin/agents/qa-agent.js', 'plugin/.claude-plugin/plugin.json'];
+  const eps = detectEntrypoints(root, files);
+  assert.ok(eps.has('plugin/agents/qa-agent.js'));
+});
+
+test('detectEntrypoints: plugin/bin/lib/hooks/*.js is an implicit entrypoint set when plugin/bin/hooks.js dynamically requires from it', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'plugin', 'bin', 'lib', 'hooks'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'plugin', 'bin', 'hooks.js'),
+    "function loadModule(event) { try { return require('./lib/hooks/' + event); } catch { return null; } }\nmodule.exports = { loadModule };\n",
+  );
+  fs.writeFileSync(path.join(root, 'plugin', 'bin', 'lib', 'hooks', 'session-start.js'), 'function run() { return 1; }\nmodule.exports = { run };\n');
+  const files = ['plugin/bin/hooks.js', 'plugin/bin/lib/hooks/session-start.js'];
+  const eps = detectEntrypoints(root, files);
+  assert.ok(eps.has('plugin/bin/lib/hooks/session-start.js'), 'dynamically-loaded hook module must be treated as an entrypoint under the nested payload root too');
+});
+
+test('detectEntrypoints: plugin/bin/lib/hooks/*.js is NOT an implicit entrypoint when plugin/bin/hooks.js does not use the dynamic-require pattern', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'plugin', 'bin', 'lib', 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'plugin', 'bin', 'hooks.js'), "const x = require('./lib/hooks/session-start');\nmodule.exports = { x };\n");
+  fs.writeFileSync(path.join(root, 'plugin', 'bin', 'lib', 'hooks', 'session-start.js'), 'module.exports = {};\n');
+  const files = ['plugin/bin/hooks.js', 'plugin/bin/lib/hooks/session-start.js'];
+  const eps = detectEntrypoints(root, files);
+  assert.ok(!eps.has('plugin/bin/lib/hooks/session-start.js'), 'a literal (non-computed) require must not trigger the implicit-entrypoint carve-out under the nested payload root either');
+});
+
 const { extractModuleExports } = require('../../../plugin/bin/lib/code-health/candidates-dead-code');
 
 // ── extractModuleExports ─────────────────────────────────────────────────────

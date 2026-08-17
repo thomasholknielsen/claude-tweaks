@@ -53,6 +53,9 @@
 //     the string-keyed `require('./lib/hooks/' + event)` pattern — this
 //     repo's own hook dispatcher convention, invisible to every other rule
 //     here because the required path is never a string literal.
+//   - The entrypoint rules resolve against a payload root, tried as both `''`
+//     (the conventional layout) and `plugin/` (this repo's own, after the #418
+//     payload cutover) — see `PAYLOAD_PREFIXES` in `detectEntrypoints`.
 //   - Files that cannot be read, and files containing a NUL byte (a real
 //     source file can hold one in a string literal, not just a binary can),
 //     are excluded from the scan entirely — never candidates, and never
@@ -163,25 +166,49 @@ function detectEntrypoints(rootDir, files) {
   const entrypoints = new Set();
   const fileSet = new Set(files);
 
-  // Rule 1: files directly under bin/ (direct children only — bin/lib/**
+  // Rules 1, 2, 3 and 5 below are all anchored at a *payload* root, which is not
+  // always the repo root. Historically it always was; claude-tweaks then moved its
+  // whole plugin payload one level down (#418), so a self-sweep of this repo lists
+  // `plugin/bin/cli.js`, `plugin/hooks/hooks.json` and so on. Both spellings are
+  // checked, in this fixed order, because both are live: `''` is the conventional
+  // layout every other consumer repo still uses, `'plugin/'` is this repo's own
+  // post-cutover layout. This function reads the working tree only (never git
+  // history), so the `''` entry is here for other repos, not for old commits.
+  //
+  // Cost of the broadening, stated: in a consumer repo that happens to keep unrelated
+  // code under `plugin/bin/`, those files now read as entrypoints and are never
+  // flagged. That is a false negative, the direction this whole module is
+  // deliberately biased toward (see the header's Coverage block).
+  const PAYLOAD_PREFIXES = ['', 'plugin/'];
+
+  // Rule 1: files directly under <payload>/bin/ (direct children only — bin/lib/**
   // is not covered by this rule; see Rule 5 for its one carve-out).
-  for (const f of files) {
-    const parts = f.split('/');
-    if (parts.length === 2 && parts[0] === 'bin') entrypoints.add(f);
+  for (const prefix of PAYLOAD_PREFIXES) {
+    const binDir = `${prefix}bin/`;
+    for (const f of files) {
+      if (f.startsWith(binDir) && !f.slice(binDir.length).includes('/')) entrypoints.add(f);
+    }
   }
 
   // Rules 2 & 3: paths named inside hooks/hooks.json and
   // .claude-plugin/plugin.json — this repo's own convention for what a
-  // hook or plugin manifest invokes externally.
-  for (const configRel of ['hooks/hooks.json', '.claude-plugin/plugin.json']) {
-    let text;
-    try {
-      text = fs.readFileSync(path.join(rootDir, configRel), 'utf8');
-    } catch {
-      continue; // not every target repo is a claude-tweaks-style plugin
-    }
-    for (const rel of extractPathLikeStrings(text)) {
-      if (fileSet.has(rel)) entrypoints.add(rel);
+  // hook or plugin manifest invokes externally. A manifest spells its
+  // references relative to its own payload root ("${CLAUDE_PLUGIN_ROOT}/bin/
+  // hooks.js"), so an extracted path is matched both bare (root layout) and
+  // re-prefixed with the payload root the manifest was found under.
+  for (const prefix of PAYLOAD_PREFIXES) {
+    for (const configRel of ['hooks/hooks.json', '.claude-plugin/plugin.json']) {
+      let text;
+      try {
+        text = fs.readFileSync(path.join(rootDir, prefix + configRel), 'utf8');
+      } catch {
+        continue; // not every target repo is a claude-tweaks-style plugin
+      }
+      for (const rel of extractPathLikeStrings(text)) {
+        for (const candidate of [rel, prefix + rel]) {
+          if (fileSet.has(candidate)) entrypoints.add(candidate);
+        }
+      }
     }
   }
 
@@ -202,19 +229,23 @@ function detectEntrypoints(rootDir, files) {
     // no package.json, or it doesn't parse — this rule simply contributes nothing
   }
 
-  // Rule 5: bin/lib/hooks/*.js as implicit entrypoints, when bin/hooks.js
-  // exists and dynamically requires from that directory by string
-  // concatenation — a pattern invisible to Rules 1-4 because the required
-  // path is never a string literal anywhere in the tree.
-  let hooksJsText = null;
-  try {
-    hooksJsText = fs.readFileSync(path.join(rootDir, 'bin', 'hooks.js'), 'utf8');
-  } catch {
-    // no bin/hooks.js in this target repo — rule contributes nothing
-  }
-  if (hooksJsText && /require\(\s*['"`]\.\/lib\/hooks\/['"`]\s*\+/.test(hooksJsText)) {
+  // Rule 5: <payload>/bin/lib/hooks/*.js as implicit entrypoints, when
+  // <payload>/bin/hooks.js exists and dynamically requires from that directory
+  // by string concatenation — a pattern invisible to Rules 1-4 because the
+  // required path is never a string literal anywhere in the tree. The dispatcher
+  // and its modules always share a payload root, so each prefix is resolved as
+  // one unit rather than cross-matching a root dispatcher against nested modules.
+  for (const prefix of PAYLOAD_PREFIXES) {
+    let hooksJsText = null;
+    try {
+      hooksJsText = fs.readFileSync(path.join(rootDir, `${prefix}bin`, 'hooks.js'), 'utf8');
+    } catch {
+      continue; // no <payload>/bin/hooks.js in this target repo — this prefix contributes nothing
+    }
+    if (!/require\(\s*['"`]\.\/lib\/hooks\/['"`]\s*\+/.test(hooksJsText)) continue;
+    const hooksLibDir = `${prefix}bin/lib/hooks/`;
     for (const f of files) {
-      if (f.startsWith('bin/lib/hooks/') && f.split('/').length === 4) entrypoints.add(f);
+      if (f.startsWith(hooksLibDir) && !f.slice(hooksLibDir.length).includes('/')) entrypoints.add(f);
     }
   }
 
