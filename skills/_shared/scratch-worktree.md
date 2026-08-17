@@ -60,6 +60,18 @@ only the trigger differs.
 
 ## 2. Creating it
 
+Before calling `EnterWorktree` (or falling back to `git worktree add`), fast-forward the main
+checkout's local `{integration-branch}` to origin's tip:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile
+```
+
+Never `git checkout` or `git pull` in the shared checkout to accomplish this — `reconcile`'s
+mirror-ff is the sanctioned, worktree-safe mechanism (it never merges, strict `--ff-only`, no
+worktree guard needed). See `worktree-setup.md`'s `## Pre-creation reconcile` for the full
+rationale, cited rather than restated here.
+
 Use the **native tool** (`EnterWorktree`) when one is available. Fall back to `git worktree
 add` only when none is — `superpowers:using-git-worktrees` Step 1a before Step 1b — and when
 falling back, create it under **`.worktrees/`**, verifying it's gitignored first (that skill's
@@ -146,6 +158,28 @@ other merge conflict is (`_shared/git-discipline.md`).
 
 Tear down via **`ExitWorktree`**, never a raw `git worktree remove` — the worktree carries a
 live lock, and the raw command fails on it (`[IL-58]`).
+
+Before calling `ExitWorktree`, run the sanctioned ancestry check to prove discarding the
+worktree branch loses nothing:
+
+```bash
+git fetch origin {integration-branch}
+git merge-base --is-ancestor HEAD origin/{integration-branch}
+```
+
+- **Exit 0** — every commit on this worktree's branch is already upstream. Call
+  `ExitWorktree` with `discard_changes: true` and state the one-line reason (e.g. "HEAD is an
+  ancestor of origin/{integration-branch} — nothing to lose"). Never invoke the override
+  without running this check first.
+- **Non-zero** — stop and surface: run `git log origin/{integration-branch}..HEAD --oneline`
+  and show the listing. Never override the guard on a non-zero result — the commits it lists
+  are genuinely at risk.
+
+This is what makes `discard_changes: true` a proven claim instead of an improvised one. Once
+`ExitWorktree` succeeds and the branch was actually merged (not just abandoned), the next
+action is `pr-first-merge.md`'s `## Step 5: Delete the remote branch (outcome merged, after worktree teardown)` — cited here rather than restated, per the state-once rule; this
+section is about whether it's safe to discard the worktree, not about remote branch cleanup,
+which stays canonically stated in `pr-first-merge.md`.
 
 The two domains are asymmetric here too. If teardown fails or is skipped, `SessionStart`'s
 reaper (`bin/lib/hooks/worktree-reap.js`) can later collect an abandoned worktree — but
