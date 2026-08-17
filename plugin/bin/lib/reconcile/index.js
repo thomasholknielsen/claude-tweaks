@@ -146,13 +146,24 @@ async function reconcile(opts = {}) {
   let sharedFetchOk = true;
   const wantsMirror = checks.includes('mirror');
   const wantsRemotePrune = checks.includes('remote-prune');
-  if (wantsMirror || wantsRemotePrune) {
+  // Whether the fetch actually ran this pass, not just whether it ran
+  // without error — sharedFetchOk alone defaults to `true` even when the
+  // block below never executes at all (neither mirror nor remote-prune
+  // requested), which would let red-tip's gate below silently read a
+  // never-refreshed local ref if a future `checks` subset ever requests
+  // red-tip without either (#820 review — currently unreachable, since
+  // every caller's FAST_CHECKS/ALL_CHECKS pairs red-tip with mirror, but the
+  // gate should say so rather than rely on that pairing holding forever).
+  const fetchRan = wantsMirror || wantsRemotePrune;
+  if (fetchRan) {
     const fetched = sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
     if (fetched.failure) {
       sharedFetchOk = false;
       const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));
       if (affected.length) result.skipped.push({ check: affected.join(','), reason: 'fetch-failed' });
     }
+  } else if (checks.includes('red-tip')) {
+    result.skipped.push({ check: 'red-tip', reason: 'no-fetch-this-pass' });
   }
   if (checks.includes('mirror') && sharedFetchOk) {
     result.mirror = mirrorFastForward(root, integration, { skipFetch: true });
@@ -165,9 +176,12 @@ async function reconcile(opts = {}) {
   // (the model !== 'pr-first' early-return above already exits before this
   // line). Gated on `sharedFetchOk` too: a failed shared fetch leaves
   // origin/{integration} exactly as stale as a failed mirror fetch used to,
-  // so red-tip has nothing fresh to read either.
+  // so red-tip has nothing fresh to read either. Also gated on `fetchRan`
+  // (see above) — `sharedFetchOk` alone can't distinguish "fetch ran and
+  // succeeded" from "fetch never ran," and only the former actually
+  // refreshed the ref red-tip reads.
   if (overBudget(DISPATCH_ORDER.slice(1))) return result;
-  if (checks.includes('red-tip') && sharedFetchOk) {
+  if (checks.includes('red-tip') && sharedFetchOk && fetchRan) {
     result.redTip = redTipCheck(root, integration, {
       onSkip: (reason) => result.skipped.push({ check: 'red-tip', reason }),
     });

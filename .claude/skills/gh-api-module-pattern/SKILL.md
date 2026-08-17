@@ -30,6 +30,15 @@ URL *path* placeholders (`repos/{owner}/{repo}/…`) are a fourth thing: always 
 - Error text: join `err.message`/`err.stderr`/`err.stdout`, with a `String(err)` fallback so a non-Error throw never yields an empty `failed[].error`.
 - **Enumerate an operation's full documented error-status set in one sitting.** Adding one status per bug report ships the same misclassification serially: `plugin/bin/lib/issues/claim-store.js`'s Contents-API PUT got its 422 create-race branch in `75c8b3b6`, then the symmetric 409 sha-mismatch branch in `4ee0fbcc` — one defect class, found twice, the second time by a review lens. Read the endpoint's documented statuses first (Contents PUT: 404 read-miss, 409 sha-mismatch, 422 create-race) and branch on all of them in the same commit.
 - **Rate-limit recognition and burst pacing.** Classify a `gh api` rate-limit failure per `plugin/skills/_shared/github-rate-limit.md`'s taxonomy before deciding whether to retry — a plain 403 under that file's rules is not transient and must not be retried. When a module issues a scripted sequence of mutative calls, follow that file's burst-shape rules.
+- **Widen an existing call's `-q` projection before adding a second API call.** When a later step needs one more field off data you already fetched, extend the `jq` filter rather than issuing a fresh request — `plugin/bin/lib/issues/claim-store.js`'s `listClaimEntries` widened `-q .[].name` to `-q '[.[] | {name, sha}]'` to get each claim blob's `sha` from the same single Contents-API directory listing (#820 D6), instead of a second lookup per entry.
+
+## Async fan-out
+
+`execFileSync` blocks the event loop regardless of how the calling code is structured, so a concurrency pool built over sync runners buys nothing — the async runner below is what actually makes fan-out non-blocking. `plugin/bin/lib/reconcile/gh-pool.js` establishes the async sibling to the sync seam above:
+
+- Export an async runner via `promisify(execFile)`, returning the same `{stdout, failure, status}` shape the sync `deps.ghApi`-style seam already returns (`release-merged.js`'s `ghApiAsync`, `console-execute.js`'s `execFileAsync`) — same contract, non-blocking transport.
+- Reuse a single injectable `ghApi` option for both sync and async call sites rather than adding a second override parameter: a sync test fake gets wrapped in an already-resolved promise (`release-merged.js`'s `releaseMerged` opts) so callers and tests don't need to know which transport a given call uses.
+- `gh-pool.js`'s `runWithConcurrency` fans calls out order-preserving and concurrency-capped, with each item's own try/catch storing the `Error` at its index — the async form of "one failed edge never aborts the batch" above. Clamp the concurrency cap to `>= 1`: an unclamped `Math.min(cap, len)` with `cap <= 0`/`NaN` spawns zero workers and silently resolves an all-`undefined` array instead of throwing or doing the work.
 
 ## The CLI wrapper contract
 

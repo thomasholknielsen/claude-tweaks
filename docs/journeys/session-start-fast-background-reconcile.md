@@ -1,10 +1,13 @@
 ---
 files:
-  - bin/lib/hooks/session-start.js
-  - bin/lib/reconcile/index.js
-  - bin/lib/reconcile/preflight.js
-  - bin/lib/reconcile/cache.js
-  - bin/hooks.js
+  - plugin/bin/lib/hooks/session-start.js
+  - plugin/bin/lib/reconcile/index.js
+  - plugin/bin/lib/reconcile/preflight.js
+  - plugin/bin/lib/reconcile/cache.js
+  - plugin/bin/lib/reconcile/budget.js
+  - plugin/bin/lib/reconcile/shared-fetch.js
+  - plugin/bin/lib/reconcile/gh-pool.js
+  - plugin/bin/hooks.js
 ---
 
 # Session Start: Fast Advisory Pass With a Background Reconcile
@@ -17,7 +20,7 @@ files:
 ## Steps
 
 ### 1. Session starts — the fast pass runs inline
-- **Action:** `SessionStart` fires `bin/lib/hooks/session-start.js`'s `run(ctx)`, which calls `reconcile()` inline for only `mirror`, `red-tip`, and `console` — a GitHub-health preflight (`preflight.js`, ~2s) runs first and skips the rest of the pass on failure, and a short-TTL freshness cache (`cache.js`) short-circuits the whole call if another session already reconciled this repo within the last few minutes.
+- **Action:** `SessionStart` fires `session-start.js`'s `run(ctx)`, which calls `reconcile()` inline for only `mirror`, `red-tip`, and `console` — a short-TTL freshness cache (`cache.js`) short-circuits the whole call first if another session already reconciled this repo within the last few minutes, then a GitHub-health preflight (`preflight.js`, ~2s) runs and skips the rest of the pass on failure, and an overall wall-clock pass budget (`budget.js`) bounds the sum of whatever checks do run so a slow network can't turn the fast pass into a stall — `shared-fetch.js` keeps the mirror/red-tip pair to one fetch round trip.
 - **Should feel:** Fast and unobtrusive — the session's first message shows up without a noticeable stall, on both a healthy repo and a degraded-GitHub one.
 - **Should understand:** The mirror/branch summary and red-tip warning they see are current as of this session start (or, on a cache hit, as of the very recent prior one) — not stale.
 - **Red flags:** A visible multi-second-to-minutes stall before the first message; a mirror/red-tip summary that silently omits a real problem because a network call timed out with no explanation.

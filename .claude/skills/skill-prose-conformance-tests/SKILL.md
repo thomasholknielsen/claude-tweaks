@@ -61,7 +61,7 @@ Documented procedure and exercised procedure are then the same bytes by construc
 
 ### Fixture repos come from the shared helper
 
-`tests/helpers/git-fixtures.js` exports `gitRepo`, `linkedWorktreeOf`, `harnessWorktreeOf`, `fixtureGit`, and `FIXTURE_TIMEOUT_MS`, and 11 suites consume it. Build throwaway repos from it rather than hand-rolling another `spawnSync('git', ['init'])` ladder, and take `FIXTURE_TIMEOUT_MS` from it too so one machine-speed knob governs the suite.
+`tests/helpers/git-fixtures.js` exports `gitRepo`, `linkedWorktreeOf`, `harnessWorktreeOf`, `fixtureGit`, and `FIXTURE_TIMEOUT_MS`, consumed by every suite that needs a throwaway repo. Build throwaway repos from it rather than hand-rolling another `spawnSync('git', ['init'])` ladder, and take `FIXTURE_TIMEOUT_MS` from it too so one machine-speed knob governs the suite.
 
 ### Negative-exclusion tests for a resolver's source-exclusion special case
 

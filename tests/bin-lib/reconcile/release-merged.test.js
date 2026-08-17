@@ -209,3 +209,118 @@ test('releaseMerged: a live claim with an unchanged sha is still re-fetched ever
   await releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, but the claim is live — must still re-read
   assert.equal(readCalls, 2, 'a live claim must never be cached/skipped, even with an unchanged sha');
 });
+
+// Phase 1.5 (#820 review — resolvePrState was left serial in an earlier pass
+// of this diff; this proves it's actually wired through the pool end to
+// end): a real resolvable worktree/run-state/branch join, with `gh pr list`
+// intercepted at the process-spawn boundary (resolvePrStateAsync isn't
+// injectable — same PATH-wrapper technique as pr-state.test.js and
+// prune-remote.test.js's `git` wrapper) — reaching a merged-PR release
+// decision proves the async prState resolution actually reaches
+// decideRelease, not just that the module loads.
+test('releaseMerged: Phase 1.5 resolves prState via the pool and reaches a merged-PR release decision', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  // realpathSync up front: on macOS, os.tmpdir() lives under a /var symlink
+  // to /private/var, and `git worktree list --porcelain` always reports the
+  // resolved form — resolving here once keeps every path built from `root`
+  // consistent with what git reports, avoiding a spurious no-branch join.
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-prstate-')));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
+  execFileSync('git', ['commit', '--allow-empty', '-q', '-m', 'init'], { cwd: root });
+
+  const wtPath = path.join(root, '.worktrees', 'wt-run-1');
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'run-1-branch', wtPath], { cwd: root });
+
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', 'run-1');
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active', worktree: wtPath }));
+
+  const liveContent = JSON.stringify({
+    runId: 'run-1', sessionId: 's1', claimedAt: new Date().toISOString(), ttlHours: 72, host: 'h',
+  });
+  const ghApi = (args) => {
+    if (args[0].includes('/contents/claims?')) {
+      return { stdout: JSON.stringify([{ name: 'issue-11.json', sha: 'live-sha' }]), failure: null, status: null };
+    }
+    if (args[0].includes('/contents/claims/issue-11.json')) {
+      return { stdout: JSON.stringify({ content: liveContent, sha: 'live-sha' }), failure: null, status: null };
+    }
+    if (args.some((a) => a.includes('/labels/'))) {
+      return { stdout: '', failure: null, status: null }; // removeInProgressLabel, best-effort
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+
+  // A `gh` wrapper on PATH answers `gh pr list --head run-1-branch ...` with
+  // a merged PR — the real gh binary is never invoked.
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-ghwrap-'));
+  const wrapperPath = path.join(wrapperDir, 'gh');
+  fs.writeFileSync(
+    wrapperPath,
+    '#!/bin/sh\ncat <<\'EOF\'\n[{"number":42,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]\nEOF\n',
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+
+  try {
+    const result = await releaseMerged({ cwd: root, ghApi });
+    assert.equal(result.released.length, 1, 'the merged-PR evidence must reach decideRelease and release the claim');
+    assert.equal(result.released[0].issueNumber, 11);
+    assert.equal(result.released[0].prNumber, 42, 'the resolved prState (via Phase 1.5\'s pool) must carry through to the released entry');
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
+// #820 review: the final cache write must re-read immediately before
+// writing, not reuse the `cache` snapshot captured at function entry (before
+// Phase 1.5/2's async gh-pool calls, which can take real wall-clock time).
+// Simulates a concurrent reconcile() process writing a fresher `lastRunAt`
+// WHILE this call's own Phase 2 issue-state fetch is in flight — the fix
+// must preserve that write, not silently revert it to the stale entry-time
+// snapshot (which here is `null`, since no cache file exists yet at entry).
+test('releaseMerged: does not revert a concurrent process\'s cache write made during its own async phases', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  const { readCache, writeCache } = require('../../../plugin/bin/lib/reconcile/cache');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-cache-race-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
+
+  // A live claim with no run-state -> joinFailure 'no-run-state' -> prState
+  // stays null -> needsIssueEvidence(null) is true -> Phase 2's issue-state
+  // fetch fires, which is where the side effect below lands.
+  const liveContent = JSON.stringify({
+    runId: 'no-such-run', sessionId: 's1', claimedAt: new Date().toISOString(), ttlHours: 72, host: 'h',
+  });
+  const CONCURRENT_LAST_RUN_AT = 123456789;
+  const ghApi = (args) => {
+    if (args[0].includes('/contents/claims?')) {
+      return { stdout: JSON.stringify([{ name: 'issue-13.json', sha: 'live-sha' }]), failure: null, status: null };
+    }
+    if (args[0].includes('/contents/claims/issue-13.json')) {
+      return { stdout: JSON.stringify({ content: liveContent, sha: 'live-sha' }), failure: null, status: null };
+    }
+    if (args[0].includes('/issues/13')) {
+      // A concurrent process finishes and writes its own fresher lastRunAt
+      // WHILE this call is still awaiting its Phase 2 batch.
+      writeCache(root, { lastRunAt: CONCURRENT_LAST_RUN_AT, claimShas: {} });
+      return { stdout: 'OPEN\n', failure: null, status: null };
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+
+  await releaseMerged({ cwd: root, ghApi });
+  assert.equal(
+    readCache(root).lastRunAt,
+    CONCURRENT_LAST_RUN_AT,
+    'the concurrent write must survive — a stale entry-time snapshot must not overwrite it',
+  );
+});

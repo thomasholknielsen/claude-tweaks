@@ -522,6 +522,29 @@ test('reconcile: red-tip dispatches immediately after mirror in source order (lo
   assert.ok(redTipIdx < consoleIdx, 'red-tip must dispatch before console');
 });
 
+// #820 review: sharedFetchOk alone can't distinguish "fetch ran and
+// succeeded" from "fetch never ran" (it defaults to true) — a caller
+// requesting red-tip without mirror/remote-prune must not silently read a
+// never-refreshed local ref. Currently unreachable via FAST_CHECKS/
+// BACKGROUND_CHECKS (both always pair red-tip with mirror), but the gate
+// itself must hold regardless of which caller exercises it.
+test('reconcile(): red-tip requested alone (no mirror/remote-prune) skips rather than reading a stale ref', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['red-tip'] });
+    assert.equal(r.redTip, null, 'red-tip must never dispatch without a fetch this pass');
+    assert.deepEqual(r.skipped, [{ check: 'red-tip', reason: 'no-fetch-this-pass' }]);
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+});
+
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---
 
 test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => {

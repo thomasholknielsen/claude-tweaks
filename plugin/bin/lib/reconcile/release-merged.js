@@ -15,7 +15,7 @@ const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload } = require('../issues/claims');
 const claimStore = require('../issues/claim-store');
-const { resolvePrState } = require('./pr-state');
+const { resolvePrStateAsync } = require('./pr-state');
 const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
 const { readCache, writeCache } = require('./cache');
 const { runWithConcurrency } = require('./gh-pool');
@@ -203,14 +203,22 @@ function removeInProgressLabel(repoSlug, issueNumber, api = ghApi) {
 // removal), mirroring claim-store.js's seam, so tests never shell to the
 // real `gh` binary. Defaults to the module-level `ghApi` above.
 //
-// Runs in three phases (#820, D5 — parallelizing the one remaining
-// per-active-claim gh call, issue-state reads, through gh-pool's
-// concurrency-capped `runWithConcurrency`):
+// Runs in four phases (#820, D5 — parallelizing every per-active-claim gh
+// call, PR-state AND issue-state reads, through gh-pool's concurrency-capped
+// `runWithConcurrency`; PR-state was left serial in an earlier pass of this
+// diff — #820 review — since it fires for every active claim with a
+// resolvable branch, a superset of the candidates that also need issue
+// evidence, it is the more universally-triggered of the two and is now
+// pooled the same way):
 //   Phase 1 (sync) — read/classify/join every claim not cache-skipped,
-//     collecting active (live/stale) candidates with their PR-join result.
+//     collecting active (live/stale) candidates with their branch join
+//     (PR-state deferred to Phase 1.5).
+//   Phase 1.5 (parallel) — one runWithConcurrency batch resolving every
+//     joinable candidate's PR-state fetch.
 //   Phase 2 (parallel) — one runWithConcurrency batch resolving every
 //     candidate's issue-state fetch (only for candidates PR evidence alone
-//     can't decide — see needsIssueEvidence).
+//     can't decide — see needsIssueEvidence, now evaluated against Phase
+//     1.5's resolved prState).
 //   Phase 3 (sync) — decide + write. Writes stay serial: each is its own
 //     conditional-update with its own sha, so there's no benefit to
 //     parallelizing them, and serial writes keep this module's existing
@@ -292,7 +300,6 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
       continue;
     }
 
-    let prState = null;
     let joinFailure = null; // 'no-run-state' | 'no-branch' — preserved as the skip reason when no evidence releases
     const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
     const runState = readRunState(runDir);
@@ -304,17 +311,36 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
       joinFailure = 'no-run-state'; // archived/gone run dir — issue-closed evidence below may still release
     } else if (!branch) {
       joinFailure = 'no-branch';
-    } else {
-      prState = resolvePrState(root, branch);
     }
+    // prState is resolved in Phase 1.5 below (deferred so the per-active-claim
+    // `gh pr list` call goes through the pool, not this sync loop) — null here
+    // is a placeholder, never a "no PR" result; joinFailure gates whether
+    // Phase 1.5 attempts the fetch at all.
 
     // `sha` here is claim.sha (this fresh read's blob sha, NOT the earlier
     // listing's entry.sha) — the same sha writeTombstone below treats as
     // authoritative for its conditional write, and the same distinction
     // the `!isActive` cache-write above draws for exactly the same reason.
     candidates.push({
-      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState, joinFailure,
+      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState: null, joinFailure, branch,
     });
+  }
+
+  // Phase 1.5: parallel PR-state fetches, capped, only for candidates whose
+  // branch actually resolved (joinFailure === null) — a candidate with
+  // 'no-run-state'/'no-branch' has nothing to resolve a PR against, so it
+  // costs nothing here, matching Phase 2's own "gated the same way the
+  // serial version gated its call" discipline (#820 review).
+  const needPrState = candidates.filter((c) => c.joinFailure === null);
+  const prStates = await runWithConcurrency(
+    needPrState,
+    (c) => resolvePrStateAsync(root, c.branch),
+  );
+  const prStateByIssue = new Map(
+    needPrState.map((c, i) => [c.issueNumber, prStates[i] instanceof Error ? 'network-failure' : prStates[i]]),
+  );
+  for (const c of candidates) {
+    if (c.joinFailure === null) c.prState = prStateByIssue.get(c.issueNumber);
   }
 
   // Phase 2: parallel issue-state fetches, capped, only for candidates that
@@ -352,7 +378,17 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     released.push(releasedEntry(c.issueNumber, c.runId, c.prState));
   }
 
-  writeCache(root, { ...cache, claimShas: nextClaimShas });
+  // Re-read immediately before writing rather than reusing the `cache`
+  // snapshot captured at function entry (before Phase 1.5/2's async gh-pool
+  // network calls, which can take real wall-clock seconds): under this
+  // repo's normal concurrent-worktree-session usage, a concurrent
+  // reconcile() process can write a fresher `lastRunAt` inside that window,
+  // and writing back the stale entry-time snapshot would silently revert it
+  // — index.js's own final cache write already reads and writes back-to-back
+  // for exactly this reason (#820 review). `claimShas: nextClaimShas` stays a
+  // full replacement, not a merge — this pass's own listing-driven rebuild is
+  // already a complete, self-consistent claimShas set for what it observed.
+  writeCache(root, { ...readCache(root), claimShas: nextClaimShas });
   return { released, skipped };
 }
 
