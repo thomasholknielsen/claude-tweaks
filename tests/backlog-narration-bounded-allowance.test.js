@@ -18,11 +18,13 @@ const PRE_CHANGE_BANNER =
   'announce that a step ran or passed. A clean step is silent; its output speaks through the ' +
   'report itself.\n\n## Step 1: Fetch\n';
 
-// One claim per call: the pattern must match the shipped prose AND fail against the pre-change
-// text, so a green result proves the regex can actually go red [IL-105].
-function assertClaimPinned(prose, pattern, missingMessage) {
-  assert.match(prose, pattern, missingMessage);
-  assert.doesNotMatch(PRE_CHANGE_BANNER, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+// The window a step's one-clause reminder must appear in: the text immediately after its header.
+// Shared by the shipped-prose assertions and their go-red controls so both exercise the same
+// extraction [IL-105].
+function textAfterHeader(prose, header) {
+  const idx = prose.indexOf(header);
+  assert.ok(idx >= 0, `step header not found: ${header}`);
+  return prose.slice(idx + header.length, idx + header.length + 300);
 }
 
 // Whitespace-tolerant sweep for the retired absolute-rule phrasing — hard-wrapped markdown
@@ -32,12 +34,11 @@ const RETIRED_PHRASES = [
   /[Aa]\s+clean\s+step\s+is\s+silent/,
 ];
 
+const BANNER = /\*\*Narration allowance:\*\* exactly one opening status line/;
+
 test('overview-mode.md carries the bounded narration allowance, not the absolute rule', () => {
-  assertClaimPinned(
-    overviewProse,
-    /\*\*Narration allowance:\*\* exactly one opening status line/,
-    'bounded-allowance banner missing from overview-mode.md',
-  );
+  assert.match(overviewProse, BANNER, 'bounded-allowance banner missing from overview-mode.md');
+  assert.doesNotMatch(PRE_CHANGE_BANNER, BANNER, 'pattern must NOT match the pre-change text (proves it can go red)');
 });
 
 test('sweep: no retired clean-step-silence phrasing survives in overview-mode.md', () => {
@@ -72,23 +73,19 @@ const REFINE_STEPS = [
   '## Step 5: Apply',
 ];
 
+const REMINDER = /Narration allowance:/;
+
 test('every output-emitting step in overview-mode.md carries the one-clause reminder', () => {
+  // Pre-change text carries the same Step 1 header with no reminder under it — proves this can go red.
+  assert.doesNotMatch(textAfterHeader(PRE_CHANGE_BANNER, '## Step 1: Fetch'), REMINDER, 'reminder must NOT be found in the pre-change text');
   for (const header of OVERVIEW_STEPS) {
-    const idx = overviewProse.indexOf(header);
-    assert.ok(idx >= 0, `step header not found: ${header}`);
-    const after = overviewProse.slice(idx + header.length, idx + header.length + 300);
-    assert.match(after, /Narration allowance:/, `no one-clause reminder immediately after "${header}"`);
-    // Pre-change text has no such reminder — proves this can go red.
-    assert.doesNotMatch(PRE_CHANGE_BANNER, /## Step 1: Fetch\n\n\*\(Narration allowance/, 'reminder pattern must NOT match the pre-change text');
+    assert.match(textAfterHeader(overviewProse, header), REMINDER, `no one-clause reminder immediately after "${header}"`);
   }
 });
 
 test('every output-emitting step in refine-mode.md carries the one-clause reminder', () => {
   for (const header of REFINE_STEPS) {
-    const idx = refineProse.indexOf(header);
-    assert.ok(idx >= 0, `step header not found: ${header}`);
-    const after = refineProse.slice(idx + header.length, idx + header.length + 300);
-    assert.match(after, /Narration allowance:/, `no one-clause reminder immediately after "${header}"`);
+    assert.match(textAfterHeader(refineProse, header), REMINDER, `no one-clause reminder immediately after "${header}"`);
   }
 });
 
