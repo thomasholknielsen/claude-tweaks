@@ -75,8 +75,8 @@ directory, so the claim needs an identity to claim under before one necessarily 
   parent directory), create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`
   (mkdir only — no `config.yml`, no `decisions.md`; Step 3 writes those when it adopts the now-set
   `PIPELINE_RUN_DIR` per case 2). Export it as `PIPELINE_RUN_DIR` for the rest of this pipeline
-  invocation. `{spec-slug}` follows `manifesto.md`'s Path conventions (`spec-{N}` single, dash-joined
-  multi, or a topic slug). `{ISO-timestamp}` is UTC, per `_shared/pipeline-run-dir.md`'s
+  invocation. `{spec-slug}` follows `_shared/pipeline-run-dir.md`'s SPEC_SLUG conventions (`spec-{N}` single, dash-joined
+  multi with the load-bearing `spec-` prefix, or a topic slug). `{ISO-timestamp}` is UTC, per `_shared/pipeline-run-dir.md`'s
   ISO-timestamp rule (`date -u`).
 
 Either way, `basename($PIPELINE_RUN_DIR)` is this run's claim identity for every target below.

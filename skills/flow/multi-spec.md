@@ -180,11 +180,11 @@ spec 159 — FAILED at test (3 type errors)
 spec 160 — not run (previous spec failed)
 ```
 
-The consolidated Review Console still runs at the end with whatever was accumulated up to the failure. Specs 158-160 appear in the **Not run** footer with status `not-run` and reason `previous spec failed (159)`.
+The consolidated Review Console still runs with whatever was accumulated up to the failure; specs 158-160 appear in the **Not run** footer with status `not-run`, reason `previous spec failed (159)`.
 
 ### `keep-going` — continue on failure
 
-When the user passes `/flow 157,159,160 keep-going`, HARD-GATE failures in one spec **do not** stop subsequent specs. Each spec's pipeline runs to completion (or fails on its own gate); the consolidated console surfaces all outcomes together.
+When the user passes `/flow 157,159,160 keep-going`, HARD-GATE failures in one spec **do not** stop subsequent specs — each runs to completion (or fails on its own gate) and the consolidated console surfaces all outcomes together.
 
 ```
 spec 157 — passed
@@ -198,12 +198,12 @@ The consolidated Review Console's **Not run / Failed** footer distinguishes:
 |---|---|---|
 | 159 | failed | test gate (3 type errors) — see `spec-159/decisions.md` for details |
 
-This is **opt-in** for a reason: it inverts the compounding-risk safety. Use when:
-- Specs are genuinely independent (no `blocked-by:` edges between them)
+This is **opt-in** — it inverts the compounding-risk safety. Use when:
+- Specs are genuinely independent (no `blocked-by:` edges)
 - You want to see all failures together rather than fix-and-retry serially
 - A batch of small refactors where one failing doesn't invalidate the others
 
-Do NOT use `keep-going` when specs have `blocked-by:` relationships — the failed spec's downstream may compound the bug. The dependency check (above) does not auto-disable `keep-going`, but a warning surfaces in the Pipeline Preview footer:
+Do NOT use `keep-going` when specs have `blocked-by:` relationships — the failed spec's downstream may compound the bug. The dependency check above doesn't auto-disable it, but a warning surfaces in the Pipeline Preview footer:
 
 ```
 keep-going + dependencies: spec 159 depends on 157 — if 157 fails, 159 may also fail or produce incorrect output. Consider running without keep-going.
@@ -211,12 +211,12 @@ keep-going + dependencies: spec 159 depends on 157 — if 157 fails, 159 may als
 
 ### Interaction with worktree mode
 
-The run shares **one worktree** (see "Shared worktree" above), so there is no per-spec worktree to discard or preserve. A failed spec leaves its commits in the shared branch:
+The run shares **one worktree** (see "Shared worktree" above) — no per-spec worktree to discard or preserve. A failed spec leaves its commits in the shared branch:
 
-- **Default mode** — the shared worktree contains commits up to and including the failed spec; subsequent specs don't run. The branch is **not** finished automatically; the consolidated console notes the path so the user can inspect before deciding to merge or discard.
-- **`keep-going`** — subsequent specs keep committing into the same shared branch on top of the failed spec's commits. This compounds the failed spec's state into later specs (same risk as current-branch mode) — which is why `keep-going` is opt-in and meant for genuinely independent specs.
+- **Default mode** — the shared worktree contains commits up to and including the failed spec; subsequent specs don't run. The branch is **not** finished automatically; the consolidated console notes the path for the user to inspect before merging or discarding.
+- **`keep-going`** — subsequent specs keep committing into the same shared branch atop the failed spec's commits, compounding its state into later specs (same risk as current-branch mode) — why `keep-going` is opt-in, meant for genuinely independent specs.
 
-The consolidated console's **Not run / Failed** footer notes the shared worktree path once:
+The consolidated console's **Not run / Failed** footer notes the shared worktree path:
 
 ```
 | 159 | failed | test gate (3 type errors) — shared worktree at `.worktrees/flow/spec-157-159-160` preserved; inspect before finishing |
@@ -226,38 +226,10 @@ The user finishes or discards the single shared branch after triage (`/superpowe
 
 ## Consolidated Review Console (end of run)
 
-After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or the run aborts at a HARD-GATE failure), `/flow` runs **one consolidated Review Console** in `auto` or `hybrid` mode. This replaces the N per-spec consoles that would otherwise interrupt the user between specs. For the full procedure, console template, run-directory layout details, approval/override/stop semantics, and the not-run footer for aborted runs, read `multispec-review-console.md` in this skill's directory.
+After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or the run aborts at a HARD-GATE failure), `/flow` runs **one consolidated Review Console** in `auto` or `hybrid` mode, replacing the N per-spec consoles that would otherwise interrupt the user between specs. For the full procedure, template, run-directory layout, approval/override/stop semantics, and the not-run footer for aborted runs, read `multispec-review-console.md` in this skill's directory.
 
 In interactive mode, per-spec consoles run inline as today — no consolidation step.
 
 ## Multi-Spec Summary
 
-After all specs complete (or one fails), present a consolidated summary:
-
-```markdown
-## Flow: Multi-Spec Pipeline Complete  {— keep-going if applicable}
-
-| Spec | Build | Test | Review | Polish | Wrap-Up | Outcome |
-|------|-------|------|--------|--------|---------|---------|
-| {N} | passed | passed | PASS | applied + re-verified | done | Complete |
-| {N} | passed | passed | PASS | skipped (no-polish) | done | Complete (no polish) |
-| {N} | passed | passed | BLOCKED | — | — | Stopped at review |
-| {N} | passed | passed | PASS | re-verify failed | — | Stopped at re-verify |
-| {N} | passed | FAILED | — | — | — | Failed (test gate) — continued (keep-going) |
-| {N} | — | — | — | — | — | Not run (previous spec failed) |
-
-### Manual Steps Required (all specs)
-| # | Spec | What | Where |
-|---|------|------|-------|
-| 1 | {N} | {description} | {source} |
-(or: No manual steps required.)
-
-### Per-Spec Details
-(expand each spec's key outputs, failures, and review findings)
-```
-
-The header includes `— keep-going` when the run was invoked with that flag. The outcome column distinguishes:
-- `Complete` — all gates passed
-- `Stopped at {step}` — HARD-GATE failure, remaining specs not run (default mode)
-- `Failed ({gate}) — continued (keep-going)` — HARD-GATE failure but pipeline continued to the next spec
-- `Not run (previous spec failed)` — only appears in default mode; never under `keep-going`
+Read `multispec-summary.md` in this skill's directory when rendering — the template and outcome-column vocabulary live there.

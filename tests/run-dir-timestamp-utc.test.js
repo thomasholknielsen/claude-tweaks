@@ -57,3 +57,32 @@ test('claim-targets contest path removes a self-minted empty dir immediately (#7
   assert.match(content, /PIPELINE_RUN_DIR[^.]*unset on entry/);
   assert.doesNotMatch(content, /isOrphanedMint` sweep reclaims after 24h if it was freshly minted here/);
 });
+
+test('claim-targets spec-slug rule cites pipeline-run-dir.md, not manifesto.md (#724)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  const slugLines = content.split('\n').filter((l) => l.includes('{spec-slug}') && l.includes('follows'));
+  assert.ok(slugLines.length > 0, 'the mint step must still state where the spec-slug rule lives');
+  for (const l of slugLines) {
+    assert.match(l, /pipeline-run-dir\.md/);
+    assert.doesNotMatch(l, /manifesto\.md/);
+  }
+});
+
+test('flow SKILL.md defers the manifesto.md read until Step 2.8 passes (#724)', () => {
+  assert.match(read('skills/flow/SKILL.md'), /read `manifesto\.md`[^.]*after Step 2\.8 passes|after Step 2\.8 passes[^.]*read `manifesto\.md`/i);
+});
+
+test('manifesto.md and multi-spec.md each fit the ~20KB read budget (#724)', () => {
+  for (const p of ['skills/flow/manifesto.md', 'skills/flow/multi-spec.md']) {
+    const bytes = fs.statSync(path.join(REPO_ROOT, p)).size;
+    assert.ok(bytes < 20480, `${p} is ${bytes} bytes — must stay under 20480`);
+  }
+});
+
+test('extracted override table and summary template live in their sub-files (#724)', () => {
+  assert.match(read('skills/flow/manifesto-overrides.md'), /Override semantics/);
+  assert.match(read('skills/flow/manifesto-overrides.md'), /pr-first-merge\.md/);
+  assert.match(read('skills/flow/multispec-summary.md'), /Multi-Spec Pipeline Complete/);
+  assert.match(read('skills/flow/manifesto.md'), /manifesto-overrides\.md/);
+  assert.match(read('skills/flow/multi-spec.md'), /multispec-summary\.md/);
+});
