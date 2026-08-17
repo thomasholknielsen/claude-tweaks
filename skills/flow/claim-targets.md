@@ -74,9 +74,10 @@ directory, so the claim needs an identity to claim under before one necessarily 
   `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`
   (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir only; Step 3 writes `config.yml`/
   `decisions.md` when it adopts the now-set `PIPELINE_RUN_DIR` per case 2). Export the printed
-  path as `PIPELINE_RUN_DIR` for the rest of this pipeline invocation. `{spec-slug}` follows
-  `_shared/pipeline-run-dir.md`'s SPEC_SLUG conventions (`spec-{N}` single, dash-joined multi with
-  the load-bearing `spec-` prefix, or a topic slug).
+  path as `PIPELINE_RUN_DIR` for the rest of this pipeline invocation. `{spec-slug}` follows `_shared/pipeline-run-dir.md`'s SPEC_SLUG conventions
+  (`spec-{N}` single, dash-joined multi with the load-bearing `spec-` prefix, or a topic slug). The directory's own ISO-timestamp prefix is
+  minted by `resolve-run-dir` itself per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule
+  (`date -u`) — this step never composes the timestamp by hand.
 
 Either way, `basename($PIPELINE_RUN_DIR)` is this run's claim identity for every target below.
 
