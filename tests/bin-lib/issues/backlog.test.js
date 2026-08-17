@@ -277,15 +277,10 @@ test('funnelBuckets: every open record lands in exactly one bucket and sizes sum
 
 test('funnelBuckets: empty input yields empty buckets and overlay', () => {
   const b = funnelBuckets([]);
-  for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned']) {
+  for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned', 'parents']) {
     assert.deepEqual(b[key], []);
   }
   assert.deepEqual(b.needsYou, []);
-});
-
-test('funnelBuckets: empty input yields empty parents bucket too', () => {
-  const b = funnelBuckets([]);
-  assert.deepEqual(b.parents, []);
 });
 
 test('funnelBuckets: a parent record with risk/size labels lands in parents, not scored or captured', () => {
