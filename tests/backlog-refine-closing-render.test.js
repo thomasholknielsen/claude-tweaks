@@ -17,32 +17,44 @@ const PRE_CHANGE_STEP_5_TAIL = `AUTO {time} — Backlog refine: flagged back #{n
 ## Concurrency
 `;
 
-test('Step 5 requires a closing summary block rendered as assistant text', () => {
-  const pattern = /rendered as assistant text — never delegated to tool output/;
-  assert.match(refineModeProse, pattern, 'closing-summary requirement missing from refine-mode.md Step 5');
+// One claim per call: the pattern must match the shipped prose AND fail against the
+// pre-change text, so a green result proves the regex can actually go red [IL-105].
+function assertClaimPinned(pattern, missingMessage) {
+  assert.match(refineModeProse, pattern, missingMessage);
   assert.doesNotMatch(PRE_CHANGE_STEP_5_TAIL, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+}
+
+test('Step 5 requires a closing summary block rendered as assistant text', () => {
+  assertClaimPinned(
+    /rendered as assistant text — never delegated to tool output/,
+    'closing-summary requirement missing from refine-mode.md Step 5',
+  );
 });
 
 test('Step 5 closing summary requires a per-type tally line with an always-present failed count', () => {
-  const pattern = /`failed` always\s+present, even at zero/;
-  assert.match(refineModeProse, pattern, 'per-type tally / always-present failed-count requirement missing');
-  assert.doesNotMatch(PRE_CHANGE_STEP_5_TAIL, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+  assertClaimPinned(
+    /`failed` always\s+present, even at zero/,
+    'per-type tally / always-present failed-count requirement missing',
+  );
 });
 
 test('Step 5 closing summary requires a paste-ready retry command per failed write', () => {
-  const pattern = /followed by a paste-ready retry\n\s*command on its own line/;
-  assert.match(refineModeProse, pattern, 'paste-ready retry-command requirement missing');
-  assert.doesNotMatch(PRE_CHANGE_STEP_5_TAIL, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+  assertClaimPinned(
+    /followed by a paste-ready retry\n\s*command on its own line/,
+    'paste-ready retry-command requirement missing',
+  );
 });
 
 test('Step 5 closing summary requires the absolute run-directory path', () => {
-  const pattern = /run-directory path, absolute\*\* — never relative/;
-  assert.match(refineModeProse, pattern, 'absolute run-dir path requirement missing');
-  assert.doesNotMatch(PRE_CHANGE_STEP_5_TAIL, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+  assertClaimPinned(
+    /run-directory path, absolute\*\* — never relative/,
+    'absolute run-dir path requirement missing',
+  );
 });
 
 test('Step 5 closing summary requires an explicit 0 failed on a fully clean run', () => {
-  const pattern = /fully clean run still renders `0 failed` explicitly/;
-  assert.match(refineModeProse, pattern, 'unconditional 0-failed rendering requirement missing');
-  assert.doesNotMatch(PRE_CHANGE_STEP_5_TAIL, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+  assertClaimPinned(
+    /fully clean run still renders `0 failed` explicitly/,
+    'unconditional 0-failed rendering requirement missing',
+  );
 });
