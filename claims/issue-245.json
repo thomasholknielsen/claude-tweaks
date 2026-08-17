@@ -1,7 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-10T001556-dispatch-standalone",
-  "reason": "merged: #245",
-  "releasedAt": "2026-08-10T00:29:00.000Z",
-  "link": "https://github.com/thomasholknielsen/claude-tweaks/commit/03efafa0e05420111b054c5ca69773a315d5ffd2"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:30:47.915Z"
 }
