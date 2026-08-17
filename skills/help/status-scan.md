@@ -6,7 +6,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 
 Stages split by cost. Stages 1, 4.5, 4.6, 4.7, and 4.8 each do real `gh` work over an independent data source and carry substantial inlined `_shared/` fragments, so each earns a Task agent — Stage 4.8 returns a bespoke data table rather than the shared Template A findings row (see its own section for why). Stages 0, 2, 5, 6, and 7 are a file read, a glob, or a grep apiece — dispatching those as agents would pay the full inherited `CLAUDE.md` cost to execute what amounts to a single `Read`/`Glob`, so they run directly in the main thread instead.
 
-> **Parallel execution:** Dispatch Stages 1, 4.5, 4.6, 4.7, and 4.8 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
+> **Parallel execution:** Dispatch Stages 1, 4.5, 4.6, 4.7, and 4.8 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete. Per `_shared/subagent-output-contract.md`'s fan-out section: emit all five stage calls as `tool_use` blocks in one assistant message, not five separate messages.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A for Stages 1/4.5/4.6/4.7; Stage 4.8 defines its own format (below) per that contract's "Not every consumer uses A/B/C" clause.
 >
