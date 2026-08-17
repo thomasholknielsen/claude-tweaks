@@ -4,16 +4,16 @@ Canonical procedure for provisioning a throwaway, write-legal checkout once a fe
 worktree is already gone. Consumed by `/wrap-up`'s `residue-sweep.md` (the `remedy: auto`
 branch — an auto-fixable residue finding whose fix needs an `Edit`/`Write`/`commit`/`push`),
 by `/tidy` (record-creation writes under `work-backend: local-files`, and the Step 7
-mutations described under `worktree.always: true`), and by `/init` (`SKILL.md`'s Phase 9
+mutations described under `worktree-always: true`), and by `/init` (`SKILL.md`'s Phase 9
 "Isolated Write Step" and `worktree-policy-finalization.md`) — the last with a trigger that
 differs from the other two, see "1. When to provision" below.
 
 **Why this exists.** Once a feature worktree is torn down, `/wrap-up` and `/tidy` are back in
-the main checkout. On a project with `worktree.always: true` set
+the main checkout. On a project with `worktree-always: true` set
 (`.claude-tweaks/policy.yml`), the PreToolUse gate denies some of the writes those two steps
 may still need to make from there — any write whose target isn't already inside a linked git
 worktree. Exactly what counts as a covered write is stated once, canonically, in
-`skills/_shared/policy-schema.md`'s `worktree.always` coverage block. This file cites that
+`skills/_shared/policy-schema.md`'s `worktree-always` coverage block. This file cites that
 block rather than restating it, per CLAUDE.md's own rule against duplicating it (`[IL-93]`:
 five files once restated an earlier, narrower version of that list, and all five went stale
 the next time the gate widened without a matching prose sweep). Check that block, not this
@@ -45,20 +45,32 @@ whose remedy is `remedy: auto` **and** whose fix needs a write the coverage bloc
 covers. Two remedy shapes never qualify, because both are already legal straight from the main
 checkout: removing a worktree (`git worktree remove` / `ExitWorktree`) and deleting a local
 branch (`git branch -d`). A run that finds no such finding must never create a worktree —
-nothing below is unconditional for these two callers, and a project with no `worktree.always`
+nothing below is unconditional for these two callers, and a project with no `worktree-always`
 policy at all never needs this procedure for them in the first place, since every write is
 already legal there.
 
 `/init` is the one exception to "only on demand." It provisions **unconditionally** for its
-own Phase 9 writes (and the deferred `worktree.always` write), regardless of whether
-`worktree.always` is set at all. The goal there is broader than gate compliance — the same
-concurrent-session collision protection `worktree.always` exists to provide, applied to
+own Phase 9 writes (and the deferred `worktree-always` write), regardless of whether
+`worktree-always` is set at all. The goal there is broader than gate compliance — the same
+concurrent-session collision protection `worktree-always` exists to provide, applied to
 `/init`'s own output even on a project that hasn't opted into the policy — see `SKILL.md`'s
 Phase 9 "Isolated Write Step" for the full rationale. Sections 2-7 below apply identically
 once `/init` decides to provision (Section 4's one-commit deviation aside — see its own note);
 only the trigger differs.
 
 ## 2. Creating it
+
+Before calling `EnterWorktree` (or falling back to `git worktree add`), fast-forward the main
+checkout's local `{integration-branch}` to origin's tip:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile
+```
+
+Never `git checkout` or `git pull` in the shared checkout to accomplish this — `reconcile`'s
+mirror-ff is the sanctioned, worktree-safe mechanism (it never merges, strict `--ff-only`, no
+worktree guard needed). See `worktree-setup.md`'s `## Pre-creation reconcile` for the full
+rationale, cited rather than restated here.
 
 Use the **native tool** (`EnterWorktree`) when one is available. Fall back to `git worktree
 add` only when none is — `superpowers:using-git-worktrees` Step 1a before Step 1b — and when
@@ -73,9 +85,9 @@ inside the harness-owned directory is the exact hazard that ADR rejects: the har
 bookkeeping never learns about it, so a later `git worktree remove` — raw, or via the
 harness's own reaper — can remove it out from under whoever is standing in it.
 
-Detect or enumerate existing worktrees via `git worktree list`, or by comparing
-`git rev-parse --git-dir` against `--git-common-dir`, never by asserting a directory name
-(same ADR).
+Detect or enumerate existing worktrees via `git worktree list`, or via
+`bin/lib/hooks/worktree-detect.js`'s `repoInfo()` (the same git-dir-vs-common-dir comparison,
+already wrapped), never by asserting a directory name (same ADR).
 
 ## 3. First action inside: catch up with the integration branch
 
@@ -109,7 +121,7 @@ paste the literal value into this command. Shell state does not survive between 
 calls in this worktree (see Shell constraint, below), so it cannot be carried in a variable
 across calls. This updates the local `{integration-branch}` ref directly, from inside the
 worktree, with no checkout of that branch required — and the write is legal here regardless of
-`worktree.always`, since the gate never denies a write whose target is already inside a linked
+`worktree-always`, since the gate never denies a write whose target is already inside a linked
 worktree.
 
 It is refused when `{integration-branch}` is checked out elsewhere (typically the main
@@ -146,6 +158,28 @@ other merge conflict is (`_shared/git-discipline.md`).
 
 Tear down via **`ExitWorktree`**, never a raw `git worktree remove` — the worktree carries a
 live lock, and the raw command fails on it (`[IL-58]`).
+
+Before calling `ExitWorktree`, run the sanctioned ancestry check to prove discarding the
+worktree branch loses nothing:
+
+```bash
+git fetch origin {integration-branch}
+git merge-base --is-ancestor HEAD origin/{integration-branch}
+```
+
+- **Exit 0** — every commit on this worktree's branch is already upstream. Call
+  `ExitWorktree` with `discard_changes: true` and state the one-line reason (e.g. "HEAD is an
+  ancestor of origin/{integration-branch} — nothing to lose"). Never invoke the override
+  without running this check first.
+- **Non-zero** — stop and surface: run `git log origin/{integration-branch}..HEAD --oneline`
+  and show the listing. Never override the guard on a non-zero result — the commits it lists
+  are genuinely at risk.
+
+This is what makes `discard_changes: true` a proven claim instead of an improvised one. Once
+`ExitWorktree` succeeds and the branch was actually merged (not just abandoned), the next
+action is `pr-first-merge.md`'s `## Step 5: Delete the remote branch (outcome merged, after worktree teardown)` — cited here rather than restated, per the state-once rule; this
+section is about whether it's safe to discard the worktree, not about remote branch cleanup,
+which stays canonically stated in `pr-first-merge.md`.
 
 The two domains are asymmetric here too. If teardown fails or is skipped, `SessionStart`'s
 reaper (`bin/lib/hooks/worktree-reap.js`) can later collect an abandoned worktree — but

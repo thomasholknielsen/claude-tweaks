@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { parsePolicyModelConfig } = require('../../../bin/lib/model-profiles/policy-fragment');
 
 const SAMPLE = [
-  'worktree.always: true',
+  'worktree-always: true',
   'model-stance: economy',
   'model-ceiling: capable',
   'frontier-run-cap: 5',
@@ -31,7 +31,7 @@ test('parses the four keys and ignores unrelated flat keys', () => {
 
 test('empty or absent input yields an empty object', () => {
   assert.deepStrictEqual(parsePolicyModelConfig(''), {});
-  assert.deepStrictEqual(parsePolicyModelConfig('worktree.always: true\n'), {});
+  assert.deepStrictEqual(parsePolicyModelConfig('worktree-always: true\n'), {});
 });
 
 test('comments and trailing whitespace are tolerated', () => {

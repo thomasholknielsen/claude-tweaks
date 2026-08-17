@@ -39,6 +39,89 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.94.0 — Hand-scripted procedure CLIs — release-claim + log-decision with anchoring guards (#686); multi-spec run infrastructure — spec-status/manifest atomic writes, sanitizeWorktreeName, two-AskUserQuestion-stop cap, PR-first console merge-decision fold (#687-#693); Multi-Spec Review Console applied fixes for #741-#743; capture --batch multi-entry filing + character-budget cap + session-scoped temp paths (#781, #783, #784); bare /feedback session-evaluation guarantee + rubric sharpening (#785, #805); backlog refine dependency-repair log fix (#792); anchoring-guard bypass fixes in run-dir/decisions.md structural checks (#813)
+
+Hand-scripted procedure CLIs — release-claim + log-decision with anchoring guards (#686); multi-spec run infrastructure — spec-status/manifest atomic writes, sanitizeWorktreeName, two-AskUserQuestion-stop cap, PR-first console merge-decision fold (#687-#693); Multi-Spec Review Console applied fixes for #741-#743; capture --batch multi-entry filing + character-budget cap + session-scoped temp paths (#781, #783, #784); bare /feedback session-evaluation guarantee + rubric sharpening (#785, #805); backlog refine dependency-repair log fix (#792); anchoring-guard bypass fixes in run-dir/decisions.md structural checks (#813).
+
+## v6.93.0 — Claim-infrastructure family: one-command group claim + preflight CLIs on a shared claim store with contested/transient exit codes, UTC run-dir stamps + mint hygiene, contest-card liveness verdicts, flow read-budget extractions (#720, #721, #722, #723, #724); hand-scripted procedure CLIs — materialize, claims, log-decision (#676 family); flow resume freshness probe (#749); run-dir archival on every console path (#717); wakeup-parking cap + controller context rules (#712); funnelBuckets parent exclusion (#616); worktree compound-refusal cross-reference + merge-then-suite rule (#713); /challenge bare-#N evidence mode (#726); blast-radius glob segment fix (#727); design-critique dispatch docs (#600); tidy arm-at-creation (#581)
+
+Claim-infrastructure family: one-command group claim + preflight CLIs on a shared claim store with contested/transient exit codes, UTC run-dir stamps + mint hygiene, contest-card liveness verdicts, flow read-budget extractions (#720, #721, #722, #723, #724); hand-scripted procedure CLIs — materialize, claims, log-decision (#676 family); flow resume freshness probe (#749); run-dir archival on every console path (#717); wakeup-parking cap + controller context rules (#712); funnelBuckets parent exclusion (#616); worktree compound-refusal cross-reference + merge-then-suite rule (#713); /challenge bare-#N evidence mode (#726); blast-radius glob segment fix (#727); design-critique dispatch docs (#600); tidy arm-at-creation (#581).
+
+## v6.92.0 — Post-merge release-carrier check + backfill journey (#678); premise-verified release row in flow's Next Actions (#680); argv-safe /feedback filing with read-back verification (#681); worktree-always twin keyed on the running build + session-start verdict banner (#682, IL-133); scratch-worktree teardown check + pr-first remote-branch cleanup (#683); /feedback evaluation watermark for delta re-judging (#679)
+
+Post-merge release-carrier check + backfill journey (#678); premise-verified release row in flow's Next Actions (#680); argv-safe /feedback filing with read-back verification (#681); worktree-always twin keyed on the running build + session-start verdict banner (#682, IL-133); scratch-worktree teardown check + pr-first remote-branch cleanup (#683); /feedback evaluation watermark for delta re-judging (#679).
+
+## v6.91.0 — Terminal Next Actions on the auto-mode not-silenced list — navigation affordance outside consoleAutoResolve, recommended line is the actual next command (#716); reconcile remote-prune for merged plugin branches + tidy Mark-as-specified routing (#570)
+
+Terminal Next Actions on the auto-mode not-silenced list — navigation affordance outside consoleAutoResolve, recommended line is the actual next command (#716); reconcile remote-prune for merged plugin branches + tidy Mark-as-specified routing (#570).
+
+## v6.90.0 — Staged-patch stage-time validation + description fallback (#674), curation-judge stagePath verification + shadow sweep (#675), framing:baked → solution:unjustified rename un-dormanting the backlog needs-you lane (#677), specify/demo #N,#M batch argument (#695), tidy report rendering width discipline + batch-pasteable commands (#685), consolidated console AUTO-RESOLVED rendering under consoleAutoResolve (#714), Next Actions omission-only recommended-slot rule (#730)
+
+Staged-patch stage-time validation + description fallback (#674), curation-judge stagePath verification + shadow sweep (#675), framing:baked → solution:unjustified rename un-dormanting the backlog needs-you lane (#677), specify/demo #N,#M batch argument (#695), tidy report rendering width discipline + batch-pasteable commands (#685), consolidated console AUTO-RESOLVED rendering under consoleAutoResolve (#714), Next Actions omission-only recommended-slot rule (#730).
+
+## v6.89.0 — Refine funnel redesign — refineWorklist helper with priority-keyed budget (#654, absorbs #460), ceiling-gated trust fetch with --trust, Step 4 decision lanes in refine-lanes.md with consequence-line trust and the first refine journey (#655, parent #574); reference-card --chained sync; deferral gate contract (#620-#625); terminal Next Actions as paste-ready markdown (#646)
+
+Refine funnel redesign — refineWorklist helper with priority-keyed budget (#654, absorbs #460), ceiling-gated trust fetch with --trust, Step 4 decision lanes in refine-lanes.md with consequence-line trust and the first refine journey (#655, parent #574); reference-card --chained sync; deferral gate contract (#620-#625); terminal Next Actions as paste-ready markdown (#646).
+
+## v6.88.0 — Routine fleet status/off + routine-kickoff kernel (#276, #528-530), reconcile red-tip detection (#561), --unattended reserved for headless invocations (#648), specify native sub_issues/blocked_by linking (#608, #610), backlog overview funnel + refine worklist fixes (#563, #575, #576), housekeeping-auto-merge ceiling-derived default
+
+Routine fleet status/off + routine-kickoff kernel (#276, #528-530), reconcile red-tip detection (#561), --unattended reserved for headless invocations (#648), specify native sub_issues/blocked_by linking (#608, #610), backlog overview funnel + refine worklist fixes (#563, #575, #576), housekeeping-auto-merge ceiling-derived default.
+
+## v6.87.1 — Statusline acct segment labels every account, incl. default ~/.claude via .claude.json email
+
+Statusline acct segment labels every account, incl. default ~/.claude via .claude.json email.
+
+### also carried in this build
+
+The policy read-path family's Phase 4 gate closed under this number: PR #603 (records #332,
+#602, #334) merged into `main` at `f061ad86`, minutes before the v6.87.1 patch bump landed
+for the statusline fix above, so the build that first carried it is numbered for other work.
+Backfilled during the run's own `/claude-tweaks:feedback` session.
+
+**#332 — the policy-key naming convention, and seven renames through it.** Every
+`POLICY_KEYS` name is now a flat kebab-case identifier — no dots, grouping lives in the
+`category` metadata, never the key — stated once in `skills/_shared/policy-key-naming.md`
+(stubbed from `policy-schema.md`'s `## Key naming`, which sits at the sub-file ceiling) and
+pinned by `tests/policy-key-naming.test.js`. Seven keys renamed through `RENAMED_KEYS`
+identity aliases with recorded removal conditions in `_shared/policy-deprecations.md`:
+`review-severity-floor` → `review-auto-apply-ceiling` (it is the *maximum* severity
+auto-applied — a ceiling, and it collided with the genuine floor `review-effort-floor`),
+`automerge-max-lines`/`-files` → `auto-merge-max-*` (one spelling, matching the
+`auto:merge` label), and `project.maturity`, `harness-health.scoped-rule-budget`,
+`harness-health.always-loaded-budget`, `doc-convention.adr` → dashed. An un-migrated
+`policy.yml` keeps resolving under the new name with `renamed-from` attribution and is
+reported by `auditPolicy`; the deprecation predicate became fixed-string so a dotted old
+name can actually clear it. `auto-mode` was deliberately *not* renamed (orthogonal to
+`autonomy`; the categories disambiguate) — recorded so it is not re-opened.
+
+**#602 — `worktree.always` → `worktree-always`, including the hook's own read.** The one
+key the resolver's aliases could not reach: `bin/lib/policy.js`'s `isWorktreeAlwaysOn`
+read the literal. It now reads through `rawValue`, which consults `RENAMED_KEYS` for the
+mapping and applies new-name-wins in any file order (old alone still ON, verified against
+every hook fixture on the old spelling), so no un-migrated project loses the worktree
+gate. `/claude-tweaks:init`'s opt-in no longer re-asks a project on the old spelling and
+migrates the line in place instead of appending a second key. This repo's own
+`policy.yml` keeps **both** spellings until the installed plugin build carries the alias —
+the installed build reads the old literal, and a new-name-only file would have disarmed
+the gate for this repo on merge (ADR 0014, a new Don't in `docs/donts.md`).
+
+**#334 — the six remaining `config.yml` direct reads use the resolver's `--run` overlay.**
+`test`, `tidy`, `review` (×2), `specify` (×2) no longer restate a schema default inline
+and now honor a `policy.yml` value between the run's Manifesto answer and the schema
+default; review's ceiling-conditional default keys off the resolver envelope's `source`.
+
+## v6.87.0 — Policy.yml gate exemption (worktree.always allows isolated policy.yml edits + allowlisted policy-only commits from a main checkout); tidy report rows render commands on their own line and the staged-items option is named for the Approve section
+
+Policy.yml gate exemption (worktree.always allows isolated policy.yml edits + allowlisted policy-only commits from a main checkout); tidy report rows render commands on their own line and the staged-items option is named for the Approve section.
+
+## v6.86.0 — Policy introspection: resolve-policy --all metadata, /help policy mode, init delegation; backlog overview funnel polish
+
+Policy introspection: resolve-policy --all metadata, /help policy mode, init delegation; backlog overview funnel polish.
+
+## v6.85.0 — Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup
+
+Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup.
+
 ## v6.84.0 — Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec
 
 Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec.

@@ -24,7 +24,7 @@ node -e "
 "
 ```
 
-If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to fetching it fresh: `gh issue list --state all --json number,title,labels,body,state --limit 500 > /tmp/specify-all-issues.json` (same `--limit 500` as Step 1's fetch — see its rationale there).
+If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to reading through the session-scoped record snapshot the same way Step 1 does — `{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md), with {tmp-records-file} = /tmp/specify-all-issues.json}`. A resumed session usually still has its own snapshot fresh at `/tmp/ct-records-{session-id}.json` (same session id, same TTL window), so this fallback is typically a cache hit, not a fresh `gh` round-trip.
 
 `work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker). `queryRecords('specs', {})` alone excludes closed records by default (its `filtersOnClosed` check treats an empty filter object as "open, as today," per `local-store.js`'s own header comment on the function) — this map needs both open and closed, mirroring the github driver's `--state all` fetch above: a fingerprint match against an already-closed local record still means "already exists" and must not be recreated on a resumed decomposition. Merge a default (open) query with an explicit `{ closed: true }` query — the same two-call idiom `tests/bin-lib/issues/local-store.test.js` demonstrates:
 
@@ -130,13 +130,11 @@ parent record once its sub-issues are accepted.
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
-**Scoring** — judge each sub-issue's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per sub-issue; the tiers become `$SUB_ISSUE_RISK`/`$SUB_ISSUE_SIZE` below.
+**Scoring** — judge each sub-issue's `risk` and `size` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `size` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to each shaped record, run here once per sub-issue; the tiers become `$SUB_ISSUE_RISK`/`$SUB_ISSUE_SIZE` below.
 
 **Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this sub-issue's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/size-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$SUB_ISSUE_CEREMONY` below.
 
-**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. Sub-issues have no `## Original request` block, so the composed body is the whole input here.
-
-On `FRAMING: open`, stamp nothing. On `FRAMING: solution-baked`, run the identical bounded-search-then-reverify pattern shaping mode's own Framing subsection defines (`shaping-mode.md`) — grep the codebase + `CLAUDE.md`, and `gh issue list --state closed --search` (or `queryRecords('specs', { closed: true })` under `local-files`), for each named technology/mechanism; fold qualifying evidence into this sub-issue's `## Current State` and re-invoke `framing-check` once, treating the second verdict as authoritative. If evidence isn't found for every named item, or the second verdict still reads `solution-baked`, stamp `solution:unjustified` on the sub-issue and fold the RATIONALE's (or second verdict's) named assumptions into that sub-issue's `## Gotchas` bullets.
+**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `solution:unjustified` on the sub-issue and fold the RATIONALE's named assumptions into that sub-issue's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Sub-issues have no `## Original request` block, so the composed body is the whole input here.
 
 **Slug derivation** — `$UNIT_SLUG` is `deriveSlug(title, existingSlugs)` (`bin/lib/issues/local-store.js`) — the same deterministic algorithm `/claude-tweaks:capture` and `/claude-tweaks:demo` use for their own record creation, not a hand-derived slugification. Seed `existingSlugs` with the literal string `'parent'` (a sub-issue slug must never collide with the parent's reserved fingerprint suffix — see above) plus, under `work-backend: local-files`, the current `specs/` directory listing (same scan `/claude-tweaks:capture`'s local-files branch uses — since each sub-issue's `createRecord` call below writes its file before the next one runs, this rescan also naturally dedupes against slugs already assigned earlier in this same decomposition loop):
 
@@ -171,7 +169,7 @@ node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-sub-iss
 
 Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` pair in use, plus `solution:unjustified` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
-**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `solutionUnjustified` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `size:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `solution:unjustified` is added separately, below the create blocks, once the Framing outcome is known:
+**`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `solutionUnjustified` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `size:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `solution:unjustified` is added separately, below the create blocks, once the Framing verdict is known:
 
 ```bash
 # work-types: native
@@ -187,7 +185,7 @@ SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file /tmp/spec
 SUB_ISSUE_NUM=$(basename "$SUB_ISSUE_URL")
 ```
 
-When this sub-issue's Framing outcome (above) is `solution-baked`, add `--label "solution:unjustified"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most sub-issues are `open` (or clear evidence was found).
+When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label "solution:unjustified"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most sub-issues are `open`.
 
 **`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-sub-issue-body.md` already carries the fingerprint marker, so the local write preserves it:
 
@@ -203,13 +201,23 @@ SUB_ISSUE_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_R
   console.log(record.id)" "$UNIT_SLUG" "$SUB_ISSUE_TITLE" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY")
 ```
 
-Add `solutionUnjustified: true` to the `facets` object above only when this sub-issue's Framing outcome (above) is `solution-baked`; omit the key on `open` — `sharedFacetDefaults()` already defaults `solutionUnjustified` to `false`, so an omitted key round-trips to the same clean state as an explicit `false`.
+Add a `facets.solutionUnjustified: true` key to the object above only when this sub-issue's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.solutionUnjustified` is genuinely absent on the common `open` case.
 
 Capture `$SUB_ISSUE_NUM` / `$SUB_ISSUE_ID` for every sub-issue (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
 
 **Write-path resilience.** A `gh` create failure for one sub-issue (the parent already exists on GitHub) falls back to `local-store.js` for that sub-issue only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed sub-issue. `/tidy`'s Sync finding reconciles the local sub-issue onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
 
 **Body size ceiling.** A sub-issue body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized sub-issue.
+
+**Snapshot invalidation.** Once every `gh issue create` call in this step's batch (parent and
+every sub-issue) has run, invalidate the session-scoped record snapshot once — this step's own
+Idempotency map stays correct in-memory for the rest of the batch without it, so there is no need
+to invalidate after each individual create, only after the whole batch, before Step 4 or any later
+consumer reads the queue again:
+
+```bash
+node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+```
 
 ### Rules
 
@@ -231,13 +239,39 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 
 **`work-backend: github-issues`, `work-links: native`:**
 
-- Parent ↔ sub-issue — a sub-issue link, once per sub-issue:
+- **One command links the whole batch.** Both native write endpoints take the target issue's
+  integer database ID (`databaseId`) **in the request body**, never its issue number, and the
+  dependency edge lives at `issues/{dependent}/dependencies/blocked_by` — `bin/link-records.js`
+  (over `bin/lib/issues/link.js`) resolves every needed id in one GraphQL call and issues the
+  writes, so no per-edge `gh api` assembly happens here. Pass the parent, every sub-issue, and
+  every dependency edge as `dependent:blocker` (blockers may be pre-existing records from Step 1's
+  companion overlaps or Step 2's implicit-dependency notes):
 
   ```bash
-  gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$SUB_ISSUE_NUM
+  # Step 3 captured $SUB_ISSUE_NUM per sub-issue — join them: SUB_ISSUE_NUMS="595,597,598".
+  # DEP_EDGES is every dependency edge as dependent:blocker, comma-joined: "598:595,600:530"
+  # (blockers may be pre-existing records; leave --blocked-by off when there are none, and leave
+  # --parent/--subs off when only edges need wiring — at least one of the two is required).
+  node "${CLAUDE_PLUGIN_ROOT}/bin/link-records.js" --parent $PARENT_NUM --subs $SUB_ISSUE_NUMS \
+    --blocked-by "$DEP_EDGES"
+  # Prints one JSON envelope to stdout (do not redirect it away — read it from the tool result).
+  # Owner/repo resolve from `origin`; pass --repo owner/name to override.
   ```
 
-- Sub-issue ↔ sub-issue, and sub-issue ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's header comment). Call it once per dependency edge, dependent sub-issue pointing at blocking record.
+  Read the envelope's `subIssues.failed` and `blockedBy.failed` — a non-empty `failed` list is the
+  Write-path resilience case above (note the failed link, continue the pass; never abort the
+  decomposition). Exit 1 means the id resolution itself failed (a number that resolves to no
+  issue) — stop and check the numbers before retrying. A re-run is safe: an edge GitHub already
+  holds lands in `ok` with `already: true`.
+
+- **This command requires `gh`** — the sub-issues and issue-dependencies endpoints have no
+  GitHub MCP equivalent, so `_shared/github-write-transport.md`'s MCP path does not cover them.
+  When `command -v gh` fails, `bin/link-records.js` exits 2 naming the fallback: link under
+  `work-links: body-text` instead (the branch below, which needs only `issue_write`). The
+  endpoint family is the one `capabilities-probe.js`'s `probeSchema` checks for via the
+  `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and
+  insufficient, see that file's header comment.
+
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
 **`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):

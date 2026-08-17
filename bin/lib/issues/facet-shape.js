@@ -11,14 +11,6 @@
 // label, the local driver from the is-parent-issue: frontmatter line — each
 // with a permanent pre-rename legacy fallback (the [IL-85] branches in
 // record.js and local-store.js).
-//
-// needsDefinition is deliberately NOT declared here, unlike every other shared
-// boolean facet: it is presence-only (set true on the needs:definition label/
-// needs-definition: frontmatter line, left absent otherwise — never explicit
-// false) on both drivers. Adding `needsDefinition: false` here would silently
-// break that convention for every record that doesn't carry the flag — see
-// record.js's parseRecordFacets and local-store.js's parseFrontmatterLines,
-// which both apply this shape by hand instead.
 'use strict';
 
 // Returns a fresh object every call — grants/bot are nested objects, and two
@@ -30,12 +22,14 @@ function sharedFacetDefaults() {
     size: null,
     ceremony: null,
     solutionUnjustified: false,
+    needsDefinition: false,
     priority: null,
     stage: 'backlog',
     grants: { build: false, merge: false },
     bot: { inProgress: false, blocked: false },
     acceptance: null,
     isParentIssue: false,
+    notPlanned: false,
   };
 }
 

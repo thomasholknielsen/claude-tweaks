@@ -134,12 +134,26 @@ test('context.js documents the console-execution exemption to ctx.ownedRun write
 // --- reconcile/index.js wiring ---
 
 test('reconcile/index.js registers console in ALL_CHECKS and the pr-first dispatch, ordered before reap', () => {
-  assert.match(INDEX_JS, /const ALL_CHECKS = \['mirror', 'reap', 'release', 'archive', 'console'\];/);
+  // #561 near-miss: this used to pin the ALL_CHECKS array literal exactly
+  // (byte-for-byte), which broke on red-tip's unrelated insertion even
+  // though console's own membership/ordering claim was untouched — the same
+  // brittleness reconcile.test.js's own ALL_CHECKS-ordering tests already
+  // avoid by indexing into the real array rather than pinning full prose.
+  // Parse the array literal's contents (still "pin against actual file
+  // text", this file's own stated convention) and assert only the specific
+  // membership/ordering claim this test is actually about, so the next
+  // unrelated ALL_CHECKS insertion doesn't require touching this file.
+  const allChecksMatch = INDEX_JS.match(/const ALL_CHECKS = \[([^\]]+)\];/);
+  assert.ok(allChecksMatch, 'ALL_CHECKS array literal must be present and parseable');
+  const allChecks = allChecksMatch[1].split(',').map((s) => s.trim().replace(/^'|'$/g, ''));
+  assert.ok(allChecks.includes('console'), 'console must be registered in ALL_CHECKS');
+  assert.ok(allChecks.includes('mirror'), 'mirror must be registered in ALL_CHECKS');
+  assert.ok(allChecks.indexOf('mirror') < allChecks.indexOf('console'), 'mirror must precede console in ALL_CHECKS');
   const consoleIdx = INDEX_JS.indexOf("checks.includes('console')");
   const reapIdx = INDEX_JS.lastIndexOf("checks.includes('reap')");
   assert.ok(consoleIdx > 0 && reapIdx > 0 && consoleIdx < reapIdx, 'console must dispatch before reap, same ordering constraint as release/archive');
 });
 
 test('reconcile/index.js\'s local-merge skip line includes console alongside mirror/release/archive', () => {
-  assert.match(INDEX_JS, /check: 'mirror,release,archive,console'/);
+  assert.match(INDEX_JS, /check: 'mirror,release,archive,archive-branches,remote-prune,console'/);
 });

@@ -2,6 +2,7 @@
 files:
   - skills/_shared/upstream-feedback-batch.md
   - skills/feedback/SKILL.md
+  - skills/feedback/session-evaluation.md
   - skills/wrap-up/review-console.md
   - skills/wrap-up/upstream-feedback.md
 ---
@@ -11,13 +12,13 @@ files:
 **Persona:** A claude-tweaks maintainer who just let a headless health-sweep Routine run overnight and now has several `upstream-candidate` issues waiting in this project's own backlog, plus a `/claude-tweaks:flow` run that surfaced a couple more D5 (upstream) learnings during wrap-up.
 **Goal:** Clear all the waiting upstream-feedback candidates — decide which get filed against `thomasholknielsen/claude-tweaks` and which get declined — without answering one confirmation prompt per candidate.
 **Entry point:** A terminal with `/claude-tweaks:feedback --queue` run bare (no free-text learning), or the Wrap-Up Review Console rendered at the end of a `/claude-tweaks:flow`/`/claude-tweaks:wrap-up` run that staged `U#` items.
-**Success state:** Every candidate has an explicit disposition — filed (a real upstream issue URL) or declined (a comment on the local `upstream-candidate` issue, or a logged decline) — reached via one `multiSelect` confirmation per group of up to 4, never one confirmation per candidate.
+**Success state:** Every candidate has an explicit disposition — filed (a real upstream issue URL) or declined (a comment on the local `upstream-candidate` issue, or a logged decline) — reached via one `multiSelect` confirmation per group of up to 4 on the `--queue` path, or via the Review Console's single terminal decision on the console path.
 
 ## Steps
 
 ### 1. Gather the local queue — terminal
 - **URL:** `/claude-tweaks:feedback --queue`
-- **Action:** Invoke the skill bare (or with `--queue`); it lists every open `upstream-candidate` issue and, for each, runs Steps 1-6 (gather, classify, self-reference check, dedup search, draft, scrub) non-interactively before rendering anything.
+- **Action:** Invoke the skill bare (or with `--queue`); it lists every open `upstream-candidate` issue and, for each, runs Steps 1-6 (gather, classify, self-reference check, dedup search, draft, scrub) non-interactively before rendering anything. A bare invocation now also runs the session evaluation (`session-evaluation.md` — see the `evaluate-a-session-for-upstream-feedback` journey) and concatenates its findings into this same batch, so the confirmation in Step 2 covers both gathers in one stop.
 - **Should feel:** Like triage, not paperwork — the maintainer reads finished drafts, not raw issue bodies they'd have to interpret themselves.
 - **Should understand:** Each candidate's fully scrubbed draft renders as literal text above the confirmation call, including a `**possible duplicate:** #{N}` flag inline wherever the dedup search found a plausible match — a duplicate never gets its own separate prompt.
 - **Red flags:** A candidate's draft missing from the rendered text before the confirmation call; a dedup match silently omitted instead of flagged.
@@ -38,12 +39,14 @@ files:
 
 ### 3. Approve staged items from the Wrap-Up Review Console — terminal
 - **URL:** the Review Console rendered at the end of `/claude-tweaks:wrap-up` (or `/claude-tweaks:flow`'s consolidated multi-spec console)
-- **Action:** Review the console's `Upstream feedback` section (staged during the run's D5 curation). At `supervised`/`trusted` autonomy — and auto-resolved the same way at `unattended` under `consoleAutoResolve` — a plain "Approve all" now files every staged `U#` row by default, with zero further `AskUserQuestion` calls. To inspect drafts before filing instead, invoke the console's Override path: it renders the same chunked `multiSelect` confirmation(s) as Step 2, one call per group of up to 4 — this per-item drill is now the exception, not the default.
-- **Should feel:** Fast by default for a maintainer who trusts the drafts — one "Approve all" click and every `U#` row files. Falling back to Override for a closer look is still available and still feels like Step 2's CLI flow, just reached deliberately instead of automatically.
-- **Should understand:** Each row was staged earlier in this same run, before the console ever rendered — `/claude-tweaks:wrap-up`'s D5 curation step already drafted and scrubbed it (the same "stage, never file during the run" rule Step 1's `--queue` gather follows). Whether filed via "Approve all" or via an Override-drill checkbox, filing invokes `/claude-tweaks:feedback --pre-confirmed`, which re-reads the staged file fresh and diffs it against the exact snapshot the console rendered before filing; on drift, that one item falls back to a normal confirm showing the diff. The scrub itself always reruns as a separate safety net either way, whether or not drift was found.
-- **Red flags:** "Approve all" filing an item whose staged content changed since rendering without the drift check catching it; the scrub not rerunning on the content that's actually about to be filed; the Override drill's chunked confirmation being presented as the only way to file U# items (it's now the exception path).
+- **Action:** Review the console's `Upstream feedback` section (staged during the run's upstream curation). At `supervised`/`trusted` autonomy, a plain "Approve all" resolves every staged `U#` row to its *declined* default — nothing is filed, and there are zero further `AskUserQuestion` calls. To file any of them, choose Override: it renders the same chunked `multiSelect` confirmation(s) as Step 2, one call per group of up to 4, every option unchecked. The only path that files without a checkbox is the `unattended`-only `consoleAutoResolve` short-circuit, where every `U#` row auto-resolves to filed.
+- **Should feel:** Safe by default — walking away from the console never publishes anything outward; filing is always an act the maintainer performs, either by checking a box under Override or by having deliberately set the `unattended` ceiling beforehand.
+- **Should understand:** Each row was staged earlier in this same run, before the console ever rendered — `/claude-tweaks:wrap-up`'s upstream curation step already drafted and scrubbed it (the same "stage, never file during the run" rule Step 1's `--queue` gather follows). A declined row is logged as declined in the run's `decisions.md`, never silently dropped. Whichever path files it, filing invokes `/claude-tweaks:feedback --pre-confirmed`, which re-reads the staged file fresh and diffs it against the exact snapshot the console rendered before filing; on drift, that one item falls back to a normal confirm showing the diff. The scrub itself always reruns as a separate safety net either way.
+- **Red flags:** A `U#` row filing under a human-answered "Approve all" (that is the `consoleAutoResolve` exception, not this path); a declined row leaving no decline entry in `decisions.md`; the drift check not catching staged content that changed since rendering; the scrub not rerunning on the content that's actually about to be filed.
 
 ## Origin
 - Created during build of #294 (batch upstream-feedback filing into one multiSelect decision, collapse /feedback's double-ask)
 - Steps 1-3 built in this session
 - Related specs: #290 (sibling — batches Q#/M# the same way, U# carved out to this sub-issue)
+- Updated during build of #509 (bare invocation now also runs the session evaluation; both gathers feed the one batch)
+- Corrected during build of #674/#675 — Step 3 had described "Approve all" as filing every `U#` row by default; the console's actual default has been *declined* since #350, with filing reached via Override or the `unattended`-only `consoleAutoResolve` short-circuit.

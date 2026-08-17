@@ -1,9 +1,9 @@
 ---
 name: help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
-argument-hint: "[status|commands|<topic>] [--budget <n>]"
+argument-hint: "[status|commands|policy|<topic>] [--budget <n>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Help — Quick Reference + Workflow Dashboard
@@ -34,6 +34,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 | *(none)* | Cheat sheet + status scan + recommendation |
 | `status` | Pipeline status scan + recommendation (skips Section 1's cheat sheet) |
 | `commands` | Quick reference cheat sheet only — read `reference-card.md` in this skill's directory and present its contents |
+| `policy` | Policy configuration review — skips Section 1's cheat sheet and Section 2's status scan; read `policy.md` in this skill's directory and follow it (gather, render contract, apply path) — `policy.md` owns this run's `## Next Actions`; SKILL.md's own Next Actions block does not fire for `policy` |
 | *spec number or topic* | Same as *(none)* — full cheat sheet + status scan + recommendation. No per-spec/topic filtering is implemented; none of the three sections' skip conditions below match a bare spec number or topic string. |
 | `--budget <n>` | Caps rows rendered in the Ready-to-Build and Needs-Attention dashboard tables (default: 10). Combine with any other argument, e.g. `status --budget 5`. See `status-scan.md`'s Present Dashboard section for truncation and overflow-note behavior. |
 
@@ -43,7 +44,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 
 ## Section 1: Quick Reference Cheat Sheet
 
-*(Skip if `$ARGUMENTS` = `status`)*
+*(Skip if `$ARGUMENTS` = `status` or `policy`)*
 
 For the canonical cheat sheet — lifecycle, component, and utility commands; common workflows; artifact lifecycle; bookend architecture summary — read `reference-card.md` in this skill's directory. **Rendering rule:** present the Lifecycle / Component / Utility command tables verbatim. Collapse the Common Workflows section to a list of workflow headings (e.g., "Feature from scratch", "Fast pipeline (spec ready)", "Brownfield onboarding" — see `reference-card.md`'s own Common Workflows section for the current, authoritative list) unless the user explicitly asked for "examples" or "workflows" in `$ARGUMENTS` — in that case, render the workflows verbatim too. Always keep the Artifact Lifecycle and Bookend Architecture summary verbatim. The reference card is the single source of truth for the command catalog; do not maintain a separate copy here.
 
@@ -51,7 +52,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 ## Section 2: Pipeline Status Scan
 
-*(Skip if `$ARGUMENTS` = `commands`)*
+*(Skip if `$ARGUMENTS` = `commands` or `policy`)*
 
 > **Parallel execution:** When both Section 1 and Section 2 run (default, no-argument invocation), issue Section 1's `reference-card.md` Read alongside dispatching Section 2's Stage Task agents below — a static Read and a live Task-agent dispatch are fully independent and should run concurrently rather than sequentially.
 
@@ -61,7 +62,7 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 
 ## Section 3: Recommendation
 
-*(Always included unless `$ARGUMENTS` = `commands`)*
+*(Always included unless `$ARGUMENTS` = `commands` or `policy`)*
 
 ### Priority Order
 
@@ -84,15 +85,15 @@ Row order in the Ready-to-Build table comes from the shared `bin/lib/issues/rank
 
 ### Present Recommendation
 
-Render the recommendation as the `## Next Actions` block below via one `AskUserQuestion` call — `{recommended command}` becomes option 1, labeled with a short name suffixed `(Recommended)`, with 1-3 alternatives drawn from the priority order.
+Render the recommendation as the `## Next Actions` block below as plain markdown — `{recommended command}` renders first, bolded, with `(recommended)`, with 1-3 alternatives drawn from the priority order.
 
 ## Next Actions
 
-Call `AskUserQuestion`:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), options dynamically drawn from the priority order above:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: short name of the recommended command suffixed `(Recommended)`, `description`: the full command with parameters + rationale
-- Option 2 (and optional option 3) — same shape, for each alternative drawn from the priority order
+**`{the recommended command, fully qualified, with parameters}`** — {rationale} (recommended)
+`{alternative command, fully qualified, with parameters}` — {rationale}
+`{optional second alternative command, fully qualified, with parameters}` — {rationale}
 
 ## Component-Skill Contract
 

@@ -14,7 +14,7 @@ The gate is already evaluated when you read this. The signals mean:
 | `contradictedConvention` | A convention asserted in CLAUDE.md's `## Conventions` section is contradicted by this work's diff |
 | `incidentRecorded` | An incident account was recorded for this work |
 | `claudeMdCommandRenamed` (fact) | A command listed in CLAUDE.md's `## Commands` section was renamed or removed in this work's diff |
-| `claudeMdOverBudget` (fact) | `CLAUDE.md` or an in-scope `.claude/rules/*.md` file exceeds its tier's line budget (`harness-health.always-loaded-budget` / `harness-health.scoped-rule-budget`) — opens the row on any single in-scope target's own size, each checked independently against its own tier's budget — see the paragraph below |
+| `claudeMdOverBudget` (fact) | `CLAUDE.md` or an in-scope `.claude/rules/*.md` file exceeds its tier's line budget (`harness-health-always-loaded-budget` / `harness-health-scoped-rule-budget`) — opens the row on any single in-scope target's own size, each checked independently against its own tier's budget — see the paragraph below |
 
 Unlike the other four signals above, `claudeMdOverBudget` is not diff-scoped — it is a static check of the file's current size, not something introduced by this specific piece of work. This is intentional: once `CLAUDE.md` or a rule file goes over its tier's budget, this row's gate stays open on every subsequent wrap-up run until the file is trimmed back under budget, the same persistent-until-fixed treatment `harness-health-analysis.md` check 4 already gives an over-budget file. It is not a bug if this row keeps reopening across many runs on an over-budget project — that is the pressure the record exists to apply.
 

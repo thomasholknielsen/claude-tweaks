@@ -2,9 +2,9 @@
 name: upstream-drift
 description: Use when you want to check whether this repo's claims about an upstream dependency still hold, and what upstream surface has appeared that this repo does not know exists. Reads the deterministic checks in tools/upstream-drift/, then diffs a dependency's contract subtree between the installed and latest tags to triage new capability. Never edits anything. Keywords - upstream drift, dependency drift, contract breach, capability triage, new capability, Impeccable, pin, manifest.
 argument-hint: "[--dep <name>] [--latest-tag <tag>] [--drift-only|--capability-only] [--json]"
-allowed-tools: Read, Grep, Glob, Bash, Task, AskUserQuestion
+allowed-tools: Read, Grep, Glob, Bash, Task
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Upstream Drift — What Broke, and What Arrived
 
@@ -104,12 +104,12 @@ Under `--json`, emit the findings array from `judge-procedure.md` step 8 instead
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown, one paste-ready command per line. Order by context: lead with the file-the-findings line when any finding is `severity: high`; lead with the take-the-upgrade line when the drift table is empty and the capability table is not; otherwise lead with the first line as listed below. Bold the leading command and suffix its annotation `(recommended)` — exactly one line carries the recommendation on every path.
 
-- Option 1 — `label`: `"File the findings"`, `description`: `"/claude-tweaks:capture — capture the capability findings as backlog records; drift findings can instead ride tools/upstream-drift/run.js, which emits deduplicated by:upstream-drift issue payloads on stdout for the caller to file"`. Suffix the label `(Recommended)` when any finding is `severity: high`.
-- Option 2 — `label`: `"Take the upgrade"`, `description`: `"/claude-tweaks:capture 'upgrade {dep.name} to {latest-tag} and re-pin tools/upstream-drift/manifest.yml' — record the upgrade itself as work"`. Suffix `(Recommended)` when the drift table is empty and the capability table is not.
-- Option 3 — `label`: `"Audit one dependency"`, `description`: `"/upstream-drift --dep <name> — re-run against a single manifest entry"`
-- Option 4 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold anything captured into a backlog-hygiene pass"`
+`/claude-tweaks:capture` — capture the capability findings as backlog records; drift findings can instead ride `tools/upstream-drift/run.js`, which emits deduplicated `by:upstream-drift` issue payloads on stdout for the caller to file
+`/claude-tweaks:capture 'upgrade {dep.name} to {latest-tag} and re-pin tools/upstream-drift/manifest.yml'` — record the upgrade itself as work
+`/upstream-drift --dep <name>` — re-run against a single manifest entry
+`/claude-tweaks:tidy` — fold anything captured into a backlog-hygiene pass
 
 ## Component-Skill Contract
 

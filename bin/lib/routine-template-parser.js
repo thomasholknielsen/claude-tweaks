@@ -193,7 +193,7 @@ const DEFAULT_TIMEOUT_MS = 20000;
 // report. `created_at` is deliberately excluded: UPDATE Step 7 rewrites it on
 // every run ("last written at"), so comparing it would make every record differ
 // from upstream the moment anyone re-syncs, and the stop would fire on nothing.
-const SIGNIFICANT_FIELDS = ['routine_id', 'template', 'template_version', 'schedule', 'branch', 'model'];
+const SIGNIFICANT_FIELDS = ['routine_id', 'template', 'template_version', 'schedule', 'branch', 'model', 'kernel_version'];
 
 // Absent and empty compare equal here. The record schema distinguishes them (an
 // omitted `branch` means "unresolved", `branch: ""` would mean "pinned to
@@ -394,11 +394,25 @@ function freshnessNote(result) {
   return `Record freshness unverified${where}: ${why}. Comparing this checkout's copy only — a record committed upstream but not present here cannot be seen.`;
 }
 
+// Kernel staleness verdict for STATUS Step 3's dual-drift check (#529): a record
+// with no recorded kernel_version predates the kernel split and always reads stale.
+// Ahead-of-schema reads 'fresh' deliberately: a stale checkout can under-read a
+// record that is actually current. Same rationale covers the cross-machine case:
+// a record written by a newer plugin elsewhere may legitimately be ahead of this
+// checkout's own schema — telling an older plugin to "update" it would regress it.
+function kernelFreshness(recordKernelVersion, currentKernelVersion) {
+  if (recordKernelVersion == null) return 'kernel-stale';
+  const recorded = Number(recordKernelVersion);
+  if (!Number.isFinite(recorded)) return 'kernel-stale';
+  return recorded >= Number(currentKernelVersion) ? 'fresh' : 'kernel-stale';
+}
+
 module.exports = {
   parseRoutineTemplate,
   listRoutineRecords,
   readRoutineRecordsAtRef,
   compareRoutineRecords,
   freshnessNote,
+  kernelFreshness,
   SIGNIFICANT_FIELDS,
 };

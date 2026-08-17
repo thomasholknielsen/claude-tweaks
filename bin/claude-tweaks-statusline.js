@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execSync } = require('child_process');
 const color = require('./lib/color');
 
@@ -245,17 +246,48 @@ function findOpenLedger(cwd) {
   return text;
 }
 
-// `~/.claude-accounts/<slug>/...` is an observed multi-account directory
-// layout, not part of Claude Code's documented statusline contract — only
-// `transcript_path` itself is documented. Match loosely (either path
-// separator) and return null on any miss so a layout change silently drops
-// this segment instead of breaking the statusline.
-function renderAccount(input) {
+// Which config home this session runs from. Claude Code's statusline JSON has
+// no account field, so this is inferred: `CLAUDE_CONFIG_DIR` (documented, and
+// inherited by the statusline process) wins; else the transcript lives at
+// `<config-dir>/projects/<slug>/<id>.jsonl` (either separator); else the
+// default `~/.claude`. Returns the dir as written — no normalization, since a
+// Windows-shaped path from a Windows session may not resolve on this host.
+function resolveConfigDir(input, env, home) {
+  const fromEnv = env.CLAUDE_CONFIG_DIR;
+  if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.replace(/[\\/]+$/, '');
   const tp = input.transcript_path;
-  if (!tp || typeof tp !== 'string') return null;
-  const match = tp.match(/\.claude-accounts[\\/]+([^\\/]+)[\\/]/);
-  if (!match) return null;
-  return `acct: ${match[1]}`;
+  if (typeof tp === 'string') {
+    const match = tp.match(/^(.+?)[\\/]+projects[\\/]+[^\\/]+[\\/]+[^\\/]+\.jsonl$/);
+    if (match) return match[1];
+  }
+  return path.join(home, '.claude');
+}
+
+function readOauthEmail(file) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const email = parsed && parsed.oauthAccount && parsed.oauthAccount.emailAddress;
+    return typeof email === 'string' && email ? email : null;
+  } catch {
+    return null;
+  }
+}
+
+// Every account gets a label, so a missing segment means "couldn't determine"
+// rather than doubling as "you're on the default account". A non-default
+// config dir (`CLAUDE_CONFIG_DIR`, `~/.claude-accounts/<slug>`, anything not
+// named `.claude`) is labeled by its basename — the user's own chosen name.
+// The default `~/.claude` has no such name, so it's labeled by the logged-in
+// email from `.claude.json` (looked up in the config dir first, then $HOME —
+// observed: `~/.claude/.claude.json` can exist as a stub without
+// `oauthAccount` while `~/.claude.json` carries it). No email (API key,
+// Bedrock/Vertex, logged out) → null, never a guess.
+function renderAccount(input, { env = process.env, home = os.homedir() } = {}) {
+  const configDir = resolveConfigDir(input, env, home);
+  const slug = configDir.split(/[\\/]+/).filter(Boolean).pop() || '';
+  if (slug !== '.claude') return `acct: ${slug}`;
+  const email = readOauthEmail(path.join(configDir, '.claude.json')) || readOauthEmail(path.join(home, '.claude.json'));
+  return email ? `acct: ${email}` : null;
 }
 
 async function main() {

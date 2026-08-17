@@ -433,7 +433,7 @@ test('reconcile: local-merge project falls back to the legacy ancestry reap, ski
   const r = reconcile({ cwd: dir });
   assert.strictEqual(r.mirror, null);
   assert.deepStrictEqual(r.worktrees, []); // legacy reap ran, found zero worktrees to consider
-  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,console', reason: 'local-merge-model' }]);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });
 
 test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', () => {
@@ -473,7 +473,7 @@ test('reconcile: checks filter excludes reap -> local-merge project runs nothing
   const r = reconcile({ cwd: dir, checks: ['mirror'] });
   // 'mirror' was requested but has no local-merge equivalent — nothing runs.
   assert.strictEqual(r.worktrees, null);
-  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,console', reason: 'local-merge-model' }]);
+  assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });
 
 test('reconcile: reap dispatches strictly after release and archive in source order (load-bearing, not incidental — #408)', () => {
@@ -491,6 +491,22 @@ test('reconcile: reap dispatches strictly after release and archive in source or
   assert.ok(releaseIdx > 0 && archiveIdx > 0 && reapIdx > 0);
   assert.ok(releaseIdx < reapIdx, 'release must dispatch before reap');
   assert.ok(archiveIdx < reapIdx, 'archive must dispatch before reap');
+});
+
+test('reconcile: ALL_CHECKS includes red-tip immediately after mirror', () => {
+  const { ALL_CHECKS } = require('../bin/lib/reconcile');
+  const mirrorIdx = ALL_CHECKS.indexOf('mirror');
+  assert.strictEqual(ALL_CHECKS[mirrorIdx + 1], 'red-tip', 'red-tip must be the entry immediately after mirror');
+});
+
+test('reconcile: red-tip dispatches immediately after mirror in source order (load-bearing — reads the ref mirror-ff just fetched)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const mirrorIdx = src.indexOf("checks.includes('mirror')");
+  const redTipIdx = src.indexOf("checks.includes('red-tip')");
+  const consoleIdx = src.indexOf("checks.includes('console')");
+  assert.ok(mirrorIdx > 0 && redTipIdx > 0 && consoleIdx > 0);
+  assert.ok(mirrorIdx < redTipIdx, 'mirror must dispatch before red-tip');
+  assert.ok(redTipIdx < consoleIdx, 'red-tip must dispatch before console');
 });
 
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---

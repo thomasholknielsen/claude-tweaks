@@ -17,7 +17,7 @@ paths:
 
 ## Budget
 
-A path-scoped rule (with a `paths:` list) only loads when a matching file is in play, so keep it under `harness-health.scoped-rule-budget` lines in `.claude-tweaks/policy.yml` (default 30). A rule with **no** `paths:` key loads in full every session, identically to CLAUDE.md — if a convention isn't actually path-specific, it belongs in CLAUDE.md, not an unscoped rule file. An unscoped rule is judged against `harness-health.always-loaded-budget` instead (default 150), the same budget CLAUDE.md itself uses.
+A path-scoped rule (with a `paths:` list) only loads when a matching file is in play, so keep it under `harness-health-scoped-rule-budget` lines in `.claude-tweaks/policy.yml` (default 30). A rule with **no** `paths:` key loads in full every session, identically to CLAUDE.md — if a convention isn't actually path-specific, it belongs in CLAUDE.md, not an unscoped rule file. An unscoped rule is judged against `harness-health-always-loaded-budget` instead (default 150), the same budget CLAUDE.md itself uses.
 
 ## Common rule candidates
 

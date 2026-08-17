@@ -15,7 +15,7 @@ step.
 | 3 | `step-03-starter-files.md` | Where work records live per backend; why no starter file is written. |
 | 4 | `step-04-gitignore-suggestions.md` | Suggested `.gitignore` block and the stories-commit prompt. |
 | 5 | `step-05-verify-git.md` | Git-repo verification and the non-git warning. |
-| 6 | `step-06-worktree-configuration.md` | `.worktrees/` setup and the `worktree.always` policy opt-in. |
+| 6 | `step-06-worktree-configuration.md` | `.worktrees/` setup and the `worktree-always` policy opt-in. |
 | 7 | `step-07-browser-integration.md` | `agent-browser` detection and install surfacing. |
 | 8 | `step-08-statusline-and-dependencies.md` | Node/git detection, statusline wrapper, `settings.json` migration matrix. |
 | 9 | `step-09-establish-github-remote.md` | `gh` install/auth, repo creation, `origin` linking. Interactive-only. |
@@ -29,11 +29,12 @@ step.
 | 17 | `step-17-work-record-backend.md` | `work-backend` decision, capability probes, label bootstrap. |
 | 18 | `step-18-autonomy-level.md` | Degree-of-autonomy question and the `autonomy` policy.yml value. |
 | 19 | `step-19-emil-skills.md` | Emil design-engineering skills install offer (frontend-gated; presence-based, no flag). |
+| 20 | `step-20-integration-model.md` | `integration-model: pr-first` policy.yml pin offer (`_shared/integration-model.md`; remote-gated). |
 
 ## Core Bootstrap Steps (1-8)
 
 Order-dependent — later steps may assume earlier ones completed. Steps 1-8 run unconditionally and idempotently (only act on missing state).
 
-## Optional Enhancement Steps (9-19)
+## Optional Enhancement Steps (9 onward)
 
-Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Two steps are deliberate exceptions to that default, both inserted via a full renumbering rather than appended: Step 9 (Establish GitHub Remote) must run before Steps 10/14/16/17 — it establishes the remote those steps each independently check for, so appending it at the end would run too late to help them within the same bootstrap pass — and was inserted with a full renumbering of the then-Steps 9-16 → 10-17. Step 14 (Cloud/Routine Parity Setup, itself renumbered from 13 by this same pass) must run before Step 15 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — originally inserted with a renumbering of Steps 13-15 → 14-16. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 10's native-Type mention reads a config key (`work-types`) that only Step 17 writes — see Step 10's own note for how it handles running before Step 17 on a fresh bootstrap.
+Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Two steps are deliberate exceptions to that default, both inserted via a full renumbering rather than appended: Step 9 (Establish GitHub Remote) must run before Steps 10/14/16/17/20 — it establishes the remote those steps each independently check for, so appending it at the end would run too late to help them within the same bootstrap pass — and was inserted with a full renumbering of the then-Steps 9-16 → 10-17. Step 14 (Cloud/Routine Parity Setup, itself renumbered from 13 by this same pass) must run before Step 15 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — originally inserted with a renumbering of Steps 13-15 → 14-16. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 10's native-Type mention reads a config key (`work-types`) that only Step 17 writes — see Step 10's own note for how it handles running before Step 17 on a fresh bootstrap.

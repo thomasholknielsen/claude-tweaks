@@ -7,7 +7,7 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 ## Step 1: Gather
 
 > **Parallel execution:** Use parallel tool calls aggressively — the merge-base-and-diff call
-> (below) and reading this project's `merge-sensitive-paths`/`automerge-max-lines`/`automerge-max-files`
+> (below) and reading this project's `merge-sensitive-paths`/`auto-merge-max-lines`/`auto-merge-max-files`
 > config are independent read-only operations and should run concurrently; only the threshold
 > comparison at the end of this step depends on both of their outputs. Note the qualifier: it is
 > the **single** call deriving `$MERGE_BASE` and the diff together that runs concurrently with the
@@ -42,7 +42,7 @@ the derivation and the diff as **one** Bash call. Each Bash invocation gets a fr
 directions on an empty value. `git merge-base "" HEAD` exits 128 with `fatal: Not a valid object
 name`, which is loud. `git diff --numstat ""..HEAD` reads `..HEAD` as `HEAD..HEAD` and returns
 **zero lines with exit 0** — a blast radius of 0 files and 0 lines, which clears every
-`automerge-max-*` threshold and verdicts `auto-merge`. Splitting these blocks turns a
+`auto-merge-max-*` threshold and verdicts `auto-merge`. Splitting these blocks turns a
 resolution failure into an unconditional approval, which is the failure class this whole
 procedure exists to prevent.
 
@@ -67,25 +67,25 @@ process.stdin.on('end', () => {
 "
 ```
 
-Read this project's own configured `merge-sensitive-paths`/`automerge-max-lines`/
-`automerge-max-files` directly — this skill reads its own config, the same way
+Read this project's own configured `merge-sensitive-paths`/`auto-merge-max-lines`/
+`auto-merge-max-files` directly — this skill reads its own config, the same way
 `skills/dispatch/SKILL.md`'s existing Configuration section reads `dispatch-retry-ceiling` and
 friends directly rather than expecting a caller to pre-fetch and pass them. This read is
 independent of the `$MERGE_BASE`/diff-derivation chain above (see the parallel-execution note) and
 can be issued as a concurrent tool call:
 
 ```bash
-CONFIG_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-sensitive-paths automerge-max-lines automerge-max-files)
+CONFIG_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-sensitive-paths auto-merge-max-lines auto-merge-max-files)
 MERGE_SENSITIVE_PATHS_CSV=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths
-AUTOMERGE_MAX_LINES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '2p')         # line 2: automerge-max-lines
-AUTOMERGE_MAX_FILES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '3p')         # line 3: automerge-max-files
+AUTO_MERGE_MAX_LINES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '2p')         # line 2: auto-merge-max-lines
+AUTO_MERGE_MAX_FILES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '3p')         # line 3: auto-merge-max-files
 ```
 
 `merge-sensitive-paths` is a single line, comma-separated glob list (e.g.
 `merge-sensitive-paths: bin/hooks.js,skills/_shared/*.md,.claude-tweaks/policy.yml`) — split on `,`
 and trim whitespace; an empty resolution means the key is unset and the list is `[]` (see
 `_shared/work-record.md`'s Config keys
-table). `automerge-max-lines`/`automerge-max-files` come back already defaulted by the resolver,
+table). `auto-merge-max-lines`/`auto-merge-max-files` come back already defaulted by the resolver,
 so both are always concrete numbers.
 
 Then compute the blast-radius summary:
@@ -127,7 +127,7 @@ caller, since this skill reads its own config rather than depending on one.)
   render `needs-human`. A correction can be factually true and independently verifiable and still
   change what agents infer; truth is not the test, behavior delta is.
 - **Weigh `blastRadiusSummary.implLines`/`implFiles` against the project's configured
-  `automerge-max-lines`/`automerge-max-files` — but only once the diff is judged to carry behavior
+  `auto-merge-max-lines`/`auto-merge-max-files` — but only once the diff is judged to carry behavior
   change at all.** `blastRadiusSummary` reports whole-diff totals; there is no per-hunk breakdown
   to weigh, which is why the judgment below is deliberately a binary on the whole diff rather than
   an attempt to size some behavior-carrying fraction of it. Size proxies review burden, not risk:
@@ -162,7 +162,7 @@ fixed, and calibration anchored to one then describes a state that no longer exi
 | A section reworded so an existing instruction reads more strongly or more weakly | `needs-human` | No instruction added or removed, yet the threshold for following it moved. |
 | A stale cross-reference repaired after a file split — `above`/`below` pointers, a moved path, a renamed anchor | `auto-merge` eligible | Pointer repair. The refutation attempt comes up empty: no agent acts differently, it just finds the target. |
 | A dead pointer deleted, nothing replacing it | `auto-merge` eligible | Removes an instruction that could not be followed. Confirm nothing else cited the removed target. |
-| A behavior-preserving rename spanning many files, review clean | `auto-merge` eligible | Uniformly one transformation. Exceeding `automerge-max-lines` is review burden, not risk. |
+| A behavior-preserving rename spanning many files, review clean | `auto-merge` eligible | Uniformly one transformation. Exceeding `auto-merge-max-lines` is review burden, not risk. |
 | A rename spanning many files where one hunk also changes a default | `needs-human` | One non-conforming hunk makes the whole diff behavior-carrying — the guideline binds again. |
 
 `auto-merge` eligible means the refutation attempt came up empty for the agent-instruction floor

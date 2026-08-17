@@ -151,13 +151,19 @@ test('existing severity rows are unchanged (delta review — AC4)', () => {
 test('pr-unarmed-age-hours and unsettled-age-hours are registered with a 24-hour default each', () => {
   const unarmed = POLICY_KEYS.find((k) => k.key === 'pr-unarmed-age-hours');
   const unsettled = POLICY_KEYS.find((k) => k.key === 'unsettled-age-hours');
-  assert.deepStrictEqual(unarmed, { key: 'pr-unarmed-age-hours', type: 'integer', default: 24 });
-  assert.deepStrictEqual(unsettled, { key: 'unsettled-age-hours', type: 'integer', default: 24 });
+  assert.ok(unarmed, 'pr-unarmed-age-hours key not found');
+  assert.strictEqual(unarmed.type, 'integer');
+  assert.strictEqual(unarmed.default, 24);
+  assert.ok(unsettled, 'unsettled-age-hours key not found');
+  assert.strictEqual(unsettled.type, 'integer');
+  assert.strictEqual(unsettled.default, 24);
 });
 
-test('housekeeping-auto-merge is registered as a boolean, default false', () => {
+test('housekeeping-auto-merge row: boolean, static default false (the supervised base — effective default derives from autonomy, #580)', () => {
   const key = POLICY_KEYS.find((k) => k.key === 'housekeeping-auto-merge');
-  assert.deepStrictEqual(key, { key: 'housekeeping-auto-merge', type: 'boolean', default: false });
+  assert.ok(key, 'housekeeping-auto-merge key not found');
+  assert.strictEqual(key.type, 'boolean');
+  assert.strictEqual(key.default, false);
 });
 
 test('all three new keys are documented in policy-schema.md', () => {
@@ -211,14 +217,14 @@ test('tidy/SKILL.md registers Arm ready PR in the Action Vocabulary table', () =
   assert.match(TIDY_SKILL, /\*\*Arm ready PR\*\* \| A green, gate-passed, granted PR/);
 });
 
-test('tidy/SKILL.md Step 7 documents the marker and grant, and states the marker is stamped under pr-first + worktree.always (#424)', () => {
+test('tidy/SKILL.md Step 7 documents the marker and grant, and states the marker is stamped under pr-first + worktree-always (#424)', () => {
   assert.match(TIDY_SKILL, /<!-- tidy-housekeeping-pr -->/);
   assert.match(TIDY_SKILL, /`housekeeping-auto-merge` set project-wide/);
-  assert.match(TIDY_SKILL, /this run's commit is pushed as a PR by the `worktree\.always` handling above/);
+  assert.match(TIDY_SKILL, /this run's commit is pushed as a PR by the `worktree-always` handling above/);
   assert.doesNotMatch(TIDY_SKILL, /As of this writing, Step 7 above does not itself open a PR/);
 });
 
-test('tidy/SKILL.md Step 7.5 opens a marker-stamped PR under pr-first + worktree.always, reusing pr-early-run-lifecycle.md rather than a second implementation (#424)', () => {
+test('tidy/SKILL.md Step 7.5 opens a marker-stamped PR under pr-first + worktree-always, reusing pr-early-run-lifecycle.md rather than a second implementation (#424)', () => {
   assert.match(TIDY_SKILL, /skip §5-6's merge-back/);
   assert.match(TIDY_SKILL, /reusing `_shared\/pr-early-run-lifecycle\.md`'s Step 1 shape/);
   assert.match(TIDY_SKILL, /Step 3 shape \(compose the body, `gh pr create --base/);
@@ -232,7 +238,7 @@ test("tidy/SKILL.md Step 7.5 opens the pr-first PR ready (not draft), since tidy
   assert.match(TIDY_SKILL, /item 9's own filter skips any PR still in draft/);
 });
 
-test('tidy/SKILL.md Step 7.5 leaves the local-merge / no-worktree.always path unchanged and falls back to it if the PR-open path fails (#424)', () => {
+test('tidy/SKILL.md Step 7.5 leaves the local-merge / no-worktree-always path unchanged and falls back to it if the PR-open path fails (#424)', () => {
   assert.match(TIDY_SKILL, /\*\*`local-merge`\*\* \(including an unresolved\/undetectable model/);
   assert.match(TIDY_SKILL, /fall through to the `local-merge` branch above and merge back locally instead/);
 });

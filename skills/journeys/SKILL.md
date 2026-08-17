@@ -3,7 +3,7 @@ name: journeys
 description: Use when you want to create or update user journey documentation for recently built features. Works standalone or as a step within /claude-tweaks:build.
 argument-hint: "[<spec-number>|<file-path>...|--journey <name>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Journeys — User Journey Documentation
@@ -174,11 +174,11 @@ git commit -m "Add/update {journey name} journey"
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Generate QA stories (Recommended)"`, `description`: `"/claude-tweaks:stories — generate QA stories from journeys"`
-- Option 2 — `label`: `"Visual review"`, `description`: `"/claude-tweaks:visual-review journey:{name} — visual review of a journey"`
-- Option 3 — `label`: `"Verify"`, `description`: `"/claude-tweaks:test {spec} — verify implementation"`
+**`/claude-tweaks:stories`** — generate QA stories from journeys (recommended)
+`/claude-tweaks:visual-review journey:{name}` — visual review of a journey
+`/claude-tweaks:test {spec}` — verify implementation
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 

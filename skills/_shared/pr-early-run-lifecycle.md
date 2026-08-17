@@ -69,7 +69,7 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
 git -C "{worktree-path}" push origin {branch}
 ```
 
-Its own Bash call — never chained (the `worktree.always` gate denies a compound command whole,
+Its own Bash call — never chained (the `worktree-always` gate denies a compound command whole,
 same as every other push in this plugin).
 
 **On failure** (network, auth, no `origin` remote, rejected non-fast-forward): stop here. Log to
@@ -207,6 +207,26 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
 re-flips every row still unchecked from prior phases, since it reads the live body fresh each
 time rather than tracking a local diff.
 
+## Pre-merge title/description refresh
+
+Unconditional `AUTO` step, never a stop (`_shared/auto-mode-contract.md`'s "What auto silences" —
+refreshing PR metadata is not a user decision). Runs once, immediately before
+`_shared/pr-first-merge.md` Step 2 undrafts the PR — by then the PR may be stale: its title/body
+were composed at run start (Step 3 above) and the phase checklist reflects whichever phases had
+exited as of each best-effort `gh pr edit` (Phase-checklist update above), not necessarily every
+phase this run actually completed.
+
+1. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
+   (a phase whose own update already landed re-flips the same rows to the same values); this is
+   the final catch-all for any phase whose own best-effort update silently failed.
+2. Read the record's current title (`gh issue view {n} --json title -q .title` for the
+   lowest-numbered record). If it no longer matches the PR's own title (the record was retitled
+   after PR creation), refresh it: `gh pr edit {pr-number} --repo {owner}/{repo} --title "{current record title} (#{n})"`.
+3. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
+
+Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` here logs a
+warning and the merge proceeds; a stale title/checklist is cosmetic, never a merge blocker.
+
 ## Skip / degrade behavior
 
 | Condition | Behavior |
@@ -215,6 +235,7 @@ time rather than tracking a local diff.
 | Push at run start fails | Local-only run, logged warning (Step 2 above), continue. Every later phase-exit push retries naturally. |
 | `gh pr create` fails twice | Local-only run (branch already pushed), logged warning, continue. |
 | `gh` absent | Same degrade as a push/create failure, distinguished reason: `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, so there is no MCP fallback to attempt for PR creation (unlike issue operations, which do have one). Log `reason: gh-absent — no MCP fallback for pull requests`. |
+| `gh` absent at merge time (`_shared/pr-first-merge.md` Step 2.5) | The `merge-verification` lever is unenforceable without `gh` — proceed as `off` and disclose it at **warn** tier in the run summary (a visible line, not a silent log entry): `merge-verification: {resolved} unenforceable — gh absent; proceeded as off`. Same no-MCP-fallback reason as the row above. |
 | Offline / no `origin` remote | Same degrade path as any push failure — `_shared/forge-detection.md` would already have resolved `local-merge` for a no-remote project, so this case is specifically "remote configured but unreachable right now." |
 
 None of these ever block the pipeline — a pr-first project whose GitHub connectivity is degraded

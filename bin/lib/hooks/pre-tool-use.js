@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
+const { gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -34,8 +34,43 @@ function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
 }
 
-// The single machine-readable statement of what the worktree.always gate
-// covers. `skills/_shared/policy-schema.md`'s `worktree.always` row is its
+// The gate's two path-prefix/path-identity exemptions. `.claude-tweaks/pipelines/`
+// holds plugin-owned pipeline bookkeeping — run config, the auto-decision log,
+// staged proposals — which is gitignored and is not the project work this
+// gate exists to isolate. `.claude-tweaks/policy.yml` is the second: the one
+// file a session legitimately needs to edit from a non-isolated checkout in
+// order to CONFIGURE the very gate that would otherwise deny every other
+// write there (spec #537) — see isPolicyFile below for how its comparison
+// stays symlink-safe.
+//
+// Why the pipelines exemption is load-bearing TODAY: run directories are
+// anchored to the MAIN checkout at creation (`_shared/pipeline-run-dir.md`,
+// Anchoring), so a pipeline running inside a worktree writes config.yml /
+// decisions.md / events.jsonl / staged/ to a path OUTSIDE its own isolated
+// checkout, by design — that anchoring is what stops a worktree ever holding
+// the only copy of a run's audit trail, and what makes automatic worktree
+// reaping safe. Without this exemption the gate denies every one of those
+// writes on every worktree-always project, and the audit trail is lost at the
+// source rather than at teardown.
+//
+// The pipelines exemption's ORIGINAL justification (#138) was different:
+// /wrap-up used to copy a run's audit state out of the worktree just before
+// removing it, and that copy-out needed to write into the main checkout. That
+// step was deleted once anchoring made it unnecessary. The reason changed;
+// the exemption did not — do not read the dead justification as evidence this
+// can be removed.
+const PIPELINE_STATE_DIR = path.join('.claude-tweaks', 'pipelines');
+const POLICY_FILE = path.join('.claude-tweaks', 'policy.yml');
+
+// git always reports/accepts forward-slash paths regardless of platform —
+// used for GATE_COVERAGE's prose-facing rendering and for comparing against
+// `git diff --cached --name-only` output in isPolicyOnlyCommit below.
+function toPosix(p) {
+  return p.split(path.sep).join('/');
+}
+
+// The single machine-readable statement of what the worktree-always gate
+// covers. `skills/_shared/policy-schema.md`'s `worktree-always` row is its
 // prose counterpart, and tests/hooks-gate-coverage.test.js asserts the two
 // agree — so widening this constant fails a test until that row is updated.
 // Every other skill file cites that row rather than restating the list.
@@ -53,33 +88,18 @@ const GATE_COVERAGE = Object.freeze({
   bashWriteShapes: WRITE_SHAPES,
   // These have their own prose-binding block — skills/_shared/policy-schema.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
-  // the two) — deliberately separate from the worktree.always block above,
+  // the two) — deliberately separate from the worktree-always block above,
   // so widening either gate never requires touching the other's prose.
   teardownTools: Object.freeze(['ExitWorktree']),
   teardownGitCommands: Object.freeze(['worktree remove']),
+  // The two exemptions above (paths) plus the allowlisted-commit rule (see
+  // POLICY_COMMIT_ALLOWLIST / isPolicyOnlyCommit below). `paths[0]` carries a
+  // trailing slash to mark it as a PREFIX; `paths[1]` is an exact-file match.
+  exemptions: Object.freeze({
+    paths: Object.freeze([`${toPosix(PIPELINE_STATE_DIR)}/`, toPosix(POLICY_FILE)]),
+    commit: 'policy-only',
+  }),
 });
-
-// The gate's one path-prefix exemption. `.claude-tweaks/pipelines/` holds
-// plugin-owned pipeline bookkeeping — run config, the auto-decision log,
-// staged proposals — which is gitignored and is not the project work this
-// gate exists to isolate.
-//
-// Why it is load-bearing TODAY: run directories are anchored to the MAIN
-// checkout at creation (`_shared/pipeline-run-dir.md`, Anchoring), so a
-// pipeline running inside a worktree writes config.yml / decisions.md /
-// events.jsonl / staged/ to a path OUTSIDE its own isolated checkout, by
-// design — that anchoring is what stops a worktree ever holding the only copy
-// of a run's audit trail, and what makes automatic worktree reaping safe.
-// Without this exemption the gate denies every one of those writes on every
-// worktree.always project, and the audit trail is lost at the source rather
-// than at teardown.
-//
-// The exemption's ORIGINAL justification (#138) was different: /wrap-up used
-// to copy a run's audit state out of the worktree just before removing it, and
-// that copy-out needed to write into the main checkout. That step was deleted
-// once anchoring made it unnecessary. The reason changed; the exemption did
-// not — do not read the dead justification as evidence this can be removed.
-const PIPELINE_STATE_DIR = path.join('.claude-tweaks', 'pipelines');
 
 // Fails CLOSED, deliberately: anything this cannot prove sits under the repo's
 // own .claude-tweaks/pipelines/ is NOT exempt and falls through to the deny.
@@ -91,6 +111,108 @@ function isPipelineBookkeeping(repoRoot, targetPath) {
   if (!repoRoot || typeof targetPath !== 'string' || !targetPath) return false;
   if (!path.isAbsolute(targetPath)) return false;
   return path.resolve(targetPath).startsWith(path.join(repoRoot, PIPELINE_STATE_DIR) + path.sep);
+}
+
+// Resolves a write TARGET the way an already-existing file or symlink chain
+// actually behaves: if something exists at this path, follow it all the way
+// (fs.realpathSync follows every symlink, including the final component) —
+// an Edit/Write through a symlink acts on whatever it ultimately points at.
+// If nothing exists there yet (Write creating a brand-new file), there is no
+// leaf to follow: resolve only the parent directory and keep the literal
+// basename. A path that EXISTS but is an unresolvable (dangling/escaping)
+// symlink is never treated as "doesn't exist yet" — that would let a symlink
+// swap masquerade as a fresh Write and slip through the parent-only fallback
+// meant for genuinely new files. Non-absolute/empty/non-string input is
+// unprovable, matching isPipelineBookkeeping's own posture above.
+function realTarget(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath || !path.isAbsolute(targetPath)) return null;
+  const resolved = path.resolve(targetPath);
+  const real = safeReal(resolved);
+  if (real) return real;
+  let isSymlink = false;
+  try { isSymlink = fs.lstatSync(resolved).isSymbolicLink(); } catch { /* nothing at this path at all */ }
+  if (isSymlink) return null;
+  const parentReal = safeReal(path.dirname(resolved));
+  if (!parentReal) return null;
+  return path.join(parentReal, path.basename(resolved));
+}
+
+// Resolves the CANONICAL reference location for a repo-relative path —
+// {repoRoot}/{relPath} — WITHOUT ever following a symlink that might have
+// replaced the leaf itself; only the parent directory is realpath'd. This
+// asymmetry against realTarget above (which follows everything) is what
+// stops an attacker from replacing .claude-tweaks/policy.yml with a symlink
+// to somewhere writable: if both sides resolved the leaf, they would
+// trivially agree on the forged destination. This side always means
+// "whatever is literally at {relPath}", never wherever a swapped-in symlink
+// currently points.
+function canonicalRepoPath(repoRoot, relPath) {
+  if (!repoRoot) return null;
+  const joined = path.join(repoRoot, relPath);
+  const parentReal = safeReal(path.dirname(joined));
+  if (!parentReal) return null;
+  return path.join(parentReal, path.basename(joined));
+}
+
+// The gate's second exemption (see the header comment above
+// PIPELINE_STATE_DIR): Edit/Write/NotebookEdit targeting the repo's own
+// .claude-tweaks/policy.yml, compared as fully-resolved real paths — exact
+// equality only, never containment — so a symlink ALIAS to policy.yml
+// resolves to the same allow and policy.yml itself being SWAPPED for a
+// symlink elsewhere resolves to the same deny (see canonicalRepoPath).
+function isPolicyFile(repoRoot, targetPath) {
+  const real = realTarget(targetPath);
+  if (!real) return false;
+  const canonical = canonicalRepoPath(repoRoot, POLICY_FILE);
+  if (!canonical) return false;
+  return real === canonical;
+}
+
+// The commit exemption's allowlist grammar (spec #537 Deliverables): admits
+// EXACTLY `git commit` plus one-or-more -m/--message args and an optional
+// --no-verify, in any order, nothing else — no other flag, no pathspec, no
+// shell operator, no env-var prefix, no path to git. Default-deny by
+// construction: there is no disqualifying-flag list to maintain, because
+// anything not spelled out here simply fails to match.
+const CQ_SINGLE = "'[^']*'";
+const CQ_DOUBLE = '"[^"$`\\\\]*"'; // no $, backtick, or backslash inside
+const CQ_BARE = '[A-Za-z0-9._:/#-]+';
+const CQ_ARG = `(?:${CQ_SINGLE}|${CQ_DOUBLE}|${CQ_BARE})`;
+const CQ_MSG = `(?:-m\\s*${CQ_ARG}|--message(?:=|\\s+)${CQ_ARG})`;
+const CQ_TOKEN = `(?:${CQ_MSG}|--no-verify)`;
+const POLICY_COMMIT_ALLOWLIST = Object.freeze(new RegExp(
+  `^\\s*git\\s+commit(?:\\s+${CQ_TOKEN})*\\s+${CQ_MSG}(?:\\s+${CQ_TOKEN})*\\s*$`,
+));
+
+// Allowlist-match first (pure regex, no spawn); only a match pays for a git
+// query, and only that query's result decides the exemption — a staged set
+// of exactly one entry, .claude-tweaks/policy.yml, whose status is an Add,
+// Modify, or Delete. `--name-status` rather than `--name-only`, deliberately:
+// `--name-only` collapses a rename to its single destination line, so
+// `git mv <tracked-file> .claude-tweaks/policy.yml` (ungated — neither a
+// commit/push nor a WRITE_SHAPE) on a repo where policy.yml is not yet in
+// HEAD reads as "exactly policy.yml staged" and smuggles arbitrary tracked
+// content into the enforcement file (review finding). A rename renders as
+// `R<score>\told\tnew` under --name-status and is rejected on its status
+// letter; likewise Copy (C) and type-change (T). Wrapped so any exception
+// from the git spawn can never propagate out of this hook (this file's
+// header: never throw) — it falls through to "not exempt" instead.
+const POLICY_COMMIT_STATUSES = new Set(['A', 'M', 'D']);
+function isPolicyOnlyCommit(command, cwd) {
+  if (typeof command !== 'string' || !POLICY_COMMIT_ALLOWLIST.test(command)) return false;
+  try {
+    const { stdout, failure } = runGit(['diff', '--cached', '--name-status'], cwd);
+    if (failure !== null || typeof stdout !== 'string') return false;
+    const rows = stdout.split('\n').filter(Boolean);
+    if (rows.length !== 1) return false;
+    const cols = rows[0].split('\t');
+    // Exactly two columns — status + one path. A rename/copy row carries three.
+    if (cols.length !== 2) return false;
+    const [status, file] = cols;
+    return POLICY_COMMIT_STATUSES.has(status) && file === toPosix(POLICY_FILE);
+  } catch {
+    return false;
+  }
 }
 
 // Kept returning `string | null` — E1's own callers below compare toplevels for
@@ -151,13 +273,19 @@ function denyResult(reason) {
 // not extend the compound-command surface #174 tracks. Any other flags,
 // multiple positionals, or parse doubt skip that segment; never fabricate a
 // target — ambiguity resolves to allow.
+// Each entry carries `source` ('exitworktree' | 'bash') alongside the
+// resolved `path` — checkTeardownGate's own-cwd guard (#693) below applies
+// ONLY to the 'bash' source: ExitWorktree always resolves to ctx.cwd's own
+// toplevel (see the block comment above this function) and IS the sanctioned
+// own-cwd removal path, so the same "target is my own cwd" shape must never
+// deny it the way it denies a raw `git worktree remove`.
 function teardownTargets(ctx) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
   if (GATE_COVERAGE.teardownTools.includes(toolName)) {
     if (!toolInput || toolInput.action !== 'remove') return [];
     const top = toplevel(ctx.cwd || process.cwd());
-    return top ? [top] : [];
+    return top ? [{ path: top, source: 'exitworktree' }] : [];
   }
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
@@ -180,7 +308,7 @@ function teardownTargets(ctx) {
     // `--`, like `--force`/`-f`, is a flag/terminator, never the path itself.
     const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f' && t !== '--');
     if (rest.length !== 1 || rest[0].startsWith('-')) return; // unconfident -> allow
-    out.push(path.resolve(dir, rest[0]));
+    out.push({ path: path.resolve(dir, rest[0]), source: 'bash' });
   });
   return out;
 }
@@ -195,7 +323,7 @@ function teardownTargets(ctx) {
 // checkWorktreeRequired below): a foreign-owned hit is collected here and the
 // loop CONTINUES rather than returning — an early return on the warn path
 // used to short-circuit runInner entirely, so a compound `git worktree
-// remove <foreign-wt> && git commit -m x` skipped the worktree.always check
+// remove <foreign-wt> && git commit -m x` skipped the worktree-always check
 // on the trailing commit (whole-branch review IMPORTANT 3). Only a genuine
 // deny still returns early — a deny is the one outcome where evaluating
 // anything further is pointless (the call is blocked).
@@ -210,8 +338,34 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
   // at least one target, since it costs an fs walk on every hook call
   // otherwise.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(ctx.cwd || process.cwd()));
-  for (const target of targets) {
+  // Own-cwd guard (#693): resolved once per call, reused across targets.
+  const cwdReal = safeReal(ctx.cwd || process.cwd());
+  for (const { path: target, source } of targets) {
     if (mainRoot && safeReal(target) === mainRoot) continue;
+
+    // A raw Bash `git worktree remove` (never ExitWorktree — see teardownTargets'
+    // header comment) whose target IS the session's own cwd, or a directory
+    // containing it, deletes the shell's live working directory out from
+    // under itself: the incident #693 documents. This fires independent of
+    // any pipeline-run assignment below — a `close-run` already having run
+    // (which lifts the assignment-based deny further down, see AC2 in
+    // tests/teardown-gate.test.js) does nothing to stop the shell's own cwd
+    // being pulled out from under it, which is exactly the gap that let the
+    // incident's raw remove through. Ambiguity (unresolvable target or cwd)
+    // still resolves to allow, matching this file's own posture throughout.
+    if (source === 'bash') {
+      const targetReal = safeReal(target);
+      if (targetReal && cwdReal && (cwdReal === targetReal || cwdReal.startsWith(targetReal + path.sep))) {
+        return denyResult(
+          `claude-tweaks teardown gate: this \`git worktree remove\` targets ${target}, which is the ` +
+          `current session's own working directory (or an ancestor of it). Removing it deletes the ` +
+          `shell's live cwd and leaves the session with no git context. Use \`ExitWorktree\` instead — ` +
+          `it is the only sanctioned way to remove the worktree a session is standing in ` +
+          `(skills/wrap-up/cleanup-procedures.md Section C's Teardown ordering invariant).`,
+        );
+      }
+    }
+
     let exists = false;
     try { fs.statSync(target); exists = true; } catch { /* gone */ }
     // Recorded-or-target path already gone from disk -> allow (fail-open).
@@ -247,10 +401,74 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
   return {};
 }
 
+// Pipeline-shadow guard (#692): refuses to CREATE `.claude-tweaks/pipelines/`
+// state inside a linked worktree at all — see _shared/pipeline-run-dir.md's
+// Anchoring section, and `node bin/hooks.js resolve-run-dir`, the command that
+// section now points callers at instead of composing $RUN_ROOT inline. Unlike
+// checkWorktreeRequired below, this guard is UNCONDITIONAL: it does not check
+// `worktree-always` policy, because run-dir anchoring is a plugin-architecture
+// invariant every project gets, not something a project opts into.
+//
+// Flags only a NEW creation — the run-dir-level path (the first path segment
+// under `.claude-tweaks/pipelines/`) does not already exist on disk. A
+// pre-anchoring run directory already sitting in a worktree is left alone
+// (tolerated transitionally by wrap-up/cleanup-procedures.md Section C step
+// 3.5's copy-out guard, sunset 2026-11-07): that guard only ever READS from
+// the worktree and WRITES to the main checkout, so it never trips this guard
+// itself, and further writes into an already-existing worktree-trapped run
+// dir (e.g. a still-running pre-anchoring pipeline appending events.jsonl)
+// must not be newly denied by a guard shipped after that pipeline started.
+function shadowPipelineRunDir(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath || !path.isAbsolute(targetPath)) return null;
+  const resolved = path.resolve(targetPath);
+  const { repoRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(resolved);
+  if (indeterminate || !repoRoot || !isLinkedWorktree) return null;
+  const pipelinesDir = path.join(repoRoot, PIPELINE_STATE_DIR);
+  // realTarget follows an existing symlink chain the same way the policy.yml
+  // exemption does; falls back to the literal resolved path when nothing
+  // exists yet (a brand-new mkdir target has no leaf, sometimes not even a
+  // parent, to realpath).
+  const real = realTarget(resolved) || resolved;
+  const relFromPipelines = path.relative(pipelinesDir, real);
+  if (!relFromPipelines || relFromPipelines.startsWith('..') || path.isAbsolute(relFromPipelines)) return null;
+  const runDirName = relFromPipelines.split(path.sep)[0];
+  const runDirCandidate = path.join(pipelinesDir, runDirName);
+  let exists = false;
+  try { exists = fs.statSync(runDirCandidate).isDirectory(); } catch { /* not there yet — a genuinely new shadow */ }
+  if (exists) return null;
+  return { worktreeRoot: repoRoot, runDirCandidate };
+}
+
+function checkPipelineShadowGuard(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const toolInput = ctx.input && ctx.input.tool_input;
+  const candidates = [];
+  if (GATE_COVERAGE.tools.includes(toolName)) {
+    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+    if (toolInput && typeof toolInput[field] === 'string') candidates.push(toolInput[field]);
+  } else if (toolName === 'Bash' && toolInput && typeof toolInput.command === 'string') {
+    const command = toolInput.command;
+    for (const t of fileWriteTargets(command, ctx.cwd)) candidates.push(t.file);
+    for (const t of mkdirTargets(command, ctx.cwd)) candidates.push(t.file);
+  }
+  for (const candidate of candidates) {
+    const shadow = shadowPipelineRunDir(candidate);
+    if (!shadow) continue;
+    return denyResult(
+      `claude-tweaks: refusing to create ${shadow.runDirCandidate} — a NEW pipeline run directory inside a ` +
+      `linked worktree (${shadow.worktreeRoot}). Run directories are anchored to the main checkout ` +
+      `(_shared/pipeline-run-dir.md's Anchoring section); creating one here would be a worktree-local shadow that ` +
+      `a later \`git worktree remove\` can silently destroy ([IL-127]). Resolve the correct path instead: ` +
+      `node "${pluginRoot()}/bin/hooks.js" resolve-run-dir --create (see pipeline-run-dir.md for the full flag set).`,
+    );
+  }
+  return {};
+}
+
 // worktree-required policy gate: unlike E1 below, this needs no pipeline run
 // state at all — it fires on the first Edit/Write/NotebookEdit/commit of a
 // session, before any skill has ever run, whenever the target repo has opted
-// into `worktree.always: true` in its .claude-tweaks/policy.yml.
+// into `worktree-always: true` in its .claude-tweaks/policy.yml.
 //
 // `precomputedGitTargets` (Bash calls only) lets run() share the one
 // gitTargets() parse of the command with its own later E1 loop instead of
@@ -264,14 +482,25 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
 function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets = []) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
-  // Each entry is { path, exemptible }. `exemptible` marks a target that names
-  // a FILE being written, which is the only kind the .claude-tweaks/pipelines/
-  // exemption may apply to. A git commit/push target is the command's working
-  // DIRECTORY, not a file — exempting those by prefix would allow any commit
-  // merely ISSUED from inside .claude-tweaks/pipelines/, which is precisely
-  // the isolation this gate enforces. The distinction has to be carried from
-  // where each target is resolved; it cannot be recovered later.
+  // Each entry is { path, exemptible, fileTool, action }. `exemptible` marks a
+  // target that names a FILE being written, which is the only kind the
+  // .claude-tweaks/pipelines/ exemption may apply to. A git commit/push target
+  // is the command's working DIRECTORY, not a file — exempting those by prefix
+  // would allow any commit merely ISSUED from inside .claude-tweaks/pipelines/,
+  // which is precisely the isolation this gate enforces. `fileTool` is
+  // narrower still: set ONLY for an Edit/Write/NotebookEdit target, never for a
+  // Bash write shape (tee/cp/sed -i/…) — the .claude-tweaks/policy.yml
+  // exemption is scoped to the three file tools by spec #537's Non-Goals (a
+  // shell rewrite of an enforcement-relevant file stays gated), so it keys on
+  // this flag, not on `exemptible`. `action` ('commit'/'push', only set for git
+  // targets) is what lets the commit exemption below apply ONLY to a commit
+  // target, never a push one. All three distinctions have to be carried from
+  // where each target is resolved; none can be recovered later.
   let targetPaths = [];
+  // The raw Bash command string, hoisted out of the branch below so the
+  // per-target loop can reach it for the commit exemption's allowlist check
+  // (isPolicyOnlyCommit needs the whole command, not just a resolved target).
+  let bashCommand = null;
 
   // GATE_COVERAGE.tools decides WHETHER a tool is gated; only the input field
   // name varies per tool. Keep that list in sync with the Edit/Write/
@@ -280,11 +509,12 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   if (GATE_COVERAGE.tools.includes(toolName)) {
     const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
     if (toolInput && typeof toolInput[field] === 'string') {
-      targetPaths = [{ path: toolInput[field], exemptible: true }];
+      targetPaths = [{ path: toolInput[field], exemptible: true, fileTool: true }];
     }
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
+      bashCommand = command;
       // Both commit AND push are covered by this policy (see the deny
       // message below and CLAUDE.md's Hooks section) — gitTargets already
       // detects both actions, so don't narrow to 'commit' only, or a bare
@@ -298,7 +528,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       const targets = precomputedGitTargets || gitTargets(command, ctx.cwd);
       const gitTargetPaths = targets
         .filter((t) => GATE_COVERAGE.gitActions.includes(t.action))
-        .map((t) => ({ path: t.dir, exemptible: false }));
+        .map((t) => ({ path: t.dir, exemptible: false, action: t.action }));
       // Non-git direct file writes (tee, cp, mv) — best-effort,
       // not exhaustive (see fileWriteTargets' own header comment).
       const writeTargetPaths = fileWriteTargets(command, ctx.cwd).map((t) => ({ path: t.file, exemptible: true }));
@@ -307,7 +537,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   }
   if (!targetPaths.length) return {};
 
-  for (const { path: targetPath, exemptible } of targetPaths) {
+  for (const { path: targetPath, exemptible, fileTool, action } of targetPaths) {
     // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
     // ancestor chain, there is definitely nothing to enforce for THIS
     // target — skip forking git entirely for the overwhelming majority of
@@ -344,6 +574,20 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // claim a path this was meant to exempt — the ordering defect [IL-83]
     // records. Only file-write targets are eligible; see `exemptible` above.
     if (exemptible && isPipelineBookkeeping(repoRoot, targetPath)) continue;
+    // The second path exemption (#537): an Edit/Write/NotebookEdit write whose
+    // fully-resolved real path IS the repo's own .claude-tweaks/policy.yml —
+    // see isPolicyFile. Keyed on `fileTool`, NOT `exemptible`: a Bash write
+    // shape (tee/cp/sed -i/…) targeting policy.yml is exemptible for the
+    // pipelines/ prefix rule above but must stay gated here (spec #537
+    // Non-Goals; review finding — a shell rewrite of the enforcement file).
+    if (fileTool && isPolicyFile(repoRoot, targetPath)) continue;
+    // The commit exemption (#537): ONLY for a target this loop resolved from a
+    // 'commit' action (never 'push' — see the field comment above), and only
+    // when the allowlist-matched command's staged set is provably nothing but
+    // policy.yml. `bashCommand` is the whole command string; `targetPath` here
+    // is the command's working directory, not a file, so it plays no part in
+    // this check beyond having produced `action === 'commit'`.
+    if (action === 'commit' && isPolicyOnlyCommit(bashCommand, ctx.cwd)) continue;
 
     // Breadcrumb for the residue sweep's judgment class (#185, Task 12) —
     // scoped to ctx.ownedRun, NEVER ctx.runDir: this gate fires before any
@@ -368,8 +612,9 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `claude-tweaks: this project requires an isolated worktree for ` +
       `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
-      `see _shared/policy-schema.md's worktree.always coverage block) ` +
-      `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
+      `see _shared/policy-schema.md's worktree-always coverage block; exempt: ` +
+      `${GATE_COVERAGE.exemptions.paths.join(', ')} and an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit) ` +
+      `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
       `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
       `then follow \`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
       `then retry this edit inside the new worktree.`,
@@ -381,6 +626,9 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
 function runInner(ctx, indeterminateTargets, teardownWarnings) {
   const teardown = checkTeardownGate(ctx, teardownWarnings);
   if (teardown.json) return teardown;
+
+  const shadow = checkPipelineShadowGuard(ctx);
+  if (shadow.json) return shadow;
 
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
@@ -475,13 +723,13 @@ function run(ctx) {
     // Deliberately says the check could not RUN, not that a policy was
     // skipped. Reaching here means findPolicyFile found a policy.yml
     // somewhere up the ancestor chain, which is not the same as
-    // worktree.always being on for this repo — that check needs a repoRoot
+    // worktree-always being on for this repo — that check needs a repoRoot
     // we never obtained. Claiming "the gate was not applied" would assert a
     // policy applied that may not exist.
     notes.push(
       `claude-tweaks: could not determine the git repo status of `
       + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
-      + `The worktree.always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
+      + `The worktree-always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
       + `${indeterminateTargets.length > 1 ? 'they were' : 'it was'} allowed rather than denied, per the never-break-a-session rule. `
       + `If this project requires an isolated worktree, verify manually.`,
     );
@@ -495,4 +743,15 @@ function run(ctx) {
   return { ...out, exit: 0, json };
 }
 
-module.exports = { run, GATE_COVERAGE, PIPELINE_STATE_DIR, isPipelineBookkeeping };
+module.exports = {
+  run,
+  GATE_COVERAGE,
+  PIPELINE_STATE_DIR,
+  POLICY_FILE,
+  isPipelineBookkeeping,
+  isPolicyFile,
+  isPolicyOnlyCommit,
+  POLICY_COMMIT_ALLOWLIST,
+  shadowPipelineRunDir,
+  checkPipelineShadowGuard,
+};

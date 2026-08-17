@@ -187,3 +187,5 @@ test('every bracketed leaf in argument-hint appears in ## Input', () => {
     }
   }
 });
+
+module.exports = { extractArgumentHint };

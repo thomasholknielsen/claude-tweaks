@@ -180,3 +180,38 @@ test('the attribution tag never displaces an event\'s own type or timestamp', ()
   assert.notStrictEqual(ev.ts, 'forged');
   assert.strictEqual(ev.attribution, 'fallback');
 });
+
+// ─── unadopted mints (#721) ────────────────────────────────────────────────
+
+test('fallback never selects an unadopted mint (no run-state.json, no decisions.md)', () => {
+  const cwd = project();
+  const real = mkRun(cwd, '2026-07-01T090000-real', { status: 'active' });
+  mkRun(cwd, '2026-07-02T090000-mint', null); // bare mkdir — sorts newest
+
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir: real, attribution: 'fallback' });
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, null), { dir: real, attribution: 'fallback' });
+});
+
+test('a standalone run dir (decisions.md, no run-state.json) still wins fallback', () => {
+  const cwd = project();
+  const dir = mkRun(cwd, '2026-07-01T090000-tidy-standalone', null);
+  fs.writeFileSync(path.join(dir, 'decisions.md'), '');
+
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir, attribution: 'fallback' });
+});
+
+test('only unadopted mints exist — resolves null rather than guessing into one', () => {
+  const cwd = project();
+  mkRun(cwd, '2026-07-02T090000-mint', null);
+
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir: null, attribution: null });
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, null), { dir: null, attribution: null });
+});
+
+test('a run with a corrupt run-state.json and no decisions.md is still not a mint — presence, not parseability', () => {
+  const cwd = project();
+  const dir = mkRun(cwd, '2026-07-01T090000-corrupt', null);
+  fs.writeFileSync(path.join(dir, 'run-state.json'), '{"status":"active", "worktree": "/trunc');
+
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir, attribution: 'fallback' });
+});

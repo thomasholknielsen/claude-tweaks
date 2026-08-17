@@ -32,6 +32,8 @@ Scan `docs/superpowers/specs/*-design.md`.
 | No status, no matching specs | Run `/claude-tweaks:specify` |
 | Very old (4+ weeks), no specs | Delete |
 
+**The "Mark as specified" stamp** is one line — `Status: specified — decomposed to {record refs}` — inserted directly below the doc's title heading (`# {title}`), matching the existing convention in `docs/superpowers/specs/` (e.g. the 2026-08-07 prior-art design doc's `Status: specified — …` line). One stamp per doc; a doc that already carries a `Status:` line is not a "no status" case and never reaches this recommendation.
+
 → Collect each as: `[doc] {filename} — {recommendation}`
 
 ## Step 4: Audit Execution Plans
@@ -116,7 +118,7 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 | `{branch}` is checked out in another worktree | **`checked out in {worktree-path} — remove worktree first, then re-run`**. `-D` would refuse for the same reason `-d` did; this is not a merge-state question |
 | `-d` succeeds | Deleted — no further action |
 | `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
-| `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** (unchanged) — this is the only case that actually means unmerged work |
+| `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
 
 Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 
@@ -153,17 +155,18 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 **Working-directory discipline:** every command in this step (and in any dispatched parallel agent) MUST be anchored, but the three commands below do not all take the *same* anchor:
 
 - The claim-ref listing and the `gh issue list` backstop take `{REPO_ROOT}` — `git rev-parse --show-toplevel`, the same resolution Step 4.5 documents. `gh` infers the target repo from the cwd's git remote, and either checkout has the same remote.
-- **Both backstops that run `find .claude-tweaks/pipelines` take `{RUN_ROOT}` instead** — the **main checkout** root, resolved as `RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)` (`_shared/pipeline-run-dir.md`'s Anchoring section). Run directories are anchored to the main checkout at creation, so from inside a linked worktree `--show-toplevel` names the worktree — which holds no `.claude-tweaks/pipelines/` at all — and the `find` returns zero. Resolved from the main checkout the two are the same path, so this only ever matters when `/tidy` runs from a worktree.
+- **Both backstops that run `find .claude-tweaks/pipelines` take `{RUN_ROOT}` instead** — the **main checkout** root, resolved as `RUN_ROOT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only)` (`_shared/pipeline-run-dir.md`'s Anchoring section). Run directories are anchored to the main checkout at creation, so from inside a linked worktree `--show-toplevel` names the worktree — which holds no `.claude-tweaks/pipelines/` at all — and the `find` returns zero. Resolved from the main checkout the two are the same path, so this only ever matters when `/tidy` runs from a worktree.
 
 Anchor with `cd "{REPO_ROOT}" &&` / `cd "{RUN_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored (or wrongly-anchored) `find .claude-tweaks/pipelines/...` doesn't error, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. A wrong cwd can also point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
 
 Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
 `gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
-use the MCP path instead. If the listing call itself fails mid-scan (rate limit, transient
-API error) after passing that pre-check, skip the rest of this step and note it in the
-report — per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy
-→ skip the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md`
-for the full protocol.
+use the MCP path instead. If the listing call itself fails mid-scan after passing that
+pre-check — recognized and classified per `_shared/github-rate-limit.md` for a rate limit,
+or any other transient API error — skip the rest of this step and note it in the report —
+per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy → skip
+the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md` for the
+full protocol.
 
 **Primary: list the `claims/` blob keyspace** (`_shared/issue-claims.md`'s "The lock" — "List
 all claims"). For each entry, read the blob and classify with `classifyClaimBlob`:
@@ -253,7 +256,7 @@ run directory on disk — this includes the human-gate skills' runs (`/claude-tw
 standalone-auto firings, `/claude-tweaks:init`, and `/claude-tweaks:capture` (the full
 standalone-auto allowlist per `_shared/pipeline-run-dir.md`'s step 4 — all five skills use the
 identical `{ISO-timestamp}-{skill-name}-standalone` naming, and the glob below has no
-skill-name filter, so it matches all of them equally). A `worktree.always`-blocked or otherwise
+skill-name filter, so it matches all of them equally). A `worktree-always`-blocked or otherwise
 silently-skipped log write leaves no trace anywhere except an empty file:
 
 ```bash
@@ -292,7 +295,7 @@ The `acceptance-gap` scope finds closed records with no acceptance label at all 
 
 The `parent-gate` scope finds decomposition parents whose every sub-issue has closed but which carry no acceptance disposition — the backstop for a parent that missed `/claude-tweaks:wrap-up`'s eager gate (a sub-issue closed via `auto:merge`, by hand, or by a dispatch run that ended early never reaches that eager path). Unlike `acceptance-gap`, its recommendation **is** one of the Action Vocabulary's atomic actions — `Open parent gate` — which composes and posts the parent's Verification Brief and applies `demo:pending`, reusing `wrap-up/verification-brief.md`'s Parent-Gate Procedure rather than a second copy of that logic (`tidy/actions-github-issues.md`'s `## Open parent gate`). It never applies `demo:approved`/`demo:changes-requested` — that verdict stays exclusively `/claude-tweaks:demo`'s job, so the finding still ends with "then run `/claude-tweaks:demo #{n}`" even once approved.
 
-GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. `acceptance-gap` findings are staged the same way, at every aggressiveness level, for the same reason — see `_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope for why. `parent-gate`'s `Open parent gate` action is staged the same way too, at every aggressiveness level: it posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope and `tidy/step-6-auto.md`'s Open parent gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
+GitHub mutations recommended here (Close (GitHub), Resolve thread), `acceptance-gap` findings, and `parent-gate`'s `Open parent gate` action all execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy. See `_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope for why. `Open parent gate` posts a comment and adds a label, an outward-facing GitHub API write that fails the auto-mode contract's reversibility floor regardless of how mechanical or precondition-only the write is — see `_shared/github-pr-scan-acceptance.md`'s `parent-gate` scope and `tidy/step-6-auto.md`'s Open parent gate row for the full reasoning. Staging governs the write itself here, not just the disposition it precedes; the disposition (`demo:approved`/`demo:changes-requested`) stays exclusively `/claude-tweaks:demo`'s job either way.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
@@ -341,7 +344,7 @@ This ordering puts `auto` above `mention`, inverting upstream's `route`/`mention
 
 These rows are **surface-or-suppress**, not apply-or-skip. This step edits no project file under any condition: `route` and `mention` findings have no mechanical fix by construction, and `auto` findings are staged proposals carrying their own `fix` text — applying them means `doctor.mjs --fix`, which rewrites `PRODUCT.md` and is the user's call, per `_shared/auto-mode-contract.md`'s staging model. The Step 6 decision is only whether the row is worth showing.
 
-That is why `[doctor]` routes to its own report section and **not** the Actions table: every row in the Actions table carries a recommendation from the Action Vocabulary, and every one of those mutates something.
+That is why `[doctor]` routes to **Yours ({N})** and **never** **Approve ({N})**: every entry in Approve carries a recommendation from the Action Vocabulary, and every one of those mutates something.
 
 → Collect each as: `[doctor] {id} ({severity}) — {summary} — {fix}`
 
@@ -388,15 +391,17 @@ When 3+ specs have shipped (`git log --all --oneline --grep="wrap-up" --since="8
 
 → Collect each as: `[health] {observation} — {recommendation}`
 
-Patterns and health observations are informational — they surface systemic issues the user may want to address. They appear in the tidy report alongside actionable items but don't require immediate action.
+Patterns and health observations are informational — they surface systemic issues the user may want to address. They render in **Yours ({N})**, each with its own follow-up command; informational never means silently dropped.
 
 ---
 
 ## Collection routing
 
-| Collection prefix | Renders in Step 6 table | Notes |
+| Collection prefix | Renders in Step 6 report | Notes |
 |---|---|---|
-| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[parent-gate]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
-| `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
-| `[doctor]` | Design Record Drift table | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** the Actions table, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
-| `[health]` | Summary section | Project-level observations. |
+| `[backlog]`, `[parked]`, `[unsynced]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[pr]`, `[gh-issue]`, `[parent-gate]`, `[claim]` | **Approve ({N})** (or **Applied automatically** when the tier auto-applied it) | Each row gets a pre-filled recommendation carrying its exact executable action. Some of these tags also emit non-mutating outcomes on individual findings — `[backlog]`/`[parked]`/`[plan]` Keep rows land in **Clean:** instead; `[backlog]`/`[parked]` Promote and `[doc]`'s "Run `/claude-tweaks:specify`" outcome land in **Yours ({N})**; `[pr]` awaiting-review and unarmed-ungranted outcomes land in **Yours ({N})**; `[claim]` Release and both missed-restoration backstops (`parked` / `bot:in-progress`) are staged, executable actions here, but `[claim]` Manual review outcomes (unreadable/unparseable blobs, empty-`decisions.md` backstop) land in **Yours ({N})** and Keep (live claim, issue open) lands in **Clean:** — the destination follows the actual routing outcome (`step-6-auto.md`'s Bucket mapping), never the tag alone. |
+| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
+| `[pattern]` | **Yours ({N})** | Informational; presented as items in Yours. |
+| `[doctor]` | **Yours ({N})** | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** **Approve ({N})**, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
+| `[health]` | **Yours ({N})** — each line carries the finding's own follow-up command (e.g. the matching `/claude-tweaks:*-health` skill or the file to review) | Project-level observations. |
+| Keep / nothing-to-report scans (any tag above) | **Clean:** (counted) | Never itemized rows. |

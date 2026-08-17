@@ -39,8 +39,9 @@ const INTERACTION_STYLE =
   '> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option '
   + 'marked Recommended. Multi-item → batch table with recommendations pre-filled, then '
   + 'one `AskUserQuestion` for apply-all/override. Never more than one call per decision; '
-  + 'resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a '
-  + 'navigation menu.';
+  + 'resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready '
+  + 'fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` '
+  + 'there only for a documented machine-consumed decision, named inline.';
 
 // Explicit, justified exceptions. A skill belongs here only when the rule
 // genuinely cannot apply to it — never to quiet a real failure.
@@ -50,7 +51,12 @@ const INTERACTION_STYLE =
 // `## Next Actions` block", so requiring the section would contradict the
 // skill's documented contract. The guard test below re-derives that
 // justification from the file, so the exemption cannot outlive its reason.
-const NO_NEXT_ACTIONS = new Set(['assess-agent-autonomy']);
+//
+// routine-kickoff: machine-invoked only, by a routine kernel's closing line —
+// it is a wrapper that passes control entirely to its target skill, so the
+// terminal output the user sees is the target skill's own Next Actions (if
+// any), never this skill's.
+const NO_NEXT_ACTIONS = new Set(['assess-agent-autonomy', 'routine-kickoff']);
 
 const skills = fs
   .readdirSync(SKILLS_DIR)
@@ -127,3 +133,54 @@ for (const name of skills) {
     assert.ok(!hit, `skills/${name}/SKILL.md contains an emoji: ${hit && hit[0]}`);
   });
 }
+
+// #646: terminal `## Next Actions` renders as plain markdown, never an
+// `AskUserQuestion` menu (docs/skill-authoring.md's Skill handoffs convention).
+// A skill's Next Actions section may mention AskUserQuestion only for a
+// documented machine-consumed terminal decision, listed here with its
+// justification. Empty today — the reservation exists in the convention;
+// no current skill uses it. (flow/failure-cards.md's claims-release decision
+// is a sub-file, outside this SKILL.md-scoped pin.)
+const TERMINAL_ASK_EXCEPTIONS = new Set([]);
+
+test('no SKILL.md instructs a terminal-menu AskUserQuestion outside the documented reservation', () => {
+  for (const name of skills) {
+    if (NO_NEXT_ACTIONS.has(name) || TERMINAL_ASK_EXCEPTIONS.has(name)) continue;
+    const body = readSkill(name);
+    const start = sectionIndex(body, '## Next Actions');
+    if (start === -1) continue; // absence is the house-order test's concern
+    const rest = body.slice(start + '## Next Actions'.length);
+    const end = rest.search(/^## /m);
+    const section = end === -1 ? rest : rest.slice(0, end);
+    assert.ok(
+      !section.includes('AskUserQuestion'),
+      `skills/${name}/SKILL.md's Next Actions section still instructs an AskUserQuestion terminal menu`,
+    );
+  }
+});
+
+test('every terminal-ask exception still names a skill that exists', () => {
+  // Mirrors NO_NEXT_ACTIONS's own staleness guard above — vacuous while the
+  // set is empty, armed the moment a first exception lands.
+  for (const name of TERMINAL_ASK_EXCEPTIONS) {
+    assert.ok(skills.includes(name), `stale exception: skills/${name}/SKILL.md is gone`);
+  }
+});
+
+test('the terminal-ask exception is still exercised by the excepted skill itself', () => {
+  // If an excepted skill stops using AskUserQuestion in its Next Actions
+  // section, the exception is stale — remove it so the pin covers that skill
+  // again. Same re-derivation shape as the NO_NEXT_ACTIONS justification guard.
+  for (const name of TERMINAL_ASK_EXCEPTIONS) {
+    const body = readSkill(name);
+    const start = sectionIndex(body, '## Next Actions');
+    assert.ok(start > 0, `skills/${name}/SKILL.md is excepted but has no Next Actions section`);
+    const rest = body.slice(start + '## Next Actions'.length);
+    const end = rest.search(/^## /m);
+    const section = end === -1 ? rest : rest.slice(0, end);
+    assert.ok(
+      section.includes('AskUserQuestion'),
+      `skills/${name}/SKILL.md no longer uses AskUserQuestion in Next Actions — remove the stale exception`,
+    );
+  }
+});

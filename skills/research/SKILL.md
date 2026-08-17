@@ -3,7 +3,7 @@ name: research
 description: Use for in-depth web research — multi-source, citation-audited reports across 4 runtime modes (quick to ultradeep), via /deep-research or an inline fallback. Keywords - research, deep research, web research, sources, citations, literature review.
 argument-hint: "verify [brief-path|#N] | <topic> [--mode=quick|standard|deep|ultradeep] [--engine=auto|inline] [--output=<path>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Research — Deep Web Research with Citation-Audited Reports
@@ -108,11 +108,11 @@ can't substitute for.
 
 ## Next Actions
 
-After the report completes, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+After the report completes, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Capturing findings is the default recommended follow-up — capturing findings is the safe general follow-up regardless of topic — so that line renders first, bolded, suffixed `(recommended)`; if the run was invoked to feed a specific downstream skill instead (e.g. from `/claude-tweaks:specify` to cite in a spec already underway), move the bold and `(recommended)` to that line instead — exactly one line carries it, per the Interaction style directive:
 
-- Option 1 — `label`: `"Promote to backlog (Recommended)"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into a backlog work record"`. Default Recommended choice — capturing findings is the safe general follow-up regardless of topic. If the run was invoked to feed a specific downstream skill instead (e.g. from `/claude-tweaks:specify` to cite in a spec already underway), move `(Recommended)` to that option instead — exactly one option carries it, per the Interaction style directive.
-- Option 2 — `label`: `"Cite in a new spec"`, `description`: `"/claude-tweaks:specify <spec-name> — cite findings in a new spec"`
-- Option 3 (include only if current mode left obvious gaps — otherwise this is a 2-option call, not a 3-option call with a greyed-out or caveated choice) — `label`: `"Re-run deeper"`, `description`: `"/claude-tweaks:research --mode=deep <topic> — re-run in deeper mode"`
+**`/claude-tweaks:capture <findings-summary>`** — promote findings into a backlog work record (recommended)
+`/claude-tweaks:specify <spec-name>` — cite findings in a new spec
+`/claude-tweaks:research --mode=deep <topic>` — re-run in deeper mode (only when current mode left obvious gaps — otherwise omit this line rather than including it caveated)
 
 ## Component-Skill Contract
 

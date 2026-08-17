@@ -49,7 +49,7 @@ function addWorktree(root) {
 
 // Same shape as tests/hooks-pre-tool-use.test.js's own withPolicy — used by
 // the IMPORTANT-3 compound-command test below, which needs a repo that has
-// OPTED IN to worktree.always so checkWorktreeRequired has something to deny.
+// OPTED IN to worktree-always so checkWorktreeRequired has something to deny.
 function withPolicy(repo, content) {
   fs.mkdirSync(path.join(repo, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.claude-tweaks', 'policy.yml'), content);
@@ -78,6 +78,12 @@ function makeRun(root, state) {
   fs.mkdirSync(runDir, { recursive: true });
   if (state !== undefined) {
     fs.writeFileSync(path.join(runDir, 'run-state.json'), state);
+  } else {
+    // #721: an unadopted mint (neither run-state.json nor decisions.md) is
+    // invisible to resolveRun's fallback — touch decisions.md so callers that
+    // deliberately start from an empty run dir (record-worktree's first claim)
+    // stay reachable.
+    fs.writeFileSync(path.join(runDir, 'decisions.md'), '');
   }
   return runDir;
 }
@@ -382,10 +388,10 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
 // IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
 // short-circuit runInner — previously, `git worktree remove <foreign-wt> &&
 // git commit -m x` returned on the warn and never reached the trailing
-// commit, silently bypassing worktree.always for it (measured).
-test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktree.always, with the foreign-teardown warning attached', () => {
+// commit, silently bypassing worktree-always for it (measured).
+test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktree-always, with the foreign-teardown warning attached', () => {
   const root = fixtureRoot();
-  withPolicy(root, 'worktree.always: true\n');
+  withPolicy(root, 'worktree-always: true\n');
   const foreignWt = addWorktree(root);
   makeRun(root); // empty run dir for record-worktree to claim
   const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
@@ -400,14 +406,14 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
   assert.strictEqual(r.code, 0);
   const out = JSON.parse(r.stdout);
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny',
-    'the trailing `git commit` in the main checkout must still be denied by worktree.always');
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /worktree\.always/);
+    'the trailing `git commit` in the main checkout must still be denied by worktree-always');
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /worktree-always/);
   assert.ok(out.systemMessage && out.systemMessage.includes('recorded by a different session'),
     'the foreign-teardown warning must still be attached, proving the teardown gate did not silently swallow it');
 });
 
 // The other half: a LONE foreign-owned teardown (no compound command, no
-// worktree.always policy) still allows + warns — the warn behavior itself is
+// worktree-always policy) still allows + warns — the warn behavior itself is
 // unchanged, only the short-circuit is fixed.
 test('IMPORTANT 3: a lone foreign-owned `git worktree remove` (no compound command) still allows and warns', () => {
   const root = fixtureRoot();
@@ -485,4 +491,63 @@ test('AC6: close-run with no events.jsonl at all still warns and creates the fil
   const events = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
   assert.strictEqual(events.length, 1);
   assert.strictEqual(JSON.parse(events[0]).type, 'close-without-wrapup');
+});
+
+// --- #693: own-cwd guard — a raw Bash `git worktree remove` (never
+// ExitWorktree) must never be allowed to target the session's own cwd, or a
+// directory containing it: removing it deletes the shell's live working
+// directory out from under itself. This fires independent of any
+// pipeline-run assignment — AC2 above shows the run-assignment check alone
+// lets an ExitWorktree/`worktree remove` call through once close-run has
+// already run, which does nothing to stop the shell's own cwd being pulled
+// out from under it; that gap is exactly what let the real incident's raw
+// remove through.
+
+test('#693: Bash `git worktree remove <target>` denied when cwd is INSIDE target, no active run needed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const sub = path.join(wt, 'sub');
+  fs.mkdirSync(sub);
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: sub });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: sub });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+  assert.ok(out.hookSpecificOutput.permissionDecisionReason.includes('ExitWorktree'),
+    'deny reason must point at ExitWorktree');
+});
+
+test('#693: Bash `git worktree remove <target>` denied when cwd EQUALS target exactly, no active run needed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: wt });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('#693: `cd <elsewhere> && git worktree remove <own-cwd>` compound is still denied — the cd does not launder the target', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({
+    tool_name: 'Bash', tool_input: { command: `cd ${root} && git worktree remove ${wt}` }, cwd: wt,
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('#693: Bash `git worktree remove <target>` from the main checkout targeting a DIFFERENT worktree is allowed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  assert.strictEqual(r.stdout.trim(), '');
+});
+
+test('#693: ExitWorktree removing the session\'s own cwd is unaffected by the own-cwd guard', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({ tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: wt, session_id: 'caller-1' });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  assert.strictEqual(r.stdout.trim(), '');
 });

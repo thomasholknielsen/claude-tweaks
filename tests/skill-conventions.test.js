@@ -13,7 +13,9 @@ const CANONICAL_DIRECTIVE =
   '> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked ' +
   'Recommended. Multi-item → batch table with recommendations pre-filled, then one ' +
   '`AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each ' +
-  'before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.';
+  'before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified ' +
+  'commands, recommended first and bold, one per line — `AskUserQuestion` there only for a ' +
+  'documented machine-consumed decision, named inline.';
 
 function skillNames() {
   return listSkillDirs(ROOT);
@@ -113,6 +115,19 @@ test('no skill carries a Relationship section any more', () => {
       `${name}/SKILL.md has a Relationship section again — put the edge in docs/skill-graph.md`,
     );
   }
+});
+
+test('challenge SKILL.md Input section names all three input forms', () => {
+  const body = read('challenge');
+  const input = body.split(/^## Input$/m)[1].split(/^## /m)[0];
+  assert.ok(/framing-check/.test(input), 'Input section must name framing-check');
+  assert.ok(/bare record reference/.test(input), 'Input section must name the bare record-reference form');
+  assert.ok(/--lens=/.test(input), 'Input section must name --lens');
+});
+
+test('challenge SKILL.md keeps the bare-#N mode section', () => {
+  const body = read('challenge');
+  assert.ok(/^## Mode: bare `#N` \(evidence-or-accept-risk\)$/m.test(body), 'the bare-#N mode section must exist');
 });
 
 module.exports = { CANONICAL_DIRECTIVE, skillNames, read, SKILLS_DIR, LINEAR_DIAGRAM_SKILLS };

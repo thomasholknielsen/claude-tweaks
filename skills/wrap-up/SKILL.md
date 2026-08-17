@@ -3,7 +3,7 @@ name: wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Wrap-Up — Capture learnings, clean up, and close the lifecycle
@@ -58,9 +58,9 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 
 #### Resuming a halted Review Console
 
-`resume` recovers a run halted at the Review Console's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Phase 4's Review Console, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop. Because Phase 1 creates a run directory on every run, a standalone run is now *eligible* for `resume` — but only on the same precondition as any other: its `run-state.json` must carry `status: interrupted`, which the hooks layer stamps on interruption. When no such run exists, `resume` reports none found and stops, exactly as before.
+`resume` recovers a run halted at the Review Console's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, before treating it as safe to re-enter, run `_shared/run-resume-freshness.md`'s probe: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-resume-freshness --run "{run-dir}"`. A `BLOCKED` result means a live process still holds this run's worktree or committed to it recently — report that line verbatim and stop; do not fall through to conversation-based work. On `OK`, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Phase 4's Review Console, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop. Because Phase 1 creates a run directory on every run, a standalone run is now *eligible* for `resume` — but only on the same precondition as any other: its `run-state.json` must carry `status: interrupted`, which the hooks layer stamps on interruption. When no such run exists, `resume` reports none found and stops, exactly as before.
 
-**`resume` does not apply to a run parked by a headless dispatch firing.** A `/claude-tweaks:dispatch`-originated Task agent that reaches the Review Console with nobody to answer its prompt does not choose "Stop and re-engage" — it reports `pending-review` and its turn ends normally (`dispatch/SKILL.md`'s Reporting section). A normal turn end is not a session end, so the hooks layer's interruption stamp (`bin/lib/hooks/session-end.js`, fired only at session end for a run the ending session owns) never runs, and `run-state.json` stays `status: active` — `resume`'s precondition can never hold on this path. Re-enter that run by re-invoking `/claude-tweaks:wrap-up` with the explicit record reference(s) instead (e.g. `/claude-tweaks:wrap-up #{n}`) — this re-adopts the same run directory via `_shared/pipeline-run-dir.md`'s most-recent-matching-directory resolution, not via `resume`'s gate. `dispatch/SKILL.md`'s own "Resuming a parked run" note documents the dispatch-specific form of the same re-entry (`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up`).
+**`resume` does not apply to a run parked by a headless dispatch firing.** A `/claude-tweaks:dispatch`-originated Task agent that reaches the Review Console with nobody to answer its prompt does not choose "Stop and re-engage" — it reports `pending-review` and its turn ends normally (`dispatch/SKILL.md`'s Reporting section). A normal turn end is not a session end, so the hooks layer's interruption stamp (`bin/lib/hooks/session-end.js`, fired only at session end for a run the ending session owns) never runs, and `run-state.json` stays `status: active` — `resume`'s precondition can never hold on this path. Re-enter that run by re-invoking `/claude-tweaks:wrap-up` with the explicit record reference(s) instead (e.g. `/claude-tweaks:wrap-up #{n}`) — this re-adopts the same run directory via `_shared/pipeline-run-dir.md`'s most-recent-matching-directory resolution, not via `resume`'s gate. `dispatch/SKILL.md`'s own "Resuming a parked run" note documents the dispatch-specific form of the same re-entry (`PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up`). When this re-entry follows a human's conversational resume request (e.g. "resume the run" in chat) rather than the explicit command form, the same confirmation gate described in `dispatch/SKILL.md`'s "Confirm before resuming" section applies here.
 
 #### Flags
 
@@ -87,29 +87,15 @@ Summarize what was done — do not re-verify. Spec compliance (deliverables + ac
 
 **Every wrap-up run has a run directory from Phase 1 on.** This is a rule, not a branch: standalone or pipeline, record or conversation mode, one code path for staging, the audit log, and the Review Console in every mode.
 
-Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section. When neither resolves, create one — the same shape as that file's step-4 snippet, plus the `run-state.json` stamp:
+Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section, via `resolve-run-dir`. When neither resolves, create one — the standalone-fallback shape (`--standalone`, never gated on `--mode`, since wrap-up creates in every mode), plus the `run-state.json` stamp:
 
 ```bash
-RUN_ROOT=$(git rev-parse --git-common-dir); RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
-RUN_DIR="${PIPELINE_RUN_DIR:-}"
-if [ -n "$RUN_DIR" ]; then
-  # Adoption-time anchoring check (pipeline-run-dir.md step 1): an inherited value must
-  # resolve under $RUN_ROOT, not inside whatever worktree happens to be cwd — treat a
-  # worktree-trapped path as unset and fall through, same as a missing directory ([IL-127]).
-  REAL_RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd)
-  case "$REAL_RUN_DIR" in
-    "$RUN_ROOT"/*) : ;;      # anchored to the main checkout — keep it
-    *) RUN_DIR="" ;;         # missing, or resolves outside $RUN_ROOT (e.g. inside a worktree)
-  esac
-fi
+RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "$SPEC_SLUG" 2>/dev/null)
 if [ -z "$RUN_DIR" ]; then
-  RUN_DIR=$(find "$RUN_ROOT/.claude-tweaks/pipelines/" -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
-fi
-if [ -z "$RUN_DIR" ]; then
-  TS=$(date -u +%Y-%m-%dT%H%M%S)
-  RUN_DIR="$RUN_ROOT/.claude-tweaks/pipelines/${TS}-${SPEC_SLUG}-standalone"
-  mkdir -p "$RUN_DIR/staged"
-  touch "$RUN_DIR/decisions.md"
+  # Steps 1-2 found nothing (or step 1's adoption-time anchoring check rejected a
+  # worktree-trapped PIPELINE_RUN_DIR, [IL-127]) — clear it for this second call so a
+  # rejected value is never re-consulted, then mint the standalone fallback.
+  RUN_DIR=$(PIPELINE_RUN_DIR= node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "$SPEC_SLUG" --standalone "$SPEC_SLUG" --create)
   printf '{"status":"active","createdBy":"wrap-up-standalone"}\n' > "$RUN_DIR/run-state.json"
 fi
 echo "$RUN_DIR"
@@ -291,7 +277,7 @@ Execute the cleanup planned above (canonical list in `cleanup-procedures.md`, fi
 
 When this run **inherited** its run directory (see the Component-Skill Contract below), omit this block — the parent `/claude-tweaks:flow` renders its own Pipeline Summary + Next Actions after the report.
 
-When invoked directly by a user (standalone wrap-up), resolve 2-4 options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/claude-tweaks:help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply, never itself shown to the user or converted into an `AskUserQuestion` option:
+When invoked directly by a user (standalone wrap-up), resolve 2-4 lines based on context signals; always include the "next unblocked spec" line when one exists so the user doesn't have to run `/claude-tweaks:help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which lines apply, never itself shown to the user:
 
 | Signal | Option |
 |--------|--------|
@@ -299,11 +285,11 @@ When invoked directly by a user (standalone wrap-up), resolve 2-4 options based 
 | Newly unblocked records (Phase 3's dependent check — `/tmp/wrapup-unblocked.json`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
 | Always | `/claude-tweaks:help` — full pipeline status |
 
-Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — when a next spec exists, its line renders first, bolded, suffixed `(recommended)`; otherwise the lines render in the table's order with no line marked recommended:
 
-- Option 1 (when a next spec exists) — `label`: `"Full pipeline (Recommended)"`, `description`: `"/claude-tweaks:flow {N} — full pipeline on spec {N}: \"{title}\""`
-- Option 2 (one per entry in `/tmp/wrapup-unblocked.json`, up to the tool's option cap) — `label`: `"Pipeline #{N}"`, `description`: `"/claude-tweaks:flow #{N} — record #{N} \"{title}\" now unblocked by this closure"`
-- Option 3 (always) — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
+**`/claude-tweaks:flow {N}`** — full pipeline on spec {N}: "{title}" (recommended, when a next spec exists)
+`/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (one line per entry in `/tmp/wrapup-unblocked.json`, up to the tool's option cap; bare `{N}` under `work-backend: local-files`)
+`/claude-tweaks:help` — full pipeline status
 
 ## Component-Skill Contract
 

@@ -13,6 +13,12 @@ record contract defines what the labels mean.
 
 ## The lock
 
+**`bin/claims.js claim|release <n,n,...> --run-id <id>`** (`bin/lib/issues/claim-engine.js`) is
+the gh-CLI-transport implementation of every read-classify-write step below, plus the group-claim-
+all-or-abort semantics `flow/claim-targets.md`'s Step 2.8 needs — the command every `gh`-present
+consumer of this section runs instead of hand-scripting the loop per pipeline run. The MCP
+transport (`gh` absent) still runs the algorithm as written below, over the MCP tools.
+
 **One keyspace, one classifier, both transports.** `claims/issue-<number>.json`, a blob on the
 `claims-registry` branch, is the *only* lock — checked and written identically whether this run
 has `gh` on PATH or is going through the MCP bridge. `bin/lib/issues/claims.js`'s
@@ -94,7 +100,12 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   `tombstoneContent` with `sha` = the current file's blob sha — structurally the same
   conditional-overwrite as step 4's re-claim, differing only in what content it writes. A sha
   mismatch means someone else already broke/re-claimed it; treat as a release race (log, TTL is
-  the backstop, per the Failure posture table below).
+  the backstop, per the Failure posture table below). **`bin/release-claim.js`** performs this
+  whole sequence (read → classify → ownership check → tombstone `PUT` → comment → optional
+  label removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
+  <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress]`,
+  exit `0` released / `3` already released or swept / `4` held by another run / `1` failed / `2`
+  malformed or `gh` absent. The MCP path stays the manual read-classify-write above.
 - **List all claims:** list the `claims/` directory on `CLAIMS_BRANCH`.
   - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/claims?ref=${CLAIMS_BRANCH}" -q '.[].name'`
   - **MCP:** the equivalent read-tree/list-directory tool call against `claims/` on
@@ -247,7 +258,8 @@ exists — it lands in the release marker and human line.
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
-tombstone).
+tombstone) — `bin/release-claim.js` appends its own line; claim-side entries go through
+`bin/log-decision.js`.
 
 ## Close-via-merge
 
@@ -321,6 +333,11 @@ Fail-closed on claiming; never block the session.
 | Release attempted but the blob's current `runId` is not this run's | Skip the write, log — a successor holds the lock (ownership rule) |
 | Blob listing fails in `/tidy` | Skip the sweep step, note it in the report |
 | Any other `gh`/MCP failure during claim | Drop that issue, log, continue — partial batch over hung batch |
+
+**Recognition.** A `gh`/MCP failure in the table above is classified per
+`_shared/github-rate-limit.md` before applying that row's outcome — a rate-limit response
+follows that file's taxonomy; every other failure class in this table applies exactly as
+stated.
 
 **Group-claim-all-or-abort exception.** The row above assumes an independent-batch context (dispatch's per-issue loop, `/tidy`'s sweep), where dropping one issue and continuing is safe. A consumer claiming multiple targets under the group-claim-all-or-abort invariant (`flow/claim-targets.md`'s Step 2.8) gets different treatment: any transient `gh`/MCP failure during a claim read or write — not just a classification-based contest — triggers the same all-or-abort release-and-stop (or `keep-going` skip) as a live contest, since silently continuing with one named target unclaimed reopens the double-build race group-claiming exists to prevent.
 

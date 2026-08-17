@@ -1,9 +1,9 @@
 ---
 name: init
 description: Use when initializing the workflow system for a project — bootstraps structure, analyzes the codebase, generates CLAUDE.md with adaptive philosophy, skills, and rules. Re-run to find drift, gaps, and stale configuration.
-argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs|github-remote|issue-form|design-integration|diagram-suggestions|shadcn-integration|cloud-parity|routines|branch-tracking|work-backend]"
+argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs|github-remote|issue-form|design-integration|diagram-suggestions|shadcn-integration|cloud-parity|routines|branch-tracking|work-backend|autonomy|emil-skills|integration-model]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Init — Project Bootstrap + Intelligent Configuration
@@ -37,7 +37,7 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 **Modifier flags** — compose with anything else present:
 - `--update` or `update` — force Update mode even if the config looks minimal
 - `--full` — force the complete reconnaissance pass (Phases 2-8.5) even when Update Mode's Phase 1u.6 early-exit gate would otherwise skip straight to Phase 9; composes with `--update`/`update` (e.g. `update --full`)
-- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-17) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
+- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9 onward) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
 
 **Phase scopes** — determine which of Phases 2-8.5 run after Phase 0. The union of every Phase scope present runs (e.g. `skills journeys` runs the phases for both).
 - `bootstrap` — run Phase 0 only (structure + deps), then stop
@@ -46,11 +46,11 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 - `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
 - `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
-**Enhancement filter tokens** — `github-remote`, `issue-form`, `design-integration`, `diagram-suggestions`, `shadcn-integration`, `cloud-parity`, `routines`, `branch-tracking`, `work-backend`. Each narrows Phase 0's Optional Enhancements (Steps 9-17) to *only* the named step(s), whether or not a Phase scope is also present; with none given, Phase 0 offers every one of them (or none, under `--core-only`). Several hard-depend on Step 9 (or Step 14) and silently run it first. For the token → step table with those dependency notes, and for worked examples, read `input-grammar.md` in this skill's directory.
+**Enhancement filter tokens** — one per Optional Enhancement step: `github-remote`, `issue-form`, `design-integration`, `diagram-suggestions`, `shadcn-integration`, `cloud-parity`, `routines`, `branch-tracking`, `work-backend`, `autonomy`, `emil-skills`, `integration-model`. Each narrows Phase 0's Optional Enhancements (Steps 9 onward) to *only* the named step(s), whether or not a Phase scope is also present; with none given, Phase 0 offers every one of them (or none, under `--core-only`). Several silently run Step 9 (or Step 14) first. For the token → step table with dependency notes and worked examples, read `input-grammar.md` in this skill's directory.
 
 A description of the project context (e.g., "Ruby on Rails monolith, team of 5") is still accepted as free text — see "Unrecognized and conflicting tokens" for how this is distinguished from an attempted-but-unmatched keyword.
 
-Every Phase scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap`; an invocation carrying only Enhancement filter tokens also stops after Phase 0. For the full terminality rules — including the goal-based scopes that don't list Phase 9 in their own subset, and the Scope Selection Gate choices that stop early — read `input-grammar.md` in this skill's directory. Which paths stop before Phase 9 matters for the deferred policy write; see "Finalizing the worktree.always Decision" below.
+Every Phase scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap`; an invocation carrying only Enhancement filter tokens also stops after Phase 0. For the full terminality rules — including the goal-based scopes that don't list Phase 9 in their own subset, and the Scope Selection Gate choices that stop early — read `input-grammar.md` in this skill's directory. Which paths stop before Phase 9 matters for the deferred policy write; see "Finalizing the worktree-always Decision" below.
 
 If no arguments, analyze the current working directory. Phase 0 runs first, then a scope selection gate determines which remaining phases to run (see "Scope Selection Gate" below).
 
@@ -112,7 +112,7 @@ Confirm the directory is a git repo; warn if not (review and wrap-up will be deg
 
 ### Step 6: Worktree Configuration
 
-Ensure `.worktrees/` exists in the project root for the git-fallback path; leave any `.claude/worktrees/` directory alone as a separate, harness-owned convention that needs no migration. Also offers the `worktree.always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree.always Decision" and "Worktree Policy Finalization" below. Read `bootstrap/step-06-worktree-configuration.md` for the full procedure.
+Ensure `.worktrees/` exists in the project root for the git-fallback path; leave any `.claude/worktrees/` directory alone as a separate, harness-owned convention that needs no migration. Also offers the `worktree-always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree-always Decision" and "Worktree Policy Finalization" below. Read `bootstrap/step-06-worktree-configuration.md` for the full procedure.
 
 ### Step 7: Browser Integration
 
@@ -122,7 +122,7 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap/step-08-statusline-and-dependencies.md` for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–17):** Skipped when `--core-only` is set — every offer below is treated as declined, no prompt shown, and the invocation proceeds straight to whatever runs after Phase 0 (Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset by Enhancement filter tokens — see `## Input`'s token list for the full set and each token's ordering/hard-depends notes.
+**Optional Enhancements (Steps 9 onward):** Skipped when `--core-only` is set — every offer below is treated as declined, no prompt shown, and the invocation proceeds straight to whatever runs after Phase 0 (Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset by Enhancement filter tokens — see `## Input`'s token list for the full set and each token's ordering/hard-depends notes.
 
 ### Step 9: Establish GitHub Remote (Optional)
 
@@ -142,11 +142,11 @@ Always offered (not frontend-gated). Present the two-option diagram-suggestions 
 
 ### Step 13: shadcn Bootstrap (Optional)
 
-When frontend signals are detected and `components.json` doesn't exist (or exists without full AI-agent wiring), present the shadcn/ui setup prompt (Full / CLI-only / Skip, or the narrower "wire remaining layers" offer when the CLI is already initialized) and write the `shadcn-integration` flag to CLAUDE.md. Currently write-only — no other skill reads the flag yet. Read `bootstrap/step-13-shadcn-bootstrap.md` for the full procedure (framework/package-manager detection, install sequence, MCP/skills wiring, flag-value table, re-run behavior, failure handling).
+When frontend signals are detected and `components.json` doesn't exist (or exists without full AI-agent wiring), present the shadcn/ui setup prompt (Full / CLI-only / Skip, or the narrower "wire remaining layers" offer when the CLI is already initialized) and write the `shadcn-integration` flag to CLAUDE.md. Currently write-only — no other skill reads the flag yet. Read `bootstrap/step-13-shadcn-bootstrap.md` for the full procedure.
 
 ### Step 14: Cloud/Routine Parity Setup (Optional)
 
-Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, offers to attach it to the session environment, and writes the `## Cloud parity` CLAUDE.md section. Runs before Step 15 deliberately — a Routine created first would silently fail its first cloud firing. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure — local-plugin batch mirror offer, `integration-branch` pointer for non-default branches, Ensure-setup-script attach via `routine/guided-environment-creation.md`.
+Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, offers to attach it to the session environment, and writes the `## Cloud parity` CLAUDE.md section. Runs before Step 15 deliberately — a Routine created first would silently fail its first cloud firing. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure.
 
 ### Step 15: Routine Installation (Optional Companion)
 
@@ -174,9 +174,9 @@ On a GitHub-reachable project, offers pinning `integration-model: pr-first` to p
 
 ---
 
-### Finalizing the worktree.always Decision
+### Finalizing the worktree-always Decision
 
-If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens; the known early-exit paths (`bootstrap` scope, the Scope Selection Gate's Option 4, and Option 2's per-phase "Done") write it themselves instead, and are known cases rather than an exhaustive list.
+If Step 6 (`bootstrap/step-06-worktree-configuration.md`) queued a `worktree-always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens; the known early-exit paths (`bootstrap` scope, the Scope Selection Gate's Option 4, and Option 2's per-phase "Done") write it themselves instead, and are known cases rather than an exhaustive list.
 
 For the full exit-path rule, the isolated-worktree write mechanism, and the confirmation message shown when the decision was "Yes," read `worktree-policy-finalization.md` in this skill's directory.
 
@@ -188,7 +188,7 @@ After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` alr
 
 **Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-card.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 
-The gate is one `AskUserQuestion` with four options — Auto (run every included phase end-to-end), Interactive (a per-phase continue/skip/stop gate re-issued after each phase), Essentials (Phases 2, 3, 5 only — the `config` scope), and Done (stop after Phase 0). Auto and Essentials still reach Phase 9; Interactive's "Stop here" and Done end the invocation early, and when they do and Step 6 queued a `worktree.always` decision, write it first — see "Finalizing the worktree.always Decision" above.
+The gate is one `AskUserQuestion` with four options — Auto (run every included phase end-to-end), Interactive (a per-phase continue/skip/stop gate re-issued after each phase), Essentials (Phases 2, 3, 5 only — the `config` scope), and Done (stop after Phase 0). Auto and Essentials still reach Phase 9; Interactive's "Stop here" and Done end the invocation early, and when they do and Step 6 queued a `worktree-always` decision, write it first — see "Finalizing the worktree-always Decision" above.
 
 For the literal prompt text, both option sets, and what each option runs (including which gates `auto` never silences), read `scope-selection-gate.md` in this skill's directory.
 
@@ -348,7 +348,7 @@ For the complete summary templates for both modes, read `summary-templates.md` i
 
 ### Isolated Write Step
 
-Every write below happens inside an isolated worktree, **unconditionally**, regardless of the current `worktree.always` policy — reconnaissance (Phases 1-8.5) stays direct. Read `isolated-write-step.md` for the full mechanism: scope, dirty-file pre-check, provisioning, ff-only merge-back.
+Every write below happens inside an isolated worktree, **unconditionally**, regardless of the current `worktree-always` policy — reconnaissance (Phases 1-8.5) stays direct. Read `isolated-write-step.md` for the full mechanism: scope, dirty-file pre-check, provisioning, ff-only merge-back.
 
 ### Actions Performed
 
@@ -358,7 +358,7 @@ Execute only after user confirmation.
 
 ### Worktree Policy Finalization
 
-If Step 6 queued a `worktree.always` decision, write it now, bundled into "Isolated Write Step"'s worktree/commit/merge; early-exit paths that skip Phase 9 write it standalone the same way. Still the last filesystem action of the invocation. Read `worktree-policy-finalization.md` for merge-don't-overwrite mechanics and the "Yes" message.
+If Step 6 queued a `worktree-always` decision, write it now, bundled into "Isolated Write Step"'s worktree/commit/merge; early-exit paths that skip Phase 9 write it standalone the same way. Still the last filesystem action of the invocation. Read `worktree-policy-finalization.md` for merge-don't-overwrite mechanics and the "Yes" message.
 
 ---
 
@@ -374,7 +374,7 @@ If Step 6 queued a `worktree.always` decision, write it now, bundled into "Isola
 
 ## Next Actions
 
-Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option. Resolve signals top-to-bottom; the first matching row is the recommendation. The last row is also the catch-all: the signal rows above it are not exhaustive over every possible post-init state (e.g. Update Mode completing a full pass with zero drift and no backlog writes matches none of them), so anything that doesn't match falls through to it, guaranteeing there is always a defined recommendation.
+Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or rendered as one of the markdown lines below. Resolve signals top-to-bottom; the first matching row is the recommendation. The last row is also the catch-all: the signal rows above it are not exhaustive over every possible post-init state (e.g. Update Mode completing a full pass with zero drift and no backlog writes matches none of them), so anything that doesn't match falls through to it, guaranteeing there is always a defined recommendation.
 
 | Signal | Recommended Next Action |
 |--------|------------------------|
@@ -383,14 +383,13 @@ Resolve the recommended action from the signals that fired during this run. This
 | Initial Mode ran AND backlog is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into the backlog for triage |
 | Everything is clean (Update Mode early-exit or a full pass ending with zero drift, OR Initial Mode with nothing routed to the backlog), or no row above matches | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
 
-Once resolved to a single recommended row, call `AskUserQuestion` with exactly 3 options — the resolved recommendation, plus the two "Always" actions below:
+Once resolved to a single recommended row, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — the resolved recommendation first, bolded, with `(recommended)`, plus the two "Always" lines below:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — the resolved recommendation from the table above, `label`: a short one-line summary of it suffixed `(Recommended)`, `description`: the full command text from the matched row
-- Option 2 — `label`: `"Specify next feature"`, `description`: `"/claude-tweaks:specify {first feature topic} — jump straight to specifying the first lifecycle feature"`
-- Option 3 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review backlog entries"`
+**{the resolved recommendation's full command text from the matched row}** — {short one-line summary of it} (recommended)
+`/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
+`/claude-tweaks:tidy` — review backlog entries
 
-If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and Option 3 refer to the same command — collapse them into a single `(Recommended)` option rather than presenting `/claude-tweaks:tidy` twice, leaving 2 options for that call instead of 3.
+If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and the last line refer to the same command — collapse them into a single `(recommended)` line rather than repeating `/claude-tweaks:tidy` twice, leaving 2 lines for that render instead of 3.
 
 ## Anti-Patterns
 

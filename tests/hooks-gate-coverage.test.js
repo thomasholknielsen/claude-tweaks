@@ -1,6 +1,6 @@
 // tests/hooks-gate-coverage.test.js
 //
-// Binds the worktree.always gate's actual coverage to the prose that documents
+// Binds the worktree-always gate's actual coverage to the prose that documents
 // it. The gate was widened twice on 2026-07-20 (push in c8f929e1, cp/mv/tee in
 // cab6142b) and neither commit swept the prose; four skill files went on
 // describing the pre-widening gate, two of them prescribing procedures the
@@ -64,6 +64,16 @@ test('policy-schema.md\'s coverage block lists exactly the git actions the gate 
 test('policy-schema.md\'s coverage block lists exactly the Bash write shapes the gate checks', () => {
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Bash write shapes'), [...GATE_COVERAGE.bashWriteShapes],
     'GATE_COVERAGE.bashWriteShapes and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
+});
+
+test('policy-schema.md\'s coverage block lists exactly the gate\'s exemptions', () => {
+  // Derived from the constant, never a hand-typed literal (spec #537): a
+  // hand-typed expectation would keep passing even after the exemption's
+  // shape changed underneath it, which is exactly the drift this whole
+  // suite exists to catch.
+  const expected = [...GATE_COVERAGE.exemptions.paths, GATE_COVERAGE.exemptions.commit];
+  assert.deepStrictEqual(tokensFor(coverageBlock(), 'Exemptions'), expected,
+    'GATE_COVERAGE.exemptions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
 });
 
 test('GATE_COVERAGE is frozen, so a caller cannot mutate the contract at runtime', () => {

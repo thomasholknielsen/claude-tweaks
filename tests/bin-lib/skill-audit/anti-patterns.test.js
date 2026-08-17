@@ -454,5 +454,71 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   merged tree, not by subtracting both deltas from 375, though the
   //   arithmetic happens to agree here (375 - 4 - 6 = 365) — the same
   //   `[IL-99]` pattern recorded above.
-  assert.strictEqual(total, 365);
+  //
+  //   365 -> 368, design-wrapper review Step 3.8 critic dispatch (#598).
+  //   Three rows appended to design-wrapper/SKILL.md's Anti-Patterns table
+  //   (treating a craft critic as a third-party agent; dispatching one on the
+  //   native track; inferring the motion signal from file content). No other
+  //   file's table changed in that diff. Measured by running this test's own
+  //   parser against the working tree (actual 368), not by adding 3 to 365.
+  //
+  //   368 -> 369, decisions pushback routing (#599). One row appended to
+  //   design-wrapper/SKILL.md's Anti-Patterns table (writing a decisions
+  //   finding into the polish cache). Measured by running this test's parser
+  //   against the working tree (actual 369), not by adding 1 to 368.
+  //
+  //   365 -> 369, addition of `skills/routine-kickoff/SKILL.md` (#528). A
+  //   wholly new skill, not a compression pass — its Anti-Patterns table
+  //   contributes 4 rows ("Deriving the plugin root from step 2's
+  //   plugin-list output", "Falling back to manual execution on any
+  //   invocation failure", "Executing `dispatch` or `tidy` manually on the
+  //   fallback path", "Restating the kernel's contents ... here") and
+  //   nothing elsewhere in the corpus lost a row. Verified:
+  //   `git diff origin/main...HEAD -- 'skills/*/SKILL.md' | grep -E '^-\|'`
+  //   returns only two rows from `routine`/SKILL.md's `fleet` sub-table
+  //   (not an Anti-Patterns table — this parser only reads the section
+  //   between `## Anti-Patterns` and the next `## ` heading, so those rows
+  //   are outside its scope regardless). Measured by running the parser
+  //   against the working tree, not derived by adding 4 to 365 — the
+  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  //
+  //   369 -> 369, routine-kickoff cross-reference cleanup (#530). One row
+  //   in `routine/SKILL.md`'s Anti-Patterns table was reworded ("Editing the
+  //   canonical preamble in `_shared/routine-template-schema.md`..." became
+  //   "Editing the kernel ... without bumping `kernel_version`...") to match
+  //   the post-#529 kernel/kickoff split; no row was added or removed.
+  //   Verified: `git diff <pre-#530-commit> -- 'skills/*/SKILL.md' | grep -E
+  //   '^[-+]\|'` (the #530 change in isolation, not the whole branch since
+  //   origin/main, which also carries #528/#529's own row deltas) returns
+  //   exactly one `-` line and one `+` line, both from the same table
+  //   position. Re-run of the parser against the working tree confirms 369,
+  //   unchanged.
+  //
+  //   -> MEASURED, merge of origin/main (#528/#530 routine-kickoff) into the
+  //   #597-601 branch. Both sides independently reached 369 from 365 — ours
+  //   via design-wrapper (+3 #598, +1 #599), theirs via routine-kickoff (+4
+  //   #528). Neither side's 369 covers the other's rows, so the value below
+  //   was re-derived by RUNNING the parser on the merged tree — the same
+  //   [IL-99] rule the 365 entry above records.
+  //
+  //   373 -> 376, bare-`#N` evidence-or-accept-risk mode (#726) merged with
+  //   origin/main (#745 worktree-flow-spec-716). Own-branch side: three rows
+  //   ADDED to skills/challenge/SKILL.md's Anti-Patterns table guarding the
+  //   new bare-`#N` mode ("Dispatching the bare-`#N` evidence search to
+  //   subagents", "Escalating the evidence search past its stated caps 'to be
+  //   thorough'", "Treating `solution:unjustified` as a gate in the bare-`#N`
+  //   mode"). Verified: `git diff origin/main...HEAD -- 'skills/*/SKILL.md' |
+  //   grep -E '^[-+]\|'` returns exactly these three `+` lines, all inside
+  //   challenge/SKILL.md's `## Anti-Patterns` section (line 121) — no other
+  //   file in that diff has a nonzero delta. origin/main side: net zero —
+  //   `git diff cd4261dd...origin/main -- 'skills/*/SKILL.md' | grep -E
+  //   '^[-+]\|'` returns one line reworded in place inside demo/SKILL.md's
+  //   Anti-Patterns table (no row count change) plus one row added to
+  //   specify/SKILL.md's `## Next Actions` table (line 109, before the `##
+  //   Anti-Patterns` heading at line 123) — out of this parser's scope, same
+  //   precedent as routine-kickoff's #528 entry above. Measured by RUNNING
+  //   the parser on the merged working tree (actual 376), not by adding 3 to
+  //   373 — the arithmetic agreeing here is a check, not the evidence
+  //   (`[IL-99]`).
+  assert.strictEqual(total, 376);
 });

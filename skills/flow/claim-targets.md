@@ -70,22 +70,32 @@ directory, so the claim needs an identity to claim under before one necessarily 
   anything; Step 3 will adopt this same directory per `steps-and-gates.md`'s
   Adopting-an-inherited-run-directory case 1 or 2.
 - **`$PIPELINE_RUN_DIR` unset** (a direct human invocation) — mint it now, the same mkdir-only
-  operation `dispatch/SKILL.md` Step 4 performs for a dispatched group: derive `$RUN_ROOT` via
-  `_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-common-dir`, then its
-  parent directory), create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`
-  (mkdir only — no `config.yml`, no `decisions.md`; Step 3 writes those when it adopts the now-set
-  `PIPELINE_RUN_DIR` per case 2). Export it as `PIPELINE_RUN_DIR` for the rest of this pipeline
-  invocation. `{spec-slug}` follows `manifesto.md`'s Path conventions (`spec-{N}` single, dash-joined
-  multi, or a topic slug).
+  operation `dispatch/SKILL.md` Step 4 performs for a dispatched group: run
+  `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`
+  (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir only; Step 3 writes `config.yml`/
+  `decisions.md` when it adopts the now-set `PIPELINE_RUN_DIR` per case 2). Export the printed
+  path as `PIPELINE_RUN_DIR` for the rest of this pipeline invocation. `{spec-slug}` follows `_shared/pipeline-run-dir.md`'s SPEC_SLUG conventions
+  (`spec-{N}` single, dash-joined multi with the load-bearing `spec-` prefix, or a topic slug). The directory's own ISO-timestamp prefix is
+  minted by `resolve-run-dir` itself per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule
+  (`date -u`) — this step never composes the timestamp by hand.
 
 Either way, `basename($PIPELINE_RUN_DIR)` is this run's claim identity for every target below.
 
 ## File-overlap warning (never a gate)
 
-Before claiming, check whether any named target file-overlaps an open, unclaimed record via
-`groupByFileOverlap` (`bin/lib/issues/grouping.js`) run against the same open-queue read
-`dispatch/SKILL.md` Step 2 uses (open + no `bot:*`, not filtered to `auto:build` here — this is
-informational, not a selection). On a hit, surface one line per overlapping pair:
+Before claiming, check whether any named target file-overlaps an open, unclaimed record. Read
+the same open-queue set `dispatch/SKILL.md` Step 2 uses (open + no `bot:*`, not filtered to
+`auto:build` here — this is informational, not a selection), then run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/preflight-records.js" {target} [{target} …] {other-open-issue} [{other-open-issue} …] [--repo owner/name]
+```
+
+passing every named target together with that open-queue's issue numbers as positional
+arguments — its `overlapGroups` output field (`groupByFileOverlap`, `bin/lib/issues/grouping.js`,
+run over each fetched record's key files) is this computation; read the CLI's `--help` for the
+remaining flags. On a hit — an `overlapGroups` entry pairing a named target with a number that
+isn't one — surface one line per overlapping pair:
 
 ```
 Note: #{target} overlaps open #{other} (untracked file overlap) — consider
@@ -94,92 +104,154 @@ Note: #{target} overlaps open #{other} (untracked file overlap) — consider
 
 Proceed with only the named target(s) regardless — this is a warning, never a gate, and never
 auto-expands the human's explicitly named list. No new grouping computation is added to flow:
-this reuses the existing module dispatch and `/help` already call; flow gains no queue-wide
-knowledge beyond this one warning check.
+this reuses the same `bin/preflight-records.js` primitive dispatch's queue pull and `/help`
+already call; flow gains no queue-wide knowledge beyond this one warning check.
 
 ## Claim every named target, all-or-abort
 
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all** named targets before proceeding
-to Step 3 for any of them.
-
-**Before attempting to claim, per target:** check whether this run already owns it — read that
-target's claim blob (the same "Reading claim state" procedure the skip-guard above uses) and
-compare `claim.runId === basename($PIPELINE_RUN_DIR)`. If it matches, this run already holds the
-claim for that target: skip claiming it and move to the next target in the loop, rather than
-re-attempting a claim, since `classifyClaimBlob` has no self-claim exemption and would classify
-this run's own `'live'` blob as contested against itself. This is a per-target check inside the
-claiming loop, distinct from the skip-guard's own all-targets check above (which decides whether
-to enter Step 2.8 at all) — a multi-target run resumed after a partial interruption can have some
-targets already owned by this run and others not yet claimed, in which case the skip-guard's
-all-targets condition correctly doesn't fire (there is still real claiming work to do for the
-unowned targets) and this per-target check is what prevents a redundant, spuriously-contested
-reclaim of the targets already held.
-
-For each remaining target, read-classify-write exactly as
-`_shared/issue-claims.md`'s "The lock" section describes (`gh` path shown; MCP path is the same
-read-then-classify-then-write over the MCP tools — see `_shared/github-write-transport.md`):
+to Step 3 for any of them. One invocation claims the whole list:
 
 ```bash
-gh api "repos/{owner}/{repo}/contents/claims/issue-${ISSUE}.json?ref=claims-registry" -q '.content' | base64 -d > "/tmp/flow-claim-${ISSUE}.json"
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  const content = require('fs').readFileSync(process.argv[1],'utf8');
-  console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" "/tmp/flow-claim-${ISSUE}.json"
+node "${CLAUDE_PLUGIN_ROOT}/bin/claim-targets.js" --run-id "$(basename "$PIPELINE_RUN_DIR")" \
+  --targets {n}[,{m}…] [--keep-going]
 ```
 
-Branch on the classification, per `_shared/issue-claims.md`'s "Failure posture" table (not
-restated here): `'absent'` → create-only write, succeeds. `'tombstone'`/`'stale'` → conditional
-write (sha from the read), succeeds — a legitimate re-claim, not a contest. `'live'` → contested.
-`'unreadable'` → fails closed to contested (treat as live).
+Pass `--keep-going` only when this run is in `keep-going` mode (below); a default-mode run
+(single- or multi-target) omits the flag. The CLI implements `_shared/issue-claims.md`'s "The
+lock" steps 1-6 — read, classify, and the create-only/conditional/contested branch — via
+`bin/lib/issues/claim-store.js`, the one contents-API implementation this CLI and
+`reconcile/release-merged.js`'s release path both delegate to: the absent branch that
+`_shared/issue-claims.md`'s bash prose renders as the `__ABSENT__` sentinel is, inside the CLI, a
+404-status read (a normal outcome for a never-claimed target) — same classification, different
+mechanism — and the `@base64d`+sha single-read (one `gh api` call decoding GitHub's
+newline-embedded base64 and keeping the blob sha the conditional write needs) live inside that
+one module, not restated here. It classifies each
+read exactly per `_shared/issue-claims.md`'s "Failure posture" table: `'absent'` → create-only
+write; `'tombstone'`/`'stale'` → conditional write (a legitimate re-claim, not a contest);
+`'live'` → contested, holder identity attached; `'unreadable'` → fails closed to contested with no
+holder identity (`null`). It also applies the per-target self-owned check first, scoped to
+`'live'`/`'stale'` blobs: a target whose live or stale claim blob already reads
+`claim.runId === basename($PIPELINE_RUN_DIR)` — this run resuming after a partial interruption —
+lands in the JSON envelope's `alreadyOwned` array rather than being reclaimed or contested against
+itself, since `classifyClaimBlob` has no self-claim exemption and would otherwise classify this
+run's own `'live'` blob as contested against itself. A self-owned `'tombstone'` is not routed to
+`alreadyOwned` — a released claim is not still held, so it falls through to the ordinary
+`'tombstone'`/`'stale'` conditional-write branch and is legitimately re-claimed like any other
+tombstone. On a
+successful claim it bootstraps `bot:in-progress` (per `_shared/label-bootstrap.md`) and posts the
+claim comment (`claimPayload`'s `commentBody`) for that target — best-effort: a label or comment
+failure is logged to stderr and never un-claims the target.
 
-**On success for a target:** bootstrap-then-add `bot:in-progress` (per `_shared/label-bootstrap.md`),
-post the claim comment (`claimPayload`'s `commentBody`):
+This CLI is the `gh` transport only — its `deps.gh`/`deps.ghApi` shell to real `gh` (per
+`gh-api-module-pattern`'s injectable-runner convention). In a `gh`-absent environment
+(`_shared/github-write-transport.md`'s MCP routing), this CLI does not apply: follow
+`_shared/issue-claims.md`'s "The lock" steps 1-6 directly via the MCP contents-API calls, per
+target, exactly as before this CLI existed.
 
-```bash
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
-  runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$(basename "$PIPELINE_RUN_DIR")" > /tmp/flow-claim-comment-${ISSUE}.md
-gh issue edit "$ISSUE" --add-label bot:in-progress
-gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
-```
+**Branch on exit code:**
 
-**On contest for a target** (rejected write, or classification `'live'`/`'unreadable'`):
+- **0** — every target claimed (default mode), or every non-skipped target claimed
+  (`--keep-going` — see below). Proceed to Step 3.
+- **3** — contested. The CLI ran without `--keep-going` and stopped at the first target it could
+  not claim; stdout carries `{contested: [{issue, holder}], released, releaseFailed}` —
+  `released` lists every target *this invocation* had already claimed and successfully released
+  before hitting the contest (empty for a single-target run, or when the contested target was
+  first in the list); `releaseFailed` (`[{issue, error}]`, empty when none) names any of those
+  targets whose fresh read or tombstone write failed during that release — still claimed under
+  this run's identity, left to expire via the claim's own TTL rather than dropped silently. The
+  CLI already attempted the all-or-abort release — nothing further to release here. Gather
+  liveness evidence (below) and render the contest card using the reported `holder`.
+- **4** — transient `gh` failure, same fail-fast/all-or-abort shape as exit 3: stdout carries
+  `{transient: [{issue, error}], released, releaseFailed}`, release already attempted. Render the
+  transient-failure card below.
+- **2** — malformed invocation or missing dependency (a bad `--run-id`/`--targets` value, or repo
+  resolution failed) — a bug in this call, not a claim outcome. Treat as a hard stop.
 
-- **Single-target run** — release nothing (nothing else was claimed), then stop the pipeline
-  before Step 3 (no worktree, no run directory left behind beyond the mint from Step above, which
-  the reconciler's `isOrphanedMint` sweep reclaims after 24h if it was freshly minted here):
+**On exit 3 or 4** — release nothing further (the CLI's `released`/`releaseFailed` already covers
+the attempt; a non-empty `releaseFailed` is not this step's problem to retry — the named claim
+simply rides out its TTL). When this
+invocation minted the run dir itself (`PIPELINE_RUN_DIR` was unset on entry) and it still holds no
+`config.yml` (never adopted), remove the minted directory immediately — an empty mint left in
+place sorts newest and steals the hook fallback resolver's attribution until the reconciler's
+`isOrphanedMint` sweep catches it (~24h); a dispatch-minted dir (`PIPELINE_RUN_DIR` set on entry)
+belongs to the caller and is left in place. Then stop the pipeline before Step 3 (no worktree,
+nothing else left behind).
+
+Before rendering the exit-3 card, gather holder-liveness evidence — read-only, best-effort, never
+more than a few seconds; absence of any artifact is evidence, not an error, and the card must
+render a verdict either way — never block on the lookup:
+
+  1. The reported `holder` JSON already carries the identity fields (`runId`, `sessionId`,
+     `claimedAt`, `ttlHours`, `host`) — no extra read needed (`null` on `'unreadable'`; render
+     the card's holder fields as `unknown` in that case).
+  2. **Same host?** Compare the blob's `host` to `hostname` — string equality only, no
+     network probing. Different → verdict is **Remote holder**; skip steps 3-4.
+  3. **Worktree match:** derive the bare `spec-{ids}` portion of the holder's `runId` (strip
+     the `{ISO-timestamp}-` prefix — e.g. runId `…T210742-spec-686-687` → `spec-686-687`) and
+     grep `git worktree list` for it, locked or not — it matches both the native
+     `.claude/worktrees/flow-spec-{ids}` naming (illustrated above) and the documented
+     git-fallback naming (`.worktrees/flow/spec-{ids}`, `.worktrees/spec-{ids}`). Match the id
+     list as a **whole token**, never a bare substring: a hit counts only when the character
+     after it is not a digit and not a hyphen followed by a digit — `spec-72` must not match
+     `spec-720-…`, and `spec-720-721` must not match `spec-720-721-722-…` (a different run's
+     worktree). If more than one line still matches, list every match in the card's worktree
+     slot and treat the step as matched for verdict purposes.
+  4. **Transcript freshness:** the holder's transcript lives at
+     `~/.claude/projects/<project-slug>/<sessionId>.jsonl` (path rule per
+     `feedback/session-evaluation.md` — slug is the session's absolute cwd with `/`, space,
+     and `.` each replaced by `-`). A session inside a linked worktree writes under the
+     *worktree's* slug, not the main checkout's — check the main-checkout slug AND the
+     worktree-derived slug (from step 3's match, when one exists) before declaring no
+     transcript. Take the file's mtime.
+  5. **Verdict:** transcript mtime within the last 60 minutes (a judgment default, not a
+     protocol constant) → **Live sibling**; same host but no transcript activity within that
+     window (or no transcript found) → **Stale holder**; different host → **Remote holder**. The
+     worktree match from step 3 still counts for a Stale-holder verdict: a matched worktree
+     (locked or not) means the holder may still be alive even without a findable transcript, so
+     the card's Stale-holder next step must not recommend reclaim in that case — it directs the
+     user to inspect the matched worktree instead.
 
   ```markdown
   ## Flow: Claim contested
 
-  #{target} is already claimed by run {holder-runId} (host: {holder-host}, claimed
-  {holder-claimedAt}, expires {holder-claimedAt + holder-ttlHours}).
+  #{target} is already claimed by run {holder-runId} (session {holder-sessionId}, host:
+  {holder-host}, claimed {holder-claimedAt}, expires {holder-claimedAt + holder-ttlHours}).
 
-  Wait for the claim to expire, or resume once it releases.
+  {one of:
+    - Live sibling on this machine — {worktree-path-or-"no worktree found"}, last active
+      {age}. Next: wait for it to finish or release; re-run afterward.
+    - Remote holder ({holder-host}). Next: inspect that session on its own machine, or wait
+      for the claim to expire.
+    - Stale holder — no activity since {transcript-mtime-or-"unknown (no transcript found)"}.
+      Next: {if step 3 matched a worktree: a worktree for this run still exists — inspect it
+      before any reclaim; a locked worktree usually means a live session. | else:
+      `/claude-tweaks:tidy` to sweep and reclaim, or wait for the TTL to expire.}}
   ```
 
   No `AskUserQuestion` — there is nothing to choose between here; the pipeline cannot proceed
   with a target it cannot claim.
 
-- **Multi-target run, default (no `keep-going`)** — release every target this run *did* claim so
-  far this step (reason `never-started: file-overlap group partial claim`, per
-  `_shared/issue-claims.md`'s Failure-posture table), then stop with the same message shape as
-  above, naming every contested target.
+The `released` array's write (default mode, no `--keep-going`) uses the reason
+`never-started: file-overlap group partial claim` internally, per `_shared/issue-claims.md`'s
+Failure-posture table — the CLI's own `ABORT_REASON`, not something this flow step writes itself.
 
-- **Multi-target run with `keep-going`** — downgrade the contested target to a skip (drop it from
-  the target list, note it, proceed with the remainder), consistent with `keep-going`'s existing
-  meaning elsewhere in flow (`multi-spec.md`) — continue past a per-target failure rather than
-  aborting the whole run.
+**`--keep-going`** — the CLI never exits 3 or 4; a per-target contest or transient failure is
+downgraded to a `skipped` entry in the exit-0 JSON envelope (`{issue, reason: 'contested', holder}`
+or `{issue, reason: 'transient', error}`) and the CLI proceeds to the remaining targets rather than
+releasing and aborting — consistent with `--keep-going`'s existing meaning elsewhere in flow
+(`multi-spec.md`): continue past a per-target failure rather than aborting the whole run. Drop each
+skipped target from the target list for Step 3 onward. For a `reason: 'contested'` entry, gather
+liveness evidence (steps 1-5 above) and render the contest card using that entry's `holder`; for a
+`reason: 'transient'` entry, render the transient-failure card below. Each renders as one
+informational block per skipped target, not a pipeline stop, since the run proceeds with the
+remainder.
 
-**A transient `gh`/MCP failure during claim (not a classification-based contest)** — a network
-timeout, a transport error, or any other unclassified failure while reading, writing, or posting
-for a target — gets the identical all-or-abort treatment as a classification-based contest above,
-not a silent skip-and-continue: **single-target run** releases nothing and stops before Step 3;
-**multi-target run, default** releases every target this run *did* claim so far this step and
-stops; **multi-target run with `keep-going`** downgrades just the failing target to a skip and
-proceeds with the remainder. Use the same three bullets above for the release/stop mechanics —
-the only difference is the message, which names the transient failure instead of a holder
-identity (there is no holder to report):
+**A transient `gh` failure during claim (exit 4, not a classification-based contest)** — a network
+timeout, a transport error, or any other unclassified failure the CLI hit while reading, writing,
+or posting for a target — gets the identical all-or-abort treatment as a classification-based
+contest above: the difference is only the message, which names the transient failure instead of a
+holder identity (there is no holder to report):
 
 ```markdown
 ## Flow: Claim failed

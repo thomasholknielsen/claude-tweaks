@@ -11,7 +11,7 @@ Operational reference for skills that need to locate the active pipeline run dir
 3. **Record-mode materialization exception** — when neither step 1 nor step 2 resolves AND the invocation is `/claude-tweaks:build #{n}` running standalone (no `/flow` parent), create a standalone run dir at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{n}-standalone/` via `skills/flow/materialize.md`'s own fallback, purely as artifact storage for the materialized file. `$RUN_ROOT` is the **main checkout** root resolved by the Anchoring section below, not the current directory — a bare relative path builds the run dir inside whatever worktree happens to be cwd, which is exactly what anchoring exists to prevent. This is a mode-independent branch keyed on the invocation itself, distinct from step 4's auto-mode allowlist below: it fires regardless of mode — materialization needs somewhere to write the file whether or not `auto` is active — and `/build` is not itself on the step 4 allowlist.
 4. **Standalone auto fallback** — when steps 1-3 don't resolve AND the skill is running in `auto` mode AND the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:backlog`), create a standalone run dir at `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` (same `$RUN_ROOT` as step 3, as the Bash snippet below already builds it) with `decisions.md` and `staged/`. The audit log stays on; the skill auto-resolves per project policy in `.claude-tweaks/policy.yml`. The dir is presented in a Pending Review section at the end of the skill's report (no separate Review Console — this is the bookend-end for a standalone run).
 
-   `/claude-tweaks:wrap-up` is on this allowlist with **its own clause, not this one's**: it creates a standalone run dir in *every* mode, not only `auto`, at Phase 1, because its Review Console runs in every mode and needs somewhere to read `decisions.md` and `staged/` from. Two further differences from the clause above: it stamps `createdBy: "wrap-up-standalone"` into `run-state.json` at creation, which is what its Component-Skill Contract reads to tell a created run from an inherited one; and it renders the real Review Console rather than a Pending Review section. That stamp is **the one direct `run-state.json` write at creation time in the whole plugin** — no `bin/hooks.js` verb creates a run directory, so there is nothing for wrap-up to call here; `record-worktree` and `close-run` still own every later write to that file. Wrap-up's own snippet lives in `wrap-up/SKILL.md`'s "Establish the run directory (unconditional)".
+   `/claude-tweaks:wrap-up` is on this allowlist with **its own clause, not this one's**: it creates a standalone run dir in *every* mode, not only `auto`, at Phase 1, because its Review Console runs in every mode and needs somewhere to read `decisions.md` and `staged/` from. Two further differences from the clause above: it stamps `createdBy: "wrap-up-standalone"` into `run-state.json` at creation, which is what its Component-Skill Contract reads to tell a created run from an inherited one; and it renders the real Review Console rather than a Pending Review section. That stamp is **the one direct `run-state.json` write at creation time in the whole plugin**: `resolve-run-dir --create` (below) may mint the directory itself — mkdir, plus `decisions.md`/`staged/` when `--standalone` names it — but it never touches `run-state.json`; `record-worktree` and `close-run` still own every later write to that file, and wrap-up applies its own stamp as a separate follow-up write after calling the command, omitting `--mode` so the command creates unconditionally rather than gating on `auto`. Wrap-up's own snippet lives in `wrap-up/SKILL.md`'s "Establish the run directory (unconditional)".
 
    `/reflect`, `/journeys`, `/visual-review`, and `/simplify` are NOT on this allowlist — they are component skills whose own Component-Skill Contract gates auto-mode behavior on `$PIPELINE_RUN_DIR` already being set by a parent (`/build`, `/review`, `/wrap-up`, or `/flow`). None of them implement a standalone-run-dir fallback; invoked directly with no active pipeline run, they fall through to step 5 (interactive mode) like any other non-allowlisted skill.
 
@@ -19,6 +19,35 @@ Operational reference for skills that need to locate the active pipeline run dir
 5. **Fall back to interactive mode** — when none of steps 1-4 resolve, no policy lookup is possible and no auto-decisions are allowed. The skill MUST behave as if invoked in interactive mode for this run.
 
 The resolved directory contains `config.yml` (Manifesto answers / policy — absent for every standalone run, `wrap-up-standalone` ones included: only the `/flow` Manifesto writes it, and a standalone run never runs one), `decisions.md` (auto-decision log), `staged/` (proposals awaiting the Review Console / Pending Review section), `run-state.json` (hook-maintained status/worktree assignment; terminal = status `clean`), and `events.jsonl` (hook-appended typed events). Full layout and lifecycle in `auto-mode-contract.md`.
+
+## Resolving it: `resolve-run-dir` (preferred over composing `$RUN_ROOT` by hand)
+
+`node bin/hooks.js resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
+(`bin/lib/hooks/run-dir-resolve.js`) implements steps 1, 2, and 4 above on top of
+`bin/lib/hooks/worktree-detect.js`'s `mainCheckoutRoot()` — the same anchoring the Bash snippet
+below computes, but as a single command every citing skill step calls instead of restating that
+snippet inline (`[IL-127]`: a restated, hand-typed copy is exactly how the anchoring rule got
+read and then violated in the incident this command exists to prevent). Prints the resolved
+absolute path on stdout and exits `0`; exits non-zero with a message on stderr naming the problem
+when nothing resolves, or when `PIPELINE_RUN_DIR` (or a candidate) resolves inside a linked
+worktree instead of the main checkout — a shadow, the exact `[IL-127]` shape, refused loudly
+rather than silently substituted. Never creates a directory unless `--create` is passed.
+
+- No flags: steps 1-2 only (env var, then newest matching directory for `--spec-slug`). This is
+  the read-only "where is the run I already have" call most steps need.
+- `--create` with `--spec-slug <s>` and no `--standalone`: the plain mkdir-only mint shape
+  `/flow` (`flow/steps-and-gates.md` case 4), `/claude-tweaks:dispatch` (`dispatch/SKILL.md` Step
+  4), and `flow/claim-targets.md`'s direct-invocation mint use — `config.yml`/`decisions.md` are
+  written later, by whichever step actually initializes the run.
+- `--create` with `--standalone <name>`: step 4's standalone-auto-fallback shape —
+  `{ISO-timestamp}-{name}-standalone/`, pre-populated with `decisions.md` and `staged/`. Pass
+  `--mode auto` too when the caller is on the standalone-auto allowlist above (the command then
+  refuses to create outside auto mode); omit `--mode` entirely for a caller that creates in every
+  mode regardless — wrap-up's own documented exception.
+- `--root-only`: skips run resolution entirely and prints the anchored `$RUN_ROOT` itself — for a
+  call site that only ever needed the main-checkout root (a `find` backstop scoped to the whole
+  `pipelines/` tree, the transitional copy-out guard's destination computation), never a specific
+  run's directory.
 
 ## Anchoring
 
@@ -47,9 +76,22 @@ Two consequences, both load-bearing:
 - **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
   and must be committed onto the feature branch; it reaches the main checkout by merge.
 
-The `worktree.always` PreToolUse gate permits writes to this path from anywhere — see the
+The `worktree-always` PreToolUse gate permits writes to this path from anywhere — see the
 one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
 `git commit` issued from the main checkout is still denied.
+
+A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
+`checkPipelineShadowGuard`, not gated on `worktree-always`) denies the opposite direction: an
+Edit/Write/NotebookEdit or Bash write/mkdir that would CREATE a *new* `.claude-tweaks/pipelines/`
+run directory inside a linked worktree — a shadow, the exact split this file's Anchoring section
+exists to prevent. It flags only a genuinely new creation; a pre-anchoring run directory already
+sitting in a worktree (`wrap-up/cleanup-procedures.md` Section C step 3.5's transitional guard,
+sunset 2026-11-07) is left alone.
+
+`resolve-run-dir` above mirrors the snippet below; a citing skill step calls the command, not
+this snippet directly. Kept here as the canonical, executable reference implementation (and
+pinned verbatim by `tests/pipeline-run-dir-adoption-anchoring.test.js`) — a change to the
+resolution order lands here first, then in the command.
 
 ## Bash snippet (resolution)
 
@@ -79,6 +121,8 @@ if [ -z "$RUN_DIR" ] && [ "$MODE" = "auto" ] && [ -n "$STANDALONE_SKILL" ]; then
 fi
 [ -d "$RUN_DIR" ] || RUN_DIR=""  # empty = fall back to interactive mode
 ```
+
+**ISO-timestamp rule** (load-bearing — mixed timezones flip newest-first ordering): every run-directory `{ISO-timestamp}` is `YYYY-MM-DDTHHMMSS` in **UTC** — always `date -u +%Y-%m-%dT%H%M%S`, never a local-time `date`. Two concurrent sessions minting in different zones otherwise produce stamps that sort in the wrong order, and the hook fallback resolver attributes events to whichever sorts newest. Mint sites (`flow/claim-targets.md` Step 2.8, `flow/manifesto.md` Path conventions, `dispatch/SKILL.md` Step 4) cite this rule rather than restating the format.
 
 **SPEC_SLUG conventions** (load-bearing — short numeric slugs would collide with timestamps without a prefix):
 - Spec runs: pass `SPEC_SLUG="spec-42"` (with `spec-` prefix) — matches dirs like `2026-05-15T143207-spec-42` without colliding with timestamp digits.

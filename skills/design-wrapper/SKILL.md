@@ -3,7 +3,7 @@ name: design-wrapper
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify, /tidy) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
 argument-hint: "<shape|pre-build|test|review|polish|survey|doctor|reset-recommendations|live|explore> [target] [<surface-topic>] [--screenshots <paths>] [--source <parent-skill>] [--description <text>] [--dry-run] [--limit <n>] [--scope <identity|layout>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Design — Impeccable Integration Wrapper
@@ -49,7 +49,7 @@ Full per-mode behavior and argument shape: see the Input table below.
 | `shape <topic>` | Topic name | Invokes `/impeccable:impeccable shape <topic>`, forwarding `--description` verbatim when the caller supplied it so upstream's `new-work.md` classifies the work rather than the wrapper pre-classifying it; returns the output for the caller to append to the design doc |
 | `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files (including `new-work.md`, which owns job classification) plus project's root `PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths, an approximate context size, and the record's description verbatim |
 | `test <files>` | Space-separated file list | Runs the deterministic CLI per `impeccable-cli.md`; returns pass/fail |
-| `review <spec>` | Spec number or path | Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files, plus upstream's `impeccable-finish-reviewer` agent when the artifact carries a direction contract; returns advisory findings; writes findings cache for `polish` mode to read |
+| `review <spec>` | Spec number or path | Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files, plus upstream's `impeccable-finish-reviewer` agent when the artifact carries a direction contract, plus project-local craft critics per `critics.md`, governed by `design-critique`; returns advisory findings; writes findings cache for `polish` mode to read |
 | `polish <spec>` | Spec number or path | Dispatches the refinement set (`polish`/`clarify`/`harden`, each carrying the job-statement suffix) + suggestion-driven (whatever command each audit finding's own `suggestion` field names) + intent-driven (per the record's `Design-intent:` body-metadata line, lifted into the materialized header — spec 20) commands per `command-map.md`; modifies code. With `--dry-run`, computes the same category/trigger dispatch list but issues no Impeccable commands and modifies nothing — see `modes/polish.md` Step 8. |
 | `survey <files>` | Space-separated file list, or `--screenshots <paths>` when invoked from `/visual-review` | Analyzes the diff (and screenshots when provided) and returns ranked Creative Opportunities recommendations; suppresses recommendations the user previously declined for the same spec; read-only. `--limit <n>` overrides the default cap of 5 recommendations. |
 | `doctor` | **None** — takes no target | Runs the pinned plugin's `doctor.mjs --json` (never `--fix`) and returns its findings about the project's own Impeccable artifacts (`PRODUCT.md`, `DESIGN.md` + sidecar, `.impeccable/config.json`, surface briefs, the design hook), normalized once and read-only. Audits project artifacts, not a diff, so there is nothing to scope it to. |
@@ -117,6 +117,7 @@ When the mode received a spec number or path, read the record's `Surface:` body-
 |-------|----------|
 | `web`, `mobile`, `desktop` | Continue to track resolution (legacy `frontend` reads as `web`) |
 | `backend`, `infra` | Return `{skipped: "non-frontend spec (surface declared)"}` |
+| `terminal` | Continue to track resolution (declared-only — Layer 3 never implies it) |
 | *(missing)* | Continue to track resolution |
 
 `/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new sub-issue record. Pre-v4.5 specs lack the field; absent values are normal and are handled by track resolution and Layer 3 below.
@@ -131,10 +132,13 @@ Layers 1-3 answer *whether* to dispatch; this answers *which track*. It is **one
 | `ios` / `android` / `adaptive` | any | **native** | that value |
 | `null` | `web`, `desktop`, *(missing)* | web | — |
 | `null` | `mobile` | **native** | `adaptive`, **inferred** |
+| any | `terminal` | **terminal** | — (wins over the platform-first rows above — see the disagreement rule below) |
 
 `setup.platform`'s value domain is closed to those four values plus `null` by `extractPlatform`'s own implementation (see `impeccable-plugin.md`), and Layer 2 has already returned a skip for `backend` / `infra`, so every reachable combination has a row. There is no "otherwise" case to write. `null` + `mobile` infers `adaptive` because upstream has no unnamed-native track; `desktop` takes the web path because upstream's enum has no desktop value. Both are reasoned resolutions rather than placeholders — the arguments are in `native-routing.md`.
 
-**Disagreement is recorded, never silent.** When `setup.platform` is non-null and `Surface:` implies the other track — `platform: web` against an explicit `Surface: mobile` is the case that matters — `setup.platform` wins per the table, and the return carries `surface_track_override` naming both values and which won. A stale or wrong `PRODUCT.md` must not quietly overrule a record's own declaration without leaving a trace. When `$PIPELINE_RUN_DIR` is set, write the same one-liner to the run's `decisions.md` per `_shared/auto-decision-log.md`.
+**Disagreement is recorded, never silent.** When `setup.platform` is non-null and `Surface:` implies the other track — `platform: web` against an explicit `Surface: mobile` is the case that matters — `setup.platform` wins per the table, and the return carries `surface_track_override` naming both values and which won. A stale or wrong `PRODUCT.md` must not quietly overrule a record's own declaration without leaving a trace. When `$PIPELINE_RUN_DIR` is set, write the same one-liner to the run's `decisions.md` per `_shared/auto-decision-log.md`. On the `terminal` row `Surface:` wins — `setup.platform` describes Impeccable's rendered-product platform, whose value domain has no terminal value; a non-null `platform` against `Surface: terminal` is still recorded in `surface_track_override` and `decisions.md`, with `Surface:` named as the winner.
+
+When the track resolves `terminal`, read `terminal-routing.md` — every terminal-track outcome (honest Impeccable skips, `pre-build`'s principles-only load) lives there.
 
 **Two modes are web-only and skip on the native track.** The constraint is upstream's own, stated in its `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only."*
 
@@ -158,6 +162,7 @@ Layer 3's trigger table is web-only by construction — no native extension appe
 | web | any | Runs, exactly as it always has |
 | native | declared | **Skipped** — a web-only sniff cannot rule on native code, and running it would return `non-frontend (sniff)` on exactly the records native routing exists to serve |
 | native | *(missing)* | Runs. A match admits; zero matches skips as today, so a native project's backend-only diff is not widened onto the design path |
+| terminal | declared | **Skipped** — declared-only; no terminal trigger exists in the sniff table by design |
 
 ### Step 2: Availability check
 
@@ -233,7 +238,7 @@ Callers must handle both — see the canonical caller-side contract below for wh
 
 | Field | Values | Read by |
 |---|---|---|
-| `surface_track` | `web` \| `ios` \| `android` \| `adaptive` | This skill — it derives `test`'s and `live`'s native skip reasons and names the platform on native dispatch. `platform: null` + `Surface: mobile` resolves to `adaptive` here while `platform` stays `null`; the two never collapse into one field. |
+| `surface_track` | `web` \| `ios` \| `android` \| `adaptive` \| `terminal` | This skill — it derives `test`'s and `live`'s native skip reasons and names the platform on native dispatch. `platform: null` + `Surface: mobile` resolves to `adaptive` here while `platform` stays `null`; the two never collapse into one field. |
 | `surface_track_override` | string, **only when `setup.platform` and `Surface:` implied different tracks** | The human, via whatever report the caller renders. Names both values and which won. Absent means they agreed or only one was present — never "the check didn't run." |
 
 See `_shared/design-wrapper-handling.md` for the canonical caller-side contract — the full return-shape categories (`ok` / `pass` / `advisory` / `fail` / `skipped` / `deferred`) and the "why skips don't fail" rationale shared by every caller of this wrapper.
@@ -247,12 +252,14 @@ Lazy-load these only when needed for the active mode:
 - `command-map.md` — Single source of truth for dispatch: the per-command categorization (phase-fixed / refinement set / suggestion-driven / intent-driven / manual-only / never) covering every Impeccable command the wrapper knows about, plus the survey "would help" criteria → command mapping. Its Full command map table is the count — do not restate one here.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `native-routing.md` — Everything downstream of a **native** track result: the platform → upstream-reference mapping, the dispatch rule, the reasoning behind the track table's two inferred rows (`null` + `mobile` → `adaptive`; `desktop` → web), and the four-row routing walkthrough. Loaded only when track resolution returns `ios` / `android` / `adaptive` — a web-track run never needs it.
+- `terminal-routing.md` — Everything downstream of a **terminal** track result: the outcomes table (Impeccable skips with reasons, `pre-build`'s principles-only load), the `Surface:`-wins reasoning, the revisit condition. Loaded only when track resolution returns `terminal`.
+- `critics.md` — track-keyed roster of project-local craft critics; read only by `review` mode Step 3.8.
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules. Pins the **CLI**.
 - `impeccable-plugin.md` — the shared `resolveImpeccablePlugin` plugin-cache resolver (one resolver for every consumer in its script-path table), plus Layer 0 itself: the flagless `context-signals.mjs` invocation contract, `gatherSignals()`'s output shape, degradation conditions, and the per-signal trust rules. Pins the **plugin** — a separate artifact on a separate version line from the CLI.
 
 ## Next Actions
 
-When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then resolve the matching options. When invoked from a caller skill, omit this block — callers consume the return value themselves.
+When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then render the matching line as plain markdown (docs/skill-authoring.md's Skill handoffs convention). When invoked from a caller skill, omit this block — callers consume the return value themselves.
 
 | Return | Recommended follow-up |
 |--------|----------------------|
@@ -274,13 +281,13 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
 
-The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+The table above stays as-is — it's the assistant's own resolution logic for picking which line applies to the current return shape, never itself shown to the user or rendered directly. Once resolved (matched by return shape from the table above), render the matching line:
 
-- Option 1 (after `polish ok + commands_invoked` or `test fail`) — `label`: `"Re-verify (Recommended after polish or test fail)"`, `description`: `"/claude-tweaks:test {spec} — re-verify"`
-- Option 2 (after `test pass` or `review advisory`) — `label`: `"Code review (Recommended after test pass or review advisory)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
-- Option 3 (after `review advisory` with nothing to fix, or `polish` no-op) — `label`: `"Wrap up"`, `description`: `"/claude-tweaks:wrap-up {spec} — close out the spec"`
-- Option 4 (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`) — `label`: `"Configure design integration"`, `description`: `"/claude-tweaks:init — configure or re-enable design integration"`
-- Option 5 (after `explore` ok, either scope) — `label`: `"Specify (Recommended after explore)"`, `description`: `"/claude-tweaks:specify — brainstorm or decompose against the locked direction or winning layout"`
+**`/claude-tweaks:test {spec}`** — re-verify (recommended after `polish ok + commands_invoked` or `test fail`)
+**`/claude-tweaks:review {spec}`** — code review quality gate (recommended after `test pass` or `review advisory`)
+`/claude-tweaks:wrap-up {spec}` — close out the spec — after `review advisory` with nothing to fix, or `polish` no-op
+`/claude-tweaks:init` — configure or re-enable design integration — only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`
+**`/claude-tweaks:specify`** — brainstorm or decompose against the locked direction or winning layout (recommended after `explore` ok, either scope)
 
 ## Component-Skill Contract
 
@@ -318,3 +325,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Invoking `live` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | `live` needs a human in a browser — no non-interactive path exists. Callers must restrict it to interactive, standalone invocation. |
 | Invoking `explore` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | Same reasoning as `live` — a human must be present in a browser to compare and pick; no non-interactive path exists. |
 | The wrapper writing `DESIGN.md` itself after an `explore` pick | Upstream `document --seed` is the only writer — the wrapper writes nothing outside `docs/plans/` (same discipline as `doctor`'s never-`--fix` rule). |
+| Treating a craft critic as a third-party agent | It is a contract subagent — status line, Template A + `Target`, Standard profile all apply; Step 3.7's exemption covers `impeccable-finish-reviewer` only. |
+| Dispatching a craft critic on the native track | Emil is web-only (`design-craft.md` Gating) and `critics.md` has no native row — nothing to dispatch. |
+| Inferring the motion signal from file content | It comes from the spec/`Design-intent:` (consumer judgment) — inference from code removes user agency, same rule as intent-driven dispatch. |
+| Writing a `decisions` finding into the polish cache, or letting polish act on one | `DESIGN.md` is upstream-owned — a `decisions` finding stages for a human at the Console (`review.md` Step 5.5); polish consumes `code` findings only, as context. |

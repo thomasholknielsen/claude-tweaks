@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { isWorktreeAlwaysOn, readIntegrationBranch, readListKey } = require('../bin/lib/policy');
+const { isWorktreeAlwaysOn, resolveWorktreeAlways, readIntegrationBranch, readListKey } = require('../bin/lib/policy');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-policy-'));
@@ -19,52 +19,117 @@ test('missing policy file -> false', () => {
   assert.strictEqual(isWorktreeAlwaysOn(tmpRepo()), false);
 });
 
-test('worktree.always: true -> true', () => {
+test('worktree-always: true -> true', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always: true\n');
+  writePolicy(repo, 'worktree-always: true\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), true);
 });
 
-test('worktree.always: false -> false', () => {
+test('worktree-always: false -> false', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always: false\n');
+  writePolicy(repo, 'worktree-always: false\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), false);
 });
 
 test('unrelated keys and near-miss lines -> false', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'issues.autonomous-eligibility: any\nworktree.something-else: true\n');
+  writePolicy(repo, 'issues.autonomous-eligibility: any\nworktree-something-else: true\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), false);
 });
 
 test('tolerates extra whitespace around the value', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always:    true  \n');
+  writePolicy(repo, 'worktree-always:    true  \n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), true);
 });
 
 test('the key can appear alongside other policy lines in either order', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'issues.autonomous-eligibility: label agent:eligible\nworktree.always: true\n');
+  writePolicy(repo, 'issues.autonomous-eligibility: label agent:eligible\nworktree-always: true\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), true);
 });
 
 test('a trailing inline # comment after true is ignored, not treated as policy-OFF', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always: true  # enabled after the incident on 2026-07-10\n');
+  writePolicy(repo, 'worktree-always: true  # enabled after the incident on 2026-07-10\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), true);
 });
 
 test('a trailing inline # comment with no space before it is still ignored', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always: true# comment\n');
+  writePolicy(repo, 'worktree-always: true# comment\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), true);
 });
 
 test('garbage trailing content that is not a # comment is still rejected', () => {
   const repo = tmpRepo();
-  writePolicy(repo, 'worktree.always: true and some other text\n');
+  writePolicy(repo, 'worktree-always: true and some other text\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+});
+
+test('isWorktreeAlwaysOn: a trailing inline # comment is tolerated through the pre-#602 alias — worktree.always: true  # note still reads as ON', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true  # note\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('isWorktreeAlwaysOn: the new spelling worktree-always: true reads as ON', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('isWorktreeAlwaysOn: the pre-#602 spelling worktree.always: true still reads as ON through the RENAMED_KEYS alias — an un-migrated project never silently loses the gate', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('isWorktreeAlwaysOn: when both spellings are set the new line wins — worktree-always: false beats worktree.always: true (same precedence as the resolver)', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: false\nworktree.always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+  const repo2 = tmpRepo();
+  writePolicy(repo2, 'worktree.always: false\nworktree-always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo2), true, 'order in the file does not matter — the new NAME wins, not the last line');
+});
+
+test('isWorktreeAlwaysOn: an invalid new-name value beside a valid old-name line still lets the new NAME win — the gate reads OFF, matching the resolver (deliberate: presence of the new name ends the alias window for that file)', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: yes\nworktree.always: true\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+});
+
+// resolveWorktreeAlways: direct unit coverage of the {on, matchedKey} pair
+// session-start.js's verdict banner and isWorktreeAlwaysOn's gate both consume
+// (IL-133) — cheaper to keep green than the session-start integration tests alone.
+
+test('resolveWorktreeAlways: old key only -> {on: true, matchedKey: "worktree.always"}', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: true, matchedKey: 'worktree.always' });
+});
+
+test('resolveWorktreeAlways: new key only -> {on: true, matchedKey: "worktree-always"}', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree-always: true\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: true, matchedKey: 'worktree-always' });
+});
+
+test('resolveWorktreeAlways: both keys present -> new key wins, matchedKey is "worktree-always"', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: false\nworktree-always: true\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: true, matchedKey: 'worktree-always' });
+});
+
+test('resolveWorktreeAlways: neither key present -> {on: false, matchedKey: null}', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'integration-branch: main\n');
+  assert.deepStrictEqual(resolveWorktreeAlways(repo), { on: false, matchedKey: null });
+});
+
+test('resolveWorktreeAlways: no policy.yml at all -> {on: false, matchedKey: null}', () => {
+  assert.deepStrictEqual(resolveWorktreeAlways(tmpRepo()), { on: false, matchedKey: null });
 });
 
 test('readIntegrationBranch: key present -> returns the branch name', () => {

@@ -1,0 +1,127 @@
+// bin/lib/preflight-records/preflight-records.js
+// Pure(ish) helpers behind bin/preflight-records.js — the record pre-flight
+// JSON CLI that mechanizes skills/flow/materialize.md's Resolution + the
+// blocked-by bullet and skills/flow/multi-spec.md's Validation steps 1-5
+// (Prerequisites + Cross-spec conflict detection). Fetches N records
+// (`gh issue view`), derives their facets/keyFiles/fingerprint, resolves
+// each record's blockedBy either from body text (work-links: body-text, no
+// extra call) or one batched aliased GraphQL call (work-links: native), and
+// groups records that share key files via bin/lib/issues/grouping.js's
+// groupByFileOverlap. The runner is injectable, same contract as
+// bin/lib/issues/link.js / capabilities-probe.js: runner(args) is invoked
+// as if `gh ${args.join(' ')}` and returns stdout; a throw is a failed call.
+'use strict';
+
+const { execFileSync } = require('child_process');
+const {
+  parseRecordFacets, parseDependencies, buildNativeDependencyQuery,
+  hasOpenNativeBlocker, extractFingerprint,
+} = require('../issues/record');
+const { extractKeyFiles, groupByFileOverlap } = require('../issues/grouping');
+
+function defaultRunner(args) {
+  return execFileSync('gh', args, { encoding: 'utf8' });
+}
+
+// A runner may throw a non-Error (string, object, undefined) — never let a
+// failed[]/error message come back empty. Same shape as link.js's own copy.
+function errorText(err) {
+  const parts = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).map(String);
+  return parts.length ? parts.join(' ') : String(err);
+}
+
+// numbers: number[] -> { ok: Map<number, issue>, failed: [{number, error}] }.
+// issue is shaped { number, title, body, labels } (gh issue view --json
+// number,title,body,labels output). Each fetch is independently try/caught —
+// one failing record never aborts the batch; the caller (the CLI) decides
+// whether any `failed` entries abort the whole run. All-at-once reporting:
+// every record is attempted regardless of earlier failures.
+function fetchIssues({ numbers, runner = defaultRunner } = {}) {
+  const ok = new Map();
+  const failed = [];
+  for (const n of numbers) {
+    try {
+      const out = runner(['issue', 'view', String(n), '--json', 'number,title,body,labels']);
+      ok.set(n, JSON.parse(out));
+    } catch (err) {
+      failed.push({ number: n, error: errorText(err) });
+    }
+  }
+  return { ok, failed };
+}
+
+// { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[], openBlocker: boolean}>.
+// ONE batched, aliased GraphQL call (buildNativeDependencyQuery) resolving
+// every candidate's native blockedBy connection at once — work-links: native.
+// owner/repo are already-resolved String! values, so -f (never -F — -F would
+// type-coerce an all-numeric name, gh-api-module-pattern's flag table).
+//
+// Throws — never returns a partial map — when `data.repository` is
+// null/missing, or any candidate's `i{n}` alias is absent from the
+// response: the same "throw on a partial result rather than returning a
+// partial map" rule bin/lib/issues/link.js's resolveDatabaseIds follows.
+// Without this, a malformed/error GraphQL response silently read as
+// `blockedBy: [], openBlocker: false` for every affected record — a
+// dependency-satisfied false positive (#723). The CLI's existing try/catch
+// around this call routes the thrown message to the same exit-1,
+// all-failures-named path `fetchIssues`' `failed[]` already uses.
+function fetchNativeDependencies({ numbers, owner, repo, runner = defaultRunner } = {}) {
+  const result = new Map();
+  const query = buildNativeDependencyQuery(numbers);
+  if (!query) return result;
+  const out = runner(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `repo=${repo}`]);
+  const parsed = JSON.parse(out);
+  const repository = parsed && parsed.data && parsed.data.repository;
+  const missing = repository ? numbers.filter((n) => !repository[`i${n}`]) : numbers.slice();
+  if (missing.length) {
+    const errs = Array.isArray(parsed && parsed.errors) ? parsed.errors.map((e) => e && e.message).filter(Boolean) : [];
+    const suffix = errs.length ? ` (GraphQL: ${errs.join('; ')})` : '';
+    const reason = repository ? 'missing dependency data for' : 'missing repository — no dependency data for';
+    throw new Error(`${reason} ${missing.map((n) => `#${n}`).join(', ')}${suffix}`);
+  }
+  for (const n of numbers) {
+    const node = repository[`i${n}`];
+    const nodes = (node.blockedBy && node.blockedBy.nodes) || [];
+    result.set(n, {
+      blockedBy: nodes.map((b) => b && b.number).filter((v) => v !== undefined),
+      openBlocker: hasOpenNativeBlocker(node),
+    });
+  }
+  return result;
+}
+
+// issues: Map<number, issue>, dependencies: Map<number, {blockedBy, openBlocker}> | null
+// -> { "<n>": { title, facets, blockedBy, openBlocker, keyFiles, fingerprint } }.
+// dependencies is null under work-links: body-text — blockedBy is read straight
+// off the record's own body (parseDependencies) instead, with no extra call;
+// that driver has no open/closed signal for a blocker (parseDependencies only
+// ever returns blocker *numbers*, never state), so openBlocker is null there —
+// "undetermined by this driver", never a false claim of "checked, not open".
+function buildRecords({ issues, dependencies = null } = {}) {
+  const records = {};
+  for (const [n, issue] of issues) {
+    const dep = dependencies ? dependencies.get(n) : null;
+    records[String(n)] = {
+      title: issue.title,
+      facets: parseRecordFacets(issue.labels),
+      blockedBy: dep ? dep.blockedBy : parseDependencies(issue.body),
+      openBlocker: dep ? dep.openBlocker : null,
+      keyFiles: extractKeyFiles(issue),
+      fingerprint: extractFingerprint(issue.body),
+    };
+  }
+  return records;
+}
+
+// records (the buildRecords output, keyed by string number) -> overlapGroups:
+// [[n,...], ...] per groupByFileOverlap, which unions on item.id — ids are
+// coerced back to Number so a group's members match the input record numbers,
+// not their string keys.
+function buildOverlapGroups(records) {
+  const items = Object.entries(records).map(([n, r]) => ({ id: Number(n), keyFiles: r.keyFiles }));
+  return groupByFileOverlap(items);
+}
+
+module.exports = {
+  defaultRunner, errorText, fetchIssues, fetchNativeDependencies, buildRecords, buildOverlapGroups,
+};

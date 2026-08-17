@@ -1,9 +1,9 @@
 ---
 name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files a GitHub issue against claude-tweaks after an explicit scrub and confirmation.
-argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--pre-confirmed]"
+argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--full] [--pre-confirmed]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Feedback — Route a learning upstream to the claude-tweaks plugin
@@ -22,7 +22,8 @@ Lifecycle: `/claude-tweaks:reflect` → **`/claude-tweaks:feedback`** → upstre
   rather than this project's own code.
 - Invoked bare (no arguments) to check this project's own `upstream-candidate`
   backlog — findings the health sweeps' headless path already filed locally
-  and left for a human to forward (see Step 0).
+  and left for a human to forward — and to evaluate the session itself
+  against the maintainer-objective rubric (see Step 0).
 
 Do **not** use this skill to file against any repository other than
 `thomasholknielsen/claude-tweaks`. A learning owned by a third-party dependency
@@ -31,7 +32,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue] [--pre-confirmed]`:
+`$ARGUMENTS` is parsed as `[<learning text>] [--kind=<value>] [--dry-run] [--queue] [--full] [--pre-confirmed]`:
 
 | Argument | Behavior |
 |----------|----------|
@@ -40,13 +41,24 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
+| `--full` | Presence-only, meaningful only for bare/`--queue` invocation (Step 0's session-evaluation gather): ignore any existing watermark for the resolved transcript, dispatch the full un-scoped judge (no offset clause), then overwrite the watermark with the fresh result exactly as a first-ever evaluation would. A no-op combined with free-text-only invocation — free-text invocation without `--queue` runs no session evaluation at all (Step 0's rule). |
 | `--pre-confirmed` | Presence-only like `--dry-run`; the caller passes the item's staged-file path and the approved snapshot body alongside it. Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
 
-### Step 0: Local upstream-candidate queue (bare invocation)
+### Step 0: Bare-invocation umbrella (queue check + session evaluation)
 
-When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this project may already hold headless-filed candidates waiting for a human — the health sweeps' Subject check (`_shared/learning-routing.md`) files these locally with `upstream-candidate` plus the sweep's own `by:` label, deliberately without `ready`, precisely because nothing else in the plugin queries them (#239). Check for them before falling back to "gather from the conversation or ask":
+When `$ARGUMENTS` carries no free-text learning (or `--queue` was passed), this is bare invocation:
+run **two** gathers and merge their results into one batch before Steps 1-6 process it. Free-text
+invocation runs neither gather — the single-learning path (Steps 1-9) is unchanged. A
+`--pre-confirmed` invocation never runs these gathers either — it processes only its
+caller-supplied staged item(s).
+
+**Gather 1 — local upstream-candidate queue (unchanged).** This project may already hold
+headless-filed candidates waiting for a human — the health sweeps' Subject check
+(`_shared/learning-routing.md`) files these locally with `upstream-candidate` plus the sweep's own
+`by:` label, deliberately without `ready`, precisely because nothing else in the plugin queries them
+(#239). Check for them:
 
 ```bash
 gh issue list --label upstream-candidate --state open --json number,title,body,labels --limit 100
@@ -56,19 +68,46 @@ gh issue list --label upstream-candidate --state open --json number,title,body,l
 full backlog — while still bounding the read per `[IL-67]`; if the count returned equals the
 limit, state this in the summary rather than silently treating it as complete.)
 
-- **None found:** proceed to Step 1 as usual (gather from the conversation, or ask).
-- **One or more found:** run Steps 1-6 (gather from the issue's own body — component and symptom
-  are already in it — classify, confirm self-reference doesn't apply, dedup search, draft, scrub)
-  non-interactively for each candidate, then call `_shared/upstream-feedback-batch.md`'s shared
-  batch contract once — chunked per that file's own rule — instead of looping Step 7 individually
-  per candidate. Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one candidate that
-  triggered it — drop that candidate from the batch (report why, alongside the others' results)
-  and continue the loop for the rest; it never aborts the whole `--queue` run, matching Step 7's
-  own per-item isolation for the drift-check fallback. A dedup match in Step 4 does not stop the
-  candidate or ask interactively — see Step 4's own batch-mode text. On a checked item filing
-  successfully (Step 8), close the local `upstream-candidate` issue with a comment linking the new
-  upstream issue. An unchecked item is handled per the shared contract's decline rule (comment +
-  leave the local issue open).
+**Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory and run
+its judge dispatch (or its self-assessment degradation) against `_shared/feedback-objectives.md`'s
+rubric. Each returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a
+finding — session-evaluation.md's own rule — and never enters the batch. The two gathers are
+failure-isolated in both directions: a judge dispatch that errors or returns nothing usable
+degrades to `session-evaluation.md`'s self-assessment path (noted in the run summary) and never
+aborts the run — Gather 1's queue candidates proceed through the batch regardless — and a Gather
+1 `gh` failure likewise never blocks the evaluation; the failed gather is reported in the run
+summary while the other proceeds.
+
+**Merging.** The two gathers feed **one merged batch by concatenation, no reconciliation** — each
+item keeps its own draft shape; nothing here reconciles a queue candidate against an evaluation
+finding even when they describe the same underlying issue. Run Steps 1-6 non-interactively for
+every item in the merged batch (gather from the queue issue's own body, or from the finding's
+symptom/evidence/proposed fix — deriving the affected component from the skill, contract, or CLI
+the evidence names, falling back to "unclear / general" per Step 1 — classify,
+confirm self-reference doesn't apply, dedup search, draft, scrub), then call
+`_shared/upstream-feedback-batch.md`'s shared batch contract once — chunked per that file's own
+rule — instead of looping Step 7 individually per item. Step 4's dedup fingerprint basis stays the
+affected component plus the core symptom, exactly as today — the draft template's
+`**Objective:**`/`**Measurement:**`/`**Cost this session:**` fields (Step 5) never join that basis.
+
+Inside this loop, "stop" in Steps 2, 3, or 6 scopes to the one item that triggered it — drop that
+item from the batch (report why, alongside the others' results) and continue the loop for the
+rest; it never aborts the whole bare-invocation run, matching Step 7's own per-item isolation for
+the drift-check fallback. A judge finding that Step 2 classifies as not D5 drops from the batch the
+same way. A dedup match in Step 4 does not stop the item or ask interactively — see Step 4's own
+batch-mode text. On a checked queue-derived item filing successfully (Step 8), close the local
+`upstream-candidate` issue with a comment linking the new upstream issue — an evaluation finding has
+no local issue to close. An unchecked item is handled per the shared contract's decline rule
+(comment + leave the local issue open, where one exists).
+
+**Interaction budget.** The whole bare-invocation run — both gathers, however many items each
+produces — costs exactly one Step 7 batch confirmation plus one `## Next Actions` call; the
+evaluation gather itself adds zero mid-flow `AskUserQuestion` calls. Under `--dry-run`, findings
+from both gathers render and the run stops — Step 7's existing `--dry-run` precedence, extended
+here to evaluation findings without change.
+
+**Neither gather produced anything:** proceed to Step 1 as usual (gather from the conversation, or
+ask).
 
 This is what resolves `upstream-candidate`'s dead-write state (#239): the label's own consumer
 was always meant to be a human eyeball plus a manual `/claude-tweaks:feedback` invocation
@@ -83,6 +122,14 @@ or CLI involved, or "unclear / general"), and a title naming the component and
 the symptom. For a defect, also gather repro steps and expected-vs-actual. For a
 gap, gather the use case — what the user was trying to do and why the plugin's
 current behavior does not support it.
+
+Also judge Definition: does this learning name a genuine open choice with no
+tradeoff made yet — two or more viable directions, no stated preference — or a
+single clear ask? This is a content call made in this same turn, not a
+structural heuristic (the same posture `solution:unjustified`'s judgment takes).
+`Needed` only when the learning genuinely names an undecided choice; default
+`Clear` otherwise. When `Needed`, form a one-line rationale naming the open
+choice — this and the verdict feed Step 5's draft.
 
 ### Step 2: Classify the kind
 
@@ -134,26 +181,30 @@ has no dedicated batch-mode option; a human who wants that outcome uses the cont
 edit channel (naming the item and requesting "comment on #{N} instead of filing") rather than a
 third checkbox state.
 
-Reuse `bin/lib/health-core/fingerprint.js` (`createFingerprint`, `normalizeText`)
-for the fingerprint marker embedded in the body, so a later run recognizes its
-own prior filing.
+Derive `fingerprintBasis: { component, summary }` for the drafted item — the same
+affected-component-plus-core-symptom inputs used for the search above — and carry it
+into the drafts file built for Step 8. Computing the fingerprint marker embedded in
+the body is not this step's job: `bin/file-feedback.js` derives it via
+`fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when
+it processes the draft, so a later run recognizes its own prior filing. Never call
+`createFingerprint` directly here.
 
 ### Step 5: Draft
 
 Title: `<component>: <symptom>`
-
-Judge Definition against `_shared/needs-definition-judgment.md`'s rubric: does this learning name
-a genuine open choice with no tradeoff made yet (`needed`), or a single clear ask (`clear`)? A
-content call, made this same turn — never a structural heuristic.
 
 ```
 **Summary:** <one line>
 
 **Kind:** Defect | Gap
 
-**Definition:** Needed | Clear — <one-line rationale>
-
 **Affected component:** <skill, contract, or CLI — or "unclear / general">
+
+**Objective:** <objective name from _shared/feedback-objectives.md> (evaluation-sourced drafts only)
+
+**Measurement:** <counts> (countable lenses only — omitted for judgment lenses)
+
+**Cost this session:** <one line, from the finding> (evaluation-sourced drafts only)
 
 **Repro steps:** (defect only)
 1. ...
@@ -165,6 +216,8 @@ Actual: ...
 **Use case:** (gap only)
 <what you were trying to do and why current behavior does not support it>
 
+**Definition:** Needed | Clear — <one-line rationale, when Needed>
+
 **Plugin version:** <from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>
 
 ---
@@ -174,6 +227,9 @@ Filed via /claude-tweaks:feedback.
 
 Resolve the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`,
 never from install metadata or `gitCommitSha` (`[IL-89]`).
+
+**Objective**/**Measurement**/**Cost this session** omission rule: all three fields are omitted
+entirely on drafts no evaluation produced — free-text learnings and Step 0 queue candidates alike.
 
 ### Step 6: Scrub — HARD GATE
 
@@ -191,16 +247,22 @@ Keep only what a maintainer needs to reproduce or understand the report.
 This gate is unconditional. It runs on every invocation, including `--dry-run`
 and including invocations that began inside a pipeline.
 
-**`[Use: Frontier]` singleton (record #221).** The scrub judgment is dispatched — never run inline
+**`[Use: Capable]` singleton.** The scrub judgment is dispatched — never run inline
 — as **one** Task agent per invocation: the main thread hands it the drafted body from Step 5 and
 this step's removal criteria verbatim, and the agent returns the scrubbed body plus a one-line note
-of what it removed (or "nothing to remove"). Resolve the model via `node bin/resolve-profile.js
-frontier --unattended` (no `--run-dir` — `/feedback` is typically invoked standalone with no run
-directory; this matches the contract's standalone-invocation cap of one dispatch per invocation,
-enforced here by this skill rather than by a run-dir tally). Degrades to Capable per the resolver's
-own preconditions, logged in its `source` — never re-enumerated here. Filing (Step 8) and
-confirmation (Step 7) stay in the main thread and human-gated regardless of which model scrubbed
-the draft; the dispatch structure is identical either way.
+of what it removed (or "nothing to remove"). Resolve the model via `node
+"${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable` (no `--run-dir` — `/feedback`
+is typically invoked standalone with no run directory; one scrub dispatch per invocation,
+enforced here by this skill rather than by a run-dir tally; append `--unattended` only when the
+invocation is genuinely headless — a scheduled Routine or a `claude -p` run — resolved from
+session state, never a hard-coded literal). Record #221 originally granted
+this scrub the skill's one Frontier singleton slot; this skill's Frontier singleton slot now
+belongs to the session-evaluation judge
+(`session-evaluation.md`, Step 0) instead, knowingly superseding #221's scrub entry — the scrub's
+structure, unconditionality, and hard-stop semantics above and below are unchanged. Degrades per
+the resolver's own preconditions, logged in its `source` — never re-enumerated here. Filing (Step
+8) and confirmation (Step 7) stay in the main thread and human-gated regardless of which model
+scrubbed the draft; the dispatch structure is identical either way.
 
 **If the learning cannot survive the scrub, stop.** When the report is only
 intelligible with content that must be removed — the reproduction depends on
@@ -242,7 +304,10 @@ post-scrub content directly.
 
 **`--dry-run`:** render every draft, state the classified destination and kind, then **stop here**
 — no `AskUserQuestion` call of any kind, and nothing filed. This holds whether or not
-`--pre-confirmed` was also passed: `--dry-run` takes precedence over it.
+`--pre-confirmed` was also passed: `--dry-run` takes precedence over it. Separately,
+`bin/file-feedback.js` (Step 8's filing CLI) accepts its own `--dry-run` flag — independent of
+this gate, for exercising the CLI directly without going through this human-gated flow; this
+skill's own flow never reaches Step 8 while this gate holds.
 
 ### Step 8: File
 
@@ -254,50 +319,65 @@ gh label list --repo thomasholknielsen/claude-tweaks --limit 200
 ```
 
 Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
-that label is present in the output. Same rule for `needs:definition`: pass it **only** when
-Step 5's judgment (post any correction) reads `Needed` **and** the same `gh label list` output
-above confirms it exists — never assume it's bootstrapped on the target repo, exactly like
-`bug`/`enhancement` above. When the judgment reads `Needed` but the label isn't present, file
-without it and say so — a missing label is not a reason to fail the whole filing.
+that label is present in the output.
 
-**Then** file, appending the resolved `--label` argument if and only if the
-previous command confirmed it, plus `--label needs:definition` when both of the conditions above
-hold:
+When Step 1's Definition judgment (or Step 5's rendered `**Definition:**` line) reads `Needed`,
+also bootstrap `needs:definition` per `_shared/label-bootstrap.md`'s check-then-create loop
+(`["needs:definition", "Undecided idea — must go through /specify's brainstorm redirect before
+reaching ready"]`) and pass `--label needs:definition`. This is the **single named exception** to
+the internal-taxonomy rule below — every other label in that taxonomy stays off-limits here.
 
-```bash
-BODY_FILE=$(mktemp)
-cat > "$BODY_FILE" <<'BODY'
-<body>
-BODY
-gh issue create --repo thomasholknielsen/claude-tweaks \
-  --title '<title>' \
-  --body-file "$BODY_FILE"
-```
-
-Omit `--label` entirely otherwise and say
+Omit `--label bug`/`--label enhancement` entirely when unconfirmed and say
 why — never substitute a guessed label, and never apply the repository's own
 internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `ready`, `size:*`),
-which belongs to records that moved through its in-repo pipeline. `needs:definition` is the single
-named exception to this rule: append `--label needs:definition` when the judgment reads `Needed`,
-regardless of whether `bug`/`enhancement` also confirmed — it is not internal-taxonomy in the sense
-this rule guards against, since it describes the learning itself, not this repo's pipeline state.
+which belongs to records that moved through its in-repo pipeline — `needs:definition` above is
+the one deliberate, named exception to this rule. This CLI files against another repo, and it
+never bootstraps labels there — the label-resolution checks above stay in the skill, run before
+the drafts file is built; the CLI only ever receives the labels the drafts file names and does
+not compute label policy itself.
 
-**On success when invoked via `--pre-confirmed`:** delete the staged file at
-`staged/wrap-up-upstream-{N}.md` immediately after `gh issue create` returns the new issue URL —
-this is what makes Step 7's drift check "file not found" branch mean "already filed" rather than
-an error, and prevents a `/claude-tweaks:wrap-up resume` (or the multi-spec console's own resume)
-from re-rendering and re-filing an item whose chunk already succeeded before an interruption. A
-direct (non-`--pre-confirmed`) invocation has no staged file to clean up — this step is a no-op in
-that path.
+**Then** file via `bin/file-feedback.js`, not a shell recipe: `gh` has no `--title-file`, so a
+title interpolated into a shell string is corruptible by backticks or `$(...)` — the CLI instead
+passes the title through its runner's argv array, never string-interpolated, while the body still
+goes via `--body-file`.
 
-On failure, do not silently drop the payload. Report the `gh` error verbatim,
-write the drafted body to the run directory's `staged/` as
-`upstream-unfiled-{N}.md` when a run directory exists — deliberately outside
-the `staged/wrap-up-upstream-*.md` aggregation glob `review-console.md` and
-`multispec-review-console.md` both scan, so a stop-and-resume never
-re-enumerates a failed draft as a fresh upstream proposal — and tell the
-user the filing did not happen and the draft is preserved. There is no
-automatic retry for upstream filings.
+1. Write the drafts file via the **Write tool** — never `echo`, which mangles `\n` in zsh — to
+   `{run-dir}/staged/feedback-drafts.json` when a run directory exists, or a scratch path
+   otherwise. Each entry is `{ title, body, labels, fingerprintBasis }`: `labels` is exactly the
+   `--label` argument(s) resolved above (an omitted label stays omitted), and `fingerprintBasis`
+   is Step 4's `{ component, summary }`.
+2. Invoke:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/file-feedback.js" --drafts <path> --repo thomasholknielsen/claude-tweaks
+   ```
+
+   `--repo` is explicit and hardcoded here, matching every other `gh` call in this step and Step
+   4 above — the CLI's own `--repo` default resolves the invoking project's `origin` remote, which
+   is the host project `/feedback` is running from, not the upstream `claude-tweaks` repo the
+   learning is filed against. (No `--dry-run` here — Step 7's own dry-run gate already stopped
+   before Step 8 is ever reached; the CLI's `--dry-run` flag noted in Step 7 is a separate,
+   direct-invocation-only affordance.)
+3. Report its per-draft result table verbatim — `filed #{n}` / `dedup-hit #{n}` /
+   `filing-failure: {reason}` per line, in input order. This table **is** Step 9's per-item report
+   source now, not a paraphrase.
+4. On any `filing-failure` row, follow the existing "do not silently drop the payload" rule: the
+   CLI's own stderr/table already states the `gh` error and which draft failed, so this step adds
+   only the existing staged-fallback behavior — write that draft's body to the run directory's
+   `staged/` as `upstream-unfiled-{N}.md` when a run directory exists, deliberately outside the
+   `staged/wrap-up-upstream-*.md` aggregation glob `review-console.md` and
+   `multispec-review-console.md` both scan, so a stop-and-resume never re-enumerates a failed
+   draft as a fresh upstream proposal — and tell the user the filing did not happen and the draft
+   is preserved. There is no automatic retry for upstream filings.
+5. **On success when invoked via `--pre-confirmed`:** delete the staged file at
+   `staged/wrap-up-upstream-{N}.md` for each draft the CLI table reports as `status: filed` or
+   `status: dedup-hit` — condition on the table's status, not on `gh issue create`'s own exit code
+   directly — immediately after the CLI returns. This is what makes Step 7's drift check "file not
+   found" branch mean "already filed" rather than an error, and prevents a
+   `/claude-tweaks:wrap-up resume` (or the multi-spec console's own resume) from re-rendering and
+   re-filing an item whose chunk already succeeded before an interruption. A direct
+   (non-`--pre-confirmed`) invocation has no staged file to clean up — this step is a no-op in
+   that path.
 
 ### Step 9: Report
 
@@ -308,8 +388,11 @@ Nothing further is needed.
 
 ## Next Actions
 
-Render one `AskUserQuestion` with options drawn from context: continue the
-parent workflow, file a second related learning, or open the created issue.
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), lines drawn from context — include only the lines that apply:
+
+**{the parent workflow's next command, fully qualified, e.g. `/claude-tweaks:wrap-up {spec}`}** — continue the parent workflow (recommended)
+`/claude-tweaks:feedback {second learning}` — file another related learning while it's fresh
+`gh issue view {created issue URL} --web` — open the filed issue for reading or follow-up
 
 ## Component-Skill Contract
 

@@ -203,6 +203,30 @@ test('gatherFacts claudeMdOverBudget is true when CLAUDE.md exceeds the always-l
   }
 });
 
+test('gatherFacts claudeMdOverBudget honors a policy.yml budget — proves the resolver round-trip, not the catch-all default', () => {
+  // resolveBudgets() falls back to the schema defaults (30/150) on ANY
+  // resolver failure — the same values an unconfigured repo resolves to — so
+  // the default-boundary tests above cannot tell a working key name from a
+  // typo'd one that silently fails over. A configured budget far below the
+  // default can: 6 lines is under 150 but over 5.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-budget-policy-'));
+  try {
+    git(['init', '-q'], dir);
+    git(['config', 'user.email', 'test@example.com'], dir);
+    git(['config', 'user.name', 'Test'], dir);
+    fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'harness-health-always-loaded-budget: 5\n');
+    fs.writeFileSync(path.join(dir, 'CLAUDE.md'), 'line\n'.repeat(6));
+    git(['add', '.'], dir);
+    git(['commit', '-q', '-m', 'over a configured budget'], dir);
+    const sha = git(['rev-parse', 'HEAD'], dir);
+    const f = gatherFacts({ cwd: dir, base: sha });
+    assert.strictEqual(f.claudeMdOverBudget, true, 'a 6-line CLAUDE.md is over a configured 5-line budget only if the renamed key actually resolved');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('gatherFacts claudeMdOverBudget is false when CLAUDE.md is within budget and no rules exist', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-facts-budget-ok-'));
   try {

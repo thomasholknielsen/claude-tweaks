@@ -3,7 +3,7 @@ name: visualize
 description: Use for a themed diagram (architecture, flowchart, sequence, state, ER — see argument-hint) or a live diagram of this project's open queue. Standalone, or a soft-hook suggestion from /journeys, /specify, /review.
 argument-hint: "<architecture|flowchart|sequence|state|er|timeline|swimlane|quadrant|nested|tree|org-chart|layers|venn|pyramid|record-graph> [topic] [--source <caller>] [--ephemeral]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Visualize — Themed Diagram Generation
@@ -116,11 +116,10 @@ If `docs/REGISTRY.md` exists, Step 3 resolved to `docs/diagrams/{slug}.html` (th
 
 ## Next Actions
 
-After generating, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+After generating, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). This block only renders standalone (see the Component-Skill Contract below), so there is no calling flow to return to — the lines are the diagram itself and the next diagram:
 
-- Option 1 — `label`: `"Generate another diagram (Recommended if more signals matched)"`, `description`: `"/claude-tweaks:visualize <type> <topic> — generate another diagram"`
-- Option 2 — `label`: `"Continue the calling flow"`, `description`: `"Return to wherever this was invoked from (journey commit, spec summary, review findings)"`
-- Option 3 (only when persisted) — `label`: `"View the file"`, `description`: `"Open {path} to see the generated diagram"`
+**`/claude-tweaks:visualize <type> <topic>`** — generate another diagram, when more signals matched (recommended)
+`open {path}` — view the generated diagram (when persisted)
 
 ## Component-Skill Contract
 

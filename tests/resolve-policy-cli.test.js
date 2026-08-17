@@ -14,6 +14,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const { POLICY_KEYS } = require('../bin/lib/policy-schema');
+
 const CLI = path.join(__dirname, '..', 'bin', 'resolve-policy.js');
 const FIXTURES = path.join(__dirname, 'fixtures', 'resolve-policy');
 
@@ -80,7 +82,7 @@ test('AC 3: --run overlay wins for its keys; absent keys fall to policy, then de
   const out = runOk(['--run', runDir, 'dispatch-retry-ceiling', 'autonomy', 'tidy-aggressiveness'], tmp);
   assert.deepStrictEqual(out['dispatch-retry-ceiling'], { value: 7, source: 'run-config' });
   assert.deepStrictEqual(out.autonomy, { value: 'unattended', source: 'policy' });
-  assert.deepStrictEqual(out['tidy-aggressiveness'], { value: 'conservative', source: 'default' });
+  assert.deepStrictEqual(out['tidy-aggressiveness'], { value: 'moderate', source: 'default' });
 });
 
 test('AC 4: unknown key is a per-key error entry; siblings still resolve; exit 0', () => {
@@ -103,11 +105,11 @@ test('AC 5: alias-only fixture resolves dispatch-batch-size with renamed-from', 
 
 test('AC 6: integer and boolean keys arrive as native JSON types, never strings', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
-  const out = runOk(['dispatch-retry-ceiling', 'worktree.always'], tmp);
+  const out = runOk(['dispatch-retry-ceiling', 'worktree-always'], tmp);
   assert.strictEqual(typeof out['dispatch-retry-ceiling'].value, 'number');
   assert.strictEqual(out['dispatch-retry-ceiling'].value, 5);
-  assert.strictEqual(typeof out['worktree.always'].value, 'boolean');
-  assert.strictEqual(out['worktree.always'].value, true);
+  assert.strictEqual(typeof out['worktree-always'].value, 'boolean');
+  assert.strictEqual(out['worktree-always'].value, true);
 });
 
 test('AC 7: malformed value resolves to the schema default with invalid: true', () => {
@@ -173,10 +175,10 @@ test('--run pointing at a FILE (not a dir): exit 1, stderr message, no JSON', ()
 
 test('--values: one plain value per line in request order, native rendering', () => {
   const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
-  const res = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree.always', 'tidy-aggressiveness'], tmp);
+  const res = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree-always', 'tidy-aggressiveness'], tmp);
   assert.strictEqual(res.status, 0);
   assert.strictEqual(res.stderr, '');
-  assert.strictEqual(res.stdout, 'unattended\n5\ntrue\nconservative\n');
+  assert.strictEqual(res.stdout, 'unattended\n5\ntrue\nmoderate\n');
 });
 
 test('--values: unknown key and unset no-default key each print an empty line', () => {
@@ -221,4 +223,54 @@ test('existing --run dir WITHOUT config.yml: exit 0, no overlay', () => {
   const { tmp, runDir } = makeFixtureRepo({ policy: 'policy-basic.yml', runConfig: null });
   const out = runOk(['--run', runDir, 'autonomy'], tmp);
   assert.deepStrictEqual(out, { autonomy: { value: 'unattended', source: 'policy' } });
+});
+
+test('--all: emits every schema key, decorated with all seven metadata fields', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const out = runOk(['--all'], tmp);
+  const expectedKeys = POLICY_KEYS.map((row) => row.key).sort();
+  assert.deepStrictEqual(Object.keys(out).sort(), expectedKeys);
+  const validSources = ['run-config', 'policy', 'default'];
+  for (const row of POLICY_KEYS) {
+    const entry = out[row.key];
+    for (const field of ['value', 'source', 'summary', 'category', 'tier', 'type', 'default']) {
+      assert.ok(Object.prototype.hasOwnProperty.call(entry, field), `${row.key} missing field ${field}`);
+    }
+    const expectedDefault = row.default === undefined ? null : row.default;
+    assert.deepStrictEqual(entry.default, expectedDefault, `${row.key} default mismatch`);
+    assert.ok(validSources.includes(entry.source), `${row.key} has an invalid source: ${entry.source}`);
+  }
+  assert.strictEqual(out['model-profiles'].type, 'map');
+  assert.strictEqual(out['model-profiles'].default, null);
+});
+
+test('--all --values: mutually exclusive, exit non-zero, stderr message', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const res = runCli(['--all', '--values'], tmp);
+  assert.notStrictEqual(res.status, 0);
+  assert.match(res.stderr, /resolve-policy:/);
+});
+
+test('--all with a key argument: rejected, exit non-zero, stderr message', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const res = runCli(['--all', 'some-key'], tmp);
+  assert.notStrictEqual(res.status, 0);
+  assert.match(res.stderr, /resolve-policy:/);
+});
+
+test('--all --run <fixture-dir>: run-config overlay applies within the decorated output', () => {
+  const { tmp, runDir } = makeFixtureRepo({ policy: 'policy-basic.yml', runConfig: 'run-config-scope-creep.yml' });
+  const out = runOk(['--all', '--run', runDir], tmp);
+  assert.strictEqual(out['scope-creep'].value, 'drop');
+  assert.strictEqual(out['scope-creep'].source, 'run-config');
+});
+
+test('--all spot-check: scope-creep entry matches a plain single-key invocation in the same fixture state', () => {
+  const { tmp, runDir } = makeFixtureRepo({ policy: 'policy-basic.yml', runConfig: 'run-config-scope-creep.yml' });
+  const allOut = runOk(['--all', '--run', runDir], tmp);
+  const singleOut = runOk(['--run', runDir, 'scope-creep'], tmp);
+  assert.deepStrictEqual(
+    { value: allOut['scope-creep'].value, source: allOut['scope-creep'].source },
+    { value: singleOut['scope-creep'].value, source: singleOut['scope-creep'].source },
+  );
 });

@@ -5,7 +5,8 @@ function findLatestDecisionsLog(repoDir) {
   const pipelinesDir = path.join(repoDir, '.claude-tweaks', 'pipelines');
   if (!fs.existsSync(pipelinesDir)) return null;
   const dirs = fs.readdirSync(pipelinesDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
+    // 'archive' is wrap-up's closed-run parking lot (pipelines/archive/) — never the run under test.
+    .filter((e) => e.isDirectory() && e.name !== 'archive')
     .map((e) => e.name)
     .sort();
   if (dirs.length === 0) return null;

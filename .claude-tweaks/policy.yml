@@ -1,4 +1,4 @@
-worktree.always: true
+worktree-always: true
 execution-strategy: subagent-only
 auto-mode: default-on
 work-links: native

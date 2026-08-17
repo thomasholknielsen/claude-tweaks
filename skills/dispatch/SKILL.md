@@ -3,7 +3,7 @@ name: dispatch
 description: "Use to select and dispatch authorized GitHub records to /flow — the queue consumer between human gate and executor. Bare, next, or #N direct. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine."
 argument-hint: "[next|#N[,#M...]] [--batch-size <n>] [--priority high|medium|low]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Dispatch — the Queue Consumer
 
@@ -87,7 +87,7 @@ Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
-First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges the main checkout toward origin (`bin/lib/reconcile`, #407) so the queue pull below reads already-current state instead of racing a stale mirror. Dispatch runs from a worktree under `worktree.always`; the verb still converges the *main checkout's* mirror regardless (`mainCheckoutRoot` resolution), the same as `session-start.js`'s own in-process call. Log the JSON result to this firing's `decisions.md`. When the result's `console.ready` array is non-empty, follow `_shared/console-execution.md` for each entry before continuing to the queue pull — an answered console is real, actionable work this firing is well-positioned to pick up.
+First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges the main checkout toward origin (`bin/lib/reconcile`, #407) so the queue pull below reads already-current state instead of racing a stale mirror. Dispatch runs from a worktree under `worktree-always`; the verb still converges the *main checkout's* mirror regardless (`mainCheckoutRoot` resolution), the same as `session-start.js`'s own in-process call. Log the JSON result to this firing's `decisions.md`. When the result's `console.ready` array is non-empty, follow `_shared/console-execution.md` for each entry before continuing to the queue pull — an answered console is real, actionable work this firing is well-positioned to pick up.
 
 Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
@@ -151,12 +151,13 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 member and branch on its output; read `sibling-session-check.md` in this skill's directory and
 follow it.
 
-**Mint this group's run directory.** Derive `$RUN_ROOT` via `_shared/pipeline-run-dir.md`'s
-Anchoring section (`git rev-parse --git-common-dir`, then its parent directory). This group's
-**representative record** is its lowest-numbered member (the same rule
-`_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
-`$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` — mkdir only: no
-`config.yml`, no `decisions.md`, and no claim written here either. Call the result
+**Mint this group's run directory.** This group's **representative record** is its
+lowest-numbered member (the same rule `_shared/pr-early-run-lifecycle.md` already uses for a
+bundle's PR title). Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug
+"record-{representative}" --create` (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir
+only: no `config.yml`, no `decisions.md`, and no claim written here either). The directory's
+`{ISO-timestamp}` prefix is UTC, per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule
+(`date -u`) — `resolve-run-dir` mints it, this step never composes it by hand. Call the result
 `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
 `decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
 {$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
@@ -167,6 +168,12 @@ Nothing else happens in this step. Claiming, the `bot:in-progress` bootstrap, an
 comment all live in `/flow`'s Step 2.8 (`flow/claim-targets.md`), which the group's first Task
 call reaches under the identity this mint establishes — handing both Task calls the same
 directory to claim under is this step's whole purpose. Proceed to Step 5.
+
+This group's own file-overlap membership was already fixed by Step 2's `groupByFileOverlap` queue
+pull (`queue-pull-script.md`) — the same primitive `bin/preflight-records.js`'s `overlapGroups`
+field derives, for a caller needing that grouping outside dispatch's own queue-pull path (e.g.
+`/flow`'s own multi-spec pre-flight, `multi-spec.md`'s Validation step 3). This step re-derives
+nothing; it only mints a directory for the group Step 2 already computed.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
@@ -212,7 +219,18 @@ A headless (Routine-fired) firing's report has nobody live to read it — the du
 
 `pending-review` outcomes park the group's `/flow`-created run dir, not the branch — at `supervised`/`trusted`, an unanswered Review Console `AskUserQuestion` during a headless firing is not an error, it is the expected resting state until a human resumes that session or the branch directly, or the claim's TTL expires and a later firing supersedes it. (At `unattended`, `consoleAutoResolve` completes the console instead of resting on it — see `_shared/autonomy-ceiling.md` and `wrap-up/review-console.md`'s Auto-resolution short-circuit.) Under `integration-model: pr-first`, the branch itself never waited on parking to become public in the first place: `_shared/pr-early-run-lifecycle.md` opened its draft PR at run start, and every phase exit since has kept it current, so a parked run already has a live PR carrying its Verification Brief — the work outlives the container that built it with nothing further to push here.
 
-**Resuming a parked run.** "Resumes that session" above is not literal — the Task-tool subagent that hit the console has already exited by the time anyone reads this report, and there is no way to re-attach to it. The actual resume mechanism is re-adopting the same run directory: `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up`, run from inside the group's still-assigned worktree (`{run-dir}`'s own worktree — parking never clears a run's worktree assignment, so it is still there). This re-enters the same Review Console live, and its own teardown is what invokes `/superpowers:finishing-a-development-branch` and `wrap-up/cleanup-procedures.md` Section E (claim release, `auto:build`/`bot:in-progress` label removal) as one step — never hand-chain `/claude-tweaks:demo` (acceptance only, never merges — see its own Anti-Patterns table) with `/superpowers:finishing-a-development-branch` and then reconstruct Section E's claim/label bookkeeping by hand; that skips the console and its automated cleanup entirely, doing by hand what resuming the console already does as a unit. `{run-dir}` and `{target}` are the same values this run was invoked with — `{run-dir}` is this group's own minted directory (Step 4 above), the same value the claim's `runId` already carries, so re-adopting it is all resuming needs. Under `integration-model: pr-first`, the same PR `_shared/pr-early-run-lifecycle.md` opened at run start carries the same `### Resume` pointer.
+**Resuming a parked run.** "Resumes that session" above is not literal — the Task-tool subagent that hit the console has already exited by the time anyone reads this report, and there is no way to re-attach to it.
+
+**Confirm before resuming.** Before running the re-invocation below — including when a human triggers the resume conversationally (e.g. replying "merge!" in chat) rather than by typing the command directly — call `AskUserQuestion`:
+- `question`: `"Resume {target} toward merge? PR #{number} ({url}), CI: {status}, files changed: {count-or-list}. Declining leaves the run parked."`, `header`: `"Resume run"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Resume (Recommended)"`, `description`: `"Re-invoke the resume command below — re-enters the Review Console for final approval"`
+- Option 2 — `label`: `"Cancel"`, `description`: `"Leave the run parked; do nothing"`
+
+Source the confirmation's values live, never from a stale report: PR number/URL from the run's `run-state.json` `pr` field (or `gh pr list --repo {owner}/{repo} --head {branch}` when unset), CI status from `gh pr checks {number}` (or `gh pr view {number} --json statusCheckRollup`, summarized as `passing`/`failing`/`pending`), and files changed from `gh pr diff {number} --name-only` (a count, or the list when short — 5 files or fewer). When `gh` is absent, CI status and files-changed both read as `unavailable — gh absent`, and the PR reference falls back to the run's `run-state.json` `pr` field (number/URL only, no live `gh` call needed). This degrades rather than bridging to MCP because pull-request operations have no MCP fallback in the first place — `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, the same established reason `_shared/pr-early-run-lifecycle.md`'s degrade table gives for PR creation. If that field is also unset (a stale or malformed run), the PR reference instead reads `unknown — see {run-dir}`. Either way the confirmation still renders with whatever fields are available — it never blocks the resume on a missing `gh` binary. The CI status shown is also decided on, once, per `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) resume rule: green → resume proceeds; red → the confirmation says so and the run stays parked; pending → arm `--auto` only when the state read shows `mergeStateStatus: BLOCKED` (the forge is what holds it), else this same confirmation carries the choice — never the 15-minute watch. Under `integration-model: local-merge` (no PR — `_shared/integration-model.md`), substitute the branch name and worktree path for the PR reference, `git -C {worktree} diff --stat {integration-branch}...HEAD` for files changed, and CI status reads `not applicable — local-merge`. Declining (option 2) stops here — nothing below runs, and the run stays parked exactly as it was; this is the one path where "resuming" does not proceed toward the console at all.
+
+Before re-adopting, run `_shared/run-resume-freshness.md`'s probe against `{run-dir}`: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-resume-freshness --run "{run-dir}"`. A `BLOCKED` result means the parked run's worktree is still held by a live process or was committed to recently — report that line verbatim in place of the confirmation above and stop; do not re-adopt. The actual resume mechanism, on an `OK` result, is re-adopting the same run directory: `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" wrap-up`, run from inside the group's still-assigned worktree (`{run-dir}`'s own worktree — parking never clears a run's worktree assignment, so it is still there).
+
+This re-enters the same Review Console live, and its own teardown is what invokes `/superpowers:finishing-a-development-branch` and `wrap-up/cleanup-procedures.md` Section E (claim release, `auto:build`/`bot:in-progress` label removal) as one step — never hand-chain `/claude-tweaks:demo` (acceptance only, never merges — see its own Anti-Patterns table) with `/superpowers:finishing-a-development-branch` and then reconstruct Section E's claim/label bookkeeping by hand; that skips the console and its automated cleanup entirely, doing by hand what resuming the console already does as a unit. `{run-dir}` and `{target}` are the same values this run was invoked with — `{run-dir}` is this group's own minted directory (Step 4 above), the same value the claim's `runId` already carries, so re-adopting it is all resuming needs. Under `integration-model: pr-first`, the same PR `_shared/pr-early-run-lifecycle.md` opened at run start carries the same `### Resume` pointer.
 
 `PushNotification` fires only at the retry ceiling and for auto-merge FYIs (Step 6's Settle procedure and Auto-merge gate, both in `settle-and-merge.md`) — never per-firing just because a firing happened, to avoid notification fatigue.
 
@@ -223,8 +241,8 @@ These rows mirror `_shared/work-record-config.md`'s canonical key table (which e
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
-| `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
+| `auto-merge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
+| `auto-merge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-batch-size` | `3` | Maximum groups (bundles or singleton records) one firing processes sequentially, in the order Step 3's selection establishes; remaining groups stay unclaimed in the queue for a later firing to select. |
 | `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — the resolver applies its value and tags the envelope `"renamed-from"`; when present, surface one warn-tier notice per invocation (the resolver never writes stderr). Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 
@@ -242,12 +260,11 @@ These rows mirror `_shared/work-record-config.md`'s canonical key table (which e
 
 ## Next Actions
 
-Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. `/claude-tweaks:backlog refine`'s Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
+Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. `/claude-tweaks:backlog refine`'s Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise). When rendering, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Dispatch again (Recommended)"`, `description`: `"/claude-tweaks:dispatch — pick from what's left in the authorized queue"`
-- Option 2 — `label`: `"Set up the dispatch routine"`, `description`: `"/claude-tweaks:routine create dispatch — schedule 'dispatch next' as a recurring headless routine"`
-- Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — see the authorized-queue size and bot:blocked records"`
+**`/claude-tweaks:dispatch`** — pick from what's left in the authorized queue (recommended)
+`/claude-tweaks:routine create dispatch` — schedule 'dispatch next' as a recurring headless routine
+`/claude-tweaks:help` — see the authorized-queue size and bot:blocked records
 
 ## Component-Skill Contract
 

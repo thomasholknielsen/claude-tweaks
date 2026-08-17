@@ -6,7 +6,7 @@ References inside the blocks below to "this file" and to a `## Next Actions` sec
 
 **This file renders a record, never a decision.** In every mode — `auto`, `hybrid`, interactive, standalone — cleanup, configuration, queue-write, memory, and upstream proposals are decided at the Wrap-Up Review Console (`review-console.md` in this skill's directory), which runs on every wrap-up because Phase 1 guarantees a run directory. What this template renders is the **record of what the console decided**. Never present a batch table, an `AskUserQuestion`, or a per-item prompt here: a second decision point duplicates the console and breaks both the "one decision per message" convention and the bookend promise of at most two stops.
 
-**Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
+**Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multispec-summary.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
 
 ```
 ## Wrap-Up: {Record #{n} — {title}   |   {topic}}
@@ -131,15 +131,23 @@ never as a percentage.
 #### Routed to backlog
 
 Render in every mode whenever `ledgerRouteRemainder` (`unattended` only)
-auto-routed at least one item — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
-`AUTO … auto-routed to backlog as {ref} (blocker: {category}) — "{description}"`
+auto-routed at least one item, OR this run filed at least one record (N > 0), OR
+refused at least one proposal (M > 0). Table rows come only from route-remainder's own log lines — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
+`AUTO … auto-routed to backlog as {ref} (defer-reason: {value}) — "{description}"`
 log lines, one row per line:
 
-| Record | Description | Blocker |
+| Record | Description | Defer-reason |
 |---|---|---|
-| #{ref} | {one-line description} | {category} |
+| #{ref} | {one-line description} | {value} |
 
-Omit this section entirely when nothing was routed this way — this is
+Below the table (or alone when the table is omitted), render a trailing
+`{N} record(s) filed by this run` line whenever N > 0 (every record this run
+created — console approvals, auto-files, and route-remainder together), and a
+`{M} proposal(s) refused — no defer reason` line whenever M > 0 (from
+`REFUSED` entries in `decisions.md` — `wrap-up/refused-proposals.md`). A run
+that files six records reads as a signal.
+
+Omit this section entirely only when nothing was routed this way AND N = 0 AND M = 0 — this is
 `ledgerRouteRemainder`'s own report row, distinct from `ledgerNarrowing`'s
 routed items (which the Phase 3 Ledger gate row above already accounts for
 under its normal disposition reporting) and from Queue writes at the Review

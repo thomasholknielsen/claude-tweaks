@@ -56,6 +56,11 @@ function runResolutionWith(snippet, { cwd, runDirEnv, specSlug }) {
     cwd,
     env: {
       ...process.env,
+      // wrap-up/SKILL.md's snippet now shells out to
+      // `node bin/hooks.js resolve-run-dir` (#692) — CLAUDE_PLUGIN_ROOT must
+      // point at THIS repo (where bin/hooks.js lives), independent of `cwd`
+      // above (a temp fixture repo). Guarded so a real value is never clobbered.
+      CLAUDE_PLUGIN_ROOT: process.env.CLAUDE_PLUGIN_ROOT || ROOT,
       PIPELINE_RUN_DIR: runDirEnv || '',
       SPEC_SLUG: specSlug || 'no-match-xyz',
       MODE: '',

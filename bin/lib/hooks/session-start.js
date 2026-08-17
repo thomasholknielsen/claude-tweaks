@@ -131,8 +131,21 @@ function run(ctx) {
     if (released.length) summary.push(`${released.length} issue claim(s) released`);
     const archived = (result.runs || []).filter((r) => r.action === 'archived');
     if (archived.length) summary.push(`${archived.length} pipeline run(s) archived`);
+    const archivedBranches = (result.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete'));
+    if (archivedBranches.length) summary.push(`${archivedBranches.length} local branch(es) archived/deleted`);
+    const prunedRemote = (result.remoteBranches || []).filter((b) => b.action === 'delete');
+    if (prunedRemote.length) summary.push(`${prunedRemote.length} merged remote branch(es) deleted on origin`);
     if (summary.length) {
       parts.push(`claude-tweaks: reconciled — ${summary.join('; ')}.`);
+    }
+    // #561: an unconditional, inform-tier line when reconcile() detected a
+    // failing CI conclusion on the integration branch's tip — the only
+    // coverage for direct pushes (fast-lane commits, bookkeeping, releases)
+    // that no merge gate ever sees. Not gated on any policy value; silent
+    // when result.redTip is null (green, pending, no CI, gh absent, or any
+    // API error — red-tip.js's own degrade posture).
+    if (result.redTip) {
+      parts.push(`claude-tweaks: ${result.redTip.message}`);
     }
     // #413: a console whose "Resolve console" box is already ticked on the
     // PR is answered-but-unexecuted work — surface it the same way an
@@ -158,13 +171,19 @@ function run(ctx) {
     // previously forked git on every single SessionStart regardless.
     if (wtDetect.findPolicyFile(ctx.cwd)) {
       const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(ctx.cwd);
-      if (repoRoot && policy.isWorktreeAlwaysOn(repoRoot) && !isLinkedWorktree) {
+      if (repoRoot) {
+        const { on, matchedKey } = policy.resolveWorktreeAlways(repoRoot);
         parts.push(
-          'claude-tweaks: this project requires an isolated worktree for all work ' +
-            '(policy: worktree.always in .claude-tweaks/policy.yml). Before making any edits, ' +
-            'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
-            "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
+          `claude-tweaks: worktree-always: ${on ? 'ON' : 'OFF'} (${matchedKey ? `matched key: ${matchedKey}` : 'no key'})`,
         );
+        if (on && !isLinkedWorktree) {
+          parts.push(
+            'claude-tweaks: this project requires an isolated worktree for all work ' +
+              '(policy: worktree-always in .claude-tweaks/policy.yml). Before making any edits, ' +
+              'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
+              "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
+          );
+        }
       }
     }
   } catch { /* best-effort */ }

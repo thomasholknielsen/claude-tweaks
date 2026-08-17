@@ -73,13 +73,15 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
                             decomposition, on the parent once the last
                             sub-issue closes; record mode only)
      │
-  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per invocation: a specific #N, or this session's own unrecorded work via session-recall) ┈┈
+  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per ref: a specific #N, a #N,#M list one at a time, or this session's own unrecorded work via session-recall) ┈┈
+     │
+  ┈┈ /claude-tweaks:routine fleet status aggregates routine health + weekly counters, fleet off pauses (utility skill, no fixed position — run anytime) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
 > **⚙** = worktree mode only — **┊** = conditional step
 > `/claude-tweaks:init` runs once per project, before entering the pipeline.
-> Under `integration-model: pr-first` (GitHub-backed projects), a worktree run is born public: `build`'s first phase opens a draft PR immediately, every later phase pushes and flips its own PR checklist row, and `wrap-up`'s Review Console renders as PR checkboxes instead of a blocking chat prompt. A background reconciler converges local state (fast-forward, worktree reap, claim release, run-dir archive) at every shared-state read point, so no step depends on the session that started it still being alive. `local-merge` (no GitHub remote) keeps the diagram above unchanged.
+> Under `integration-model: pr-first` (GitHub-backed projects), a worktree run is born public: `build`'s first phase opens a draft PR immediately, every later phase pushes and flips its own PR checklist row, and `wrap-up`'s Review Console renders as PR checkboxes instead of a blocking chat prompt. A background reconciler converges local state (fast-forward, worktree reap, claim release, run-dir archive, branch archival) at every shared-state read point, so no step depends on the session that started it still being alive. `local-merge` (no GitHub remote) keeps the diagram above unchanged.
 
 ## Work Records
 
@@ -89,7 +91,7 @@ Every unit of work — a captured idea, a health-skill finding, or a human-filed
 BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/flow claims──► BUILDING ──user merges──► CLOSED
 ```
 
-- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, captures skip there too, once the `producer:capture` class has earned a `clean` trust verdict — see `skills/_shared/autonomy-ceiling.md`.
+- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, once the `producer:capture` class has earned a `clean` trust verdict, a capture reaches `ready` at filing time too — by chaining into `/claude-tweaks:specify --chained` shaping, which stamps `ready` under its own authority — see `skills/_shared/autonomy-ceiling.md`.
 - **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready sub-issues.
 - **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one. The `autonomy` ceiling defines one machine-origination exception at its `unattended` tier, gated behind a second, explicit opt-in (`grant-origination-enabled` in `policy.yml`, off by default): `/claude-tweaks:backlog grant`, the headless machine-grant mode, is the one path that reads both keys and acts on them, itself narrowed by a per-record gate chain (clean trust verdict, agent-filed origin, content-aware review, no floor trip).
 - **building** — an agent holds the claim. `/claude-tweaks:dispatch` selects an authorized record's whole file-overlap group and mints its run directory; `/claude-tweaks:flow` claims the group at its own Step 2.8, whether dispatched or run directly.
@@ -175,7 +177,7 @@ The harness **default is `fresh`**, which branches from `origin/<default-branch>
 
 ### Worktree sessions and `claude --resume`
 
-Because `worktree.always` forces nearly every session to enter a worktree on its first edit, this is worth knowing up front: entering a worktree mid-session (via `EnterWorktree`, or `Agent` with `isolation: "worktree"`) pivots that session's own storage into a project bucket keyed by the worktree's path, not the parent project's. `claude --resume` run from the parent project directory no longer lists it.
+Because `worktree-always` forces nearly every session to enter a worktree on its first edit, this is worth knowing up front: entering a worktree mid-session (via `EnterWorktree`, or `Agent` with `isolation: "worktree"`) pivots that session's own storage into a project bucket keyed by the worktree's path, not the parent project's. `claude --resume` run from the parent project directory no longer lists it.
 
 This is a known, accepted limitation in Claude Code itself — not something claude-tweaks controls or can work around. Anthropic has closed it as duplicate/not-planned: [#30906](https://github.com/anthropics/claude-code/issues/30906) ("Worktree cwd is not restored on session resume"), [#42596](https://github.com/anthropics/claude-code/issues/42596) ("Worktree sessions are transient and cannot be resumed"), [#48835](https://github.com/anthropics/claude-code/issues/48835) (silent `--resume` failure). Related open feature requests: #28019, #58591, #61366.
 

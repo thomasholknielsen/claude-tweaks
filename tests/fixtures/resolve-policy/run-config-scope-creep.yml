@@ -1,0 +1,6 @@
+# Frozen fixture — a run config.yml overlay for the --all test (record #533).
+# Bookkeeping keys mirror a real Manifesto-written file and must stay inert.
+created: 2026-08-11T00:00:00Z
+mode: auto
+specs: 533
+scope-creep: drop

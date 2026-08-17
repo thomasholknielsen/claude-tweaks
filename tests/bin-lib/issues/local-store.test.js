@@ -22,9 +22,9 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const dir = tmp(t);
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
-    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', solutionUnjustified: true, priority: null,
+    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', solutionUnjustified: true, needsDefinition: false, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: 12, isParentIssue: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
+    parent: 12, isParentIssue: false, notPlanned: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
 
   writeRecord(filePath, { title: 'Bar', body: 'Current State…', facets });
@@ -44,7 +44,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   writeRecord(filePath, {
     title: 'Min', body: 'b',
     facets: {
-      type: 'task', origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, priority: null,
+      type: 'task', origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
       parent: null, isParentIssue: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
@@ -71,6 +71,25 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.strictEqual(record.facets.closedAt, null);
   assert.strictEqual(record.facets.isParentIssue, false);
   assert.strictEqual(record.facets.solutionUnjustified, false);
+});
+
+// review finding (record #472, lens 3a): needsDefinition: true was silently
+// dropped on write/read — no test exercised the true case. Mirrors the
+// solutionUnjustified: true round-trip coverage above.
+test('writeRecord then readRecord round-trips needsDefinition: true', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '2-needs-def.md');
+  writeRecord(filePath, {
+    title: 'Needs def', body: 'b',
+    facets: {
+      type: 'task', origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: true, priority: null,
+      stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+      parent: null, isParentIssue: false, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
+    },
+  });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(/^needs-definition: true$/m.test(raw), 'must write needs-definition: true');
+  assert.strictEqual(readRecord(filePath).facets.needsDefinition, true);
 });
 
 // --- size facet (renamed from effort, record #217) ---
@@ -338,16 +357,18 @@ test('writeRecord writes ceremony:{tier}, readRecord reads it back, and a null c
   assert.strictEqual(readRecord(withoutCeremony).facets.ceremony, null);
 });
 
-// solution:unjustified (challenge framing-check, renamed from framing:baked) is
-// presence-only for the local-files driver too, same convention as unsynced/closed:
-// written only when true, and its absence on read is the false default from
-// facet-shape.js's sharedFacetDefaults(), never a distinct "open" value.
+// solution:unjustified (challenge framing-check) is presence-only for the local-files
+// driver too, same convention as unsynced/closed: written only when true, and
+// its absence on read is the false default from facet-shape.js's
+// sharedFacetDefaults(), never a distinct "open" value. Renamed from framing:
+// by record #677 — the legacy line stays readable forever ([IL-85]).
 test('writeRecord writes solution-unjustified: true, readRecord reads it back, and a false value writes no line', (t) => {
   const dir = tmp(t);
   const withFlag = path.join(dir, '1-a.md');
   writeRecord(withFlag, { title: 'A', body: 'b', facets: baseFacets({ solutionUnjustified: true }) });
   const rawWith = fs.readFileSync(withFlag, 'utf8');
   assert.ok(/^solution-unjustified: true$/m.test(rawWith));
+  assert.ok(!/^framing:/m.test(rawWith), 'emit side never writes the legacy framing: line');
   assert.strictEqual(readRecord(withFlag).facets.solutionUnjustified, true);
 
   const withoutFlag = path.join(dir, '2-b.md');
@@ -357,11 +378,48 @@ test('writeRecord writes solution-unjustified: true, readRecord reads it back, a
   assert.strictEqual(readRecord(withoutFlag).facets.solutionUnjustified, false);
 });
 
-test('writeRecord reads back a legacy framing: true line as facets.solutionUnjustified', (t) => {
+test('readRecord: legacy framing: true line reads as solutionUnjustified true (permanent read-side fallback)', (t) => {
   const dir = tmp(t);
-  const filePath = path.join(dir, '3-legacy.md');
-  fs.writeFileSync(filePath, '---\nframing: true\n---\n# Legacy\n\nbody\n');
-  assert.strictEqual(readRecord(filePath).facets.solutionUnjustified, true);
+  const legacy = path.join(dir, '3-legacy.md');
+  fs.writeFileSync(legacy, '---\ntype: task\nframing: true\n---\n# Legacy\n\nb\n');
+  assert.strictEqual(readRecord(legacy).facets.solutionUnjustified, true);
+  assert.ok(!('framing' in readRecord(legacy).facets), 'no framing key on the read record');
+
+  // Migrate-on-write: rewriting the record emits the new line and drops the legacy one.
+  const migrated = readRecord(legacy);
+  writeRecord(legacy, { title: migrated.title, body: migrated.body, facets: migrated.facets });
+  const rewritten = fs.readFileSync(legacy, 'utf8');
+  assert.ok(/^solution-unjustified: true$/m.test(rewritten));
+  assert.ok(!/^framing:/m.test(rewritten), 'rewrite must not carry the legacy framing: line forward');
+});
+
+test('readRecord: an explicit solution-unjustified: line wins over a legacy framing: line in either order', (t) => {
+  const dir = tmp(t);
+  const newFirst = path.join(dir, '4-new-first.md');
+  fs.writeFileSync(newFirst, '---\ntype: task\nsolution-unjustified: false\nframing: true\n---\n# A\n\nb\n');
+  assert.strictEqual(readRecord(newFirst).facets.solutionUnjustified, false);
+  const legacyFirst = path.join(dir, '5-legacy-first.md');
+  fs.writeFileSync(legacyFirst, '---\ntype: task\nframing: true\nsolution-unjustified: false\n---\n# B\n\nb\n');
+  assert.strictEqual(readRecord(legacyFirst).facets.solutionUnjustified, false);
+});
+
+// notPlanned mirrors solutionUnjustified's presence-only convention exactly — written only
+// when true, absent-on-read falls back to sharedFacetDefaults()' false. Added
+// alongside the wontfix-label parse in record.js (refs #513) so both drivers
+// carry the shared facet symmetrically.
+test('writeRecord writes not-planned: true, readRecord reads it back, and a false notPlanned writes no line', (t) => {
+  const dir = tmp(t);
+  const withNotPlanned = path.join(dir, '3-c.md');
+  writeRecord(withNotPlanned, { title: 'C', body: 'b', facets: baseFacets({ notPlanned: true }) });
+  const rawWith = fs.readFileSync(withNotPlanned, 'utf8');
+  assert.ok(/^not-planned: true$/m.test(rawWith));
+  assert.strictEqual(readRecord(withNotPlanned).facets.notPlanned, true);
+
+  const withoutNotPlanned = path.join(dir, '4-d.md');
+  writeRecord(withoutNotPlanned, { title: 'D', body: 'b', facets: baseFacets() });
+  const rawWithout = fs.readFileSync(withoutNotPlanned, 'utf8');
+  assert.ok(!/^not-planned:/m.test(rawWithout));
+  assert.strictEqual(readRecord(withoutNotPlanned).facets.notPlanned, false);
 });
 
 // --- malformed file (AC 5) ---

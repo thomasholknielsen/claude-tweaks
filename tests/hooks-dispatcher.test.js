@@ -23,7 +23,13 @@ function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
-  fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1'), { recursive: true });
+  const run = path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  // #721: an unadopted mint (neither run-state.json nor decisions.md) is
+  // invisible to resolveRun's fallback — touch decisions.md so this fixture's
+  // pre-record-worktree run dir stays reachable, matching a real flow-initialized
+  // run at this stage (config.yml/decisions.md exist, run-state.json doesn't yet).
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   return dir;
 }
 
@@ -58,6 +64,20 @@ test('record-worktree writes run-state, prints a confirmation line, and close-ru
   assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
   state = readRunState(run);
   assert.strictEqual(state.status, 'clean');
+});
+
+test('close-run on a run dir with no pre-existing run-state.json creates one and stamps it clean (#743 — refine standalone runs, which never call record-worktree)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const statePath = path.join(run, 'run-state.json');
+  // No record-worktree call, no prior writeRunState — mirrors a backlog refine
+  // standalone run dir today: decisions.md gets written, run-state.json never does.
+  assert.strictEqual(fs.existsSync(statePath), false,
+    'precondition: run dir must start with no run-state.json at all');
+  assert.strictEqual(runHook(['close-run', '--run', run], { cwd: project }).code, 0);
+  assert.strictEqual(fs.existsSync(statePath), true,
+    'close-run must create run-state.json when the run dir never had one — the premise refine-mode.md Step 5 now relies on');
+  assert.strictEqual(readRunState(run).status, 'clean');
 });
 
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
@@ -352,7 +372,7 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
   // the command shape enough to spawn bin/hooks.js. A commit issued as
   // `git -c user.name=x commit -m y` previously never even reached the
   // parser: no registered `if` pattern matched its literal text, so both
-  // the worktree.always deny and the E1 wrong-checkout deny silently never
+  // the worktree-always deny and the E1 wrong-checkout deny silently never
   // fired for this shape.
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
   const requiredPatterns = ['Bash(git -c *)', 'Bash(git --exec-path=*)', 'Bash(git --namespace=*)'];
@@ -365,10 +385,10 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
   }
 });
 
-test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in the main checkout', () => {
+test('e2e: pre-tool-use CLI denies an Edit when worktree-always policy is set in the main checkout', () => {
   const project = gitRepo();
   fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
     cwd: project,
@@ -380,9 +400,12 @@ test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in
 function policyRepoWithRun() {
   const project = gitRepo();
   fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
+  // #721: touch decisions.md so this run dir is adopted and reachable by
+  // resolveRun's fallback (see tmpProject() above for the full rationale).
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   return { project, run };
 }
 
@@ -405,7 +428,7 @@ test('a resolved deny appends a gate-denial event', () => {
 test('a deny with no resolved run dir writes nothing and still denies', () => {
   const project = gitRepo();
   fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
   // Deliberately no .claude-tweaks/pipelines/ run dir at all, so
   // ctxLib.resolveRun finds nothing and ownedRun.dir is null — the
   // documented, accepted gap: ad-hoc work with no run dir records nothing.
@@ -437,7 +460,7 @@ test('a gate denial with an unwritable run dir still denies and exits 0', () => 
   }
 });
 
-test('e2e: pre-tool-use CLI allows an Edit when worktree.always policy is not set', () => {
+test('e2e: pre-tool-use CLI allows an Edit when worktree-always policy is not set', () => {
   const project = gitRepo();
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
@@ -498,4 +521,33 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
     assert.match(result.stdout, /usage: record-pr/);
     assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
   }
+});
+
+test('check-resume-freshness: reports OK when the run is not interrupted', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active', sessionId: 'other' }));
+  const result = runHook(['check-resume-freshness', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'me' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /freshness OK for 2026-08-01T000000-record-1 \(not-interrupted\)/);
+});
+
+test('check-resume-freshness: reports BLOCKED with a reason when the run is interrupted and the recorded worktree has a fresh commit', () => {
+  const project = tmpProject();
+  const wt = gitRepo();
+  execFileSync('git', ['-C', wt, 'commit', '--allow-empty', '-m', 'recent', '-q']);
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-2');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'interrupted', sessionId: 'other', worktree: wt }));
+  const result = runHook(['check-resume-freshness', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'me' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /freshness BLOCKED for 2026-08-01T000000-record-2 — run appears actively owned \(worktree committed to within the last \d+ minutes\)/);
+});
+
+test('check-resume-freshness: no resolvable --run path reports the not-found line', () => {
+  const project = tmpProject();
+  const result = runHook(['check-resume-freshness', '--run', path.join(project, 'nope')], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path not found/);
 });

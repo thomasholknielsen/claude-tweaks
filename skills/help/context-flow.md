@@ -19,6 +19,9 @@ Codebase                     ──→ Findings cache               ──→ Wo
   /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /claude-tweaks:flow #{n}
                                   health-state branch              Low-confidence: backlog record          auto:merge)
                                   cursors/runs.json (durable)        via /capture instead
+      ▲
+      └────────────── /claude-tweaks:routine fleet status ──── read-only aggregation across this whole row: routine schedule/health,
+                                                               tracker labels/comments, weekly counters (firings, findings, grants, merges)
 ```
 
 ```
@@ -55,8 +58,8 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, CLAUDE.md (incl. `work-backend` under `## Work records`), `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | A backlog work record — GitHub issue (`by:capture` label, no stage label) or local `specs/{id}-{slug}.md` file, per `work-backend` | — |
 | `/superpowers:brainstorming` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/superpowers/specs/*-design.md` | — |
-| `/challenge` | `framing-check` mode: a work record reference, called inline by `/specify` (no separate fetch). Human-invoked `--lens=` mode: a topic or problem statement | `framing-check` mode: `solution:unjustified` label + `## Gotchas` note, applied by `/specify`. Human-invoked mode: a rendered debiasing critique (not persisted) | — |
-| `/specify` | Shaping mode: a work record reference (`/claude-tweaks:challenge`'s `framing-check` mode runs inline, no separate fetch). Decomposition mode: `*-design.md`, plus every open record (queried live — there is no separate index to read) | Shaping mode: shapes the record in place (`ready` + scoring, plus `solution:unjustified` and `## Gotchas` on a `solution-baked` outcome). Decomposition mode: a parent record plus `ready` sub-issue records — GitHub issues or local `specs/{id}-{slug}.md` files, per `work-backend` | `*-design.md` (decomposition mode, once every phase is fully decomposed) |
+| `/challenge` | `framing-check` mode: a work record reference, called inline by `/specify` (no separate fetch). Human-invoked `--lens=` mode: a topic or problem statement. Human-invoked bare `#N` mode: a `solution:unjustified` record reference | `framing-check` mode: `solution:unjustified` label + `## Gotchas` note, applied by `/specify`. `--lens=` mode: a rendered debiasing critique (not persisted). Bare `#N` mode: writes back to the record — evidence or acceptance bullets under `## Gotchas`, plus the label clear | — |
+| `/specify` | Shaping mode: a work record reference (`/claude-tweaks:challenge`'s `framing-check` mode runs inline, no separate fetch; a `needs:definition`-labeled record redirects to `/superpowers:brainstorming` instead of shaping). Decomposition mode: `*-design.md`, plus every open record (queried live — there is no separate index to read) | Shaping mode: shapes the record in place (`ready` + scoring, plus `solution:unjustified` and `## Gotchas` on a `solution-baked` verdict); a `needs:definition` redirect writes no label itself, just hands off to brainstorming. Decomposition mode: a parent record plus `ready` sub-issue records — GitHub issues or local `specs/{id}-{slug}.md` files, per `work-backend` | `*-design.md` (decomposition mode, once every phase is fully decomposed) |
 | `/assess-agent-autonomy` | A work record's already-fetched body/labels (`grant-check`/`merge-check`/`failure-check`/`ceremony-check` modes) — never a separate fetch | A verdict returned to the caller; never writes a label or file itself | — |
 | `/claude-tweaks:backlog refine` | Open work records carrying `ready` with no `auto:*` grant yet (the authorization worklist) | `auto:build`/`auto:merge` labels (human-granted only); strips `bot:blocked` on re-authorization; removes `ready` and comments when flagging an unshaped record back | — |
 | `/claude-tweaks:dispatch` | Open work records carrying `auto:build`, unclaimed and no `bot:*` label | `bot:in-progress` claim mirror + the atomic `claims/issue-{N}.json` blob on `claims-registry`; this firing's `decisions.md`; invokes `/claude-tweaks:flow #{n}[,#{m}...]` | Releases its own claim (`bot:in-progress`) on completion or failure; strips `auto:*` grants and adds `bot:blocked` at the retry ceiling |
@@ -73,6 +76,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/research` | Web sources (built-in `/deep-research` or `WebSearch`/`WebFetch`) | `.claude-tweaks/research/[YYYY-MM-DD]-[slug]/` (`report.md` + `sources.json`) | — |
 | `/visualize` | `DESIGN.md` tokens (when present) | `docs/journeys/{name}-{type}.html`, `docs/plans/{spec}-{type}.html`, or `docs/diagrams/{slug}.html` (context-free fallback) | — |
 | `/routine` | `skills/{skill}/routine-template.yml`, the existing instantiated record (if any), live state via `RemoteTrigger list`/`get` | `.claude-tweaks/routines/{routine_name}.yml` (the instantiated record); a live cloud Routine via `RemoteTrigger create`/`update` | — (this skill cannot delete; deletion is always via claude.ai/code/routines, never through this skill) |
+| `/routine fleet status` | `.claude-tweaks/routines/*.yml`, `RemoteTrigger get`, tracker labels/comments, trust reads | — | — |
 | `/stories` | Existing `stories/*.yaml`, `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
@@ -82,6 +86,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 | `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state), `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (installed version) — read-only status scan | — | — |
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
+| `/routine-kickoff` | Plugin cache listing, target SKILL.md (fallback path) | — (reconcile side effects belong to bin/lib/reconcile) | — |
 
 ## Open Items Ledger
 
@@ -95,7 +100,7 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `$RU
 
 | File | Written by | Read by |
 |---|---|---|
-| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance |
+| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique |
 | `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up`'s Phase 4 (Wrap-Up Review Console) |
 | `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up`'s Phase 4 |
 

@@ -128,14 +128,14 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   }
 
   // All floors clear. auto:merge eligibility is exactly permittedGrants'
-  // bornAuthorized for this class — no separate criteria (IL-32: reuse the one
+  // grants.bornAuthorized for this class — no separate criteria (IL-32: reuse the one
   // decision table rather than reimplementing the mapping). Every input this
   // call needs was already independently verified by gates 1-3 above, so this
   // call is confirmatory, not a new judgment.
   const permitted = permittedGrants({ ceiling, row, grantOriginationEnabled: pol.grantOriginationEnabled });
   return {
     grant: true,
-    autoMerge: permitted.bornAuthorized === true,
+    autoMerge: permitted.grants.bornAuthorized.granted === true,
     failedKey: null,
     reason: 'all floors clear',
     snapshot: {
