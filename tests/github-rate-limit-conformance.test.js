@@ -118,6 +118,12 @@ for (const [rel, retired] of Object.entries(RETIRED_CLAUSES)) {
   test(`${rel} no longer carries its retired standalone rate-limit clause`, () => {
     assert.ok(!read(rel).includes(retired), rel);
   });
+
+  test(`${rel} no longer carries its retired standalone rate-limit clause (whitespace-spanning control)`, () => {
+    const collapsed = collapseWhitespace(read(rel));
+    const collapsedRetired = collapseWhitespace(retired);
+    assert.ok(!collapsed.includes(collapsedRetired), rel);
+  });
 }
 
 // --- outcome wording survives verbatim (the sweep's target phrases from the
