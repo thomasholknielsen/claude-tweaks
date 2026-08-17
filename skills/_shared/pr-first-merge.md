@@ -39,14 +39,32 @@ First, run `_shared/pr-early-run-lifecycle.md`'s "Pre-merge title/description re
 an unconditional `AUTO` step, never a stop — so the title and phase checklist are current before
 the merge attempt below.
 
-The PR was opened as a draft at run start (`_shared/pr-early-run-lifecycle.md`). Undraft it —
-GitHub blocks merging (auto or immediate) on a draft PR by default, and this is the one
-procedure in the plugin that is allowed to clear that protection, since it only runs after both
-authorization and content-judgment layers already passed:
+The PR was opened as a draft at run start (`_shared/pr-early-run-lifecycle.md`), but a re-entry
+onto an already-undrafted PR (a retried merge attempt, or a second caller reaching this step for
+the same run) must not re-issue the undraft call blind. Read state first:
+
+```bash
+gh pr view {pr-number} --repo {owner}/{repo} --json isDraft -q .isDraft
+```
+
+`true` → undraft it. GitHub blocks merging (auto or immediate) on a draft PR by default, and this
+is the one procedure in the plugin that is allowed to clear that protection, since it only runs
+after both authorization and content-judgment layers already passed:
 
 ```bash
 gh pr ready {pr-number} --repo {owner}/{repo}
 ```
+
+Log `AUTO {HH:MM:SS} — Step 2 (mark ready): undrafted PR #{n} (was draft). Reversibility: high (gh pr ready {n} --undo).`
+
+`false` → skip the `gh pr ready` call and log the no-op instead:
+
+`AUTO {HH:MM:SS} — Step 2 (mark ready): PR #{n} already ready — skipped gh pr ready. Reversibility: n/a (no state change).`
+
+(Empirically, `gh pr ready` on an already-ready PR is itself a harmless no-op — exit 0, a `!
+Pull request … is already "ready for review"` warning on stderr, no error — so this guard is not
+error-avoidance. It exists to keep the decision log accurate: an unconditional call would log
+"undrafted" every re-entry even when nothing changed.)
 
 ## Step 2.5: Merge-verification gate
 
