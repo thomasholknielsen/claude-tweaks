@@ -1,7 +1,7 @@
 {
   "released": true,
   "runId": "2026-08-16T221740-spec-674-675",
-  "reason": "pr-opened: spec 674",
-  "releasedAt": "2026-08-17T06:01:28.157Z",
-  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/684"
+  "reason": "merged: spec 674",
+  "releasedAt": "2026-08-17T06:15:21.131Z",
+  "link": "644e122ef939dd295d2228501be7a61def8cb78a"
 }
