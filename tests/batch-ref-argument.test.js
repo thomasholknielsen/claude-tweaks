@@ -14,6 +14,11 @@ const { extractArgumentHint } = require('./argument-hint-input.test.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+// Whitespace-flattened for substring pins below: a later re-wrap of the skill
+// prose must not fail a pin whose meaning is intact, only its line breaks moved.
+// Never used for argument-hint extraction (extractArgumentHint needs real
+// newlines to find the frontmatter fence and the line-anchored hint field).
+const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
 test('specify argument-hint accepts a comma-separated record-ref list', () => {
   const hint = extractArgumentHint(read('skills/specify/SKILL.md'));
@@ -21,7 +26,7 @@ test('specify argument-hint accepts a comma-separated record-ref list', () => {
 });
 
 test('specify Input states the batch is shaping-mode-only, refs-only, and sequential', () => {
-  const src = read('skills/specify/SKILL.md');
+  const src = readFlat('skills/specify/SKILL.md');
   assert.ok(src.includes('runs shaping mode once per element, in list order, sequentially'), 'sequential-per-element rule missing from specify Input');
   assert.ok(src.includes('Batch applies to record references only'), 'refs-only rule missing from specify Input');
   assert.ok(src.includes('stop before touching any record and name the offending element(s)'), 'mixed-list hard-error rule missing from specify Input');
@@ -29,13 +34,13 @@ test('specify Input states the batch is shaping-mode-only, refs-only, and sequen
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-joined flow', () => {
-  const src = read('skills/specify/SKILL.md');
+  const src = readFlat('skills/specify/SKILL.md');
   assert.ok(src.includes('| Shaping mode — multiple records shaped in place'), 'multiple-records Next Actions row missing');
   assert.ok(src.includes('`/claude-tweaks:flow #{N1},#{N2},...` — sequential pipeline for every record shaped this run **(Recommended)**'), 'multiple-records row must recommend the comma-joined flow command');
 });
 
 test('shaping-mode Actions Performed documents the per-element outcome vocabulary', () => {
-  const src = read('skills/specify/shaping-mode.md');
+  const src = readFlat('skills/specify/shaping-mode.md');
   for (const token of ['`shaped`', '`already shaped, no-op`', '`skipped: {reason}`']) {
     assert.ok(src.includes(token), `outcome token ${token} missing from shaping-mode.md Actions Performed`);
   }
@@ -47,7 +52,7 @@ test('demo argument-hint accepts a comma-separated record-ref list', () => {
 });
 
 test('demo Input states per-item completion before the next ref and never-a-sweep', () => {
-  const src = read('skills/demo/SKILL.md');
+  const src = readFlat('skills/demo/SKILL.md');
   assert.ok(src.includes('Step 1 → Step 2 → Step 3 to completion before the next ref begins'), 'per-item completion rule missing from demo Input');
   assert.ok(src.includes("A batch is the human's own list — never a sweep"), 'never-a-sweep restatement missing from demo Input');
   assert.ok(src.includes('Per-item failure isolation: a ref that resolves to nothing'), 'per-item failure isolation missing from demo Input');
