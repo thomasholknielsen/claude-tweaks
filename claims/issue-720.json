@@ -1,7 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-17T044553-spec-720-721-722-723-724",
-  "reason": "merged: spec 720",
-  "releasedAt": "2026-08-17T08:59:44.407Z",
-  "link": "https://github.com/thomasholknielsen/claude-tweaks/commit/964293502211541a884d571e3bef9e74e8d6efc3"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:36:23.800Z"
 }
