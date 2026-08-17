@@ -92,6 +92,26 @@ async function reconcile(opts = {}) {
     return result;
   }
 
+  // Overall wall-clock ceiling for the rest of this pass (#820, D4) — bounds
+  // the SUM of every dispatched check's time, not any single check's own
+  // timeout. Created once here via require(...).createBudget() rather than a
+  // module-load-time destructure, so a test's
+  // `require('./budget').createBudget = fn` monkeypatch reaches this call
+  // site. Checked before each of the 8 dispatch blocks below, in dispatch
+  // order; each guard's slice is "every requested check from here on",
+  // so a budget exhausted mid-pass reports the whole remainder in one
+  // `skipped` entry and returns immediately rather than running a partial
+  // remainder.
+  const budget = require('./budget').createBudget();
+  const DISPATCH_ORDER = ['mirror', 'red-tip', 'console', 'release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
+  function overBudget(remainingFromHere) {
+    if (!budget.exceeded()) return false;
+    const notYetRun = remainingFromHere.filter((c) => checks.includes(c));
+    if (notYetRun.length) result.skipped.push({ check: notYetRun.join(','), reason: 'budget-exceeded' });
+    return true;
+  }
+
+  if (overBudget(DISPATCH_ORDER.slice(0))) return result;
   if (checks.includes('mirror')) {
     result.mirror = mirrorFastForward(root, integration);
   }
@@ -101,6 +121,7 @@ async function reconcile(opts = {}) {
   // no fetch of its own (#561). Placed immediately after mirror for that
   // reason; unconditional under pr-first, no local-merge equivalent (the
   // model !== 'pr-first' early-return above already exits before this line).
+  if (overBudget(DISPATCH_ORDER.slice(1))) return result;
   if (checks.includes('red-tip')) {
     result.redTip = redTipCheck(root, integration, {
       onSkip: (reason) => result.skipped.push({ check: 'red-tip', reason }),
@@ -111,6 +132,7 @@ async function reconcile(opts = {}) {
   // to release/archive/reap's own ordering constraints (below) is
   // unconstrained. Placed here, right after mirror, since it needs neither a
   // worktree-list join nor merged-PR evidence, unlike the three that follow.
+  if (overBudget(DISPATCH_ORDER.slice(2))) return result;
   if (checks.includes('console')) {
     result.console = consoleExecuteDetect({ cwd: root });
   }
@@ -127,6 +149,7 @@ async function reconcile(opts = {}) {
   // for). `reap` runs LAST among the five for this reason — the same class
   // of hazard `bin/lib/hooks/session-start.js` already documents for its
   // own stale-run-scan-before-reap ordering.
+  if (overBudget(DISPATCH_ORDER.slice(3))) return result;
   if (checks.includes('release')) {
     // Release performs one write kind (a conditional-overwrite of the claim
     // blob) with no meaningful "preview" — unlike ff/reap/archive, there is
@@ -145,6 +168,7 @@ async function reconcile(opts = {}) {
     }
   }
 
+  if (overBudget(DISPATCH_ORDER.slice(4))) return result;
   if (checks.includes('archive')) {
     const r = archiveMerged({ cwd: root, dryRun });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
@@ -154,6 +178,7 @@ async function reconcile(opts = {}) {
   // Same live-ref dependency as release/archive: derives branch state from
   // refs reap may remove. Runs after archive (run-dir archival may release
   // branch attachments), before reap (which stays last — see above).
+  if (overBudget(DISPATCH_ORDER.slice(5))) return result;
   if (checks.includes('archive-branches')) {
     const r = archiveBranches({ cwd: root, integration, dryRun });
     if (r.failure) {
@@ -167,6 +192,7 @@ async function reconcile(opts = {}) {
   // two-signal evidence bar). Same live-ref dependency as archive-branches:
   // the worktree-attachment guard must read worktrees reap has not yet
   // removed, so this too runs before reap (which stays last — see above).
+  if (overBudget(DISPATCH_ORDER.slice(6))) return result;
   if (checks.includes('remote-prune')) {
     const r = pruneRemote({ cwd: root, integration, dryRun });
     if (r.failure) {
@@ -176,6 +202,7 @@ async function reconcile(opts = {}) {
     }
   }
 
+  if (overBudget(DISPATCH_ORDER.slice(7))) return result;
   if (checks.includes('reap')) {
     const r = reapMerged({ cwd: root, dryRun });
     if (r.failure) {

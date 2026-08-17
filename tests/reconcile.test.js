@@ -571,3 +571,34 @@ test('reconcile(): a failing GitHub-health preflight skips every requested check
     preflight.ghHealthCheck = original;
   }
 });
+
+// --- wall-clock budget (#820): an exhausted budget skips the remainder ---
+
+test('reconcile(): an exhausted wall-clock budget skips every remaining check in one entry (D4)', async () => {
+  const { mainDir } = pairedFixture();
+  // Same forcing as the preflight test above: pairedFixture()'s origin is a
+  // bare local repo, not a real GitHub remote, so resolveIntegrationModel's
+  // detectIntegrationModel fallback resolves to local-merge and short-
+  // circuits before the budget is ever created. Force pr-first explicitly so
+  // this test actually reaches the budget guards.
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  // Must clear the preflight gate before the budget guard is even reached —
+  // stub it to succeed rather than depending on a real `gh` call reaching
+  // GitHub, which the test environment cannot guarantee.
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const budgetMod = require('../bin/lib/reconcile/budget');
+  const original = budgetMod.createBudget;
+  budgetMod.createBudget = () => ({ exceeded: () => true, remainingMs: () => 0 });
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'red-tip'] });
+    assert.deepEqual(r.skipped, [{ check: 'mirror,red-tip', reason: 'budget-exceeded' }]);
+  } finally {
+    budgetMod.createBudget = original;
+    preflight.ghHealthCheck = originalHealth;
+  }
+});
