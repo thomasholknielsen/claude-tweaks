@@ -88,6 +88,24 @@ exists to prevent. It flags only a genuinely new creation; a pre-anchoring run d
 sitting in a worktree (`wrap-up/cleanup-procedures-execution.md` Section C step 3.5's transitional guard,
 sunset 2026-11-07) is left alone.
 
+A third guard sits at the **CLI-argument boundary** — the one path neither of the two above
+covers, a run directory handed to a binary explicitly on the command line rather than inherited
+or created. `bin/hooks.js` (`resolveRunArg`, `--run`), `bin/wrap-up-engine.js` (`main`,
+`--run-dir`) and `bin/materialize.js` (`run`, `--run-dir`) each resolve
+`mainCheckoutRoot()`/`isAnchoredUnderRoot()` from `bin/lib/hooks/worktree-detect.js` and refuse an
+unanchored value **before any filesystem write**, with exit code 2 (malformed invocation) and a
+message naming both the offending path and the resolved main checkout. Keep the two failure modes
+distinct in that message — "resolves outside the main checkout" (a worktree-relative shadow)
+versus "could not determine the git repository root" (no repo at all); collapsing them sends a
+reader hunting for the wrong problem. The check is existence-independent (`isAnchoredUnderRoot`
+walks up to whichever ancestor directory exists), so it holds for a path about to be created as
+well as one that already exists, and the run-directory argument reaches it through the CLI's own
+`deps` seam where the binary has one — a guard added later that reads `process.cwd()` or
+`worktree-detect` directly re-opens the hole the seam exists to close. **A new `bin/*.js` that
+accepts a run-directory argument owes this same guard** (`[IL-127]`); `bin/resolve-profile.js` and
+`bin/resolve-policy.js` are the known unguarded holdouts, tracked in #853 against a documented
+legitimate unanchored use.
+
 `resolve-run-dir` above mirrors the snippet below; a citing skill step calls the command, not
 this snippet directly. Kept here as the canonical, executable reference implementation (and
 pinned verbatim by `tests/pipeline-run-dir-adoption-anchoring.test.js`) — a change to the
