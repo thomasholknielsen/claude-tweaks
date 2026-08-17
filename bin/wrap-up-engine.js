@@ -20,6 +20,8 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const wtDetect = require('./lib/hooks/worktree-detect');
+
 const { gatherFacts } = require('./lib/wrap-up/facts');
 const { buildWorklist } = require('./lib/wrap-up/engine-plan');
 const { initState, recordResult } = require('./lib/wrap-up/engine-record');
@@ -289,6 +291,21 @@ function runRender(args) {
 function main() {
   const verb = process.argv[2];
   const args = parseArgs(process.argv.slice(3));
+
+  // #790/[IL-127]: reject an unanchored --run-dir before any verb reads or
+  // creates anything there. Existence-independent — plan's own
+  // fs.mkdirSync(args.runDir) means the target often doesn't exist yet, and
+  // isAnchoredUnderRoot already walks up to whichever ancestor does.
+  if (args.runDir) {
+    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    if (!wtDetect.isAnchoredUnderRoot(path.resolve(args.runDir), mainRoot)) {
+      process.stderr.write(
+        `wrap-up-engine.js: --run-dir ${args.runDir} resolves outside the main checkout`
+        + `${mainRoot ? ` (${mainRoot})` : ''} — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`,
+      );
+      process.exit(2);
+    }
+  }
 
   if (verb === 'plan') { runPlan(args); return; }
   if (verb === 'record') { runRecord(args); return; }
