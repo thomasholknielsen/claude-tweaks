@@ -65,7 +65,7 @@ export function seedBranch(dir, { name, base = 'main', files = {}, message = 'se
 // Gives a fixture repo an `origin` remote. Needed by any scenario whose skill
 // branches on where the repo under test actually lives — the learning-routing
 // self-reference check (`git remote get-url origin`, see
-// skills/_shared/learning-routing.md) is the first such consumer: it collapses
+// plugin/skills/_shared/learning-routing.md) is the first such consumer: it collapses
 // a D5 upstream verdict to a local record when origin IS claude-tweaks.
 //
 // This is its own seed step rather than a patch because the two existing ones

@@ -2,7 +2,7 @@
 // plugin/bin/lib/issues/local-store.js's readRecord) and checks one facet's value.
 // Used for asserting /claude-tweaks:backlog refine's grant/withhold decisions, which
 // under work-backend: local-files are recorded as frontmatter but not acted
-// on by any headless consumer (see skills/_shared/work-record.md's
+// on by any headless consumer (see plugin/skills/_shared/work-record.md's
 // Permission matrix "Driver-conditional note") — so the only thing to check
 // is the record's own resulting facet state, not any downstream effect.
 import path from 'node:path';
