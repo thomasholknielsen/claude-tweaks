@@ -374,6 +374,37 @@ AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, gra
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
 ```
 
+**Closing summary (required, rendered as assistant text — never delegated to tool output; a
+shell print of the tally does not satisfy this):** after the apply pass above completes, render
+a closing block from the same per-write outcomes already logged to `decisions.md` above — no
+second bookkeeping channel:
+
+1. **Per-type tally line** — one count per write type applied this run, with `failed` always
+   present, even at zero:
+
+   ```
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 0 failed
+   ```
+
+2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
+   command on its own line (this repo's report-line convention: no inline/same-line comments):
+
+   ```
+   #123 — priority write failed: {error}
+   gh issue edit 123 --add-label priority:high
+   ```
+
+3. **The run-directory path, absolute** — never relative (a bare relative
+   `.claude-tweaks/pipelines/` path silently shadows the main-checkout copy when run from a
+   worktree):
+
+   ```
+   Audit trail: /abs/path/to/.claude-tweaks/pipelines/{run-id}/decisions.md
+   ```
+
+A fully clean run still renders `0 failed` explicitly and omits the per-failure lines — the
+tally line's `0 failed` is the only signal a clean run needs.
+
 ## Concurrency
 
 Two humans running `/claude-tweaks:backlog refine` at the same time is safe by construction — every label add is idempotent, so two overlapping grants on the same record just repeat the same write. The one sharp edge is a genuine race between a grant and a flag-back landing on the *same* record in the same window: last-writer-wins on GitHub's own label state. This is acceptable, not engineered around — it is a narrow, self-correcting window (the next `/claude-tweaks:backlog refine` run reads whatever state won and proceeds from there), not worth a lock.
