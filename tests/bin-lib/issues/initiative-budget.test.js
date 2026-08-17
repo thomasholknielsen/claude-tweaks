@@ -7,7 +7,7 @@ const {
   DEFAULT_BUDGET,
   permittedInitiative,
   isTestPath,
-} = require('../../../bin/lib/issues/initiative-budget.js');
+} = require('../../../plugin/bin/lib/issues/initiative-budget.js');
 
 // A valid fix, reused as the base for every negative case so each test varies exactly one
 // thing. Building the negatives by mutating a known-good input is what makes them

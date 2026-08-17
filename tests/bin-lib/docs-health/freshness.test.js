@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { parseFilesField, checkTrackedFreshness, gitLastChangedMap } = require('../../../bin/lib/docs-health/freshness');
+const { parseFilesField, checkTrackedFreshness, gitLastChangedMap } = require('../../../plugin/bin/lib/docs-health/freshness');
 
 function makeTmpGitRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-freshness-'));

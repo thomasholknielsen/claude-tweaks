@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'docs-health.js');
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'docs-health.js');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-durable-'));

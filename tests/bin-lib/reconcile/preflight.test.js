@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ghHealthCheck } = require('../../../bin/lib/reconcile/preflight');
+const { ghHealthCheck } = require('../../../plugin/bin/lib/reconcile/preflight');
 
 test('ghHealthCheck: healthy when the runner returns cleanly', () => {
   const r = ghHealthCheck({ runner: () => '5000\n' });

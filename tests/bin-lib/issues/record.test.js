@@ -5,7 +5,7 @@ const {
   recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
-} = require('../../../bin/lib/issues/record');
+} = require('../../../plugin/bin/lib/issues/record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
   const result = recordPayload({

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { findConflictingSession, matchesRecordRef, tokenize } = require('../bin/lib/hooks/sibling-sessions');
+const { findConflictingSession, matchesRecordRef, tokenize } = require('../plugin/bin/lib/hooks/sibling-sessions');
 
 // Frozen `git worktree list --porcelain` fixtures — never live command output,
 // per [IL-80]: the lock-reason format is git's own unversioned implementation

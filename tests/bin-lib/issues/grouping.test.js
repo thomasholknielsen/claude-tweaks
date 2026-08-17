@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../bin/lib/issues/grouping');
+const { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../plugin/bin/lib/issues/grouping');
 
 // ── groupByFileOverlap ──────────────────────────────────────────────────────
 
@@ -433,6 +433,55 @@ test('#146 and #150 real bodies land in ONE bundle of two, not two singletons', 
   ]);
   assert.strictEqual(groups.length, 1, 'must be one bundle of two, not two singletons');
   assert.deepStrictEqual(groups[0].sort(), [146, 150]);
+});
+
+// ── extractKeyFilesSection: direct export (#81) ───────────────────────────────
+
+test('extractKeyFilesSection is directly exported and reads a body without an issue wrapper', () => {
+  const body = '## Technical Approach\n\n### Key Files\n\n- `src/only.js` — the change\n';
+  assert.deepStrictEqual(extractKeyFilesSection(body), ['src/only.js']);
+});
+
+test('extractKeyFilesSection returns [] for a body with no Key Files subsection', () => {
+  assert.deepStrictEqual(extractKeyFilesSection('## Current State\n\nno key files here\n'), []);
+});
+
+// ── expectsKeyFilesSection (#661) ──────────────────────────────────────────────
+
+test('expectsKeyFilesSection is true for a plain /specify-shaped issue (no origin label)', () => {
+  assert.strictEqual(expectsKeyFilesSection({ labels: ['ready', 'risk:low'] }), true);
+});
+
+test('expectsKeyFilesSection is false for a by:code-health-origin issue', () => {
+  assert.strictEqual(expectsKeyFilesSection({ labels: ['by:code-health'] }), false);
+});
+
+test('expectsKeyFilesSection is false for a by:harness-health-origin issue', () => {
+  assert.strictEqual(expectsKeyFilesSection({ labels: ['by:harness-health'] }), false);
+});
+
+test('expectsKeyFilesSection is false for a by:journey-health-origin issue', () => {
+  assert.strictEqual(expectsKeyFilesSection({ labels: ['by:journey-health'] }), false);
+});
+
+test('expectsKeyFilesSection is false for a by:docs-health-origin issue', () => {
+  assert.strictEqual(expectsKeyFilesSection({ labels: ['by:docs-health'] }), false);
+});
+
+test('expectsKeyFilesSection is true for an issue with no labels at all', () => {
+  assert.strictEqual(expectsKeyFilesSection({}), true);
+});
+
+test('a ready record whose body omits ### Key Files: expectsKeyFilesSection true + extractKeyFiles empty is the warn-worthy case', () => {
+  const issue = { labels: ['ready'], body: '## Technical Approach\n\nno key files subsection\n' };
+  assert.strictEqual(expectsKeyFilesSection(issue), true);
+  assert.deepStrictEqual(extractKeyFiles(issue), []);
+});
+
+test('a code-health record with no extractable file: expectsKeyFilesSection false suppresses the would-be warning', () => {
+  const issue = { labels: ['by:code-health'], body: 'no anchor or files line here' };
+  assert.strictEqual(expectsKeyFilesSection(issue), false);
+  assert.deepStrictEqual(extractKeyFiles(issue), []);
 });
 
 // ── parseExplicitIssueList ───────────────────────────────────────────────────

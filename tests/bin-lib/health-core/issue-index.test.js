@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { loadIssueIndex } = require('../../../bin/lib/health-core/issue-index');
+const { loadIssueIndex } = require('../../../plugin/bin/lib/health-core/issue-index');
 
 // Regression: loadIssueIndex used to be duplicated near-verbatim in all
 // four health-suite CLI files (code-health.js, harness-health.js,

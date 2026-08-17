@@ -21,7 +21,7 @@ const EVALS_ROOT = path.resolve(SCRIPT_DIR, '..');
 const FIXTURES_DIR = path.join(EVALS_ROOT, 'fixtures');
 const OUTPUT_DIR = path.join(FIXTURES_DIR, 'init-baseline');
 
-// Matches skills/init/bootstrap/step-17-work-record-backend.md's AskUserQuestion verbatim
+// Matches plugin/skills/init/bootstrap/step-17-work-record-backend.md's AskUserQuestion verbatim
 // (the "gate fails / no GitHub remote" branch — always true here, since
 // freshRepo() never configures a remote). If /init's own question text
 // changes, this match string needs updating — Task 2's real run will

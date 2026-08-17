@@ -1,8 +1,8 @@
 ---
 files:
-  - skills/routine/status.md
-  - skills/routine/create-and-update.md
-  - skills/_shared/routine-template-schema.md
+  - plugin/skills/routine/status.md
+  - plugin/skills/routine/create-and-update.md
+  - plugin/skills/_shared/routine-template-schema.md
 ---
 
 # Respond to Kernel-Stale Drift
@@ -13,7 +13,7 @@ files:
 ## Steps
 
 1. **Invoke the fleet-wide status check** — Type `/claude-tweaks:routine status --all`.
-   - **Action:** STATUS resolves every instantiated record under `.claude-tweaks/routines/`, reads the schema's current `kernel_version` once via `grep -m1 '^kernel_version:' "${CLAUDE_PLUGIN_ROOT}/skills/_shared/routine-template-schema.md"` (Step 1), then for each record that resolves a live template compares that single value against the record's own `kernel_version` via `kernelFreshness` (`bin/lib/routine-template-parser.js`, Step 3).
+   - **Action:** STATUS resolves every instantiated record under `.claude-tweaks/routines/`, reads the schema's current `kernel_version` once via `grep -m1 '^kernel_version:' "${CLAUDE_PLUGIN_ROOT}/skills/_shared/routine-template-schema.md"` (Step 1), then for each record that resolves a live template compares that single value against the record's own `kernel_version` via `kernelFreshness` (`plugin/bin/lib/routine-template-parser.js`, Step 3).
    - **Check:** Every routine record written before this migration carries no `kernel_version` field, and `kernelFreshness` returns `'kernel-stale'` whenever `recordKernelVersion` is `null`/`undefined` (`tests/routine-record-freshness.test.js`'s "missing kernel_version is kernel-stale" case). Every such record's Verdict column reads **Drifted** — on the very first `status --all` run after the merge, this is the entire pre-existing fleet, not a handful of rows.
 
 2. **Read the kernel-stale detail** — Look at the Detail column of each Drifted row.
@@ -21,7 +21,7 @@ files:
    - **Check:** The Detail column carries the sentence from `status.md` Step 3: "kernel stale (recorded `kernel_version` N < current M — run `/claude-tweaks:routine update <skill>`)". A record with no `kernel_version` field at all reports kernel-stale by the same rule. If the same routine's `template_version` also lags, the template-field drift note appears in the same Detail cell alongside it, worded distinctly rather than merged into one message.
 
 3. **Recognize this as expected, not a regression** — Before running anything, confirm the mass-drift is the intended signal.
-   - **Action:** Per `skills/_shared/routine-template-schema.md`'s "Re-provisioning after a template change" section, a live routine holds a frozen prompt *copy* assembled at creation or last update; the kernel migration itself never reaches an already-running routine, so every pre-existing routine keeps firing its old, pre-migration prompt until it is explicitly updated.
+   - **Action:** Per `plugin/skills/_shared/routine-template-schema.md`'s "Re-provisioning after a template change" section, a live routine holds a frozen prompt *copy* assembled at creation or last update; the kernel migration itself never reaches an already-running routine, so every pre-existing routine keeps firing its old, pre-migration prompt until it is explicitly updated.
    - **Check:** No routine failed or stopped firing because of the migration merging — the fleet keeps running exactly as it did before. The Drifted verdict is a reporting change (STATUS now checks `kernel_version` in addition to `template_version`), not a live-behavior change.
 
 4. **Update one skill at a time** — For each skill named in a Drifted row, run `/claude-tweaks:routine update <skill>`.

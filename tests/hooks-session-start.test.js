@@ -6,8 +6,8 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const sessionStart = require('../bin/lib/hooks/session-start');
-const deps = require('../bin/lib/deps');
+const sessionStart = require('../plugin/bin/lib/hooks/session-start');
+const deps = require('../plugin/bin/lib/deps');
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-'));
@@ -217,15 +217,15 @@ test('#561: a redTip finding from reconcile() renders as its own additionalConte
   // top-level destructure re-runs against the now-patched export. Same
   // require.cache-busting convention tests/bin-lib/code-health/
   // focus-generators.test.js already uses for a require-order concern.
-  const reconcileMod = require('../bin/lib/reconcile');
+  const reconcileMod = require('../plugin/bin/lib/reconcile');
   const original = reconcileMod.reconcile;
   reconcileMod.reconcile = () => ({
     mirror: null, redTip: { branch: 'main', sha: '0123456789abcdef', failing: ['ci/tests'], message: 'CI is red on main tip at 0123456 — ci/tests' },
     worktrees: null, claims: null, runs: null, branches: null, console: null, skipped: [],
   });
-  delete require.cache[require.resolve('../bin/lib/hooks/session-start')];
+  delete require.cache[require.resolve('../plugin/bin/lib/hooks/session-start')];
   try {
-    const freshSessionStart = require('../bin/lib/hooks/session-start');
+    const freshSessionStart = require('../plugin/bin/lib/hooks/session-start');
     const out = await freshSessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     assert.ok(out.json, 'a redTip finding must render additionalContext');
     assert.match(out.json.hookSpecificOutput.additionalContext, /CI is red on main tip at 0123456 — ci\/tests/);
@@ -235,8 +235,8 @@ test('#561: a redTip finding from reconcile() renders as its own additionalConte
     // every later test in this file — including ones already holding the
     // original top-of-file `sessionStart` binding, which is unaffected
     // either way — sees the real reconcile() again if it re-requires fresh.
-    delete require.cache[require.resolve('../bin/lib/hooks/session-start')];
-    require('../bin/lib/hooks/session-start');
+    delete require.cache[require.resolve('../plugin/bin/lib/hooks/session-start')];
+    require('../plugin/bin/lib/hooks/session-start');
   }
 });
 
@@ -434,7 +434,7 @@ test('SessionStart spawn gate: fires against a real pr-first remote even though 
     // really does reach reconcile()'s own cache stamp (the contamination
     // source), so this case is not silently degrading to "no-remote skip".
     const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
-    const reconcileCache = require('../bin/lib/reconcile/cache');
+    const reconcileCache = require('../plugin/bin/lib/reconcile/cache');
     const stampedCache = reconcileCache.readCache(fs.realpathSync(mainDir));
     assert.strictEqual(typeof stampedCache.lastRunAt, 'number', 'the FAST_CHECKS pass must have completed and stamped reconcile-cache.json — otherwise this fixture is not reproducing the bug scenario');
     assert.ok(out.json, 'a pr-first repo with no stale-run/policy signal still renders the worktree-always verdict banner');
@@ -499,7 +499,7 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
   const cp = require('child_process');
   const originalSpawn = cp.spawn;
   cp.spawn = () => ({ unref() {}, on() {} });
-  const preflight = require('../bin/lib/reconcile/preflight');
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const originalHealth = preflight.ghHealthCheck;
   preflight.ghHealthCheck = () => ({ ok: true, reason: null });
   try {
@@ -547,7 +547,7 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
     }
 
     // Age the freshness stamp past the TTL: the same call must now do the work.
-    const cacheLib = require('../bin/lib/reconcile/cache');
+    const cacheLib = require('../plugin/bin/lib/reconcile/cache');
     const root = fs.realpathSync(mainDir);
     const aged = cacheLib.readCache(root);
     cacheLib.writeCache(root, { ...aged, lastRunAt: Date.now() - (cacheLib.DEFAULT_TTL_MS * 2) });
@@ -572,7 +572,7 @@ test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed —
   // IS destructured and does need it).
   const project = gitProject();
   withPolicy(project, 'worktree-always: true\n');
-  const policyMod = require('../bin/lib/policy');
+  const policyMod = require('../plugin/bin/lib/policy');
   const original = policyMod.resolveWorktreeAlways;
   policyMod.resolveWorktreeAlways = () => { throw new Error('simulated malformed policy state'); };
   try {

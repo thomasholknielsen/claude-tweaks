@@ -20,10 +20,10 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
-const SESSION_EVAL = read('skills', 'feedback', 'session-evaluation.md');
-const SKILL = read('skills', 'feedback', 'SKILL.md');
+const SESSION_EVAL = read('plugin', 'skills', 'feedback', 'session-evaluation.md');
+const SKILL = read('plugin', 'skills', 'feedback', 'SKILL.md');
 const GITIGNORE = read('.gitignore');
-const STEP04 = read('skills', 'init', 'bootstrap', 'step-04-gitignore-suggestions.md');
+const STEP04 = read('plugin', 'skills', 'init', 'bootstrap', 'step-04-gitignore-suggestions.md');
 const PLUGIN_STRUCTURE = read('docs', 'plugin-structure.md');
 
 // --- 1. session-evaluation.md: 5th prompt item, conditional watermark offset clause ---
@@ -135,7 +135,9 @@ test('.gitignore and step-04-gitignore-suggestions.md carry the byte-identical i
 // --- 5. docs/plugin-structure.md: bin/lib/feedback/ family line names both modules ---
 
 test('docs/plugin-structure.md: a bin/lib/feedback/ family line names both file-feedback.js and watermark.js', () => {
-  const match = PLUGIN_STRUCTURE.match(/^bin\/lib\/feedback\/\s+→.*$/m);
+  // The payload moved under `plugin/` (#418); the doc's tree spells the family
+  // line repo-root-relative, so the pin tracks the new spelling.
+  const match = PLUGIN_STRUCTURE.match(/^plugin\/bin\/lib\/feedback\/\s+→.*$/m);
   assert.ok(match, 'bin/lib/feedback/ family line must exist');
   assert.match(match[0], /file-feedback\.js/, 'family line must mention file-feedback.js');
   assert.match(match[0], /watermark\.js/, 'family line must mention watermark.js');

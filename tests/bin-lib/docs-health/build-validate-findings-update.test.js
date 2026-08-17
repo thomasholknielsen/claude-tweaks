@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { buildValidateFindingsUpdate } = require('../../../bin/lib/docs-health/cache');
+const { buildValidateFindingsUpdate } = require('../../../plugin/bin/lib/docs-health/cache');
 
 function baseCurrent(overrides = {}) {
   return { cursors: {}, remembered: {}, retryQueue: [], runs: [], ...overrides };

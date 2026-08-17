@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { fingerprint, normalizeDescription } = require('../../../bin/lib/harness-health/fingerprint');
+const { fingerprint, normalizeDescription } = require('../../../plugin/bin/lib/harness-health/fingerprint');
 
 test('fingerprint returns a harnesshealth-<8hex> id', () => {
   const id = fingerprint({ assetType: 'skill', target: 'auth', section: 'Key Patterns', description: 'stale example path' });

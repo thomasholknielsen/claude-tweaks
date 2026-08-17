@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const FILE = path.join(__dirname, '..', 'skills', 'specify', 'record-creation.md');
+const FILE = path.join(__dirname, '..', 'plugin', 'skills', 'specify', 'record-creation.md');
 const text = fs.readFileSync(FILE, 'utf8');
 
 test('native linking cites bin/link-records.js with its argument shape', () => {

@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError,
-} = require('../../../bin/lib/issues/claim-store');
+} = require('../../../plugin/bin/lib/issues/claim-store');
 
 // Fake ghApi functions mirror release-merged.js's own ghApi shape: a
 // non-throwing function returning {stdout, failure, status} — never the
@@ -214,7 +214,7 @@ test('writeClaimBlob: a ghApi that never sets status (release-merged.js\'s own) 
 });
 
 test('listClaimEntries: returns name + sha per entry from the same single Contents-API call listClaimNames already made', () => {
-  const { listClaimEntries } = require('../../../bin/lib/issues/claim-store');
+  const { listClaimEntries } = require('../../../plugin/bin/lib/issues/claim-store');
   let seenArgs = null;
   const ghApi = (args) => {
     seenArgs = args;
@@ -227,7 +227,7 @@ test('listClaimEntries: returns name + sha per entry from the same single Conten
 });
 
 test('listClaimNames: still works, now a thin wrapper over listClaimEntries', () => {
-  const { listClaimNames } = require('../../../bin/lib/issues/claim-store');
+  const { listClaimNames } = require('../../../plugin/bin/lib/issues/claim-store');
   const ghApi = () => ({ stdout: JSON.stringify([{ name: 'issue-7.json', sha: 'sha7' }]), failure: null, status: null });
   assert.deepEqual(listClaimNames(ghApi, 'acme/w'), { names: ['issue-7.json'], failure: null });
 });

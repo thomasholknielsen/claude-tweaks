@@ -1,24 +1,24 @@
 ---
 files:
-  - skills/specify/SKILL.md
-  - skills/specify/shaping-mode.md
+  - plugin/skills/specify/SKILL.md
+  - plugin/skills/specify/shaping-mode.md
 ---
 
 # Shape Several Records in One /specify Call
 
 **Persona:** A claude-tweaks maintainer who has just triaged the backlog and holds three capture stubs (`#701`, `#702`, `#703`) that all need promoting to `ready` before `/claude-tweaks:dispatch` will pick them up, and does not want to run `/claude-tweaks:specify` three times and answer the same prompts three times.
 **Goal:** Shape all three records into spec shape in one invocation — one command, at most one interactive decision, one summary table, one paste-ready follow-up command.
-**Entry point:** A Claude Code session at the project checkout, `work-backend: github-issues`, the record numbers in hand (typing `/claude-tweaks:specify` shows the grammar `<#N[,#M...]|record-id[,id...]|design-doc-path|topic|backlog-title> …` as the greyed argument hint, and `/claude-tweaks:help`'s reference card carries the same string).
+**Entry point:** A Claude Code session at the project checkout, `work-backend: github-issues`, the record numbers in hand (typing `/claude-tweaks:specify` shows the grammar `<#N[,#M...]|record-id[,id...]|design-doc-path|topic|backlog-title>|#A-#B …` as the greyed argument hint, and `/claude-tweaks:help`'s reference card carries the same string).
 **Success state:** Every record in the batch is `ready` with `risk:*`/`size:*`/`ceremony:*` stamped, its body carries `Surface:` + the five spec sections + `## Original request`, the Actions Performed table shows one row per record, and the terminal `## Next Actions` block leads with **`/claude-tweaks:flow #701,#702,#703`** — the maintainer never re-derived a command by hand.
 
 ## Steps
 
-### 1. Run the batch — one comma-joined token
-- **URL:** `/claude-tweaks:specify #701,#702,#703`
-- **Action:** Type the record references as one comma-joined, no-spaces token — the same `#A,#B` shape `/claude-tweaks:flow` already documents.
-- **Should feel:** Familiar — the grammar mirrors `/flow`, and the argument hint that appears while typing confirms the comma form is documented, not guessed.
-- **Should understand:** Every element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does); if any element cannot be resolved, all unresolvable elements are reported in one message before anything is shaped. A comma list is shaping-mode-only — decomposition (a design doc) and topic resolution stay single-input.
-- **Red flags:** The skill shapes only the first record and stops; the skill asks "did you mean a path or a topic?" for a comma list of `#N` references; a resolution failure on `#703` reported only after `#701` was already rewritten.
+### 1. Run the batch — one comma-joined token, or a range
+- **URL:** `/claude-tweaks:specify #701,#702,#703` — or, for a contiguous run, `/claude-tweaks:specify #701-#703`
+- **Action:** Type the record references as one comma-joined, no-spaces token — the same `#A,#B` shape `/claude-tweaks:flow` already documents — or, when the batch is a contiguous run of issue numbers, the inclusive range form (`#A-#B`/`#A–#B`, sigil required on both bounds), which expands to the equivalent comma list before anything else runs.
+- **Should feel:** Familiar — the grammar mirrors `/flow`, and the argument hint that appears while typing confirms both the comma and range forms are documented, not guessed.
+- **Should understand:** Every element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does); if any element cannot be resolved, all unresolvable elements are reported in one message before anything is shaped. A comma list is shaping-mode-only — decomposition (a design doc) and topic resolution stay single-input. The range form is capped at 25 elements (a hard input error names the element count above that) and requires `A ≤ B`; a range collapsing to one element (`A == B`) resolves as an ordinary single record reference, not through the batch path.
+- **Red flags:** The skill shapes only the first record and stops; the skill asks "did you mean a path or a topic?" for a comma list of `#N` references; a resolution failure on `#703` reported only after `#701` was already rewritten; a typo like `#123-456` (missing sigil on the second bound) silently expanding into a huge range instead of failing as a malformed reference.
 
 ### 2. Answer the one batched design-intent question (frontend records only)
 - **URL:** the same session, before any record is written
@@ -30,9 +30,9 @@ files:
 ### 3. Read one Actions Performed table, one row per record
 - **URL:** the same session, after the last write lands
 - **Action:** Scan the `### Actions Performed` table.
-- **Should feel:** Complete at a glance — every record has a row naming what was stamped (`risk:`/`size:`/`ceremony:`, Type where absent, `ready` added, `parked` removed if present).
-- **Should understand:** Each record was written by its own compose-then-write-once call; a failure shaping record *k* does not roll back records 1..k-1 — that record's row carries the failure and the rest still shape. Under `work-backend: local-files` there is one commit per record.
-- **Red flags:** A single collapsed row for the whole batch; a failed record silently missing from the table.
+- **Should feel:** Complete at a glance — every record has a row naming what was stamped (`risk:`/`size:`/`ceremony:`, Type where absent, `ready` added, `parked` removed if present), and every record was re-fetched and verified immediately after its own write — not just written and hoped for.
+- **Should understand:** Each record was written by its own compose-then-write-once call, then immediately read back (a fresh `gh issue view`/`readRecord` re-fetch, never trusting the write call's own response) to assert `ready` + labels are present, the five spec sections + `## Original request` are present, `parked` is absent, and no placeholder marker survived. A failure shaping record *k* — whether the write itself or its read-back — does not roll back records 1..k-1 — that record's row carries `failed` in the Detail cell and the rest still shape. Under `work-backend: local-files` there is one commit per record.
+- **Red flags:** A single collapsed row for the whole batch; a failed record silently missing from the table; a record whose write succeeded but whose labels or sections didn't actually land, with no row flagging it.
 
 ### 4. Take the paste-ready follow-up
 - **URL:** the `## Next Actions` block at the end of the same reply
@@ -54,3 +54,7 @@ files:
 - **Should feel:** Forgiving and explicit — a one-line notice that the flag is ignored on a comma list, and both records still shape with `## Next Actions` rendered.
 - **Should understand:** This is the flag's existing posture for every unsupported input shape (design doc, topic, decomposition, and now a comma-list batch): ignore with a notice rather than error. `/capture`'s single-record chain contract is unchanged.
 - **Red flags:** The whole invocation refused; the batch shaped headlessly with no `## Next Actions`.
+
+## Origin
+- Steps 1 and 3 updated for #705 (range-form input, mandatory read-back verification after each write)
+- Related specs: #705, #695/#702 (comma-list batch form and this journey's original steps)

@@ -7,8 +7,8 @@ const { execFileSync } = require('child_process');
 const {
   parseJourneyFiles, listJourneys, domainChurn, selectTarget, journeyFileExists,
   missingJourneyFiles, deletedFileSignature, currentDeletedFileSignature,
-} = require('../../../bin/lib/journey-health/scope');
-const { buildValidateFindingsUpdate } = require('../../../bin/lib/journey-health/cache');
+} = require('../../../plugin/bin/lib/journey-health/scope');
+const { buildValidateFindingsUpdate } = require('../../../plugin/bin/lib/journey-health/cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-scope-')); }
 

@@ -1,7 +1,7 @@
 name: capture-shaped-body-needs-definition
 description: >
   Runtime pin for #697 AC 2 (capture's Shaped-body branch,
-  skills/capture/SKILL.md "Judging Definition first — and it wins"): a
+  plugin/skills/capture/SKILL.md "Judging Definition first — and it wins"): a
   shaped idea body carrying ## Open Question in place of ## Acceptance
   Criteria, passed with --source reflect and NO --defer-reason=, must still
   file successfully with facets.needsDefinition = true and no scoring/ready —

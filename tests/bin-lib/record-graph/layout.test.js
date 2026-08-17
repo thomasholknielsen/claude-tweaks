@@ -1,7 +1,7 @@
 // bin/lib/record-graph/tests/layout.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { buildGraph } = require('../../../bin/lib/record-graph/layout');
+const { buildGraph } = require('../../../plugin/bin/lib/record-graph/layout');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
 test('buildGraph assembles columns, encoded map, and edges from the fetched records', () => {

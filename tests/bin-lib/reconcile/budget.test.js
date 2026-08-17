@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createBudget } = require('../../../bin/lib/reconcile/budget');
+const { createBudget } = require('../../../plugin/bin/lib/reconcile/budget');
 
 test('createBudget: not exceeded immediately after creation', () => {
   const b = createBudget(1000);

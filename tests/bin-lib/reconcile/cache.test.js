@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS } = require('../../../bin/lib/reconcile/cache');
+const { readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS } = require('../../../plugin/bin/lib/reconcile/cache');
 
 function tmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-cache-'));

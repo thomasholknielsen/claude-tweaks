@@ -1,8 +1,8 @@
 // bin/lib/residue/tests/render.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { renderOutstanding } = require('../../../bin/lib/residue/render');
-const { makeFinding } = require('../../../bin/lib/residue/finding');
+const { renderOutstanding } = require('../../../plugin/bin/lib/residue/render');
+const { makeFinding } = require('../../../plugin/bin/lib/residue/finding');
 
 const BRANCH = makeFinding({ kind: 'branch', scope: 'blast-radius', subject: 'origin/worktree-old', remedy: 'auto', evidence: 'merged, not deleted' });
 

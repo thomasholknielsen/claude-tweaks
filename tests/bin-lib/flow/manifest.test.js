@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const manifestModule = require('../../../bin/lib/flow/manifest');
+const manifestModule = require('../../../plugin/bin/lib/flow/manifest');
 const {
   parseManifestYaml, serializeManifestYaml, readManifest, writeManifest,
   formatElapsedMs, transitionSpec,

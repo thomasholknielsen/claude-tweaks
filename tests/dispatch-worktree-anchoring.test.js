@@ -33,10 +33,10 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
-const SKILL = read('skills', 'dispatch', 'SKILL.md');
-const SEQUENTIAL = read('skills', 'dispatch', 'sequential-execution.md');
-const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
-const SETTLE = read('skills', 'dispatch', 'settle-and-merge.md');
+const SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
+const SEQUENTIAL = read('plugin', 'skills', 'dispatch', 'sequential-execution.md');
+const TASK_PROMPT = read('plugin', 'skills', 'dispatch', 'task-prompt.md');
+const SETTLE = read('plugin', 'skills', 'dispatch', 'settle-and-merge.md');
 
 // Scope the sweep to Step 5 rather than the whole SKILL.md: the retired model is a
 // Step 5 claim, and a whole-file sweep would be at the mercy of unrelated prose

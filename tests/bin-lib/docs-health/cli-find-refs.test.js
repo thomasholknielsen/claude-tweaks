@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 
-const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'docs-health.js');
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'docs-health.js');
 
 function makeTmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-cli-find-refs-'));

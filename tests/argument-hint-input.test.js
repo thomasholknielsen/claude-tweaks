@@ -28,12 +28,12 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { splitFrontmatterFence } = require('../bin/lib/health-core/frontmatter-list');
-const { listSkillDirs } = require('../bin/lib/skill-audit/skill-catalog');
+const { splitFrontmatterFence } = require('../plugin/bin/lib/health-core/frontmatter-list');
+const { listSkillDirs } = require('../plugin/bin/lib/skill-audit/skill-catalog');
 
 const ROOT = path.join(__dirname, '..');
-const SKILLS_DIR = path.join(ROOT, 'skills');
-const SKILLS = listSkillDirs(ROOT);
+const SKILLS_DIR = path.join(ROOT, 'plugin', 'skills');
+const SKILLS = listSkillDirs(path.join(ROOT, 'plugin'));
 
 const read = (name) => fs.readFileSync(path.join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 

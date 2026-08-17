@@ -25,7 +25,7 @@ const ROOT = path.join(__dirname, '..');
 
 const FILES = {
   'skills/_shared/subagent-output-contract.md': fs.readFileSync(
-    path.join(ROOT, 'skills', '_shared', 'subagent-output-contract.md'),
+    path.join(ROOT, 'plugin', 'skills', '_shared', 'subagent-output-contract.md'),
     'utf8',
   ),
   'CLAUDE.md': fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8'),
@@ -75,9 +75,12 @@ for (const [name, text] of Object.entries(FILES)) {
     // call about whose output is convenient to parse.
     const region = exemptionRegion(text);
     assert.ok(region.length > 0, `${name} must carry a locatable third-party exemption passage`);
+    // Both spellings of the same directory are accepted: the payload cites it
+    // payload-relative (`agents/`), CLAUDE.md repo-root-relative since the #418
+    // cutover moved the payload under `plugin/` (`plugin/agents/`).
     assert.match(
       region,
-      /`agents\/`/,
+      /`(?:plugin\/)?agents\/`/,
       `${name}'s exemption must name its structural condition inside the exemption itself: the ` +
         "agent's definition lives outside the `agents/` directory this plugin owns. " +
         '"Any agent whose output is inconvenient" must not be a readable interpretation.',
@@ -149,7 +152,7 @@ test('the exempt dispatch names itself in both the contract and the call site (#
   );
 
   const reviewMode = fs.readFileSync(
-    path.join(ROOT, 'skills', 'design-wrapper', 'modes', 'review.md'),
+    path.join(ROOT, 'plugin', 'skills', 'design-wrapper', 'modes', 'review.md'),
     'utf8',
   );
   assert.match(

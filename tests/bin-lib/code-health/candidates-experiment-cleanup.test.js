@@ -34,7 +34,7 @@ const {
   scanExperimentCleanup,
   candidatesExperimentCleanup,
   DEFAULT_EXCLUDES,
-} = require('../../../bin/lib/code-health/candidates-experiment-cleanup');
+} = require('../../../plugin/bin/lib/code-health/candidates-experiment-cleanup');
 
 // ── compilePatterns (AC3) ────────────────────────────────────────────────
 
@@ -331,7 +331,7 @@ test('discoveryFailed: true propagates from listTrackedSourceFiles when patterns
 // ── FOCUS_GENERATORS registration ───────────────────────────────────────
 
 test('the experiment-cleanup vertical self-registers into FOCUS_GENERATORS', () => {
-  const { FOCUS_GENERATORS } = require('../../../bin/lib/code-health/focus-generators');
+  const { FOCUS_GENERATORS } = require('../../../plugin/bin/lib/code-health/focus-generators');
   assert.ok(Object.keys(FOCUS_GENERATORS).includes('experiment-cleanup'));
   assert.strictEqual(FOCUS_GENERATORS['experiment-cleanup'], scanExperimentCleanup);
 });

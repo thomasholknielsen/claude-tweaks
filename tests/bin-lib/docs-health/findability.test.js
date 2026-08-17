@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { computeInboundReferences } = require('../../../bin/lib/docs-health/findability');
+const { computeInboundReferences } = require('../../../plugin/bin/lib/docs-health/findability');
 
 function makeTmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-findability-'));

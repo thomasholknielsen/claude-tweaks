@@ -13,11 +13,11 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
 test('every Surface enumeration site lists terminal', () => {
   const sites = [
-    ['skills/specify/spec-template.md', 'Surface: {web | mobile | desktop | backend | infra | terminal}'],
-    ['skills/specify/SKILL.md', '--surface <web|mobile|desktop|backend|infra|terminal>'],
-    ['skills/flow/materialize.md', 'surface: {web|mobile|desktop|backend|infra|terminal}'],
-    ['skills/flow/materialize.md', 'Surface: {web | mobile | desktop | backend | infra | terminal}'],
-    ['skills/help/reference-card.md', '<web\\|mobile\\|desktop\\|backend\\|infra\\|terminal>'],
+    ['plugin/skills/specify/spec-template.md', 'Surface: {web | mobile | desktop | backend | infra | terminal}'],
+    ['plugin/skills/specify/SKILL.md', '--surface <web|mobile|desktop|backend|infra|terminal>'],
+    ['plugin/skills/flow/materialize.md', 'surface: {web|mobile|desktop|backend|infra|terminal}'],
+    ['plugin/skills/flow/materialize.md', 'Surface: {web | mobile | desktop | backend | infra | terminal}'],
+    ['plugin/skills/help/reference-card.md', '<web\\|mobile\\|desktop\\|backend\\|infra\\|terminal>'],
   ];
   for (const [file, literal] of sites) {
     assert.ok(read(file).includes(literal), `${file} is missing the terminal-inclusive enum literal: ${literal}`);
@@ -32,12 +32,12 @@ test('every Surface enumeration site lists terminal', () => {
       else if (e.name.endsWith('.md') && fiveValue.test(fs.readFileSync(p, 'utf8'))) offenders.push(path.relative(ROOT, p));
     }
   };
-  walk(path.join(ROOT, 'skills'));
+  walk(path.join(ROOT, 'plugin', 'skills'));
   assert.deepStrictEqual(offenders, [], `enum sites still carrying the five-value spelling: ${offenders.join(', ')}`);
 });
 
 test('terminal-ux.md exists, stays under its 8 KB inline budget, and carries the six sections', () => {
-  const p = path.join(ROOT, 'skills', '_shared', 'terminal-ux.md');
+  const p = path.join(ROOT, 'plugin', 'skills', '_shared', 'terminal-ux.md');
   assert.ok(fs.existsSync(p), 'skills/_shared/terminal-ux.md is missing');
   const bytes = fs.statSync(p).size;
   assert.ok(bytes < 8192, `terminal-ux.md is ${bytes} B -- it is inlined whole into dispatch prompts; 8192 is the gate`);
@@ -46,7 +46,7 @@ test('terminal-ux.md exists, stays under its 8 KB inline budget, and carries the
 });
 
 test('terminal-routing.md exists and names the honest-skip outcomes', () => {
-  const md = read('skills/design-wrapper/terminal-routing.md');
+  const md = read('plugin/skills/design-wrapper/terminal-routing.md');
   assert.match(md, /CLI detector is web-only/);
   assert.match(md, /upstream has no terminal track/);
   assert.match(md, /re-open this\ntable|re-open this table/, 'the revisit condition must be recorded');

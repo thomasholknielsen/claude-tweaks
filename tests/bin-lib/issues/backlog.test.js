@@ -11,8 +11,8 @@ const {
   deriveCreatedAtFromGit,
   funnelBuckets,
   readyGrantedSubset,
-} = require('../../../bin/lib/issues/backlog');
-const { parseRecordFacets } = require('../../../bin/lib/issues/record');
+} = require('../../../plugin/bin/lib/issues/backlog');
+const { parseRecordFacets } = require('../../../plugin/bin/lib/issues/record');
 
 function record(overrides) {
   return {

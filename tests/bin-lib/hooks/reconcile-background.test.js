@@ -64,9 +64,9 @@ test('reconcile-background: a second call within the freshness window is a no-op
 // fail loudly here instead of silently belonging to neither the fast nor
 // the background path (dropped entirely) or both (duplicated work).
 test('FAST_CHECKS (session-start.js) + BACKGROUND_CHECKS (bin/hooks.js) partition reconcile/index.js\'s ALL_CHECKS exactly', () => {
-  const { FAST_CHECKS } = require('../../../bin/lib/hooks/session-start');
-  const { BACKGROUND_CHECKS } = require('../../../bin/hooks');
-  const { ALL_CHECKS } = require('../../../bin/lib/reconcile');
+  const { FAST_CHECKS } = require('../../../plugin/bin/lib/hooks/session-start');
+  const { BACKGROUND_CHECKS } = require('../../../plugin/bin/hooks');
+  const { ALL_CHECKS } = require('../../../plugin/bin/lib/reconcile');
 
   assert.ok(Array.isArray(FAST_CHECKS) && FAST_CHECKS.length, 'FAST_CHECKS must be a non-empty array');
   assert.ok(Array.isArray(BACKGROUND_CHECKS) && BACKGROUND_CHECKS.length, 'BACKGROUND_CHECKS must be a non-empty array');

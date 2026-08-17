@@ -12,7 +12,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const STEP6 = read('skills', 'tidy', 'step-6-auto.md');
+const STEP6 = read('plugin', 'skills', 'tidy', 'step-6-auto.md');
 
 function section(text, startHeading, endHeading) {
   const start = text.indexOf(startHeading);
@@ -60,7 +60,7 @@ test('step-6-auto.md: Bucket mapping Clean row is per-scan count lines, not a co
 // clause cannot go stale silently.
 test('grouping rule\'s batchable-today claim matches the live argument-hints', () => {
   const hint = (skill) => {
-    const m = read('skills', skill, 'SKILL.md').match(/^argument-hint:\s*"([^"]*)"/m);
+    const m = read('plugin', 'skills', skill, 'SKILL.md').match(/^argument-hint:\s*"([^"]*)"/m);
     assert.ok(m, `no argument-hint in skills/${skill}/SKILL.md`);
     return m[1];
   };
@@ -117,7 +117,7 @@ test('step-6-auto.md: the Hard gate accepts the digest in place of the whole rep
 
 // --- Task 3: interactive mirror ---
 
-const INTERACTIVE = read('skills', 'tidy', 'step-6-interactive.md');
+const INTERACTIVE = read('plugin', 'skills', 'tidy', 'step-6-interactive.md');
 
 test('step-6-interactive.md: template mirrors the fenced shape and still cites step-6-auto.md\'s rules instead of restating', () => {
   assert.match(INTERACTIVE, /\*\*Applied automatically\*\*\n```text/);
@@ -132,7 +132,7 @@ test('step-6-interactive.md: template mirrors the fenced shape and still cites s
 
 // --- Task 4: SKILL.md Next Actions derives from Yours groups, under the ceiling ---
 
-const TIDY_SKILL = read('skills', 'tidy', 'SKILL.md');
+const TIDY_SKILL = read('plugin', 'skills', 'tidy', 'SKILL.md');
 
 test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays under the 40 KB ceiling', () => {
   const na = section(TIDY_SKILL, '## Next Actions', '## Component-Skill Contract');

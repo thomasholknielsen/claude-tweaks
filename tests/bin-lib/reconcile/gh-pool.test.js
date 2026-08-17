@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { runWithConcurrency, DEFAULT_CONCURRENCY } = require('../../../bin/lib/reconcile/gh-pool');
+const { runWithConcurrency, DEFAULT_CONCURRENCY } = require('../../../plugin/bin/lib/reconcile/gh-pool');
 
 test('runWithConcurrency: results preserve input order regardless of completion order', async () => {
   const delays = [30, 10, 20];

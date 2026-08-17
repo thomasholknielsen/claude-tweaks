@@ -18,7 +18,7 @@ const {
   freshnessNote,
   kernelFreshness,
   SIGNIFICANT_FIELDS,
-} = require('../bin/lib/routine-template-parser.js');
+} = require('../plugin/bin/lib/routine-template-parser.js');
 
 const RECORD_DIR = '.claude-tweaks/routines';
 

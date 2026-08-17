@@ -11,11 +11,11 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { POLICY_KEYS, RENAMED_KEYS } = require('../bin/lib/policy-schema');
+const { POLICY_KEYS, RENAMED_KEYS } = require('../plugin/bin/lib/policy-schema');
 
 const KEY_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-const MD_PATH = path.join(__dirname, '..', 'skills', '_shared', 'policy-schema.md');
+const MD_PATH = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema.md');
 
 test('every POLICY_KEYS key is flat kebab-case — no dots, no uppercase, no underscores', () => {
   const offenders = POLICY_KEYS.map((row) => row.key).filter((key) => !KEY_NAME.test(key));
@@ -38,7 +38,7 @@ test('policy-schema.md documents a "## Key naming" section and every POLICY_KEYS
 });
 
 test('policy-key-naming.md states the kebab-case rule the test enforces, so prose and pin cannot drift apart', () => {
-  const rule = fs.readFileSync(path.join(__dirname, '..', 'skills', '_shared', 'policy-key-naming.md'), 'utf8');
+  const rule = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-key-naming.md'), 'utf8');
   assert.ok(rule.includes(KEY_NAME.source), `policy-key-naming.md must state the exact regex ${KEY_NAME.source}`);
   assert.ok(rule.includes('No dots'), 'policy-key-naming.md must carry the "No dots" rule');
   assert.ok(rule.includes('`auto-mode`'), 'policy-key-naming.md must record the deliberate auto-mode keep verdict');

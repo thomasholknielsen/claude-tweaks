@@ -3,15 +3,15 @@ description: >
   Does /claude-tweaks:code-health run its JUDGE -> VERIFY GATE -> FINGERPRINT/DEDUP
   pipeline to completion and persist its local dedup cache even when gh/GitHub is
   unreachable (this fixture repo has no real remote at all), rather than erroring
-  out or silently leaving no trace? Per skills/code-health/SKILL.md Step 2, the
+  out or silently leaving no trace? Per plugin/skills/code-health/SKILL.md Step 2, the
   skill is documented to treat "gh unavailable" as a graceful degrade (ISSUES_FILE=""
   -> dedup against the local cache only) rather than a hard failure — this scenario
   exercises that path for real. Investigation (see .superpowers/sdd/task-7-report.md)
-  found no GitHub-issue-filing assertion is meaningful here: bin/code-health.js's
+  found no GitHub-issue-filing assertion is meaningful here: plugin/bin/code-health.js's
   validate-findings always calls writeCache(root, cache) unconditionally whenever
   --dry-run is not passed, regardless of whether gh is reachable or any finding
   actually reached "file" tier, and the durable health-state branch write
-  (bin/lib/health-core/durable-state.js) never throws even when the fixture has no
+  (plugin/bin/lib/health-core/durable-state.js) never throws even when the fixture has no
   "origin" remote at all — so the local cache file's existence is the one
   degrade-path artifact this fixture can reliably assert on. Dedup-across-runs
   (a second invocation reusing the same fixture instance) is NOT covered here:

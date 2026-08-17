@@ -23,12 +23,12 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
 const SOURCES = {
-  'code-health': fs.readFileSync(path.join(ROOT, 'skills/code-health/SKILL.md'), 'utf8')
-    + fs.readFileSync(path.join(ROOT, 'skills/code-health/filing.md'), 'utf8'),
-  'harness-health': fs.readFileSync(path.join(ROOT, 'skills/harness-health/SKILL.md'), 'utf8')
-    + fs.readFileSync(path.join(ROOT, 'skills/harness-health/filing.md'), 'utf8'),
-  'docs-health': fs.readFileSync(path.join(ROOT, 'skills/docs-health/SKILL.md'), 'utf8'),
-  'journey-health': fs.readFileSync(path.join(ROOT, 'skills/journey-health/SKILL.md'), 'utf8'),
+  'code-health': fs.readFileSync(path.join(ROOT, 'plugin/skills/code-health/SKILL.md'), 'utf8')
+    + fs.readFileSync(path.join(ROOT, 'plugin/skills/code-health/filing.md'), 'utf8'),
+  'harness-health': fs.readFileSync(path.join(ROOT, 'plugin/skills/harness-health/SKILL.md'), 'utf8')
+    + fs.readFileSync(path.join(ROOT, 'plugin/skills/harness-health/filing.md'), 'utf8'),
+  'docs-health': fs.readFileSync(path.join(ROOT, 'plugin/skills/docs-health/SKILL.md'), 'utf8'),
+  'journey-health': fs.readFileSync(path.join(ROOT, 'plugin/skills/journey-health/SKILL.md'), 'utf8'),
 };
 
 // Extracts a paragraph starting at `startMarker` up to (not including) the

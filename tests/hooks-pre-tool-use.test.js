@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const pre = require('../bin/lib/hooks/pre-tool-use');
+const pre = require('../plugin/bin/lib/hooks/pre-tool-use');
 
 function gitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-'));
@@ -262,7 +262,7 @@ test('worktree-required: denies a covered Edit outside a worktree under the pre-
 // `wtDetect.repoInfo` is looked up off the module object at call time, so
 // replacing the property here reaches the real gate without a production seam.
 test('worktree-required: an indeterminate repo status ALLOWS but says so out loud (#134)', () => {
-  const wtDetect = require('../bin/lib/hooks/worktree-detect');
+  const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
   const repo = gitRepoWithCommit();
   withPolicy(repo, 'worktree-always: true\n');
   const real = wtDetect.repoInfo;
@@ -294,7 +294,7 @@ test('worktree-required: a DEFINITIVE non-repo answer allows silently, with no w
   // repoRoot: null; only the indeterminate one warns. Without this, a blanket
   // "always warn on null" implementation would pass the assertion above while
   // spamming every non-git path in the project.
-  const wtDetect = require('../bin/lib/hooks/worktree-detect');
+  const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
   const repo = gitRepoWithCommit();
   withPolicy(repo, 'worktree-always: true\n');
   const real = wtDetect.repoInfo;

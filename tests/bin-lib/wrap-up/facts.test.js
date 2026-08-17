@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { gatherFacts } = require('../../../bin/lib/wrap-up/facts');
+const { gatherFacts } = require('../../../plugin/bin/lib/wrap-up/facts');
 
 let repoDir;
 let baseSha;

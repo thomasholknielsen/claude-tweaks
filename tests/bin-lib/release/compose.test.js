@@ -1,8 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { nextVersion, bumpManifest, stubChangelogEntry, RELEASE_FILES } = require('../../../bin/lib/release/compose.js');
-const { parseChangelogVersions, findHeadingDefects } = require('../../../bin/lib/changelog.js');
+const { nextVersion, bumpManifest, stubChangelogEntry, RELEASE_FILES } = require('../../../plugin/bin/lib/release/compose.js');
+const { parseChangelogVersions, findHeadingDefects } = require('../../../plugin/bin/lib/changelog.js');
 
 const CHANGELOG_FIXTURE = `# Changelog
 
@@ -51,5 +51,5 @@ test('stubChangelogEntry refuses duplicates and empty summaries', () => {
 });
 
 test('RELEASE_FILES names exactly the same-commit trio', () => {
-  assert.deepStrictEqual(RELEASE_FILES, ['.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv']);
+  assert.deepStrictEqual(RELEASE_FILES, ['plugin/.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv']);
 });

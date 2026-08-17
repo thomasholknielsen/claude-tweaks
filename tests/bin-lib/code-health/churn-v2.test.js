@@ -6,8 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { computeChurn } = require('../../../bin/lib/code-health/cache');
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'code-health.js');
+const { computeChurn } = require('../../../plugin/bin/lib/code-health/cache');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-churn-v2-')); }
 

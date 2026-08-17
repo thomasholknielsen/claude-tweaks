@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   decideRelease, releasedEntry, writeTombstone, releaseMerged,
-} = require('../../../bin/lib/reconcile/release-merged');
+} = require('../../../plugin/bin/lib/reconcile/release-merged');
 
 // AC1: open PR always wins over issue-closed evidence
 test('decideRelease: live claim + open PR + closed issue -> skip pr-open', () => {
@@ -72,15 +72,15 @@ test('writeTombstone adapter delegates to bin/lib/release-claim/release.js write
 });
 
 test('shouldSkipClaimRead: matching cached sha skips the read', () => {
-  const { shouldSkipClaimRead } = require('../../../bin/lib/reconcile/release-merged');
+  const { shouldSkipClaimRead } = require('../../../plugin/bin/lib/reconcile/release-merged');
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, 'abc'), true);
 });
 test('shouldSkipClaimRead: different sha does not skip', () => {
-  const { shouldSkipClaimRead } = require('../../../bin/lib/reconcile/release-merged');
+  const { shouldSkipClaimRead } = require('../../../plugin/bin/lib/reconcile/release-merged');
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, 'different'), false);
 });
 test('shouldSkipClaimRead: no cached entry (undefined) does not skip — first sighting always reads', () => {
-  const { shouldSkipClaimRead } = require('../../../bin/lib/reconcile/release-merged');
+  const { shouldSkipClaimRead } = require('../../../plugin/bin/lib/reconcile/release-merged');
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, undefined), false);
 });
 
@@ -129,7 +129,7 @@ test('releaseMerged: caches the blob sha actually classified, not the directory 
   const os = require('os');
   const path = require('path');
   const { execFileSync } = require('child_process');
-  const { readCache } = require('../../../bin/lib/reconcile/cache');
+  const { readCache } = require('../../../plugin/bin/lib/reconcile/cache');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-toctou-'));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });

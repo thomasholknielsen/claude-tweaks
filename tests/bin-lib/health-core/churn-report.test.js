@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { makeCmdChurnReport } = require('../../../bin/lib/health-core/churn-report');
+const { makeCmdChurnReport } = require('../../../plugin/bin/lib/health-core/churn-report');
 
 // Regression: cmdChurnReport used to be byte-identical across all four
 // health-suite CLI files (code-health.js, harness-health.js,

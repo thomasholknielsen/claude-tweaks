@@ -1,7 +1,7 @@
 // bin/lib/record-graph/tests/edges.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { computeEdges } = require('../../../bin/lib/record-graph/edges');
+const { computeEdges } = require('../../../plugin/bin/lib/record-graph/edges');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
 test('computeEdges under work-links: body-text parses Blocked-by lines into edges', () => {

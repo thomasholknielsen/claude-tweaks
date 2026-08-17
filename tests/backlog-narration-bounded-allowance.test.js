@@ -5,8 +5,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const OVERVIEW_PATH = path.join(__dirname, '..', 'skills', 'backlog', 'overview-mode.md');
-const REFINE_PATH = path.join(__dirname, '..', 'skills', 'backlog', 'refine-mode.md');
+const OVERVIEW_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'overview-mode.md');
+const REFINE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
 const overviewProse = fs.readFileSync(OVERVIEW_PATH, 'utf8');
 const refineProse = fs.readFileSync(REFINE_PATH, 'utf8');
 

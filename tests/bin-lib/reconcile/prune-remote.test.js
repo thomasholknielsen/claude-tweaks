@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { decideRemotePrune, pruneRemote } = require('../../../bin/lib/reconcile/prune-remote');
+const { decideRemotePrune, pruneRemote } = require('../../../plugin/bin/lib/reconcile/prune-remote');
 
 // The delete bar is deliberately stricter than archive-branches' local -D:
 // a pushed deletion is unrecoverable from this checkout once origin GCs the
@@ -292,11 +292,11 @@ test('pruneRemote: a failed batch push falls back to per-branch deletes, one bad
   assert.equal(result.entries.filter((e) => e.action === 'delete').length, 2, 'per-branch fallback still deletes both');
 });
 
-const { reconcile, ALL_CHECKS } = require('../../../bin/lib/reconcile');
+const { reconcile, ALL_CHECKS } = require('../../../plugin/bin/lib/reconcile');
 
 test("index: ALL_CHECKS includes 'remote-prune'; dispatch sits between 'archive-branches' and 'reap'; result gains remoteBranches slot", () => {
   assert.ok(ALL_CHECKS.includes('remote-prune'));
-  const src = fs.readFileSync(path.join(__dirname, '../../../bin/lib/reconcile/index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '../../../plugin/bin/lib/reconcile/index.js'), 'utf8');
   const iBranches = src.indexOf("checks.includes('archive-branches')");
   // Search from iBranches: the shared-fetch gate above the mirror dispatch
   // (#820 D2) also tests `checks.includes('remote-prune')` — as part of

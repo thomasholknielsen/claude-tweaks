@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   readClaimBlob, writeTombstone, isAlreadyReleasedError, releaseClaim, removeLabel,
-} = require('../../../bin/lib/release-claim/release');
+} = require('../../../plugin/bin/lib/release-claim/release');
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
 const OWN = '2026-08-16T100000-spec-999';

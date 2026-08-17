@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readCache, writeCache, cachePath } = require('../../../bin/lib/code-health/cache');
+const { readCache, writeCache, cachePath } = require('../../../plugin/bin/lib/code-health/cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-cache-')); }
 
@@ -54,7 +54,7 @@ test('readCache returns {} on corrupt JSON rather than throwing', () => {
 // trivial synthetic mutators (not this one); those tests cannot be
 // re-exercised for real without live GitHub credentials.
 
-const { readDurableState, writeDurableState } = require('../../../bin/lib/code-health/cache');
+const { readDurableState, writeDurableState } = require('../../../plugin/bin/lib/code-health/cache');
 
 test('readDurableState/writeDurableState are bound to the code-health skill name', () => {
   // cache.js's exports are already bound instances (createDurableState('code-health', ...)

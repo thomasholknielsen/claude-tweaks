@@ -1,9 +1,9 @@
 ---
 files:
-  - skills/routine/fleet.md
-  - skills/routine/SKILL.md
-  - skills/backlog/routine-template.yml
-  - bin/lib/policy-schema.js
+  - plugin/skills/routine/fleet.md
+  - plugin/skills/routine/SKILL.md
+  - plugin/skills/backlog/routine-template.yml
+  - plugin/bin/lib/policy-schema.js
 ---
 
 # Routine Fleet On

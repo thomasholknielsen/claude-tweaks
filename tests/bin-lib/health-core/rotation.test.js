@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { selectByStaleThenChurn } = require('../../../bin/lib/health-core/rotation');
+const { selectByStaleThenChurn } = require('../../../plugin/bin/lib/health-core/rotation');
 
 const STALE_DAYS = 30;
 const DAY_MS = 86400000;

@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const FRAGMENT = 'record-queue-fetch.md';
 
 // A "bare fetch" is a concrete gh issue list invocation for the whole open/all queue
@@ -98,7 +98,7 @@ test('the session-scoped snapshot section documents path, freshness, and invalid
 });
 
 test('record-snapshot-ttl-seconds is registered in the policy schema', () => {
-  const { POLICY_KEYS } = require('../bin/lib/policy-schema');
+  const { POLICY_KEYS } = require('../plugin/bin/lib/policy-schema');
   const entry = POLICY_KEYS.find((e) => e.key === 'record-snapshot-ttl-seconds');
   assert.ok(entry, 'record-snapshot-ttl-seconds must be registered in POLICY_KEYS');
   assert.strictEqual(entry.type, 'integer');

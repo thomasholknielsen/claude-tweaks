@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decide } = require('../../../bin/lib/harness-health/dedup');
+const { decide } = require('../../../plugin/bin/lib/harness-health/dedup');
 
 // ../dedup.js is nothing but `module.exports = require('../health-core/dedup')`
 // -- a byte-identical pass-through wrapper (see that file's own header
@@ -23,5 +23,5 @@ test('decide is the shared health-core implementation, not a local reimplementat
   // rather than silently drifting from the fully-tested shared
   // implementation while this file's own (now-removed) duplicate assertions
   // kept passing against the drifted copy.
-  assert.strictEqual(decide, require('../../../bin/lib/health-core/dedup').decide);
+  assert.strictEqual(decide, require('../../../plugin/bin/lib/health-core/dedup').decide);
 });

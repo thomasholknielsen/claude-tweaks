@@ -13,7 +13,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
-const HOOKS_JS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS_JS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function run(args, cwd, env) {
   try {

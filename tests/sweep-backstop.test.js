@@ -15,12 +15,12 @@ const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const SCAN = read('skills', '_shared', 'github-pr-scan.md');
-const STEP6 = read('skills', 'tidy', 'step-6-auto.md');
-const TIDY_SKILL = read('skills', 'tidy', 'SKILL.md');
-const ACTIONS_GH = read('skills', 'tidy', 'actions-github-issues.md');
-const POLICY_SCHEMA_MD = read('skills', '_shared', 'policy-schema.md');
-const { POLICY_KEYS } = require('../bin/lib/policy-schema');
+const SCAN = read('plugin', 'skills', '_shared', 'github-pr-scan.md');
+const STEP6 = read('plugin', 'skills', 'tidy', 'step-6-auto.md');
+const TIDY_SKILL = read('plugin', 'skills', 'tidy', 'SKILL.md');
+const ACTIONS_GH = read('plugin', 'skills', 'tidy', 'actions-github-issues.md');
+const POLICY_SCHEMA_MD = read('plugin', 'skills', '_shared', 'policy-schema.md');
+const { POLICY_KEYS } = require('../plugin/bin/lib/policy-schema');
 
 // --- Extract and syntax-check every `node -e "..."` script in the two new items ---
 
