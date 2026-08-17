@@ -69,7 +69,7 @@ On `solution-baked`, the RATIONALE must name the assumptions the caller is to wr
 
 ### Step 1: Resolve and gate
 
-Fetch the record per the Input section's resolution (labels included). If the labels carry neither `solution:unjustified` nor the pre-rename spelling `framing:baked`, report that the record has no unjustified-solution flag and stop — a general assumptions pass on an unflagged record is Lens 1's job, not this mode's.
+Fetch the record per the Input section's resolution (labels/facets included). If the record carries no unjustified-solution flag — no `solution:unjustified` label (nor the pre-rename spelling `framing:baked`) under `github-issues`, and no set `solutionUnjustified` facet under `local-files` — report that and stop — a general assumptions pass on an unflagged record is Lens 1's job, not this mode's.
 
 ### Step 2: Read the assumptions
 
@@ -88,7 +88,7 @@ Render one table — assumption | classification | citation — then call `AskUs
 - Option 2 — `label`: `"Accept the risk"`, `description`: `"Post an acceptance comment and remove the label — the assumptions stand unvalidated."`
 - Option 3 — `label`: `"Leave it"`, `description`: `"No writes; the label stays."`
 
-On **supply evidence**: append one bullet per assumption under `## Gotchas` — `- evidence ({YYYY-MM-DD}): {classification} — {citation, or "none found"}` — by composing the full updated body and writing it once (`gh issue edit {n} --body-file {tmp}` under `github-issues`; edit the record file under `local-files`). Then remove the label: `gh issue edit {n} --remove-label "solution:unjustified"`, adding `--remove-label "framing:baked"` when the pre-rename spelling is what the record carries — either spelling clears, the same promotion-time cleanup idiom as `skills/specify/shaping-mode.md`'s compose-then-write-once pass.
+On **supply evidence**: append one bullet per assumption under `## Gotchas` — `- evidence ({YYYY-MM-DD}): {classification} — {citation, or "none found"}` — by composing the full updated body and writing it once (`gh issue edit {n} --body-file {tmp}` under `github-issues`; edit the record file under `local-files`). Then remove the label: `gh issue edit {n} --remove-label "solution:unjustified"`, adding `--remove-label "framing:baked"` when the pre-rename spelling is what the record carries — either spelling clears, the same promotion-time cleanup idiom as `skills/specify/shaping-mode.md`'s compose-then-write-once pass. Under `local-files`, clearing means deleting the `solution-unjustified:` frontmatter line — and any pre-rename `framing:` line — from the record file `specs/{n}-*.md`, folded into the same record-file edit that appends the evidence bullets (one write, not two); see the emit/read shape in `bin/lib/issues/local-store.js` (`serializeFrontmatter`/`parseFrontmatterLines`).
 
 On **accept the risk**: post a comment naming each assumption accepted and stating the acceptance (`gh issue comment {n} --body-file {tmp}`), then the same label removal.
 
