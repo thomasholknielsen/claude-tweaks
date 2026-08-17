@@ -188,3 +188,19 @@ test('record-failure prints a JSON confirmation on success', () => {
   const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
   fs.rmSync(failurePath(sessionId), { force: true });
 });
+
+test('record-failure rejects a model name that is not a real family alias, and records nothing', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-invalid-model`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  assert.throws(
+    () => execFileSync('node', [CLI, 'record-failure', 'fable-5'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /"fable-5" is not a known model family alias/.test(String(e.stderr)),
+  );
+  // Prove nothing was written: a subsequent frontier resolution is unaffected.
+  const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(r.model, 'fable');
+  assert.strictEqual(r.source, 'default');
+  const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
+});

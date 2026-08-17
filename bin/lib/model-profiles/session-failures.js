@@ -50,12 +50,22 @@ function readFailedModels(sessionId) {
 // available: there is nowhere safe to write a shared file, and the CLI
 // layer (Task 3) is what decides whether that no-op should be reported to
 // the caller as a failure.
+//
+// Writes via a same-directory temp file + rename rather than a direct
+// writeFileSync: rename is atomic on POSIX, so a concurrent readFailedModels
+// call (a sibling Task dispatch's own read, per this repo's parallel
+// fan-out dispatch pattern) always sees either the old complete file or the
+// new complete file, never a torn/truncated one mid-write. This does not
+// fix the separate lost-update race between two concurrent writers — that
+// remains a known, accepted limitation.
 function recordFailure(sessionId, model) {
   const p = failurePath(sessionId);
   if (!p) return;
   const current = readFailedModels(sessionId);
   current.add(model);
-  fs.writeFileSync(p, JSON.stringify([...current]));
+  const tmp = `${p}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify([...current]));
+  fs.renameSync(tmp, p);
 }
 
 module.exports = { failurePath, readFailedModels, recordFailure };

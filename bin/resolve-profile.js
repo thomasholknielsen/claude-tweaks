@@ -20,7 +20,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { resolve } = require('./lib/model-profiles/profiles');
+const { resolve, PROFILES } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { readFailedModels, recordFailure } = require('./lib/model-profiles/session-failures');
 
@@ -49,6 +49,11 @@ function main(argv) {
   if (profile === 'record-failure') {
     const model = args.shift();
     if (!model) { fail('record-failure requires a model name'); return; }
+    const validModels = Object.values(PROFILES).map((p) => p.model);
+    if (!validModels.includes(model)) {
+      fail(`record-failure: "${model}" is not a known model family alias — valid options: ${validModels.join(', ')}`);
+      return;
+    }
     const sessionId = process.env.CLAUDE_CODE_SESSION_ID;
     if (!sessionId) { fail('record-failure requires CLAUDE_CODE_SESSION_ID to be set — nothing recorded'); return; }
     recordFailure(sessionId, model);
