@@ -25,13 +25,14 @@ When `--dry-run` was passed (see `SKILL.md`'s Phase 1 Flags subsection), run eve
 ## Auto-merge short-circuit
 
 When this run's spec has a materialized header (`record:` field present in
-`${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND the issue's **live** labels
-carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:` field is
-a snapshot for audit only), check the two-layer gate below — the single-record version of
-`skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
+`${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND EITHER the issue's **live**
+labels carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:`
+field is a snapshot for audit only) OR `manifesto-authorized-merge.md`'s applicability check
+passes (the `merge-authorization` lever, #715), check the two-layer gate below — the single-record
+version of `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved:
 
-1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
+1. **Authorization** — `auto:merge` is present on the live-fetched labels, OR `manifesto-authorized-merge.md`'s applicability check passed (true by construction once this branch is reached under either condition)
 2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically. The verdict must be `auto-merge` to proceed.
 
 **Both layers pass — acceptance labeling runs first, before the merge.** This branch bypasses
@@ -97,7 +98,7 @@ resolution it fixed). Still generate this console's full content (Auto-applied /
 Configuration updates sections, per "Present the console" below) and attach it to a
 `PushNotification` as a non-blocking FYI — nothing this console would have shown is discarded,
 only the wait for a live approval is skipped. Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}`
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE), pr-first-merge outcome {merged|armed|pending-review}. {Merge commit: {sha}. Reversibility: high (git revert). | Reversibility: n/a (nothing merged yet).}` — or, on the `manifesto-authorized-merge.md` path, its own tag and log line instead
 
 **`integration-model: local-merge`:** before merging, clear this run's worktree
 assignment as `flow/worktree-merge.md`'s reconciliation does
@@ -186,7 +187,7 @@ rendering the console normally, exactly as an `auto:build`-only record would,
 logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).` — or, on the `manifesto-authorized-merge.md` path, its own tag and log line instead
 
 **Release-reason mapping.** A `merged` outcome (either model) counts as Section E's `merged:`
 outcome (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane path never runs
