@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { iterRunDirsWithState } = require('../bin/lib/hooks/context');
+const { iterRunDirsWithState } = require('../plugin/bin/lib/hooks/context');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 function seedRun(root, name, state) {

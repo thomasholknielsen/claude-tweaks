@@ -23,10 +23,12 @@ const {
   measureDescriptions,
   overDescriptionCeiling,
   totalDescriptionChars,
-} = require('../../../bin/lib/skill-audit/context-cost.js');
-const { listSkillDirs, KNOWN_SKILLS } = require('../../../bin/lib/skill-audit/skill-catalog.js');
+} = require('../../../plugin/bin/lib/skill-audit/context-cost.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../../../plugin/bin/lib/skill-audit/skill-catalog.js');
 
-const REPO = path.join(__dirname, '..', '..', '..');
+// The corpus root these measurements take is the plugin payload root — the one
+// with `skills/` directly beneath it — which is `plugin/`, not the repo root.
+const REPO = path.join(__dirname, '..', '..', '..', 'plugin');
 const kb = (b) => (b / 1024).toFixed(1);
 
 // Builds a scratch {tmp}/skills/{name}/SKILL.md fixture so findDescriptionHashHazards

@@ -8,7 +8,7 @@ const {
   classifySections,
   checkConformance,
   PHILOSOPHY_EXCEPTION,
-} = require('../../../bin/lib/init/claude-md-conformance');
+} = require('../../../plugin/bin/lib/init/claude-md-conformance');
 
 const FIXTURE = [
   '# Phase 5: CLAUDE.md Template and Guidelines',
@@ -107,7 +107,7 @@ test('PHILOSOPHY_EXCEPTION names the present/absent-only section', () => {
 });
 
 const TEMPLATE = path.resolve(
-  __dirname, '..', '..', '..', 'skills', 'init', 'claude-md-template.md',
+  __dirname, '..', '..', '..', 'plugin', 'skills', 'init', 'claude-md-template.md',
 );
 
 test('every section in the live template is classified', () => {

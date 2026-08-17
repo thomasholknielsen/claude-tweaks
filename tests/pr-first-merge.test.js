@@ -11,13 +11,13 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const MERGE = read('skills', '_shared', 'pr-first-merge.md');
-const SETTLE = read('skills', 'dispatch', 'settle-and-merge.md');
-const CONSOLE = read('skills', 'wrap-up', 'review-console.md');
-const WORKTREE_MERGE = read('skills', 'flow', 'worktree-merge.md');
-const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
-const TWO_CALL_GATE = read('skills', 'dispatch', 'two-call-gate.md');
-const DISPATCH_SKILL = read('skills', 'dispatch', 'SKILL.md');
+const MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge.md');
+const SETTLE = read('plugin', 'skills', 'dispatch', 'settle-and-merge.md');
+const CONSOLE = read('plugin', 'skills', 'wrap-up', 'review-console.md');
+const WORKTREE_MERGE = read('plugin', 'skills', 'flow', 'worktree-merge.md');
+const TASK_PROMPT = read('plugin', 'skills', 'dispatch', 'task-prompt.md');
+const TWO_CALL_GATE = read('plugin', 'skills', 'dispatch', 'two-call-gate.md');
+const DISPATCH_SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
 
 // AC7: acceptance labeling before the merge step — asserted structurally,
 // not only by prose, since a reordering here silently drops acceptance
@@ -138,7 +138,7 @@ test('AC4: every remaining "ready-to-merge" mention across skills/ is local-merg
       }
     }
   }
-  walk(path.join(ROOT, 'skills'));
+  walk(path.join(ROOT, 'plugin', 'skills'));
   assert.deepStrictEqual(offenders, [], `files mentioning ready-to-merge without local-merge scoping: ${offenders.join(', ')}`);
 });
 
@@ -167,11 +167,11 @@ test('the three local-merge fallback sections route the post-merge release-statu
 });
 
 test('/flow closing reports carry the release-status line verbatim (#678)', () => {
-  const summary = read('skills', 'flow', 'summary-template.md');
+  const summary = read('plugin', 'skills', 'flow', 'summary-template.md');
   // The multi-spec closing template moved to multispec-summary.md in #724's
   // 20KB extraction — the release-status line travels with it.
-  const multi = read('skills', 'flow', 'multispec-summary.md');
-  const comments = read('skills', '_shared', 'pr-run-comments.md');
+  const multi = read('plugin', 'skills', 'flow', 'multispec-summary.md');
+  const comments = read('plugin', 'skills', '_shared', 'pr-run-comments.md');
   assert.match(summary, /\*\*Release status:\*\* \{/, 'single-spec summary renders the release-status line');
   assert.match(multi, /\*\*Release status:\*\* \{/, 'multi-spec summary template renders the release-status line');
   assert.match(summary, /not yet in a release — bump pending/, 'the human form is quoted verbatim');

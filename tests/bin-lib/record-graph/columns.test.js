@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { bucketByStage } = require('../../../bin/lib/record-graph/columns');
-const { COLUMN_ORDER } = require('../../../bin/lib/record-graph/palette');
+const { bucketByStage } = require('../../../plugin/bin/lib/record-graph/columns');
+const { COLUMN_ORDER } = require('../../../plugin/bin/lib/record-graph/palette');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
 test('bucketByStage partitions records into backlog/parked/ready by facets.stage', () => {

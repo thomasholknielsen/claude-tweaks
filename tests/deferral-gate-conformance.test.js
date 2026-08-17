@@ -8,14 +8,14 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { DEFER_REASONS } = require('../bin/lib/issues/record.js');
+const { DEFER_REASONS } = require('../plugin/bin/lib/issues/record.js');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
-const GATE = read('skills/_shared/deferral-gate.md');
-const LEDGER = read('skills/_shared/ledger-format.md');
-const AUTONOMY_SRC = read('bin/lib/issues/autonomy.js');
+const GATE = read('plugin/skills/_shared/deferral-gate.md');
+const LEDGER = read('plugin/skills/_shared/ledger-format.md');
+const AUTONOMY_SRC = read('plugin/bin/lib/issues/autonomy.js');
 
 const REMOVAL_CONDITION = 'Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.';
 
@@ -120,14 +120,14 @@ test('ledger-format.md keeps its Phase heading names intact (consumers grep them
 // --- #621: consumers cite the gate and stamp Defer-reason ---
 
 const CONSUMER_FILES = [
-  'skills/review/step3-routing.md',
-  'skills/reflect/full-mode.md',
-  'skills/reflect/hindsight-mode.md',
-  'skills/reflect/SKILL.md',
-  'skills/wrap-up/residue-sweep.md',
-  'skills/wrap-up/leftover-routing.md',
-  'skills/visual-review/browser-review.md',
-  'skills/capture/SKILL.md',
+  'plugin/skills/review/step3-routing.md',
+  'plugin/skills/reflect/full-mode.md',
+  'plugin/skills/reflect/hindsight-mode.md',
+  'plugin/skills/reflect/SKILL.md',
+  'plugin/skills/wrap-up/residue-sweep.md',
+  'plugin/skills/wrap-up/leftover-routing.md',
+  'plugin/skills/visual-review/browser-review.md',
+  'plugin/skills/capture/SKILL.md',
 ];
 
 for (const rel of CONSUMER_FILES) {
@@ -145,12 +145,12 @@ test('the retired defer wordings appear nowhere in the consumer files', () => {
 });
 
 test('reflect SKILL.md and leftover-routing.md carry Defer-reason in their staged-header blocks', () => {
-  assert.match(read('skills/reflect/SKILL.md'), /^Defer-reason: tangential$/m);
-  assert.ok(read('skills/wrap-up/leftover-routing.md').includes("'\\nDefer-reason: ' + process.argv[2]"));
+  assert.match(read('plugin/skills/reflect/SKILL.md'), /^Defer-reason: tangential$/m);
+  assert.ok(read('plugin/skills/wrap-up/leftover-routing.md').includes("'\\nDefer-reason: ' + process.argv[2]"));
 });
 
 test('no file outside deferral-gate.md restates the fix-now criteria', () => {
-  const skillsDir = path.join(REPO_ROOT, 'skills');
+  const skillsDir = path.join(REPO_ROOT, 'plugin', 'skills');
   const offenders = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -158,7 +158,7 @@ test('no file outside deferral-gate.md restates the fix-now criteria', () => {
       if (e.isDirectory()) walk(p);
       else if (e.name.endsWith('.md')) {
         const rel = path.relative(REPO_ROOT, p);
-        if (rel === path.join('skills', '_shared', 'deferral-gate.md')) continue;
+        if (rel === path.join('plugin', 'skills', '_shared', 'deferral-gate.md')) continue;
         const c = fs.readFileSync(p, 'utf8');
         if (c.includes('≤5 files') || c.includes('no spans across unrelated systems')) offenders.push(rel);
       }
@@ -172,14 +172,14 @@ test('no file outside deferral-gate.md restates the fix-now criteria', () => {
 
 test('both consoles and the narrowing auto-file cite refused-proposals.md', () => {
   for (const rel of [
-    'skills/wrap-up/review-console.md',
-    'skills/flow/multispec-review-console.md',
-    'skills/wrap-up/ledger-narrowing-auto-file.md',
+    'plugin/skills/wrap-up/review-console.md',
+    'plugin/skills/flow/multispec-review-console.md',
+    'plugin/skills/wrap-up/ledger-narrowing-auto-file.md',
   ]) assert.ok(read(rel).includes('refused-proposals.md'), rel);
 });
 
 test('refused-proposals.md stays within its 3 KB budget and never hardcodes the vocabulary', () => {
-  const content = read('skills/wrap-up/refused-proposals.md');
+  const content = read('plugin/skills/wrap-up/refused-proposals.md');
   assert.ok(Buffer.byteLength(content, 'utf8') <= 3072, `size ${Buffer.byteLength(content, 'utf8')}`);
   assert.ok(content.includes('DEFER_REASONS'));
   for (const v of ['needs-human-decision', 'pre-existing-outside-diff', 'genuinely-larger', 'blocked-external', 'blocked-dependency']) {
@@ -188,7 +188,7 @@ test('refused-proposals.md stays within its 3 KB budget and never hardcodes the 
 });
 
 test('the audit trail renders (defer-reason: {value}) — (blocker: {category}) is retired', () => {
-  assert.ok(read('skills/wrap-up/summary-template.md').includes('Defer-reason'));
+  assert.ok(read('plugin/skills/wrap-up/summary-template.md').includes('Defer-reason'));
   const offenders = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -199,18 +199,18 @@ test('the audit trail renders (defer-reason: {value}) — (blocker: {category}) 
       }
     }
   };
-  walk(path.join(REPO_ROOT, 'skills'));
+  walk(path.join(REPO_ROOT, 'plugin', 'skills'));
   assert.deepEqual(offenders, []);
 });
 
 test('auto-decision-log.md defines the REFUSED entry kind', () => {
-  assert.ok(read('skills/_shared/auto-decision-log.md').includes('REFUSED'));
+  assert.ok(read('plugin/skills/_shared/auto-decision-log.md').includes('REFUSED'));
 });
 
 // --- #623: born-shaped matrix rows + composer provenance ---
 
 test('work-record.md carries the born-shaped rows for /wrap-up, /reflect, /review', () => {
-  const wr = read('skills/_shared/work-record.md');
+  const wr = read('plugin/skills/_shared/work-record.md');
   for (const actor of ['/wrap-up', '/reflect', '/review']) {
     const row = wr.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
     assert.ok(row, `${actor} row`);
@@ -223,7 +223,7 @@ test('work-record.md carries the born-shaped rows for /wrap-up, /reflect, /revie
 });
 
 test('autonomy-ceiling.md notes queueWriteAutoFile proposals are born-shaped via specShapedBody', () => {
-  const ac = read('skills/_shared/autonomy-ceiling.md');
+  const ac = read('plugin/skills/_shared/autonomy-ceiling.md');
   const row = ac.split('\n').find((l) => l.startsWith('| `queueWriteAutoFile` |'));
   assert.ok(row && row.includes('specShapedBody'));
 });
@@ -231,11 +231,11 @@ test('autonomy-ceiling.md notes queueWriteAutoFile proposals are born-shaped via
 // --- #624: producers compose via specShapedBody, both landing states named ---
 
 const PRODUCER_FILES_624 = [
-  'skills/wrap-up/leftover-routing.md',
-  'skills/_shared/ledger-format.md',
-  'skills/reflect/SKILL.md',
-  'skills/wrap-up/residue-sweep.md',
-  'skills/review/step3-routing.md',
+  'plugin/skills/wrap-up/leftover-routing.md',
+  'plugin/skills/_shared/ledger-format.md',
+  'plugin/skills/reflect/SKILL.md',
+  'plugin/skills/wrap-up/residue-sweep.md',
+  'plugin/skills/review/step3-routing.md',
 ];
 
 for (const rel of PRODUCER_FILES_624) {
@@ -260,7 +260,7 @@ test('the retired stub-composition wordings appear nowhere under skills/', () =>
       }
     }
   };
-  walk(path.join(REPO_ROOT, 'skills'));
+  walk(path.join(REPO_ROOT, 'plugin', 'skills'));
   assert.deepEqual(offenders, []);
 });
 
@@ -268,7 +268,7 @@ test('the retired stub-composition wordings appear nowhere under skills/', () =>
 // compose the exact payloads the producer prose specifies and validate the
 // artifact against the staged-file contract and the spec-shaped structural check.
 test('a born-ready leftover payload composes with all contract elements and passes the structural check', () => {
-  const { specShapedBody: ssb, recordPayload: rp } = require('../bin/lib/issues/record.js');
+  const { specShapedBody: ssb, recordPayload: rp } = require('../plugin/bin/lib/issues/record.js');
   const body = ssb({
     header: '', currentState: 'The retry helper exists; cleanup path unfinished (src/retry.js).',
     deliverables: '- [ ] finish the cleanup path', acceptanceCriteria: 'node --test test/retry.test.js passes',
@@ -286,7 +286,7 @@ test('a born-ready leftover payload composes with all contract elements and pass
 });
 
 test('a needs-you leftover payload composes Open Question with no ready and no scoring', () => {
-  const { specShapedBody: ssb, recordPayload: rp } = require('../bin/lib/issues/record.js');
+  const { specShapedBody: ssb, recordPayload: rp } = require('../plugin/bin/lib/issues/record.js');
   const body = ssb({
     header: '', currentState: 'Two mutually exclusive designs are on the table.',
     deliverables: '- [ ] settle the choice', openQuestion: 'open choice: project-local skill vs docs subsection',
@@ -303,14 +303,14 @@ test('a needs-you leftover payload composes Open Question with no ready and no s
 // --- #625: capture's shaped-body branch ---
 
 test('capture/SKILL.md carries the Shaped-body branch, the flag, and still the character-budget cap', () => {
-  const c = read('skills/capture/SKILL.md');
+  const c = read('plugin/skills/capture/SKILL.md');
   assert.ok(c.includes('Shaped-body branch'));
   assert.ok(c.includes('--defer-reason='));
   assert.ok(c.includes('Hard cap: ~400 characters'));
 });
 
 test('both CLAUDE.md copies name the spec-shaped body in the no-implicit-deferrals bullet', () => {
-  for (const rel of ['skills/init/claude-md-template.md', 'CLAUDE.md']) {
+  for (const rel of ['plugin/skills/init/claude-md-template.md', 'CLAUDE.md']) {
     const bullet = read(rel).split('\n').find((l) => l.includes('**No implicit deferrals.**'));
     assert.ok(bullet, rel);
     assert.ok(bullet.includes('spec-shaped body'), rel);
@@ -330,14 +330,14 @@ test('no Capture pass-through still defers to a not-yet-landed #625 flag', () =>
       }
     }
   };
-  walk(path.join(REPO_ROOT, 'skills'));
+  walk(path.join(REPO_ROOT, 'plugin', 'skills'));
   assert.deepEqual(offenders, []);
 });
 
 // AC 1's label/body shape, verified by composition probe (a live filing would
 // pollute the real tracker — deviation stated in the PR body).
 test('a shaped-branch born-ready filing composes the exact labels and body AC 1 names', () => {
-  const { specShapedBody: ssb, recordPayload: rp } = require('../bin/lib/issues/record.js');
+  const { specShapedBody: ssb, recordPayload: rp } = require('../plugin/bin/lib/issues/record.js');
   const body = ssb({
     header: '', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a',
     filedBy: 'capture', provenance: { deferReason: 'tangential' },

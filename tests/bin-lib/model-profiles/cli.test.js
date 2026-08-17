@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'resolve-profile.js');
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'resolve-profile.js');
 
 function run(args, cwd) {
   return JSON.parse(execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' }));

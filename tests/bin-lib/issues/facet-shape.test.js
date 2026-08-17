@@ -1,9 +1,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { sharedFacetDefaults } = require('../../../bin/lib/issues/facet-shape');
-const { parseRecordFacets } = require('../../../bin/lib/issues/record');
-const { defaultFacets } = require('../../../bin/lib/issues/local-store');
+const { sharedFacetDefaults } = require('../../../plugin/bin/lib/issues/facet-shape');
+const { parseRecordFacets } = require('../../../plugin/bin/lib/issues/record');
+const { defaultFacets } = require('../../../plugin/bin/lib/issues/local-store');
 
 // Regression test for #26: parseRecordFacets and defaultFacets used to declare
 // the same shared-key defaults independently, with nothing catching drift if a

@@ -21,12 +21,12 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
 test('specify argument-hint accepts a comma-separated record-ref list', () => {
-  const hint = extractArgumentHint(read('skills/specify/SKILL.md'));
+  const hint = extractArgumentHint(read('plugin/skills/specify/SKILL.md'));
   assert.ok(hint.startsWith('<#N[,#M...]|record-id[,id...]|'), `specify hint must open with the batch grammar, got: ${hint}`);
 });
 
 test('specify Input states the batch is shaping-mode-only, refs-only, sequential, and stops on any unresolvable element', () => {
-  const src = readFlat('skills/specify/SKILL.md');
+  const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('a loop never a fan-out (no Task dispatch, one record at a time)'), 'sequential-per-element (loop, not fan-out) rule missing from specify Input');
   assert.ok(src.includes('decomposition and topic resolution stay single-input'), 'refs-only rule missing from specify Input');
   assert.ok(src.includes('a mixed list is a hard input error, rejected with a one-line message naming the offending element'), 'mixed-list hard-error rule missing from specify Input');
@@ -35,13 +35,13 @@ test('specify Input states the batch is shaping-mode-only, refs-only, sequential
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-joined flow', () => {
-  const src = readFlat('skills/specify/SKILL.md');
+  const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('| Shaping mode — multiple records shaped in place'), 'multiple-records Next Actions row missing');
   assert.ok(src.includes('`/claude-tweaks:flow #{N1},#{N2},...` — sequential pipeline for every record shaped this run **(Recommended)**'), 'multiple-records row must recommend the comma-joined flow command');
 });
 
 test('shaping-mode Actions Performed documents the per-element outcome vocabulary and rules out skipped rows', () => {
-  const src = readFlat('skills/specify/shaping-mode.md');
+  const src = readFlat('plugin/skills/specify/shaping-mode.md');
   for (const token of ['`shaped`', '`already shaped, no-op`']) {
     assert.ok(src.includes(token), `outcome token ${token} missing from shaping-mode.md Actions Performed`);
   }
@@ -52,12 +52,12 @@ test('shaping-mode Actions Performed documents the per-element outcome vocabular
 });
 
 test('demo argument-hint accepts a comma-separated record-ref list', () => {
-  const hint = extractArgumentHint(read('skills/demo/SKILL.md'));
+  const hint = extractArgumentHint(read('plugin/skills/demo/SKILL.md'));
   assert.strictEqual(hint, '[#N[,#M...]]');
 });
 
 test('demo Input states per-item completion before the next ref and never-a-sweep', () => {
-  const src = readFlat('skills/demo/SKILL.md');
+  const src = readFlat('plugin/skills/demo/SKILL.md');
   assert.ok(src.includes('Step 1 → Step 2 → Step 3 to completion before the next ref begins'), 'per-item completion rule missing from demo Input');
   assert.ok(src.includes("A batch is the human's own list — never a sweep"), 'never-a-sweep restatement missing from demo Input');
   assert.ok(src.includes('Per-item failure isolation: a ref that resolves to nothing'), 'per-item failure isolation missing from demo Input');

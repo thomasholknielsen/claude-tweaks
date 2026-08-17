@@ -4,9 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseRoutineTemplate } = require('../bin/lib/routine-template-parser.js');
+const { parseRoutineTemplate } = require('../plugin/bin/lib/routine-template-parser.js');
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const CRON_RE = /^\S+\s+\S+\s+\S+\s+\S+\s+\S+$/;
 const FORBIDDEN_KEYS = ['environment_id', 'repo_url', 'account', 'credentials', 'connector_uuid', 'url'];
 

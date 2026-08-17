@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { evaluateGrantGate } = require('../../../bin/lib/issues/grant-gate.js');
+const { evaluateGrantGate } = require('../../../plugin/bin/lib/issues/grant-gate.js');
 
 // Fixture: an agent-filed, clean-trust, low-risk record — every gate clear.
 // Individual tests mutate one dimension at a time (record labels/facets, policy,

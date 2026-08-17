@@ -1,7 +1,7 @@
 // bin/lib/wrap-up/tests/reflog.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseLine, classify, historyOps } = require('../../../bin/lib/wrap-up/reflog');
+const { parseLine, classify, historyOps } = require('../../../plugin/bin/lib/wrap-up/reflog');
 const { HEAD_REFLOG, REMOTE_REFLOG, TWELVE_COMMIT_REBASE } = require('./fixtures');
 
 test('parseLine splits a --date=iso reflog line into sha, ref, date and message', () => {

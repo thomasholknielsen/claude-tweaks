@@ -1,7 +1,7 @@
 // bin/lib/wrap-up/tests/state.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { readState } = require('../../../bin/lib/wrap-up/state');
+const { readState } = require('../../../plugin/bin/lib/wrap-up/state');
 
 // Build a stub git runner from a map of joined-args -> output. Returning null
 // models a failing git invocation, which is how the real runner reports one.

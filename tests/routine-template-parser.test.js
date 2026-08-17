@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { parseRoutineTemplate, listRoutineRecords } = require('../bin/lib/routine-template-parser.js');
+const { parseRoutineTemplate, listRoutineRecords } = require('../plugin/bin/lib/routine-template-parser.js');
 
 // Deliberate: several fixtures below use `prompt: >` as the folded-scalar key
 // under test. The parser is field-name-agnostic, so this is historical input —

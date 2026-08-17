@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { resolveScope } = require('../../../bin/lib/residue/scope');
+const { resolveScope } = require('../../../plugin/bin/lib/residue/scope');
 
 // Same stub shape as bin/lib/wrap-up/tests/state.test.js: a map of
 // joined-args -> output, with null modelling a failing git invocation.

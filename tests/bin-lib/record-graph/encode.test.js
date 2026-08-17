@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { encodeRecord } = require('../../../bin/lib/record-graph/encode');
-const { parseRecordFacets } = require('../../../bin/lib/issues/record');
+const { encodeRecord } = require('../../../plugin/bin/lib/record-graph/encode');
+const { parseRecordFacets } = require('../../../plugin/bin/lib/issues/record');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
 test('encodeRecord: backlog record with nothing set gets no badges, human fill, default border', () => {

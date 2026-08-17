@@ -7,7 +7,7 @@ const {
   verificationSurface,
   needsBackstop,
   parentGateState,
-} = require('../../../bin/lib/issues/acceptance.js');
+} = require('../../../plugin/bin/lib/issues/acceptance.js');
 
 test('dispositionState reads each acceptance label', () => {
   assert.equal(dispositionState(['demo:pending']), 'pending');

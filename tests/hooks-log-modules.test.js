@@ -6,8 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const post = require('../bin/lib/hooks/post-tool-use');
-const substop = require('../bin/lib/hooks/subagent-stop');
+const post = require('../plugin/bin/lib/hooks/post-tool-use');
+const substop = require('../plugin/bin/lib/hooks/subagent-stop');
 
 function gitRepoWithCommit() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e2-'));

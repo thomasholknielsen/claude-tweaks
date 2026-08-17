@@ -8,9 +8,9 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { filterResultsByScope } = require('../../../bin/lib/residue/scope-filter');
-const { renderOutstanding } = require('../../../bin/lib/residue/render');
-const { makeFinding } = require('../../../bin/lib/residue/finding');
+const { filterResultsByScope } = require('../../../plugin/bin/lib/residue/scope-filter');
+const { renderOutstanding } = require('../../../plugin/bin/lib/residue/render');
+const { makeFinding } = require('../../../plugin/bin/lib/residue/finding');
 
 const BLAST = makeFinding({
   kind: 'branch', scope: 'blast-radius', subject: 'origin/worktree-old', remedy: 'auto', evidence: 'merged, not deleted',

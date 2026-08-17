@@ -17,7 +17,7 @@ const FORBIDDEN = ['fs', 'node:fs', 'child_process', 'node:child_process', './du
 
 for (const mod of PURE_MODULES) {
   test(`${mod} imports nothing stateful`, () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'bin', 'lib', 'health-core', mod), 'utf8');
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'health-core', mod), 'utf8');
     const imports = [...src.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map((m) => m[1]);
     const violations = imports.filter((i) => FORBIDDEN.includes(i));
     assert.deepStrictEqual(
@@ -34,6 +34,6 @@ test('the pure module list matches what is on disk', () => {
   // A module renamed or deleted must fail loudly rather than silently
   // dropping out of the check.
   for (const mod of PURE_MODULES) {
-    assert.ok(fs.existsSync(path.join(__dirname, '..', '..', '..', 'bin', 'lib', 'health-core', mod)), `${mod} is listed as pure but does not exist`);
+    assert.ok(fs.existsSync(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'health-core', mod)), `${mod} is listed as pure but does not exist`);
   }
 });

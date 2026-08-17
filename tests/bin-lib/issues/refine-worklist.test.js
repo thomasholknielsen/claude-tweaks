@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { refineWorklist, selectBudgetSlice } = require('../../../bin/lib/issues/backlog');
+const { refineWorklist, selectBudgetSlice } = require('../../../plugin/bin/lib/issues/backlog');
 
 // Minimal faceted-record builder for refineWorklist cases — matches the
 // shape refineWorklist reads: grants.{build,merge}, bot.{blocked,inProgress},

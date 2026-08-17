@@ -4,8 +4,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { ensureLabelPayload } = require('../../../bin/lib/issues/labels');
-const { LABELS } = require('../../../bin/lib/issues/record');
+const { ensureLabelPayload } = require('../../../plugin/bin/lib/issues/labels');
+const { LABELS } = require('../../../plugin/bin/lib/issues/record');
 
 test('returns { name, description } for a valid description', () => {
   assert.deepStrictEqual(
@@ -67,7 +67,7 @@ test('parent-issue is exported as a LABELS constant matching the canonical boots
 // flow actually uses (see the [reuse] finding this replaces — 7 of these rows used to be
 // hand-copied verbatim from that file instead of read from it).
 function canonicalLabelsFromBootstrapDoc() {
-  const docPath = path.join(__dirname, '..', '..', '..', 'skills', '_shared', 'label-bootstrap.md');
+  const docPath = path.join(__dirname, '..', '..', '..', 'plugin', 'skills', '_shared', 'label-bootstrap.md');
   const md = fs.readFileSync(docPath, 'utf8');
   const match = md.match(/## Canonical LABELS_JSON[\s\S]*?```js\n([\s\S]*?)\n```/);
   assert.ok(match, `labels.test.js: could not locate the Canonical LABELS_JSON fence in ${docPath}`);

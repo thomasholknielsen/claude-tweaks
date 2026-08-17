@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { detectEntrypoints } = require('../../../bin/lib/code-health/candidates-dead-code');
+const { detectEntrypoints } = require('../../../plugin/bin/lib/code-health/candidates-dead-code');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-deadcode-'));
@@ -132,7 +132,7 @@ test('detectEntrypoints: bin/lib/hooks/*.js is NOT an implicit entrypoint when b
   assert.ok(!eps.has('bin/lib/hooks/session-start.js'), 'a literal (non-computed) require must not trigger the implicit-entrypoint carve-out');
 });
 
-const { extractModuleExports } = require('../../../bin/lib/code-health/candidates-dead-code');
+const { extractModuleExports } = require('../../../plugin/bin/lib/code-health/candidates-dead-code');
 
 // ── extractModuleExports ─────────────────────────────────────────────────────
 
@@ -227,7 +227,7 @@ test('extractModuleExports: a "module.exports = {" inside a string value is not 
   assert.deepStrictEqual(found.map((f) => f.symbol), ['real']);
 });
 
-const { isReferenced } = require('../../../bin/lib/code-health/candidates-dead-code');
+const { isReferenced } = require('../../../plugin/bin/lib/code-health/candidates-dead-code');
 
 // ── isReferenced ──────────────────────────────────────────────────────────────
 
@@ -355,7 +355,7 @@ test('isReferenced: the same linesByFile map is safely reused across multiple ca
   assert.strictEqual(isReferenced('usedFn', 'lib/a.js', declRange, allFiles, linesByFile), true);
 });
 
-const { isFileOrphan, referencedFileSpecifiers } = require('../../../bin/lib/code-health/candidates-dead-code');
+const { isFileOrphan, referencedFileSpecifiers } = require('../../../plugin/bin/lib/code-health/candidates-dead-code');
 
 // ── isFileOrphan ──────────────────────────────────────────────────────────────
 
@@ -480,7 +480,7 @@ test('referencedFileSpecifiers: finds require, static import, side-effect import
 });
 
 const { execFileSync } = require('node:child_process');
-const { candidatesDeadCode, scanDeadCode, listTrackedSourceFiles, isGlobDiscoveredTestFile } = require('../../../bin/lib/code-health/candidates-dead-code');
+const { candidatesDeadCode, scanDeadCode, listTrackedSourceFiles, isGlobDiscoveredTestFile } = require('../../../plugin/bin/lib/code-health/candidates-dead-code');
 
 function gitInit(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);
@@ -788,7 +788,7 @@ test('each candidate carries evidence naming its own file and symbol', () => {
 // first so the header's illustrative `require('./a')`-style examples don't
 // count as imports.
 test('cursor-neutrality: the module imports nothing beyond fs/path/child_process/./focus-generators — never scope.js or next-slice', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'bin', 'lib', 'code-health', 'candidates-dead-code.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'code-health', 'candidates-dead-code.js'), 'utf8');
   const codeOnly = src.split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
   const imports = (codeOnly.match(/require\(\s*['"][^'"]+['"]\s*\)/g) || []).sort();
   // './focus-generators' is the shared framework registry this module

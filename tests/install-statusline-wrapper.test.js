@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 
-const { installWrapper, buildWrapperSource } = require('../bin/install-statusline-wrapper.js');
+const { installWrapper, buildWrapperSource } = require('../plugin/bin/install-statusline-wrapper.js');
 
 // Every spawn below runs a real `node` process. The budget used to be 5s, which
 // is generous idle and far too tight under this repo's normal working mode:

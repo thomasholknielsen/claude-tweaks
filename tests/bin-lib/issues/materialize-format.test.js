@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../bin/lib/issues/materialize-format');
+const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../plugin/bin/lib/issues/materialize-format');
 
 const SHAPED_BODY = [
   'Surface: backend',
@@ -123,7 +123,7 @@ test('composeFile: header, then "# {n}: {title}", then the body verbatim', () =>
 
 // ---- materialize.js CLI -----------------------------------------------------
 
-const { run: cliRun } = require('../../../bin/materialize');
+const { run: cliRun } = require('../../../plugin/bin/materialize');
 
 function cliDeps({ ghView, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git' } = {}) {
   const out = []; const err = []; const written = {};

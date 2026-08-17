@@ -11,10 +11,10 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const SCRATCH = read('skills', '_shared', 'scratch-worktree.md');
-const SETUP = read('skills', '_shared', 'worktree-setup.md');
-const MERGE = read('skills', '_shared', 'pr-first-merge.md');
-const CLEANUP = read('skills', 'wrap-up', 'cleanup-procedures.md');
+const SCRATCH = read('plugin', 'skills', '_shared', 'scratch-worktree.md');
+const SETUP = read('plugin', 'skills', '_shared', 'worktree-setup.md');
+const MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge.md');
+const CLEANUP = read('plugin', 'skills', 'wrap-up', 'cleanup-procedures.md');
 
 // --- 1. scratch-worktree.md §6: ancestry check + both outcomes ---
 

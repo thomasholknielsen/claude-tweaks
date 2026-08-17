@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   run, BOT_IN_PROGRESS, ABORT_REASON,
-} = require('../../../bin/lib/claim-targets/claim-targets');
+} = require('../../../plugin/bin/lib/claim-targets/claim-targets');
 
 const REPO = 'acme/w';
 const NOW = Date.parse('2026-08-17T00:00:00.000Z');

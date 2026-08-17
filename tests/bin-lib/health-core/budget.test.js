@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { selectBudget } = require('../../../bin/lib/health-core/budget');
+const { selectBudget } = require('../../../plugin/bin/lib/health-core/budget');
 
 // Regression: this is the extraction target for the "pick up to --budget
 // distinct targets, simulating post-audit cursor state in-memory between

@@ -15,9 +15,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { REGISTRY } = require('../bin/lib/wrap-up/registry');
+const { REGISTRY } = require('../plugin/bin/lib/wrap-up/registry');
 
-const SKILL_PATH = path.join(__dirname, '..', 'skills', 'wrap-up', 'SKILL.md');
+const SKILL_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', 'SKILL.md');
 const skill = fs.readFileSync(SKILL_PATH, 'utf8');
 
 // Strip markdown inline formatting (backticks, bold) from a table cell so
@@ -108,7 +108,7 @@ test('SKILL.md registry table matches registry.js — same rows, same fields', (
 test('every judge file the registry names exists in skills/wrap-up/', () => {
   for (const r of REGISTRY) {
     assert.ok(
-      fs.existsSync(path.join(__dirname, '..', 'skills', 'wrap-up', r.judge)),
+      fs.existsSync(path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', r.judge)),
       `registry.js names judge "${r.judge}" for target "${r.target}" but skills/wrap-up/${r.judge} does not exist`
     );
   }

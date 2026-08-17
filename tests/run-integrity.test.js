@@ -6,7 +6,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { checkRunIntegrity } = require('../bin/lib/hooks/run-integrity');
+const { checkRunIntegrity } = require('../plugin/bin/lib/hooks/run-integrity');
 const { fixtureGit } = require('./helpers/git-fixtures');
 
 function sh(cwd, ...args) {
@@ -194,7 +194,7 @@ test('clean status is a VALID run-state shape but NOT in the non-terminal set ->
   assert.strictEqual(checkRunIntegrity(runDir).state, 'in-progress');
 });
 
-const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 function runSessionStart(cwd) {
   try {
     const stdout = execFileSync('node', [HOOKS, 'session-start'], {

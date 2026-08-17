@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const fleet = fs.readFileSync(path.join(ROOT, 'skills', 'routine', 'fleet.md'), 'utf8');
-const skill = fs.readFileSync(path.join(ROOT, 'skills', 'routine', 'SKILL.md'), 'utf8');
+const fleet = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'routine', 'fleet.md'), 'utf8');
+const skill = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'routine', 'SKILL.md'), 'utf8');
 
 test('fleet.md carries the status and off sections', () => {
   assert.ok(fleet.includes('## Fleet status (aggregation)'));
@@ -36,7 +36,7 @@ test('SKILL.md wires fleet status and fleet off modes', () => {
 
 test('README.md and context-flow.md surface fleet status (AC5)', () => {
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-  const contextFlow = fs.readFileSync(path.join(ROOT, 'skills', 'help', 'context-flow.md'), 'utf8');
+  const contextFlow = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'help', 'context-flow.md'), 'utf8');
   assert.ok(readme.includes('fleet status'));
   assert.ok(contextFlow.includes('fleet status'));
 });

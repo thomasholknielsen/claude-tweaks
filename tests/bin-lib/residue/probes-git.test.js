@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeWorktrees } = require('../../../bin/lib/residue/probes/worktrees');
-const { probeBranches } = require('../../../bin/lib/residue/probes/branches');
+const { probeWorktrees } = require('../../../plugin/bin/lib/residue/probes/worktrees');
+const { probeBranches } = require('../../../plugin/bin/lib/residue/probes/branches');
 
 function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);

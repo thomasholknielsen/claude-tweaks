@@ -5,8 +5,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 
-const STATUSLINE = path.join(__dirname, '..', 'bin', 'claude-tweaks-statusline.js');
-const sl = require('../bin/claude-tweaks-statusline.js');
+const STATUSLINE = path.join(__dirname, '..', 'plugin', 'bin', 'claude-tweaks-statusline.js');
+const sl = require('../plugin/bin/claude-tweaks-statusline.js');
 
 // Hermetic: a throwaway $HOME, and the running session's own CLAUDE_CONFIG_DIR
 // dropped so the acct segment sees only what `seedHome` put in that HOME.
@@ -533,7 +533,7 @@ test('findOpenLedger skips a ledger file raced out between readdir and readFileS
 // mechanical link back to this assumption, the statusline's ledger segment
 // would silently break or miscount — this test fails loudly instead.
 test('findOpenLedger cells[4] assumption matches the documented ledger table shape in skills/ledger/SKILL.md', () => {
-  const skillDoc = fs.readFileSync(path.join(__dirname, '..', 'skills', 'ledger', 'SKILL.md'), 'utf8');
+  const skillDoc = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', 'ledger', 'SKILL.md'), 'utf8');
   const headerLine = skillDoc.split('\n').find((l) => {
     const t = l.trim();
     return t.startsWith('| #') && t.includes('Status');

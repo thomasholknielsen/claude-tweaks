@@ -15,13 +15,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { parseChangelogVersions, findHeadingDefects, findCoverageGaps } = require('../bin/lib/changelog.js');
-const { historyAvailable, shippedVersions, walkedVersions } = require('../bin/lib/changelog-git.js');
-const { RECORD_PATH, readShippedRecord, recordedVersions } = require('../bin/lib/shipped-record.js');
+const { parseChangelogVersions, findHeadingDefects, findCoverageGaps } = require('../plugin/bin/lib/changelog.js');
+const { historyAvailable, shippedVersions, walkedVersions } = require('../plugin/bin/lib/changelog-git.js');
+const { RECORD_PATH, readShippedRecord, recordedVersions } = require('../plugin/bin/lib/shipped-record.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CHANGELOG_PATH = path.join(REPO_ROOT, 'CHANGELOG.md');
-const MANIFEST_PATH = path.join(REPO_ROOT, '.claude-plugin', 'plugin.json');
+const MANIFEST_PATH = path.join(REPO_ROOT, 'plugin', '.claude-plugin', 'plugin.json');
 
 const changelog = fs.readFileSync(CHANGELOG_PATH, 'utf8');
 const manifestVersion = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')).version;

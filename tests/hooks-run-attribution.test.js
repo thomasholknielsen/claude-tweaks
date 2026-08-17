@@ -20,9 +20,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const ctxLib = require('../bin/lib/hooks/context.js');
-const sessionEnd = require('../bin/lib/hooks/session-end.js');
-const preCompact = require('../bin/lib/hooks/pre-compact.js');
+const ctxLib = require('../plugin/bin/lib/hooks/context.js');
+const sessionEnd = require('../plugin/bin/lib/hooks/session-end.js');
+const preCompact = require('../plugin/bin/lib/hooks/pre-compact.js');
 
 function project() {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-attr-')));

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { requireNonEmptyStrings, validateRelatedSections } = require('../../../bin/lib/health-core/finding-validation');
+const { requireNonEmptyStrings, validateRelatedSections } = require('../../../plugin/bin/lib/health-core/finding-validation');
 
 // ── requireNonEmptyStrings ───────────────────────────────────────────────────
 
@@ -71,9 +71,9 @@ test('validateRelatedSections reports an array containing a non-string', () => {
 // relatedSections shape check) duplicated across all three files with zero
 // require() calls tying them together.
 test('requireNonEmptyStrings and validateRelatedSections back every consumer validate-finding.js', () => {
-  const { validateFinding: harnessValidate } = require('../../../bin/lib/harness-health/validate-finding');
-  const { validateFinding: journeyValidate } = require('../../../bin/lib/journey-health/validate-finding');
-  const { validateFinding: docsValidate } = require('../../../bin/lib/docs-health/validate-finding');
+  const { validateFinding: harnessValidate } = require('../../../plugin/bin/lib/harness-health/validate-finding');
+  const { validateFinding: journeyValidate } = require('../../../plugin/bin/lib/journey-health/validate-finding');
+  const { validateFinding: docsValidate } = require('../../../plugin/bin/lib/docs-health/validate-finding');
 
   // A finding missing every required field must report the same error-shape
   // family (one "required non-empty string" error per missing field) in all

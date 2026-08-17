@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'record-graph.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'record-graph.js');
 
 function tmpJson(records) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'record-graph-cli-'));

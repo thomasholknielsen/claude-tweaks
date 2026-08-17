@@ -8,9 +8,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { PROFILES, effortLine } = require('../../../bin/lib/model-profiles/profiles');
+const { PROFILES, effortLine } = require('../../../plugin/bin/lib/model-profiles/profiles');
 
-const CONTRACT = path.join(__dirname, '..', '..', '..', 'skills', '_shared', 'subagent-output-contract.md');
+const CONTRACT = path.join(__dirname, '..', '..', '..', 'plugin', 'skills', '_shared', 'subagent-output-contract.md');
 
 function modelSelectionSection() {
   const text = fs.readFileSync(CONTRACT, 'utf8');

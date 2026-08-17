@@ -18,11 +18,11 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
-const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
-const FLOW_SKILL = read('skills', 'flow', 'SKILL.md');
-const STEPS_AND_GATES = read('skills', 'flow', 'steps-and-gates.md');
-const DISPATCH_SKILL = read('skills', 'dispatch', 'SKILL.md');
-const CLEANUP_PROCEDURES = read('skills', 'wrap-up', 'cleanup-procedures.md');
+const TASK_PROMPT = read('plugin', 'skills', 'dispatch', 'task-prompt.md');
+const FLOW_SKILL = read('plugin', 'skills', 'flow', 'SKILL.md');
+const STEPS_AND_GATES = read('plugin', 'skills', 'flow', 'steps-and-gates.md');
+const DISPATCH_SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
+const CLEANUP_PROCEDURES = read('plugin', 'skills', 'wrap-up', 'cleanup-procedures.md');
 
 test('task-prompt.md: the second call\'s literal command line carries PIPELINE_RUN_DIR', () => {
   const start = TASK_PROMPT.indexOf('## Second call');

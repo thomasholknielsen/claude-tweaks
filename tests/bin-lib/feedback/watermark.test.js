@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const watermark = require('../../../bin/lib/feedback/watermark');
+const watermark = require('../../../plugin/bin/lib/feedback/watermark');
 
 // Fake deps are plain objects backed by an in-memory `store` keyed by the
 // path a real fs call would use, matching tests/bin-lib/feedback/

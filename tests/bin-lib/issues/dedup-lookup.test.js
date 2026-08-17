@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { findByMarker } = require('../../../bin/lib/issues/dedup-lookup');
+const { findByMarker } = require('../../../plugin/bin/lib/issues/dedup-lookup');
 
 test('findByMarker returns null when issues array is empty', () => {
   assert.strictEqual(findByMarker([], '<!-- marker -->'), null);

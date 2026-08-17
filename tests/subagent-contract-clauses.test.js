@@ -25,7 +25,7 @@ const ROOT = path.join(__dirname, '..');
 
 const FILES = {
   'skills/_shared/subagent-output-contract.md': fs.readFileSync(
-    path.join(ROOT, 'skills', '_shared', 'subagent-output-contract.md'),
+    path.join(ROOT, 'plugin', 'skills', '_shared', 'subagent-output-contract.md'),
     'utf8',
   ),
   'CLAUDE.md': fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8'),
@@ -149,7 +149,7 @@ test('the exempt dispatch names itself in both the contract and the call site (#
   );
 
   const reviewMode = fs.readFileSync(
-    path.join(ROOT, 'skills', 'design-wrapper', 'modes', 'review.md'),
+    path.join(ROOT, 'plugin', 'skills', 'design-wrapper', 'modes', 'review.md'),
     'utf8',
   );
   assert.match(

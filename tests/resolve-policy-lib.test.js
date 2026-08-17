@@ -5,7 +5,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { resolvePolicyKeys, parseFlatLines } = require('../bin/lib/policy-schema');
+const { resolvePolicyKeys, parseFlatLines } = require('../plugin/bin/lib/policy-schema');
 
 test('parseFlatLines is exported (Task 2 wrappers consume it)', () => {
   assert.strictEqual(typeof parseFlatLines, 'function');

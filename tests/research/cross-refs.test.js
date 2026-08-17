@@ -6,11 +6,11 @@ const path = require('node:path');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 function readSkill(name, file = 'SKILL.md') {
-  return fs.readFileSync(path.join(REPO_ROOT, 'skills', name, file), 'utf8');
+  return fs.readFileSync(path.join(REPO_ROOT, 'plugin', 'skills', name, file), 'utf8');
 }
 
 function readSubfile(skill, filename) {
-  return fs.readFileSync(path.join(REPO_ROOT, 'skills', skill, filename), 'utf8');
+  return fs.readFileSync(path.join(REPO_ROOT, 'plugin', 'skills', skill, filename), 'utf8');
 }
 
 // These edges used to be asserted twice — once in /research's own Relationship
@@ -58,7 +58,7 @@ test('docs/skill-graph.md records the /research verify <-> /superpowers:brainsto
 });
 
 test('skills/specify/ actually mentions /research (the specify<->research edge is wired, not aspirational)', () => {
-  const specifyDir = path.join(REPO_ROOT, 'skills', 'specify');
+  const specifyDir = path.join(REPO_ROOT, 'plugin', 'skills', 'specify');
   const files = fs.readdirSync(specifyDir).filter((f) => f.endsWith('.md'));
   const hit = files.some((f) => /research/i.test(fs.readFileSync(path.join(specifyDir, f), 'utf8')));
   assert.ok(hit, 'at least one file under skills/specify/ must mention /research — docs/skill-graph.md\'s specify<->research edge must be real, not aspirational');

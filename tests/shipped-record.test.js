@@ -14,8 +14,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { fixtureGit, FIXTURE_TIMEOUT_MS } = require('./helpers/git-fixtures.js');
-const { walkedVersions, shippedVersions } = require('../bin/lib/changelog-git.js');
-const { RECORD_PATH, readShippedRecord, recordedVersions, appendShippedVersion } = require('../bin/lib/shipped-record.js');
+const { walkedVersions, shippedVersions } = require('../plugin/bin/lib/changelog-git.js');
+const { RECORD_PATH, readShippedRecord, recordedVersions, appendShippedVersion } = require('../plugin/bin/lib/shipped-record.js');
 
 function writeManifest(dir, version) {
   const manifestDir = path.join(dir, '.claude-plugin');
